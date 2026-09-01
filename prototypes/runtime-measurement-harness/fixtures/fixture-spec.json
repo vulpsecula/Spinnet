@@ -1,0 +1,6 @@
+{
+  "installed_counts": [0, 200],
+  "command_kinds": ["transform-text", "open-url", "invoke-helper", "show-list"],
+  "payload_bytes": 256,
+  "seed": "spinnet-runtime-harness-v1"
+}
