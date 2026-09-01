@@ -1,0 +1,4 @@
+.build/
+measurements/automated-latest/
+measurements/manual-*/
+

@@ -1,0 +1,185 @@
+{
+  "automated" : true,
+  "automation_scope" : "Real AppKit panel lifecycle, synchronous Menu drawing, pointer geometry, no-op Primary Action acknowledgement, dismissal, and memory sampling. Direct in-process invocation; no synthetic global OS input and a nearly transparent panel.",
+  "conditions" : {
+    "active_processor_count" : 10,
+    "cpu" : "Apple M1 Pro",
+    "hardware_model" : "MacBookPro18,1",
+    "kernel" : "Darwin MacBookPro.lan 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:49 PDT 2026; root:xnu-12377.161.14~5\/RELEASE_ARM64_T6000 arm64",
+    "load_average_at_summary" : [
+      6.48291015625,
+      6.03662109375,
+      4.01025390625
+    ],
+    "low_power_mode" : false,
+    "main_display_pixels_high" : 1080,
+    "main_display_pixels_wide" : 1920,
+    "main_display_refresh_hz" : 144,
+    "main_screen_backing_scale" : 2,
+    "operating_system" : "Version 26.6.2 (Build 25G83)",
+    "physical_memory_bytes" : 17179869184,
+    "power" : "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22085731)\t80%; AC attached; not charging present: true",
+    "screen_count" : 1,
+    "session_manager" : "Aqua",
+    "swift_compiler" : "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0",
+    "thermal_state" : 0
+  },
+  "generated_at" : "2026-09-01T17:36:29Z",
+  "iterations" : 200,
+  "measurement_method" : {
+    "latency_clock" : "mach_continuous_time via ContinuousClock",
+    "private_memory" : "TASK_VM_INFO.phys_footprint; physical-footprint proxy, not uniquely private dirty pages",
+    "render_boundary" : "NSView.displayIfNeeded plus CATransaction.flush; process-side, not photon latency"
+  },
+  "metrics" : {
+    "cold.host_ready_latency_ms" : {
+      "count" : 1,
+      "max" : 183.79929100000001,
+      "mean" : 183.79929100000001,
+      "min" : 183.79929100000001,
+      "p50" : 183.79929100000001,
+      "p95" : 183.79929100000001,
+      "unit" : "ms"
+    },
+    "cold.host_ready_private_memory_bytes" : {
+      "count" : 1,
+      "max" : 9863888,
+      "mean" : 9863888,
+      "min" : 9863888,
+      "p50" : 9863888,
+      "p95" : 9863888,
+      "unit" : "bytes"
+    },
+    "cold.menu_close_latency_ms" : {
+      "count" : 1,
+      "max" : 5.0797499999999998,
+      "mean" : 5.0797499999999998,
+      "min" : 5.0797499999999998,
+      "p50" : 5.0797499999999998,
+      "p95" : 5.0797499999999998,
+      "unit" : "ms"
+    },
+    "cold.menu_open_latency_ms" : {
+      "count" : 1,
+      "max" : 4.5768329999999997,
+      "mean" : 4.5768329999999997,
+      "min" : 4.5768329999999997,
+      "p50" : 4.5768329999999997,
+      "p95" : 4.5768329999999997,
+      "unit" : "ms"
+    },
+    "cold.pointer_selection_latency_ms" : {
+      "count" : 1,
+      "max" : 17.127624999999998,
+      "mean" : 17.127624999999998,
+      "min" : 17.127624999999998,
+      "p50" : 17.127624999999998,
+      "p95" : 17.127624999999998,
+      "unit" : "ms"
+    },
+    "cold.primary_action_latency_ms" : {
+      "count" : 1,
+      "max" : 0.00075000000000000002,
+      "mean" : 0.00075000000000000002,
+      "min" : 0.00075000000000000002,
+      "p50" : 0.00075000000000000002,
+      "p95" : 0.00075000000000000002,
+      "unit" : "ms"
+    },
+    "cold.private_memory_before_open_bytes" : {
+      "count" : 1,
+      "max" : 11764432,
+      "mean" : 11764432,
+      "min" : 11764432,
+      "p50" : 11764432,
+      "p95" : 11764432,
+      "unit" : "bytes"
+    },
+    "cold.private_memory_closed_bytes" : {
+      "count" : 1,
+      "max" : 15336144,
+      "mean" : 15336144,
+      "min" : 15336144,
+      "p50" : 15336144,
+      "p95" : 15336144,
+      "unit" : "bytes"
+    },
+    "cold.private_memory_open_bytes" : {
+      "count" : 1,
+      "max" : 11895504,
+      "mean" : 11895504,
+      "min" : 11895504,
+      "p50" : 11895504,
+      "p95" : 11895504,
+      "unit" : "bytes"
+    },
+    "warm.menu_close_latency_ms" : {
+      "count" : 200,
+      "max" : 12.9315,
+      "mean" : 6.2972629449999991,
+      "min" : 3.0728749999999998,
+      "p50" : 6.0397080000000001,
+      "p95" : 7.3725829999999997,
+      "unit" : "ms"
+    },
+    "warm.menu_open_latency_ms" : {
+      "count" : 200,
+      "max" : 31.861166999999998,
+      "mean" : 4.6206450100000014,
+      "min" : 1.029542,
+      "p50" : 6.042916,
+      "p95" : 6.5997079999999997,
+      "unit" : "ms"
+    },
+    "warm.pointer_selection_latency_ms" : {
+      "count" : 200,
+      "max" : 5.9119159999999997,
+      "mean" : 2.1747993350000008,
+      "min" : 0.643459,
+      "p50" : 0.86370800000000003,
+      "p95" : 5.210458,
+      "unit" : "ms"
+    },
+    "warm.primary_action_latency_ms" : {
+      "count" : 200,
+      "max" : 0.012500000000000001,
+      "mean" : 0.00062914500000000044,
+      "min" : 0.00025000000000000001,
+      "p50" : 0.00054199999999999995,
+      "p95" : 0.00083299999999999997,
+      "unit" : "ms"
+    },
+    "warm.private_memory_before_open_bytes" : {
+      "count" : 200,
+      "max" : 38519576,
+      "mean" : 35202293.240000002,
+      "min" : 32506624,
+      "p50" : 35242776,
+      "p95" : 35373848,
+      "unit" : "bytes"
+    },
+    "warm.private_memory_closed_bytes" : {
+      "count" : 200,
+      "max" : 38519576,
+      "mean" : 35247922.799999997,
+      "min" : 32588544,
+      "p50" : 35275520,
+      "p95" : 35406616,
+      "unit" : "bytes"
+    },
+    "warm.private_memory_open_bytes" : {
+      "count" : 200,
+      "max" : 38535960,
+      "mean" : 35240795.759999998,
+      "min" : 32604928,
+      "p50" : 35275520,
+      "p95" : 35423000,
+      "unit" : "bytes"
+    }
+  },
+  "mode" : "benchmark",
+  "record_type" : "summary",
+  "sample_count" : 1409,
+  "schema_version" : 1,
+  "warmups" : 20
+}
