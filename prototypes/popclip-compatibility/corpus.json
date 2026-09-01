@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "question": "What does a boundary-stratified PopClip Extension corpus reveal about behavior Spinnet must support, degrade, or reject, and which runtime features materially affect the Plugin process boundary?",
+  "selection_method": "Purposive maximum-variation sample across all six configuration containers observed in the pinned official repository and across static, invocation-script, common-JavaScript, and extended-JavaScript behavior. This is not a random sample and cannot support an ecosystem-wide compatibility percentage.",
+  "upstream": {
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions.git",
+    "web_url": "https://github.com/pilotmoon/PopClip-Extensions",
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "licence": "MIT",
+    "licence_path": "LICENSE.txt",
+    "licence_basis": "The repository README states that all source code is MIT-licensed. No package-level licence override was found in the selected package README/Readme files. The committed snapshot preserves the upstream MIT notice and excludes artwork, demos, and documentation."
+  },
+  "input_snapshot": {
+    "root": "inputs",
+    "scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "licence_notice": "inputs/LICENSE.txt",
+    "tree_sha256": "030eac7eb32cecad3a0e9aae48bcf33ffe4b3b6873e1c2c0766ec87e93a4b5a0"
+  },
+  "compatibility_levels": [
+    {
+      "id": "host-adapter",
+      "name": "Host Adapter",
+      "disposition": "supported",
+      "boundary": "Host only",
+      "meaning": "Declarative behavior can map to Host Commands without starting a Plugin process."
+    },
+    {
+      "id": "invocation-script",
+      "name": "Invocation Script",
+      "disposition": "degraded",
+      "boundary": "Invocation-only interpreter process",
+      "meaning": "Shell Script or AppleScript behavior requires a short-lived interpreter, capability checks, timeout, and result adaptation."
+    },
+    {
+      "id": "common-javascript",
+      "name": "Common JavaScript",
+      "disposition": "degraded",
+      "boundary": "Shared JavaScript runtime facility with a logical context per Plugin",
+      "meaning": "JavaScript uses common input, context, options, and popclip bridge calls but still requires a sandboxed bridge and semantic validation."
+    },
+    {
+      "id": "extended-javascript",
+      "name": "Extended JavaScript Review",
+      "disposition": "unsupported",
+      "boundary": "Unresolved; do not admit automatically",
+      "meaning": "Networking, authentication, retained state, external dependencies, DOM/HTML processing, uncommon APIs, or dynamic behavior needs explicit design and review."
+    },
+    {
+      "id": "reject",
+      "name": "Reject",
+      "disposition": "unsupported",
+      "boundary": "No Plugin execution",
+      "meaning": "Unknown configuration, native executable content, or an unclassified executable surface is outside the measured compatibility boundary."
+    }
+  ],
+  "extensions": [
+    {"name": "DuckDuckGo", "path": "source/DuckDuckGo.popclipext", "files": ["Config.plist"], "stratum": "plist + URL + regex", "reason": "Legacy declarative URL action with a selection regex."},
+    {"name": "Delete", "path": "source/Delete.popclipext", "files": ["Config.plist"], "stratum": "plist + key press + requirements", "reason": "Host-adaptable key press with requirements and stay-visible semantics."},
+    {"name": "MakeSticky", "path": "source/MakeSticky.popclipext", "files": ["Config.plist"], "stratum": "plist + Service", "reason": "Host-adaptable macOS Service action."},
+    {"name": "Say", "path": "source/Say.popclipext", "files": ["Config.yaml"], "stratum": "yaml + Shell Script + options", "reason": "Invocation-only shell process with environment-derived options."},
+    {"name": "Alfred", "path": "source/Alfred.popclipext", "files": ["Config.yaml"], "stratum": "yaml + inline AppleScript", "reason": "Invocation-only AppleScript embedded in a declarative container."},
+    {"name": "Antinote", "path": "source/Antinote.popclipext", "files": ["Config.applescript"], "stratum": "applescript config module", "reason": "One of the two AppleScript configuration containers in the pinned snapshot."},
+    {"name": "AlternatingCase", "path": "source/AlternatingCase.popclipext", "files": ["Config.js"], "stratum": "javascript config + common bridge", "reason": "Pure transform plus options and popclip.pasteText."},
+    {"name": "Base64", "path": "source/Base64.popclipext", "files": ["Config.json", "base64.js", "base64.ts"], "stratum": "json + JavaScript module + util API", "reason": "Static JSON manifest delegates to JavaScript and uncommon util helpers."},
+    {"name": "Agenda", "path": "source/Agenda.popclipext", "files": ["Config.ts"], "stratum": "typescript config + context + URL", "reason": "TypeScript module reads browser context, captures rich text, and calls popclip.openUrl."},
+    {"name": "Bitly", "path": "source/Bitly.popclipext", "files": ["Config.json", "bitly.bundle.js", "bitly.js", "bitly.ts", "client.json"], "stratum": "json + bundled JavaScript + network/auth", "reason": "Network entitlement, authentication flow, bundled code, and external dependencies."},
+    {"name": "Ollama", "path": "source/Ollama.popclipext", "files": ["Config.ts"], "stratum": "typescript config + network + retained state", "reason": "Network access, external dependency, modifier input, and state retained between invocations."},
+    {"name": "CopyAsMarkdown", "path": "source/CopyAsMarkdown.popclipext", "files": ["Config.js"], "stratum": "javascript config + HTML + dependencies", "reason": "Captured HTML, DOM construction, and two external JavaScript dependencies."}
+  ]
+}

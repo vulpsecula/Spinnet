@@ -1,0 +1,69 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "common-javascript",
+      "name": "Common JavaScript"
+    },
+    "disposition": "degraded",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "openUrl",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "invocation_context",
+        "evidence": "Context field usage",
+        "process_boundary": "Host passes Invocation Context across the boundary",
+        "status": "degraded"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      },
+      {
+        "category": "rich_selected_content",
+        "evidence": "HTML/Markdown input usage",
+        "process_boundary": "Host captures and passes rich selected content",
+        "status": "degraded"
+      }
+    ],
+    "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin"
+  },
+  "corpus": {
+    "selection_reason": "TypeScript module reads browser context, captures rich text, and calls popclip.openUrl.",
+    "stratum": "typescript config + context + URL"
+  },
+  "file_inventory": [
+    {
+      "bytes": 1403,
+      "path": "Config.ts",
+      "scanned_as_text": true,
+      "sha256": "c464a15c4fc8b51c831e78ba54fe954124bebd98e6128ef9ca9823081db0e922"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "typescript",
+    "identifier": "com.pilotmoon.popclip.extension.agenda",
+    "manifest_name": "Agenda",
+    "name": "Agenda"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "42ade02fa9d962dacc2521a648faa30e8ca84b4a515fcb80ed9acf7fbe5ed85d",
+    "path": "source/Agenda.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

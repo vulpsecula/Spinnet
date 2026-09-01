@@ -1,0 +1,45 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "host-adapter",
+      "name": "Host Adapter"
+    },
+    "disposition": "supported",
+    "findings": [
+      {
+        "category": "macos_service",
+        "evidence": "Declarative Service field",
+        "process_boundary": "Host only",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Host only"
+  },
+  "corpus": {
+    "selection_reason": "Host-adaptable macOS Service action.",
+    "stratum": "plist + Service"
+  },
+  "file_inventory": [
+    {
+      "bytes": 720,
+      "path": "Config.plist",
+      "scanned_as_text": true,
+      "sha256": "e0ebe446d5a34c25e8a023f7f4825ddb6058e2a14e48624ed1443ee49e7a0582"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "plist",
+    "identifier": "com.pilotmoon.popclip.extension.make-sticky",
+    "manifest_name": "MakeSticky",
+    "name": "Stickies"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "61f0dd28d5735df1cbd6507ca45050d16e93dfbe0286c91c0d1aaa934b410a35",
+    "path": "source/MakeSticky.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

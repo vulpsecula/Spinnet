@@ -1,0 +1,81 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "extended-javascript",
+      "name": "Extended JavaScript Review"
+    },
+    "disposition": "unsupported",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "pasteText",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      },
+      {
+        "category": "popclip_util_api",
+        "evidence": "base64Decode, base64Encode",
+        "process_boundary": "Unresolved JavaScript bridge",
+        "status": "unsupported"
+      },
+      {
+        "category": "selection_regex",
+        "evidence": "Selection regular expression",
+        "process_boundary": "Host only",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Unresolved; do not admit automatically"
+  },
+  "corpus": {
+    "selection_reason": "Static JSON manifest delegates to JavaScript and uncommon util helpers.",
+    "stratum": "json + JavaScript module + util API"
+  },
+  "file_inventory": [
+    {
+      "bytes": 714,
+      "path": "Config.json",
+      "scanned_as_text": true,
+      "sha256": "84e4ea0af92908c69f011cf52646c13180306256cc6e486a60793e944118e7da"
+    },
+    {
+      "bytes": 608,
+      "path": "base64.js",
+      "scanned_as_text": true,
+      "sha256": "848bab87b2d4ae684c880debb4eb03e8b1b2dcdbcc552f2fa2d6ac147e6a0f2c"
+    },
+    {
+      "bytes": 482,
+      "path": "base64.ts",
+      "scanned_as_text": true,
+      "sha256": "ae49c7871008d0f31e2995fe70fe47ad73e4fea740901e010e0a1a17517d9bb4"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "json",
+    "identifier": "com.pilotmoon.popclip.extension.base64",
+    "manifest_name": "Base64",
+    "name": "Base64"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "5bc9c4f18c3a5cf3f8e7ff0be123a0277a520b1755a49b2862cf419aaaae40b4",
+    "path": "source/Base64.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "host-adapter",
+      "name": "Host Adapter"
+    },
+    "disposition": "supported",
+    "findings": [
+      {
+        "category": "selection_regex",
+        "evidence": "Selection regular expression",
+        "process_boundary": "Host only",
+        "status": "supported"
+      },
+      {
+        "category": "static_url",
+        "evidence": "Declarative URL field",
+        "process_boundary": "Host only",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Host only"
+  },
+  "corpus": {
+    "selection_reason": "Legacy declarative URL action with a selection regex.",
+    "stratum": "plist + URL + regex"
+  },
+  "file_inventory": [
+    {
+      "bytes": 997,
+      "path": "Config.plist",
+      "scanned_as_text": true,
+      "sha256": "12abd582dba88bdb3e56fb3fbb76b9684cc7f18305c5eb9110a6fb463efdb50d"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "plist",
+    "identifier": "com.pilotmoon.popclip.extension.duckduckgo",
+    "manifest_name": "DuckDuckGo",
+    "name": "DuckDuckGo"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "a3fcd4f22517c9f19e317e9ee334cf0fdb696295fad146428105e959a3e70bae",
+    "path": "source/DuckDuckGo.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

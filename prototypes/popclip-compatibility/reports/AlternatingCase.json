@@ -1,0 +1,57 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "common-javascript",
+      "name": "Common JavaScript"
+    },
+    "disposition": "degraded",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "pasteText",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin"
+  },
+  "corpus": {
+    "selection_reason": "Pure transform plus options and popclip.pasteText.",
+    "stratum": "javascript config + common bridge"
+  },
+  "file_inventory": [
+    {
+      "bytes": 1102,
+      "path": "Config.js",
+      "scanned_as_text": true,
+      "sha256": "80b7863faba537e26681a41be6a74de4f54586e59cfaca4abf694655d267d6a6"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "javascript",
+    "identifier": "com.pilotmoon.popclip.extension.alternating-case",
+    "manifest_name": "AlternatingCase",
+    "name": "Alternating Case"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "70c5d95954d1f1bf7ec86c9955a2a277ff0051e31845f8d0f4200bc9eb71c7d1",
+    "path": "source/AlternatingCase.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "invocation-script",
+      "name": "Invocation Script"
+    },
+    "disposition": "degraded",
+    "findings": [
+      {
+        "category": "applescript",
+        "evidence": "AppleScript configuration or declaration",
+        "process_boundary": "Invocation-only interpreter process",
+        "status": "degraded"
+      }
+    ],
+    "process_boundary": "Invocation-only interpreter process"
+  },
+  "corpus": {
+    "selection_reason": "Invocation-only AppleScript embedded in a declarative container.",
+    "stratum": "yaml + inline AppleScript"
+  },
+  "file_inventory": [
+    {
+      "bytes": 379,
+      "path": "Config.yaml",
+      "scanned_as_text": true,
+      "sha256": "2736fd2cd83524d65b7a7594e7e9fb16a1daabc3292218fd9b43c61b53d80491"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "yaml",
+    "identifier": "com.pilotmoon.popclip.extension.alfred",
+    "manifest_name": "Alfred",
+    "name": "Alfred"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "f5447d212c914eb3f7d09040a1931d42a8b7c02b5660ec80de0a48f24235b930",
+    "path": "source/Alfred.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

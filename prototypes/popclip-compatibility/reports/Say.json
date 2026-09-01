@@ -1,0 +1,51 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "invocation-script",
+      "name": "Invocation Script"
+    },
+    "disposition": "degraded",
+    "findings": [
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      },
+      {
+        "category": "shell_script",
+        "evidence": "Shell Script declaration",
+        "process_boundary": "Invocation-only interpreter process",
+        "status": "degraded"
+      }
+    ],
+    "process_boundary": "Invocation-only interpreter process"
+  },
+  "corpus": {
+    "selection_reason": "Invocation-only shell process with environment-derived options.",
+    "stratum": "yaml + Shell Script + options"
+  },
+  "file_inventory": [
+    {
+      "bytes": 994,
+      "path": "Config.yaml",
+      "scanned_as_text": true,
+      "sha256": "91a407d0653a5ac67decd3a6440fb8eadca85d5e89013bc3e55ad7f7bcadc436"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "yaml",
+    "identifier": "com.pilotmoon.popclip.extension.say",
+    "manifest_name": "Say",
+    "name": "Say"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "d3abf7fdfa2cdc2b434b55456f114cac227fa65835d69b2936f90551a902df96",
+    "path": "source/Say.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

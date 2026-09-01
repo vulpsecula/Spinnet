@@ -1,0 +1,45 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "invocation-script",
+      "name": "Invocation Script"
+    },
+    "disposition": "degraded",
+    "findings": [
+      {
+        "category": "applescript",
+        "evidence": "AppleScript configuration or declaration",
+        "process_boundary": "Invocation-only interpreter process",
+        "status": "degraded"
+      }
+    ],
+    "process_boundary": "Invocation-only interpreter process"
+  },
+  "corpus": {
+    "selection_reason": "One of the two AppleScript configuration containers in the pinned snapshot.",
+    "stratum": "applescript config module"
+  },
+  "file_inventory": [
+    {
+      "bytes": 524,
+      "path": "Config.applescript",
+      "scanned_as_text": true,
+      "sha256": "c4bc76b38289e82e28e962c9881aeba74bbe4c6a66d3a0fa972502a46049cd3b"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "applescript",
+    "identifier": "com.pilotmoon.popclip.extension.antinote",
+    "manifest_name": "Antinote",
+    "name": "Antinote"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "bbd9aa101055746b2a94c84c55b99e671fb4ef86ba5406efe7280ebee0e3e74d",
+    "path": "source/Antinote.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

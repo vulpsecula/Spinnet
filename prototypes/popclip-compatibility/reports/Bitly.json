@@ -1,0 +1,99 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "extended-javascript",
+      "name": "Extended JavaScript Review"
+    },
+    "disposition": "unsupported",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "options",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "external_javascript_dependency",
+        "evidence": "axios",
+        "process_boundary": "Dependency packaging and runtime unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "network_access",
+        "evidence": "Network entitlement or client usage",
+        "process_boundary": "Capability and network bridge unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "popclip_util_api",
+        "evidence": "buildQuery, clarify",
+        "process_boundary": "Unresolved JavaScript bridge",
+        "status": "unsupported"
+      },
+      {
+        "category": "requirements",
+        "evidence": "Requirements declaration",
+        "process_boundary": "Host only",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Unresolved; do not admit automatically"
+  },
+  "corpus": {
+    "selection_reason": "Network entitlement, authentication flow, bundled code, and external dependencies.",
+    "stratum": "json + bundled JavaScript + network/auth"
+  },
+  "file_inventory": [
+    {
+      "bytes": 471,
+      "path": "Config.json",
+      "scanned_as_text": true,
+      "sha256": "1d95c5545bee4c7cb94546afb1a83f458e0bd7656305bd231a457fa17967b906"
+    },
+    {
+      "bytes": 8091,
+      "path": "bitly.bundle.js",
+      "scanned_as_text": true,
+      "sha256": "04bb41cb202245083888c7dcfa310d7559a477a545d19639e4ae6ba04c12d05d"
+    },
+    {
+      "bytes": 1645,
+      "path": "bitly.js",
+      "scanned_as_text": true,
+      "sha256": "e03e3986d5a67dfb1d61cae105ec6cd93d205591c6c1a0a29c565f259edd22c8"
+    },
+    {
+      "bytes": 1460,
+      "path": "bitly.ts",
+      "scanned_as_text": true,
+      "sha256": "8d1959f7c35536cd18ddd1d27145a254bff282d37153a331e02cd65ef1789b93"
+    },
+    {
+      "bytes": 207,
+      "path": "client.json",
+      "scanned_as_text": true,
+      "sha256": "fef5140e7f1221722661a76b77c6183d59efa4d88677c7d6280c133079b6a2bf"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "json",
+    "identifier": "com.pilotmoon.popclip.extension.bitly",
+    "manifest_name": "Bitly",
+    "name": "Bitly"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "a20783a4385e74b606c31794accb552d624e8967eb8afb2c03bb7a2acd9f4b96",
+    "path": "source/Bitly.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

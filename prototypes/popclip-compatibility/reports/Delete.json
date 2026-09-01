@@ -1,0 +1,57 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "host-adapter",
+      "name": "Host Adapter"
+    },
+    "disposition": "supported",
+    "findings": [
+      {
+        "category": "key_press",
+        "evidence": "Declarative key-combination field",
+        "process_boundary": "Host only",
+        "status": "supported"
+      },
+      {
+        "category": "requirements",
+        "evidence": "Requirements declaration",
+        "process_boundary": "Host only",
+        "status": "supported"
+      },
+      {
+        "category": "selection_regex",
+        "evidence": "Selection regular expression",
+        "process_boundary": "Host only",
+        "status": "supported"
+      }
+    ],
+    "process_boundary": "Host only"
+  },
+  "corpus": {
+    "selection_reason": "Host-adaptable key press with requirements and stay-visible semantics.",
+    "stratum": "plist + key press + requirements"
+  },
+  "file_inventory": [
+    {
+      "bytes": 1252,
+      "path": "Config.plist",
+      "scanned_as_text": true,
+      "sha256": "c0b8bf639883df0bc87ee08303aaa3d5c17f7e38797f375b9931bce2aa019ed5"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "plist",
+    "identifier": "com.pilotmoon.popclip.extension.delete",
+    "manifest_name": "Delete",
+    "name": "Delete"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "c1510c991b8e157ddce184149e9848d591804c6f848cd9abd52f67bedb5055f1",
+    "path": "source/Delete.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

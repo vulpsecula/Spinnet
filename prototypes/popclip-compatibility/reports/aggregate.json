@@ -1,0 +1,184 @@
+{
+  "counts": {
+    "behavior_categories": {
+      "apple_shortcut": 0,
+      "applescript": 2,
+      "common_popclip_bridge": 6,
+      "dom_processing": 1,
+      "external_javascript_dependency": 3,
+      "invocation_context": 1,
+      "javascript_execution": 6,
+      "key_press": 1,
+      "macos_service": 1,
+      "native_executable": 0,
+      "network_access": 2,
+      "options": 6,
+      "popclip_util_api": 2,
+      "requirements": 3,
+      "retained_runtime_state": 1,
+      "rich_selected_content": 2,
+      "selection_regex": 3,
+      "shell_script": 1,
+      "static_url": 1,
+      "unclassified": 0,
+      "uncommon_popclip_api": 0
+    },
+    "by_compatibility_level": {
+      "common-javascript": 2,
+      "extended-javascript": 4,
+      "host-adapter": 3,
+      "invocation-script": 3,
+      "reject": 0
+    },
+    "by_config_container": {
+      "applescript": 1,
+      "javascript": 2,
+      "json": 2,
+      "plist": 3,
+      "typescript": 2,
+      "yaml": 2
+    },
+    "by_disposition": {
+      "degraded": 5,
+      "supported": 3,
+      "unsupported": 4
+    },
+    "by_process_boundary": {
+      "Host only": 3,
+      "Invocation-only interpreter process": 3,
+      "Shared JavaScript runtime facility with a logical context per Plugin": 2,
+      "Unresolved; do not admit automatically": 4
+    }
+  },
+  "extensions": [
+    {
+      "compatibility_level": {
+        "id": "host-adapter",
+        "name": "Host Adapter"
+      },
+      "disposition": "supported",
+      "name": "DuckDuckGo",
+      "process_boundary": "Host only",
+      "report": "DuckDuckGo.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "host-adapter",
+        "name": "Host Adapter"
+      },
+      "disposition": "supported",
+      "name": "Delete",
+      "process_boundary": "Host only",
+      "report": "Delete.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "host-adapter",
+        "name": "Host Adapter"
+      },
+      "disposition": "supported",
+      "name": "MakeSticky",
+      "process_boundary": "Host only",
+      "report": "MakeSticky.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "invocation-script",
+        "name": "Invocation Script"
+      },
+      "disposition": "degraded",
+      "name": "Say",
+      "process_boundary": "Invocation-only interpreter process",
+      "report": "Say.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "invocation-script",
+        "name": "Invocation Script"
+      },
+      "disposition": "degraded",
+      "name": "Alfred",
+      "process_boundary": "Invocation-only interpreter process",
+      "report": "Alfred.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "invocation-script",
+        "name": "Invocation Script"
+      },
+      "disposition": "degraded",
+      "name": "Antinote",
+      "process_boundary": "Invocation-only interpreter process",
+      "report": "Antinote.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "common-javascript",
+        "name": "Common JavaScript"
+      },
+      "disposition": "degraded",
+      "name": "AlternatingCase",
+      "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin",
+      "report": "AlternatingCase.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "extended-javascript",
+        "name": "Extended JavaScript Review"
+      },
+      "disposition": "unsupported",
+      "name": "Base64",
+      "process_boundary": "Unresolved; do not admit automatically",
+      "report": "Base64.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "common-javascript",
+        "name": "Common JavaScript"
+      },
+      "disposition": "degraded",
+      "name": "Agenda",
+      "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin",
+      "report": "Agenda.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "extended-javascript",
+        "name": "Extended JavaScript Review"
+      },
+      "disposition": "unsupported",
+      "name": "Bitly",
+      "process_boundary": "Unresolved; do not admit automatically",
+      "report": "Bitly.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "extended-javascript",
+        "name": "Extended JavaScript Review"
+      },
+      "disposition": "unsupported",
+      "name": "Ollama",
+      "process_boundary": "Unresolved; do not admit automatically",
+      "report": "Ollama.json"
+    },
+    {
+      "compatibility_level": {
+        "id": "extended-javascript",
+        "name": "Extended JavaScript Review"
+      },
+      "disposition": "unsupported",
+      "name": "CopyAsMarkdown",
+      "process_boundary": "Unresolved; do not admit automatically",
+      "report": "CopyAsMarkdown.json"
+    }
+  ],
+  "input_snapshot_tree_sha256": "030eac7eb32cecad3a0e9aae48bcf33ffe4b3b6873e1c2c0766ec87e93a4b5a0",
+  "question": "What does a boundary-stratified PopClip Extension corpus reveal about behavior Spinnet must support, degrade, or reject, and which runtime features materially affect the Plugin process boundary?",
+  "sample": {
+    "not_a_coverage_estimate": true,
+    "selection_method": "Purposive maximum-variation sample across all six configuration containers observed in the pinned official repository and across static, invocation-script, common-JavaScript, and extended-JavaScript behavior. This is not a random sample and cannot support an ecosystem-wide compatibility percentage.",
+    "size": 12
+  },
+  "schema_version": 1,
+  "source_commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3"
+}

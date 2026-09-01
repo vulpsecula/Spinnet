@@ -1,0 +1,81 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "extended-javascript",
+      "name": "Extended JavaScript Review"
+    },
+    "disposition": "unsupported",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "copyText, modifiers, pasteText, showSuccess, showText",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "external_javascript_dependency",
+        "evidence": "axios",
+        "process_boundary": "Dependency packaging and runtime unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "network_access",
+        "evidence": "Network entitlement or client usage",
+        "process_boundary": "Capability and network bridge unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      },
+      {
+        "category": "requirements",
+        "evidence": "Requirements declaration",
+        "process_boundary": "Host only",
+        "status": "supported"
+      },
+      {
+        "category": "retained_runtime_state",
+        "evidence": "Module-level mutable collection",
+        "process_boundary": "Requires defined lifetime and isolation for JavaScript state",
+        "status": "unsupported"
+      }
+    ],
+    "process_boundary": "Unresolved; do not admit automatically"
+  },
+  "corpus": {
+    "selection_reason": "Network access, external dependency, modifier input, and state retained between invocations.",
+    "stratum": "typescript config + network + retained state"
+  },
+  "file_inventory": [
+    {
+      "bytes": 4590,
+      "path": "Config.ts",
+      "scanned_as_text": true,
+      "sha256": "c50846bdb55948e80e79a591c1d5c31d8cf135f394988f0bb7195bc034e9ccac"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "typescript",
+    "identifier": "com.pilotmoon.popclip.extension.ollama",
+    "manifest_name": "Ollama",
+    "name": "Ollama"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "859245a9d5e58551f9c5bdbe1bdce2e503b482d26e2e98c5d165434836b6e96d",
+    "path": "source/Ollama.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}

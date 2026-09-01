@@ -1,0 +1,75 @@
+{
+  "compatibility_report": {
+    "compatibility_level": {
+      "id": "extended-javascript",
+      "name": "Extended JavaScript Review"
+    },
+    "disposition": "unsupported",
+    "findings": [
+      {
+        "category": "common_popclip_bridge",
+        "evidence": "copyText",
+        "process_boundary": "Capability-checked JavaScript bridge",
+        "status": "degraded"
+      },
+      {
+        "category": "dom_processing",
+        "evidence": "DOM construction or document usage",
+        "process_boundary": "DOM implementation and isolation unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "external_javascript_dependency",
+        "evidence": "linkedom, turndown",
+        "process_boundary": "Dependency packaging and runtime unresolved",
+        "status": "unsupported"
+      },
+      {
+        "category": "javascript_execution",
+        "evidence": "JavaScript/TypeScript configuration or module",
+        "process_boundary": "Shared JavaScript runtime facility",
+        "status": "degraded"
+      },
+      {
+        "category": "options",
+        "evidence": "Options declaration",
+        "process_boundary": "Host settings with values passed across the boundary",
+        "status": "supported"
+      },
+      {
+        "category": "rich_selected_content",
+        "evidence": "HTML/Markdown input usage",
+        "process_boundary": "Host captures and passes rich selected content",
+        "status": "degraded"
+      }
+    ],
+    "process_boundary": "Unresolved; do not admit automatically"
+  },
+  "corpus": {
+    "selection_reason": "Captured HTML, DOM construction, and two external JavaScript dependencies.",
+    "stratum": "javascript config + HTML + dependencies"
+  },
+  "file_inventory": [
+    {
+      "bytes": 1545,
+      "path": "Config.js",
+      "scanned_as_text": true,
+      "sha256": "7a5e6f0044b4376ba45b891bd7bd6dbc83616d12fccadc9d5b2053f5d493185c"
+    }
+  ],
+  "popclip_extension": {
+    "config_container": "javascript",
+    "identifier": "com.pilotmoon.popclip.extension.copy-as-markdown",
+    "manifest_name": "CopyAsMarkdown",
+    "name": "Copy as Markdown"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
+    "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",
+    "input_tree_sha256": "b2eff09020c4da221a90fdd756188fefa92667e93b666e7df7d5c53f45f8adf5",
+    "path": "source/CopyAsMarkdown.popclipext",
+    "repository": "https://github.com/pilotmoon/PopClip-Extensions",
+    "upstream_licence": "MIT"
+  }
+}
