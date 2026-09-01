@@ -1,0 +1,3 @@
+# Convert authorized PopClip sources into native Spinnet packages
+
+Spinnet will use an independently deployed Conversion Portal to translate authorized PopClip Extension sources into Plugins expressed in Spinnet's native package format and API, preferring declarative Host Commands and using script logic only when necessary rather than requiring a PopClip compatibility runtime in the installed Plugin. The MVP will convert only sources covered by a verified compatible licence or an explicit repository opt-in such as `spinnet-portal.yaml`; it will not convert unlicensed third-party uploads for private use. This preserves low idle memory and cold-start performance while giving every published build an auditable source, authorization, and update channel.

@@ -1,0 +1,16 @@
+# Isolate scripted Actions in per-Plugin helpers
+
+Spinnet will execute declarative Commands in the Host, but every third-party scripted Action will run in an on-demand helper dedicated to its Plugin. This deliberately accepts higher cold-start latency than in-Host JavaScriptCore because the prototype showed that a process-fatal script-runtime fault kills an in-Host Host while a helper contains it. The Host remains the sole Capability authority: helpers receive no direct authority over protected operating-system facilities and may access them only through validated Documented Plugin Interface requests for Host Services.
+
+## Considered Options
+
+In-Host JavaScriptCore had the best measured latency and memory but could not contain a process-fatal runtime fault. A single shared helper contained Host failure but allowed one Plugin to affect other active Plugins. A fresh process per Action provided stronger isolation at the cost of paying the measured cold-start penalty on every invocation. A per-Plugin helper aligns the failure boundary with the Capability principal while permitting warm reuse for consecutive Actions.
+
+## Consequences
+
+- Installing a Plugin, opening a Menu, and executing a declarative Command start no helper. A scripted Action starts its Plugin's helper on demand; Actions are serialized within that Plugin, while different Plugins may run independently.
+- An idle helper exits after 30 seconds, with a 250 ms graceful-exit allowance before forced termination. Disabling, uninstalling, or upgrading a Plugin, or revoking one of its Capabilities, terminates its helper immediately. A failed Action is never replayed automatically.
+- The Host validates every helper message, binds it to the originating Plugin, enforces a 1 MiB request/response limit, and authorizes every Host Service request from the user's current Capability grants and the Host's System Permissions. Helpers are terminated for protocol violations.
+- A scripted Action has a four-second wall-clock deadline. A helper is terminated if its `phys_footprint` remains at or above 64 MiB for two consecutive 100 ms samples.
+- The initial acceptance budgets are: zero helpers while installed Plugins are idle; at most 512 KiB p95 Host growth for 200 installed idle Plugins; Menu-open p95 at most 8 ms without starting a helper; cold scripted Action latency at most 100 ms p50 and 250 ms p95; warm runtime overhead at most 10 ms p95 excluding Plugin computation and Host Service work; active helper incremental `phys_footprint` at most 6 MiB p95; helper disappearance within 30.25 seconds after becoming idle; and post-teardown Host growth at most 512 KiB p95 after 250 ms. Measurements retain all samples and report p50, p95, and max.
+- The Host owns user-visible Action state. After 500 ms it presents Host-rendered progress with cancellation. A helper crash, timeout, resource breach, protocol violation, cancellation, or dependent queued-Action failure ends the waiting state and produces a Host-rendered terminal error within 250 ms. The message names the Plugin and Action and gives a stable error category; diagnostics remain in logs. Retry is always an explicit new Action. A non-responsive Action therefore reaches a user-visible terminal state within 4.25 seconds.

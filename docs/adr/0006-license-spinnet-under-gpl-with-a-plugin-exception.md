@@ -1,0 +1,3 @@
+# License Spinnet under GPL with a Plugin Exception
+
+Spinnet-Owned Code will be released under GNU GPL version 3 or any later version so that commercial use remains permitted while distributed forks and derivative versions of the Host remain available under the GPL with Corresponding Source. Spinnet will add a narrow section 7 Plugin Exception allowing an Independent Plugin that communicates exclusively through the Documented Plugin Interface to use its own Upstream Licence; the exception will not cover modifications of the Host, code derived from Spinnet internals, or copied Spinnet implementation code. Third-party dependencies and assets remain governed by their respective licences, and the exception text must receive legal review before the first public release.
