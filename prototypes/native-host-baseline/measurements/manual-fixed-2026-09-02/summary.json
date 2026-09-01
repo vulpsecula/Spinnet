@@ -1,0 +1,122 @@
+{
+  "automated" : false,
+  "automation_scope" : "None. Human global invocation, pointer interaction, and dismissal in a logged-in GUI session.",
+  "conditions" : {
+    "active_processor_count" : 10,
+    "cpu" : "Apple M1 Pro",
+    "hardware_model" : "MacBookPro18,1",
+    "kernel" : "Darwin MacBookPro.lan 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:49 PDT 2026; root:xnu-12377.161.14~5\/RELEASE_ARM64_T6000 arm64",
+    "load_average_at_summary" : [
+      4.2109375,
+      4.88427734375,
+      4.8759765625
+    ],
+    "low_power_mode" : false,
+    "main_display_pixels_high" : 1080,
+    "main_display_pixels_wide" : 1920,
+    "main_display_refresh_hz" : 144,
+    "main_screen_backing_scale" : 2,
+    "operating_system" : "Version 26.6.2 (Build 25G83)",
+    "physical_memory_bytes" : 17179869184,
+    "power" : "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22085731)\t80%; AC attached; not charging present: true",
+    "screen_count" : 1,
+    "session_manager" : "Aqua",
+    "swift_compiler" : "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0",
+    "thermal_state" : 0
+  },
+  "generated_at" : "2026-09-01T18:14:16Z",
+  "iterations" : 12,
+  "measurement_method" : {
+    "latency_clock" : "mach_continuous_time via ContinuousClock",
+    "private_memory" : "TASK_VM_INFO.phys_footprint; physical-footprint proxy, not uniquely private dirty pages",
+    "render_boundary" : "NSView.displayIfNeeded plus CATransaction.flush; process-side, not photon latency"
+  },
+  "metrics" : {
+    "cold.host_ready_latency_ms" : {
+      "count" : 1,
+      "max" : 160.61600000000001,
+      "mean" : 160.61600000000001,
+      "min" : 160.61600000000001,
+      "p50" : 160.61600000000001,
+      "p95" : 160.61600000000001,
+      "unit" : "ms"
+    },
+    "cold.host_ready_private_memory_bytes" : {
+      "count" : 1,
+      "max" : 10011320,
+      "mean" : 10011320,
+      "min" : 10011320,
+      "p50" : 10011320,
+      "p95" : 10011320,
+      "unit" : "bytes"
+    },
+    "human.menu_close_latency_ms" : {
+      "count" : 12,
+      "max" : 5.6032919999999997,
+      "mean" : 2.9589060000000003,
+      "min" : 0.43120799999999998,
+      "p50" : 4.3242909999999997,
+      "p95" : 4.7587919999999997,
+      "unit" : "ms"
+    },
+    "human.menu_open_latency_ms" : {
+      "count" : 12,
+      "max" : 6.3141670000000003,
+      "mean" : 3.7324271666666662,
+      "min" : 1.03125,
+      "p50" : 4.2749170000000003,
+      "p95" : 5.8959169999999999,
+      "unit" : "ms"
+    },
+    "human.pointer_selection_latency_ms" : {
+      "count" : 1440,
+      "max" : 19.643999999999998,
+      "mean" : 0.72242037777777679,
+      "min" : 0.30299999999999999,
+      "p50" : 0.58425000000000005,
+      "p95" : 1.5460419999999999,
+      "unit" : "ms"
+    },
+    "human.primary_action_latency_ms" : {
+      "count" : 7,
+      "max" : 0.0025829999999999998,
+      "mean" : 0.0021250000000000002,
+      "min" : 0.001542,
+      "p50" : 0.0021250000000000002,
+      "p95" : 0.0025829999999999998,
+      "unit" : "ms"
+    },
+    "human.private_memory_before_open_bytes" : {
+      "count" : 12,
+      "max" : 26411752,
+      "mean" : 22769040.666666668,
+      "min" : 11141840,
+      "p50" : 22528744,
+      "p95" : 26280680,
+      "unit" : "bytes"
+    },
+    "human.private_memory_closed_bytes" : {
+      "count" : 12,
+      "max" : 26559208,
+      "mean" : 25735912,
+      "min" : 18957032,
+      "p50" : 26329832,
+      "p95" : 26542824,
+      "unit" : "bytes"
+    },
+    "human.private_memory_open_bytes" : {
+      "count" : 12,
+      "max" : 26411752,
+      "mean" : 22785424.666666668,
+      "min" : 11289296,
+      "p50" : 22528744,
+      "p95" : 26280680,
+      "unit" : "bytes"
+    }
+  },
+  "mode" : "interactive",
+  "record_type" : "summary",
+  "sample_count" : 1509,
+  "schema_version" : 1,
+  "warmups" : 0
+}

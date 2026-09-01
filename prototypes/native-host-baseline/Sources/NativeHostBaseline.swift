@@ -6,6 +6,22 @@ private let processEntry = ContinuousClock.now
 private let menuItemCount = 8
 private let menuDiameter: CGFloat = 320
 
+private func menuItemIndex(at point: CGPoint, center: CGPoint) -> Int? {
+    let dx = point.x - center.x
+    let dy = point.y - center.y
+    let distance = hypot(dx, dy)
+    guard distance >= 38, distance <= 142 else { return nil }
+    var clockwiseFromTop = (.pi / 2) - atan2(dy, dx)
+    if clockwiseFromTop < 0 { clockwiseFromTop += 2 * .pi }
+    return Int((clockwiseFromTop / (2 * .pi)) * CGFloat(menuItemCount)) % menuItemCount
+}
+
+private func menuItemCenter(index: Int, center: CGPoint) -> CGPoint {
+    let step = 360 / CGFloat(menuItemCount)
+    let angle = (90 - (CGFloat(index) + 0.5) * step) * .pi / 180
+    return CGPoint(x: center.x + cos(angle) * 92, y: center.y + sin(angle) * 92)
+}
+
 private struct Arguments {
     enum Mode: String { case benchmark, interactive }
 
@@ -264,13 +280,7 @@ private final class RadialMenuView: NSView {
 
     private func menuItem(at point: CGPoint) -> Int? {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let dx = point.x - center.x
-        let dy = point.y - center.y
-        let distance = hypot(dx, dy)
-        guard distance >= 38, distance <= 142 else { return nil }
-        var angle = atan2(dy, dx) + (.pi / 2)
-        if angle < 0 { angle += 2 * .pi }
-        return Int((angle / (2 * .pi)) * CGFloat(menuItemCount)) % menuItemCount
+        return menuItemIndex(at: point, center: center)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -305,8 +315,7 @@ private final class RadialMenuView: NSView {
                 .font: NSFont.systemFont(ofSize: 16, weight: .semibold),
                 .foregroundColor: selectedMenuItem == index ? NSColor.white : NSColor.labelColor
             ]
-            let angle = (90 - (CGFloat(index) + 0.5) * step) * .pi / 180
-            let point = CGPoint(x: center.x + cos(angle) * 92, y: center.y + sin(angle) * 92)
+            let point = menuItemCenter(index: index, center: center)
             let size = label.size(withAttributes: attributes)
             label.draw(
                 at: CGPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
@@ -328,8 +337,7 @@ private final class OverlayController {
     private var pointerStart: ContinuousClock.Instant?
     private var selectionStart: ContinuousClock.Instant?
     private var outsideClickMonitor: Any?
-    private var globalKeyMonitor: Any?
-    private var localKeyMonitor: Any?
+    var didDismiss: (() -> Void)?
 
     init(measurements: Measurements, automated: Bool) {
         self.measurements = measurements
@@ -405,6 +413,7 @@ private final class OverlayController {
         panel.orderOut(nil)
         CATransaction.flush()
         isOpen = false
+        didDismiss?()
 
         guard recording else { return }
         measurements.record(phase: phase, iteration: iteration, metric: "menu_close_latency_ms", value: milliseconds(since: start), unit: "ms")
@@ -415,16 +424,6 @@ private final class OverlayController {
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.isOpen, !self.panel.frame.contains(NSEvent.mouseLocation) else { return }
             self.dismiss(reason: "outside_click")
-        }
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { self?.dismiss(reason: "escape") }
-        }
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 {
-                self?.dismiss(reason: "escape")
-                return nil
-            }
-            return event
         }
     }
 
@@ -463,6 +462,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyHandler: EventHandlerRef?
     private var invokeHotKey: EventHotKeyRef?
     private var quitHotKey: EventHotKeyRef?
+    private var escapeHotKey: EventHotKeyRef?
     private var interactiveIteration = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -480,6 +480,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         case .benchmark:
             DispatchQueue.main.async { [weak self] in self?.runColdCycle() }
         case .interactive:
+            overlay.didDismiss = { [weak self] in self?.unregisterEscapeHotKey() }
             overlay.installDismissalMonitors()
             installGlobalHotKeys()
             print("Ready: Control-Option-Space opens or dismisses the Menu; Control-Option-Q saves and quits.")
@@ -572,6 +573,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         case 1:
             interactiveIteration += 1
             overlay.open(at: NSEvent.mouseLocation, phase: "human", iteration: interactiveIteration, recording: true)
+            registerEscapeHotKey()
         case 2:
             if overlay.isOpen { overlay.dismiss(reason: "quit") }
             measurements.writeSummary(
@@ -580,10 +582,59 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 automationScope: "None. Human global invocation, pointer interaction, and dismissal in a logged-in GUI session."
             )
             NSApp.terminate(nil)
+        case 3 where overlay.isOpen:
+            overlay.dismiss(reason: "escape")
         default:
             break
         }
     }
+
+    private func registerEscapeHotKey() {
+        guard escapeHotKey == nil else { return }
+        let signature = OSType(0x53504E54) // SPNT
+        let status = RegisterEventHotKey(
+            UInt32(kVK_Escape), 0, EventHotKeyID(signature: signature, id: 3),
+            GetApplicationEventTarget(), 0, &escapeHotKey
+        )
+        if status != noErr {
+            fputs("Escape hotkey registration failed: \(status)\n", stderr)
+            escapeHotKey = nil
+        }
+    }
+
+    private func unregisterEscapeHotKey() {
+        guard let escapeHotKey else { return }
+        let status = UnregisterEventHotKey(escapeHotKey)
+        if status != noErr {
+            fputs("Escape hotkey unregistration failed: \(status)\n", stderr)
+        }
+        self.escapeHotKey = nil
+    }
+}
+
+if CommandLine.arguments.dropFirst().first == "verify-geometry" {
+    let center = CGPoint(x: menuDiameter / 2, y: menuDiameter / 2)
+    var failures = 0
+    for expected in 0..<menuItemCount {
+        let actual = menuItemIndex(at: menuItemCenter(index: expected, center: center), center: center)
+        let actualDescription = actual.map(String.init) ?? "none"
+        print("drawn=\(expected) hit=\(actualDescription)")
+        if actual != expected { failures += 1 }
+    }
+    var escapeHotKey: EventHotKeyRef?
+    let escapeStatus = RegisterEventHotKey(
+        UInt32(kVK_Escape), 0, EventHotKeyID(signature: OSType(0x53504E54), id: 99),
+        GetApplicationEventTarget(), 0, &escapeHotKey
+    )
+    print("escape_registration_status=\(escapeStatus)")
+    if escapeStatus != noErr { failures += 1 }
+    if let escapeHotKey {
+        let unregisterStatus = UnregisterEventHotKey(escapeHotKey)
+        print("escape_unregistration_status=\(unregisterStatus)")
+        if unregisterStatus != noErr { failures += 1 }
+    }
+    print("failures=\(failures)/\(menuItemCount)")
+    exit(failures == 0 ? 0 : 1)
 }
 
 private let application = NSApplication.shared

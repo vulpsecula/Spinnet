@@ -74,12 +74,33 @@ Validated behavior:
 - Selecting a Menu Item with the pointer, clicking outside, and pressing Control-Option-Space again all dismissed the Menu.
 - macOS requested no System Permission during the run.
 
-Two failures keep this prototype from establishing a faithful interaction baseline:
+Two failures kept that revision from establishing a faithful interaction baseline:
 
 - The highlighted Menu Item did not match the pointer direction. A deterministic replay of all eight drawn Menu Item centers through the prototype's hit-test formula produced eight mismatches. The drawing code numbers sectors clockwise from the upper-right, while the hit-test rotates the pointer angle by 90 degrees and numbers it in the opposite mapping.
 - Escape did not dismiss the Menu. The non-activating panel does not receive local key events, while the global key monitor cannot receive keyboard events when Input Monitoring and Accessibility trust are both absent. Both trust checks were false during validation.
 
-The human run observed Menu-open p50/p95 of 4.122/5.332 ms and Menu-close p50/p95 of 0.546/4.727 ms. These remain process-side measurements and do not supersede the limitations above. The prototype must correct both interaction failures and repeat this HITL checkpoint before its boundary can be accepted for subsequent runtime comparisons.
+The human run observed Menu-open p50/p95 of 4.122/5.332 ms and Menu-close p50/p95 of 0.546/4.727 ms. These remain process-side measurements and do not supersede the limitations above. At that checkpoint, the prototype required both failures to be corrected and revalidated before its boundary could be accepted for subsequent runtime comparisons.
+
+## Fix and HITL revalidation on 2026-09-02
+
+The hit-test now numbers pointer angles clockwise from the top, matching the drawing geometry. `verify.sh` compiles the real prototype source, replays every drawn Menu Item center through the production hit-test seam, and verifies that a permission-free Escape hotkey can be registered and unregistered:
+
+```sh
+./prototypes/native-host-baseline/verify.sh
+```
+
+All eight geometry checks pass. Escape no longer relies on global or local `NSEvent` keyboard monitors: the Host dynamically registers an unmodified Carbon Escape hotkey only while the Menu is open and unregisters it on every dismissal path.
+
+The repaired prototype was then exercised again by a human. The 12-invocation run is saved under `measurements/manual-fixed-2026-09-02/`. The human confirmed:
+
+- highlighted Menu Items matched the pointer direction;
+- Escape dismissed the Menu;
+- Escape continued to work normally in the foreground application after the Menu closed;
+- the foreground application remained active while the Menu was shown;
+- pointer selection, outside click, and Control-Option-Space dismissal still worked; and
+- macOS did not request Accessibility, Input Monitoring, or any other System Permission. Neither HITL run requested a System Permission.
+
+The repaired run observed Menu-open p50/p95 of 4.275/5.896 ms and Menu-close p50/p95 of 4.324/4.759 ms. These are process-side observations from a small human sample, not acceptance budgets. With the two interaction failures corrected and revalidated, this minimal Host behavior is faithful enough to serve as the native baseline for the subsequent runtime measurement harness.
 
 ## Exact HITL review checklist
 
