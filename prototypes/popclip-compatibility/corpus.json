@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "question": "What does a boundary-stratified PopClip Extension corpus reveal about behavior Spinnet must support, degrade, or reject, and which runtime features materially affect the Plugin process boundary?",
   "selection_method": "Purposive maximum-variation sample across all six configuration containers observed in the pinned official repository and across static, invocation-script, common-JavaScript, and extended-JavaScript behavior. This is not a random sample and cannot support an ecosystem-wide compatibility percentage.",
   "upstream": {
@@ -44,15 +44,15 @@
       "disposition": "unsupported",
       "boundary": "Unresolved; do not admit automatically",
       "meaning": "Networking, authentication, retained state, external dependencies, DOM/HTML processing, uncommon APIs, or dynamic behavior needs explicit design and review."
-    },
-    {
-      "id": "reject",
-      "name": "Reject",
-      "disposition": "unsupported",
-      "boundary": "No Plugin execution",
-      "meaning": "Unknown configuration, native executable content, or an unclassified executable surface is outside the measured compatibility boundary."
     }
   ],
+  "reject_outcome": {
+    "id": "reject",
+    "name": "Reject",
+    "disposition": "unsupported",
+    "boundary": "No Plugin execution",
+    "meaning": "Unknown configuration, native executable content, or an unclassified executable surface is rejected rather than treated as a Compatibility Level."
+  },
   "extensions": [
     {"name": "DuckDuckGo", "path": "source/DuckDuckGo.popclipext", "files": ["Config.plist"], "stratum": "plist + URL + regex", "reason": "Legacy declarative URL action with a selection regex."},
     {"name": "Delete", "path": "source/Delete.popclipext", "files": ["Config.plist"], "stratum": "plist + key press + requirements", "reason": "Host-adaptable key press with requirements and stay-visible semantics."},

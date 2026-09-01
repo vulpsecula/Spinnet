@@ -25,6 +25,10 @@
         "status": "supported"
       }
     ],
+    "import_outcome": {
+      "id": "classified",
+      "name": "Classified"
+    },
     "process_boundary": "Host only"
   },
   "corpus": {
@@ -45,7 +49,7 @@
     "manifest_name": "Delete",
     "name": "Delete"
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "source": {
     "commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3",
     "input_scope": "Behavior-relevant configuration and executable text files explicitly listed for each sampled PopClip Extension; artwork, demos, and documentation are excluded.",

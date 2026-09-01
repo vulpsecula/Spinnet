@@ -275,10 +275,15 @@ def scan_extension(repo: Path, entry: dict[str, Any], manifest: dict[str, Any]) 
     )
     findings = behavior_findings(config_text, executable_text, javascript_text, container, inventory)
     level_id, disposition = classify(findings)
-    level = next(item for item in manifest["compatibility_levels"] if item["id"] == level_id)
+    rejected = level_id == "reject"
+    level = (
+        manifest["reject_outcome"]
+        if rejected
+        else next(item for item in manifest["compatibility_levels"] if item["id"] == level_id)
+    )
     tree_hash_input = "".join(f"{item['path']}\0{item['sha256']}\n" for item in inventory).encode()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": {
             "repository": manifest["upstream"]["web_url"],
             "commit": manifest["upstream"]["commit"],
@@ -294,7 +299,8 @@ def scan_extension(repo: Path, entry: dict[str, Any], manifest: dict[str, Any]) 
             **config_metadata(config_path, config_text, container),
         },
         "compatibility_report": {
-            "compatibility_level": {"id": level_id, "name": level["name"]},
+            "compatibility_level": None if rejected else {"id": level_id, "name": level["name"]},
+            "import_outcome": {"id": "reject", "name": "Reject"} if rejected else {"id": "classified", "name": "Classified"},
             "disposition": disposition,
             "process_boundary": level["boundary"],
             "findings": findings,
@@ -313,8 +319,13 @@ def write_reports(reports: list[dict[str, Any]], manifest: dict[str, Any], outpu
         name = report["popclip_extension"]["manifest_name"]
         (output / f"{name}.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    observed_levels = Counter(report["compatibility_report"]["compatibility_level"]["id"] for report in reports)
+    observed_levels = Counter(
+        report["compatibility_report"]["compatibility_level"]["id"]
+        for report in reports
+        if report["compatibility_report"]["compatibility_level"] is not None
+    )
     levels = {level["id"]: observed_levels[level["id"]] for level in manifest["compatibility_levels"]}
+    import_outcomes = Counter(report["compatibility_report"]["import_outcome"]["id"] for report in reports)
     observed_dispositions = Counter(report["compatibility_report"]["disposition"] for report in reports)
     dispositions = {name: observed_dispositions[name] for name in ("supported", "degraded", "unsupported")}
     config_containers = Counter(report["popclip_extension"]["config_container"] for report in reports)
@@ -326,7 +337,7 @@ def write_reports(reports: list[dict[str, Any]], manifest: dict[str, Any], outpu
     categories = {name: observed_categories[name] for name in BEHAVIOR_CATEGORIES}
     boundaries = Counter(report["compatibility_report"]["process_boundary"] for report in reports)
     aggregate = {
-        "schema_version": 1,
+        "schema_version": 2,
         "question": manifest["question"],
         "source_commit": manifest["upstream"]["commit"],
         "input_snapshot_tree_sha256": manifest["input_snapshot"]["tree_sha256"],
@@ -339,6 +350,7 @@ def write_reports(reports: list[dict[str, Any]], manifest: dict[str, Any], outpu
             "by_config_container": dict(sorted(config_containers.items())),
             "by_compatibility_level": dict(sorted(levels.items())),
             "by_disposition": dict(sorted(dispositions.items())),
+            "by_import_outcome": {name: import_outcomes[name] for name in ("classified", "reject")},
             "by_process_boundary": dict(sorted(boundaries.items())),
             "behavior_categories": dict(sorted(categories.items())),
         },
@@ -347,6 +359,7 @@ def write_reports(reports: list[dict[str, Any]], manifest: dict[str, Any], outpu
                 "name": report["popclip_extension"]["manifest_name"],
                 "compatibility_level": report["compatibility_report"]["compatibility_level"],
                 "disposition": report["compatibility_report"]["disposition"],
+                "import_outcome": report["compatibility_report"]["import_outcome"],
                 "process_boundary": report["compatibility_report"]["process_boundary"],
                 "report": f"{report['popclip_extension']['manifest_name']}.json",
             }

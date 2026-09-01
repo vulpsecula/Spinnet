@@ -28,8 +28,7 @@
       "common-javascript": 2,
       "extended-javascript": 4,
       "host-adapter": 3,
-      "invocation-script": 3,
-      "reject": 0
+      "invocation-script": 3
     },
     "by_config_container": {
       "applescript": 1,
@@ -43,6 +42,10 @@
       "degraded": 5,
       "supported": 3,
       "unsupported": 4
+    },
+    "by_import_outcome": {
+      "classified": 12,
+      "reject": 0
     },
     "by_process_boundary": {
       "Host only": 3,
@@ -58,6 +61,10 @@
         "name": "Host Adapter"
       },
       "disposition": "supported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "DuckDuckGo",
       "process_boundary": "Host only",
       "report": "DuckDuckGo.json"
@@ -68,6 +75,10 @@
         "name": "Host Adapter"
       },
       "disposition": "supported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Delete",
       "process_boundary": "Host only",
       "report": "Delete.json"
@@ -78,6 +89,10 @@
         "name": "Host Adapter"
       },
       "disposition": "supported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "MakeSticky",
       "process_boundary": "Host only",
       "report": "MakeSticky.json"
@@ -88,6 +103,10 @@
         "name": "Invocation Script"
       },
       "disposition": "degraded",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Say",
       "process_boundary": "Invocation-only interpreter process",
       "report": "Say.json"
@@ -98,6 +117,10 @@
         "name": "Invocation Script"
       },
       "disposition": "degraded",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Alfred",
       "process_boundary": "Invocation-only interpreter process",
       "report": "Alfred.json"
@@ -108,6 +131,10 @@
         "name": "Invocation Script"
       },
       "disposition": "degraded",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Antinote",
       "process_boundary": "Invocation-only interpreter process",
       "report": "Antinote.json"
@@ -118,6 +145,10 @@
         "name": "Common JavaScript"
       },
       "disposition": "degraded",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "AlternatingCase",
       "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin",
       "report": "AlternatingCase.json"
@@ -128,6 +159,10 @@
         "name": "Extended JavaScript Review"
       },
       "disposition": "unsupported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Base64",
       "process_boundary": "Unresolved; do not admit automatically",
       "report": "Base64.json"
@@ -138,6 +173,10 @@
         "name": "Common JavaScript"
       },
       "disposition": "degraded",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Agenda",
       "process_boundary": "Shared JavaScript runtime facility with a logical context per Plugin",
       "report": "Agenda.json"
@@ -148,6 +187,10 @@
         "name": "Extended JavaScript Review"
       },
       "disposition": "unsupported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Bitly",
       "process_boundary": "Unresolved; do not admit automatically",
       "report": "Bitly.json"
@@ -158,6 +201,10 @@
         "name": "Extended JavaScript Review"
       },
       "disposition": "unsupported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "Ollama",
       "process_boundary": "Unresolved; do not admit automatically",
       "report": "Ollama.json"
@@ -168,6 +215,10 @@
         "name": "Extended JavaScript Review"
       },
       "disposition": "unsupported",
+      "import_outcome": {
+        "id": "classified",
+        "name": "Classified"
+      },
       "name": "CopyAsMarkdown",
       "process_boundary": "Unresolved; do not admit automatically",
       "report": "CopyAsMarkdown.json"
@@ -180,6 +231,6 @@
     "selection_method": "Purposive maximum-variation sample across all six configuration containers observed in the pinned official repository and across static, invocation-script, common-JavaScript, and extended-JavaScript behavior. This is not a random sample and cannot support an ecosystem-wide compatibility percentage.",
     "size": 12
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "source_commit": "eda50d7e0286909f3437004ee47fd5316c37fcc3"
 }

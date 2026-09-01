@@ -35,17 +35,18 @@ The 12-package sample produced:
 
 Across the purposive sample, 9 of 12 PopClip Extensions need something beyond Host-only adaptation. This does **not** mean 75% of the ecosystem needs a Plugin process: the sample intentionally over-represents boundary-pressure cases. It does show that one universal execution boundary would erase material distinctions visible even in a small corpus. `reports/aggregate.json` contains the exact counts and links to all 12 Compatibility Reports.
 
-The scanner has a detector for declarative Apple Shortcut actions, but none of the selected PopClip Extensions contains one; that behavior remains unmeasured in this corpus. Zero-count known categories and Compatibility Levels remain explicit in the aggregate output.
+The scanner has a detector for declarative Apple Shortcut actions, but none of the selected PopClip Extensions contains one; that behavior remains unmeasured in this corpus. Zero-count known categories and Compatibility Levels remain explicit in the aggregate output. Reject is tracked separately as an import outcome and also has a zero count in this sample.
 
-## Provisional Compatibility Levels
+## Reviewed Compatibility Levels
 
-The levels are prototype labels, not an accepted product taxonomy:
+Human review on 2026-09-02 accepted these four prototype Compatibility Levels:
 
 - **Host Adapter** (`supported`): declarative URL, key press, Service, or Shortcut behavior maps to Host Commands and does not start a Plugin process.
 - **Invocation Script** (`degraded`): Shell Script or AppleScript needs an invocation-only interpreter process, timeout, Capability checks, and result adaptation.
 - **Common JavaScript** (`degraded`): common input, invocation context, options, and allowlisted `popclip` calls need a shared JavaScript runtime facility with a separate logical context per Plugin.
 - **Extended JavaScript Review** (`unsupported`): networking, authentication, retained state, external dependencies, DOM/HTML processing, uncommon APIs, or dynamic behavior is not admitted automatically.
-- **Reject** (`unsupported`): unknown configuration or native/unclassified executable content is not run.
+
+**Reject** is an import outcome, not a Compatibility Level. It applies to unknown configuration or native/unclassified executable content, which is not run.
 
 `supported`, `degraded`, and `unsupported` describe the target treatment suggested by the architecture evidence; they do not claim that production support exists.
 
@@ -57,17 +58,17 @@ False positives can arise from comments, dead code, bundled copies, similarly na
 
 False negatives can arise from computed property names, aliased APIs, generated/eval code, indirect imports, unconventional YAML, behavior hidden in excluded documentation or assets, or APIs reached through helper code. The scanner also does not validate runtime semantics, macOS version behavior, action results, timeouts, security, signing, dependencies, asset rights, or whether a Service/Shortcut exists on a user’s Mac. Because the committed input scope excludes binaries, the zero `native_executable` count means “not sampled,” not “absent upstream.”
 
-## Human review checkpoint
+## Human review outcome
 
-Before these labels or dispositions influence the Documented Plugin Interface or user-facing import behavior, complete this exact checklist:
+The prototype was reviewed on 2026-09-02 with these outcomes:
 
-- [ ] Confirm the pinned repository, commit, MIT Upstream Licence basis, preserved notice, and absence of a package-level licence override for all 12 sampled PopClip Extensions.
-- [ ] Manually compare every Compatibility Report with its listed input files and approve or override each detected behavior/API requirement.
-- [ ] Approve, rename, split, or reject the five provisional Compatibility Levels and their `supported`/`degraded`/`unsupported` dispositions.
-- [ ] Decide whether Shell Script and AppleScript share one Compatibility Level or require separate policy and runtime treatment.
-- [ ] Decide which networked and common JavaScript behaviors are degraded versus rejected for the MVP.
-- [ ] Decide whether a mixed PopClip Extension receives one package-level Compatibility Report disposition or separate dispositions per imported Command.
-- [ ] Confirm that the sample is architectural discovery evidence, not an ecosystem coverage estimate, and that zero-count Shortcut/native-executable categories are unmeasured rather than proven absent.
-- [ ] Record accepted domain-language changes in `CONTEXT.md` and hard-to-reverse process-boundary/API decisions in an ADR as a separate, reviewed task.
+- [x] The pinned repository and commit were independently checked. The upstream MIT notice is preserved, and no package README in the 12-extension sample overrides the repository licence.
+- [x] Every reported behavior/API finding was manually compared with its listed input. One omitted Bitly authentication-flow finding was added before acceptance; no reported false positive was found.
+- [x] Four Compatibility Levels were accepted. Reject was separated into an import outcome.
+- [x] Shell Script and AppleScript share the Invocation Script level while remaining distinct findings for later interpreter-specific policy.
+- [x] Common JavaScript is a degraded MVP target. Networking, authentication, external dependencies, DOM processing, retained state, and unresolved PopClip APIs are not admitted automatically in the MVP.
+- [x] A mixed PopClip Extension receives one package-level disposition at its most demanding detected behavior; this intentionally rejects otherwise compatible Commands when another Command in the package is unsupported.
+- [x] The sample is architectural discovery evidence, not an ecosystem coverage estimate. Zero-count Shortcut and native-executable categories are unmeasured rather than proven absent.
+- [x] No new domain term or hard-to-reverse runtime/API decision is introduced here. Production runtime placement remains subject to its dedicated prototype and ADR review.
 
-These are domain and hard-to-reverse product/API decisions; this disposable prototype deliberately does not make them or edit domain/decision records.
+These outcomes constrain the prototype taxonomy and MVP import policy. They do not choose the production JavaScript process placement, security boundary, or Documented Plugin Interface; those remain subject to their dedicated prototype and ADR review.
