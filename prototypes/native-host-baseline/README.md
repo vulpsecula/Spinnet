@@ -62,6 +62,25 @@ In this run, the mean open-minus-before footprint was about 37.6 KiB and the mea
 
 It does **not** prove global OS input delivery, non-activation relative to another foreground application, physical pointer behavior, display-edge placement, permission behavior, or end-to-end visual latency. Those are human checks below; do not combine human samples with automated samples.
 
+## HITL validation on 2026-09-02
+
+The interactive prototype was exercised by a human in the same logged-in Aqua session. The run was saved with Control-Option-Q under `measurements/manual-2026-09-02/` and contains 25 Menu invocations.
+
+Validated behavior:
+
+- Control-Option-Space reliably invoked and toggled the Menu.
+- The Menu remained non-activating, appeared at the pointer, was readable, and stayed inside the visible frame at screen edges and corners.
+- The center dead zone selected no Menu Item and at most one Menu Item was highlighted.
+- Selecting a Menu Item with the pointer, clicking outside, and pressing Control-Option-Space again all dismissed the Menu.
+- macOS requested no System Permission during the run.
+
+Two failures keep this prototype from establishing a faithful interaction baseline:
+
+- The highlighted Menu Item did not match the pointer direction. A deterministic replay of all eight drawn Menu Item centers through the prototype's hit-test formula produced eight mismatches. The drawing code numbers sectors clockwise from the upper-right, while the hit-test rotates the pointer angle by 90 degrees and numbers it in the opposite mapping.
+- Escape did not dismiss the Menu. The non-activating panel does not receive local key events, while the global key monitor cannot receive keyboard events when Input Monitoring and Accessibility trust are both absent. Both trust checks were false during validation.
+
+The human run observed Menu-open p50/p95 of 4.122/5.332 ms and Menu-close p50/p95 of 0.546/4.727 ms. These remain process-side measurements and do not supersede the limitations above. The prototype must correct both interaction failures and repeat this HITL checkpoint before its boundary can be accepted for subsequent runtime comparisons.
+
 ## Exact HITL review checklist
 
 Run the one-command interactive mode in a logged-in macOS GUI session, then perform every item:
