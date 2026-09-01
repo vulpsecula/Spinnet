@@ -3,6 +3,7 @@
     "behavior_categories": {
       "apple_shortcut": 0,
       "applescript": 2,
+      "authentication_flow": 1,
       "common_popclip_bridge": 6,
       "dom_processing": 1,
       "external_javascript_dependency": 3,

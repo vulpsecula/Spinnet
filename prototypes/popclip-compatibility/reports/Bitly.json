@@ -7,6 +7,12 @@
     "disposition": "unsupported",
     "findings": [
       {
+        "category": "authentication_flow",
+        "evidence": "Exported authentication handler",
+        "process_boundary": "Authentication UI, secrets, and callback handling unresolved",
+        "status": "unsupported"
+      },
+      {
         "category": "common_popclip_bridge",
         "evidence": "options",
         "process_boundary": "Capability-checked JavaScript bridge",

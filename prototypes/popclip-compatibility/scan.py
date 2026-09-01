@@ -44,6 +44,7 @@ COMMON_POPCLIP_APIS = {
 BEHAVIOR_CATEGORIES = (
     "applescript",
     "apple_shortcut",
+    "authentication_flow",
     "common_popclip_bridge",
     "dom_processing",
     "external_javascript_dependency",
@@ -217,6 +218,11 @@ def behavior_findings(
         add("external_javascript_dependency", "unsupported", "Dependency packaging and runtime unresolved", ", ".join(external))
     if has(r"\b(entitlements?\s*[\"']?\s*[:=][^\n]*network|fetch\s*\(|axios\b|XMLHttpRequest|\.post\s*\()", executable_text):
         add("network_access", "unsupported", "Capability and network bridge unresolved", "Network entitlement or client usage")
+    if has(
+        r"\b(?:export\s+(?:const|function)\s+auth\b|exports\.auth\b|auth\s*:\s*(?:async\s*)?(?:function|\())",
+        javascript_text,
+    ):
+        add("authentication_flow", "unsupported", "Authentication UI, secrets, and callback handling unresolved", "Exported authentication handler")
     if has(r"\b(?:const|let|var)\s+\w+\s*:\s*(?:Array|Map|Set)<|\b(?:const|let|var)\s+\w+\s*=\s*\[\]", javascript_text) and has(r"\.push\s*\(", javascript_text):
         add("retained_runtime_state", "unsupported", "Requires defined lifetime and isolation for JavaScript state", "Module-level mutable collection")
     if has(r"parseHTML|JSDOM|\bdocument\b", javascript_text):
@@ -234,6 +240,7 @@ def classify(findings: list[dict[str, str]]) -> tuple[str, str]:
     if "native_executable" in categories or "unclassified" in categories:
         return "reject", "unsupported"
     extended = {
+        "authentication_flow",
         "dom_processing",
         "external_javascript_dependency",
         "network_access",
