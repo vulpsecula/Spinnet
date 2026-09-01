@@ -1,0 +1,294 @@
+{
+  "conditions": {
+    "cpu": "Apple M1 Pro",
+    "hardware_model": "MacBookPro18,1",
+    "kernel": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "operating_system": "26.6.2",
+    "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22085731)\t80%; AC attached; not charging present: true",
+    "python": "3.13.5 (main, Jul  8 2025, 20:55:53) [Clang 20.1.4 ]"
+  },
+  "fixture_spec": {
+    "command_kinds": [
+      "transform-text",
+      "open-url",
+      "invoke-helper",
+      "show-list"
+    ],
+    "installed_counts": [
+      0,
+      200
+    ],
+    "payload_bytes": 256,
+    "seed": "spinnet-runtime-harness-v1"
+  },
+  "generated_at": "2026-09-01T18:24:10.726335+00:00",
+  "idle_ms": 250,
+  "idle_runs": 10,
+  "invariants": {
+    "all_helpers_terminated_after_idle": true,
+    "installed_idle_has_no_helper_process": true,
+    "menu_open_runtime_basis": "The accepted native Host baseline has no Plugin runtime or helper wired into its Menu-open path.",
+    "menu_open_starts_no_runtime": true
+  },
+  "iterations": 30,
+  "measurement_method": {
+    "cold_action": "Monotonic time from Process launch through deterministic helper result and exit",
+    "menu_open": "Accepted native AppKit Host baseline; synchronous process-side draw boundary",
+    "private_memory": "TASK_VM_INFO.phys_footprint reported independently by the Host and helper",
+    "process_presence": "pgrep -P against the fixture Host while idle",
+    "return_to_baseline": "Host phys_footprint sampled before Action and after helper exit plus the configured idle delay"
+  },
+  "metrics": {
+    "child_process_count_0_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "child_process_count_200_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "child_process_count_after_idle": {
+      "count": 30,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "cold_action_invocation_latency_ms": {
+      "count": 30,
+      "max": 266.669334,
+      "mean": 73.96749996666668,
+      "min": 65.808084,
+      "p50": 67.646916,
+      "p95": 68.064959,
+      "unit": "ms"
+    },
+    "helper_private_memory_bytes": {
+      "count": 30,
+      "max": 1474920.0,
+      "mean": 1445974.9333333333,
+      "min": 1442152.0,
+      "p50": 1442152.0,
+      "p95": 1474920.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_0_plugins_bytes": {
+      "count": 10,
+      "max": 2490848.0,
+      "mean": 2446601.6,
+      "min": 2392520.0,
+      "p50": 2441696.0,
+      "p95": 2490848.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_200_plugins_bytes": {
+      "count": 10,
+      "max": 2834936.0,
+      "mean": 2797240.8,
+      "min": 2752992.0,
+      "p50": 2785760.0,
+      "p95": 2834936.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_after_action_bytes": {
+      "count": 30,
+      "max": 3867152.0,
+      "mean": 3603915.7333333334,
+      "min": 3162640.0,
+      "p50": 3588624.0,
+      "p95": 3867152.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_after_idle_bytes": {
+      "count": 30,
+      "max": 3883536.0,
+      "mean": 3605008.0,
+      "min": 3162640.0,
+      "p50": 3588624.0,
+      "p95": 3867152.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_action_bytes": {
+      "count": 30,
+      "max": 3867152.0,
+      "mean": 3577154.4,
+      "min": 2834936.0,
+      "p50": 3572240.0,
+      "p95": 3850768.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_max": {
+      "count": 1,
+      "max": 34964248.0,
+      "mean": 34964248.0,
+      "min": 34964248.0,
+      "p50": 34964248.0,
+      "p95": 34964248.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_mean": {
+      "count": 1,
+      "max": 34876320.53333333,
+      "mean": 34876320.53333333,
+      "min": 34876320.53333333,
+      "p50": 34876320.53333333,
+      "p95": 34876320.53333333,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_min": {
+      "count": 1,
+      "max": 34767640.0,
+      "mean": 34767640.0,
+      "min": 34767640.0,
+      "p50": 34767640.0,
+      "p95": 34767640.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_p50": {
+      "count": 1,
+      "max": 34882328.0,
+      "mean": 34882328.0,
+      "min": 34882328.0,
+      "p50": 34882328.0,
+      "p95": 34882328.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_p95": {
+      "count": 1,
+      "max": 34964248.0,
+      "mean": 34964248.0,
+      "min": 34964248.0,
+      "p50": 34964248.0,
+      "p95": 34964248.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_delta_after_idle_bytes": {
+      "count": 30,
+      "max": 327704.0,
+      "mean": 27853.6,
+      "min": -81920.0,
+      "p50": 16384.0,
+      "p95": 49152.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_max": {
+      "count": 1,
+      "max": 35013400.0,
+      "mean": 35013400.0,
+      "min": 35013400.0,
+      "p50": 35013400.0,
+      "p95": 35013400.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_mean": {
+      "count": 1,
+      "max": 34909088.53333333,
+      "mean": 34909088.53333333,
+      "min": 34909088.53333333,
+      "p50": 34909088.53333333,
+      "p95": 34909088.53333333,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_min": {
+      "count": 1,
+      "max": 34784024.0,
+      "mean": 34784024.0,
+      "min": 34784024.0,
+      "p50": 34784024.0,
+      "p95": 34784024.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_p50": {
+      "count": 1,
+      "max": 34898712.0,
+      "mean": 34898712.0,
+      "min": 34898712.0,
+      "p50": 34898712.0,
+      "p95": 34898712.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_p95": {
+      "count": 1,
+      "max": 35013400.0,
+      "mean": 35013400.0,
+      "min": 35013400.0,
+      "p50": 35013400.0,
+      "p95": 35013400.0,
+      "unit": "bytes"
+    },
+    "installed_plugin_private_memory_delta_bytes": {
+      "count": 10,
+      "max": 426032.0,
+      "mean": 350639.2,
+      "min": 294912.0,
+      "p50": 344064.0,
+      "p95": 426032.0,
+      "unit": "bytes"
+    },
+    "menu_open_latency_ms_max": {
+      "count": 1,
+      "max": 6.606792,
+      "mean": 6.606792,
+      "min": 6.606792,
+      "p50": 6.606792,
+      "p95": 6.606792,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_mean": {
+      "count": 1,
+      "max": 3.320438866666667,
+      "mean": 3.320438866666667,
+      "min": 3.320438866666667,
+      "p50": 3.320438866666667,
+      "p95": 3.320438866666667,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_min": {
+      "count": 1,
+      "max": 1.051917,
+      "mean": 1.051917,
+      "min": 1.051917,
+      "p50": 1.051917,
+      "p95": 1.051917,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_p50": {
+      "count": 1,
+      "max": 1.247833,
+      "mean": 1.247833,
+      "min": 1.247833,
+      "p50": 1.247833,
+      "p95": 1.247833,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_p95": {
+      "count": 1,
+      "max": 6.603958,
+      "mean": 6.603958,
+      "min": 6.603958,
+      "p50": 6.603958,
+      "p95": 6.603958,
+      "unit": "ms"
+    }
+  },
+  "notes": [
+    "This prototype establishes a repeatable method; it does not set acceptance budgets.",
+    "The deterministic helper is a fixture, not a proposed Plugin runtime.",
+    "The short idle delay confirms process teardown and samples allocator settling; it does not choose a production inactivity timeout."
+  ],
+  "raw": "prototypes/runtime-measurement-harness/measurements/automated-2026-09-02/raw.jsonl",
+  "record_type": "summary",
+  "schema_version": 1
+}
