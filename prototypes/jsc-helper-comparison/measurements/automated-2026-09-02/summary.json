@@ -1,0 +1,424 @@
+{
+  "conditions": {
+    "cpu": "Apple M1 Pro",
+    "hardware_model": "MacBookPro18,1",
+    "kernel": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "operating_system": "26.6.2",
+    "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22085731)\t80%; AC attached; not charging present: true",
+    "python": "3.13.5 (main, Jul  8 2025, 20:55:53) [Clang 20.1.4 ]"
+  },
+  "crash_probes": {
+    "in_host": {
+      "fault": "SIGABRT injected at the runtime boundary",
+      "host_returncode": -6,
+      "host_survived": false,
+      "variant": "in_host"
+    },
+    "shared_helper": {
+      "event": "crash_probe",
+      "helper_termination_reason": "signal",
+      "helper_termination_status": 6,
+      "host_private_memory_after_bytes": 2900448,
+      "host_survived": true,
+      "variant": "shared_helper"
+    },
+    "shared_helper_host_sample_after_fault": {
+      "event": "sample",
+      "installed_plugin_count": 200,
+      "private_memory_bytes": 2998776
+    }
+  },
+  "fixture_spec": {
+    "command_kinds": [
+      "transform-text",
+      "structured-data",
+      "capability-probe"
+    ],
+    "installed_counts": [
+      0,
+      200
+    ],
+    "payload_bytes": 256,
+    "seed": "spinnet-runtime-harness-v1"
+  },
+  "generated_at": "2026-09-02T04:56:00.927013+00:00",
+  "idle_ms": 250,
+  "idle_runs_per_variant_and_installed_count": 10,
+  "invariants": {
+    "all_helper_processes_terminated_after_idle": true,
+    "all_javascript_workloads_completed_without_exception": true,
+    "capability_policy_allowed_selection_and_denied_process": true,
+    "equivalent_capability_decisions": true,
+    "equivalent_workload_checksums": true,
+    "in_host_did_not_contain_injected_fatal_fault": true,
+    "installed_idle_has_no_runtime_process": true,
+    "menu_open_starts_no_runtime": true,
+    "shared_helper_contained_injected_fatal_fault": true
+  },
+  "iterations_per_variant": 30,
+  "measurement_method": {
+    "capability_enforcement": "Identical JavaScript records Host Service requests; the Host applies the same service-to-Capability policy for both variants",
+    "cold_action": "Fresh JavaScriptCore context per invocation; in-Host context creation through result, or helper launch through result and process exit",
+    "crash_containment": "Explicit SIGABRT injection at each runtime boundary; this is a process-fault probe, not a claim that ordinary JavaScript can invoke abort",
+    "menu_open": "Accepted native AppKit Host baseline; synchronous process-side draw boundary with no Plugin runtime wired in",
+    "private_memory": "TASK_VM_INFO.phys_footprint reported independently by each candidate Host and by the helper while its JavaScriptCore context is alive",
+    "process_presence": "pgrep -P against each candidate Host while installed-idle and after Action teardown",
+    "return_to_baseline": "Candidate Host phys_footprint sampled before Action and after context release or helper exit plus the configured idle delay"
+  },
+  "metrics": {
+    "host_private_memory_before_menu_open_bytes_max": {
+      "count": 1,
+      "max": 38683416.0,
+      "mean": 38683416.0,
+      "min": 38683416.0,
+      "p50": 38683416.0,
+      "p95": 38683416.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_mean": {
+      "count": 1,
+      "max": 36146626.666666664,
+      "mean": 36146626.666666664,
+      "min": 36146626.666666664,
+      "p50": 36146626.666666664,
+      "p95": 36146626.666666664,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_min": {
+      "count": 1,
+      "max": 35357464.0,
+      "mean": 35357464.0,
+      "min": 35357464.0,
+      "p50": 35357464.0,
+      "p95": 35357464.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_p50": {
+      "count": 1,
+      "max": 35390232.0,
+      "mean": 35390232.0,
+      "min": 35390232.0,
+      "p50": 35390232.0,
+      "p95": 35390232.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_before_menu_open_bytes_p95": {
+      "count": 1,
+      "max": 38634264.0,
+      "mean": 38634264.0,
+      "min": 38634264.0,
+      "p50": 38634264.0,
+      "p95": 38634264.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_max": {
+      "count": 1,
+      "max": 38683416.0,
+      "mean": 38683416.0,
+      "min": 38683416.0,
+      "p50": 38683416.0,
+      "p95": 38683416.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_mean": {
+      "count": 1,
+      "max": 36045592.0,
+      "mean": 36045592.0,
+      "min": 36045592.0,
+      "p50": 36045592.0,
+      "p95": 36045592.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_min": {
+      "count": 1,
+      "max": 35357464.0,
+      "mean": 35357464.0,
+      "min": 35357464.0,
+      "p50": 35357464.0,
+      "p95": 35357464.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_p50": {
+      "count": 1,
+      "max": 35406616.0,
+      "mean": 35406616.0,
+      "min": 35406616.0,
+      "p50": 35406616.0,
+      "p95": 35406616.0,
+      "unit": "bytes"
+    },
+    "host_private_memory_menu_open_bytes_p95": {
+      "count": 1,
+      "max": 38650648.0,
+      "mean": 38650648.0,
+      "min": 38650648.0,
+      "p50": 38650648.0,
+      "p95": 38650648.0,
+      "unit": "bytes"
+    },
+    "in_host.active_boundary_private_memory_bytes": {
+      "count": 30,
+      "max": 5718688.0,
+      "mean": 5126132.533333333,
+      "min": 4391584.0,
+      "p50": 5161632.0,
+      "p95": 5620360.0,
+      "unit": "bytes"
+    },
+    "in_host.child_process_count_0_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "in_host.child_process_count_200_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "in_host.child_process_count_after_idle": {
+      "count": 30,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "in_host.cold_action_invocation_latency_ms": {
+      "count": 30,
+      "max": 3.651792,
+      "mean": 1.3791291,
+      "min": 0.860208,
+      "p50": 1.295417,
+      "p95": 2.533333,
+      "unit": "ms"
+    },
+    "in_host.host_private_memory_0_plugins_bytes": {
+      "count": 10,
+      "max": 2490872.0,
+      "mean": 2433501.6,
+      "min": 2392520.0,
+      "p50": 2408928.0,
+      "p95": 2490872.0,
+      "unit": "bytes"
+    },
+    "in_host.host_private_memory_200_plugins_bytes": {
+      "count": 10,
+      "max": 2884088.0,
+      "mean": 2830023.2,
+      "min": 2785784.0,
+      "p50": 2818576.0,
+      "p95": 2884088.0,
+      "unit": "bytes"
+    },
+    "in_host.host_private_memory_delta_after_idle_bytes": {
+      "count": 30,
+      "max": 1097896.0,
+      "mean": 77011.2,
+      "min": 0.0,
+      "p50": 16384.0,
+      "p95": 393240.0,
+      "unit": "bytes"
+    },
+    "in_host.host_private_memory_runtime_peak_bytes": {
+      "count": 30,
+      "max": 5718688.0,
+      "mean": 5126132.533333333,
+      "min": 4391584.0,
+      "p50": 5161632.0,
+      "p95": 5620360.0,
+      "unit": "bytes"
+    },
+    "in_host.installed_plugin_private_memory_delta_bytes": {
+      "count": 10,
+      "max": 491568.0,
+      "mean": 396521.6,
+      "min": 327680.0,
+      "p50": 376832.0,
+      "p95": 491568.0,
+      "unit": "bytes"
+    },
+    "in_host.runtime_private_memory_increment_bytes": {
+      "count": 30,
+      "max": 2736248.0,
+      "mean": 202074.13333333333,
+      "min": 0.0,
+      "p50": 16384.0,
+      "p95": 1015808.0,
+      "unit": "bytes"
+    },
+    "menu_open_latency_ms_max": {
+      "count": 1,
+      "max": 7.3925,
+      "mean": 7.3925,
+      "min": 7.3925,
+      "p50": 7.3925,
+      "p95": 7.3925,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_mean": {
+      "count": 1,
+      "max": 1.1648277,
+      "mean": 1.1648277,
+      "min": 1.1648277,
+      "p50": 1.1648277,
+      "p95": 1.1648277,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_min": {
+      "count": 1,
+      "max": 0.651833,
+      "mean": 0.651833,
+      "min": 0.651833,
+      "p50": 0.651833,
+      "p95": 0.651833,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_p50": {
+      "count": 1,
+      "max": 0.915041,
+      "mean": 0.915041,
+      "min": 0.915041,
+      "p50": 0.915041,
+      "p95": 0.915041,
+      "unit": "ms"
+    },
+    "menu_open_latency_ms_p95": {
+      "count": 1,
+      "max": 1.359625,
+      "mean": 1.359625,
+      "min": 1.359625,
+      "p50": 1.359625,
+      "p95": 1.359625,
+      "unit": "ms"
+    },
+    "shared_helper.active_boundary_private_memory_bytes": {
+      "count": 30,
+      "max": 9733248.0,
+      "mean": 8550276.8,
+      "min": 7275552.0,
+      "p50": 8488040.0,
+      "p95": 9716864.0,
+      "unit": "bytes"
+    },
+    "shared_helper.child_process_count_0_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "shared_helper.child_process_count_200_plugins": {
+      "count": 10,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "shared_helper.child_process_count_after_idle": {
+      "count": 30,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "unit": "count"
+    },
+    "shared_helper.cold_action_invocation_latency_ms": {
+      "count": 30,
+      "max": 301.980875,
+      "mean": 98.4168249,
+      "min": 79.061875,
+      "p50": 82.364166,
+      "p95": 236.365458,
+      "unit": "ms"
+    },
+    "shared_helper.helper_private_memory_bytes": {
+      "count": 30,
+      "max": 5571232.0,
+      "mean": 4747559.733333333,
+      "min": 4112912.0,
+      "p50": 4555280.0,
+      "p95": 5522080.0,
+      "unit": "bytes"
+    },
+    "shared_helper.host_private_memory_0_plugins_bytes": {
+      "count": 10,
+      "max": 2392520.0,
+      "mean": 2353188.8,
+      "min": 2310576.0,
+      "p50": 2343368.0,
+      "p95": 2392520.0,
+      "unit": "bytes"
+    },
+    "shared_helper.host_private_memory_200_plugins_bytes": {
+      "count": 10,
+      "max": 2802144.0,
+      "mean": 2756261.6,
+      "min": 2687432.0,
+      "p50": 2752968.0,
+      "p95": 2802144.0,
+      "unit": "bytes"
+    },
+    "shared_helper.host_private_memory_delta_after_idle_bytes": {
+      "count": 30,
+      "max": 327752.0,
+      "mean": 49155.2,
+      "min": -65536.0,
+      "p50": 32768.0,
+      "p95": 196608.0,
+      "unit": "bytes"
+    },
+    "shared_helper.installed_plugin_private_memory_delta_bytes": {
+      "count": 10,
+      "max": 475184.0,
+      "mean": 403072.8,
+      "min": 294912.0,
+      "p50": 409624.0,
+      "p95": 475184.0,
+      "unit": "bytes"
+    },
+    "shared_helper.runtime_private_memory_increment_bytes": {
+      "count": 30,
+      "max": 5571232.0,
+      "mean": 4747559.733333333,
+      "min": 4112912.0,
+      "p50": 4555280.0,
+      "p95": 5522080.0,
+      "unit": "bytes"
+    }
+  },
+  "notes": [
+    "This is disposable comparative evidence, not a production runtime implementation or an accepted budget.",
+    "Each candidate uses a separately compiled Host so the shared-helper Host does not link JavaScriptCore.",
+    "The same JavaScript source, inputs, result checks, and Host-side Capability policy are used for both variants.",
+    "The 250 ms delay is a comparable teardown sampling point, not a production inactivity timeout."
+  ],
+  "raw": "prototypes/jsc-helper-comparison/measurements/automated-2026-09-02/raw.jsonl",
+  "record_type": "summary",
+  "schema_version": 1,
+  "unmeasured_risks": [
+    "Malicious CPU or memory exhaustion and cancellation of non-terminating JavaScript",
+    "Real Documented Plugin Interface IPC, payload serialization, and Host Service execution costs",
+    "Concurrent or long-lived Actions, helper reuse, and production inactivity timeout behavior",
+    "Code signing, sandbox profiles, XPC interruption/reconnection, and hostile message validation",
+    "Device-to-photon Menu latency and performance on other supported hardware or macOS versions"
+  ],
+  "workloads": [
+    "transform-text.js",
+    "structured-data.js",
+    "capability-probe.js"
+  ]
+}
