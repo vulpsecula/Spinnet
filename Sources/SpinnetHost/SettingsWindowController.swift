@@ -8,6 +8,12 @@ final class SettingsWindowController: NSWindowController {
     private let actionTable = NSTableView()
     private let inputLabel = NSTextField(labelWithString: "Configuration input")
     private let inputField = NSTextField()
+    private let menuItemLabel = NSTextField(labelWithString: "Menu Item")
+    private let primaryActionLabel = NSTextField(labelWithString: "Primary Action")
+    private let alternateActionLabel = NSTextField(labelWithString: "Alternate Actions")
+    private let bindingHelpLabel = NSTextField(
+        wrappingLabelWithString: "Choose the Action that runs by default. Check any Alternate Actions to expose them from the runtime Menu with right-click or Option-Return."
+    )
     private let menuItemPicker = NSPopUpButton()
     private let primaryActionPicker = NSPopUpButton()
     private let alternateActionStack = NSStackView()
@@ -24,7 +30,7 @@ final class SettingsWindowController: NSWindowController {
     init(editor: HostConfigurationEditor) {
         self.editor = editor
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 680),
+            contentRect: NSRect(x: 0, y: 0, width: 1_060, height: 760),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -32,8 +38,10 @@ final class SettingsWindowController: NSWindowController {
         super.init(window: window)
         window.title = "Spinnet Settings"
         window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 900, height: 620)
         window.contentView = makeContentView()
         window.initialFirstResponder = commandTable
+        window.center()
         reload()
     }
 
@@ -56,16 +64,34 @@ final class SettingsWindowController: NSWindowController {
         inputLabel.setAccessibilityLabel("Action configuration input label")
 
         menuItemPicker.setAccessibilityLabel("Menu Item")
+        menuItemPicker.setAccessibilityHelp("Choose the Menu Item whose Actions you want to bind.")
         menuItemPicker.target = self
         menuItemPicker.action = #selector(menuItemChanged(_:))
         primaryActionPicker.setAccessibilityLabel("Primary Action")
+        primaryActionPicker.setAccessibilityHelp(
+            "This Action runs when the Menu Item is selected normally."
+        )
         primaryActionPicker.target = self
         primaryActionPicker.action = #selector(primaryActionChanged(_:))
+
+        for label in [menuItemLabel, primaryActionLabel, alternateActionLabel] {
+            label.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+            label.setAccessibilityRole(.staticText)
+        }
+        bindingHelpLabel.textColor = .secondaryLabelColor
+        bindingHelpLabel.maximumNumberOfLines = 0
+        bindingHelpLabel.setAccessibilityRole(.staticText)
+        bindingHelpLabel.setAccessibilityLabel(
+            "Primary Actions run by default. Alternate Actions are shown with right-click or Option-Return."
+        )
 
         alternateActionStack.orientation = .vertical
         alternateActionStack.alignment = .leading
         alternateActionStack.spacing = 4
         alternateActionStack.setAccessibilityLabel("Alternate Actions")
+        alternateActionStack.setAccessibilityHelp(
+            "Select the Alternate Actions to expose for this Menu Item."
+        )
 
         createActionButton = NSButton(
             title: "Create Action",
@@ -111,7 +137,7 @@ final class SettingsWindowController: NSWindowController {
 
         let commandsSection = NSStackView(views: [
             sectionLabel("Available Plugin Commands"),
-            tableScrollView(for: commandTable, height: 110)
+            tableScrollView(for: commandTable, height: 150, width: 480)
         ])
         commandsSection.orientation = .vertical
         commandsSection.alignment = .leading
@@ -127,7 +153,7 @@ final class SettingsWindowController: NSWindowController {
 
         let actionsSection = NSStackView(views: [
             sectionLabel("Configured Actions"),
-            tableScrollView(for: actionTable, height: 130),
+            tableScrollView(for: actionTable, height: 170, width: 480),
             inputLabel,
             inputField,
             actionButtons
@@ -144,9 +170,13 @@ final class SettingsWindowController: NSWindowController {
         menuItemButtons.spacing = 8
 
         let menuSection = NSStackView(views: [
-            sectionLabel("Menu Item Bindings"),
+            sectionLabel("Bind Actions to a Menu Item"),
+            bindingHelpLabel,
+            menuItemLabel,
             menuItemPicker,
+            primaryActionLabel,
             primaryActionPicker,
+            alternateActionLabel,
             alternateActionStack,
             applyBindingButton,
             menuItemButtons
@@ -154,11 +184,31 @@ final class SettingsWindowController: NSWindowController {
         menuSection.orientation = .vertical
         menuSection.alignment = .leading
         menuSection.spacing = 8
+        menuSection.translatesAutoresizingMaskIntoConstraints = false
 
-        let root = NSStackView(views: [commandsSection, actionsSection, menuSection])
+        let actionColumn = NSStackView(views: [commandsSection, actionsSection])
+        actionColumn.orientation = .vertical
+        actionColumn.alignment = .leading
+        actionColumn.spacing = 18
+        actionColumn.translatesAutoresizingMaskIntoConstraints = false
+
+        let columns = NSStackView(views: [actionColumn, menuSection])
+        columns.orientation = .horizontal
+        columns.alignment = .top
+        columns.spacing = 28
+        columns.translatesAutoresizingMaskIntoConstraints = false
+
+        let instructions = NSTextField(
+            wrappingLabelWithString: "Create an Action from an available Command, then bind it as the Primary Action or one of the Alternate Actions for a Menu Item."
+        )
+        instructions.textColor = .secondaryLabelColor
+        instructions.maximumNumberOfLines = 0
+        instructions.setAccessibilityRole(.staticText)
+
+        let root = NSStackView(views: [instructions, columns])
         root.orientation = .vertical
         root.alignment = .leading
-        root.spacing = 18
+        root.spacing = 16
         root.translatesAutoresizingMaskIntoConstraints = false
 
         let container = NSView()
@@ -168,9 +218,12 @@ final class SettingsWindowController: NSWindowController {
             root.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
             root.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             root.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -20),
+            instructions.widthAnchor.constraint(equalToConstant: 980),
+            actionColumn.widthAnchor.constraint(equalToConstant: 480),
+            menuSection.widthAnchor.constraint(equalToConstant: 480),
             inputField.widthAnchor.constraint(equalToConstant: 480),
-            menuItemPicker.widthAnchor.constraint(equalToConstant: 260),
-            primaryActionPicker.widthAnchor.constraint(equalToConstant: 420)
+            menuItemPicker.widthAnchor.constraint(equalToConstant: 440),
+            primaryActionPicker.widthAnchor.constraint(equalToConstant: 440)
         ])
         return container
     }
@@ -188,14 +241,18 @@ final class SettingsWindowController: NSWindowController {
         table.setAccessibilityLabel(accessibilityLabel)
     }
 
-    private func tableScrollView(for table: NSTableView, height: CGFloat) -> NSScrollView {
+    private func tableScrollView(
+        for table: NSTableView,
+        height: CGFloat,
+        width: CGFloat
+    ) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.documentView = table
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .bezelBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.heightAnchor.constraint(equalToConstant: height).isActive = true
-        scrollView.widthAnchor.constraint(equalToConstant: 640).isActive = true
+        scrollView.widthAnchor.constraint(equalToConstant: width).isActive = true
         return scrollView
     }
 

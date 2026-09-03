@@ -68,16 +68,26 @@ final class RadialMenuView: NSView {
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
+    override func mouseDown(with event: NSEvent) {
+        updateSelection(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        updateSelection(at: convert(event.locationInWindow, from: nil))
+    }
+
     override func mouseExited(with event: NSEvent) {
         selectedIndex = nil
     }
 
     override func mouseUp(with event: NSEvent) {
+        updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
         onPrimarySelection?(selectedIndex)
     }
 
     override func rightMouseUp(with event: NSEvent) {
+        updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
         onAlternateSelection?(selectedIndex)
     }

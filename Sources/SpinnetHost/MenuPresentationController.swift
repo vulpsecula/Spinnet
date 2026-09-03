@@ -89,7 +89,6 @@ final class MenuPresentationController {
     private func showAlternates(for index: Int) {
         guard items.indices.contains(index) else { return }
         let item = items[index]
-        guard !item.alternateActions.isEmpty else { return }
 
         let menu = NSMenu(title: "Alternate Actions")
         menu.autoenablesItems = false
@@ -104,6 +103,15 @@ final class MenuPresentationController {
             menuItem.isEnabled = alternate.isAvailable
             menuItem.toolTip = alternate.accessibilityLabel
             menu.addItem(menuItem)
+        }
+        if item.alternateActions.isEmpty {
+            let emptyItem = NSMenuItem(
+                title: "No Alternate Actions configured",
+                action: nil,
+                keyEquivalent: ""
+            )
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
         }
 
         alternateMenu = menu
