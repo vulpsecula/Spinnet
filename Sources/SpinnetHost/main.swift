@@ -42,6 +42,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             menu = MenuPresentationController(items: menuItems)
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
+            menu.onDismiss = { [weak self] in self?.shortcuts?.unregisterEscape() }
             feedback = ActionFeedbackPresenter()
             try installShortcuts()
         } catch {
@@ -57,6 +58,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installShortcuts() throws {
         let controller = GlobalHotKeyController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
+        controller.onEscape = { [weak self] in self?.menu.dismiss() }
         guard controller.start() else {
             throw HostCommandError.failed("Global shortcut registration failed")
         }
@@ -68,6 +70,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if menu.isOpen {
             menu.dismiss()
         } else {
+            if shortcuts?.registerEscape() != true {
+                NSLog("Spinnet: global Escape registration unavailable; using panel-local fallback")
+            }
             menu.open(at: NSEvent.mouseLocation)
         }
     }

@@ -40,13 +40,16 @@ final class AppKitHostCommandExecutor: HostCommandExecutor {
 final class GlobalHotKeyController {
     private enum HotKey: UInt32 {
         case invoke = 1
+        case escape = 2
     }
 
     private var eventHandler: EventHandlerRef?
     private var invokeHotKey: EventHotKeyRef?
+    private var escapeHotKey: EventHotKeyRef?
     private let signature = OSType(0x53504E54) // SPNT
 
     var onInvoke: (() -> Void)?
+    var onEscape: (() -> Void)?
 
     func start() -> Bool {
         var eventType = EventTypeSpec(
@@ -97,7 +100,26 @@ final class GlobalHotKeyController {
         return true
     }
 
+    func registerEscape() -> Bool {
+        guard escapeHotKey == nil else { return true }
+        return RegisterEventHotKey(
+            UInt32(kVK_Escape),
+            0,
+            EventHotKeyID(signature: signature, id: HotKey.escape.rawValue),
+            GetApplicationEventTarget(),
+            0,
+            &escapeHotKey
+        ) == noErr
+    }
+
+    func unregisterEscape() {
+        guard let escapeHotKey else { return }
+        UnregisterEventHotKey(escapeHotKey)
+        self.escapeHotKey = nil
+    }
+
     func stop() {
+        unregisterEscape()
         if let invokeHotKey { UnregisterEventHotKey(invokeHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
         invokeHotKey = nil
@@ -107,7 +129,10 @@ final class GlobalHotKeyController {
     deinit { stop() }
 
     private func handle(_ id: UInt32) {
-        guard id == HotKey.invoke.rawValue else { return }
-        onInvoke?()
+        guard let hotKey = HotKey(rawValue: id) else { return }
+        switch hotKey {
+        case .invoke: onInvoke?()
+        case .escape: onEscape?()
+        }
     }
 }

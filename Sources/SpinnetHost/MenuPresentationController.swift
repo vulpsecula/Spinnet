@@ -10,6 +10,7 @@ final class MenuPresentationController {
     private var outsideClickMonitor: Any?
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
 
     private(set) var isOpen = false
     var onPrimaryAction: ((ActionID) -> Void)?
@@ -36,6 +37,7 @@ final class MenuPresentationController {
         panel.becomesKeyOnlyIfNeeded = true
 
         menuView.onPrimarySelection = { [weak self] index in self?.select(index: index) }
+        menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
     func open(at pointer: CGPoint) {
@@ -98,14 +100,21 @@ final class MenuPresentationController {
             }
             return event
         }
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) {
+            [weak self] event in
+            guard let self, self.isOpen, event.keyCode == UInt16(kVK_Escape) else { return }
+            self.dismiss()
+        }
     }
 
     private func removeDismissalMonitors() {
         if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         if let localKeyMonitor { NSEvent.removeMonitor(localKeyMonitor) }
+        if let globalKeyMonitor { NSEvent.removeMonitor(globalKeyMonitor) }
         outsideClickMonitor = nil
         localMouseMonitor = nil
         localKeyMonitor = nil
+        globalKeyMonitor = nil
     }
 }

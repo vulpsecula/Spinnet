@@ -15,6 +15,7 @@ final class RadialMenuView: NSView {
     }
 
     var onPrimarySelection: ((Int) -> Void)?
+    var onCancel: (() -> Void)?
 
     init(items: [MenuItemPresentation]) {
         self.items = items
@@ -32,6 +33,10 @@ final class RadialMenuView: NSView {
     }
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
 
     func clearSelection() {
         selectedIndex = nil
