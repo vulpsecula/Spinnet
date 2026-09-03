@@ -34,6 +34,35 @@ final class HostActionRunnerTests: XCTestCase {
         XCTAssertEqual(failure.userMessage, "com.example.fixture — action-1 failed (host_command_failed)")
     }
 
+    func testUnavailableConfiguredCommandCannotReachExecutor() throws {
+        let action = try makeURLAction()
+        let registry = PluginRegistry()
+        let manifest = try PluginManifest(
+            id: action.pluginID,
+            name: "Fixture",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: action.commandID,
+                title: "Changed title",
+                hostCommand: .openURL
+            )]
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: manifest
+        ))
+        let executor = RecordingHostCommandExecutor(result: .success(.null))
+
+        let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
+
+        XCTAssertTrue(executor.actions.isEmpty)
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("An unavailable Command should produce a failed outcome")
+        }
+        XCTAssertEqual(failure.category, .commandUnavailable)
+        XCTAssertEqual(failure.userMessage, "com.example.fixture — action-1 failed (command_unavailable)")
+    }
+
     private func makeURLAction() throws -> ActionConfiguration {
         try ActionConfiguration(
             id: ActionID("action-1"),

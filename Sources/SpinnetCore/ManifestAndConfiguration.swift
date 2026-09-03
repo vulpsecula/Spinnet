@@ -177,8 +177,17 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         command: CommandDeclaration,
         input: JSONValue
     ) throws {
-        guard !id.rawValue.isEmpty else {
+        guard !id.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConfigurationError.invalidAction("Action ID is empty")
+        }
+        guard !pluginID.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ConfigurationError.invalidAction("Plugin ID is empty")
+        }
+        guard !command.id.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ConfigurationError.invalidAction("Command ID is empty")
+        }
+        guard !command.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ConfigurationError.invalidAction("Action title is empty")
         }
         self.id = id
         self.pluginID = pluginID
@@ -188,26 +197,83 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         self.hostCommand = command.hostCommand
         self.input = input
     }
-}
 
-public struct MenuItemConfiguration: Codable, Equatable, Hashable {
-    public let primaryActionID: ActionID
-
-    public init(primaryActionID: ActionID) throws {
-        guard !primaryActionID.rawValue.isEmpty else {
-            throw ConfigurationError.invalidMenu("Primary Action ID is empty")
-        }
-        self.primaryActionID = primaryActionID
+    public var declaredCommand: CommandDeclaration {
+        CommandDeclaration(
+            id: commandID,
+            title: title,
+            execution: execution,
+            hostCommand: hostCommand
+        )
     }
 
     private enum CodingKeys: String, CodingKey {
-        case primaryActionID = "primary_action_id"
+        case id
+        case pluginID
+        case commandID
+        case title
+        case execution
+        case hostCommand
+        case input
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
-            primaryActionID: container.decode(ActionID.self, forKey: .primaryActionID)
+            id: container.decode(ActionID.self, forKey: .id),
+            pluginID: container.decode(PluginID.self, forKey: .pluginID),
+            command: CommandDeclaration(
+                id: container.decode(CommandID.self, forKey: .commandID),
+                title: container.decode(String.self, forKey: .title),
+                execution: container.decode(CommandExecution.self, forKey: .execution),
+                hostCommand: container.decode(HostCommand.self, forKey: .hostCommand)
+            ),
+            input: container.decode(JSONValue.self, forKey: .input)
+        )
+    }
+}
+
+public struct MenuItemConfiguration: Codable, Equatable, Hashable {
+    public let primaryActionID: ActionID
+    public let alternateActionIDs: [ActionID]
+
+    public init(
+        primaryActionID: ActionID,
+        alternateActionIDs: [ActionID] = []
+    ) throws {
+        guard !primaryActionID.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ConfigurationError.invalidMenu("Primary Action ID is empty")
+        }
+        guard alternateActionIDs.allSatisfy({
+            !$0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }) else {
+            throw ConfigurationError.invalidMenu("Alternate Action ID is empty")
+        }
+        guard Set(alternateActionIDs).count == alternateActionIDs.count else {
+            throw ConfigurationError.invalidMenu("An Alternate Action is bound more than once")
+        }
+        guard !alternateActionIDs.contains(primaryActionID) else {
+            throw ConfigurationError.invalidMenu(
+                "An Action cannot be both Primary and Alternate"
+            )
+        }
+        self.primaryActionID = primaryActionID
+        self.alternateActionIDs = alternateActionIDs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case primaryActionID = "primary_action_id"
+        case alternateActionIDs = "alternate_action_ids"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            primaryActionID: container.decode(ActionID.self, forKey: .primaryActionID),
+            alternateActionIDs: container.decodeIfPresent(
+                [ActionID].self,
+                forKey: .alternateActionIDs
+            ) ?? []
         )
     }
 }
@@ -221,11 +287,22 @@ public struct MenuConfiguration: Codable, Equatable {
         }
         var actionIDs = Set<ActionID>()
         for item in items {
-            guard actionIDs.insert(item.primaryActionID).inserted else {
-                throw ConfigurationError.invalidMenu("An Action is bound more than once")
+            for actionID in [item.primaryActionID] + item.alternateActionIDs {
+                guard actionIDs.insert(actionID).inserted else {
+                    throw ConfigurationError.invalidMenu("An Action is bound more than once")
+                }
             }
         }
         self.items = items
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(items: container.decode([MenuItemConfiguration].self, forKey: .items))
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case items
     }
 }
 
@@ -241,12 +318,27 @@ public struct HostConfiguration: Codable, Equatable {
             }
         }
         for item in menu.items {
-            guard actionIDs.contains(item.primaryActionID) else {
-                throw ConfigurationError.invalidMenu("Menu Item references an unknown Action")
+            for actionID in [item.primaryActionID] + item.alternateActionIDs {
+                guard actionIDs.contains(actionID) else {
+                    throw ConfigurationError.invalidMenu("Menu Item references an unknown Action")
+                }
             }
         }
         self.actions = actions
         self.menu = menu
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            actions: container.decode([ActionConfiguration].self, forKey: .actions),
+            menu: container.decode(MenuConfiguration.self, forKey: .menu)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case actions
+        case menu
     }
 }
 
@@ -282,6 +374,22 @@ public struct HostActionRunner {
                 for: action,
                 category: .hostCommandFailed,
                 message: error.localizedDescription
+            )
+        }
+    }
+
+    public func invoke(
+        _ action: ActionConfiguration,
+        using registry: PluginRegistry
+    ) -> ActionOutcome {
+        switch registry.availability(for: action) {
+        case .available:
+            return invoke(action)
+        case .unavailable(let reason):
+            return failure(
+                for: action,
+                category: .commandUnavailable,
+                message: reason.description
             )
         }
     }

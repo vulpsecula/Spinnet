@@ -56,4 +56,58 @@ final class ManifestAndConfigurationTests: XCTestCase {
         """#.utf8)
         XCTAssertThrowsError(try PluginManifestLoader.decode(duplicate))
     }
+
+    func testMenuItemBindsPrimaryAndAlternateActionsAndRoundTrips() throws {
+        let menuItem = try MenuItemConfiguration(
+            primaryActionID: ActionID("primary"),
+            alternateActionIDs: [ActionID("alternate-1"), ActionID("alternate-2")]
+        )
+        let menu = try MenuConfiguration(items: [menuItem])
+        let command = CommandDeclaration(
+            id: CommandID("fixture.open"),
+            title: "Open",
+            hostCommand: .openURL
+        )
+        let actions = try [
+            ActionConfiguration(
+                id: ActionID("primary"),
+                pluginID: PluginID("fixture"),
+                command: command,
+                input: .string("https://example.com")
+            ),
+            ActionConfiguration(
+                id: ActionID("alternate-1"),
+                pluginID: PluginID("fixture"),
+                command: command,
+                input: .string("https://example.org")
+            ),
+            ActionConfiguration(
+                id: ActionID("alternate-2"),
+                pluginID: PluginID("fixture"),
+                command: command,
+                input: .string("https://example.net")
+            )
+        ]
+        let configuration = try HostConfiguration(actions: actions, menu: menu)
+
+        let data = try JSONEncoder().encode(configuration)
+        let decoded = try JSONDecoder().decode(HostConfiguration.self, from: data)
+
+        XCTAssertEqual(
+            decoded.menu.items[0].alternateActionIDs,
+            [ActionID("alternate-1"), ActionID("alternate-2")]
+        )
+    }
+
+    func testMenuItemRejectsDuplicateOrPrimaryAlternateBindings() {
+        XCTAssertThrowsError(try MenuItemConfiguration(
+            primaryActionID: ActionID("same"),
+            alternateActionIDs: [ActionID("same")]
+        ))
+
+        XCTAssertThrowsError(try MenuItemConfiguration(
+            primaryActionID: ActionID("primary"),
+            alternateActionIDs: [ActionID("alternate"), ActionID("alternate")]
+        ))
+    }
 }

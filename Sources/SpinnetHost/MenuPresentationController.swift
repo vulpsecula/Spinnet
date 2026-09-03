@@ -3,17 +3,19 @@ import Carbon
 import SpinnetCore
 
 final class MenuPresentationController {
-    private let layout: RadialMenuLayout
+    private var layout: RadialMenuLayout
     private let panel: NSPanel
-    private let menuView: RadialMenuView
-    private let items: [MenuItemPresentation]
+    private var menuView: RadialMenuView
+    private var items: [MenuItemPresentation]
     private var outsideClickMonitor: Any?
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
+    private var alternateMenu: NSMenu?
 
     private(set) var isOpen = false
     var onPrimaryAction: ((ActionID) -> Void)?
+    var onAlternateAction: ((ActionID) -> Void)?
     var onDismiss: (() -> Void)?
 
     init(items: [MenuItemPresentation]) {
@@ -36,11 +38,26 @@ final class MenuPresentationController {
         panel.acceptsMouseMovedEvents = true
         panel.becomesKeyOnlyIfNeeded = true
 
+        configureMenuView()
+    }
+
+    func reload(items: [MenuItemPresentation]) {
+        if isOpen { dismiss() }
+        self.items = items
+        self.layout = RadialMenuLayout(itemCount: max(items.count, 1))
+        self.menuView = RadialMenuView(items: items)
+        panel.contentView = menuView
+        configureMenuView()
+    }
+
+    private func configureMenuView() {
         menuView.onPrimarySelection = { [weak self] index in self?.select(index: index) }
+        menuView.onAlternateSelection = { [weak self] index in self?.showAlternates(for: index) }
         menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
     func open(at pointer: CGPoint) {
+        guard !items.isEmpty else { return }
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
         }
@@ -67,6 +84,39 @@ final class MenuPresentationController {
         let item = items[index]
         dismiss()
         onPrimaryAction?(item.configuration.primaryActionID)
+    }
+
+    private func showAlternates(for index: Int) {
+        guard items.indices.contains(index) else { return }
+        let item = items[index]
+        guard !item.alternateActions.isEmpty else { return }
+
+        let menu = NSMenu(title: "Alternate Actions")
+        menu.autoenablesItems = false
+        for alternate in item.alternateActions {
+            let menuItem = NSMenuItem(
+                title: alternate.displayTitle,
+                action: #selector(selectAlternate(_:)),
+                keyEquivalent: ""
+            )
+            menuItem.target = self
+            menuItem.representedObject = alternate.actionID.rawValue
+            menuItem.isEnabled = alternate.isAvailable
+            menuItem.toolTip = alternate.accessibilityLabel
+            menu.addItem(menuItem)
+        }
+
+        alternateMenu = menu
+        let center = CGPoint(x: menuView.bounds.midX, y: menuView.bounds.midY)
+        menu.popUp(positioning: nil, at: center, in: menuView)
+        alternateMenu = nil
+    }
+
+    @objc private func selectAlternate(_ sender: NSMenuItem) {
+        guard let rawID = sender.representedObject as? String else { return }
+        let actionID = ActionID(rawID)
+        dismiss()
+        onAlternateAction?(actionID)
     }
 
     private func installDismissalMonitors() {

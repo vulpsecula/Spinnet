@@ -29,6 +29,100 @@ final class RegistryAndStoreTests: XCTestCase {
         ])
 
         XCTAssertThrowsError(try HostConfiguration(actions: [action], menu: menu))
+
+        let menuWithMissingAlternate = try MenuConfiguration(items: [
+            try MenuItemConfiguration(
+                primaryActionID: action.id,
+                alternateActionIDs: [ActionID("missing-alternate")]
+            )
+        ])
+        XCTAssertThrowsError(
+            try HostConfiguration(actions: [action], menu: menuWithMissingAlternate)
+        )
+    }
+
+    func testRegistryListsCommandsAndReportsUnavailableConfiguredActions() throws {
+        let registry = PluginRegistry()
+        let originalManifest = try makeManifest(title: "Open URL")
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: originalManifest
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("open-action"),
+            pluginID: originalManifest.id,
+            command: originalManifest.commands[0],
+            input: .string("https://example.com")
+        )
+
+        XCTAssertEqual(registry.availableCommands().map(\.commandID), [CommandID("fixture.open")])
+        XCTAssertEqual(registry.availability(for: action), .available)
+
+        try registry.setEnabled(false, for: originalManifest.id)
+        XCTAssertTrue(registry.availableCommands().isEmpty)
+        XCTAssertEqual(
+            registry.availability(for: action),
+            .unavailable(.pluginDisabled)
+        )
+
+        try registry.setEnabled(true, for: originalManifest.id)
+        let changedManifest = try makeManifest(title: "Open a URL")
+        try registry.replace(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: changedManifest
+        ))
+        XCTAssertEqual(
+            registry.availability(for: action),
+            .unavailable(.commandChanged)
+        )
+
+        let missingCommandManifest = try makeManifest(
+            title: "Another Command",
+            commandID: CommandID("fixture.other")
+        )
+        try registry.replace(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: missingCommandManifest
+        ))
+        XCTAssertEqual(
+            registry.availability(for: action),
+            .unavailable(.commandMissing)
+        )
+    }
+
+    func testRegistryReportsMissingPluginAndCommand() throws {
+        let registry = PluginRegistry()
+        let action = try ActionConfiguration(
+            id: ActionID("missing-action"),
+            pluginID: PluginID("missing.plugin"),
+            command: CommandDeclaration(
+                id: CommandID("missing.command"),
+                title: "Missing",
+                hostCommand: .openURL
+            ),
+            input: .string("https://example.com")
+        )
+
+        XCTAssertEqual(
+            registry.availability(for: action),
+            .unavailable(.pluginMissing)
+        )
+    }
+
+    private func makeManifest(
+        title: String,
+        commandID: CommandID = CommandID("fixture.open")
+    ) throws -> PluginManifest {
+        try PluginManifest(
+            id: PluginID("com.spinnet.fixture"),
+            name: "Fixture",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: commandID,
+                title: title,
+                hostCommand: .openURL
+            )]
+        )
     }
 
     private func fixturePackageURL() throws -> URL {

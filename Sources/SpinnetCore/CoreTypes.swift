@@ -121,6 +121,7 @@ public struct ActionID: RawRepresentable, Codable, Equatable, Hashable {
 public enum ActionFailureCategory: String, Codable, CaseIterable, Hashable {
     case invalidConfiguration = "invalid_configuration"
     case hostCommandFailed = "host_command_failed"
+    case commandUnavailable = "command_unavailable"
     case unknown
 }
 
@@ -211,6 +212,7 @@ public enum ConfigurationError: Error, Equatable, CustomStringConvertible, Local
     case invalidAction(String)
     case invalidMenu(String)
     case malformedValue(String)
+    case persistence(String)
 
     public var description: String {
         switch self {
@@ -218,6 +220,7 @@ public enum ConfigurationError: Error, Equatable, CustomStringConvertible, Local
         case .invalidAction(let message): return "Invalid Action: \(message)"
         case .invalidMenu(let message): return "Invalid Menu: \(message)"
         case .malformedValue(let message): return "Malformed configuration value: \(message)"
+        case .persistence(let message): return "Configuration persistence error: \(message)"
         }
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import SpinnetCore
 
 final class RadialMenuView: NSView {
@@ -15,6 +16,7 @@ final class RadialMenuView: NSView {
     }
 
     var onPrimarySelection: ((Int) -> Void)?
+    var onAlternateSelection: ((Int) -> Void)?
     var onCancel: (() -> Void)?
 
     init(items: [MenuItemPresentation]) {
@@ -25,7 +27,11 @@ final class RadialMenuView: NSView {
         super.init(frame: CGRect(x: 0, y: 0, width: diameter, height: diameter))
         setAccessibilityRole(.menu)
         setAccessibilityLabel("Spinnet Menu")
-        setAccessibilityHelp("Move the pointer over a Menu Item and release to run it")
+        setAccessibilityHelp(
+            "Use the arrow keys and Return for a Primary Action. "
+                + "Right-click or Option-Return to show Alternate Actions."
+        )
+        setAccessibilityValue("No Menu Item selected")
     }
 
     required init?(coder: NSCoder) {
@@ -71,9 +77,50 @@ final class RadialMenuView: NSView {
         onPrimarySelection?(selectedIndex)
     }
 
+    override func rightMouseUp(with event: NSEvent) {
+        guard let selectedIndex else { return }
+        onAlternateSelection?(selectedIndex)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
+            moveSelection(by: -1)
+        case UInt16(kVK_RightArrow), UInt16(kVK_DownArrow):
+            moveSelection(by: 1)
+        case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
+            let index = selectedIndex ?? (items.isEmpty ? nil : 0)
+            guard let index else { return }
+            if event.modifierFlags.contains(.option) {
+                onAlternateSelection?(index)
+            } else {
+                onPrimarySelection?(index)
+            }
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
     private func updateSelection(at point: CGPoint) {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         selectedIndex = layout.hitTest(point: point, center: center)
+        updateAccessibilityValue()
+    }
+
+    private func moveSelection(by offset: Int) {
+        guard !items.isEmpty else { return }
+        let count = items.count
+        let current = selectedIndex ?? (offset < 0 ? 0 : count - 1)
+        selectedIndex = (current + offset + count) % count
+        updateAccessibilityValue()
+    }
+
+    private func updateAccessibilityValue() {
+        if let selectedIndex, items.indices.contains(selectedIndex) {
+            setAccessibilityValue(items[selectedIndex].primaryAction.accessibilityLabel)
+        } else {
+            setAccessibilityValue("No Menu Item selected")
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -82,7 +129,8 @@ final class RadialMenuView: NSView {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let step = 360 / CGFloat(layout.itemCount)
 
-        for index in 0..<layout.itemCount {
+        for index in 0..<layout.itemCount where items.indices.contains(index) {
+            let item = items[index]
             let path = NSBezierPath()
             path.appendArc(
                 withCenter: center,
@@ -98,15 +146,23 @@ final class RadialMenuView: NSView {
                 clockwise: true
             )
             path.close()
-            (selectedIndex == index
-                ? NSColor.controlAccentColor.withAlphaComponent(0.94)
-                : NSColor.windowBackgroundColor.withAlphaComponent(0.94)).setFill()
+            let fillColor: NSColor
+            if !item.primaryAction.isAvailable {
+                fillColor = NSColor.systemGray.withAlphaComponent(0.55)
+            } else if selectedIndex == index {
+                fillColor = NSColor.controlAccentColor.withAlphaComponent(0.94)
+            } else {
+                fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94)
+            }
+            fillColor.setFill()
             path.fill()
 
-            let title = items[index].title
+            let title = item.title
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-                .foregroundColor: selectedIndex == index ? NSColor.white : NSColor.labelColor
+                .foregroundColor: selectedIndex == index && item.primaryAction.isAvailable
+                    ? NSColor.white
+                    : NSColor.labelColor
             ]
             let point = layout.itemCenter(index: index, center: center)
             let size = title.size(withAttributes: attributes)

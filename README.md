@@ -17,7 +17,9 @@ swift run SpinnetHost
 
 The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
 manifest loader and opens the radial Menu with Control-Option-Space. The
-fixture's Menu Item opens the Spinnet issue in the default browser.
+fixture's Menu Item opens the Spinnet issue in the default browser. Use the
+Spinnet status item to open Settings, where Actions and Menu bindings are
+configured and saved automatically.
 
 ## Manual acceptance checks
 
@@ -31,12 +33,16 @@ fixture's Menu Item opens the Spinnet issue in the default browser.
    Control-Option-Space. None of these dismissal paths runs the Action.
 5. Repeat near each display edge and corner. The complete ring remains inside
    the display's visible frame.
+6. Open Settings from the status item. Create a second Action, select it as an
+   Alternate Action, close and relaunch the Host, and confirm the binding is
+   still present. Right-click the Menu Item to expose the Alternate Action.
 
 ## Scope
 
-`SpinnetCore` owns manifest/configuration validation, Plugin registration, Menu
-geometry, and the Host-level `HostActionRunner` seam. `SpinnetHost` owns the
-AppKit overlay, global shortcuts, URL execution, and user-visible feedback.
+`SpinnetCore` owns manifest/configuration validation, Plugin registration,
+Action editing, configuration persistence, Menu geometry, and the Host-level
+`HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, global
+shortcuts, settings window, URL execution, and user-visible feedback.
 
 Scripted Actions, Plugin helpers, capabilities, and broader Host Services are
 outside this ticket and are intentionally not part of this walking skeleton.
