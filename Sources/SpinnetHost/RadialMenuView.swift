@@ -2,9 +2,15 @@ import AppKit
 import Carbon
 import SpinnetCore
 
+enum RadialMenuPresentationMode {
+    case runtime
+    case editor
+}
+
 final class RadialMenuView: NSView {
-    private let layout: RadialMenuLayout
-    private let items: [MenuItemPresentation]
+    private var layout: RadialMenuLayout
+    private var items: [MenuItemPresentation]
+    private let presentationMode: RadialMenuPresentationMode
     private var trackingArea: NSTrackingArea?
     private(set) var selectedIndex: Int? {
         didSet {
@@ -19,18 +25,29 @@ final class RadialMenuView: NSView {
     var onAlternateSelection: ((Int) -> Void)?
     var onCancel: (() -> Void)?
 
-    init(items: [MenuItemPresentation]) {
+    init(
+        items: [MenuItemPresentation],
+        mode: RadialMenuPresentationMode = .runtime
+    ) {
         self.items = items
+        self.presentationMode = mode
         let layout = RadialMenuLayout(itemCount: max(items.count, 1))
         self.layout = layout
         let diameter = (layout.outerRadius + 8) * 2
         super.init(frame: CGRect(x: 0, y: 0, width: diameter, height: diameter))
-        setAccessibilityRole(.menu)
-        setAccessibilityLabel("Spinnet Menu")
-        setAccessibilityHelp(
-            "Use the arrow keys and Return for a Primary Action. "
-                + "Right-click or Option-Return to show Alternate Actions."
-        )
+        switch mode {
+        case .runtime:
+            setAccessibilityRole(.menu)
+            setAccessibilityLabel("Spinnet Menu")
+            setAccessibilityHelp(
+                "Use the arrow keys and Return for a Primary Action. "
+                    + "Right-click or Option-Return to show Alternate Actions."
+            )
+        case .editor:
+            setAccessibilityRole(.group)
+            setAccessibilityLabel("Editor Mode Menu")
+            setAccessibilityHelp("Non-executing Menu shown while configuring Spinnet.")
+        }
         setAccessibilityValue("No Menu Item selected")
     }
 
@@ -38,14 +55,24 @@ final class RadialMenuView: NSView {
         fatalError("RadialMenuView is not decoded from a nib")
     }
 
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool { presentationMode == .runtime }
 
     override func cancelOperation(_ sender: Any?) {
+        guard presentationMode == .runtime else { return }
         onCancel?()
     }
 
     func clearSelection() {
         selectedIndex = nil
+    }
+
+    func reload(items: [MenuItemPresentation]) {
+        self.items = items
+        layout = RadialMenuLayout(itemCount: max(items.count, 1))
+        let diameter = (layout.outerRadius + 8) * 2
+        setFrameSize(NSSize(width: diameter, height: diameter))
+        clearSelection()
+        needsDisplay = true
     }
 
     override func updateTrackingAreas() {
@@ -61,38 +88,49 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
     override func rightMouseDown(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseExited(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         selectedIndex = nil
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
         onPrimarySelection?(selectedIndex)
     }
 
     override func rightMouseUp(with event: NSEvent) {
+        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
         onAlternateSelection?(selectedIndex)
     }
 
     override func keyDown(with event: NSEvent) {
+        guard presentationMode == .runtime else {
+            super.keyDown(with: event)
+            return
+        }
         switch event.keyCode {
         case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
             moveSelection(by: -1)

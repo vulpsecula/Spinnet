@@ -8,7 +8,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var feedback: ActionFeedbackPresenter!
     private var settings: SettingsWindowController!
     private var configurationStore: HostConfigurationStore!
-    private var statusItem: NSStatusItem?
+    private var statusItemController: StatusItemController?
     private var shortcuts: GlobalHotKeyController?
     private var actions: [ActionID: ActionConfiguration] = [:]
 
@@ -88,64 +88,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeMenuItems(from configuration: HostConfiguration) -> [MenuItemPresentation] {
-        configuration.menu.items.map { item in
-            let primary = presentation(for: item.primaryActionID)
-            let alternates = item.alternateActionIDs.map { presentation(for: $0) }
-            return MenuItemPresentation(
-                configuration: item,
-                primaryAction: primary,
-                alternateActions: alternates
-            )
+        MenuPresentationFactory.makeItems(configuration: configuration) {
+            registry.availability(for: $0)
         }
-    }
-
-    private func presentation(for actionID: ActionID) -> MenuActionPresentation {
-        guard let action = actions[actionID] else {
-            return MenuActionPresentation(
-                actionID: actionID,
-                title: "Unavailable Action",
-                availability: .unavailable(.commandMissing)
-            )
-        }
-        return MenuActionPresentation(
-            actionID: action.id,
-            title: action.title,
-            availability: registry.availability(for: action)
-        )
     }
 
     private func installStatusItem() {
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.title = "◉"
-        statusItem.button?.setAccessibilityLabel("Spinnet")
-        let statusMenu = NSMenu(title: "Spinnet")
-
-        let settingsItem = NSMenuItem(
-            title: "Configure Actions…",
-            action: #selector(openSettings(_:)),
-            keyEquivalent: ","
+        let controller = StatusItemController(
+            openSettings: { [weak self] in self?.settings.present() },
+            quit: { NSApp.terminate(nil) }
         )
-        settingsItem.target = self
-        statusMenu.addItem(settingsItem)
-        statusMenu.addItem(.separator())
-
-        let quitItem = NSMenuItem(
-            title: "Quit Spinnet",
-            action: #selector(quit(_:)),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-        statusMenu.addItem(quitItem)
-        statusItem.menu = statusMenu
-        self.statusItem = statusItem
-    }
-
-    @objc private func openSettings(_ sender: Any?) {
-        settings.present()
-    }
-
-    @objc private func quit(_ sender: Any?) {
-        NSApp.terminate(nil)
+        controller.install()
+        statusItemController = controller
     }
 
     private func installShortcuts() throws {

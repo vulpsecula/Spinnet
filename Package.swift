@@ -27,6 +27,10 @@ let package = Package(
         .testTarget(
             name: "SpinnetCoreTests",
             dependencies: ["SpinnetCore"]
+        ),
+        .testTarget(
+            name: "SpinnetHostTests",
+            dependencies: ["SpinnetHost"]
         )
     ]
 )
