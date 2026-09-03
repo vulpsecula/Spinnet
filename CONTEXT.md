@@ -12,6 +12,10 @@ _Avoid_: Core, main app
 An installable provider of Commands that extends Spinnet without becoming part of the Host.
 _Avoid_: Extension, add-on
 
+**Bundled Plugin**:
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services.
+_Avoid_: Built-in Command, trusted Host code
+
 **Command**:
 A callable operation declared by the Host or a Plugin, before user-specific configuration is applied.
 _Avoid_: Action type, function
@@ -24,16 +28,72 @@ _Avoid_: Command, operation
 A radial collection of Menu Items presented by the Host.
 _Avoid_: Wheel, palette
 
+**Menu Editor**:
+The settings surface where a user configures a Menu by arranging Menu Items and the Actions they expose.
+_Avoid_: Overview, wheel editor
+
+**Editor Mode**:
+The non-executing presentation of a Menu inside the Menu Editor.
+_Avoid_: Preview Menu, test Menu
+
+**Runtime Mode**:
+The executable presentation of a Menu when the user invokes it outside Settings.
+_Avoid_: Live preview, actual Menu
+
+**Library**:
+The settings collection of Menu Item Presets available to add to a Menu, grouped by built-in and Plugin-provided sources.
+_Avoid_: Plugin list, Action list
+
+**Menu Item Preset**:
+A recipe exposed as one Library entry for creating a Menu Item. A built-in Preset describes one Host-provided function; a Plugin exposes one Preset that selects default Primary and Alternate Commands from those it provides.
+_Avoid_: Plugin, template Menu Item, default Action
+
+**Ready-to-Use Preset**:
+A Menu Item Preset whose defaults are complete and valid, allowing it to create a Menu Item without initial configuration.
+_Avoid_: Non-configurable Preset, simple Plugin
+
+**Setup-Required Preset**:
+A Menu Item Preset that needs user-specific values in a Configuration Sheet before it can create a Menu Item.
+_Avoid_: Broken Preset, unavailable Plugin
+
+**Configuration Sheet**:
+A modal settings surface for editing one Menu Item's instance-specific configuration before saving or cancelling the changes.
+_Avoid_: Submenu, secondary window, inspector
+
+**Plugin Settings**:
+Configuration shared by a Plugin across the Menu Items created from its Presets.
+_Avoid_: Menu Item configuration, Preset defaults
+
+**Appearance**:
+The global visual configuration shared by a Menu's Editor Mode and Runtime Mode, excluding Menu Item-specific aliases, icons, and Action parameters.
+_Avoid_: Menu Item configuration, Plugin theme
+
+**Privacy & Permissions**:
+The settings page where users manage Host System Permissions, Sensitive Data Collection, and the Capabilities granted to individual Plugins as separate layers of authority.
+_Avoid_: Plugin Settings, macOS System Settings
+
+**Status Item**:
+Spinnet's icon in the macOS menu bar, distinct from the radial Menu.
+_Avoid_: Menu, tray icon
+
 **Menu Item**:
-A position in a Menu that binds one Primary Action and may expose Alternate Actions.
+A configured entry that occupies a Menu Slot, binds one Primary Action, and may expose Alternate Actions.
 _Avoid_: Sector, button
+
+**Menu Slot**:
+An evenly distributed position in a Menu that may be empty or occupied by one Menu Item.
+_Avoid_: Empty Menu Item, sector
+
+**Menu Item Alias**:
+A user-defined display name for one Menu Item, independent of its Preset, Plugin, and Action names and not required to be unique.
+_Avoid_: Action title, Plugin name
 
 **Primary Action**:
 The Action executed by the Menu Item's default gesture or left-click.
 _Avoid_: Default command
 
 **Alternate Action**:
-An additional Action exposed from a Menu Item rather than executed by its default gesture.
+An additional Action associated with a Menu Item that its configuration may expose in Runtime Mode rather than execute by the default gesture.
 _Avoid_: Secondary command, option
 
 **System Permission**:
@@ -47,6 +107,22 @@ _Avoid_: System Permission, entitlement
 **Host Service**:
 A controlled operation provided by the Host, whose availability may depend on a Capability and a System Permission.
 _Avoid_: Capability, system API
+
+**External App**:
+An application installed outside Spinnet that exposes an app-owned integration interface, such as a URL scheme or Apple Events API.
+_Avoid_: Plugin, dependency
+
+**External App Adapter**:
+A Plugin that maps its Commands to the documented integration interface of a specific External App without granting the Plugin general control over installed applications.
+_Avoid_: External App, universal app integration
+
+**Sensitive Data Collection**:
+An explicit Host-level opt-in that permits Spinnet to continuously collect and retain a named category of sensitive system data, such as clipboard history. It is separate from a Plugin's Capability to read collected data.
+_Avoid_: Capability, System Permission, background Plugin permission
+
+**Clipboard History Store**:
+The Host-owned collection of retained clipboard entries, populated only while its Sensitive Data Collection setting is enabled and exposed to a Plugin only through granted Capabilities and Host Services.
+_Avoid_: Clipboard History Plugin database, pasteboard
 
 **PopClip Extension**:
 An extension package authored for PopClip that Spinnet imports through its compatibility adapter rather than treating as a native Plugin.
