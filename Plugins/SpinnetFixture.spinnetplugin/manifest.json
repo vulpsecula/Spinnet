@@ -1,0 +1,9 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.fixture",
+  "name": "Spinnet Fixture Plugin",
+  "version": "1.0.0",
+  "commands": [
+    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"}
+  ]
+}
