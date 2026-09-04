@@ -54,7 +54,18 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP_BUNDLE"
+SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
+fi
+
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+    echo "Signed with Apple Development identity $SIGNING_IDENTITY"
+else
+    codesign --force --deep --sign - "$APP_BUNDLE"
+    echo "warning: no Apple Development identity found; Accessibility permission may reset after code changes" >&2
+fi
 
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"

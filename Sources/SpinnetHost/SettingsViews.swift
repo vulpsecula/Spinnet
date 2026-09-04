@@ -238,15 +238,20 @@ struct SettingsRootView: View {
     private var editorMode: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Menu Editor").font(.title2.weight(.semibold))
-                Text("Select a Slot to edit it. Actions never run here.")
+                Text(model.page == .menu ? "Menu Editor" : "Menu Preview")
+                    .font(.title2.weight(.semibold))
+                Text(model.page == .menu
+                    ? "Select a Slot to edit it. Actions never run here."
+                    : "Preview appearance changes. Actions never run here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.top, 24)
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
             ZStack {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
@@ -266,32 +271,112 @@ struct SettingsRootView: View {
                 )
                 .frame(width: 324, height: 324)
             }
-            .frame(width: 354, height: 382)
+            .frame(width: 354, height: 354)
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Editor Mode")
 
-            HStack(spacing: 8) {
-                Button(action: model.addEmptySlot) {
-                    Label("Add Slot", systemImage: "plus")
+            if model.page == .menu {
+                HStack(spacing: 8) {
+                    Button(action: model.addEmptySlot) {
+                        Label("Add Slot", systemImage: "plus")
+                    }
+                    .disabled(model.menuSlots.count >= 12)
+                    .accessibilityLabel("Add empty Slot")
+                    Button(action: model.removeSelectedEmptySlot) {
+                        Label("Remove", systemImage: "minus")
+                    }
+                    .disabled(
+                        model.menuSlots.count <= 1
+                            || model.menuSlots[model.selectedMenuIndex].item != nil
+                    )
+                    .accessibilityLabel("Remove selected empty Slot")
+                    Spacer()
+                    Text("\(model.menuSlots.count) of 12 Slots")
                 }
-                .disabled(model.menuSlots.count >= 12)
-                .accessibilityLabel("Add empty Slot")
-                Button(action: model.removeSelectedEmptySlot) {
-                    Label("Remove", systemImage: "minus")
-                }
-                .disabled(
-                    model.menuSlots.count <= 1
-                        || model.menuSlots[model.selectedMenuIndex].item != nil
-                )
-                .accessibilityLabel("Remove selected empty Slot")
+                .padding(.horizontal, 28)
+                .padding(.top, 10)
+
+                menuTriggerSettings
+                    .padding(.horizontal, 24)
+                    .padding(.top, 14)
+                    .padding(.bottom, 18)
+            } else {
                 Spacer()
-                Text("\(model.menuSlots.count) of 12 Slots")
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 14)
-            Spacer()
         }
+    }
+
+    private var menuTriggerSettings: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                Label("Open Menu", systemImage: "cursorarrow.rays")
+                    .font(.headline)
+                Spacer()
+                Text("Auto-saved")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            HStack {
+                Text("Mouse")
+                    .frame(width: 68, alignment: .leading)
+                Picker("Mouse trigger", selection: $model.triggerMouseButton) {
+                    Text("Side Button 1").tag(3)
+                    Text("Side Button 2").tag(4)
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+
+            HStack {
+                Text("Keyboard")
+                    .frame(width: 68, alignment: .leading)
+                KeyboardShortcutRecorder(shortcut: $model.triggerKeyboardShortcut)
+                    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30)
+                Button {
+                    model.triggerKeyboardShortcut = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .disabled(model.triggerKeyboardShortcut == nil)
+                .help("Clear optional keyboard shortcut")
+                .accessibilityLabel("Clear keyboard shortcut")
+            }
+
+            if model.accessibilityPermissionGranted {
+                Label("Accessibility granted", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    Label("Accessibility is required for Side Buttons", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Spacer(minLength: 4)
+                    Button("Enable…", action: openAccessibilitySettings)
+                        .controlSize(.small)
+                        .accessibilityLabel("Open Accessibility Settings")
+                }
+            }
+        }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Menu Trigger")
+    }
+
+    private func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        _ = openURL(url)
     }
 
     private var pageContent: some View {
@@ -301,13 +386,6 @@ struct SettingsRootView: View {
                 MenuEditorView(
                     editor: model.editor,
                     selectedMenuIndex: $model.selectedMenuIndex,
-                    triggerMouseButton: $model.triggerMouseButton,
-                    triggerKeyboardShortcut: $model.triggerKeyboardShortcut,
-                    accessibilityPermissionGranted: model.accessibilityPermissionGranted,
-                    openAccessibilitySettings: {
-                        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
-                        _ = openURL(url)
-                    },
                     placementMessage: model.placementMessage,
                     onPresetPlacement: model.placePreset
                 )

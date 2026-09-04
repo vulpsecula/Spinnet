@@ -4,10 +4,6 @@ import SpinnetCore
 struct MenuEditorView: View {
     let editor: HostConfigurationEditor
     @Binding var selectedMenuIndex: Int
-    @Binding var triggerMouseButton: Int
-    @Binding var triggerKeyboardShortcut: MenuKeyboardShortcut?
-    let accessibilityPermissionGranted: Bool
-    let openAccessibilitySettings: () -> Void
     let placementMessage: String?
     let onPresetPlacement: (String, Int) -> Bool
 
@@ -49,12 +45,8 @@ struct MenuEditorView: View {
             VStack(alignment: .leading, spacing: 22) {
                 pageHeader(
                     title: "Menu",
-                    description: "Choose how to open the Menu and what each Slot contains."
+                    description: "Choose what each Slot contains."
                 )
-
-                triggerSettings
-
-                Divider()
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Library").font(.title2.weight(.semibold))
@@ -108,70 +100,6 @@ struct MenuEditorView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Menu")
-    }
-
-    private var triggerSettings: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Label("Open Menu", systemImage: "cursorarrow.rays")
-                    .font(.headline)
-                Text("Mouse-first by default. A keyboard shortcut is optional.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Text("Mouse")
-                    .frame(width: 150, alignment: .leading)
-                Picker("Mouse trigger", selection: $triggerMouseButton) {
-                    Text("Side Button 1").tag(3)
-                    Text("Side Button 2").tag(4)
-                }
-                .labelsHidden()
-                .frame(width: 180)
-                Spacer()
-            }
-
-            HStack {
-                Text("Keyboard (Optional)")
-                    .frame(width: 150, alignment: .leading)
-                KeyboardShortcutRecorder(shortcut: $triggerKeyboardShortcut)
-                    .frame(width: 164, height: 30)
-                Button("Clear") { triggerKeyboardShortcut = nil }
-                    .disabled(triggerKeyboardShortcut == nil)
-                    .accessibilityLabel("Clear keyboard shortcut")
-                Spacer()
-            }
-
-            HStack {
-                Label(
-                    accessibilityPermissionGranted ? "Accessibility Granted" : "Accessibility Required",
-                    systemImage: accessibilityPermissionGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                if !accessibilityPermissionGranted {
-                    Button("Open Settings", action: openAccessibilitySettings)
-                        .controlSize(.small)
-                        .accessibilityLabel("Open Accessibility Settings")
-                }
-                Spacer()
-                Text("Saves automatically")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Menu Trigger")
     }
 
     private func libraryCard(_ plugin: LibraryPlugin) -> some View {

@@ -75,6 +75,7 @@ final class GlobalTriggerController {
     private var escapeHotKey: EventHotKeyRef?
     private var mouseEventTap: CFMachPort?
     private var mouseEventTapSource: CFRunLoopSource?
+    private var permissionRetryTimer: Timer?
     private let signature = OSType(0x53504E54) // SPNT
     private let accessibilityPermission: AccessibilityPermissionController
 
@@ -84,6 +85,7 @@ final class GlobalTriggerController {
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
+    var onAccessibilityPermissionChanged: ((Bool) -> Void)?
 
     init(
         accessibilityPermission: AccessibilityPermissionController = AccessibilityPermissionController()
@@ -127,8 +129,10 @@ final class GlobalTriggerController {
         guard status == noErr else { return false }
 
         mouseInterceptionAvailable = installMouseEventTap()
+        onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
         if !mouseInterceptionAvailable {
             accessibilityPermission.requestOnceIfNeeded()
+            schedulePermissionRetry()
         }
 
         keyboardShortcutRegistered = registerInvokeShortcut()
@@ -171,6 +175,18 @@ final class GlobalTriggerController {
     func retryMouseInterceptionIfAuthorized() {
         guard !mouseInterceptionAvailable, accessibilityPermission.isAuthorized else { return }
         mouseInterceptionAvailable = installMouseEventTap()
+        onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
+        if mouseInterceptionAvailable {
+            permissionRetryTimer?.invalidate()
+            permissionRetryTimer = nil
+        }
+    }
+
+    private func schedulePermissionRetry() {
+        guard permissionRetryTimer == nil else { return }
+        permissionRetryTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.retryMouseInterceptionIfAuthorized()
+        }
     }
 
     private func installMouseEventTap() -> Bool {
@@ -236,6 +252,8 @@ final class GlobalTriggerController {
     }
 
     func stop() {
+        permissionRetryTimer?.invalidate()
+        permissionRetryTimer = nil
         unregisterEscape()
         if let invokeHotKey { UnregisterEventHotKey(invokeHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }

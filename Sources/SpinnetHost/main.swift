@@ -123,6 +123,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
+        controller.onAccessibilityPermissionChanged = { [weak self] _ in
+            self?.settings.refreshSystemPermissionStatus()
+        }
         guard controller.start(configuration: MenuTriggerConfiguration(defaults: .standard)) else {
             throw HostCommandError.failed("Global Menu trigger registration failed")
         }
