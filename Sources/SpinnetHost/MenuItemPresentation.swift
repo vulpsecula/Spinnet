@@ -35,3 +35,19 @@ struct MenuItemPresentation {
         self.alternateActions = alternateActions
     }
 }
+
+struct MenuSlotPresentation {
+    let configuration: MenuSlotConfiguration
+    let item: MenuItemPresentation?
+
+    var isEmpty: Bool { item == nil }
+    var title: String { item?.title ?? "Empty Slot" }
+
+    static var empty: Self {
+        Self(configuration: .empty, item: nil)
+    }
+
+    static func occupied(_ item: MenuItemPresentation) -> Self {
+        Self(configuration: .occupied(item.configuration), item: item)
+    }
+}

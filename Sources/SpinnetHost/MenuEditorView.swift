@@ -6,12 +6,8 @@ struct MenuEditorView: View {
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
     let onPresetPlacement: (String, Int) -> Bool
-    let onConfigurationChanged: (HostConfiguration) -> Void
 
     @State private var searchText = ""
-    @State private var inputText = ""
-    @State private var showsConfigurationSheet = false
-    @State private var errorMessage: String?
 
     private struct LibraryPlugin: Identifiable {
         let id: String
@@ -26,7 +22,9 @@ struct MenuEditorView: View {
                 LibraryPlugin(
                     id: pluginID.rawValue,
                     name: commands.first?.pluginName ?? pluginID.rawValue,
-                    commands: commands.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+                    commands: commands.sorted {
+                        $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                    }
                 )
             }
             .filter {
@@ -37,13 +35,9 @@ struct MenuEditorView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    private var selectedMenuItem: MenuItemConfiguration? {
-        editor.configuration.menu.items[safe: selectedMenuIndex]
-    }
-
-    private var selectedAction: ActionConfiguration? {
-        guard let actionID = selectedMenuItem?.primaryActionID else { return nil }
-        return editor.configuration.actions.first { $0.id == actionID }
+    private var selectedSlotIsEmpty: Bool {
+        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return false }
+        return editor.configuration.menu.slots[selectedMenuIndex].item == nil
     }
 
     var body: some View {
@@ -51,7 +45,7 @@ struct MenuEditorView: View {
             VStack(alignment: .leading, spacing: 22) {
                 pageHeader(
                     title: "Library",
-                    description: "Drag a Plugin onto an empty Slot, or select a Slot to edit its instance."
+                    description: "Drag a Plugin onto an empty Slot in the Menu Editor."
                 )
 
                 TextField("Search Plugins", text: $searchText)
@@ -80,79 +74,25 @@ struct MenuEditorView: View {
 
                 Divider()
 
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text("Selected Slot")
-                            .font(.title3.weight(.semibold))
-                        Spacer()
-                        Text("Slot \(selectedMenuIndex + 1)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(.quaternary, in: Capsule())
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Edit on the Menu", systemImage: "cursorarrow.motionlines")
+                        .font(.headline)
+                    Text("Move the pointer over an occupied Slot, then click its Edit affordance. Slot configuration stays attached to the Menu instead of the Library.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                    if let action = selectedAction {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label(action.title, systemImage: "bolt.fill")
-                                .font(.headline)
-                            Text(pluginName(for: action.pluginID))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            HStack {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Primary Action")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Text(displayValue(for: action.input))
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                                Spacer()
-                                Button("Edit Slot…") {
-                                    inputText = displayValue(for: action.input)
-                                    showsConfigurationSheet = true
-                                }
-                                .accessibilityLabel("Edit Slot")
-                            }
-                        }
-                        .padding(16)
-                        .background {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(nsColor: .controlBackgroundColor))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                                }
-                        }
-                    } else {
-                        Text("This Slot is empty. Drag a Plugin here from the Library.")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let placementMessage {
-                        Label(placementMessage, systemImage: "info.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let errorMessage {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
+                if let placementMessage {
+                    Label(placementMessage, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: 540, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Menu Editor")
-        .onAppear { refreshSelection() }
-        .onChange(of: selectedMenuIndex) { _ in refreshSelection() }
-        .sheet(isPresented: $showsConfigurationSheet) {
-            configurationSheet
-        }
+        .accessibilityLabel("Library")
     }
 
     private func libraryCard(_ plugin: LibraryPlugin) -> some View {
@@ -181,7 +121,8 @@ struct MenuEditorView: View {
                 Image(systemName: "plus")
             }
             .buttonStyle(.borderless)
-            .help("Add to selected Slot")
+            .disabled(!selectedSlotIsEmpty)
+            .help(selectedSlotIsEmpty ? "Add to selected empty Slot" : "Select an empty Slot first")
             .accessibilityLabel("Add \(plugin.name) to selected Slot")
 
             Image(systemName: "line.3.horizontal")
@@ -207,76 +148,6 @@ struct MenuEditorView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(plugin.name) Plugin preset")
-        .accessibilityHint("Drag to an empty Menu Slot or use Add to selected Slot.")
-    }
-
-    private var configurationSheet: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Configure Slot \(selectedMenuIndex + 1)")
-                    .font(.title2.weight(.semibold))
-                Text(selectedAction?.title ?? "Primary Action")
-                    .foregroundStyle(.secondary)
-            }
-
-            TextField("URL or configuration value", text: $inputText)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Action configuration input")
-
-            HStack {
-                Spacer()
-                Button("Cancel") { showsConfigurationSheet = false }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { saveAction() }
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(24)
-        .frame(width: 440)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Slot Configuration")
-    }
-
-    private func refreshSelection() {
-        selectedMenuIndex = min(selectedMenuIndex, max(editor.configuration.menu.items.count - 1, 0))
-        inputText = selectedAction.map { displayValue(for: $0.input) } ?? ""
-        errorMessage = nil
-    }
-
-    private func saveAction() {
-        guard let action = selectedAction else { return }
-        do {
-            _ = try editor.updateAction(id: action.id, input: inputValue())
-            errorMessage = nil
-            showsConfigurationSheet = false
-            onConfigurationChanged(editor.configuration)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func inputValue() -> JSONValue {
-        if let data = inputText.data(using: .utf8),
-           let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
-            return value
-        }
-        return .string(inputText)
-    }
-
-    private func displayValue(for value: JSONValue) -> String {
-        if case .string(let value) = value { return value }
-        guard let data = try? JSONEncoder().encode(value) else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-
-    private func pluginName(for pluginID: PluginID) -> String {
-        editor.availableCommands.first(where: { $0.pluginID == pluginID })?.pluginName
-            ?? pluginID.rawValue
-    }
-}
-
-private extension Array {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
+        .accessibilityHint("Drag to an empty Menu Slot or select an empty Slot and use Add.")
     }
 }

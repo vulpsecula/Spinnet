@@ -148,6 +148,79 @@ final class ConfigurationEditorTests: XCTestCase {
         XCTAssertTrue(editor.configuration.menu.items[0].alternateActionIDs.isEmpty)
     }
 
+    func testEmptySlotsRoundTripAndPresetPlacementTargetsTheExactSlot() throws {
+        let registry = try makeRegistry()
+        let command = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.fixture"),
+            commandID: CommandID("fixture.open")
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("existing"),
+            pluginID: PluginID("com.spinnet.fixture"),
+            command: command,
+            input: .string("https://example.com")
+        )
+        let configuration = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(slots: [
+                .occupied(try MenuItemConfiguration(primaryActionID: action.id)),
+                .empty,
+                .empty
+            ])
+        )
+        let editor = HostConfigurationEditor(registry: registry, configuration: configuration)
+
+        let placedAction = try editor.placeCommand(
+            pluginID: PluginID("com.spinnet.fixture"),
+            commandID: CommandID("fixture.copy"),
+            input: .string(""),
+            inSlotAt: 2
+        )
+
+        XCTAssertNil(editor.configuration.menu.slots[1].item)
+        XCTAssertEqual(
+            editor.configuration.menu.slots[2].item?.primaryActionID,
+            placedAction.id
+        )
+
+        let data = try JSONEncoder().encode(editor.configuration)
+        let restored = try JSONDecoder().decode(HostConfiguration.self, from: data)
+        XCTAssertEqual(restored, editor.configuration)
+        XCTAssertEqual(restored.menu.slots.count, 3)
+        XCTAssertNil(restored.menu.slots[1].item)
+    }
+
+    func testEditorAddsAndRemovesTheExactEmptySlot() throws {
+        let registry = try makeRegistry()
+        let command = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.fixture"),
+            commandID: CommandID("fixture.open")
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("existing"),
+            pluginID: PluginID("com.spinnet.fixture"),
+            command: command,
+            input: .string("https://example.com")
+        )
+        let configuration = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(items: [
+                try MenuItemConfiguration(primaryActionID: action.id)
+            ])
+        )
+        let editor = HostConfigurationEditor(registry: registry, configuration: configuration)
+
+        try editor.addEmptySlot()
+        try editor.addEmptySlot()
+        XCTAssertEqual(editor.configuration.menu.slots.count, 3)
+        XCTAssertNil(editor.configuration.menu.slots[1].item)
+
+        try editor.removeSlot(at: 1)
+        XCTAssertEqual(editor.configuration.menu.slots.count, 2)
+        XCTAssertNotNil(editor.configuration.menu.slots[0].item)
+        XCTAssertNil(editor.configuration.menu.slots[1].item)
+    }
+
     private func makeRegistry() throws -> PluginRegistry {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(

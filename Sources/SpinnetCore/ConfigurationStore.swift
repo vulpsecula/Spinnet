@@ -84,7 +84,7 @@ public final class HostConfigurationEditor {
         )
         try replaceConfiguration(
             actions: configuration.actions + [action],
-            menuItems: configuration.menu.items
+            slots: configuration.menu.slots
         )
         return action
     }
@@ -107,7 +107,7 @@ public final class HostConfigurationEditor {
         )
         var actions = configuration.actions
         actions[index] = action
-        try replaceConfiguration(actions: actions, menuItems: configuration.menu.items)
+        try replaceConfiguration(actions: actions, slots: configuration.menu.slots)
         return action
     }
 
@@ -129,32 +129,32 @@ public final class HostConfigurationEditor {
             throw ConfigurationError.invalidAction("Action \(id.rawValue) is not configured")
         }
 
-        var menuItems: [MenuItemConfiguration] = []
-        for item in configuration.menu.items {
+        var slots: [MenuSlotConfiguration] = []
+        for slot in configuration.menu.slots {
+            guard let item = slot.item else {
+                slots.append(.empty)
+                continue
+            }
             if item.primaryActionID == id {
                 let remainingAlternates = item.alternateActionIDs.filter { $0 != id }
                 if let promotedPrimary = remainingAlternates.first {
-                    menuItems.append(try MenuItemConfiguration(
+                    slots.append(.occupied(try MenuItemConfiguration(
                         primaryActionID: promotedPrimary,
                         alternateActionIDs: Array(remainingAlternates.dropFirst())
-                    ))
-                } else if configuration.menu.items.count > 1 {
-                    continue
+                    )))
                 } else {
-                    throw ConfigurationError.invalidAction(
-                        "Cannot remove the only Action bound to the Menu"
-                    )
+                    slots.append(.empty)
                 }
             } else {
-                menuItems.append(try MenuItemConfiguration(
+                slots.append(.occupied(try MenuItemConfiguration(
                     primaryActionID: item.primaryActionID,
                     alternateActionIDs: item.alternateActionIDs.filter { $0 != id }
-                ))
+                )))
             }
         }
 
         let actions = configuration.actions.filter { $0.id != id }
-        try replaceConfiguration(actions: actions, menuItems: menuItems)
+        try replaceConfiguration(actions: actions, slots: slots)
     }
 
     public func updateMenuItem(
@@ -162,16 +162,16 @@ public final class HostConfigurationEditor {
         primaryActionID: ActionID,
         alternateActionIDs: [ActionID] = []
     ) throws {
-        guard configuration.menu.items.indices.contains(index) else {
+        guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
         let item = try MenuItemConfiguration(
             primaryActionID: primaryActionID,
             alternateActionIDs: alternateActionIDs
         )
-        var menuItems = configuration.menu.items
-        menuItems[index] = item
-        try replaceConfiguration(actions: configuration.actions, menuItems: menuItems)
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
     public func addMenuItem(
@@ -184,20 +184,62 @@ public final class HostConfigurationEditor {
         )
         try replaceConfiguration(
             actions: configuration.actions,
-            menuItems: configuration.menu.items + [item]
+            slots: configuration.menu.slots + [.occupied(item)]
         )
     }
 
     public func removeMenuItem(at index: Int) throws {
-        guard configuration.menu.items.indices.contains(index) else {
+        try removeSlot(at: index)
+    }
+
+    public func addEmptySlot() throws {
+        try replaceConfiguration(
+            actions: configuration.actions,
+            slots: configuration.menu.slots + [.empty]
+        )
+    }
+
+    public func removeSlot(at index: Int) throws {
+        guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
-        guard configuration.menu.items.count > 1 else {
-            throw ConfigurationError.invalidMenu("A Menu must contain at least one Menu Item")
+        guard configuration.menu.slots.count > 1 else {
+            throw ConfigurationError.invalidMenu("A Menu must contain at least one Slot")
         }
-        var menuItems = configuration.menu.items
-        menuItems.remove(at: index)
-        try replaceConfiguration(actions: configuration.actions, menuItems: menuItems)
+        var slots = configuration.menu.slots
+        slots.remove(at: index)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
+    }
+
+    @discardableResult
+    public func placeCommand(
+        id: ActionID? = nil,
+        pluginID: PluginID,
+        commandID: CommandID,
+        input: JSONValue,
+        inSlotAt index: Int
+    ) throws -> ActionConfiguration {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        guard configuration.menu.slots[index].item == nil else {
+            throw ConfigurationError.invalidMenu("Menu Slot is already occupied")
+        }
+        let actionID = id ?? ActionID(UUID().uuidString)
+        let action = try makeAvailableAction(
+            id: actionID,
+            pluginID: pluginID,
+            commandID: commandID,
+            input: input
+        )
+        let item = try MenuItemConfiguration(primaryActionID: action.id)
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item)
+        try replaceConfiguration(
+            actions: configuration.actions + [action],
+            slots: slots
+        )
+        return action
     }
 
     private func action(with id: ActionID) -> ActionConfiguration? {
@@ -226,9 +268,9 @@ public final class HostConfigurationEditor {
 
     private func replaceConfiguration(
         actions: [ActionConfiguration],
-        menuItems: [MenuItemConfiguration]
+        slots: [MenuSlotConfiguration]
     ) throws {
-        let menu = try MenuConfiguration(items: menuItems)
+        let menu = try MenuConfiguration(slots: slots)
         configuration = try HostConfiguration(actions: actions, menu: menu)
     }
 }

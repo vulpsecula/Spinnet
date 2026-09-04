@@ -278,30 +278,62 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     }
 }
 
+public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
+    public let item: MenuItemConfiguration?
+
+    public static var empty: Self { Self(item: nil) }
+
+    public static func occupied(_ item: MenuItemConfiguration) -> Self {
+        Self(item: item)
+    }
+
+    public init(item: MenuItemConfiguration?) {
+        self.item = item
+    }
+}
+
 public struct MenuConfiguration: Codable, Equatable {
-    public let items: [MenuItemConfiguration]
+    public let slots: [MenuSlotConfiguration]
+
+    public var items: [MenuItemConfiguration] {
+        slots.compactMap(\.item)
+    }
 
     public init(items: [MenuItemConfiguration]) throws {
-        guard !items.isEmpty, items.count <= 12 else {
-            throw ConfigurationError.invalidMenu("Menu must contain between 1 and 12 Menu Items")
+        try self.init(slots: items.map(MenuSlotConfiguration.occupied))
+    }
+
+    public init(slots: [MenuSlotConfiguration]) throws {
+        guard !slots.isEmpty, slots.count <= 12 else {
+            throw ConfigurationError.invalidMenu("Menu must contain between 1 and 12 Slots")
         }
         var actionIDs = Set<ActionID>()
-        for item in items {
+        for item in slots.compactMap(\.item) {
             for actionID in [item.primaryActionID] + item.alternateActionIDs {
                 guard actionIDs.insert(actionID).inserted else {
                     throw ConfigurationError.invalidMenu("An Action is bound more than once")
                 }
             }
         }
-        self.items = items
+        self.slots = slots
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(items: container.decode([MenuItemConfiguration].self, forKey: .items))
+        if let slots = try container.decodeIfPresent([MenuSlotConfiguration].self, forKey: .slots) {
+            try self.init(slots: slots)
+        } else {
+            try self.init(items: container.decode([MenuItemConfiguration].self, forKey: .items))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(slots, forKey: .slots)
     }
 
     private enum CodingKeys: String, CodingKey {
+        case slots
         case items
     }
 }
@@ -317,7 +349,7 @@ public struct HostConfiguration: Codable, Equatable {
                 throw ConfigurationError.invalidAction("Duplicate Action ID \(action.id.rawValue)")
             }
         }
-        for item in menu.items {
+        for item in menu.slots.compactMap(\.item) {
             for actionID in [item.primaryActionID] + item.alternateActionIDs {
                 guard actionIDs.contains(actionID) else {
                     throw ConfigurationError.invalidMenu("Menu Item references an unknown Action")

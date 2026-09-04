@@ -25,8 +25,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             )
             applyConfiguration(configuration)
 
-            let menuItems = makeMenuItems(from: configuration)
-            menu = MenuPresentationController(items: menuItems)
+            let menuSlots = makeMenuSlots(from: configuration)
+            menu = MenuPresentationController(
+                items: menuSlots,
+                appearance: MenuAppearanceConfiguration(defaults: .standard)
+            )
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onAlternateAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onDismiss = { [weak self] in self?.shortcuts?.unregisterEscape() }
@@ -34,6 +37,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings = SettingsWindowController(editor: editor)
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
+            }
+            settings.onAppearanceChanged = { [weak self] appearance in
+                self?.menu.applyAppearance(appearance)
             }
             installStatusItem()
             try installShortcuts()
@@ -84,11 +90,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     private func applyConfiguration(_ configuration: HostConfiguration) {
         actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
-        menu?.reload(items: makeMenuItems(from: configuration))
+        menu?.reload(items: makeMenuSlots(from: configuration))
     }
 
-    private func makeMenuItems(from configuration: HostConfiguration) -> [MenuItemPresentation] {
-        MenuPresentationFactory.makeItems(configuration: configuration) {
+    private func makeMenuSlots(from configuration: HostConfiguration) -> [MenuSlotPresentation] {
+        MenuPresentationFactory.makeSlots(configuration: configuration) {
             registry.availability(for: $0)
         }
     }

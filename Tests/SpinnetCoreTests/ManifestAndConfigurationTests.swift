@@ -110,4 +110,19 @@ final class ManifestAndConfigurationTests: XCTestCase {
             alternateActionIDs: [ActionID("alternate"), ActionID("alternate")]
         ))
     }
+
+    func testLegacyItemOnlyMenuMigratesToOccupiedSlots() throws {
+        let data = Data(#"""
+        {
+          "items": [
+            {"primary_action_id": "legacy", "alternate_action_ids": []}
+          ]
+        }
+        """#.utf8)
+
+        let menu = try JSONDecoder().decode(MenuConfiguration.self, from: data)
+
+        XCTAssertEqual(menu.slots.count, 1)
+        XCTAssertEqual(menu.slots[0].item?.primaryActionID, ActionID("legacy"))
+    }
 }

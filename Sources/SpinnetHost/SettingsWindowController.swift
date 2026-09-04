@@ -7,6 +7,7 @@ final class SettingsWindowController: NSWindowController {
     private var hostingView: NSHostingView<SettingsRootView>!
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
+    var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
 
     var currentPage: SettingsPage {
         model.page
@@ -51,10 +52,11 @@ final class SettingsWindowController: NSWindowController {
         model.onConfigurationChanged = { [weak self] configuration in
             self?.onConfigurationChanged?(configuration)
         }
-        model.onAppearanceChanged = { [weak window] theme in
-            window?.appearance = Self.windowAppearance(for: theme)
+        model.onAppearanceChanged = { [weak self, weak window] appearance in
+            window?.appearance = appearance.appearance
+            self?.onAppearanceChanged?(appearance)
         }
-        window.appearance = Self.windowAppearance(for: model.appearanceTheme)
+        window.appearance = model.appearanceConfiguration.appearance
         window.center()
     }
 
@@ -94,14 +96,6 @@ final class SettingsWindowController: NSWindowController {
         model.page = page
         if window?.isVisible == true, let hostingView {
             window?.makeFirstResponder(hostingView)
-        }
-    }
-
-    private static func windowAppearance(for theme: String) -> NSAppearance? {
-        switch theme {
-        case "Light": return NSAppearance(named: .aqua)
-        case "Dark": return NSAppearance(named: .darkAqua)
-        default: return nil
         }
     }
 }

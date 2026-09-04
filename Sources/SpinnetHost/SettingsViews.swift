@@ -9,22 +9,29 @@ final class SettingsWindowModel: ObservableObject {
     @Published var page: SettingsPage = .menu
     @Published var selectedMenuIndex = 0
     @Published var placementMessage: String?
+    @Published var editingMenuIndex: Int?
     @Published private(set) var refreshToken = 0
     @Published var appearanceTheme: String {
         didSet {
             defaults.set(appearanceTheme, forKey: "appearance.theme")
-            onAppearanceChanged?(appearanceTheme)
+            onAppearanceChanged?(appearanceConfiguration)
         }
     }
     @Published var appearanceAccent: String {
-        didSet { defaults.set(appearanceAccent, forKey: "appearance.accent") }
+        didSet {
+            defaults.set(appearanceAccent, forKey: "appearance.accent")
+            onAppearanceChanged?(appearanceConfiguration)
+        }
     }
     @Published var appearanceMenuSize: String {
-        didSet { defaults.set(appearanceMenuSize, forKey: "appearance.menu-size") }
+        didSet {
+            defaults.set(appearanceMenuSize, forKey: "appearance.menu-size")
+            onAppearanceChanged?(appearanceConfiguration)
+        }
     }
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
-    var onAppearanceChanged: ((String) -> Void)?
+    var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     private let defaults: UserDefaults
 
     init(
@@ -40,10 +47,18 @@ final class SettingsWindowModel: ObservableObject {
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
     }
 
-    var menuItems: [MenuItemPresentation] {
-        MenuPresentationFactory.makeItems(configuration: editor.configuration) {
+    var menuSlots: [MenuSlotPresentation] {
+        MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
             editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
         }
+    }
+
+    var appearanceConfiguration: MenuAppearanceConfiguration {
+        MenuAppearanceConfiguration(
+            theme: appearanceTheme,
+            accent: appearanceAccent,
+            menuSize: appearanceMenuSize
+        )
     }
 
     var accessibleNames: [String] {
@@ -54,28 +69,75 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func configurationDidChange(_ configuration: HostConfiguration) {
-        selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.items.count - 1, 0))
+        selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))
         refreshToken += 1
         onConfigurationChanged?(configuration)
     }
 
     func selectMenuItem(at index: Int) {
-        guard editor.configuration.menu.items.indices.contains(index) else { return }
+        guard editor.configuration.menu.slots.indices.contains(index) else { return }
         selectedMenuIndex = index
         placementMessage = nil
     }
 
-    func placePreset(pluginID: String, at index: Int) -> Bool {
-        guard editor.configuration.menu.items.indices.contains(index) else { return false }
+    func requestEdit(at index: Int) {
+        guard editor.configuration.menu.slots.indices.contains(index),
+              editor.configuration.menu.slots[index].item != nil else { return }
         selectedMenuIndex = index
-        let item = editor.configuration.menu.items[index]
-        let action = editor.configuration.actions.first { $0.id == item.primaryActionID }
-        if action?.pluginID.rawValue == pluginID {
-            placementMessage = "Slot \(index + 1) already uses this Plugin. Edit this instance below."
-        } else {
-            placementMessage = "Slot \(index + 1) is occupied. Replacement confirmation is added with Slot placement."
+        editingMenuIndex = index
+    }
+
+    func addEmptySlot() {
+        do {
+            try editor.addEmptySlot()
+            selectedMenuIndex = editor.configuration.menu.slots.count - 1
+            placementMessage = "Empty Slot \(selectedMenuIndex + 1) added. Drag a Plugin onto it."
+            configurationDidChange(editor.configuration)
+        } catch {
+            placementMessage = error.localizedDescription
         }
-        return true
+    }
+
+    func removeSelectedEmptySlot() {
+        guard editor.configuration.menu.slots.count > 1,
+              editor.configuration.menu.slots.indices.contains(selectedMenuIndex),
+              editor.configuration.menu.slots[selectedMenuIndex].item == nil else { return }
+        do {
+            try editor.removeSlot(at: selectedMenuIndex)
+            selectedMenuIndex = min(selectedMenuIndex, editor.configuration.menu.slots.count - 1)
+            placementMessage = "Empty Slot removed."
+            configurationDidChange(editor.configuration)
+        } catch {
+            placementMessage = error.localizedDescription
+        }
+    }
+
+    func placePreset(pluginID: String, at index: Int) -> Bool {
+        guard editor.configuration.menu.slots.indices.contains(index) else { return false }
+        selectedMenuIndex = index
+        guard editor.configuration.menu.slots[index].item == nil else {
+            placementMessage = "Slot \(index + 1) is occupied. Choose an empty Slot."
+            return false
+        }
+        guard let command = editor.availableCommands.first(where: { $0.pluginID.rawValue == pluginID }) else {
+            placementMessage = "This Plugin is no longer available."
+            return false
+        }
+        do {
+            _ = try editor.placeCommand(
+                pluginID: command.pluginID,
+                commandID: command.commandID,
+                input: .string(""),
+                inSlotAt: index
+            )
+            placementMessage = "Plugin added to Slot \(index + 1)."
+            configurationDidChange(editor.configuration)
+            editingMenuIndex = index
+            return true
+        } catch {
+            placementMessage = error.localizedDescription
+            return false
+        }
     }
 }
 
@@ -163,14 +225,14 @@ struct SettingsRootView: View {
                     .shadow(color: .black.opacity(0.08), radius: 18, y: 8)
 
                 MenuEditorModeRepresentable(
-                    items: model.menuItems,
+                    slots: model.menuSlots,
                     selectedIndex: model.selectedMenuIndex,
-                    accentColor: spinnetNSAccentColor(named: model.appearanceAccent),
+                    appearance: model.appearanceConfiguration,
                     onSelection: model.selectMenuItem,
+                    onEdit: model.requestEdit,
                     onPresetDrop: model.placePreset
                 )
                 .frame(width: 324, height: 324)
-                .scaleEffect(menuScale)
             }
             .frame(width: 354, height: 382)
             .frame(maxWidth: .infinity)
@@ -178,22 +240,25 @@ struct SettingsRootView: View {
             .accessibilityLabel("Editor Mode")
 
             HStack(spacing: 8) {
-                Image(systemName: "cursorarrow.click.2")
-                Text("Editor Mode · non-executing")
+                Button(action: model.addEmptySlot) {
+                    Label("Add Slot", systemImage: "plus")
+                }
+                .disabled(model.menuSlots.count >= 12)
+                .accessibilityLabel("Add empty Slot")
+                Button(action: model.removeSelectedEmptySlot) {
+                    Label("Remove", systemImage: "minus")
+                }
+                .disabled(
+                    model.menuSlots.count <= 1
+                        || model.menuSlots[model.selectedMenuIndex].item != nil
+                )
+                .accessibilityLabel("Remove selected empty Slot")
+                Spacer()
+                Text("\(model.menuSlots.count) of 12 Slots")
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
             .padding(.top, 14)
             Spacer()
-        }
-    }
-
-    private var menuScale: CGFloat {
-        switch model.appearanceMenuSize {
-        case "Small": return 0.86
-        case "Large": return 1.08
-        default: return 1
         }
     }
 
@@ -205,8 +270,7 @@ struct SettingsRootView: View {
                     editor: model.editor,
                     selectedMenuIndex: $model.selectedMenuIndex,
                     placementMessage: model.placementMessage,
-                    onPresetPlacement: model.placePreset,
-                    onConfigurationChanged: model.configurationDidChange
+                    onPresetPlacement: model.placePreset
                 )
                 .id(model.refreshToken)
             case .appearance:
@@ -226,6 +290,22 @@ struct SettingsRootView: View {
         .padding(.bottom, 28)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(model.page.title) Page Content")
+        .sheet(isPresented: editingSheetBinding) {
+            if let index = model.editingMenuIndex {
+                SlotConfigurationSheet(
+                    editor: model.editor,
+                    slotIndex: index,
+                    onSaved: model.configurationDidChange
+                )
+            }
+        }
+    }
+
+    private var editingSheetBinding: Binding<Bool> {
+        Binding(
+            get: { model.editingMenuIndex != nil },
+            set: { if !$0 { model.editingMenuIndex = nil } }
+        )
     }
 }
 
@@ -246,27 +326,124 @@ private struct SettingsNavigationButtonStyle: ButtonStyle {
 }
 
 private struct MenuEditorModeRepresentable: NSViewRepresentable {
-    let items: [MenuItemPresentation]
+    let slots: [MenuSlotPresentation]
     let selectedIndex: Int
-    let accentColor: NSColor
+    let appearance: MenuAppearanceConfiguration
     let onSelection: (Int) -> Void
+    let onEdit: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
 
     func makeNSView(context: Context) -> RadialMenuView {
-        let view = RadialMenuView(items: items, mode: .editor)
+        let view = RadialMenuView(slots: slots, mode: .editor)
         view.onEditorSelection = onSelection
+        view.onEditorEditRequested = onEdit
         view.onPresetDrop = onPresetDrop
-        view.editorAccentColor = accentColor
+        view.applyAppearance(appearance)
         view.selectEditorItem(at: selectedIndex)
         return view
     }
 
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         nsView.onEditorSelection = onSelection
+        nsView.onEditorEditRequested = onEdit
         nsView.onPresetDrop = onPresetDrop
-        nsView.editorAccentColor = accentColor
-        nsView.reload(items: items)
+        nsView.reload(slots: slots)
+        nsView.applyAppearance(appearance)
         nsView.selectEditorItem(at: selectedIndex)
+    }
+}
+
+private struct SlotConfigurationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let editor: HostConfigurationEditor
+    let slotIndex: Int
+    let onSaved: (HostConfiguration) -> Void
+
+    @State private var inputText: String
+    @State private var errorMessage: String?
+
+    init(
+        editor: HostConfigurationEditor,
+        slotIndex: Int,
+        onSaved: @escaping (HostConfiguration) -> Void
+    ) {
+        self.editor = editor
+        self.slotIndex = slotIndex
+        self.onSaved = onSaved
+        let action = Self.action(in: editor, slotIndex: slotIndex)
+        _inputText = State(initialValue: action.map { Self.displayValue(for: $0.input) } ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Configure Slot \(slotIndex + 1)")
+                    .font(.title2.weight(.semibold))
+                Text(action?.title ?? "Primary Action")
+                    .foregroundStyle(.secondary)
+            }
+
+            TextField("URL or configuration value", text: $inputText)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Action configuration input")
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Slot Configuration")
+    }
+
+    private var action: ActionConfiguration? {
+        Self.action(in: editor, slotIndex: slotIndex)
+    }
+
+    private func save() {
+        guard let action else { return }
+        do {
+            _ = try editor.updateAction(id: action.id, input: inputValue)
+            onSaved(editor.configuration)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private var inputValue: JSONValue {
+        if let data = inputText.data(using: .utf8),
+           let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
+            return value
+        }
+        return .string(inputText)
+    }
+
+    private static func action(
+        in editor: HostConfigurationEditor,
+        slotIndex: Int
+    ) -> ActionConfiguration? {
+        guard editor.configuration.menu.slots.indices.contains(slotIndex),
+              let item = editor.configuration.menu.slots[slotIndex].item else { return nil }
+        return editor.configuration.actions.first { $0.id == item.primaryActionID }
+    }
+
+    private static func displayValue(for value: JSONValue) -> String {
+        if case .string(let value) = value { return value }
+        guard let data = try? JSONEncoder().encode(value) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

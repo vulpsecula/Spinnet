@@ -6,7 +6,8 @@ final class MenuPresentationController {
     private var layout: RadialMenuLayout
     private let panel: NSPanel
     private var menuView: RadialMenuView
-    private var items: [MenuItemPresentation]
+    private var slots: [MenuSlotPresentation]
+    private var appearanceConfiguration: MenuAppearanceConfiguration
     private var outsideClickMonitor: Any?
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
@@ -18,10 +19,15 @@ final class MenuPresentationController {
     var onAlternateAction: ((ActionID) -> Void)?
     var onDismiss: (() -> Void)?
 
-    init(items: [MenuItemPresentation]) {
-        self.items = items
-        self.layout = RadialMenuLayout(itemCount: max(items.count, 1))
-        self.menuView = RadialMenuView(items: items)
+    init(
+        items: [MenuSlotPresentation],
+        appearance: MenuAppearanceConfiguration = MenuAppearanceConfiguration()
+    ) {
+        self.slots = items
+        self.appearanceConfiguration = appearance
+        self.layout = appearance.layout(slotCount: items.count)
+        self.menuView = RadialMenuView(slots: items)
+        menuView.applyAppearance(appearance)
         self.panel = NSPanel(
             contentRect: menuView.bounds,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -37,17 +43,42 @@ final class MenuPresentationController {
         panel.hidesOnDeactivate = false
         panel.acceptsMouseMovedEvents = true
         panel.becomesKeyOnlyIfNeeded = true
+        panel.appearance = appearance.appearance
 
         configureMenuView()
     }
 
-    func reload(items: [MenuItemPresentation]) {
+    func reload(items: [MenuSlotPresentation]) {
         if isOpen { dismiss() }
-        self.items = items
-        self.layout = RadialMenuLayout(itemCount: max(items.count, 1))
-        self.menuView = RadialMenuView(items: items)
+        self.slots = items
+        self.layout = appearanceConfiguration.layout(slotCount: items.count)
+        self.menuView = RadialMenuView(slots: items)
+        menuView.applyAppearance(appearanceConfiguration)
         panel.contentView = menuView
         configureMenuView()
+    }
+
+    func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        if isOpen { dismiss() }
+        appearanceConfiguration = appearance
+        layout = appearance.layout(slotCount: slots.count)
+        panel.appearance = appearance.appearance
+        menuView.applyAppearance(appearance)
+        panel.setContentSize(menuView.bounds.size)
+    }
+
+    var presentationSnapshot: (
+        theme: String,
+        accent: String,
+        menuSize: String,
+        outerRadius: CGFloat
+    ) {
+        (
+            appearanceConfiguration.theme,
+            appearanceConfiguration.accent,
+            appearanceConfiguration.menuSize,
+            layout.outerRadius
+        )
     }
 
     private func configureMenuView() {
@@ -57,7 +88,7 @@ final class MenuPresentationController {
     }
 
     func open(at pointer: CGPoint) {
-        guard !items.isEmpty else { return }
+        guard slots.contains(where: { $0.item != nil }) else { return }
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
         }
@@ -80,15 +111,13 @@ final class MenuPresentationController {
     }
 
     private func select(index: Int) {
-        guard items.indices.contains(index) else { return }
-        let item = items[index]
+        guard slots.indices.contains(index), let item = slots[index].item else { return }
         dismiss()
         onPrimaryAction?(item.configuration.primaryActionID)
     }
 
     private func showAlternates(for index: Int) {
-        guard items.indices.contains(index) else { return }
-        let item = items[index]
+        guard slots.indices.contains(index), let item = slots[index].item else { return }
 
         let menu = NSMenu(title: "Alternate Actions")
         menu.autoenablesItems = false

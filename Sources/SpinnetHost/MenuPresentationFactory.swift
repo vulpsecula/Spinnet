@@ -1,12 +1,13 @@
 import SpinnetCore
 
 enum MenuPresentationFactory {
-    static func makeItems(
+    static func makeSlots(
         configuration: HostConfiguration,
         availability: (ActionConfiguration) -> ActionAvailability
-    ) -> [MenuItemPresentation] {
+    ) -> [MenuSlotPresentation] {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
-        return configuration.menu.items.map { item in
+        return configuration.menu.slots.map { slot in
+            guard let item = slot.item else { return .empty }
             let primary = presentation(
                 for: item.primaryActionID,
                 actions: actions,
@@ -15,12 +16,19 @@ enum MenuPresentationFactory {
             let alternates = item.alternateActionIDs.map { actionID in
                 presentation(for: actionID, actions: actions, availability: availability)
             }
-            return MenuItemPresentation(
+            return .occupied(MenuItemPresentation(
                 configuration: item,
                 primaryAction: primary,
                 alternateActions: alternates
-            )
+            ))
         }
+    }
+
+    static func makeItems(
+        configuration: HostConfiguration,
+        availability: (ActionConfiguration) -> ActionAvailability
+    ) -> [MenuItemPresentation] {
+        makeSlots(configuration: configuration, availability: availability).compactMap(\.item)
     }
 
     private static func presentation(

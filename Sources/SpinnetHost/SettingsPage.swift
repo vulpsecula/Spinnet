@@ -74,8 +74,8 @@ extension SettingsPage {
                         "Menu",
                         "Menu Editor",
                         "Library",
-                        "Selected Slot",
-                        "Edit Slot"
+                        "Add empty Slot",
+                        "Edit on the Menu"
                     ]
                 }
             )

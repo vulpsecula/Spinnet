@@ -161,13 +161,29 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         window.contentView = view
         var selectedIndex: Int?
+        var editedIndex: Int?
         var primaryExecutionCount = 0
         var alternateExecutionCount = 0
         view.onEditorSelection = { selectedIndex = $0 }
+        view.onEditorEditRequested = { editedIndex = $0 }
         view.onPrimarySelection = { _ in primaryExecutionCount += 1 }
         view.onAlternateSelection = { _ in alternateExecutionCount += 1 }
 
         let location = NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90)
+        let hover = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: location,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ))
+        view.mouseMoved(with: hover)
+        XCTAssertEqual(selectedIndex, 0, "Hovering a Slot should expose its editor in place")
+
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             let event = try XCTUnwrap(NSEvent.mouseEvent(
                 with: type,
@@ -188,8 +204,55 @@ final class SettingsWindowControllerTests: XCTestCase {
         }
 
         XCTAssertEqual(selectedIndex, 0)
+        XCTAssertEqual(editedIndex, 0)
         XCTAssertEqual(primaryExecutionCount, 0)
         XCTAssertEqual(alternateExecutionCount, 0)
+    }
+
+    func testSettingsAppearanceUpdatesTheRuntimeMenu() throws {
+        let editor = try makeEditor()
+        let suiteName = "SpinnetHostTests.RuntimeAppearance.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(editor: editor, metadata: .current, defaults: defaults)
+        let items = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        let runtimeMenu = MenuPresentationController(items: items)
+        model.onAppearanceChanged = runtimeMenu.applyAppearance
+
+        model.appearanceTheme = "Dark"
+        model.appearanceAccent = "Purple"
+        model.appearanceMenuSize = "Large"
+
+        XCTAssertEqual(runtimeMenu.presentationSnapshot.theme, "Dark")
+        XCTAssertEqual(runtimeMenu.presentationSnapshot.accent, "Purple")
+        XCTAssertEqual(runtimeMenu.presentationSnapshot.menuSize, "Large")
+        XCTAssertGreaterThan(runtimeMenu.presentationSnapshot.outerRadius, 142)
+    }
+
+    func testAddingAnEmptySlotAndPlacingALibraryPluginOpensThatSlotEditor() throws {
+        let suiteName = "SpinnetHostTests.SlotPlacement.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults
+        )
+        var savedConfiguration: HostConfiguration?
+        model.onConfigurationChanged = { savedConfiguration = $0 }
+
+        model.addEmptySlot()
+
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertEqual(model.selectedMenuIndex, 1)
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
+        XCTAssertEqual(model.editingMenuIndex, 1)
+        XCTAssertEqual(savedConfiguration, model.editor.configuration)
     }
 
     func testEverySettingsPageRendersAtTheWindowBoundary() throws {
@@ -215,7 +278,10 @@ final class SettingsWindowControllerTests: XCTestCase {
             }
         }
 
-        let controller = try makeController()
+        let emptySlotCount = Int(
+            ProcessInfo.processInfo.environment["SPINNET_UI_EMPTY_SLOTS"] ?? "0"
+        ) ?? 0
+        let controller = try makeController(emptySlotCount: emptySlotCount)
         guard let contentView = controller.window?.contentView else {
             return XCTFail("Settings window has no content view")
         }
@@ -254,14 +320,16 @@ final class SettingsWindowControllerTests: XCTestCase {
             metadata: .current,
             defaults: defaults
         )
-        var appliedTheme: String?
-        model.onAppearanceChanged = { appliedTheme = $0 }
+        var appliedAppearance: MenuAppearanceConfiguration?
+        model.onAppearanceChanged = { appliedAppearance = $0 }
 
         model.appearanceTheme = "Dark"
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
 
-        XCTAssertEqual(appliedTheme, "Dark")
+        XCTAssertEqual(appliedAppearance?.theme, "Dark")
+        XCTAssertEqual(appliedAppearance?.accent, "Purple")
+        XCTAssertEqual(appliedAppearance?.menuSize, "Large")
         XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "Dark")
         XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "Purple")
         XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Large")
@@ -276,8 +344,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(restored.appearanceMenuSize, "Large")
     }
 
-    private func makeController() throws -> SettingsWindowController {
-        let controller = SettingsWindowController(editor: try makeEditor())
+    private func makeController(emptySlotCount: Int = 0) throws -> SettingsWindowController {
+        let editor = try makeEditor()
+        for _ in 0..<emptySlotCount {
+            try editor.addEmptySlot()
+        }
+        let controller = SettingsWindowController(editor: editor)
         controller.window?.contentView?.layoutSubtreeIfNeeded()
         return controller
     }

@@ -9,8 +9,9 @@ enum RadialMenuPresentationMode {
 
 final class RadialMenuView: NSView {
     private var layout: RadialMenuLayout
-    private var items: [MenuItemPresentation]
+    private var slots: [MenuSlotPresentation]
     private let presentationMode: RadialMenuPresentationMode
+    private var appearanceConfiguration = MenuAppearanceConfiguration()
     private var trackingArea: NSTrackingArea?
     private(set) var selectedIndex: Int? {
         didSet {
@@ -25,18 +26,19 @@ final class RadialMenuView: NSView {
     var onAlternateSelection: ((Int) -> Void)?
     var onCancel: (() -> Void)?
     var onEditorSelection: ((Int) -> Void)?
+    var onEditorEditRequested: ((Int) -> Void)?
     var onPresetDrop: ((String, Int) -> Bool)?
     var editorAccentColor: NSColor = .controlAccentColor {
         didSet { needsDisplay = true }
     }
 
     init(
-        items: [MenuItemPresentation],
+        slots: [MenuSlotPresentation],
         mode: RadialMenuPresentationMode = .runtime
     ) {
-        self.items = items
+        self.slots = slots
         self.presentationMode = mode
-        let layout = RadialMenuLayout(itemCount: max(items.count, 1))
+        let layout = RadialMenuLayout(itemCount: max(slots.count, 1))
         self.layout = layout
         let diameter = (layout.outerRadius + 8) * 2
         super.init(frame: CGRect(x: 0, y: 0, width: diameter, height: diameter))
@@ -57,6 +59,13 @@ final class RadialMenuView: NSView {
         setAccessibilityValue("No Menu Item selected")
     }
 
+    convenience init(
+        items: [MenuItemPresentation],
+        mode: RadialMenuPresentationMode = .runtime
+    ) {
+        self.init(slots: items.map(MenuSlotPresentation.occupied), mode: mode)
+    }
+
     required init?(coder: NSCoder) {
         fatalError("RadialMenuView is not decoded from a nib")
     }
@@ -72,17 +81,30 @@ final class RadialMenuView: NSView {
         selectedIndex = nil
     }
 
-    func reload(items: [MenuItemPresentation]) {
-        self.items = items
-        layout = RadialMenuLayout(itemCount: max(items.count, 1))
+    func reload(slots: [MenuSlotPresentation]) {
+        self.slots = slots
+        layout = appearanceConfiguration.layout(slotCount: slots.count)
         let diameter = (layout.outerRadius + 8) * 2
         setFrameSize(NSSize(width: diameter, height: diameter))
         clearSelection()
         needsDisplay = true
     }
 
+    func reload(items: [MenuItemPresentation]) {
+        reload(slots: items.map(MenuSlotPresentation.occupied))
+    }
+
+    func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        appearanceConfiguration = appearance
+        editorAccentColor = appearance.accentColor
+        layout = appearance.layout(slotCount: slots.count)
+        let diameter = (layout.outerRadius + 8) * 2
+        setFrameSize(NSSize(width: diameter, height: diameter))
+        needsDisplay = true
+    }
+
     func selectEditorItem(at index: Int) {
-        guard presentationMode == .editor, items.indices.contains(index) else { return }
+        guard presentationMode == .editor, slots.indices.contains(index) else { return }
         selectedIndex = index
         updateAccessibilityValue()
     }
@@ -100,8 +122,10 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
+        if presentationMode == .editor, let selectedIndex {
+            onEditorSelection?(selectedIndex)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -112,7 +136,12 @@ final class RadialMenuView: NSView {
     override func mouseDown(with event: NSEvent) {
         updateSelection(at: convert(event.locationInWindow, from: nil))
         guard presentationMode == .runtime else {
-            if let selectedIndex { onEditorSelection?(selectedIndex) }
+            if let selectedIndex {
+                onEditorSelection?(selectedIndex)
+                if slots[selectedIndex].item != nil {
+                    onEditorEditRequested?(selectedIndex)
+                }
+            }
             return
         }
     }
@@ -150,10 +179,11 @@ final class RadialMenuView: NSView {
             moveSelection(by: 1)
             if presentationMode == .editor, let selectedIndex { onEditorSelection?(selectedIndex) }
         case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
-            let index = selectedIndex ?? (items.isEmpty ? nil : 0)
+            let index = selectedIndex ?? (slots.isEmpty ? nil : 0)
             guard let index else { return }
             if presentationMode == .editor {
                 onEditorSelection?(index)
+                if slots[index].item != nil { onEditorEditRequested?(index) }
             } else if event.modifierFlags.contains(.option) {
                 onAlternateSelection?(index)
             } else {
@@ -207,16 +237,20 @@ final class RadialMenuView: NSView {
     }
 
     private func moveSelection(by offset: Int) {
-        guard !items.isEmpty else { return }
-        let count = items.count
+        guard !slots.isEmpty else { return }
+        let count = slots.count
         let current = selectedIndex ?? (offset < 0 ? 0 : count - 1)
         selectedIndex = (current + offset + count) % count
         updateAccessibilityValue()
     }
 
     private func updateAccessibilityValue() {
-        if let selectedIndex, items.indices.contains(selectedIndex) {
-            setAccessibilityValue(items[selectedIndex].primaryAction.accessibilityLabel)
+        if let selectedIndex, slots.indices.contains(selectedIndex) {
+            if let item = slots[selectedIndex].item {
+                setAccessibilityValue(item.primaryAction.accessibilityLabel)
+            } else {
+                setAccessibilityValue("Empty Slot \(selectedIndex + 1)")
+            }
         } else {
             setAccessibilityValue("No Menu Item selected")
         }
@@ -228,8 +262,8 @@ final class RadialMenuView: NSView {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let step = 360 / CGFloat(layout.itemCount)
 
-        for index in 0..<layout.itemCount where items.indices.contains(index) {
-            let item = items[index]
+        for index in 0..<layout.itemCount where slots.indices.contains(index) {
+            let slot = slots[index]
             let path = NSBezierPath()
             path.appendArc(
                 withCenter: center,
@@ -246,7 +280,11 @@ final class RadialMenuView: NSView {
             )
             path.close()
             let fillColor: NSColor
-            if !item.primaryAction.isAvailable {
+            if slot.isEmpty {
+                fillColor = selectedIndex == index
+                    ? editorAccentColor.withAlphaComponent(0.16)
+                    : NSColor.controlBackgroundColor.withAlphaComponent(0.6)
+            } else if slot.item?.primaryAction.isAvailable == false {
                 fillColor = NSColor.systemGray.withAlphaComponent(0.55)
             } else if selectedIndex == index {
                 fillColor = editorAccentColor.withAlphaComponent(0.88)
@@ -259,14 +297,18 @@ final class RadialMenuView: NSView {
                 ? editorAccentColor
                 : NSColor.separatorColor.withAlphaComponent(0.85)).setStroke()
             path.lineWidth = selectedIndex == index ? 2.5 : 1
+            if slot.isEmpty {
+                let pattern: [CGFloat] = [6, 5]
+                path.setLineDash(pattern, count: pattern.count, phase: 0)
+            }
             path.stroke()
 
-            let title = item.title
+            let title = slot.isEmpty ? "+" : slot.title
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-                .foregroundColor: selectedIndex == index && item.primaryAction.isAvailable
+                .font: NSFont.systemFont(ofSize: slot.isEmpty ? 22 : 13, weight: .semibold),
+                .foregroundColor: selectedIndex == index && slot.item?.primaryAction.isAvailable != false
                     ? NSColor.white
-                    : NSColor.labelColor
+                    : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
             ]
             let point = layout.itemCenter(index: index, center: center)
             let size = title.size(withAttributes: attributes)
@@ -274,6 +316,19 @@ final class RadialMenuView: NSView {
                 at: CGPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
                 withAttributes: attributes
             )
+
+            if presentationMode == .editor, selectedIndex == index {
+                let hint = (slot.isEmpty ? "DROP HERE" : "EDIT") as NSString
+                let hintAttributes: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+                    .foregroundColor: slot.isEmpty ? editorAccentColor : NSColor.white.withAlphaComponent(0.9)
+                ]
+                let hintSize = hint.size(withAttributes: hintAttributes)
+                hint.draw(
+                    at: CGPoint(x: point.x - hintSize.width / 2, y: point.y - hintSize.height / 2 - 20),
+                    withAttributes: hintAttributes
+                )
+            }
         }
 
         let hubRect = NSRect(
