@@ -69,12 +69,17 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func present() {
+        model.refreshSystemPermissionStatus()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         if let hostingView {
             window?.makeFirstResponder(hostingView)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func refreshSystemPermissionStatus() {
+        model.refreshSystemPermissionStatus()
     }
 
     /// The observable Settings window seam used by host-level UI tests.

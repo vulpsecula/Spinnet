@@ -6,6 +6,8 @@ struct MenuEditorView: View {
     @Binding var selectedMenuIndex: Int
     @Binding var triggerMouseButton: Int
     @Binding var triggerKeyboardShortcut: MenuKeyboardShortcut?
+    let accessibilityPermissionGranted: Bool
+    let openAccessibilitySettings: () -> Void
     let placementMessage: String?
     let onPresetPlacement: (String, Int) -> Bool
 
@@ -141,9 +143,23 @@ struct MenuEditorView: View {
                 Spacer()
             }
 
-            Label("Changes save automatically", systemImage: "checkmark.circle.fill")
+            HStack {
+                Label(
+                    accessibilityPermissionGranted ? "Accessibility Granted" : "Accessibility Required",
+                    systemImage: accessibilityPermissionGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if !accessibilityPermissionGranted {
+                    Button("Open Settings", action: openAccessibilitySettings)
+                        .controlSize(.small)
+                        .accessibilityLabel("Open Accessibility Settings")
+                }
+                Spacer()
+                Text("Saves automatically")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(16)
         .background {

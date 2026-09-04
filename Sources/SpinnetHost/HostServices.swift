@@ -37,6 +37,33 @@ final class AppKitHostCommandExecutor: HostCommandExecutor {
     }
 }
 
+final class AccessibilityPermissionController {
+    private let isTrustedCheck: () -> Bool
+    private let requestAccess: () -> Void
+    private var hasRequestedThisLaunch = false
+
+    init(
+        isTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
+        request: @escaping () -> Void = {
+            let options = [
+                kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+            ] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
+    ) {
+        isTrustedCheck = isTrusted
+        requestAccess = request
+    }
+
+    var isAuthorized: Bool { isTrustedCheck() }
+
+    func requestOnceIfNeeded() {
+        guard !isAuthorized, !hasRequestedThisLaunch else { return }
+        hasRequestedThisLaunch = true
+        requestAccess()
+    }
+}
+
 final class GlobalTriggerController {
     private enum HotKey: UInt32 {
         case invoke = 1
@@ -49,6 +76,7 @@ final class GlobalTriggerController {
     private var mouseEventTap: CFMachPort?
     private var mouseEventTapSource: CFRunLoopSource?
     private let signature = OSType(0x53504E54) // SPNT
+    private let accessibilityPermission: AccessibilityPermissionController
 
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
@@ -56,6 +84,12 @@ final class GlobalTriggerController {
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
+
+    init(
+        accessibilityPermission: AccessibilityPermissionController = AccessibilityPermissionController()
+    ) {
+        self.accessibilityPermission = accessibilityPermission
+    }
 
     func start(configuration: MenuTriggerConfiguration) -> Bool {
         stop()
@@ -94,7 +128,7 @@ final class GlobalTriggerController {
 
         mouseInterceptionAvailable = installMouseEventTap()
         if !mouseInterceptionAvailable {
-            requestAccessibilityAccess()
+            accessibilityPermission.requestOnceIfNeeded()
         }
 
         keyboardShortcutRegistered = registerInvokeShortcut()
@@ -135,7 +169,7 @@ final class GlobalTriggerController {
     }
 
     func retryMouseInterceptionIfAuthorized() {
-        guard !mouseInterceptionAvailable, AXIsProcessTrusted() else { return }
+        guard !mouseInterceptionAvailable, accessibilityPermission.isAuthorized else { return }
         mouseInterceptionAvailable = installMouseEventTap()
     }
 
@@ -164,13 +198,6 @@ final class GlobalTriggerController {
         mouseEventTap = tap
         mouseEventTapSource = source
         return true
-    }
-
-    private func requestAccessibilityAccess() {
-        let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func registerInvokeShortcut() -> Bool {

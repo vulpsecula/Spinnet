@@ -61,6 +61,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         triggers?.retryMouseInterceptionIfAuthorized()
+        settings?.refreshSystemPermissionStatus()
     }
 
     private func loadConfiguration(for manifest: PluginManifest) throws -> HostConfiguration {

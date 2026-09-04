@@ -11,6 +11,7 @@ final class SettingsWindowModel: ObservableObject {
     @Published var placementMessage: String?
     @Published var editingMenuIndex: Int?
     @Published private(set) var refreshToken = 0
+    @Published private(set) var accessibilityPermissionGranted: Bool
     @Published var triggerMouseButton: Int {
         didSet { triggerConfigurationDidChange() }
     }
@@ -40,15 +41,19 @@ final class SettingsWindowModel: ObservableObject {
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     private let defaults: UserDefaults
+    private let accessibilityPermissionCheck: () -> Bool
 
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() }
     ) {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
+        self.accessibilityPermissionCheck = accessibilityPermissionCheck
+        accessibilityPermissionGranted = accessibilityPermissionCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
         triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
@@ -82,6 +87,10 @@ final class SettingsWindowModel: ObservableObject {
         let configuration = triggerConfiguration
         configuration.save(to: defaults)
         onTriggerChanged?(configuration)
+    }
+
+    func refreshSystemPermissionStatus() {
+        accessibilityPermissionGranted = accessibilityPermissionCheck()
     }
 
     var accessibleNames: [String] {
@@ -294,10 +303,16 @@ struct SettingsRootView: View {
                     selectedMenuIndex: $model.selectedMenuIndex,
                     triggerMouseButton: $model.triggerMouseButton,
                     triggerKeyboardShortcut: $model.triggerKeyboardShortcut,
+                    accessibilityPermissionGranted: model.accessibilityPermissionGranted,
+                    openAccessibilitySettings: {
+                        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+                        _ = openURL(url)
+                    },
                     placementMessage: model.placementMessage,
                     onPresetPlacement: model.placePreset
                 )
                 .id(model.refreshToken)
+                .onAppear { model.refreshSystemPermissionStatus() }
             case .appearance:
                 AppearanceSettingsView(
                     theme: $model.appearanceTheme,
@@ -305,7 +320,11 @@ struct SettingsRootView: View {
                     menuSize: $model.appearanceMenuSize
                 )
             case .privacyAndPermissions:
-                PrivacySettingsView(openURL: openURL)
+                PrivacySettingsView(
+                    accessibilityPermissionGranted: model.accessibilityPermissionGranted,
+                    openURL: openURL
+                )
+                .onAppear { model.refreshSystemPermissionStatus() }
             case .about:
                 AboutSettingsView(metadata: model.metadata)
             }
@@ -560,13 +579,19 @@ private struct AppearanceSettingsView: View {
 }
 
 private struct PrivacySettingsView: View {
+    let accessibilityPermissionGranted: Bool
     let openURL: (URL) -> Bool
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
                 VStack(spacing: 0) {
-                    privacyRow(icon: "gearshape.2", title: "System Permissions", body: "Accessibility lets Spinnet intercept the configured Side Button before the foreground App receives it.", status: "Accessibility required for mouse trigger")
+                    privacyRow(
+                        icon: "gearshape.2",
+                        title: "System Permissions",
+                        body: "Accessibility lets Spinnet intercept the configured Side Button before the foreground App receives it.",
+                        status: accessibilityPermissionGranted ? "Accessibility granted" : "Accessibility required for mouse trigger"
+                    )
                     Divider().padding(.leading, 52)
                     privacyRow(icon: "lock.shield", title: "Sensitive Data Collection", body: "Host-owned data such as Clipboard History always requires a separate opt-in.", status: "Clipboard History is off")
                     Divider().padding(.leading, 52)

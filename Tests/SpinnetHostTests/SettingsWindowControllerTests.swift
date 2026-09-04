@@ -440,6 +440,42 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(invocationCount, 1, "Only mouse-down should toggle the Menu")
     }
 
+    func testAccessibilityPromptIsRequestedOnlyOnceWhileSystemTrustIsReadLive() {
+        var isTrusted = false
+        var requestCount = 0
+        let permission = AccessibilityPermissionController(
+            isTrusted: { isTrusted },
+            request: { requestCount += 1 }
+        )
+
+        permission.requestOnceIfNeeded()
+        permission.requestOnceIfNeeded()
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertFalse(permission.isAuthorized)
+
+        isTrusted = true
+
+        XCTAssertTrue(permission.isAuthorized)
+        permission.requestOnceIfNeeded()
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testPrivacySettingsRefreshesAccessibilityFromTheSystemSourceOfTruth() throws {
+        var isTrusted = false
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            accessibilityPermissionCheck: { isTrusted }
+        )
+        XCTAssertFalse(model.accessibilityPermissionGranted)
+
+        isTrusted = true
+        model.refreshSystemPermissionStatus()
+
+        XCTAssertTrue(model.accessibilityPermissionGranted)
+    }
+
     private func makeController(emptySlotCount: Int = 0) throws -> SettingsWindowController {
         let editor = try makeEditor()
         for _ in 0..<emptySlotCount {

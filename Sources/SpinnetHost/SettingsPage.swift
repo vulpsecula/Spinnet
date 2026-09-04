@@ -76,6 +76,7 @@ extension SettingsPage {
                         "Menu Trigger",
                         "Mouse trigger",
                         "Keyboard shortcut optional",
+                        "Accessibility status",
                         "Library",
                         "Add empty Slot",
                         "Edit on the Menu"
