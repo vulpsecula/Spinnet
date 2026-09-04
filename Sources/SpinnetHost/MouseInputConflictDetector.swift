@@ -20,6 +20,8 @@ struct MouseInputConflictDefinition {
 }
 
 struct MouseInputConflictDetector {
+    private static let macMouseFixID = "mac-mouse-fix"
+
     static let knownDrivers: [MouseInputConflictDefinition] = [
         MouseInputConflictDefinition(
             id: "mac-mouse-fix",
@@ -69,16 +71,29 @@ struct MouseInputConflictDetector {
             )
         }
     }
+    var macMouseFixConfigurationData: () -> Data? = {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/com.nuebling.mac-mouse-fix/config.plist")
+        return try? Data(contentsOf: url)
+    }
 
-    func detect() -> [MouseInputConflict] {
-        Self.detect(
+    func detect(mouseButton: Int) -> [MouseInputConflict] {
+        var claimedButtonsByDriver: [String: Set<Int>] = [:]
+        if let data = macMouseFixConfigurationData() {
+            claimedButtonsByDriver[Self.macMouseFixID] = Self.macMouseFixClaimedButtons(from: data)
+        }
+        return Self.detect(
             runningApplications: runningApplications(),
+            mouseButton: mouseButton,
+            claimedButtonsByDriver: claimedButtonsByDriver,
             definitions: Self.knownDrivers
         )
     }
 
     static func detect(
         runningApplications: [RunningApplicationIdentity],
+        mouseButton: Int,
+        claimedButtonsByDriver: [String: Set<Int>],
         definitions: [MouseInputConflictDefinition] = knownDrivers
     ) -> [MouseInputConflict] {
         definitions.compactMap { definition in
@@ -86,12 +101,53 @@ struct MouseInputConflictDetector {
                 application.bundleIdentifier.map(definition.bundleIdentifiers.contains) == true
                     || application.localizedName.map(definition.processNames.contains) == true
             }
-            guard isRunning else { return nil }
+            guard isRunning,
+                  claimedButtonsByDriver[definition.id]?.contains(mouseButton) == true else {
+                return nil
+            }
             return MouseInputConflict(
                 id: definition.id,
                 applicationName: definition.applicationName,
                 guidance: definition.guidance
             )
         }
+    }
+
+    static func macMouseFixClaimedButtons(from data: Data) -> Set<Int> {
+        guard let root = try? PropertyListSerialization.propertyList(
+            from: data,
+            options: [],
+            format: nil
+        ) as? [String: Any],
+        let constants = root["Constants"] as? [String: Any],
+        integer(from: constants["configVersion"]) == 24,
+        let general = root["General"] as? [String: Any],
+        general["buttonKillSwitch"] as? Bool != true,
+        let remaps = root["Remaps"] as? [[String: Any]] else {
+            return []
+        }
+
+        var claimedButtons: Set<Int> = []
+        for remap in remaps {
+            if let trigger = remap["trigger"] as? [String: Any],
+               let oneBasedButton = integer(from: trigger["button"]),
+               oneBasedButton >= 3 {
+                claimedButtons.insert(oneBasedButton - 1)
+            }
+            if let modifiers = remap["modifiers"] as? [String: Any],
+               let buttonModifiers = modifiers["buttonModifiers"] as? [[String: Any]] {
+                for modifier in buttonModifiers {
+                    if let oneBasedButton = integer(from: modifier["button"]),
+                       oneBasedButton >= 3 {
+                        claimedButtons.insert(oneBasedButton - 1)
+                    }
+                }
+            }
+        }
+        return claimedButtons
+    }
+
+    private static func integer(from value: Any?) -> Int? {
+        (value as? NSNumber)?.intValue
     }
 }

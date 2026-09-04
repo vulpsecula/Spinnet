@@ -68,7 +68,8 @@ final class SettingsWindowController: NSWindowController {
         let workspaceNotifications = NSWorkspace.shared.notificationCenter
         for name in [
             NSWorkspace.didLaunchApplicationNotification,
-            NSWorkspace.didTerminateApplicationNotification
+            NSWorkspace.didTerminateApplicationNotification,
+            NSWorkspace.didActivateApplicationNotification
         ] {
             workspaceObservers.append(
                 workspaceNotifications.addObserver(forName: name, object: nil, queue: .main) { [weak model] _ in

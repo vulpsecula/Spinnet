@@ -669,14 +669,14 @@ final class SettingsWindowControllerTests: XCTestCase {
                 bundleIdentifier: "com.nuebling.mac-mouse-fix",
                 localizedName: "Mac Mouse Fix"
             )
-        ])
+        ], mouseButton: 3, claimedButtonsByDriver: ["mac-mouse-fix": [3]])
 
         XCTAssertEqual(conflicts.count, 1)
         XCTAssertEqual(conflicts.first?.applicationName, "Mac Mouse Fix")
         XCTAssertTrue(conflicts.first?.guidance.contains("Click and Drag") == true)
     }
 
-    func testMouseInputConflictDetectorUsesVerifiedIdentifierOrExactProductName() {
+    func testMouseInputConflictDetectorDoesNotWarnWithoutVerifiedButtonClaim() {
         let conflicts = MouseInputConflictDetector.detect(runningApplications: [
             RunningApplicationIdentity(
                 bundleIdentifier: "com.lujjjh.LinearMouse",
@@ -690,12 +690,9 @@ final class SettingsWindowControllerTests: XCTestCase {
                 bundleIdentifier: nil,
                 localizedName: "Not BetterTouchTool"
             )
-        ])
+        ], mouseButton: 3, claimedButtonsByDriver: [:])
 
-        XCTAssertEqual(
-            Set(conflicts.map(\.applicationName)),
-            Set(["LinearMouse", "BetterTouchTool"])
-        )
+        XCTAssertTrue(conflicts.isEmpty)
     }
 
     func testSettingsModelRefreshesRunningMouseInputConflicts() throws {
@@ -703,8 +700,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         let model = SettingsWindowModel(
             editor: try makeEditor(),
             metadata: .current,
-            mouseInputConflictCheck: {
-                MouseInputConflictDetector.detect(runningApplications: runningApplications)
+            mouseInputConflictCheck: { mouseButton in
+                MouseInputConflictDetector.detect(
+                    runningApplications: runningApplications,
+                    mouseButton: mouseButton,
+                    claimedButtonsByDriver: ["mac-mouse-fix": [3]]
+                )
             }
         )
         XCTAssertTrue(model.mouseInputConflicts.isEmpty)
@@ -716,6 +717,60 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.refreshMouseInputConflicts()
 
         XCTAssertEqual(model.mouseInputConflicts.map(\.applicationName), ["Mac Mouse Fix"])
+    }
+
+    func testMacMouseFixParserFindsOnlyCurrentRemapsForTheSelectedButton() throws {
+        let plist: [String: Any] = [
+            "General": ["buttonKillSwitch": false],
+            "Constants": [
+                "configVersion": 24,
+                "defaultRemaps": [["trigger": ["button": 5]]]
+            ],
+            "Remaps": [
+                ["trigger": ["button": 4, "duration": "click"]],
+                [
+                    "trigger": "dragTrigger",
+                    "modifiers": ["buttonModifiers": [["button": 4, "level": 1]]]
+                ]
+            ]
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .binary,
+            options: 0
+        )
+
+        XCTAssertEqual(MouseInputConflictDetector.macMouseFixClaimedButtons(from: data), [3])
+    }
+
+    func testMacMouseFixParserHonorsDisabledButtons() throws {
+        let plist: [String: Any] = [
+            "Constants": ["configVersion": 24],
+            "General": ["buttonKillSwitch": true],
+            "Remaps": [["trigger": ["button": 4]]]
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .xml,
+            options: 0
+        )
+
+        XCTAssertTrue(MouseInputConflictDetector.macMouseFixClaimedButtons(from: data).isEmpty)
+    }
+
+    func testMacMouseFixParserFailsOpenForUnknownConfigurationVersion() throws {
+        let plist: [String: Any] = [
+            "Constants": ["configVersion": 25],
+            "General": ["buttonKillSwitch": false],
+            "Remaps": [["trigger": ["button": 4]]]
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .binary,
+            options: 0
+        )
+
+        XCTAssertTrue(MouseInputConflictDetector.macMouseFixClaimedButtons(from: data).isEmpty)
     }
 
     func testRuntimeMenuCommitsTheHoveredItemForAReleaseGesture() throws {

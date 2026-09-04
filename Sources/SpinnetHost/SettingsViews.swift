@@ -47,15 +47,15 @@ final class SettingsWindowModel: ObservableObject {
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
     private let accessibilityPermissionCheck: () -> Bool
-    private let mouseInputConflictCheck: () -> [MouseInputConflict]
+    private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
 
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata,
         defaults: UserDefaults = .standard,
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
-        mouseInputConflictCheck: @escaping () -> [MouseInputConflict] = {
-            MouseInputConflictDetector().detect()
+        mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
+            MouseInputConflictDetector().detect(mouseButton: $0)
         }
     ) {
         self.editor = editor
@@ -64,11 +64,11 @@ final class SettingsWindowModel: ObservableObject {
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.mouseInputConflictCheck = mouseInputConflictCheck
         accessibilityPermissionGranted = accessibilityPermissionCheck()
-        mouseInputConflicts = mouseInputConflictCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
         triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
         triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
+        mouseInputConflicts = mouseInputConflictCheck(triggerConfiguration.mouseButton)
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
@@ -100,6 +100,7 @@ final class SettingsWindowModel: ObservableObject {
         let configuration = triggerConfiguration
         configuration.save(to: defaults)
         onTriggerChanged?(configuration)
+        refreshMouseInputConflicts()
     }
 
     func refreshSystemPermissionStatus() {
@@ -107,7 +108,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func refreshMouseInputConflicts() {
-        mouseInputConflicts = mouseInputConflictCheck()
+        mouseInputConflicts = mouseInputConflictCheck(triggerMouseButton)
     }
 
     var accessibleNames: [String] {
