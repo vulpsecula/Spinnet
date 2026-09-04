@@ -47,8 +47,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
             }
-            settings.onMouseCaptureChanged = { [weak self] isCapturing in
-                self?.triggers?.setMouseButtonCaptureActive(isCapturing)
+            settings.onMouseCaptureChanged = { [weak self] isCapturing, session in
+                self?.triggers?.setMouseButtonCaptureActive(isCapturing, onCapture: session.capture)
             }
             installStatusItem()
             try installTriggers()

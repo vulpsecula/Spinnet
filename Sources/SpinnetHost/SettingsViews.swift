@@ -43,7 +43,7 @@ final class SettingsWindowModel: ObservableObject {
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
-    var onMouseCaptureChanged: ((Bool) -> Void)?
+    var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
     private let accessibilityPermissionCheck: () -> Bool
 
@@ -326,7 +326,7 @@ struct SettingsRootView: View {
 
             MouseButtonRecorder(
                 buttonNumber: $model.triggerMouseButton,
-                onRecordingChanged: { model.onMouseCaptureChanged?($0) }
+                onRecordingChanged: { model.onMouseCaptureChanged?($0, $1) }
             )
             .frame(maxWidth: .infinity, minHeight: 68, maxHeight: 68)
 

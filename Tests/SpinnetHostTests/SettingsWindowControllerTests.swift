@@ -515,6 +515,37 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(releaseCount, 1)
     }
 
+    func testRepeatedMouseDownDoesNotToggleAwayClickDragMenu() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 2, clickDragEnabled: true)
+        var invocationCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+
+        let firstDown = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
+        let repeatedDown = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: firstDown))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: repeatedDown))
+        XCTAssertEqual(invocationCount, 1)
+    }
+
+    func testHeldSideButtonCanRecoverFromNormalizedDragButtonNumber() throws {
+        let controller = GlobalTriggerController(mouseButtonStateCheck: { $0 == 3 })
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3, clickDragEnabled: true)
+        var invocationCount = 0
+        var dragCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+        controller.onMouseDrag = { _ in dragCount += 1 }
+
+        let firstDrag = try mouseEvent(type: .otherMouseDragged, buttonNumber: 2, location: CGPoint(x: 20, y: 0))
+        let secondDrag = try mouseEvent(type: .otherMouseDragged, buttonNumber: 2, location: CGPoint(x: 40, y: 0))
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDragged, event: firstDrag))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDragged, event: secondDrag))
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertEqual(dragCount, 1)
+    }
+
     func testMouseClickWithoutDragLeavesRuntimeMenuOpenForPointAndClickUse() throws {
         let controller = GlobalTriggerController()
         controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
@@ -555,15 +586,46 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(releaseCount, 0)
     }
 
-    func testMouseButtonCaptureTemporarilyPassesTheConfiguredButtonThrough() throws {
+    func testMouseButtonCaptureConsumesAndRecordsTheFirstButtonOutsideTheView() throws {
         let controller = GlobalTriggerController()
         controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
         var invocationCount = 0
+        var capturedButton: Int?
         controller.onInvoke = { invocationCount += 1 }
-        controller.setMouseButtonCaptureActive(true)
-        let event = try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
+        controller.setMouseButtonCaptureActive(true) { capturedButton = $0 }
+        let event = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
 
-        XCTAssertNotNil(controller.interceptMouseEvent(type: .otherMouseDown, event: event))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: event))
+        XCTAssertEqual(capturedButton, 2)
+        XCTAssertEqual(invocationCount, 0)
+    }
+
+    func testApplyingCapturedButtonDoesNotRestartTapOrInvokeRuntimeMenu() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
+        var invocationCount = 0
+        var capturedButton: Int?
+        controller.onInvoke = { invocationCount += 1 }
+        controller.setMouseButtonCaptureActive(true) { buttonNumber in
+            capturedButton = buttonNumber
+            _ = controller.apply(MenuTriggerConfiguration(mouseButton: buttonNumber))
+        }
+        let event = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: event))
+        XCTAssertEqual(capturedButton, 2)
+        XCTAssertEqual(controller.configuration.mouseButton, 2)
+        XCTAssertEqual(invocationCount, 0)
+    }
+
+    func testMiddleButtonDoesNotUseHeldSideButtonRecoveryPath() throws {
+        let controller = GlobalTriggerController(mouseButtonStateCheck: { _ in true })
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 2, clickDragEnabled: true)
+        var invocationCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+        let moved = try mouseEvent(type: .mouseMoved, buttonNumber: 0, location: CGPoint(x: 30, y: 0))
+
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .mouseMoved, event: moved))
         XCTAssertEqual(invocationCount, 0)
     }
 
@@ -579,6 +641,22 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(MouseTriggerButton.displayName(for: 2), "Middle Button")
         XCTAssertEqual(MouseTriggerButton.displayName(for: 3), "Side Button 1")
         XCTAssertEqual(MouseTriggerButton.displayName(for: 7), "Mouse Button 8")
+    }
+
+    func testMouseTriggerRejectsLeftAndRightButtonsFromStoredOrNewConfiguration() throws {
+        let suiteName = "SpinnetHostTests.MouseTriggerValidation.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(0, forKey: "trigger.mouse-button")
+
+        XCTAssertEqual(
+            MenuTriggerConfiguration(mouseButton: 1).mouseButton,
+            MenuTriggerConfiguration.defaultMouseButton
+        )
+        XCTAssertEqual(
+            MenuTriggerConfiguration(defaults: defaults).mouseButton,
+            MenuTriggerConfiguration.defaultMouseButton
+        )
     }
 
     func testRuntimeMenuCommitsTheHoveredItemForAReleaseGesture() throws {

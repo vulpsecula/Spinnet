@@ -1,9 +1,21 @@
 import AppKit
 import SwiftUI
 
+final class MouseButtonCaptureSession {
+    private let captureHandler: (Int) -> Void
+
+    init(capture: @escaping (Int) -> Void) {
+        captureHandler = capture
+    }
+
+    func capture(_ buttonNumber: Int) {
+        captureHandler(buttonNumber)
+    }
+}
+
 struct MouseButtonRecorder: NSViewRepresentable {
     @Binding var buttonNumber: Int
-    let onRecordingChanged: (Bool) -> Void
+    let onRecordingChanged: (Bool, MouseButtonCaptureSession) -> Void
 
     func makeNSView(context: Context) -> MouseButtonCaptureView {
         let view = MouseButtonCaptureView()
@@ -32,7 +44,7 @@ final class MouseButtonCaptureView: NSView {
         }
     }
     var onChange: ((Int) -> Void)?
-    var onRecordingChanged: ((Bool) -> Void)?
+    var onRecordingChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private(set) var isRecording = false
 
     override var acceptsFirstResponder: Bool { true }
@@ -56,13 +68,18 @@ final class MouseButtonCaptureView: NSView {
 
     override func otherMouseDown(with event: NSEvent) {
         guard isRecording else { return }
-        guard MouseTriggerButton.isSupported(event.buttonNumber) else {
+        capture(event.buttonNumber)
+    }
+
+    private func capture(_ capturedButtonNumber: Int) {
+        guard isRecording else { return }
+        guard MouseTriggerButton.isSupported(capturedButtonNumber) else {
             NSSound.beep()
             return
         }
-        buttonNumber = event.buttonNumber
-        onChange?(event.buttonNumber)
+        buttonNumber = capturedButtonNumber
         setRecording(false)
+        onChange?(capturedButtonNumber)
     }
 
     override func keyDown(with event: NSEvent) {
@@ -85,7 +102,10 @@ final class MouseButtonCaptureView: NSView {
     private func setRecording(_ recording: Bool) {
         guard recording != isRecording else { return }
         isRecording = recording
-        onRecordingChanged?(recording)
+        let session = MouseButtonCaptureSession { [weak self] buttonNumber in
+            self?.capture(buttonNumber)
+        }
+        onRecordingChanged?(recording, session)
         needsDisplay = true
     }
 

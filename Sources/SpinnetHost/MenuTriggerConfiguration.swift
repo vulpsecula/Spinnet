@@ -66,7 +66,9 @@ struct MenuTriggerConfiguration: Equatable {
         clickDragEnabled: Bool = false,
         keyboardShortcut: MenuKeyboardShortcut? = nil
     ) {
-        self.mouseButton = mouseButton
+        self.mouseButton = MouseTriggerButton.isSupported(mouseButton)
+            ? mouseButton
+            : Self.defaultMouseButton
         self.clickDragEnabled = clickDragEnabled
         self.keyboardShortcut = keyboardShortcut
     }
@@ -75,7 +77,10 @@ struct MenuTriggerConfiguration: Equatable {
         if defaults.object(forKey: Keys.mouseButton) == nil {
             mouseButton = Self.defaultMouseButton
         } else {
-            mouseButton = defaults.integer(forKey: Keys.mouseButton)
+            let storedMouseButton = defaults.integer(forKey: Keys.mouseButton)
+            mouseButton = MouseTriggerButton.isSupported(storedMouseButton)
+                ? storedMouseButton
+                : Self.defaultMouseButton
         }
         clickDragEnabled = defaults.bool(forKey: Keys.clickDragEnabled)
         keyboardShortcut = defaults.data(forKey: Keys.keyboardShortcut)
@@ -83,7 +88,10 @@ struct MenuTriggerConfiguration: Equatable {
     }
 
     func save(to defaults: UserDefaults) {
-        defaults.set(mouseButton, forKey: Keys.mouseButton)
+        defaults.set(
+            MouseTriggerButton.isSupported(mouseButton) ? mouseButton : Self.defaultMouseButton,
+            forKey: Keys.mouseButton
+        )
         defaults.set(clickDragEnabled, forKey: Keys.clickDragEnabled)
         if let keyboardShortcut,
            let data = try? JSONEncoder().encode(keyboardShortcut) {
