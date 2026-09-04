@@ -5,6 +5,7 @@ import SpinnetCore
 final class SettingsWindowController: NSWindowController {
     private let model: SettingsWindowModel
     private var hostingView: NSHostingView<SettingsRootView>!
+    private var workspaceObservers: [NSObjectProtocol] = []
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
@@ -64,6 +65,17 @@ final class SettingsWindowController: NSWindowController {
         model.onMouseCaptureChanged = { [weak self] isCapturing, capture in
             self?.onMouseCaptureChanged?(isCapturing, capture)
         }
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        for name in [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification
+        ] {
+            workspaceObservers.append(
+                workspaceNotifications.addObserver(forName: name, object: nil, queue: .main) { [weak model] _ in
+                    model?.refreshMouseInputConflicts()
+                }
+            )
+        }
         window.appearance = model.appearanceConfiguration.appearance
         window.center()
     }
@@ -72,8 +84,14 @@ final class SettingsWindowController: NSWindowController {
         fatalError("SettingsWindowController is not decoded from a nib")
     }
 
+    deinit {
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        workspaceObservers.forEach(workspaceNotifications.removeObserver)
+    }
+
     func present() {
         model.refreshSystemPermissionStatus()
+        model.refreshMouseInputConflicts()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         if let hostingView {

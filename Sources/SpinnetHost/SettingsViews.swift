@@ -12,6 +12,7 @@ final class SettingsWindowModel: ObservableObject {
     @Published var editingMenuIndex: Int?
     @Published private(set) var refreshToken = 0
     @Published private(set) var accessibilityPermissionGranted: Bool
+    @Published private(set) var mouseInputConflicts: [MouseInputConflict]
     @Published var triggerMouseButton: Int {
         didSet { triggerConfigurationDidChange() }
     }
@@ -46,18 +47,24 @@ final class SettingsWindowModel: ObservableObject {
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
     private let accessibilityPermissionCheck: () -> Bool
+    private let mouseInputConflictCheck: () -> [MouseInputConflict]
 
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata,
         defaults: UserDefaults = .standard,
-        accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() }
+        accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
+        mouseInputConflictCheck: @escaping () -> [MouseInputConflict] = {
+            MouseInputConflictDetector().detect()
+        }
     ) {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
+        self.mouseInputConflictCheck = mouseInputConflictCheck
         accessibilityPermissionGranted = accessibilityPermissionCheck()
+        mouseInputConflicts = mouseInputConflictCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
         triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
@@ -97,6 +104,10 @@ final class SettingsWindowModel: ObservableObject {
 
     func refreshSystemPermissionStatus() {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
+    }
+
+    func refreshMouseInputConflicts() {
+        mouseInputConflicts = mouseInputConflictCheck()
     }
 
     var accessibleNames: [String] {
@@ -364,6 +375,19 @@ struct SettingsRootView: View {
                         .controlSize(.small)
                         .accessibilityLabel("Open Accessibility Settings")
                 }
+            }
+
+            if !model.mouseInputConflicts.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Potential mouse input conflict", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                    Text("\(model.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: model.triggerMouseButton)). Remove that button's click, drag, and scroll assignments in the other utility.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
             }
         }
         .padding(14)

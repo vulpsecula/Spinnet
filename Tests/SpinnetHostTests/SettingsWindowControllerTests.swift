@@ -659,6 +659,65 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
+    func testMouseInputConflictDetectorRecognizesHelperAndDeduplicatesMainApplication() {
+        let conflicts = MouseInputConflictDetector.detect(runningApplications: [
+            RunningApplicationIdentity(
+                bundleIdentifier: "com.nuebling.mac-mouse-fix.helper",
+                localizedName: "Mac Mouse Fix Helper"
+            ),
+            RunningApplicationIdentity(
+                bundleIdentifier: "com.nuebling.mac-mouse-fix",
+                localizedName: "Mac Mouse Fix"
+            )
+        ])
+
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertEqual(conflicts.first?.applicationName, "Mac Mouse Fix")
+        XCTAssertTrue(conflicts.first?.guidance.contains("Click and Drag") == true)
+    }
+
+    func testMouseInputConflictDetectorUsesVerifiedIdentifierOrExactProductName() {
+        let conflicts = MouseInputConflictDetector.detect(runningApplications: [
+            RunningApplicationIdentity(
+                bundleIdentifier: "com.lujjjh.LinearMouse",
+                localizedName: nil
+            ),
+            RunningApplicationIdentity(
+                bundleIdentifier: nil,
+                localizedName: "BetterTouchTool"
+            ),
+            RunningApplicationIdentity(
+                bundleIdentifier: nil,
+                localizedName: "Not BetterTouchTool"
+            )
+        ])
+
+        XCTAssertEqual(
+            Set(conflicts.map(\.applicationName)),
+            Set(["LinearMouse", "BetterTouchTool"])
+        )
+    }
+
+    func testSettingsModelRefreshesRunningMouseInputConflicts() throws {
+        var runningApplications: [RunningApplicationIdentity] = []
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            mouseInputConflictCheck: {
+                MouseInputConflictDetector.detect(runningApplications: runningApplications)
+            }
+        )
+        XCTAssertTrue(model.mouseInputConflicts.isEmpty)
+
+        runningApplications = [RunningApplicationIdentity(
+            bundleIdentifier: "com.nuebling.mac-mouse-fix.helper",
+            localizedName: nil
+        )]
+        model.refreshMouseInputConflicts()
+
+        XCTAssertEqual(model.mouseInputConflicts.map(\.applicationName), ["Mac Mouse Fix"])
+    }
+
     func testRuntimeMenuCommitsTheHoveredItemForAReleaseGesture() throws {
         let actionID = ActionID("gesture-action")
         let item = MenuItemPresentation(
