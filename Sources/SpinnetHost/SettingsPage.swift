@@ -73,9 +73,9 @@ extension SettingsPage {
                     [
                         "Menu",
                         "Menu Editor",
-                        "Available Plugin Commands",
-                        "Configured Actions",
-                        "Bind Actions to a Menu Item"
+                        "Library",
+                        "Selected Slot",
+                        "Edit Slot"
                     ]
                 }
             )
@@ -127,6 +127,15 @@ extension SettingsPage {
     }
 
     var title: String { descriptor.title }
+
+    var systemImageName: String {
+        switch self {
+        case .menu: return "circle.hexagongrid"
+        case .appearance: return "paintbrush"
+        case .privacyAndPermissions: return "hand.raised"
+        case .about: return "info.circle"
+        }
+    }
 
     var showsEditorMode: Bool { descriptor.showsEditorMode }
 

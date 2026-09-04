@@ -24,6 +24,11 @@ final class RadialMenuView: NSView {
     var onPrimarySelection: ((Int) -> Void)?
     var onAlternateSelection: ((Int) -> Void)?
     var onCancel: (() -> Void)?
+    var onEditorSelection: ((Int) -> Void)?
+    var onPresetDrop: ((String, Int) -> Bool)?
+    var editorAccentColor: NSColor = .controlAccentColor {
+        didSet { needsDisplay = true }
+    }
 
     init(
         items: [MenuItemPresentation],
@@ -46,7 +51,8 @@ final class RadialMenuView: NSView {
         case .editor:
             setAccessibilityRole(.group)
             setAccessibilityLabel("Editor Mode Menu")
-            setAccessibilityHelp("Non-executing Menu shown while configuring Spinnet.")
+            setAccessibilityHelp("Select a Menu Slot to edit it. Actions do not execute in Editor Mode.")
+            registerForDraggedTypes([.string])
         }
         setAccessibilityValue("No Menu Item selected")
     }
@@ -55,7 +61,7 @@ final class RadialMenuView: NSView {
         fatalError("RadialMenuView is not decoded from a nib")
     }
 
-    override var acceptsFirstResponder: Bool { presentationMode == .runtime }
+    override var acceptsFirstResponder: Bool { true }
 
     override func cancelOperation(_ sender: Any?) {
         guard presentationMode == .runtime else { return }
@@ -73,6 +79,12 @@ final class RadialMenuView: NSView {
         setFrameSize(NSSize(width: diameter, height: diameter))
         clearSelection()
         needsDisplay = true
+    }
+
+    func selectEditorItem(at index: Int) {
+        guard presentationMode == .editor, items.indices.contains(index) else { return }
+        selectedIndex = index
+        updateAccessibilityValue()
     }
 
     override func updateTrackingAreas() {
@@ -98,8 +110,11 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
+        guard presentationMode == .runtime else {
+            if let selectedIndex { onEditorSelection?(selectedIndex) }
+            return
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -127,19 +142,19 @@ final class RadialMenuView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        guard presentationMode == .runtime else {
-            super.keyDown(with: event)
-            return
-        }
         switch event.keyCode {
         case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
             moveSelection(by: -1)
+            if presentationMode == .editor, let selectedIndex { onEditorSelection?(selectedIndex) }
         case UInt16(kVK_RightArrow), UInt16(kVK_DownArrow):
             moveSelection(by: 1)
+            if presentationMode == .editor, let selectedIndex { onEditorSelection?(selectedIndex) }
         case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
             let index = selectedIndex ?? (items.isEmpty ? nil : 0)
             guard let index else { return }
-            if event.modifierFlags.contains(.option) {
+            if presentationMode == .editor {
+                onEditorSelection?(index)
+            } else if event.modifierFlags.contains(.option) {
                 onAlternateSelection?(index)
             } else {
                 onPrimarySelection?(index)
@@ -147,6 +162,42 @@ final class RadialMenuView: NSView {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard presentationMode == .editor else { return [] }
+        return updateDropTarget(sender) == nil ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard presentationMode == .editor else { return [] }
+        return updateDropTarget(sender) == nil ? [] : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        guard presentationMode == .editor else { return }
+        needsDisplay = true
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard presentationMode == .editor,
+              let index = updateDropTarget(sender),
+              let pluginID = sender.draggingPasteboard.string(forType: .string) else {
+            return false
+        }
+        onEditorSelection?(index)
+        return onPresetDrop?(pluginID, index) ?? false
+    }
+
+    private func updateDropTarget(_ sender: NSDraggingInfo) -> Int? {
+        let point = convert(sender.draggingLocation, from: nil)
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let index = layout.hitTest(point: point, center: center)
+        if selectedIndex != index {
+            selectedIndex = index
+            updateAccessibilityValue()
+        }
+        return index
     }
 
     private func updateSelection(at point: CGPoint) {
@@ -198,12 +249,17 @@ final class RadialMenuView: NSView {
             if !item.primaryAction.isAvailable {
                 fillColor = NSColor.systemGray.withAlphaComponent(0.55)
             } else if selectedIndex == index {
-                fillColor = NSColor.controlAccentColor.withAlphaComponent(0.94)
+                fillColor = editorAccentColor.withAlphaComponent(0.88)
             } else {
-                fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94)
+                fillColor = NSColor.controlBackgroundColor
             }
             fillColor.setFill()
             path.fill()
+            (selectedIndex == index
+                ? editorAccentColor
+                : NSColor.separatorColor.withAlphaComponent(0.85)).setStroke()
+            path.lineWidth = selectedIndex == index ? 2.5 : 1
+            path.stroke()
 
             let title = item.title
             let attributes: [NSAttributedString.Key: Any] = [
@@ -220,9 +276,22 @@ final class RadialMenuView: NSView {
             )
         }
 
-        let centerLabel = "Spinnet" as NSString
+        let hubRect = NSRect(
+            x: center.x - layout.innerRadius + 8,
+            y: center.y - layout.innerRadius + 8,
+            width: (layout.innerRadius - 8) * 2,
+            height: (layout.innerRadius - 8) * 2
+        )
+        let hubPath = NSBezierPath(ovalIn: hubRect)
+        NSColor.windowBackgroundColor.setFill()
+        hubPath.fill()
+        NSColor.separatorColor.withAlphaComponent(0.75).setStroke()
+        hubPath.lineWidth = 1
+        hubPath.stroke()
+
+        let centerLabel = presentationMode == .editor ? "SELECT SLOT" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
         let size = centerLabel.size(withAttributes: centerAttributes)

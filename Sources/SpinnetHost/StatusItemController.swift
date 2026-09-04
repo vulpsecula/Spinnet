@@ -11,7 +11,10 @@ final class StatusItemController {
 
     func install() {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.title = "◉"
+        statusItem.button?.image = NSImage(
+            systemSymbolName: "circle.hexagongrid.fill",
+            accessibilityDescription: "Spinnet"
+        )
         statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
         statusItem.button?.setAccessibilityHelp("Open Settings or Quit Spinnet.")
         statusItem.button?.toolTip = "Spinnet Status Item"

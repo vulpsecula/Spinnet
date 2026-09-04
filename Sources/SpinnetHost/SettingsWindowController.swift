@@ -51,6 +51,10 @@ final class SettingsWindowController: NSWindowController {
         model.onConfigurationChanged = { [weak self] configuration in
             self?.onConfigurationChanged?(configuration)
         }
+        model.onAppearanceChanged = { [weak window] theme in
+            window?.appearance = Self.windowAppearance(for: theme)
+        }
+        window.appearance = Self.windowAppearance(for: model.appearanceTheme)
         window.center()
     }
 
@@ -90,6 +94,14 @@ final class SettingsWindowController: NSWindowController {
         model.page = page
         if window?.isVisible == true, let hostingView {
             window?.makeFirstResponder(hostingView)
+        }
+    }
+
+    private static func windowAppearance(for theme: String) -> NSAppearance? {
+        switch theme {
+        case "Light": return NSAppearance(named: .aqua)
+        case "Dark": return NSAppearance(named: .darkAqua)
+        default: return nil
         }
     }
 }

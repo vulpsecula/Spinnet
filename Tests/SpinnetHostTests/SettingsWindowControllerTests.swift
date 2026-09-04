@@ -122,7 +122,167 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
+    func testEditorMenuSurfaceIsVisiblyDistinctFromSettingsBackground() throws {
+        let controller = try makeController()
+        guard let contentView = controller.window?.contentView else {
+            return XCTFail("Settings window has no content view")
+        }
+
+        controller.window?.appearance = NSAppearance(named: .aqua)
+        contentView.layoutSubtreeIfNeeded()
+        let image = try render(contentView)
+        let background = try XCTUnwrap(image.colorAt(x: 420, y: 420))
+        let menuSurface = try XCTUnwrap(image.colorAt(x: 370, y: 515))
+
+        XCTAssertGreaterThan(
+            colorDistance(background, menuSurface),
+            0.12,
+            "The Editor Mode Menu should remain clearly visible against the Settings background"
+        )
+    }
+
+    func testEditorMenuSelectsSlotsWithoutExecutingActions() throws {
+        let actionID = ActionID("editor-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let view = RadialMenuView(items: [item], mode: .editor)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        var selectedIndex: Int?
+        var primaryExecutionCount = 0
+        var alternateExecutionCount = 0
+        view.onEditorSelection = { selectedIndex = $0 }
+        view.onPrimarySelection = { _ in primaryExecutionCount += 1 }
+        view.onAlternateSelection = { _ in alternateExecutionCount += 1 }
+
+        let location = NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90)
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = try XCTUnwrap(NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: 1
+            ))
+            if type == .leftMouseDown {
+                view.mouseDown(with: event)
+            } else {
+                view.mouseUp(with: event)
+            }
+        }
+
+        XCTAssertEqual(selectedIndex, 0)
+        XCTAssertEqual(primaryExecutionCount, 0)
+        XCTAssertEqual(alternateExecutionCount, 0)
+    }
+
+    func testEverySettingsPageRendersAtTheWindowBoundary() throws {
+        let defaults = UserDefaults.standard
+        let appearanceKeys = ["appearance.theme", "appearance.accent", "appearance.menu-size"]
+        let originalAppearance = Dictionary(uniqueKeysWithValues: appearanceKeys.map { ($0, defaults.object(forKey: $0)) })
+        if let theme = ProcessInfo.processInfo.environment["SPINNET_UI_THEME"] {
+            defaults.set(theme, forKey: "appearance.theme")
+        }
+        if let accent = ProcessInfo.processInfo.environment["SPINNET_UI_ACCENT"] {
+            defaults.set(accent, forKey: "appearance.accent")
+        }
+        if let menuSize = ProcessInfo.processInfo.environment["SPINNET_UI_MENU_SIZE"] {
+            defaults.set(menuSize, forKey: "appearance.menu-size")
+        }
+        defer {
+            for key in appearanceKeys {
+                if let value = originalAppearance[key] ?? nil {
+                    defaults.set(value, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
+            }
+        }
+
+        let controller = try makeController()
+        guard let contentView = controller.window?.contentView else {
+            return XCTFail("Settings window has no content view")
+        }
+        let artifactDirectory = ProcessInfo.processInfo.environment["SPINNET_UI_ARTIFACT_DIR"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if let artifactDirectory {
+            try FileManager.default.createDirectory(
+                at: artifactDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+
+        for page in SettingsPage.allCases {
+            controller.select(page: page)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+            contentView.layoutSubtreeIfNeeded()
+            let image = try render(contentView)
+            let backingBounds = contentView.convertToBacking(contentView.bounds)
+            XCTAssertEqual(image.pixelsWide, Int(backingBounds.width))
+            XCTAssertEqual(image.pixelsHigh, Int(backingBounds.height))
+
+            if let artifactDirectory,
+               let data = image.representation(using: .png, properties: [:]) {
+                try data.write(to: artifactDirectory.appendingPathComponent("settings-\(page.rawValue).png"))
+            }
+        }
+    }
+
+    func testAppearanceChangesPersistImmediatelyWithoutASaveButton() throws {
+        let suiteName = "SpinnetHostTests.Appearance.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let editor = try makeEditor()
+        let model = SettingsWindowModel(
+            editor: editor,
+            metadata: .current,
+            defaults: defaults
+        )
+        var appliedTheme: String?
+        model.onAppearanceChanged = { appliedTheme = $0 }
+
+        model.appearanceTheme = "Dark"
+        model.appearanceAccent = "Purple"
+        model.appearanceMenuSize = "Large"
+
+        XCTAssertEqual(appliedTheme, "Dark")
+        XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "Dark")
+        XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "Purple")
+        XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Large")
+
+        let restored = SettingsWindowModel(
+            editor: editor,
+            metadata: .current,
+            defaults: defaults
+        )
+        XCTAssertEqual(restored.appearanceTheme, "Dark")
+        XCTAssertEqual(restored.appearanceAccent, "Purple")
+        XCTAssertEqual(restored.appearanceMenuSize, "Large")
+    }
+
     private func makeController() throws -> SettingsWindowController {
+        let controller = SettingsWindowController(editor: try makeEditor())
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        return controller
+    }
+
+    private func makeEditor() throws -> HostConfigurationEditor {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(
             id: PluginID("com.spinnet.fixture"),
@@ -150,10 +310,25 @@ final class SettingsWindowControllerTests: XCTestCase {
                 try MenuItemConfiguration(primaryActionID: action.id)
             ])
         )
-        let controller = SettingsWindowController(
-            editor: HostConfigurationEditor(registry: registry, configuration: configuration)
+        return HostConfigurationEditor(registry: registry, configuration: configuration)
+    }
+
+    private func render(_ view: NSView) throws -> NSBitmapImageRep {
+        let bounds = view.bounds
+        let representation = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: bounds))
+        view.cacheDisplay(in: bounds, to: representation)
+        return representation
+    }
+
+    private func colorDistance(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {
+        guard let lhs = lhs.usingColorSpace(.deviceRGB),
+              let rhs = rhs.usingColorSpace(.deviceRGB) else {
+            return 0
+        }
+        return max(
+            abs(lhs.redComponent - rhs.redComponent),
+            abs(lhs.greenComponent - rhs.greenComponent),
+            abs(lhs.blueComponent - rhs.blueComponent)
         )
-        controller.window?.contentView?.layoutSubtreeIfNeeded()
-        return controller
     }
 }
