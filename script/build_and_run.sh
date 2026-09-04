@@ -77,8 +77,13 @@ case "$MODE" in
         ;;
     --verify|verify)
         open_app
-        sleep 1
-        pgrep -f "$APP_BINARY" >/dev/null
+        for second in 1 2 3 4 5; do
+            sleep 1
+            if ! pgrep -f "$APP_BINARY" >/dev/null; then
+                echo "$APP_NAME exited after ${second}s" >&2
+                exit 1
+            fi
+        done
         ;;
     *)
         echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
