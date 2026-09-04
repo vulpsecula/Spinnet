@@ -9,7 +9,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController!
     private var configurationStore: HostConfigurationStore!
     private var statusItemController: StatusItemController?
-    private var shortcuts: GlobalHotKeyController?
+    private var triggers: GlobalTriggerController?
     private var actions: [ActionID: ActionConfiguration] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,7 +32,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             )
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onAlternateAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
-            menu.onDismiss = { [weak self] in self?.shortcuts?.unregisterEscape() }
+            menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
             feedback = ActionFeedbackPresenter()
             settings = SettingsWindowController(editor: editor)
             settings.onConfigurationChanged = { [weak self] configuration in
@@ -41,15 +41,21 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.onAppearanceChanged = { [weak self] appearance in
                 self?.menu.applyAppearance(appearance)
             }
+            settings.onTriggerChanged = { [weak self] configuration in
+                guard self?.triggers?.apply(configuration) == true else {
+                    NSLog("Spinnet: keyboard shortcut registration failed; mouse trigger remains active")
+                    return
+                }
+            }
             installStatusItem()
-            try installShortcuts()
+            try installTriggers()
         } catch {
             showStartupFailure(error)
         }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        shortcuts?.stop()
+        triggers?.stop()
         return .terminateNow
     }
 
@@ -108,14 +114,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         statusItemController = controller
     }
 
-    private func installShortcuts() throws {
-        let controller = GlobalHotKeyController()
+    private func installTriggers() throws {
+        let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
-        guard controller.start() else {
-            throw HostCommandError.failed("Global shortcut registration failed")
+        guard controller.start(configuration: MenuTriggerConfiguration(defaults: .standard)) else {
+            throw HostCommandError.failed("Global Menu trigger registration failed")
         }
-        shortcuts = controller
+        if !controller.keyboardShortcutRegistered {
+            NSLog("Spinnet: saved keyboard shortcut is unavailable; mouse trigger remains active")
+        }
+        triggers = controller
     }
 
     private func toggleMenu() {
@@ -123,7 +132,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if menu.isOpen {
             menu.dismiss()
         } else {
-            if shortcuts?.registerEscape() != true {
+            if triggers?.registerEscape() != true {
                 NSLog("Spinnet: global Escape registration unavailable; using panel-local fallback")
             }
             menu.open(at: NSEvent.mouseLocation)
@@ -138,7 +147,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func fixtureURL() throws -> URL {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let candidates = [
-            Bundle.module.url(forResource: "SpinnetFixture", withExtension: "spinnetplugin"),
+            Bundle.main.resourceURL?
+                .appendingPathComponent("Spinnet_SpinnetHost.bundle", isDirectory: true)
+                .appendingPathComponent("SpinnetFixture.spinnetplugin", isDirectory: true),
             root.appendingPathComponent("Plugins/SpinnetFixture.spinnetplugin")
         ].compactMap { $0 }
         guard let packageURL = candidates.first(where: {

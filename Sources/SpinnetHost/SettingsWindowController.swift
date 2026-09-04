@@ -8,6 +8,7 @@ final class SettingsWindowController: NSWindowController {
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
+    var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
 
     var currentPage: SettingsPage {
         model.page
@@ -55,6 +56,9 @@ final class SettingsWindowController: NSWindowController {
         model.onAppearanceChanged = { [weak self, weak window] appearance in
             window?.appearance = appearance.appearance
             self?.onAppearanceChanged?(appearance)
+        }
+        model.onTriggerChanged = { [weak self] configuration in
+            self?.onTriggerChanged?(configuration)
         }
         window.appearance = model.appearanceConfiguration.appearance
         window.center()

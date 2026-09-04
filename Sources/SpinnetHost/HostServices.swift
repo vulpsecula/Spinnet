@@ -37,7 +37,7 @@ final class AppKitHostCommandExecutor: HostCommandExecutor {
     }
 }
 
-final class GlobalHotKeyController {
+final class GlobalTriggerController {
     private enum HotKey: UInt32 {
         case invoke = 1
         case escape = 2
@@ -46,12 +46,19 @@ final class GlobalHotKeyController {
     private var eventHandler: EventHandlerRef?
     private var invokeHotKey: EventHotKeyRef?
     private var escapeHotKey: EventHotKeyRef?
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
     private let signature = OSType(0x53504E54) // SPNT
+
+    var configuration = MenuTriggerConfiguration()
+    private(set) var keyboardShortcutRegistered = true
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
 
-    func start() -> Bool {
+    func start(configuration: MenuTriggerConfiguration) -> Bool {
+        stop()
+        self.configuration = configuration
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
@@ -60,7 +67,7 @@ final class GlobalHotKeyController {
             GetApplicationEventTarget(),
             { _, event, context in
                 guard let event, let context else { return OSStatus(eventNotHandledErr) }
-                let controller = Unmanaged<GlobalHotKeyController>
+                let controller = Unmanaged<GlobalTriggerController>
                     .fromOpaque(context)
                     .takeUnretainedValue()
                 var identifier = EventHotKeyID()
@@ -84,17 +91,45 @@ final class GlobalHotKeyController {
         )
         guard status == noErr else { return false }
 
-        let modifiers = UInt32(controlKey | optionKey)
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .otherMouseDown) {
+            [weak self] event in
+            _ = self?.handleMouseButton(event.buttonNumber)
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) {
+            [weak self] event in
+            self?.handleMouseButton(event.buttonNumber) == true ? nil : event
+        }
+
+        keyboardShortcutRegistered = registerInvokeShortcut()
+        return true
+    }
+
+    func apply(_ configuration: MenuTriggerConfiguration) -> Bool {
+        let escapeWasRegistered = escapeHotKey != nil
+        let started = start(configuration: configuration)
+        if escapeWasRegistered { _ = registerEscape() }
+        return started && keyboardShortcutRegistered
+    }
+
+    @discardableResult
+    func handleMouseButton(_ buttonNumber: Int) -> Bool {
+        guard buttonNumber == configuration.mouseButton else { return false }
+        onInvoke?()
+        return true
+    }
+
+    private func registerInvokeShortcut() -> Bool {
+        guard let shortcut = configuration.keyboardShortcut else { return true }
+
         let invokeStatus = RegisterEventHotKey(
-            UInt32(kVK_Space),
-            modifiers,
+            shortcut.keyCode,
+            shortcut.modifiers,
             EventHotKeyID(signature: signature, id: HotKey.invoke.rawValue),
             GetApplicationEventTarget(),
             0,
             &invokeHotKey
         )
         if invokeStatus != noErr {
-            stop()
             return false
         }
         return true
@@ -122,8 +157,13 @@ final class GlobalHotKeyController {
         unregisterEscape()
         if let invokeHotKey { UnregisterEventHotKey(invokeHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         invokeHotKey = nil
         eventHandler = nil
+        globalMouseMonitor = nil
+        localMouseMonitor = nil
+        keyboardShortcutRegistered = true
     }
 
     deinit { stop() }

@@ -16,21 +16,21 @@ swift run SpinnetHost
 ```
 
 The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
-manifest loader and opens the radial Menu with Control-Option-Space. The
-fixture's Menu Item opens the Spinnet issue in the default browser. Use the
-Spinnet status item to open Settings, where Actions and Menu bindings are
-configured and saved automatically.
+manifest loader and opens the radial Menu with Mouse Side Button 1 by default.
+An optional keyboard shortcut can be recorded under Settings → Menu. The
+fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
+Menu bindings, appearance, and triggers are saved automatically.
 
 ## Manual acceptance checks
 
-1. Invoke Control-Option-Space while the pointer is near the middle of a
+1. Press Mouse Side Button 1 while the pointer is near the middle of a
    display. The overlay appears at the pointer without activating the Host.
 2. Move clockwise around the ring. At most one Menu Item is highlighted; the
    center remains a dead zone.
 3. Release on `Open URL` and confirm the URL opens and a completion message is
    visible.
 4. Open the Menu again and dismiss it with Escape, a click outside the ring, or
-   Control-Option-Space. None of these dismissal paths runs the Action.
+   Mouse Side Button 1. None of these dismissal paths runs the Action.
 5. Repeat near each display edge and corner. The complete ring remains inside
    the display's visible frame.
 6. Open Settings from the status item. Create a second Action, select it as an

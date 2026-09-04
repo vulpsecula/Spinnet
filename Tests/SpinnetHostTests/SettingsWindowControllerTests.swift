@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import SpinnetCore
 import XCTest
 @testable import SpinnetHost
@@ -342,6 +343,59 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(restored.appearanceTheme, "Dark")
         XCTAssertEqual(restored.appearanceAccent, "Purple")
         XCTAssertEqual(restored.appearanceMenuSize, "Large")
+    }
+
+    func testMenuTriggerDefaultsToMouseSideButtonWithoutAKeyboardShortcut() throws {
+        let suiteName = "SpinnetHostTests.MenuTriggerDefaults.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let configuration = MenuTriggerConfiguration(defaults: defaults)
+
+        XCTAssertEqual(configuration.mouseButton, 3)
+        XCTAssertNil(configuration.keyboardShortcut)
+    }
+
+    func testOptionalKeyboardShortcutPersistsAndAppliesImmediately() throws {
+        let suiteName = "SpinnetHostTests.MenuTriggerPersistence.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults
+        )
+        let shortcut = MenuKeyboardShortcut(
+            keyCode: UInt32(kVK_Space),
+            modifiers: UInt32(controlKey | optionKey),
+            displayValue: "⌃⌥Space"
+        )
+        var appliedConfiguration: MenuTriggerConfiguration?
+        model.onTriggerChanged = { appliedConfiguration = $0 }
+
+        model.triggerKeyboardShortcut = shortcut
+
+        XCTAssertEqual(appliedConfiguration?.keyboardShortcut, shortcut)
+        XCTAssertEqual(
+            MenuTriggerConfiguration(defaults: defaults).keyboardShortcut,
+            shortcut
+        )
+
+        model.triggerKeyboardShortcut = nil
+
+        XCTAssertNil(appliedConfiguration?.keyboardShortcut)
+        XCTAssertNil(MenuTriggerConfiguration(defaults: defaults).keyboardShortcut)
+    }
+
+    func testMouseTriggerOnlyInvokesForTheConfiguredSideButton() {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 4)
+        var invocationCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+
+        XCTAssertFalse(controller.handleMouseButton(3))
+        XCTAssertTrue(controller.handleMouseButton(4))
+        XCTAssertEqual(invocationCount, 1)
     }
 
     private func makeController(emptySlotCount: Int = 0) throws -> SettingsWindowController {

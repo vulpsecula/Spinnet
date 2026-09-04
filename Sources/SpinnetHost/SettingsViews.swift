@@ -11,6 +11,12 @@ final class SettingsWindowModel: ObservableObject {
     @Published var placementMessage: String?
     @Published var editingMenuIndex: Int?
     @Published private(set) var refreshToken = 0
+    @Published var triggerMouseButton: Int {
+        didSet { triggerConfigurationDidChange() }
+    }
+    @Published var triggerKeyboardShortcut: MenuKeyboardShortcut? {
+        didSet { triggerConfigurationDidChange() }
+    }
     @Published var appearanceTheme: String {
         didSet {
             defaults.set(appearanceTheme, forKey: "appearance.theme")
@@ -32,6 +38,7 @@ final class SettingsWindowModel: ObservableObject {
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
+    var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     private let defaults: UserDefaults
 
     init(
@@ -42,6 +49,9 @@ final class SettingsWindowModel: ObservableObject {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
+        let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
+        triggerMouseButton = triggerConfiguration.mouseButton
+        triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
@@ -59,6 +69,19 @@ final class SettingsWindowModel: ObservableObject {
             accent: appearanceAccent,
             menuSize: appearanceMenuSize
         )
+    }
+
+    var triggerConfiguration: MenuTriggerConfiguration {
+        MenuTriggerConfiguration(
+            mouseButton: triggerMouseButton,
+            keyboardShortcut: triggerKeyboardShortcut
+        )
+    }
+
+    private func triggerConfigurationDidChange() {
+        let configuration = triggerConfiguration
+        configuration.save(to: defaults)
+        onTriggerChanged?(configuration)
     }
 
     var accessibleNames: [String] {
@@ -269,6 +292,8 @@ struct SettingsRootView: View {
                 MenuEditorView(
                     editor: model.editor,
                     selectedMenuIndex: $model.selectedMenuIndex,
+                    triggerMouseButton: $model.triggerMouseButton,
+                    triggerKeyboardShortcut: $model.triggerKeyboardShortcut,
                     placementMessage: model.placementMessage,
                     onPresetPlacement: model.placePreset
                 )
