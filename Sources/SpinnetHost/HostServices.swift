@@ -81,6 +81,7 @@ final class GlobalTriggerController {
     private var isCapturingMouseButton = false
     private let signature = OSType(0x53504E54) // SPNT
     private let accessibilityPermission: AccessibilityPermissionController
+    private let mouseButtonStateCheck: (Int) -> Bool
 
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
@@ -93,9 +94,17 @@ final class GlobalTriggerController {
     var onAccessibilityPermissionChanged: ((Bool) -> Void)?
 
     init(
-        accessibilityPermission: AccessibilityPermissionController = AccessibilityPermissionController()
+        accessibilityPermission: AccessibilityPermissionController = AccessibilityPermissionController(),
+        mouseButtonStateCheck: @escaping (Int) -> Bool = { buttonNumber in
+            guard let button = CGMouseButton(rawValue: UInt32(buttonNumber)) else { return false }
+            return CGEventSource.buttonState(
+                .combinedSessionState,
+                button: button
+            )
+        }
     ) {
         self.accessibilityPermission = accessibilityPermission
+        self.mouseButtonStateCheck = mouseButtonStateCheck
     }
 
     func start(configuration: MenuTriggerConfiguration) -> Bool {
@@ -205,7 +214,15 @@ final class GlobalTriggerController {
     }
 
     private func trackMouseGestureMotion(_ event: CGEvent) {
-        guard configuration.clickDragEnabled, let origin = mouseGestureOrigin else { return }
+        guard configuration.clickDragEnabled else { return }
+        if mouseGestureOrigin == nil,
+           mouseButtonStateCheck(configuration.mouseButton) {
+            mouseGestureOrigin = event.location
+            mouseGestureDidDrag = false
+            onInvoke?()
+            return
+        }
+        guard let origin = mouseGestureOrigin else { return }
         let distance = hypot(event.location.x - origin.x, event.location.y - origin.y)
         guard distance >= 8 else { return }
         mouseGestureDidDrag = true

@@ -491,6 +491,30 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(releasePoint, NSEvent(cgEvent: up)?.locationInWindow)
     }
 
+    func testHeldSideButtonRecoversGestureWhenDriverOmitsMouseDown() throws {
+        let controller = GlobalTriggerController(
+            mouseButtonStateCheck: { $0 == 3 }
+        )
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3, clickDragEnabled: true)
+        var invocationCount = 0
+        var dragCount = 0
+        var releaseCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+        controller.onMouseDrag = { _ in dragCount += 1 }
+        controller.onMouseDragRelease = { _ in releaseCount += 1 }
+
+        let firstMove = try mouseEvent(type: .mouseMoved, buttonNumber: 0, location: CGPoint(x: 20, y: 0))
+        let secondMove = try mouseEvent(type: .mouseMoved, buttonNumber: 0, location: CGPoint(x: 40, y: 0))
+        let up = try mouseEvent(type: .otherMouseUp, buttonNumber: 3, location: CGPoint(x: 40, y: 0))
+
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .mouseMoved, event: firstMove))
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .mouseMoved, event: secondMove))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseUp, event: up))
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertEqual(dragCount, 1)
+        XCTAssertEqual(releaseCount, 1)
+    }
+
     func testMouseClickWithoutDragLeavesRuntimeMenuOpenForPointAndClickUse() throws {
         let controller = GlobalTriggerController()
         controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
