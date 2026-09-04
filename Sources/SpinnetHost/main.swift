@@ -47,6 +47,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
             }
+            settings.onMouseCaptureChanged = { [weak self] isCapturing in
+                self?.triggers?.setMouseButtonCaptureActive(isCapturing)
+            }
             installStatusItem()
             try installTriggers()
         } catch {
@@ -123,6 +126,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
+        controller.onMouseDrag = { [weak self] in
+            self?.menu.updateGesture(at: NSEvent.mouseLocation)
+        }
+        controller.onMouseDragRelease = { [weak self] in
+            self?.menu.finishGesture(at: NSEvent.mouseLocation)
+        }
         controller.onAccessibilityPermissionChanged = { [weak self] _ in
             self?.settings.refreshSystemPermissionStatus()
         }

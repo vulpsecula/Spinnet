@@ -76,6 +76,9 @@ final class GlobalTriggerController {
     private var mouseEventTap: CFMachPort?
     private var mouseEventTapSource: CFRunLoopSource?
     private var permissionRetryTimer: Timer?
+    private var mouseGestureOrigin: CGPoint?
+    private var mouseGestureDidDrag = false
+    private var isCapturingMouseButton = false
     private let signature = OSType(0x53504E54) // SPNT
     private let accessibilityPermission: AccessibilityPermissionController
 
@@ -85,6 +88,8 @@ final class GlobalTriggerController {
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
+    var onMouseDrag: (() -> Void)?
+    var onMouseDragRelease: (() -> Void)?
     var onAccessibilityPermissionChanged: ((Bool) -> Void)?
 
     init(
@@ -164,12 +169,41 @@ final class GlobalTriggerController {
         guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged else {
             return Unmanaged.passUnretained(event)
         }
+        if isCapturingMouseButton {
+            return Unmanaged.passUnretained(event)
+        }
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
         guard buttonNumber == configuration.mouseButton else {
             return Unmanaged.passUnretained(event)
         }
-        if type == .otherMouseDown { onInvoke?() }
+        switch type {
+        case .otherMouseDown:
+            mouseGestureOrigin = event.location
+            mouseGestureDidDrag = false
+            onInvoke?()
+        case .otherMouseDragged:
+            guard configuration.clickDragEnabled, let origin = mouseGestureOrigin else { break }
+            let distance = hypot(event.location.x - origin.x, event.location.y - origin.y)
+            if distance >= 8 {
+                mouseGestureDidDrag = true
+                onMouseDrag?()
+            }
+        case .otherMouseUp:
+            if configuration.clickDragEnabled, mouseGestureDidDrag {
+                onMouseDragRelease?()
+            }
+            mouseGestureOrigin = nil
+            mouseGestureDidDrag = false
+        default:
+            break
+        }
         return nil
+    }
+
+    func setMouseButtonCaptureActive(_ isActive: Bool) {
+        isCapturingMouseButton = isActive
+        mouseGestureOrigin = nil
+        mouseGestureDidDrag = false
     }
 
     func retryMouseInterceptionIfAuthorized() {
@@ -267,6 +301,9 @@ final class GlobalTriggerController {
         mouseEventTapSource = nil
         keyboardShortcutRegistered = true
         mouseInterceptionAvailable = false
+        mouseGestureOrigin = nil
+        mouseGestureDidDrag = false
+        isCapturingMouseButton = false
     }
 
     deinit { stop() }

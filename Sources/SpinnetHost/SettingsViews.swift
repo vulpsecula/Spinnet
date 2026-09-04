@@ -15,6 +15,9 @@ final class SettingsWindowModel: ObservableObject {
     @Published var triggerMouseButton: Int {
         didSet { triggerConfigurationDidChange() }
     }
+    @Published var triggerClickDragEnabled: Bool {
+        didSet { triggerConfigurationDidChange() }
+    }
     @Published var triggerKeyboardShortcut: MenuKeyboardShortcut? {
         didSet { triggerConfigurationDidChange() }
     }
@@ -40,6 +43,7 @@ final class SettingsWindowModel: ObservableObject {
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
+    var onMouseCaptureChanged: ((Bool) -> Void)?
     private let defaults: UserDefaults
     private let accessibilityPermissionCheck: () -> Bool
 
@@ -56,6 +60,7 @@ final class SettingsWindowModel: ObservableObject {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
+        triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
         triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
@@ -79,6 +84,7 @@ final class SettingsWindowModel: ObservableObject {
     var triggerConfiguration: MenuTriggerConfiguration {
         MenuTriggerConfiguration(
             mouseButton: triggerMouseButton,
+            clickDragEnabled: triggerClickDragEnabled,
             keyboardShortcut: triggerKeyboardShortcut
         )
     }
@@ -318,16 +324,15 @@ struct SettingsRootView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            HStack {
-                Text("Mouse")
-                    .frame(width: 68, alignment: .leading)
-                Picker("Mouse trigger", selection: $model.triggerMouseButton) {
-                    Text("Side Button 1").tag(3)
-                    Text("Side Button 2").tag(4)
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
+            MouseButtonRecorder(
+                buttonNumber: $model.triggerMouseButton,
+                onRecordingChanged: { model.onMouseCaptureChanged?($0) }
+            )
+            .frame(maxWidth: .infinity, minHeight: 68, maxHeight: 68)
+
+            Toggle("Click & Drag to select on release", isOn: $model.triggerClickDragEnabled)
+                .toggleStyle(.switch)
+                .accessibilityHint("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it.")
 
             HStack {
                 Text("Keyboard")
@@ -351,7 +356,7 @@ struct SettingsRootView: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 8) {
-                    Label("Accessibility is required for Side Buttons", systemImage: "exclamationmark.triangle.fill")
+                    Label("Accessibility is required for mouse triggers", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                     Spacer(minLength: 4)

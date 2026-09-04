@@ -440,6 +440,115 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(invocationCount, 1, "Only mouse-down should toggle the Menu")
     }
 
+    func testConfiguredMouseButtonSupportsClickAndDragReleaseSelection() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 2, clickDragEnabled: true)
+        var invocationCount = 0
+        var dragCount = 0
+        var releaseCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+        controller.onMouseDrag = { dragCount += 1 }
+        controller.onMouseDragRelease = { releaseCount += 1 }
+
+        let down = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
+        let drag = try mouseEvent(type: .otherMouseDragged, buttonNumber: 2, location: CGPoint(x: 30, y: 0))
+        let up = try mouseEvent(type: .otherMouseUp, buttonNumber: 2, location: CGPoint(x: 30, y: 0))
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: down))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDragged, event: drag))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseUp, event: up))
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertEqual(dragCount, 1)
+        XCTAssertEqual(releaseCount, 1)
+    }
+
+    func testMouseClickWithoutDragLeavesRuntimeMenuOpenForPointAndClickUse() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
+        var releaseCount = 0
+        controller.onMouseDragRelease = { releaseCount += 1 }
+
+        let down = try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
+        let up = try mouseEvent(type: .otherMouseUp, buttonNumber: 3, location: CGPoint(x: 2, y: 2))
+
+        _ = controller.interceptMouseEvent(type: .otherMouseDown, event: down)
+        _ = controller.interceptMouseEvent(type: .otherMouseUp, event: up)
+
+        XCTAssertEqual(releaseCount, 0)
+    }
+
+    func testClickAndDragSwitchDisablesReleaseSelection() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3, clickDragEnabled: false)
+        var dragCount = 0
+        var releaseCount = 0
+        controller.onMouseDrag = { dragCount += 1 }
+        controller.onMouseDragRelease = { releaseCount += 1 }
+
+        _ = controller.interceptMouseEvent(
+            type: .otherMouseDown,
+            event: try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
+        )
+        _ = controller.interceptMouseEvent(
+            type: .otherMouseDragged,
+            event: try mouseEvent(type: .otherMouseDragged, buttonNumber: 3, location: CGPoint(x: 40, y: 0))
+        )
+        _ = controller.interceptMouseEvent(
+            type: .otherMouseUp,
+            event: try mouseEvent(type: .otherMouseUp, buttonNumber: 3, location: CGPoint(x: 40, y: 0))
+        )
+
+        XCTAssertEqual(dragCount, 0)
+        XCTAssertEqual(releaseCount, 0)
+    }
+
+    func testMouseButtonCaptureTemporarilyPassesTheConfiguredButtonThrough() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
+        var invocationCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+        controller.setMouseButtonCaptureActive(true)
+        let event = try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
+
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .otherMouseDown, event: event))
+        XCTAssertEqual(invocationCount, 0)
+    }
+
+    func testMouseTriggerCanPersistAndDescribeMiddleOrAdditionalButtons() throws {
+        let suiteName = "SpinnetHostTests.MouseTriggerButton.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        MenuTriggerConfiguration(mouseButton: 2, clickDragEnabled: true).save(to: defaults)
+
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).mouseButton, 2)
+        XCTAssertTrue(MenuTriggerConfiguration(defaults: defaults).clickDragEnabled)
+        XCTAssertEqual(MouseTriggerButton.displayName(for: 2), "Middle Button")
+        XCTAssertEqual(MouseTriggerButton.displayName(for: 3), "Side Button 1")
+        XCTAssertEqual(MouseTriggerButton.displayName(for: 7), "Mouse Button 8")
+    }
+
+    func testRuntimeMenuCommitsTheHoveredItemForAReleaseGesture() throws {
+        let actionID = ActionID("gesture-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Gesture Action",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let view = RadialMenuView(items: [item])
+        var selectedIndex: Int?
+        view.onPrimarySelection = { selectedIndex = $0 }
+
+        view.updateRuntimeSelection(at: CGPoint(x: view.bounds.midX, y: view.bounds.midY + 90))
+        view.commitRuntimeSelection()
+
+        XCTAssertEqual(selectedIndex, 0)
+    }
+
     func testAccessibilityPromptIsRequestedOnlyOnceWhileSystemTrustIsReadLive() {
         var isTrusted = false
         var requestCount = 0
@@ -484,6 +593,21 @@ final class SettingsWindowControllerTests: XCTestCase {
         let controller = SettingsWindowController(editor: editor)
         controller.window?.contentView?.layoutSubtreeIfNeeded()
         return controller
+    }
+
+    private func mouseEvent(
+        type: CGEventType,
+        buttonNumber: Int,
+        location: CGPoint
+    ) throws -> CGEvent {
+        let event = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil,
+            mouseType: type,
+            mouseCursorPosition: location,
+            mouseButton: .center
+        ))
+        event.setIntegerValueField(.mouseEventButtonNumber, value: Int64(buttonNumber))
+        return event
     }
 
     private func makeEditor() throws -> HostConfigurationEditor {

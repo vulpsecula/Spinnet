@@ -110,6 +110,24 @@ final class MenuPresentationController {
         onDismiss?()
     }
 
+    func updateGesture(at screenPoint: CGPoint) {
+        guard isOpen else { return }
+        let windowPoint = panel.convertPoint(fromScreen: screenPoint)
+        menuView.updateRuntimeSelection(at: menuView.convert(windowPoint, from: nil))
+    }
+
+    func finishGesture(at screenPoint: CGPoint) {
+        guard isOpen else { return }
+        updateGesture(at: screenPoint)
+        guard let index = menuView.selectedIndex,
+              slots.indices.contains(index),
+              slots[index].item != nil else {
+            dismiss()
+            return
+        }
+        select(index: index)
+    }
+
     private func select(index: Int) {
         guard slots.indices.contains(index), let item = slots[index].item else { return }
         dismiss()

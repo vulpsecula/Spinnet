@@ -75,6 +75,7 @@ extension SettingsPage {
                         "Menu Editor",
                         "Menu Trigger",
                         "Mouse trigger",
+                        "Click & Drag",
                         "Keyboard shortcut optional",
                         "Accessibility status",
                         "Library",

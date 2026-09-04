@@ -9,6 +9,7 @@ final class SettingsWindowController: NSWindowController {
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
+    var onMouseCaptureChanged: ((Bool) -> Void)?
 
     var currentPage: SettingsPage {
         model.page
@@ -59,6 +60,9 @@ final class SettingsWindowController: NSWindowController {
         }
         model.onTriggerChanged = { [weak self] configuration in
             self?.onTriggerChanged?(configuration)
+        }
+        model.onMouseCaptureChanged = { [weak self] isCapturing in
+            self?.onMouseCaptureChanged?(isCapturing)
         }
         window.appearance = model.appearanceConfiguration.appearance
         window.center()

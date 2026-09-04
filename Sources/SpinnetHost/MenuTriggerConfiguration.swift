@@ -58,10 +58,16 @@ struct MenuTriggerConfiguration: Equatable {
     static let defaultMouseButton = 3
 
     var mouseButton: Int
+    var clickDragEnabled: Bool
     var keyboardShortcut: MenuKeyboardShortcut?
 
-    init(mouseButton: Int = defaultMouseButton, keyboardShortcut: MenuKeyboardShortcut? = nil) {
+    init(
+        mouseButton: Int = defaultMouseButton,
+        clickDragEnabled: Bool = false,
+        keyboardShortcut: MenuKeyboardShortcut? = nil
+    ) {
         self.mouseButton = mouseButton
+        self.clickDragEnabled = clickDragEnabled
         self.keyboardShortcut = keyboardShortcut
     }
 
@@ -71,12 +77,14 @@ struct MenuTriggerConfiguration: Equatable {
         } else {
             mouseButton = defaults.integer(forKey: Keys.mouseButton)
         }
+        clickDragEnabled = defaults.bool(forKey: Keys.clickDragEnabled)
         keyboardShortcut = defaults.data(forKey: Keys.keyboardShortcut)
             .flatMap { try? JSONDecoder().decode(MenuKeyboardShortcut.self, from: $0) }
     }
 
     func save(to defaults: UserDefaults) {
         defaults.set(mouseButton, forKey: Keys.mouseButton)
+        defaults.set(clickDragEnabled, forKey: Keys.clickDragEnabled)
         if let keyboardShortcut,
            let data = try? JSONEncoder().encode(keyboardShortcut) {
             defaults.set(data, forKey: Keys.keyboardShortcut)
@@ -87,6 +95,22 @@ struct MenuTriggerConfiguration: Equatable {
 
     private enum Keys {
         static let mouseButton = "trigger.mouse-button"
+        static let clickDragEnabled = "trigger.click-drag-enabled"
         static let keyboardShortcut = "trigger.keyboard-shortcut"
+    }
+}
+
+enum MouseTriggerButton {
+    static func isSupported(_ buttonNumber: Int) -> Bool {
+        buttonNumber >= 2
+    }
+
+    static func displayName(for buttonNumber: Int) -> String {
+        switch buttonNumber {
+        case 2: return "Middle Button"
+        case 3: return "Side Button 1"
+        case 4: return "Side Button 2"
+        default: return "Mouse Button \(buttonNumber + 1)"
+        }
     }
 }

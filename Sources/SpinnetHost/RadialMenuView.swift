@@ -109,6 +109,16 @@ final class RadialMenuView: NSView {
         updateAccessibilityValue()
     }
 
+    func updateRuntimeSelection(at point: CGPoint) {
+        guard presentationMode == .runtime else { return }
+        updateSelection(at: point)
+    }
+
+    func commitRuntimeSelection() {
+        guard presentationMode == .runtime, let selectedIndex else { return }
+        onPrimarySelection?(selectedIndex)
+    }
+
     override func updateTrackingAreas() {
         if let trackingArea { removeTrackingArea(trackingArea) }
         let area = NSTrackingArea(
