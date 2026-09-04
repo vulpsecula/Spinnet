@@ -566,7 +566,7 @@ private struct PrivacySettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
                 VStack(spacing: 0) {
-                    privacyRow(icon: "gearshape.2", title: "System Permissions", body: "macOS controls Accessibility, Screen Recording, and target-specific Automation.", status: "No optional permission requested")
+                    privacyRow(icon: "gearshape.2", title: "System Permissions", body: "Accessibility lets Spinnet intercept the configured Side Button before the foreground App receives it.", status: "Accessibility required for mouse trigger")
                     Divider().padding(.leading, 52)
                     privacyRow(icon: "lock.shield", title: "Sensitive Data Collection", body: "Host-owned data such as Clipboard History always requires a separate opt-in.", status: "Clipboard History is off")
                     Divider().padding(.leading, 52)

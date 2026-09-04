@@ -46,12 +46,13 @@ final class GlobalTriggerController {
     private var eventHandler: EventHandlerRef?
     private var invokeHotKey: EventHotKeyRef?
     private var escapeHotKey: EventHotKeyRef?
-    private var globalMouseMonitor: Any?
-    private var localMouseMonitor: Any?
+    private var mouseEventTap: CFMachPort?
+    private var mouseEventTapSource: CFRunLoopSource?
     private let signature = OSType(0x53504E54) // SPNT
 
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
+    private(set) var mouseInterceptionAvailable = false
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
@@ -91,13 +92,9 @@ final class GlobalTriggerController {
         )
         guard status == noErr else { return false }
 
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .otherMouseDown) {
-            [weak self] event in
-            _ = self?.handleMouseButton(event.buttonNumber)
-        }
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) {
-            [weak self] event in
-            self?.handleMouseButton(event.buttonNumber) == true ? nil : event
+        mouseInterceptionAvailable = installMouseEventTap()
+        if !mouseInterceptionAvailable {
+            requestAccessibilityAccess()
         }
 
         keyboardShortcutRegistered = registerInvokeShortcut()
@@ -116,6 +113,64 @@ final class GlobalTriggerController {
         guard buttonNumber == configuration.mouseButton else { return false }
         onInvoke?()
         return true
+    }
+
+    func interceptMouseEvent(
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let mouseEventTap { CGEvent.tapEnable(tap: mouseEventTap, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+        guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged else {
+            return Unmanaged.passUnretained(event)
+        }
+        let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+        guard buttonNumber == configuration.mouseButton else {
+            return Unmanaged.passUnretained(event)
+        }
+        if type == .otherMouseDown { onInvoke?() }
+        return nil
+    }
+
+    func retryMouseInterceptionIfAuthorized() {
+        guard !mouseInterceptionAvailable, AXIsProcessTrusted() else { return }
+        mouseInterceptionAvailable = installMouseEventTap()
+    }
+
+    private func installMouseEventTap() -> Bool {
+        let eventMask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
+            | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
+            | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: eventMask,
+            callback: { _, type, event, context in
+                guard let context else { return Unmanaged.passUnretained(event) }
+                let controller = Unmanaged<GlobalTriggerController>
+                    .fromOpaque(context)
+                    .takeUnretainedValue()
+                return controller.interceptMouseEvent(type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else { return false }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        mouseEventTap = tap
+        mouseEventTapSource = source
+        return true
+    }
+
+    private func requestAccessibilityAccess() {
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func registerInvokeShortcut() -> Bool {
@@ -157,13 +212,16 @@ final class GlobalTriggerController {
         unregisterEscape()
         if let invokeHotKey { UnregisterEventHotKey(invokeHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
-        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
-        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        if let mouseEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), mouseEventTapSource, .commonModes)
+        }
+        if let mouseEventTap { CFMachPortInvalidate(mouseEventTap) }
         invokeHotKey = nil
         eventHandler = nil
-        globalMouseMonitor = nil
-        localMouseMonitor = nil
+        mouseEventTap = nil
+        mouseEventTapSource = nil
         keyboardShortcutRegistered = true
+        mouseInterceptionAvailable = false
     }
 
     deinit { stop() }

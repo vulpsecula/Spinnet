@@ -398,6 +398,48 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(invocationCount, 1)
     }
 
+    func testConfiguredSideButtonEventsAreConsumedBeforeTheyReachTheForegroundApp() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
+        var invocationCount = 0
+        controller.onInvoke = { invocationCount += 1 }
+
+        let down = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil,
+            mouseType: .otherMouseDown,
+            mouseCursorPosition: .zero,
+            mouseButton: .center
+        ))
+        down.setIntegerValueField(.mouseEventButtonNumber, value: 3)
+        let up = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil,
+            mouseType: .otherMouseUp,
+            mouseCursorPosition: .zero,
+            mouseButton: .center
+        ))
+        up.setIntegerValueField(.mouseEventButtonNumber, value: 3)
+        let drag = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil,
+            mouseType: .otherMouseDragged,
+            mouseCursorPosition: .zero,
+            mouseButton: .center
+        ))
+        drag.setIntegerValueField(.mouseEventButtonNumber, value: 3)
+        let unrelated = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil,
+            mouseType: .otherMouseDown,
+            mouseCursorPosition: .zero,
+            mouseButton: .center
+        ))
+        unrelated.setIntegerValueField(.mouseEventButtonNumber, value: 4)
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: down))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseUp, event: up))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDragged, event: drag))
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .otherMouseDown, event: unrelated))
+        XCTAssertEqual(invocationCount, 1, "Only mouse-down should toggle the Menu")
+    }
+
     private func makeController(emptySlotCount: Int = 0) throws -> SettingsWindowController {
         let editor = try makeEditor()
         for _ in 0..<emptySlotCount {

@@ -59,6 +59,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return .terminateNow
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        triggers?.retryMouseInterceptionIfAuthorized()
+    }
+
     private func loadConfiguration(for manifest: PluginManifest) throws -> HostConfiguration {
         if let storedConfiguration = try configurationStore.load() {
             return storedConfiguration
@@ -123,6 +127,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }
         if !controller.keyboardShortcutRegistered {
             NSLog("Spinnet: saved keyboard shortcut is unavailable; mouse trigger remains active")
+        }
+        if !controller.mouseInterceptionAvailable {
+            NSLog("Spinnet: Accessibility permission is required to intercept the mouse trigger")
         }
         triggers = controller
     }
