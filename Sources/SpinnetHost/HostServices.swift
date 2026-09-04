@@ -88,8 +88,8 @@ final class GlobalTriggerController {
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
-    var onMouseDrag: (() -> Void)?
-    var onMouseDragRelease: (() -> Void)?
+    var onMouseDrag: ((CGPoint) -> Void)?
+    var onMouseDragRelease: ((CGPoint) -> Void)?
     var onAccessibilityPermissionChanged: ((Bool) -> Void)?
 
     init(
@@ -166,12 +166,21 @@ final class GlobalTriggerController {
             if let mouseEventTap { CGEvent.tapEnable(tap: mouseEventTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
-        guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged else {
+        guard type == .mouseMoved
+                || type == .otherMouseDown
+                || type == .otherMouseUp
+                || type == .otherMouseDragged else {
             return Unmanaged.passUnretained(event)
         }
         if isCapturingMouseButton {
             return Unmanaged.passUnretained(event)
         }
+
+        if type == .mouseMoved {
+            trackMouseGestureMotion(event)
+            return Unmanaged.passUnretained(event)
+        }
+
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
         guard buttonNumber == configuration.mouseButton else {
             return Unmanaged.passUnretained(event)
@@ -182,15 +191,10 @@ final class GlobalTriggerController {
             mouseGestureDidDrag = false
             onInvoke?()
         case .otherMouseDragged:
-            guard configuration.clickDragEnabled, let origin = mouseGestureOrigin else { break }
-            let distance = hypot(event.location.x - origin.x, event.location.y - origin.y)
-            if distance >= 8 {
-                mouseGestureDidDrag = true
-                onMouseDrag?()
-            }
+            trackMouseGestureMotion(event)
         case .otherMouseUp:
             if configuration.clickDragEnabled, mouseGestureDidDrag {
-                onMouseDragRelease?()
+                onMouseDragRelease?(appKitScreenLocation(for: event))
             }
             mouseGestureOrigin = nil
             mouseGestureDidDrag = false
@@ -198,6 +202,18 @@ final class GlobalTriggerController {
             break
         }
         return nil
+    }
+
+    private func trackMouseGestureMotion(_ event: CGEvent) {
+        guard configuration.clickDragEnabled, let origin = mouseGestureOrigin else { return }
+        let distance = hypot(event.location.x - origin.x, event.location.y - origin.y)
+        guard distance >= 8 else { return }
+        mouseGestureDidDrag = true
+        onMouseDrag?(appKitScreenLocation(for: event))
+    }
+
+    private func appKitScreenLocation(for event: CGEvent) -> CGPoint {
+        NSEvent(cgEvent: event)?.locationInWindow ?? NSEvent.mouseLocation
     }
 
     func setMouseButtonCaptureActive(_ isActive: Bool) {
@@ -227,6 +243,7 @@ final class GlobalTriggerController {
         let eventMask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
+            | (CGEventMask(1) << CGEventType.mouseMoved.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,

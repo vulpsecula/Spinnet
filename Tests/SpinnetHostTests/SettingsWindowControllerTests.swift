@@ -447,8 +447,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         var dragCount = 0
         var releaseCount = 0
         controller.onInvoke = { invocationCount += 1 }
-        controller.onMouseDrag = { dragCount += 1 }
-        controller.onMouseDragRelease = { releaseCount += 1 }
+        controller.onMouseDrag = { _ in dragCount += 1 }
+        controller.onMouseDragRelease = { _ in releaseCount += 1 }
 
         let down = try mouseEvent(type: .otherMouseDown, buttonNumber: 2, location: .zero)
         let drag = try mouseEvent(type: .otherMouseDragged, buttonNumber: 2, location: CGPoint(x: 30, y: 0))
@@ -462,11 +462,40 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(releaseCount, 1)
     }
 
+    func testHeldAdditionalButtonTreatsMouseMovedEventsAsDragMotion() throws {
+        let controller = GlobalTriggerController()
+        controller.configuration = MenuTriggerConfiguration(mouseButton: 3, clickDragEnabled: true)
+        var dragCount = 0
+        var releaseCount = 0
+        var lastDragPoint: CGPoint?
+        var releasePoint: CGPoint?
+        controller.onMouseDrag = {
+            dragCount += 1
+            lastDragPoint = $0
+        }
+        controller.onMouseDragRelease = {
+            releaseCount += 1
+            releasePoint = $0
+        }
+
+        let down = try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
+        let moved = try mouseEvent(type: .mouseMoved, buttonNumber: 0, location: CGPoint(x: 40, y: 0))
+        let up = try mouseEvent(type: .otherMouseUp, buttonNumber: 3, location: CGPoint(x: 40, y: 0))
+
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseDown, event: down))
+        XCTAssertNotNil(controller.interceptMouseEvent(type: .mouseMoved, event: moved))
+        XCTAssertNil(controller.interceptMouseEvent(type: .otherMouseUp, event: up))
+        XCTAssertEqual(dragCount, 1)
+        XCTAssertEqual(releaseCount, 1)
+        XCTAssertEqual(lastDragPoint, NSEvent(cgEvent: moved)?.locationInWindow)
+        XCTAssertEqual(releasePoint, NSEvent(cgEvent: up)?.locationInWindow)
+    }
+
     func testMouseClickWithoutDragLeavesRuntimeMenuOpenForPointAndClickUse() throws {
         let controller = GlobalTriggerController()
         controller.configuration = MenuTriggerConfiguration(mouseButton: 3)
         var releaseCount = 0
-        controller.onMouseDragRelease = { releaseCount += 1 }
+        controller.onMouseDragRelease = { _ in releaseCount += 1 }
 
         let down = try mouseEvent(type: .otherMouseDown, buttonNumber: 3, location: .zero)
         let up = try mouseEvent(type: .otherMouseUp, buttonNumber: 3, location: CGPoint(x: 2, y: 2))
@@ -482,8 +511,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         controller.configuration = MenuTriggerConfiguration(mouseButton: 3, clickDragEnabled: false)
         var dragCount = 0
         var releaseCount = 0
-        controller.onMouseDrag = { dragCount += 1 }
-        controller.onMouseDragRelease = { releaseCount += 1 }
+        controller.onMouseDrag = { _ in dragCount += 1 }
+        controller.onMouseDragRelease = { _ in releaseCount += 1 }
 
         _ = controller.interceptMouseEvent(
             type: .otherMouseDown,

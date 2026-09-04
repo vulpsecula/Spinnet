@@ -126,11 +126,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
-        controller.onMouseDrag = { [weak self] in
-            self?.menu.updateGesture(at: NSEvent.mouseLocation)
+        controller.onMouseDrag = { [weak self] screenPoint in
+            self?.menu.updateGesture(at: screenPoint)
         }
-        controller.onMouseDragRelease = { [weak self] in
-            self?.menu.finishGesture(at: NSEvent.mouseLocation)
+        controller.onMouseDragRelease = { [weak self] screenPoint in
+            self?.menu.finishGesture(at: screenPoint)
         }
         controller.onAccessibilityPermissionChanged = { [weak self] _ in
             self?.settings.refreshSystemPermissionStatus()
