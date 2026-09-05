@@ -5,7 +5,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let registry = PluginRegistry()
     private let actionRunner = HostActionRunner(executor: AppKitHostCommandExecutor())
     private var menu: MenuPresentationController!
-    private var feedback: ActionFeedbackPresenter!
+    private var feedback: HostFeedbackPresenter!
     private var settings: SettingsWindowController!
     private var configurationStore: HostConfigurationStore!
     private var statusItemController: StatusItemController?
@@ -36,7 +36,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 self?.feedback.showMessage("Slot \(index + 1) is empty")
             }
             menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
-            feedback = ActionFeedbackPresenter()
+            feedback = HostFeedbackPresenter()
             settings = SettingsWindowController(editor: editor)
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)

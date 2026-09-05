@@ -313,7 +313,7 @@ final class RadialMenuView: NSView {
             }
             path.stroke()
 
-            let title = slot.isEmpty ? "+" : compactTitle(slot.title)
+            let title = slot.isEmpty ? "+" : displayTitle(slot.title)
             let titleFontSize: CGFloat
             if slot.isEmpty {
                 titleFontSize = 22
@@ -324,16 +324,29 @@ final class RadialMenuView: NSView {
             } else {
                 titleFontSize = 13
             }
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            paragraphStyle.lineBreakMode = .byTruncatingMiddle
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: titleFontSize, weight: .semibold),
+                .paragraphStyle: paragraphStyle,
                 .foregroundColor: selectedIndex == index && slot.item?.primaryAction.isAvailable != false
                     ? NSColor.white
                     : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
             ]
             let point = layout.itemCenter(index: index, center: center)
-            let size = title.size(withAttributes: attributes)
+            let titleWidth = max(
+                36,
+                2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
+            )
+            let titleHeight: CGFloat = layout.itemCount >= 10 ? 28 : 18
             title.draw(
-                at: CGPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
+                in: NSRect(
+                    x: point.x - titleWidth / 2,
+                    y: point.y - titleHeight / 2 + (layout.itemCount >= 10 ? 4 : 0),
+                    width: titleWidth,
+                    height: titleHeight
+                ),
                 withAttributes: attributes
             )
 
@@ -376,12 +389,10 @@ final class RadialMenuView: NSView {
         )
     }
 
-    private func compactTitle(_ title: String) -> String {
+    private func displayTitle(_ title: String) -> String {
         guard layout.itemCount >= 10 else { return title }
-        if let firstWord = title.split(whereSeparator: \Character.isWhitespace).first,
-           firstWord.count <= 7 {
-            return String(firstWord)
-        }
-        return String(title.prefix(6)) + "…"
+        let words = title.split(whereSeparator: \Character.isWhitespace)
+        guard let firstWord = words.first, words.count > 1 else { return title }
+        return String(firstWord) + "\n" + words.dropFirst().joined(separator: " ")
     }
 }

@@ -164,7 +164,7 @@ final class SettingsWindowModel: ObservableObject {
         do {
             try editor.insertSlot(slot, at: index)
             selectedMenuIndex = index
-            placementMessage = "Empty Slot \(selectedMenuIndex + 1) added. Drag a Plugin onto it."
+            placementMessage = "Empty Slot \(selectedMenuIndex + 1) added. Drag a Menu Item Preset onto it."
             configurationDidChange(editor.configuration)
             registerSlotUndo(actionName: actionName) { model in
                 model.removeSlot(at: index, actionName: actionName)
@@ -246,7 +246,9 @@ final class SettingsWindowModel: ObservableObject {
                 input: .string(""),
                 inSlotAt: index
             )
-            placementMessage = "Plugin added to Slot \(index + 1)."
+            slotUndoManager.removeAllActions()
+            refreshUndoState()
+            placementMessage = "Menu Item Preset added to Slot \(index + 1)."
             configurationDidChange(editor.configuration)
             editingMenuIndex = index
             return true

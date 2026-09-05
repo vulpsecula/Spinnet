@@ -332,6 +332,19 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(model.editor.configuration.menu.slots.dropFirst().allSatisfy { $0.item == nil })
     }
 
+    func testPlacingAnItemInvalidatesStaleSlotStructureUndo() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        XCTAssertTrue(model.canUndoSlotEdit)
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+
+        XCTAssertFalse(model.canUndoSlotEdit)
+        model.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
+    }
+
     func testEverySettingsPageRendersAtTheWindowBoundary() throws {
         let defaults = UserDefaults.standard
         let appearanceKeys = ["appearance.theme", "appearance.accent", "appearance.menu-size"]
@@ -887,6 +900,43 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertFalse(runtimeMenu.isOpen)
         XCTAssertEqual(emptySlotIndex, 1)
         XCTAssertEqual(actionCount, 0)
+    }
+
+    func testSettingsSlotEditSurvivesRestartAndKeepsRuntimeAngularOutput() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetRuntimeWorkflow-\(UUID().uuidString)")
+        let store = HostConfigurationStore(
+            fileURL: directory.appendingPathComponent("configuration.json")
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.onConfigurationChanged = { try? store.save($0) }
+
+        model.addEmptySlot()
+
+        let restartedConfiguration = try XCTUnwrap(store.load())
+        let runtimeSlots = MenuPresentationFactory.makeSlots(
+            configuration: restartedConfiguration,
+            availability: { _ in .available }
+        )
+        let runtimeMenu = MenuPresentationController(items: runtimeSlots)
+        var invokedActionID: ActionID?
+        var emptySlotIndex: Int?
+        runtimeMenu.onPrimaryAction = { invokedActionID = $0 }
+        runtimeMenu.onEmptySlotActivated = { emptySlotIndex = $0 }
+        let visibleFrame = try XCTUnwrap(NSScreen.main).visibleFrame
+        let pointer = CGPoint(x: visibleFrame.midX, y: visibleFrame.midY)
+        let layout = MenuAppearanceConfiguration().layout(slotCount: runtimeSlots.count)
+
+        runtimeMenu.open(at: pointer)
+        runtimeMenu.finishGesture(at: layout.itemCenter(index: 0, center: pointer))
+        XCTAssertEqual(invokedActionID, ActionID("open-url"))
+
+        runtimeMenu.open(at: pointer)
+        runtimeMenu.finishGesture(at: layout.itemCenter(index: 1, center: pointer))
+        XCTAssertEqual(emptySlotIndex, 1)
+        XCTAssertEqual(invokedActionID, ActionID("open-url"))
+        XCTAssertFalse(runtimeMenu.isOpen)
     }
 
     func testAccessibilityPromptIsRequestedOnlyOnceWhileSystemTrustIsReadLive() {

@@ -1,7 +1,7 @@
 import AppKit
 import SpinnetCore
 
-final class ActionFeedbackPresenter {
+final class HostFeedbackPresenter {
     private let panel: NSPanel
     private let label: NSTextField
 
@@ -18,7 +18,7 @@ final class ActionFeedbackPresenter {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.setAccessibilityLabel("Spinnet Action feedback")
+        panel.setAccessibilityLabel("Spinnet feedback")
 
         label.font = NSFont.systemFont(ofSize: 14, weight: .medium)
         label.lineBreakMode = .byTruncatingTail
