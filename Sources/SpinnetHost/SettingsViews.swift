@@ -180,6 +180,10 @@ final class SettingsWindowModel: ObservableObject {
                 names.append("Add \(preset.name) to selected Slot")
                 names.append("Replace selected Slot with \(preset.name)")
             }
+            for (index, slot) in editor.configuration.menu.slots.enumerated()
+                where slot.item != nil {
+                names.append("Edit Menu Item in Slot \(index + 1)")
+            }
             names.append(contentsOf: [
                 deleteSelectedContentLabel,
                 "Undo Slot edit",
@@ -555,7 +559,7 @@ struct SettingsRootView: View {
                 Text(model.page == .menu ? "Menu Editor" : "Menu Preview")
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
-                    ? "Left-click a Slot to focus it; right-click for details. Actions never run here."
+                    ? "Left-click a Slot to focus it; use its Edit button to configure an item, or right-click for details. Actions never run here."
                     : "Preview appearance changes. Actions never run here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

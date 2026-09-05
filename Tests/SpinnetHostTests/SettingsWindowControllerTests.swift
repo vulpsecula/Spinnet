@@ -183,7 +183,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             pressure: 0
         ))
         view.mouseMoved(with: hover)
-        XCTAssertEqual(selectedIndex, 0, "Hovering a Slot should expose its editor in place")
+        XCTAssertNil(selectedIndex, "Hovering a Slot must not change the focused Slot")
+        XCTAssertNil(view.selectedIndex, "Hovering a Slot must not commit focus")
 
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             let event = try XCTUnwrap(NSEvent.mouseEvent(
@@ -204,8 +205,37 @@ final class SettingsWindowControllerTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(selectedIndex, 0)
-        XCTAssertEqual(editedIndex, 0)
+        XCTAssertEqual(selectedIndex, 0, "Clicking a Slot should focus it")
+        XCTAssertNil(editedIndex, "Clicking the Slot body must not open editing")
+
+        let editButton = try XCTUnwrap(view.subviews.compactMap { $0 as? NSButton }.first)
+        XCTAssertEqual(editButton.title, "Edit")
+        XCTAssertEqual(editButton.accessibilityLabel(), "Edit Menu Item in Slot 1")
+
+        let editLocation = NSPoint(
+            x: view.editorEditButtonRect(at: 0).midX,
+            y: view.editorEditButtonRect(at: 0).midY
+        )
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = try XCTUnwrap(NSEvent.mouseEvent(
+                with: type,
+                location: editLocation,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: 1
+            ))
+            if type == .leftMouseDown {
+                view.mouseDown(with: event)
+            } else {
+                view.mouseUp(with: event)
+            }
+        }
+
+        XCTAssertEqual(editedIndex, 0, "Only the in-slot Edit button should open editing")
         XCTAssertEqual(primaryExecutionCount, 0)
         XCTAssertEqual(alternateExecutionCount, 0)
     }
@@ -590,6 +620,7 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         for label in [
             "Replace selected Slot with Fixture",
+            "Edit Menu Item in Slot 1",
             "Clear Menu Item from Slot 1",
             "Undo Slot edit",
             "Redo Slot edit"
