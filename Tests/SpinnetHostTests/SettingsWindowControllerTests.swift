@@ -210,6 +210,55 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(alternateExecutionCount, 0)
     }
 
+    func testEditorContextMenuShowsFocusedSlotDetailsAndDeletesTheSlot() throws {
+        let editor = try makeEditor()
+        try editor.addEmptySlot()
+        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        let view = RadialMenuView(slots: slots, mode: .editor)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        var selectedIndex: Int?
+        var deletedIndex: Int?
+        view.onEditorSelection = { selectedIndex = $0 }
+        view.onEditorSlotDeleteRequested = { deletedIndex = $0 }
+
+        let location = NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90)
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: location,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+        let menu = try XCTUnwrap(view.menu(for: event))
+
+        XCTAssertEqual(selectedIndex, 0)
+        XCTAssertTrue(menu.items.contains { $0.title == "Slot 1 — Open URL" })
+        XCTAssertTrue(menu.items.contains { $0.title == "Primary Action: Open URL" })
+        XCTAssertFalse(menu.items.contains { $0.title == "Move to Slot" })
+        let deleteItem = try XCTUnwrap(menu.items.first { $0.title == "Delete Slot" })
+        XCTAssertTrue(deleteItem.isEnabled)
+
+        _ = NSApp.sendAction(
+            try XCTUnwrap(deleteItem.action),
+            to: deleteItem.target,
+            from: deleteItem
+        )
+
+        XCTAssertEqual(deletedIndex, 0)
+    }
+
     func testSettingsAppearanceUpdatesTheRuntimeMenu() throws {
         let editor = try makeEditor()
         let suiteName = "SpinnetHostTests.RuntimeAppearance.\(UUID().uuidString)"
@@ -529,7 +578,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         }
     }
 
-    func testRenderedSettingsExposesMoveAndDeleteKeyboardEquivalent() throws {
+    func testRenderedSettingsExposesDeleteKeyboardEquivalent() throws {
         let occupiedEditor = try makeEditor()
         let occupiedController = SettingsWindowController(editor: occupiedEditor)
         defer { occupiedController.close() }
@@ -537,9 +586,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         occupiedController.present()
         occupiedContent.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
-        let occupiedLabels = renderedAccessibilityLabels(in: occupiedContent)
+        _ = renderedAccessibilityLabels(in: occupiedContent)
 
-        XCTAssertTrue(occupiedLabels.contains("Move to Slot"))
         for label in [
             "Replace selected Slot with Fixture",
             "Clear Menu Item from Slot 1",

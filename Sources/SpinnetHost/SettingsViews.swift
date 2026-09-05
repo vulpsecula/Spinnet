@@ -181,7 +181,6 @@ final class SettingsWindowModel: ObservableObject {
                 names.append("Replace selected Slot with \(preset.name)")
             }
             names.append(contentsOf: [
-                "Move selected Menu Item to Slot",
                 deleteSelectedContentLabel,
                 "Undo Slot edit",
                 "Redo Slot edit"
@@ -261,12 +260,6 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
-    var canDeleteSelectedContent: Bool {
-        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return false }
-        return editor.configuration.menu.slots[selectedMenuIndex].item != nil
-            || editor.configuration.menu.slots.count > 1
-    }
-
     var deleteSelectedContentLabel: String {
         guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else {
             return "Delete selected Slot content"
@@ -274,6 +267,19 @@ final class SettingsWindowModel: ObservableObject {
         return editor.configuration.menu.slots[selectedMenuIndex].item == nil
             ? "Delete empty Slot \(selectedMenuIndex + 1)"
             : "Clear Menu Item from Slot \(selectedMenuIndex + 1)"
+    }
+
+    @discardableResult
+    func deleteSlot(at index: Int) -> Bool {
+        guard editor.configuration.menu.slots.indices.contains(index) else {
+            placementMessage = "Menu Slot index is out of range."
+            return false
+        }
+        guard editor.configuration.menu.slots.count > 1 else {
+            placementMessage = "A Menu must contain at least one Slot."
+            return false
+        }
+        return removeSlot(at: index, recordHistory: true)
     }
 
     func deleteSelectedContent() {
@@ -549,7 +555,7 @@ struct SettingsRootView: View {
                 Text(model.page == .menu ? "Menu Editor" : "Menu Preview")
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
-                    ? "Select a Slot to edit it. Actions never run here."
+                    ? "Left-click a Slot to focus it; right-click for details. Actions never run here."
                     : "Preview appearance changes. Actions never run here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -575,6 +581,7 @@ struct SettingsRootView: View {
                     appearance: model.appearanceConfiguration,
                     onSelection: model.selectMenuItem,
                     onEdit: model.requestEdit,
+                    onSlotDelete: { _ = model.deleteSlot(at: $0) },
                     onPresetDrop: model.placePreset,
                     onMenuItemDrop: model.moveMenuItem
                 )
@@ -593,32 +600,6 @@ struct SettingsRootView: View {
                     .disabled(model.menuSlots.count >= 12)
                     .accessibilityLabel("Add empty Slot")
                     .help("Add empty Slot")
-                    Button {
-                        model.deleteSelectedContent()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .disabled(!model.canDeleteSelectedContent)
-                    .keyboardShortcut(.delete, modifiers: [])
-                    .accessibilityLabel(model.deleteSelectedContentLabel)
-                    .help("Clear the selected Menu Item, or delete an empty Slot")
-                    Menu {
-                        ForEach(model.menuSlots.indices, id: \.self) { index in
-                            if index != model.selectedMenuIndex {
-                                Button("Slot \(index + 1)") {
-                                    _ = model.moveMenuItem(
-                                        from: model.selectedMenuIndex,
-                                        to: index
-                                    )
-                                }
-                                .disabled(!model.menuSlots[index].isEmpty)
-                            }
-                        }
-                    } label: {
-                        Label("Move to Slot", systemImage: "arrow.right")
-                    }
-                    .disabled(model.menuSlots[model.selectedMenuIndex].isEmpty)
-                    .accessibilityLabel("Move selected Menu Item to Slot")
                     Button(action: model.undoSlotEdit) {
                         Image(systemName: "arrow.uturn.backward")
                     }
@@ -810,6 +791,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let appearance: MenuAppearanceConfiguration
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
+    let onSlotDelete: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
     let onMenuItemDrop: (Int, Int) -> Bool
 
@@ -817,6 +799,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
         let view = RadialMenuView(slots: slots, mode: .editor)
         view.onEditorSelection = onSelection
         view.onEditorEditRequested = onEdit
+        view.onEditorSlotDeleteRequested = onSlotDelete
         view.onPresetDrop = onPresetDrop
         view.onMenuItemDrop = onMenuItemDrop
         view.applyAppearance(appearance)
@@ -827,6 +810,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         nsView.onEditorSelection = onSelection
         nsView.onEditorEditRequested = onEdit
+        nsView.onEditorSlotDeleteRequested = onSlotDelete
         nsView.onPresetDrop = onPresetDrop
         nsView.onMenuItemDrop = onMenuItemDrop
         nsView.reload(slots: slots)

@@ -23,6 +23,7 @@ final class RadialMenuView: NSView {
     private var trackingArea: NSTrackingArea?
     private var editorMouseDownIndex: Int?
     private var editorDragStarted = false
+    private var contextMenuIndex: Int?
     private(set) var selectedIndex: Int? {
         didSet {
             needsDisplay = true
@@ -37,6 +38,7 @@ final class RadialMenuView: NSView {
     var onCancel: (() -> Void)?
     var onEditorSelection: ((Int) -> Void)?
     var onEditorEditRequested: ((Int) -> Void)?
+    var onEditorSlotDeleteRequested: ((Int) -> Void)?
     var onPresetDrop: ((String, Int) -> Bool)?
     var onMenuItemDrop: ((Int, Int) -> Bool)?
     var editorAccentColor: NSColor = .controlAccentColor {
@@ -64,7 +66,10 @@ final class RadialMenuView: NSView {
         case .editor:
             setAccessibilityRole(.group)
             setAccessibilityLabel("Editor Mode Menu")
-            setAccessibilityHelp("Select a Menu Slot to edit it. Actions do not execute in Editor Mode.")
+            setAccessibilityHelp(
+                "Left-click a Menu Slot to focus it. Right-click for details and actions. "
+                    + "Actions do not execute in Editor Mode."
+            )
             registerForDraggedTypes([
                 Self.libraryPresetPasteboardType,
                 Self.textPasteboardType,
@@ -181,8 +186,20 @@ final class RadialMenuView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        guard presentationMode == .runtime else { return }
+        guard presentationMode == .runtime else {
+            super.rightMouseDown(with: event)
+            return
+        }
         updateSelection(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard presentationMode == .editor else { return super.menu(for: event) }
+        let point = convert(event.locationInWindow, from: nil)
+        guard let index = slotIndex(at: point) else { return nil }
+        selectEditorItem(at: index)
+        onEditorSelection?(index)
+        return makeEditorContextMenu(for: index)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -310,13 +327,85 @@ final class RadialMenuView: NSView {
 
     private func updateDropTarget(_ sender: NSDraggingInfo) -> Int? {
         let point = convert(sender.draggingLocation, from: nil)
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let index = layout.hitTest(point: point, center: center)
+        guard let index = slotIndex(at: point) else { return nil }
         if selectedIndex != index {
             selectedIndex = index
             updateAccessibilityValue()
         }
         return index
+    }
+
+    private func slotIndex(at point: CGPoint) -> Int? {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        return layout.hitTest(point: point, center: center)
+    }
+
+    private func makeEditorContextMenu(for index: Int) -> NSMenu {
+        contextMenuIndex = index
+        let slot = slots[index]
+        let menu = NSMenu(title: "Slot \(index + 1)")
+
+        let slotInfo = NSMenuItem(
+            title: "Slot \(index + 1) — \(slot.isEmpty ? "Empty" : slot.title)",
+            action: nil,
+            keyEquivalent: ""
+        )
+        slotInfo.isEnabled = false
+        menu.addItem(slotInfo)
+
+        if let item = slot.item {
+            let primaryInfo = NSMenuItem(
+                title: "Primary Action: \(item.primaryAction.displayTitle)",
+                action: nil,
+                keyEquivalent: ""
+            )
+            primaryInfo.isEnabled = false
+            menu.addItem(primaryInfo)
+
+            for alternate in item.alternateActions {
+                let alternateInfo = NSMenuItem(
+                    title: "Alternate Action: \(alternate.displayTitle)",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                alternateInfo.isEnabled = false
+                menu.addItem(alternateInfo)
+            }
+
+            menu.addItem(.separator())
+            let editItem = NSMenuItem(
+                title: "Edit Menu Item",
+                action: #selector(editContextMenuSlot(_:)),
+                keyEquivalent: ""
+            )
+            editItem.target = self
+            menu.addItem(editItem)
+        } else {
+            menu.addItem(.separator())
+        }
+
+        let deleteItem = NSMenuItem(
+            title: "Delete Slot",
+            action: #selector(deleteContextMenuSlot(_:)),
+            keyEquivalent: ""
+        )
+        deleteItem.target = self
+        deleteItem.isEnabled = slots.count > 1
+        deleteItem.toolTip = deleteItem.isEnabled
+            ? "Delete this Slot from the Menu"
+            : "A Menu must contain at least one Slot"
+        menu.addItem(deleteItem)
+        return menu
+    }
+
+    @objc private func editContextMenuSlot(_ sender: Any?) {
+        guard let contextMenuIndex else { return }
+        onEditorEditRequested?(contextMenuIndex)
+    }
+
+    @objc private func deleteContextMenuSlot(_ sender: Any?) {
+        guard let contextMenuIndex else { return }
+        onEditorSlotDeleteRequested?(contextMenuIndex)
     }
 
     private func updateSelection(at point: CGPoint) {
