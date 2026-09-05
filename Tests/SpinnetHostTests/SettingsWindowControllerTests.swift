@@ -398,6 +398,43 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, occupiedConfiguration)
     }
 
+    func testDeleteSelectedContentClearsAnItemThenRemovesAnEmptySlot() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        model.selectMenuItem(at: 0)
+
+        model.deleteSelectedContent()
+
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertTrue(model.editor.configuration.actions.isEmpty)
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+
+        model.deleteSelectedContent()
+
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+    }
+
+    func testRadialMenuAcceptsSwiftUIPresetTextPasteboardType() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.spinnet.tests.preset-drag"))
+        let textType = NSPasteboard.PasteboardType.string
+        pasteboard.declareTypes([textType], owner: nil)
+        pasteboard.setString("com.spinnet.fixture", forType: textType)
+
+        XCTAssertEqual(
+            RadialMenuView.libraryPresetID(from: pasteboard),
+            "com.spinnet.fixture"
+        )
+    }
+
+    func testLibraryPresetDragProviderPublishesStandardTextPayload() {
+        let provider = MenuEditorView.libraryPresetDragProvider(for: "com.spinnet.fixture")
+
+        XCTAssertTrue(
+            provider.registeredTypeIdentifiers.contains(NSPasteboard.PasteboardType.string.rawValue)
+        )
+    }
+
     func testReadyPresetAutosavesAndProducesTheSameRuntimeMenuAfterRestart() throws {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(
@@ -505,8 +542,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(occupiedLabels.contains("Move to Slot"))
         for label in [
             "Replace selected Slot with Fixture",
-            "Delete Menu Item from Slot 1",
-            "Remove Slot 1",
+            "Clear Menu Item from Slot 1",
             "Undo Slot edit",
             "Redo Slot edit"
         ] {
@@ -536,24 +572,16 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
-    func testRemovingAnOccupiedSlotRequiresConfirmationAtTheSettingsWorkflowSeam() throws {
+    func testDeleteSelectedContentRemovesAnEmptySlotAtTheSettingsWorkflowSeam() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
-        model.selectMenuItem(at: 0)
+        model.selectMenuItem(at: 1)
         var savedConfiguration: HostConfiguration?
         model.onConfigurationChanged = { savedConfiguration = $0 }
 
-        model.requestRemoveSelectedSlot()
+        model.deleteSelectedContent()
 
-        XCTAssertEqual(model.slotPendingRemoval, 0)
-        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
-        XCTAssertNil(savedConfiguration)
-
-        model.confirmSlotRemoval()
-
-        XCTAssertNil(model.slotPendingRemoval)
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
-        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
     }
 
@@ -582,14 +610,14 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(try store.load(), model.editor.configuration)
     }
 
-    func testUndoRestoresTheExactOccupiedSlotAfterConfirmedRemoval() throws {
+    func testUndoRestoresTheExactOccupiedSlotAfterDeleteKeyClearsIt() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
         model.selectMenuItem(at: 0)
-        model.requestRemoveSelectedSlot()
-        model.confirmSlotRemoval()
+        model.deleteSelectedContent()
 
-        XCTAssertEqual(model.editor.configuration.menu.slots, [.empty])
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
 
         model.undoSlotEdit()
 

@@ -10,6 +10,10 @@ struct MenuEditorView: View {
 
     @State private var searchText = ""
 
+    static func libraryPresetDragProvider(for pluginID: String) -> NSItemProvider {
+        NSItemProvider(object: NSString(string: pluginID))
+    }
+
     private var librarySections: [MenuItemPresetSection] {
         librarySectionsForQuery(searchText)
     }
@@ -101,10 +105,7 @@ struct MenuEditorView: View {
         if preset.isAvailable, preset.readiness == .readyToUse {
             libraryCard(preset)
                 .onDrag {
-                    NSItemProvider(
-                        item: preset.id as NSString,
-                        typeIdentifier: RadialMenuView.libraryPresetPasteboardType.rawValue
-                    )
+                    Self.libraryPresetDragProvider(for: preset.id)
                 } preview: {
                     Label(preset.name, systemImage: preset.source == .builtIn
                         ? "sparkles"

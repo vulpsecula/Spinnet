@@ -44,7 +44,6 @@ final class SettingsWindowModel: ObservableObject {
     @Published var selectedMenuIndex = 0
     @Published var placementMessage: String?
     @Published var editingMenuIndex: Int?
-    @Published private(set) var slotPendingRemoval: Int?
     @Published private(set) var presetPendingReplacement: PendingPresetReplacement?
     @Published private(set) var refreshToken = 0
     @Published private(set) var canUndoSlotEdit = false
@@ -183,8 +182,7 @@ final class SettingsWindowModel: ObservableObject {
             }
             names.append(contentsOf: [
                 "Move selected Menu Item to Slot",
-                "Delete Menu Item from Slot \(selectedMenuIndex + 1)",
-                "Remove Slot \(selectedMenuIndex + 1)",
+                deleteSelectedContentLabel,
                 "Undo Slot edit",
                 "Redo Slot edit"
             ])
@@ -263,24 +261,30 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
-    func requestRemoveSelectedSlot() {
-        guard editor.configuration.menu.slots.count > 1,
-              editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return }
-        if editor.configuration.menu.slots[selectedMenuIndex].item != nil {
-            slotPendingRemoval = selectedMenuIndex
-        } else {
-            removeSlot(at: selectedMenuIndex, recordHistory: true)
+    var canDeleteSelectedContent: Bool {
+        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return false }
+        return editor.configuration.menu.slots[selectedMenuIndex].item != nil
+            || editor.configuration.menu.slots.count > 1
+    }
+
+    var deleteSelectedContentLabel: String {
+        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else {
+            return "Delete selected Slot content"
         }
+        return editor.configuration.menu.slots[selectedMenuIndex].item == nil
+            ? "Delete empty Slot \(selectedMenuIndex + 1)"
+            : "Clear Menu Item from Slot \(selectedMenuIndex + 1)"
     }
 
-    func confirmSlotRemoval() {
-        guard let index = slotPendingRemoval else { return }
-        slotPendingRemoval = nil
-        removeSlot(at: index, recordHistory: true)
-    }
-
-    func cancelSlotRemoval() {
-        slotPendingRemoval = nil
+    func deleteSelectedContent() {
+        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return }
+        if editor.configuration.menu.slots[selectedMenuIndex].item != nil {
+            deleteMenuItem(at: selectedMenuIndex)
+        } else if editor.configuration.menu.slots.count > 1 {
+            _ = removeSlot(at: selectedMenuIndex, recordHistory: true)
+        } else {
+            placementMessage = "A Menu must contain at least one Slot."
+        }
     }
 
     @discardableResult
@@ -479,16 +483,7 @@ struct SettingsRootView: View {
         .onChange(of: model.page) { focusedPage = $0 }
         .onDeleteCommand {
             guard model.page == .menu else { return }
-            model.deleteMenuItem(at: model.selectedMenuIndex)
-        }
-        .alert(
-            "Remove occupied Slot \((model.slotPendingRemoval ?? 0) + 1)?",
-            isPresented: slotRemovalAlertBinding
-        ) {
-            Button("Cancel", role: .cancel, action: model.cancelSlotRemoval)
-            Button("Remove Slot", role: .destructive, action: model.confirmSlotRemoval)
-        } message: {
-            Text("The Menu Item will be removed from this Menu. Its configured Action remains available.")
+            model.deleteSelectedContent()
         }
         .alert(
             "Replace Menu Item in Slot \((model.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
@@ -500,13 +495,6 @@ struct SettingsRootView: View {
         } message: {
             Text("The current Menu Item and its Actions will be replaced by the selected Preset.")
         }
-    }
-
-    private var slotRemovalAlertBinding: Binding<Bool> {
-        Binding(
-            get: { model.slotPendingRemoval != nil },
-            set: { if !$0 { model.cancelSlotRemoval() } }
-        )
     }
 
     private var presetReplacementAlertBinding: Binding<Bool> {
@@ -605,21 +593,15 @@ struct SettingsRootView: View {
                     .disabled(model.menuSlots.count >= 12)
                     .accessibilityLabel("Add empty Slot")
                     .help("Add empty Slot")
-                    Button(action: model.requestRemoveSelectedSlot) {
+                    Button {
+                        model.deleteSelectedContent()
+                    } label: {
                         Image(systemName: "trash")
                     }
-                    .disabled(model.menuSlots.count <= 1)
-                    .accessibilityLabel("Remove Slot \(model.selectedMenuIndex + 1)")
-                    .help("Remove Slot \(model.selectedMenuIndex + 1)")
-                    Button {
-                        model.deleteMenuItem(at: model.selectedMenuIndex)
-                    } label: {
-                        Image(systemName: "rectangle.portrait.and.arrow.forward")
-                    }
-                    .disabled(model.menuSlots[model.selectedMenuIndex].isEmpty)
+                    .disabled(!model.canDeleteSelectedContent)
                     .keyboardShortcut(.delete, modifiers: [])
-                    .accessibilityLabel("Delete Menu Item from Slot \(model.selectedMenuIndex + 1)")
-                    .help("Delete the Menu Item and leave this Slot empty")
+                    .accessibilityLabel(model.deleteSelectedContentLabel)
+                    .help("Clear the selected Menu Item, or delete an empty Slot")
                     Menu {
                         ForEach(model.menuSlots.indices, id: \.self) { index in
                             if index != model.selectedMenuIndex {
@@ -637,9 +619,6 @@ struct SettingsRootView: View {
                     }
                     .disabled(model.menuSlots[model.selectedMenuIndex].isEmpty)
                     .accessibilityLabel("Move selected Menu Item to Slot")
-                    Text("Slot \(model.selectedMenuIndex + 1) selected")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Button(action: model.undoSlotEdit) {
                         Image(systemName: "arrow.uturn.backward")
                     }

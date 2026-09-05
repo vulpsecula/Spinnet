@@ -14,6 +14,7 @@ final class RadialMenuView: NSView {
     static let menuItemPasteboardType = NSPasteboard.PasteboardType(
         "com.spinnet.menu-item"
     )
+    private static let textPasteboardType = NSPasteboard.PasteboardType.string
 
     private var layout: RadialMenuLayout
     private var slots: [MenuSlotPresentation]
@@ -66,6 +67,7 @@ final class RadialMenuView: NSView {
             setAccessibilityHelp("Select a Menu Slot to edit it. Actions do not execute in Editor Mode.")
             registerForDraggedTypes([
                 Self.libraryPresetPasteboardType,
+                Self.textPasteboardType,
                 Self.menuItemPasteboardType
             ])
         }
@@ -130,6 +132,13 @@ final class RadialMenuView: NSView {
     func commitRuntimeSelection() {
         guard presentationMode == .runtime, let selectedIndex else { return }
         onPrimarySelection?(selectedIndex)
+    }
+
+    /// Resolves the payload emitted by both native AppKit drags and SwiftUI's
+    /// `onDrag`, which uses the standard text pasteboard type for NSString data.
+    static func libraryPresetID(from pasteboard: NSPasteboard) -> String? {
+        pasteboard.string(forType: Self.libraryPresetPasteboardType)
+            ?? pasteboard.string(forType: Self.textPasteboardType)
     }
 
     override func updateTrackingAreas() {
@@ -249,9 +258,7 @@ final class RadialMenuView: NSView {
             return false
         }
         onEditorSelection?(index)
-        if let pluginID = sender.draggingPasteboard.string(
-            forType: Self.libraryPresetPasteboardType
-        ) {
+        if let pluginID = Self.libraryPresetID(from: sender.draggingPasteboard) {
             return onPresetDrop?(pluginID, index) ?? false
         }
         if let source = sender.draggingPasteboard.string(
@@ -264,7 +271,7 @@ final class RadialMenuView: NSView {
 
     private func dropOperation(for sender: NSDraggingInfo) -> NSDragOperation {
         guard let target = updateDropTarget(sender) else { return [] }
-        if sender.draggingPasteboard.string(forType: Self.libraryPresetPasteboardType) != nil {
+        if Self.libraryPresetID(from: sender.draggingPasteboard) != nil {
             return .copy
         }
         if let source = sender.draggingPasteboard.string(
@@ -449,7 +456,7 @@ final class RadialMenuView: NSView {
         hubPath.lineWidth = 1
         hubPath.stroke()
 
-        let centerLabel = presentationMode == .editor ? "SELECT SLOT" as NSString : "Spinnet" as NSString
+        let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
             .foregroundColor: NSColor.secondaryLabelColor
