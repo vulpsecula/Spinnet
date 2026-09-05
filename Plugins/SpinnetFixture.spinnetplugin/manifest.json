@@ -4,6 +4,8 @@
   "name": "Spinnet Fixture Plugin",
   "version": "1.0.0",
   "commands": [
-    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"}
+    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"},
+    {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},
+    {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "script": "structured-data.js"}
   ]
 }

@@ -2,6 +2,22 @@ import Foundation
 
 public enum CommandExecution: String, Codable, Equatable, Hashable {
     case host
+    case javascript
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case Self.host.rawValue:
+            self = .host
+        case Self.javascript.rawValue, "common_javascript", "script":
+            self = .javascript
+        default:
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Unsupported Command execution \(value)"
+            )
+        }
+    }
 }
 
 public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
@@ -20,18 +36,39 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     public let id: CommandID
     public let title: String
     public let execution: CommandExecution
-    public let hostCommand: HostCommand
+    public let hostCommand: HostCommand?
+    public let script: String?
 
     public init(
         id: CommandID,
         title: String,
         execution: CommandExecution = .host,
-        hostCommand: HostCommand
+        hostCommand: HostCommand? = nil,
+        script: String? = nil
     ) {
         self.id = id
         self.title = title
         self.execution = execution
         self.hostCommand = hostCommand
+        self.script = script
+    }
+
+    /// The manifest-facing script reference. `scriptPath` keeps call sites
+    /// explicit about the value being relative to the Plugin package root.
+    public var scriptPath: String? { script }
+
+    public init(
+        id: CommandID,
+        title: String,
+        execution: CommandExecution = .javascript,
+        scriptPath: String
+    ) {
+        self.init(
+            id: id,
+            title: title,
+            execution: execution,
+            script: scriptPath
+        )
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -39,15 +76,22 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case title
         case execution
         case hostCommand = "host_command"
+        case script
+        case scriptPath = "script_path"
+        case javascript
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let script = try container.decodeIfPresent(String.self, forKey: .script)
+            ?? container.decodeIfPresent(String.self, forKey: .scriptPath)
+            ?? container.decodeIfPresent(String.self, forKey: .javascript)
         self.init(
             id: try container.decode(CommandID.self, forKey: .id),
             title: try container.decode(String.self, forKey: .title),
             execution: try container.decode(CommandExecution.self, forKey: .execution),
-            hostCommand: try container.decode(HostCommand.self, forKey: .hostCommand)
+            hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
+            script: script
         )
     }
 
@@ -56,7 +100,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encode(id, forKey: .id)
         try container.encode(title, forKey: .title)
         try container.encode(execution, forKey: .execution)
-        try container.encode(hostCommand, forKey: .hostCommand)
+        try container.encodeIfPresent(hostCommand, forKey: .hostCommand)
+        try container.encodeIfPresent(script, forKey: .script)
     }
 }
 
@@ -132,6 +177,7 @@ public struct PluginManifest: Codable, Equatable {
             }
             try validateText(command.id.rawValue, name: "Command ID")
             try validateText(command.title, name: "Command title")
+            try validate(command)
         }
 
         let primaryCommandID = preset.defaultPrimaryCommandID ?? commands[0].id
@@ -156,13 +202,50 @@ public struct PluginManifest: Codable, Equatable {
             for commandID in defaultCommandIDs {
                 guard let command = commands.first(where: { $0.id == commandID }),
                       let input = preset.defaultInputs[commandID],
-                      command.hostCommand.resolvedURL(from: input) != nil else {
+                      validDefaultInput(input, for: command) else {
                     throw ConfigurationError.invalidManifest(
                         "Ready-to-Use Preset input is invalid for Command \(commandID.rawValue)"
                     )
                 }
             }
         }
+    }
+
+    private func validate(_ command: CommandDeclaration) throws {
+        switch command.execution {
+        case .host:
+            guard command.hostCommand != nil, command.script == nil else {
+                throw ConfigurationError.invalidManifest(
+                    "Host Command \(command.id.rawValue) must declare host_command only"
+                )
+            }
+        case .javascript:
+            guard let script = command.script,
+                  isValidScriptReference(script),
+                  command.hostCommand == nil else {
+                throw ConfigurationError.invalidManifest(
+                    "JavaScript Command \(command.id.rawValue) must declare a relative script only"
+                )
+            }
+        }
+    }
+
+    private func validDefaultInput(_ input: JSONValue, for command: CommandDeclaration) -> Bool {
+        switch command.execution {
+        case .host:
+            guard let hostCommand = command.hostCommand else { return false }
+            return hostCommand.resolvedURL(from: input) != nil
+        case .javascript:
+            return (try? JSONEncoder().encode(input)) != nil
+        }
+    }
+
+    private func isValidScriptReference(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 256,
+              !trimmed.hasPrefix("/"), !trimmed.contains("\\") else { return false }
+        let components = trimmed.split(separator: "/", omittingEmptySubsequences: false)
+        return !components.contains(".") && !components.contains("..")
     }
 
     private func validateText(_ value: String, name: String) throws {
@@ -220,7 +303,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     public let commandID: CommandID
     public let title: String
     public let execution: CommandExecution
-    public let hostCommand: HostCommand
+    public let hostCommand: HostCommand?
+    public let script: String?
     public let input: JSONValue
 
     public init(
@@ -241,21 +325,36 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         guard !command.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConfigurationError.invalidAction("Action title is empty")
         }
+        switch command.execution {
+        case .host:
+            guard command.hostCommand != nil, command.script == nil else {
+                throw ConfigurationError.invalidAction("Host Action is missing its Host Command")
+            }
+        case .javascript:
+            guard let script = command.script,
+                  !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ConfigurationError.invalidAction("Scripted Action is missing its script")
+            }
+        }
         self.id = id
         self.pluginID = pluginID
         self.commandID = command.id
         self.title = command.title
         self.execution = command.execution
         self.hostCommand = command.hostCommand
+        self.script = command.script
         self.input = input
     }
+
+    public var scriptPath: String? { script }
 
     public var declaredCommand: CommandDeclaration {
         CommandDeclaration(
             id: commandID,
             title: title,
             execution: execution,
-            hostCommand: hostCommand
+            hostCommand: hostCommand,
+            script: script
         )
     }
 
@@ -266,6 +365,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         case title
         case execution
         case hostCommand
+        case script
         case input
     }
 
@@ -278,7 +378,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
                 id: container.decode(CommandID.self, forKey: .commandID),
                 title: container.decode(String.self, forKey: .title),
                 execution: container.decode(CommandExecution.self, forKey: .execution),
-                hostCommand: container.decode(HostCommand.self, forKey: .hostCommand)
+                hostCommand: container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
+                script: container.decodeIfPresent(String.self, forKey: .script)
             ),
             input: container.decode(JSONValue.self, forKey: .input)
         )
@@ -433,9 +534,14 @@ public protocol HostCommandExecutor {
 /// The Host-level Action seam used by the production Host and automated tests.
 public struct HostActionRunner {
     private let executor: HostCommandExecutor
+    private let scriptedExecutor: ScriptedActionExecutor?
 
-    public init(executor: HostCommandExecutor) {
+    public init(
+        executor: HostCommandExecutor,
+        scriptedExecutor: ScriptedActionExecutor? = nil
+    ) {
         self.executor = executor
+        self.scriptedExecutor = scriptedExecutor
     }
 
     public func invoke(_ action: ActionConfiguration) -> ActionOutcome {
@@ -468,7 +574,37 @@ public struct HostActionRunner {
     ) -> ActionOutcome {
         switch registry.availability(for: action) {
         case .available:
-            return invoke(action)
+            guard action.execution == .javascript else {
+                return invoke(action)
+            }
+            guard let scriptedExecutor,
+                  let package = registry.package(for: action.pluginID) else {
+                return failure(
+                    for: action,
+                    category: .helperUnavailable,
+                    message: "No Plugin helper is configured"
+                )
+            }
+            do {
+                return ActionOutcome(
+                    actionID: action.id,
+                    pluginID: action.pluginID,
+                    title: action.title,
+                    terminal: .succeeded(try scriptedExecutor.execute(action, in: package))
+                )
+            } catch let error as PluginRuntimeError {
+                return failure(
+                    for: action,
+                    category: error.failureCategory,
+                    message: error.localizedDescription
+                )
+            } catch {
+                return failure(
+                    for: action,
+                    category: .scriptedActionFailed,
+                    message: error.localizedDescription
+                )
+            }
         case .unavailable(let reason):
             return failure(
                 for: action,

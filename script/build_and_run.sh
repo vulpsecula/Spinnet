@@ -19,14 +19,19 @@ pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 
 cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
+swift build --product SpinnetPluginHelper
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
+BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
 RESOURCE_BUNDLE="$BUILD_DIR/Spinnet_SpinnetHost.bundle"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+mkdir -p "$APP_CONTENTS/Helpers"
+cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
     ditto "$RESOURCE_BUNDLE" "$APP_RESOURCES/Spinnet_SpinnetHost.bundle"
 fi

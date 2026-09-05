@@ -23,7 +23,8 @@ enum HostCommandError: Error, CustomStringConvertible, LocalizedError {
 /// for tests and future Host Commands.
 final class AppKitHostCommandExecutor: HostCommandExecutor {
     func execute(_ action: ActionConfiguration) throws -> JSONValue {
-        guard let url = action.hostCommand.resolvedURL(from: action.input),
+        guard let hostCommand = action.hostCommand,
+              let url = hostCommand.resolvedURL(from: action.input),
               case .string(let value) = action.input else {
             throw HostCommandError.invalidInput
         }

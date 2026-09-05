@@ -63,6 +63,85 @@ final class HostActionRunnerTests: XCTestCase {
         XCTAssertEqual(failure.userMessage, "com.example.fixture — action-1 failed (command_unavailable)")
     }
 
+    func testConfiguredJavaScriptActionRunsThroughScriptedActionSeam() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.transform_text"),
+            title: "Transform Text",
+            execution: .javascript,
+            script: "transform-text.js"
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("script-action"),
+            pluginID: PluginID("com.example.fixture"),
+            command: command,
+            input: .string("Spinnet fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: try PluginManifest(
+                id: action.pluginID,
+                name: "Fixture",
+                version: "1.0.0",
+                commands: [command]
+            )
+        ))
+        let executor = RecordingScriptedActionExecutor(result: .success(
+            .object(["transformed": .string("SPINNET-FIXTURE")])
+        ))
+
+        let outcome = HostActionRunner(
+            executor: RecordingHostCommandExecutor(result: .success(.null)),
+            scriptedExecutor: executor
+        ).invoke(action, using: registry)
+
+        XCTAssertEqual(executor.actions, [action])
+        guard case .succeeded(let result) = outcome.terminal else {
+            return XCTFail("The configured scripted Action should succeed")
+        }
+        XCTAssertEqual(result, .object(["transformed": .string("SPINNET-FIXTURE")]))
+    }
+
+    func testHelperCrashBecomesStableScriptedFailure() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.transform_text"),
+            title: "Transform Text",
+            execution: .javascript,
+            script: "transform-text.js"
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("script-action"),
+            pluginID: PluginID("com.example.fixture"),
+            command: command,
+            input: .string("Spinnet fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: try PluginManifest(
+                id: action.pluginID,
+                name: "Fixture",
+                version: "1.0.0",
+                commands: [command]
+            )
+        ))
+        let executor = RecordingScriptedActionExecutor(result: .failure(
+            PluginRuntimeError.helperCrashed(signal: 6)
+        ))
+
+        let outcome = HostActionRunner(
+            executor: RecordingHostCommandExecutor(result: .success(.null)),
+            scriptedExecutor: executor
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A crashed helper should produce a failed outcome")
+        }
+        XCTAssertEqual(failure.category, .helperCrashed)
+        XCTAssertEqual(failure.pluginID, action.pluginID)
+        XCTAssertEqual(failure.actionID, action.id)
+    }
+
     private func makeURLAction() throws -> ActionConfiguration {
         try ActionConfiguration(
             id: ActionID("action-1"),
@@ -86,6 +165,20 @@ private final class RecordingHostCommandExecutor: HostCommandExecutor {
     }
 
     func execute(_ action: ActionConfiguration) throws -> JSONValue {
+        actions.append(action)
+        return try result.get()
+    }
+}
+
+private final class RecordingScriptedActionExecutor: ScriptedActionExecutor {
+    private(set) var actions: [ActionConfiguration] = []
+    private let result: Result<JSONValue, Error>
+
+    init(result: Result<JSONValue, Error>) {
+        self.result = result
+    }
+
+    func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue {
         actions.append(action)
         return try result.get()
     }

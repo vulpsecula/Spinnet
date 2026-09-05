@@ -1,8 +1,9 @@
 # Spinnet
 
 Spinnet is a native macOS Host for mouse-first radial Menus. This slice
-implements frontier ticket #12: a bundled Plugin registers one Host-backed URL
-Action, and the Host exposes it through a non-activating radial Menu.
+implements frontier tickets #12 and #7: a bundled Plugin registers a
+Host-backed URL Action plus deterministic Common JavaScript transformations,
+and the Host exposes them through the public Action seam.
 
 ## Run
 
@@ -11,12 +12,15 @@ the repository root:
 
 ```sh
 swift build
+swift build --product SpinnetPluginHelper
 swift test
 swift run SpinnetHost
 ```
 
 The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
 manifest loader and opens the radial Menu with Mouse Side Button 1 by default.
+Scripted Actions launch `SpinnetPluginHelper` on demand; registration, idle
+state, Menu opening, and Host-backed Actions do not launch a helper.
 An optional keyboard shortcut can be recorded under Settings → Menu. The
 fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
 Menu bindings, appearance, and triggers are saved automatically.
@@ -44,8 +48,8 @@ Action editing, configuration persistence, Menu geometry, and the Host-level
 `HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, global
 shortcuts, settings window, URL execution, and user-visible feedback.
 
-Scripted Actions, Plugin helpers, capabilities, and broader Host Services are
-outside this ticket and are intentionally not part of this walking skeleton.
+Capability-checked Host Services, helper reuse/retirement, and user-visible
+scripted Action lifecycle feedback are deferred to later tickets.
 
 The current manifest shape is documented in
 [`docs/plugin-interface.md`](docs/plugin-interface.md).

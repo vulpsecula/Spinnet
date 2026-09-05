@@ -122,6 +122,10 @@ public enum ActionFailureCategory: String, Codable, CaseIterable, Hashable {
     case invalidConfiguration = "invalid_configuration"
     case hostCommandFailed = "host_command_failed"
     case commandUnavailable = "command_unavailable"
+    case scriptedActionFailed = "scripted_action_failed"
+    case helperCrashed = "helper_crashed"
+    case helperUnavailable = "helper_unavailable"
+    case runtimeProtocolFailed = "runtime_protocol_failed"
     case unknown
 }
 

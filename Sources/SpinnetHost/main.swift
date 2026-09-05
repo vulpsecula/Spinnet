@@ -3,7 +3,7 @@ import SpinnetCore
 
 final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let registry = PluginRegistry()
-    private let actionRunner = HostActionRunner(executor: AppKitHostCommandExecutor())
+    private var actionRunner: HostActionRunner!
     private var menu: MenuPresentationController!
     private var feedback: HostFeedbackPresenter!
     private var settings: SettingsWindowController!
@@ -11,12 +11,23 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var triggers: GlobalTriggerController?
     private var actions: [ActionID: ActionConfiguration] = [:]
+    private let actionInvocationQueue = DispatchQueue(
+        label: "com.vulpsecula.Spinnet.action-invocation",
+        qos: .userInitiated
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         do {
             let manifest = try registry.register(packageAt: fixtureURL())
+            let scriptedExecutor = pluginHelperURL().map {
+                PluginRuntimeSupervisor(helperURL: $0)
+            }
+            actionRunner = HostActionRunner(
+                executor: AppKitHostCommandExecutor(),
+                scriptedExecutor: scriptedExecutor
+            )
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
             let configuration = try loadConfiguration(for: manifest)
             let editor = HostConfigurationEditor(
@@ -80,20 +91,49 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }) else {
             throw ConfigurationError.invalidManifest("Fixture URL Command is missing")
         }
-        let action = try ActionConfiguration(
+        let urlAction = try ActionConfiguration(
             id: ActionID("fixture-open-url"),
             pluginID: manifest.id,
             command: command,
             input: .string("https://github.com/vulpsecula/Spinnet/issues/12")
         )
+        let textAction = try makeFixtureScriptAction(
+            manifest: manifest,
+            commandID: "fixture.transform_text",
+            actionID: "fixture-transform-text",
+            input: .string("Spinnet Plugin fixture")
+        )
+        let structuredAction = try makeFixtureScriptAction(
+            manifest: manifest,
+            commandID: "fixture.transform_data",
+            actionID: "fixture-transform-data",
+            input: .string(#"{"items":[{"id":2,"name":"beta","enabled":true},{"id":1,"name":"alpha","enabled":true},{"id":3,"name":"disabled","enabled":false}]}"#)
+        )
         let configuration = try HostConfiguration(
-            actions: [action],
+            actions: [urlAction, textAction, structuredAction],
             menu: MenuConfiguration(items: [
-                try MenuItemConfiguration(primaryActionID: action.id)
+                try MenuItemConfiguration(primaryActionID: urlAction.id)
             ])
         )
         try? configurationStore.save(configuration)
         return configuration
+    }
+
+    private func makeFixtureScriptAction(
+        manifest: PluginManifest,
+        commandID: String,
+        actionID: String,
+        input: JSONValue
+    ) throws -> ActionConfiguration {
+        guard let command = manifest.commands.first(where: { $0.id.rawValue == commandID }) else {
+            throw ConfigurationError.invalidManifest("Fixture JavaScript Command \(commandID) is missing")
+        }
+        return try ActionConfiguration(
+            id: ActionID(actionID),
+            pluginID: manifest.id,
+            command: command,
+            input: input
+        )
     }
 
     private func configurationDidChange(_ configuration: HostConfiguration) {
@@ -163,8 +203,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func invoke(actionID: ActionID) {
-        guard let action = actions[actionID] else { return }
-        feedback.showOutcome(actionRunner.invoke(action, using: registry))
+        guard let action = actions[actionID], let actionRunner else { return }
+        let registry = self.registry
+        // Scripted Actions cross a process boundary and may encounter a
+        // process-fatal helper fault. Keep the AppKit event loop free while
+        // the Host waits for that isolated work to finish; only the feedback
+        // presentation returns to the main queue.
+        actionInvocationQueue.async { [weak self, actionRunner, registry, action] in
+            let outcome = actionRunner.invoke(action, using: registry)
+            DispatchQueue.main.async {
+                self?.feedback.showOutcome(outcome)
+            }
+        }
     }
 
     private func fixtureURL() throws -> URL {
@@ -181,6 +231,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             throw HostCommandError.failed("The bundled fixture Plugin could not be found")
         }
         return packageURL
+    }
+
+    private func pluginHelperURL() -> URL? {
+        let candidates = [
+            Bundle.main.bundleURL
+                .appendingPathComponent("Contents/Helpers/SpinnetPluginHelper"),
+            Bundle.main.executableURL?.deletingLastPathComponent()
+                .appendingPathComponent("SpinnetPluginHelper"),
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent(".build/arm64-apple-macosx/debug/SpinnetPluginHelper"),
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent(".build/arm64-apple-macosx/release/SpinnetPluginHelper")
+        ].compactMap { $0 }
+        return candidates.first {
+            FileManager.default.isExecutableFile(atPath: $0.path)
+        }
     }
 
     private func showStartupFailure(_ error: Error) {

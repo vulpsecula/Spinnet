@@ -10,7 +10,8 @@ let package = Package(
     ],
     products: [
         .library(name: "SpinnetCore", targets: ["SpinnetCore"]),
-        .executable(name: "SpinnetHost", targets: ["SpinnetHost"])
+        .executable(name: "SpinnetHost", targets: ["SpinnetHost"]),
+        .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"])
     ],
     targets: [
         .target(name: "SpinnetCore"),
@@ -24,9 +25,16 @@ let package = Package(
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]
         ),
+        .executableTarget(
+            name: "SpinnetPluginHelper",
+            dependencies: ["SpinnetCore"],
+            linkerSettings: [
+                .linkedFramework("JavaScriptCore", .when(platforms: [.macOS]))
+            ]
+        ),
         .testTarget(
             name: "SpinnetCoreTests",
-            dependencies: ["SpinnetCore"]
+            dependencies: ["SpinnetCore", "SpinnetPluginHelper"]
         ),
         .testTarget(
             name: "SpinnetHostTests",

@@ -57,6 +57,82 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertThrowsError(try PluginManifestLoader.decode(duplicate))
     }
 
+    func testManifestLoadsCommonJavaScriptCommandsWithScriptReferences() throws {
+        let data = Data(#"""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.fixture",
+          "name": "Fixture",
+          "version": "1.0.0",
+          "commands": [
+            {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},
+            {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "script": "structured-data.js"}
+          ]
+        }
+        """#.utf8)
+
+        let manifest = try PluginManifestLoader.decode(data)
+
+        XCTAssertEqual(manifest.commands.map(\.execution), [.javascript, .javascript])
+        XCTAssertEqual(manifest.commands.map(\.scriptPath), ["transform-text.js", "structured-data.js"])
+        XCTAssertNil(manifest.commands[0].hostCommand)
+    }
+
+    func testManifestRejectsJavaScriptCommandWithoutAScriptReference() {
+        let data = Data(#"""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.fixture",
+          "name": "Fixture",
+          "version": "1.0.0",
+          "commands": [
+            {"id": "fixture.transform", "title": "Transform", "execution": "javascript"}
+          ]
+        }
+        """#.utf8)
+
+        XCTAssertThrowsError(try PluginManifestLoader.decode(data))
+    }
+
+    func testJavaScriptActionPersistsItsScriptReferenceAndInput() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.transform"),
+            title: "Transform",
+            execution: .javascript,
+            script: "transform.js"
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("script-action"),
+            pluginID: PluginID("com.example.fixture"),
+            command: command,
+            input: .object(["value": .string("input")])
+        )
+
+        let restored = try JSONDecoder().decode(
+            ActionConfiguration.self,
+            from: JSONEncoder().encode(action)
+        )
+
+        XCTAssertEqual(restored, action)
+        XCTAssertEqual(restored.declaredCommand, command)
+    }
+
+    func testManifestRejectsScriptReferencesThatEscapeThePluginPackage() {
+        let data = Data(#"""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.fixture",
+          "name": "Fixture",
+          "version": "1.0.0",
+          "commands": [
+            {"id": "fixture.transform", "title": "Transform", "execution": "javascript", "script": "../outside.js"}
+          ]
+        }
+        """#.utf8)
+
+        XCTAssertThrowsError(try PluginManifestLoader.decode(data))
+    }
+
     func testMenuItemBindsPrimaryAndAlternateActionsAndRoundTrips() throws {
         let menuItem = try MenuItemConfiguration(
             primaryActionID: ActionID("primary"),

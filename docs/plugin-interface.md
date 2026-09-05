@@ -1,12 +1,12 @@
 # Documented Plugin Interface
 
-Frontier tickets #12 and #13 accept a local `.spinnetplugin` directory
+Frontier tickets #7, #12, and #13 accept a local `.spinnetplugin` directory
 containing a `manifest.json`. The Host loads the package through
 `PluginManifestLoader` and registers it with `PluginRegistry`.
 
 ## Manifest
 
-The current walking skeleton supports Host Commands only:
+The current walking skeleton supports Host Commands and Common JavaScript Commands:
 
 ```json
 {
@@ -29,6 +29,12 @@ The current walking skeleton supports Host Commands only:
       "title": "Open URL",
       "execution": "host",
       "host_command": "url.open"
+    },
+    {
+      "id": "example.transform",
+      "title": "Transform Text",
+      "execution": "javascript",
+      "script": "transform.js"
     }
   ]
 }
@@ -53,6 +59,23 @@ The supported Host Command is `url.open`. Its Action input is a JSON string
 containing a URL. The production Host passes the configured Action to the
 system workspace; tests inject a `HostCommandExecutor` at the
 `HostActionRunner` seam.
+
+The `javascript` execution kind points to a UTF-8 Common JavaScript source
+file relative to the Plugin package root. The Host reads that source and sends
+it, together with the configured input, to a short-lived helper executable.
+The helper is a separate SwiftPM product that links the system
+`JavaScriptCore` framework; `SpinnetHost` and `SpinnetCore` do not link or
+initialize a JavaScript runtime. The script receives these globals:
+
+- `input`, containing the Action's JSON value;
+- `inputJSON`, containing the same value as JSON text; and
+- `pluginID`, `actionID`, `commandID`, and `invocationID` identifying the
+  current invocation.
+
+The helper exchange is newline-delimited JSON using protocol version `1.0`.
+Each invocation must produce exactly one terminal response, either a JSON
+result or a stable script failure. A helper process that exits by signal is
+reported by the Host as `helper_crashed`; the Host process remains alive.
 
 ## Host configuration
 
@@ -107,5 +130,7 @@ selection, opens its Alternate Actions. Arrow keys select Menu Items and
 Return executes the Primary Action. Alternate Actions that are unavailable
 are visible but disabled.
 
-Scripted Actions, Plugin helpers, capabilities, and additional Host Services
-are intentionally deferred to later tickets.
+Capability-checked Host Services, helper reuse/retirement, and user-visible
+progress/cancellation remain later tickets. The initial helper exchange is
+deliberately narrow; it establishes the process boundary without granting a
+Plugin direct access to protected operating-system facilities.

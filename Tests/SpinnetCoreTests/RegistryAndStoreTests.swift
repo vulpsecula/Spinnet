@@ -8,7 +8,14 @@ final class RegistryAndStoreTests: XCTestCase {
         let manifest = try registry.register(packageAt: fixturePackageURL())
 
         XCTAssertEqual(manifest.id, PluginID("com.spinnet.fixture"))
-        XCTAssertEqual(manifest.commands.map(\.id), [CommandID("fixture.open_url")])
+        XCTAssertEqual(
+            manifest.commands.map(\.id),
+            [
+                CommandID("fixture.open_url"),
+                CommandID("fixture.transform_text"),
+                CommandID("fixture.transform_data")
+            ]
+        )
         XCTAssertEqual(registry.package(for: manifest.id)?.manifest, manifest)
         XCTAssertEqual(registry.manifests().map(\.id), [manifest.id])
     }
