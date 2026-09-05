@@ -29,14 +29,14 @@ public struct MenuItemPresetDeclaration: Codable, Equatable {
     public let isConfigurable: Bool
     public let defaultPrimaryCommandID: CommandID?
     public let defaultAlternateCommandIDs: [CommandID]
-    public let defaultInputs: [String: JSONValue]
+    public let defaultInputs: [CommandID: JSONValue]
 
     public init(
         readiness: MenuItemPresetReadiness = .setupRequired,
         isConfigurable: Bool = true,
         defaultPrimaryCommandID: CommandID? = nil,
         defaultAlternateCommandIDs: [CommandID] = [],
-        defaultInputs: [String: JSONValue] = [:]
+        defaultInputs: [CommandID: JSONValue] = [:]
     ) {
         self.readiness = readiness
         self.isConfigurable = isConfigurable
@@ -51,6 +51,41 @@ public struct MenuItemPresetDeclaration: Codable, Equatable {
         case defaultPrimaryCommandID = "default_primary_command_id"
         case defaultAlternateCommandIDs = "default_alternate_command_ids"
         case defaultInputs = "default_inputs"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        readiness = try container.decode(MenuItemPresetReadiness.self, forKey: .readiness)
+        isConfigurable = try container.decode(Bool.self, forKey: .isConfigurable)
+        defaultPrimaryCommandID = try container.decodeIfPresent(
+            CommandID.self,
+            forKey: .defaultPrimaryCommandID
+        )
+        defaultAlternateCommandIDs = try container.decodeIfPresent(
+            [CommandID].self,
+            forKey: .defaultAlternateCommandIDs
+        ) ?? []
+        let inputs = try container.decodeIfPresent(
+            [String: JSONValue].self,
+            forKey: .defaultInputs
+        ) ?? [:]
+        defaultInputs = Dictionary(uniqueKeysWithValues: inputs.map {
+            (CommandID($0.key), $0.value)
+        })
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(readiness, forKey: .readiness)
+        try container.encode(isConfigurable, forKey: .isConfigurable)
+        try container.encodeIfPresent(defaultPrimaryCommandID, forKey: .defaultPrimaryCommandID)
+        try container.encode(defaultAlternateCommandIDs, forKey: .defaultAlternateCommandIDs)
+        try container.encode(
+            Dictionary(uniqueKeysWithValues: defaultInputs.map {
+                ($0.key.rawValue, $0.value)
+            }),
+            forKey: .defaultInputs
+        )
     }
 }
 

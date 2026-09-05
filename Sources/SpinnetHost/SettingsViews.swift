@@ -387,21 +387,11 @@ final class SettingsWindowModel: ObservableObject {
 
     @discardableResult
     func moveMenuItem(from sourceIndex: Int, to targetIndex: Int) -> Bool {
-        guard editor.configuration.menu.slots.indices.contains(sourceIndex),
-              editor.configuration.menu.slots.indices.contains(targetIndex) else { return false }
-        guard sourceIndex != targetIndex else { return true }
-        guard editor.configuration.menu.slots[sourceIndex].item != nil else {
-            placementMessage = "Slot \(sourceIndex + 1) is empty."
-            return false
-        }
-        guard editor.configuration.menu.slots[targetIndex].item == nil else {
-            placementMessage = "Slot \(targetIndex + 1) is occupied. Free it before moving a Menu Item there."
-            return false
-        }
         let before = editor.configuration
         let selectedIndexBefore = selectedMenuIndex
         do {
             try editor.moveMenuItem(from: sourceIndex, to: targetIndex)
+            guard editor.configuration != before else { return true }
             selectedMenuIndex = targetIndex
             placementMessage = "Menu Item moved to Slot \(targetIndex + 1)."
             configurationDidChange(editor.configuration)
@@ -414,12 +404,11 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func deleteMenuItem(at index: Int) {
-        guard editor.configuration.menu.slots.indices.contains(index),
-              editor.configuration.menu.slots[index].item != nil else { return }
         let before = editor.configuration
         let selectedIndexBefore = selectedMenuIndex
         do {
             try editor.deleteMenuItem(at: index)
+            guard editor.configuration != before else { return }
             selectedMenuIndex = index
             placementMessage = "Menu Item deleted from Slot \(index + 1)."
             configurationDidChange(editor.configuration)
@@ -488,6 +477,10 @@ struct SettingsRootView: View {
         .frame(minWidth: 1_080, maxWidth: .infinity, minHeight: 680, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { focusedPage = model.page }
         .onChange(of: model.page) { focusedPage = $0 }
+        .onDeleteCommand {
+            guard model.page == .menu else { return }
+            model.deleteMenuItem(at: model.selectedMenuIndex)
+        }
         .alert(
             "Remove occupied Slot \((model.slotPendingRemoval ?? 0) + 1)?",
             isPresented: slotRemovalAlertBinding

@@ -6,6 +6,14 @@ public enum CommandExecution: String, Codable, Equatable, Hashable {
 
 public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case openURL = "url.open"
+
+    public func resolvedURL(from input: JSONValue) -> URL? {
+        guard self == .openURL,
+              case .string(let value) = input,
+              let url = URL(string: value),
+              url.scheme?.isEmpty == false else { return nil }
+        return url
+    }
 }
 
 public struct CommandDeclaration: Codable, Equatable, Hashable {
@@ -135,17 +143,24 @@ public struct PluginManifest: Codable, Equatable {
               preset.defaultAlternateCommandIDs.allSatisfy(commandIDs.contains) else {
             throw ConfigurationError.invalidManifest("Preset Alternate Commands are invalid")
         }
-        guard preset.defaultInputs.keys.allSatisfy({ key in
-            commandIDs.contains(CommandID(key))
-        }) else {
+        guard preset.defaultInputs.keys.allSatisfy(commandIDs.contains) else {
             throw ConfigurationError.invalidManifest("Preset input references an undeclared Command")
         }
         if preset.readiness == .readyToUse {
             let defaultCommandIDs = [primaryCommandID] + preset.defaultAlternateCommandIDs
-            guard defaultCommandIDs.allSatisfy({ preset.defaultInputs[$0.rawValue] != nil }) else {
+            guard defaultCommandIDs.allSatisfy({ preset.defaultInputs[$0] != nil }) else {
                 throw ConfigurationError.invalidManifest(
                     "Ready-to-Use Preset requires an input for every default Command"
                 )
+            }
+            for commandID in defaultCommandIDs {
+                guard let command = commands.first(where: { $0.id == commandID }),
+                      let input = preset.defaultInputs[commandID],
+                      command.hostCommand.resolvedURL(from: input) != nil else {
+                    throw ConfigurationError.invalidManifest(
+                        "Ready-to-Use Preset input is invalid for Command \(commandID.rawValue)"
+                    )
+                }
             }
         }
     }

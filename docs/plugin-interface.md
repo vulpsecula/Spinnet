@@ -42,7 +42,8 @@ Every Plugin appears once in the Library through its single `preset` declaration
 The Host assigns the trusted Built-in or Plugin Library group when it registers
 the package; a third-party manifest cannot claim Built-in identity. `readiness`
 is `ready_to_use` when every default Primary and Alternate Command
-has a value in `default_inputs`; otherwise use `setup_required`. The latter is
+has a valid, immediately executable value in `default_inputs`; otherwise use
+`setup_required`. The latter is
 visible in the Library but awaits the Configuration Sheet workflow before it can
 be added. `is_configurable` is presented independently from readiness. Manifests
 without `preset` remain compatible and appear as configurable, Setup-Required

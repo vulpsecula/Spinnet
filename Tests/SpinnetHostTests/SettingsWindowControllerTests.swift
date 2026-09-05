@@ -271,7 +271,7 @@ final class SettingsWindowControllerTests: XCTestCase {
                 readiness: .readyToUse,
                 isConfigurable: false,
                 defaultPrimaryCommandID: CommandID("host.copy.selection"),
-                defaultInputs: ["host.copy.selection": .null]
+                defaultInputs: [CommandID("host.copy.selection"): .string("spinnet://copy-selection")]
             )
         )
         let plugin = try PluginManifest(
@@ -422,8 +422,8 @@ final class SettingsWindowControllerTests: XCTestCase {
                 defaultPrimaryCommandID: CommandID("ready.primary"),
                 defaultAlternateCommandIDs: [CommandID("ready.alternate")],
                 defaultInputs: [
-                    "ready.primary": .string("https://example.com/primary"),
-                    "ready.alternate": .string("https://example.com/alternate")
+                    CommandID("ready.primary"): .string("https://example.com/primary"),
+                    CommandID("ready.alternate"): .string("https://example.com/alternate")
                 ]
             )
         )
@@ -468,23 +468,72 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertNil(model.editingMenuIndex)
     }
 
-    func testSettingsBoundaryExposesCompositionActionsWithoutRequiringDrag() throws {
-        let controller = try makeController(emptySlotCount: 1)
+    func testReadyPresetRejectsADefaultThatCannotRunImmediately() {
+        XCTAssertThrowsError(try PluginManifest(
+            id: PluginID("com.spinnet.invalid-ready"),
+            name: "Invalid Ready Preset",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: CommandID("invalid.open"),
+                title: "Open",
+                hostCommand: .openURL
+            )],
+            preset: MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                isConfigurable: false,
+                defaultPrimaryCommandID: CommandID("invalid.open"),
+                defaultInputs: [CommandID("invalid.open"): .null]
+            )
+        )) { error in
+            XCTAssertEqual(
+                error as? ConfigurationError,
+                .invalidManifest("Ready-to-Use Preset input is invalid for Command invalid.open")
+            )
+        }
+    }
 
-        for accessibleName in [
-            "Add Fixture to selected Slot",
+    func testRenderedSettingsExposesMoveAndDeleteKeyboardEquivalent() throws {
+        let occupiedEditor = try makeEditor()
+        let occupiedController = SettingsWindowController(editor: occupiedEditor)
+        defer { occupiedController.close() }
+        let occupiedContent = try XCTUnwrap(occupiedController.window?.contentView)
+        occupiedController.present()
+        occupiedContent.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+        let occupiedLabels = renderedAccessibilityLabels(in: occupiedContent)
+
+        XCTAssertTrue(occupiedLabels.contains("Move to Slot"))
+        for label in [
             "Replace selected Slot with Fixture",
-            "Move selected Menu Item to Slot",
             "Delete Menu Item from Slot 1",
             "Remove Slot 1",
             "Undo Slot edit",
             "Redo Slot edit"
         ] {
-            XCTAssertTrue(
-                controller.presentationSnapshot.accessibleNames.contains(accessibleName),
-                "Missing keyboard or assistive-technology action: \(accessibleName)"
-            )
+            XCTAssertTrue(occupiedController.presentationSnapshot.accessibleNames.contains(label))
         }
+
+        let deleteEvent = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: occupiedController.window?.windowNumber ?? 0,
+            context: nil,
+            characters: "\u{7f}",
+            charactersIgnoringModifiers: "\u{7f}",
+            isARepeat: false,
+            keyCode: UInt16(kVK_Delete)
+        ))
+        NSApp.sendEvent(deleteEvent)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+        XCTAssertNil(occupiedEditor.configuration.menu.slots[0].item)
+
+        let emptyController = try makeController(emptySlotCount: 1)
+        defer { emptyController.close() }
+        XCTAssertTrue(
+            emptyController.presentationSnapshot.accessibleNames.contains("Add Fixture to selected Slot")
+        )
     }
 
     func testRemovingAnOccupiedSlotRequiresConfirmationAtTheSettingsWorkflowSeam() throws {
@@ -1270,7 +1319,7 @@ final class SettingsWindowControllerTests: XCTestCase {
                 readiness: .readyToUse,
                 isConfigurable: true,
                 defaultPrimaryCommandID: CommandID("fixture.open"),
-                defaultInputs: ["fixture.open": .string("https://example.com")]
+                defaultInputs: [CommandID("fixture.open"): .string("https://example.com")]
             )
         )
         try registry.register(PluginPackage(
@@ -1297,6 +1346,43 @@ final class SettingsWindowControllerTests: XCTestCase {
         let representation = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: bounds))
         view.cacheDisplay(in: bounds, to: representation)
         return representation
+    }
+
+    private func renderedAccessibilityLabels(in root: NSObject) -> Set<String> {
+        var labels = Set<String>()
+        var visited = Set<ObjectIdentifier>()
+
+        func visit(_ value: Any) {
+            guard let object = value as? NSObject else { return }
+            let identifier = ObjectIdentifier(object)
+            guard visited.insert(identifier).inserted else { return }
+            let attributeValue = NSSelectorFromString("accessibilityAttributeValue:")
+            let accessibilityLabel = NSSelectorFromString("accessibilityLabel")
+            let accessibilityChildren = NSSelectorFromString("accessibilityChildren")
+            var descriptions: [String] = object.responds(to: attributeValue)
+                ? [NSAccessibility.Attribute.description, .title].compactMap { attribute in
+                    object.perform(attributeValue, with: attribute)?
+                        .takeUnretainedValue() as? String
+                }
+                : []
+            if object.responds(to: accessibilityLabel),
+               let label = object.perform(accessibilityLabel)?.takeUnretainedValue() as? String {
+                descriptions.append(label)
+            }
+            var children = object.responds(to: attributeValue)
+                ? object.perform(attributeValue, with: NSAccessibility.Attribute.children)?
+                    .takeUnretainedValue() as? [Any]
+                : nil
+            if children == nil, object.responds(to: accessibilityChildren) {
+                children = object.perform(accessibilityChildren)?
+                    .takeUnretainedValue() as? [Any]
+            }
+            labels.formUnion(descriptions.filter { !$0.isEmpty })
+            children?.forEach(visit)
+        }
+
+        visit(root)
+        return labels
     }
 
     private func colorDistance(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {

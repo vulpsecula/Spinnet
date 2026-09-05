@@ -4,6 +4,24 @@ public protocol ConfigurationStore {
     func load() throws -> HostConfiguration?
     func save(_ configuration: HostConfiguration) throws
 }
+
+public enum MenuItemMoveError: Error, Equatable, LocalizedError {
+    case slotIndexOutOfRange
+    case sourceSlotEmpty(Int)
+    case targetSlotOccupied(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .slotIndexOutOfRange:
+            return "Menu Slot index is out of range."
+        case .sourceSlotEmpty(let index):
+            return "Slot \(index + 1) is empty."
+        case .targetSlotOccupied(let index):
+            return "Slot \(index + 1) is occupied. Free it before moving a Menu Item there."
+        }
+    }
+}
+
 public final class HostConfigurationStore: ConfigurationStore {
     public let fileURL: URL
 
@@ -280,7 +298,7 @@ public final class HostConfigurationEditor {
         let commandIDs = [primaryCommandID] + declaration.defaultAlternateCommandIDs
         let newActions = try commandIDs.map { commandID -> ActionConfiguration in
             guard let command = preset.commands.first(where: { $0.id == commandID }),
-                  let input = declaration.defaultInputs[commandID.rawValue] else {
+                  let input = declaration.defaultInputs[commandID] else {
                 throw ConfigurationError.invalidAction("Preset defaults are incomplete")
             }
             return try ActionConfiguration(
@@ -311,14 +329,14 @@ public final class HostConfigurationEditor {
     public func moveMenuItem(from sourceIndex: Int, to targetIndex: Int) throws {
         guard configuration.menu.slots.indices.contains(sourceIndex),
               configuration.menu.slots.indices.contains(targetIndex) else {
-            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+            throw MenuItemMoveError.slotIndexOutOfRange
         }
         guard sourceIndex != targetIndex else { return }
         guard let item = configuration.menu.slots[sourceIndex].item else {
-            throw ConfigurationError.invalidMenu("Source Menu Slot is empty")
+            throw MenuItemMoveError.sourceSlotEmpty(sourceIndex)
         }
         guard configuration.menu.slots[targetIndex].item == nil else {
-            throw ConfigurationError.invalidMenu("Target Menu Slot is occupied")
+            throw MenuItemMoveError.targetSlotOccupied(targetIndex)
         }
         var slots = configuration.menu.slots
         slots[sourceIndex] = .empty
