@@ -176,9 +176,12 @@ final class SettingsWindowModel: ObservableObject {
         if page == .menu {
             names.append(contentsOf: ["Built-in Presets", "Plugin Presets"])
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
-            for preset in editor.menuItemPresets {
-                names.append("Add \(preset.name) to selected Slot")
-                names.append("Replace selected Slot with \(preset.name)")
+            let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(selectedMenuIndex)
+                && editor.configuration.menu.slots[selectedMenuIndex].item == nil
+            if selectedSlotIsEmpty {
+                for preset in editor.menuItemPresets {
+                    names.append("Add \(preset.name) to selected Slot")
+                }
             }
             for (index, slot) in editor.configuration.menu.slots.enumerated()
                 where slot.item != nil {

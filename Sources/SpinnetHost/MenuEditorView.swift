@@ -33,7 +33,7 @@ struct MenuEditorView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Library").font(.title2.weight(.semibold))
-                    Text("Drag a Menu Item Preset to a Slot, or add it with the keyboard-accessible button.")
+                    Text("Drag a Menu Item Preset to a Slot. Focus an empty Slot to add it with the keyboard-accessible button.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -152,19 +152,17 @@ struct MenuEditorView: View {
 
             Spacer()
 
-            Button {
-                _ = onPresetPlacement(preset.id, selectedMenuIndex)
-            } label: {
-                Image(systemName: selectedSlotIsOccupied
-                    ? "arrow.triangle.2.circlepath"
-                    : "plus")
+            if !selectedSlotIsOccupied {
+                Button {
+                    _ = onPresetPlacement(preset.id, selectedMenuIndex)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                .disabled(!preset.isAvailable || preset.readiness != .readyToUse)
+                .help(presetActionHelp(preset))
+                .accessibilityLabel("Add \(preset.name) to selected Slot")
             }
-            .buttonStyle(.borderless)
-            .disabled(!preset.isAvailable || preset.readiness != .readyToUse)
-            .help(presetActionHelp(preset))
-            .accessibilityLabel(selectedSlotIsOccupied
-                ? "Replace selected Slot with \(preset.name)"
-                : "Add \(preset.name) to selected Slot")
 
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary)
@@ -196,7 +194,7 @@ struct MenuEditorView: View {
         guard preset.isAvailable else { return "This Preset is unavailable" }
         guard preset.readiness == .readyToUse else { return "This Preset requires setup before it can be added" }
         return selectedSlotIsOccupied
-            ? "Replace the Menu Item in the selected Slot after confirmation"
-            : "Add to selected empty Slot"
+            ? "Drag this Preset to an empty Slot to add it"
+            : "Add to selected empty Slot or drag it to a Slot"
     }
 }

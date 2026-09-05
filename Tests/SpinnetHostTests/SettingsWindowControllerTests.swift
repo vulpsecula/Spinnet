@@ -619,7 +619,6 @@ final class SettingsWindowControllerTests: XCTestCase {
         _ = renderedAccessibilityLabels(in: occupiedContent)
 
         for label in [
-            "Replace selected Slot with Fixture",
             "Edit Menu Item in Slot 1",
             "Clear Menu Item from Slot 1",
             "Undo Slot edit",
@@ -646,9 +645,22 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         let emptyController = try makeController(emptySlotCount: 1)
         defer { emptyController.close() }
-        XCTAssertTrue(
-            emptyController.presentationSnapshot.accessibleNames.contains("Add Fixture to selected Slot")
+        XCTAssertFalse(
+            emptyController.presentationSnapshot.accessibleNames.contains("Replace selected Slot with Fixture")
         )
+    }
+
+    func testPluginPresetOnlyExposesAddForAnEmptyFocusedSlot() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+
+        XCTAssertTrue(model.accessibleNames.contains("Add Fixture to selected Slot"))
+        XCTAssertFalse(model.accessibleNames.contains("Replace selected Slot with Fixture"))
+
+        model.selectMenuItem(at: 0)
+
+        XCTAssertFalse(model.accessibleNames.contains("Add Fixture to selected Slot"))
+        XCTAssertFalse(model.accessibleNames.contains("Replace selected Slot with Fixture"))
     }
 
     func testDeleteSelectedContentRemovesAnEmptySlotAtTheSettingsWorkflowSeam() throws {
