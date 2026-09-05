@@ -193,10 +193,16 @@ public final class HostConfigurationEditor {
     }
 
     public func addEmptySlot() throws {
-        try replaceConfiguration(
-            actions: configuration.actions,
-            slots: configuration.menu.slots + [.empty]
-        )
+        try insertSlot(.empty, at: configuration.menu.slots.endIndex)
+    }
+
+    public func insertSlot(_ slot: MenuSlotConfiguration, at index: Int) throws {
+        guard (0...configuration.menu.slots.count).contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        var slots = configuration.menu.slots
+        slots.insert(slot, at: index)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
     public func removeSlot(at index: Int) throws {

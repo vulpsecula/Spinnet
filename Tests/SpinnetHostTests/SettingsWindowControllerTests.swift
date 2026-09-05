@@ -256,6 +256,82 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
     }
 
+    func testRemovingAnOccupiedSlotRequiresConfirmationAtTheSettingsWorkflowSeam() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        model.selectMenuItem(at: 0)
+        var savedConfiguration: HostConfiguration?
+        model.onConfigurationChanged = { savedConfiguration = $0 }
+
+        model.requestRemoveSelectedSlot()
+
+        XCTAssertEqual(model.slotPendingRemoval, 0)
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNil(savedConfiguration)
+
+        model.confirmSlotRemoval()
+
+        XCTAssertNil(model.slotPendingRemoval)
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertEqual(savedConfiguration, model.editor.configuration)
+    }
+
+    func testSlotEditsUndoRedoAndPersistThroughTheSettingsWorkflowSeam() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetSlotWorkflow-\(UUID().uuidString)")
+        let store = HostConfigurationStore(
+            fileURL: directory.appendingPathComponent("configuration.json")
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.onConfigurationChanged = { try? store.save($0) }
+
+        model.addEmptySlot()
+        XCTAssertTrue(model.canUndoSlotEdit)
+        XCTAssertEqual(try store.load()?.menu.slots.count, 2)
+
+        model.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
+        XCTAssertEqual(try store.load()?.menu.slots.count, 1)
+        XCTAssertTrue(model.canRedoSlotEdit)
+
+        model.redoSlotEdit()
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
+        XCTAssertEqual(try store.load(), model.editor.configuration)
+    }
+
+    func testUndoRestoresTheExactOccupiedSlotAfterConfirmedRemoval() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        model.selectMenuItem(at: 0)
+        model.requestRemoveSelectedSlot()
+        model.confirmSlotRemoval()
+
+        XCTAssertEqual(model.editor.configuration.menu.slots, [.empty])
+
+        model.undoSlotEdit()
+
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertEqual(
+            model.editor.configuration.menu.slots[0].item?.primaryActionID,
+            ActionID("open-url")
+        )
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
+    }
+
+    func testSettingsWorkflowStopsAddingEmptySlotsAtTwelve() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+
+        for _ in 1..<13 {
+            model.addEmptySlot()
+        }
+
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 12)
+        XCTAssertTrue(model.editor.configuration.menu.slots.dropFirst().allSatisfy { $0.item == nil })
+    }
+
     func testEverySettingsPageRendersAtTheWindowBoundary() throws {
         let defaults = UserDefaults.standard
         let appearanceKeys = ["appearance.theme", "appearance.accent", "appearance.menu-size"]
@@ -792,6 +868,25 @@ final class SettingsWindowControllerTests: XCTestCase {
         view.commitRuntimeSelection()
 
         XCTAssertEqual(selectedIndex, 0)
+    }
+
+    func testAllEmptyRuntimeMenuOpensAndEmptySlotActivationOnlyGivesFeedback() throws {
+        let runtimeMenu = MenuPresentationController(items: [.empty, .empty, .empty])
+        var emptySlotIndex: Int?
+        var actionCount = 0
+        runtimeMenu.onEmptySlotActivated = { emptySlotIndex = $0 }
+        runtimeMenu.onPrimaryAction = { _ in actionCount += 1 }
+        let visibleFrame = try XCTUnwrap(NSScreen.main).visibleFrame
+        let pointer = CGPoint(x: visibleFrame.midX, y: visibleFrame.midY)
+
+        runtimeMenu.open(at: pointer)
+        XCTAssertTrue(runtimeMenu.isOpen)
+
+        runtimeMenu.activateSlot(at: 1)
+
+        XCTAssertFalse(runtimeMenu.isOpen)
+        XCTAssertEqual(emptySlotIndex, 1)
+        XCTAssertEqual(actionCount, 0)
     }
 
     func testAccessibilityPromptIsRequestedOnlyOnceWhileSystemTrustIsReadLive() {

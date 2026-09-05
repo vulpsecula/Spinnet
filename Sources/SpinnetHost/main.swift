@@ -32,6 +32,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             )
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onAlternateAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
+            menu.onEmptySlotActivated = { [weak self] index in
+                self?.feedback.showMessage("Slot \(index + 1) is empty")
+            }
             menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
             feedback = ActionFeedbackPresenter()
             settings = SettingsWindowController(editor: editor)

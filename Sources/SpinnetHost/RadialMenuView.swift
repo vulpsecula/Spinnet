@@ -313,9 +313,19 @@ final class RadialMenuView: NSView {
             }
             path.stroke()
 
-            let title = slot.isEmpty ? "+" : slot.title
+            let title = slot.isEmpty ? "+" : compactTitle(slot.title)
+            let titleFontSize: CGFloat
+            if slot.isEmpty {
+                titleFontSize = 22
+            } else if layout.itemCount >= 10 {
+                titleFontSize = 10
+            } else if layout.itemCount >= 8 {
+                titleFontSize = 11
+            } else {
+                titleFontSize = 13
+            }
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: slot.isEmpty ? 22 : 13, weight: .semibold),
+                .font: NSFont.systemFont(ofSize: titleFontSize, weight: .semibold),
                 .foregroundColor: selectedIndex == index && slot.item?.primaryAction.isAvailable != false
                     ? NSColor.white
                     : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
@@ -364,5 +374,14 @@ final class RadialMenuView: NSView {
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
         )
+    }
+
+    private func compactTitle(_ title: String) -> String {
+        guard layout.itemCount >= 10 else { return title }
+        if let firstWord = title.split(whereSeparator: \Character.isWhitespace).first,
+           firstWord.count <= 7 {
+            return String(firstWord)
+        }
+        return String(title.prefix(6)) + "…"
     }
 }

@@ -10,7 +10,10 @@ final class SettingsWindowModel: ObservableObject {
     @Published var selectedMenuIndex = 0
     @Published var placementMessage: String?
     @Published var editingMenuIndex: Int?
+    @Published private(set) var slotPendingRemoval: Int?
     @Published private(set) var refreshToken = 0
+    @Published private(set) var canUndoSlotEdit = false
+    @Published private(set) var canRedoSlotEdit = false
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
     @Published var triggerMouseButton: Int {
@@ -46,6 +49,7 @@ final class SettingsWindowModel: ObservableObject {
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
+    private let slotUndoManager = UndoManager()
     private let accessibilityPermissionCheck: () -> Bool
     private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
 
@@ -72,6 +76,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
+        slotUndoManager.groupsByEvent = false
     }
 
     var menuSlots: [MenuSlotPresentation] {
@@ -138,28 +143,89 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func addEmptySlot() {
+        insertSlot(.empty, at: editor.configuration.menu.slots.endIndex, actionName: "Add Slot")
+    }
+
+    func undoSlotEdit() {
+        slotUndoManager.undo()
+        refreshUndoState()
+    }
+
+    func redoSlotEdit() {
+        slotUndoManager.redo()
+        refreshUndoState()
+    }
+
+    private func insertSlot(
+        _ slot: MenuSlotConfiguration,
+        at index: Int,
+        actionName: String
+    ) {
         do {
-            try editor.addEmptySlot()
-            selectedMenuIndex = editor.configuration.menu.slots.count - 1
+            try editor.insertSlot(slot, at: index)
+            selectedMenuIndex = index
             placementMessage = "Empty Slot \(selectedMenuIndex + 1) added. Drag a Plugin onto it."
             configurationDidChange(editor.configuration)
+            registerSlotUndo(actionName: actionName) { model in
+                model.removeSlot(at: index, actionName: actionName)
+            }
+            refreshUndoState()
         } catch {
             placementMessage = error.localizedDescription
         }
     }
 
-    func removeSelectedEmptySlot() {
+    func requestRemoveSelectedSlot() {
         guard editor.configuration.menu.slots.count > 1,
-              editor.configuration.menu.slots.indices.contains(selectedMenuIndex),
-              editor.configuration.menu.slots[selectedMenuIndex].item == nil else { return }
+              editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return }
+        if editor.configuration.menu.slots[selectedMenuIndex].item != nil {
+            slotPendingRemoval = selectedMenuIndex
+        } else {
+            removeSlot(at: selectedMenuIndex, actionName: "Remove Slot")
+        }
+    }
+
+    func confirmSlotRemoval() {
+        guard let index = slotPendingRemoval else { return }
+        slotPendingRemoval = nil
+        removeSlot(at: index, actionName: "Remove Slot")
+    }
+
+    func cancelSlotRemoval() {
+        slotPendingRemoval = nil
+    }
+
+    private func removeSlot(at index: Int, actionName: String) {
+        guard editor.configuration.menu.slots.indices.contains(index) else { return }
+        let removedSlot = editor.configuration.menu.slots[index]
         do {
-            try editor.removeSlot(at: selectedMenuIndex)
-            selectedMenuIndex = min(selectedMenuIndex, editor.configuration.menu.slots.count - 1)
-            placementMessage = "Empty Slot removed."
+            try editor.removeSlot(at: index)
+            selectedMenuIndex = min(index, editor.configuration.menu.slots.count - 1)
+            placementMessage = "Slot \(index + 1) removed."
             configurationDidChange(editor.configuration)
+            registerSlotUndo(actionName: actionName) { model in
+                model.insertSlot(removedSlot, at: index, actionName: actionName)
+            }
+            refreshUndoState()
         } catch {
             placementMessage = error.localizedDescription
         }
+    }
+
+    private func refreshUndoState() {
+        canUndoSlotEdit = slotUndoManager.canUndo
+        canRedoSlotEdit = slotUndoManager.canRedo
+    }
+
+    private func registerSlotUndo(
+        actionName: String,
+        action: @escaping (SettingsWindowModel) -> Void
+    ) {
+        let needsExplicitGroup = !slotUndoManager.isUndoing && !slotUndoManager.isRedoing
+        if needsExplicitGroup { slotUndoManager.beginUndoGrouping() }
+        slotUndoManager.registerUndo(withTarget: self, handler: action)
+        slotUndoManager.setActionName(actionName)
+        if needsExplicitGroup { slotUndoManager.endUndoGrouping() }
     }
 
     func placePreset(pluginID: String, at index: Int) -> Bool {
@@ -212,6 +278,22 @@ struct SettingsRootView: View {
         .frame(minWidth: 1_080, maxWidth: .infinity, minHeight: 680, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { focusedPage = model.page }
         .onChange(of: model.page) { focusedPage = $0 }
+        .alert(
+            "Remove occupied Slot \((model.slotPendingRemoval ?? 0) + 1)?",
+            isPresented: slotRemovalAlertBinding
+        ) {
+            Button("Cancel", role: .cancel, action: model.cancelSlotRemoval)
+            Button("Remove Slot", role: .destructive, action: model.confirmSlotRemoval)
+        } message: {
+            Text("The Menu Item will be removed from this Menu. Its configured Action remains available.")
+        }
+    }
+
+    private var slotRemovalAlertBinding: Binding<Bool> {
+        Binding(
+            get: { model.slotPendingRemoval != nil },
+            set: { if !$0 { model.cancelSlotRemoval() } }
+        )
     }
 
     private var navigation: some View {
@@ -297,20 +379,38 @@ struct SettingsRootView: View {
             if model.page == .menu {
                 HStack(spacing: 8) {
                     Button(action: model.addEmptySlot) {
-                        Label("Add Slot", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                     .disabled(model.menuSlots.count >= 12)
                     .accessibilityLabel("Add empty Slot")
-                    Button(action: model.removeSelectedEmptySlot) {
-                        Label("Remove", systemImage: "minus")
+                    .help("Add empty Slot")
+                    Button(action: model.requestRemoveSelectedSlot) {
+                        Image(systemName: "trash")
                     }
-                    .disabled(
-                        model.menuSlots.count <= 1
-                            || model.menuSlots[model.selectedMenuIndex].item != nil
-                    )
-                    .accessibilityLabel("Remove selected empty Slot")
+                    .disabled(model.menuSlots.count <= 1)
+                    .accessibilityLabel("Remove Slot \(model.selectedMenuIndex + 1)")
+                    .help("Remove Slot \(model.selectedMenuIndex + 1)")
+                    Text("Slot \(model.selectedMenuIndex + 1) selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button(action: model.undoSlotEdit) {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!model.canUndoSlotEdit)
+                    .keyboardShortcut("z", modifiers: .command)
+                    .help("Undo Slot edit")
+                    .accessibilityLabel("Undo Slot edit")
+                    Button(action: model.redoSlotEdit) {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!model.canRedoSlotEdit)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .help("Redo Slot edit")
+                    .accessibilityLabel("Redo Slot edit")
                     Spacer()
-                    Text("\(model.menuSlots.count) of 12 Slots")
+                    Text("\(model.menuSlots.count) / 12")
+                        .monospacedDigit()
+                        .accessibilityLabel("\(model.menuSlots.count) of 12 Slots")
                 }
                 .padding(.horizontal, 28)
                 .padding(.top, 10)

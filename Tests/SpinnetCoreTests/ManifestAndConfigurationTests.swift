@@ -125,4 +125,42 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertEqual(menu.slots.count, 1)
         XCTAssertEqual(menu.slots[0].item?.primaryActionID, ActionID("legacy"))
     }
+
+    func testLegacyHostConfigurationMigrationPreservesConfiguredActions() throws {
+        let action = try ActionConfiguration(
+            id: ActionID("legacy"),
+            pluginID: PluginID("fixture"),
+            command: CommandDeclaration(
+                id: CommandID("fixture.open"),
+                title: "Open",
+                hostCommand: .openURL
+            ),
+            input: .string("https://example.com")
+        )
+        let current = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(items: [
+                try MenuItemConfiguration(primaryActionID: action.id)
+            ])
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(current))
+                as? [String: Any]
+        )
+        object["menu"] = [
+            "items": [[
+                "primary_action_id": "legacy",
+                "alternate_action_ids": []
+            ]]
+        ]
+
+        let migrated = try JSONDecoder().decode(
+            HostConfiguration.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertEqual(migrated.actions, [action])
+        XCTAssertEqual(migrated.menu.slots.count, 1)
+        XCTAssertEqual(migrated.menu.slots[0].item?.primaryActionID, action.id)
+    }
 }

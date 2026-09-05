@@ -36,11 +36,14 @@ final class ActionFeedbackPresenter {
     func showOutcome(_ outcome: ActionOutcome) {
         switch outcome.terminal {
         case .succeeded:
-            label.stringValue = outcome.title + " completed"
+            showMessage(outcome.title + " completed")
         case .failed(let failure):
-            label.stringValue = failure.userMessage
+            showMessage(failure.userMessage)
         }
+    }
 
+    func showMessage(_ message: String) {
+        label.stringValue = message
         panel.center()
         panel.orderFrontRegardless()
         NSAccessibility.post(element: panel, notification: .valueChanged)

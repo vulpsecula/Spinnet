@@ -17,6 +17,7 @@ final class MenuPresentationController {
     private(set) var isOpen = false
     var onPrimaryAction: ((ActionID) -> Void)?
     var onAlternateAction: ((ActionID) -> Void)?
+    var onEmptySlotActivated: ((Int) -> Void)?
     var onDismiss: (() -> Void)?
 
     init(
@@ -82,13 +83,12 @@ final class MenuPresentationController {
     }
 
     private func configureMenuView() {
-        menuView.onPrimarySelection = { [weak self] index in self?.select(index: index) }
+        menuView.onPrimarySelection = { [weak self] index in self?.activateSlot(at: index) }
         menuView.onAlternateSelection = { [weak self] index in self?.showAlternates(for: index) }
         menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
     func open(at pointer: CGPoint) {
-        guard slots.contains(where: { $0.item != nil }) else { return }
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
         }
@@ -119,23 +119,29 @@ final class MenuPresentationController {
     func finishGesture(at screenPoint: CGPoint) {
         guard isOpen else { return }
         updateGesture(at: screenPoint)
-        guard let index = menuView.selectedIndex,
-              slots.indices.contains(index),
-              slots[index].item != nil else {
+        guard let index = menuView.selectedIndex else {
             dismiss()
             return
         }
-        select(index: index)
+        activateSlot(at: index)
     }
 
-    private func select(index: Int) {
-        guard slots.indices.contains(index), let item = slots[index].item else { return }
+    func activateSlot(at index: Int) {
+        guard slots.indices.contains(index) else { return }
         dismiss()
+        guard let item = slots[index].item else {
+            onEmptySlotActivated?(index)
+            return
+        }
         onPrimaryAction?(item.configuration.primaryActionID)
     }
 
     private func showAlternates(for index: Int) {
-        guard slots.indices.contains(index), let item = slots[index].item else { return }
+        guard slots.indices.contains(index) else { return }
+        guard let item = slots[index].item else {
+            activateSlot(at: index)
+            return
+        }
 
         let menu = NSMenu(title: "Alternate Actions")
         menu.autoenablesItems = false
