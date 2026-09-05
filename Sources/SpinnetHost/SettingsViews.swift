@@ -15,6 +15,11 @@ final class SettingsWindowModel: ObservableObject {
         let index: Int
     }
 
+    private enum SlotHistoryDirection {
+        case undo
+        case redo
+    }
+
     let editor: HostConfigurationEditor
     let metadata: ApplicationMetadata
 
@@ -165,7 +170,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func undoSlotEdit() {
-        guard let entry = undoHistory.popLast(), applyUndo(entry) else {
+        guard let entry = undoHistory.popLast(), apply(entry, direction: .undo) else {
             refreshUndoState()
             return
         }
@@ -174,7 +179,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func redoSlotEdit() {
-        guard let entry = redoHistory.popLast(), applyRedo(entry) else {
+        guard let entry = redoHistory.popLast(), apply(entry, direction: .redo) else {
             refreshUndoState()
             return
         }
@@ -260,32 +265,23 @@ final class SettingsWindowModel: ObservableObject {
         refreshUndoState()
     }
 
-    private func applyUndo(_ entry: SlotHistoryEntry) -> Bool {
-        switch entry.kind {
-        case .addition:
+    private func apply(
+        _ entry: SlotHistoryEntry,
+        direction: SlotHistoryDirection
+    ) -> Bool {
+        switch (entry.kind, direction) {
+        case (.addition, .undo):
             guard let index = slotIDs.firstIndex(of: entry.slotID),
                   editor.configuration.menu.slots[index].item == entry.slot.item else { return false }
             return removeSlot(at: index, recordHistory: false)
-        case .removal:
+        case (.removal, .undo), (.addition, .redo):
             let index = min(entry.index, editor.configuration.menu.slots.endIndex)
             return insertSlot(
                 entry.slot,
                 at: index,
                 slotID: entry.slotID
             )
-        }
-    }
-
-    private func applyRedo(_ entry: SlotHistoryEntry) -> Bool {
-        switch entry.kind {
-        case .addition:
-            let index = min(entry.index, editor.configuration.menu.slots.endIndex)
-            return insertSlot(
-                entry.slot,
-                at: index,
-                slotID: entry.slotID
-            )
-        case .removal:
+        case (.removal, .redo):
             guard let index = slotIDs.firstIndex(of: entry.slotID) else { return false }
             return removeSlot(at: index, recordHistory: false)
         }
