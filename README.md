@@ -17,6 +17,19 @@ swift test
 swift run SpinnetHost
 ```
 
+For the bundled app workflow, use `./script/build_and_run.sh`. It selects an
+Apple Development identity and refuses ad-hoc signing by default because macOS
+binds Accessibility consent to the app's signed code requirement. If you need
+an intentionally permission-free local run without a development certificate,
+opt in explicitly:
+
+```sh
+SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
+```
+
+Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
+permission again after rebuilding them.
+
 The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
 manifest loader and opens the radial Menu with Mouse Side Button 1 by default.
 Scripted Actions launch `SpinnetPluginHelper` on demand; registration, idle

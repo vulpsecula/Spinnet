@@ -14,6 +14,24 @@ APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+ALLOW_ADHOC_SIGNING="${SPINNET_ALLOW_ADHOC_SIGNING:-0}"
+
+SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
+fi
+
+if [[ "$SIGNING_IDENTITY" == "-" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
+    echo "error: ad-hoc signing is disabled because it invalidates Accessibility consent." >&2
+    echo "       Use an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
+    exit 1
+fi
+
+if [[ -z "$SIGNING_IDENTITY" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
+    echo "error: no stable code-signing identity found; refusing ad-hoc signing because it invalidates Accessibility consent." >&2
+    echo "       Install/select an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
+    exit 1
+fi
 
 pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 
@@ -59,18 +77,14 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
-if [[ -z "$SIGNING_IDENTITY" ]]; then
-    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
-fi
-
-if [[ -n "$SIGNING_IDENTITY" ]]; then
-    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
-    echo "Signed with Apple Development identity $SIGNING_IDENTITY"
-else
+if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
     codesign --force --deep --sign - "$APP_BUNDLE"
-    echo "warning: no Apple Development identity found; Accessibility permission may reset after code changes" >&2
+    echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
+else
+    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+    echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi
+codesign --verify --deep --strict "$APP_BUNDLE"
 
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"
