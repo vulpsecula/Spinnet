@@ -335,13 +335,15 @@ final class SettingsWindowControllerTests: XCTestCase {
     func testPlacingAnItemInvalidatesStaleSlotStructureUndo() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
+        model.addEmptySlot()
         XCTAssertTrue(model.canUndoSlotEdit)
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
 
-        XCTAssertFalse(model.canUndoSlotEdit)
+        XCTAssertTrue(model.canUndoSlotEdit)
         model.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
     }
 
@@ -937,6 +939,21 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(emptySlotIndex, 1)
         XCTAssertEqual(invokedActionID, ActionID("open-url"))
         XCTAssertFalse(runtimeMenu.isOpen)
+    }
+
+    func testNewHostFeedbackReplacesThePreviousDismissalTimer() {
+        let presenter = HostFeedbackPresenter(displayDuration: 0.05)
+        presenter.showMessage("First")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        presenter.showMessage("Second")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        XCTAssertTrue(presenter.presentationSnapshot.isVisible)
+        XCTAssertEqual(presenter.presentationSnapshot.message, "Second")
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertFalse(presenter.presentationSnapshot.isVisible)
     }
 
     func testAccessibilityPromptIsRequestedOnlyOnceWhileSystemTrustIsReadLive() {

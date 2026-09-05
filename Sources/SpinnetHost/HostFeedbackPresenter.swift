@@ -4,8 +4,11 @@ import SpinnetCore
 final class HostFeedbackPresenter {
     private let panel: NSPanel
     private let label: NSTextField
+    private let displayDuration: TimeInterval
+    private var dismissalWorkItem: DispatchWorkItem?
 
-    init() {
+    init(displayDuration: TimeInterval = 1.5) {
+        self.displayDuration = displayDuration
         label = NSTextField(labelWithString: "")
         panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 340, height: 72),
@@ -43,14 +46,22 @@ final class HostFeedbackPresenter {
     }
 
     func showMessage(_ message: String) {
+        dismissalWorkItem?.cancel()
         label.stringValue = message
         panel.center()
         panel.orderFrontRegardless()
         NSAccessibility.post(element: panel, notification: .valueChanged)
         panel.setAccessibilityValue(label.stringValue)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             self?.panel.orderOut(nil)
+            self?.dismissalWorkItem = nil
         }
+        dismissalWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + displayDuration, execute: workItem)
+    }
+
+    var presentationSnapshot: (message: String, isVisible: Bool) {
+        (label.stringValue, panel.isVisible)
     }
 }

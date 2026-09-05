@@ -3,6 +3,18 @@ import SwiftUI
 import SpinnetCore
 
 final class SettingsWindowModel: ObservableObject {
+    private struct SlotHistoryEntry {
+        enum Kind: Equatable {
+            case addition
+            case removal
+        }
+
+        let kind: Kind
+        let slotID: UUID
+        let slot: MenuSlotConfiguration
+        let index: Int
+    }
+
     let editor: HostConfigurationEditor
     let metadata: ApplicationMetadata
 
@@ -49,9 +61,11 @@ final class SettingsWindowModel: ObservableObject {
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
-    private let slotUndoManager = UndoManager()
     private let accessibilityPermissionCheck: () -> Bool
     private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
+    private var slotIDs: [UUID]
+    private var undoHistory: [SlotHistoryEntry] = []
+    private var redoHistory: [SlotHistoryEntry] = []
 
     init(
         editor: HostConfigurationEditor,
@@ -67,6 +81,7 @@ final class SettingsWindowModel: ObservableObject {
         self.defaults = defaults
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.mouseInputConflictCheck = mouseInputConflictCheck
+        slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
@@ -76,7 +91,6 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
-        slotUndoManager.groupsByEvent = false
     }
 
     var menuSlots: [MenuSlotPresentation] {
@@ -143,35 +157,49 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func addEmptySlot() {
-        insertSlot(.empty, at: editor.configuration.menu.slots.endIndex, actionName: "Add Slot")
+        let index = editor.configuration.menu.slots.endIndex
+        let slotID = UUID()
+        if insertSlot(.empty, at: index, slotID: slotID) {
+            record(SlotHistoryEntry(kind: .addition, slotID: slotID, slot: .empty, index: index))
+        }
     }
 
     func undoSlotEdit() {
-        slotUndoManager.undo()
+        guard let entry = undoHistory.popLast(), applyUndo(entry) else {
+            refreshUndoState()
+            return
+        }
+        redoHistory.append(entry)
         refreshUndoState()
     }
 
     func redoSlotEdit() {
-        slotUndoManager.redo()
+        guard let entry = redoHistory.popLast(), applyRedo(entry) else {
+            refreshUndoState()
+            return
+        }
+        undoHistory.append(entry)
         refreshUndoState()
     }
 
+    @discardableResult
     private func insertSlot(
         _ slot: MenuSlotConfiguration,
         at index: Int,
-        actionName: String
-    ) {
+        slotID: UUID
+    ) -> Bool {
         do {
             try editor.insertSlot(slot, at: index)
+            slotIDs.insert(slotID, at: index)
             selectedMenuIndex = index
-            placementMessage = "Empty Slot \(selectedMenuIndex + 1) added. Drag a Menu Item Preset onto it."
+            placementMessage = slot.item == nil
+                ? "Empty Slot \(index + 1) added. Drag a Menu Item Preset onto it."
+                : "Slot \(index + 1) restored."
             configurationDidChange(editor.configuration)
-            registerSlotUndo(actionName: actionName) { model in
-                model.removeSlot(at: index, actionName: actionName)
-            }
-            refreshUndoState()
+            return true
         } catch {
             placementMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -181,51 +209,86 @@ final class SettingsWindowModel: ObservableObject {
         if editor.configuration.menu.slots[selectedMenuIndex].item != nil {
             slotPendingRemoval = selectedMenuIndex
         } else {
-            removeSlot(at: selectedMenuIndex, actionName: "Remove Slot")
+            removeSlot(at: selectedMenuIndex, recordHistory: true)
         }
     }
 
     func confirmSlotRemoval() {
         guard let index = slotPendingRemoval else { return }
         slotPendingRemoval = nil
-        removeSlot(at: index, actionName: "Remove Slot")
+        removeSlot(at: index, recordHistory: true)
     }
 
     func cancelSlotRemoval() {
         slotPendingRemoval = nil
     }
 
-    private func removeSlot(at index: Int, actionName: String) {
-        guard editor.configuration.menu.slots.indices.contains(index) else { return }
+    @discardableResult
+    private func removeSlot(at index: Int, recordHistory: Bool) -> Bool {
+        guard editor.configuration.menu.slots.indices.contains(index) else { return false }
         let removedSlot = editor.configuration.menu.slots[index]
+        let removedSlotID = slotIDs[index]
         do {
             try editor.removeSlot(at: index)
+            slotIDs.remove(at: index)
             selectedMenuIndex = min(index, editor.configuration.menu.slots.count - 1)
             placementMessage = "Slot \(index + 1) removed."
             configurationDidChange(editor.configuration)
-            registerSlotUndo(actionName: actionName) { model in
-                model.insertSlot(removedSlot, at: index, actionName: actionName)
+            if recordHistory {
+                record(SlotHistoryEntry(
+                    kind: .removal,
+                    slotID: removedSlotID,
+                    slot: removedSlot,
+                    index: index
+                ))
             }
-            refreshUndoState()
+            return true
         } catch {
             placementMessage = error.localizedDescription
+            return false
         }
     }
 
     private func refreshUndoState() {
-        canUndoSlotEdit = slotUndoManager.canUndo
-        canRedoSlotEdit = slotUndoManager.canRedo
+        canUndoSlotEdit = !undoHistory.isEmpty
+        canRedoSlotEdit = !redoHistory.isEmpty
     }
 
-    private func registerSlotUndo(
-        actionName: String,
-        action: @escaping (SettingsWindowModel) -> Void
-    ) {
-        let needsExplicitGroup = !slotUndoManager.isUndoing && !slotUndoManager.isRedoing
-        if needsExplicitGroup { slotUndoManager.beginUndoGrouping() }
-        slotUndoManager.registerUndo(withTarget: self, handler: action)
-        slotUndoManager.setActionName(actionName)
-        if needsExplicitGroup { slotUndoManager.endUndoGrouping() }
+    private func record(_ entry: SlotHistoryEntry) {
+        undoHistory.append(entry)
+        redoHistory.removeAll()
+        refreshUndoState()
+    }
+
+    private func applyUndo(_ entry: SlotHistoryEntry) -> Bool {
+        switch entry.kind {
+        case .addition:
+            guard let index = slotIDs.firstIndex(of: entry.slotID),
+                  editor.configuration.menu.slots[index].item == entry.slot.item else { return false }
+            return removeSlot(at: index, recordHistory: false)
+        case .removal:
+            let index = min(entry.index, editor.configuration.menu.slots.endIndex)
+            return insertSlot(
+                entry.slot,
+                at: index,
+                slotID: entry.slotID
+            )
+        }
+    }
+
+    private func applyRedo(_ entry: SlotHistoryEntry) -> Bool {
+        switch entry.kind {
+        case .addition:
+            let index = min(entry.index, editor.configuration.menu.slots.endIndex)
+            return insertSlot(
+                entry.slot,
+                at: index,
+                slotID: entry.slotID
+            )
+        case .removal:
+            guard let index = slotIDs.firstIndex(of: entry.slotID) else { return false }
+            return removeSlot(at: index, recordHistory: false)
+        }
     }
 
     func placePreset(pluginID: String, at index: Int) -> Bool {
@@ -246,9 +309,13 @@ final class SettingsWindowModel: ObservableObject {
                 input: .string(""),
                 inSlotAt: index
             )
-            slotUndoManager.removeAllActions()
+            let occupiedSlotID = slotIDs[index]
+            undoHistory.removeAll {
+                $0.slotID == occupiedSlotID && $0.kind == .addition
+            }
+            redoHistory.removeAll()
             refreshUndoState()
-            placementMessage = "Menu Item Preset added to Slot \(index + 1)."
+            placementMessage = "Menu Item added to Slot \(index + 1)."
             configurationDidChange(editor.configuration)
             editingMenuIndex = index
             return true
