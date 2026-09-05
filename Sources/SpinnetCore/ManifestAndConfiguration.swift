@@ -60,19 +60,22 @@ public struct PluginManifest: Codable, Equatable {
     public let name: String
     public let version: String
     public let commands: [CommandDeclaration]
+    public let preset: MenuItemPresetDeclaration
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
         id: PluginID,
         name: String,
         version: String,
-        commands: [CommandDeclaration]
+        commands: [CommandDeclaration],
+        preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration()
     ) throws {
         self.protocolVersion = protocolVersion
         self.id = id
         self.name = name
         self.version = version
         self.commands = commands
+        self.preset = preset
         try validate()
     }
 
@@ -82,6 +85,7 @@ public struct PluginManifest: Codable, Equatable {
         case name
         case version
         case commands
+        case preset
     }
 
     public init(from decoder: Decoder) throws {
@@ -91,6 +95,10 @@ public struct PluginManifest: Codable, Equatable {
         self.name = try container.decode(String.self, forKey: .name)
         self.version = try container.decode(String.self, forKey: .version)
         self.commands = try container.decode([CommandDeclaration].self, forKey: .commands)
+        self.preset = try container.decodeIfPresent(
+            MenuItemPresetDeclaration.self,
+            forKey: .preset
+        ) ?? MenuItemPresetDeclaration()
         try validate()
     }
 
@@ -117,6 +125,29 @@ public struct PluginManifest: Codable, Equatable {
             try validateText(command.id.rawValue, name: "Command ID")
             try validateText(command.title, name: "Command title")
         }
+
+        let primaryCommandID = preset.defaultPrimaryCommandID ?? commands[0].id
+        guard commandIDs.contains(primaryCommandID) else {
+            throw ConfigurationError.invalidManifest("Preset Primary Command is not declared")
+        }
+        guard Set(preset.defaultAlternateCommandIDs).count == preset.defaultAlternateCommandIDs.count,
+              !preset.defaultAlternateCommandIDs.contains(primaryCommandID),
+              preset.defaultAlternateCommandIDs.allSatisfy(commandIDs.contains) else {
+            throw ConfigurationError.invalidManifest("Preset Alternate Commands are invalid")
+        }
+        guard preset.defaultInputs.keys.allSatisfy({ key in
+            commandIDs.contains(CommandID(key))
+        }) else {
+            throw ConfigurationError.invalidManifest("Preset input references an undeclared Command")
+        }
+        if preset.readiness == .readyToUse {
+            let defaultCommandIDs = [primaryCommandID] + preset.defaultAlternateCommandIDs
+            guard defaultCommandIDs.allSatisfy({ preset.defaultInputs[$0.rawValue] != nil }) else {
+                throw ConfigurationError.invalidManifest(
+                    "Ready-to-Use Preset requires an input for every default Command"
+                )
+            }
+        }
     }
 
     private func validateText(_ value: String, name: String) throws {
@@ -132,10 +163,16 @@ public struct PluginManifest: Codable, Equatable {
 public struct PluginPackage {
     public let rootURL: URL
     public let manifest: PluginManifest
+    public let presetSource: MenuItemPresetSource
 
-    public init(rootURL: URL, manifest: PluginManifest) {
+    public init(
+        rootURL: URL,
+        manifest: PluginManifest,
+        presetSource: MenuItemPresetSource = .plugin
+    ) {
         self.rootURL = rootURL
         self.manifest = manifest
+        self.presetSource = presetSource
     }
 }
 

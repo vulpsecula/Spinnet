@@ -60,9 +60,17 @@ public final class HostConfigurationEditor {
         registry.availableCommands()
     }
 
+    public var menuItemPresets: [MenuItemPreset] {
+        registry.menuItemPresets()
+    }
+
     public func availability(for actionID: ActionID) -> ActionAvailability? {
         guard let action = action(with: actionID) else { return nil }
         return registry.availability(for: action)
+    }
+
+    public func restore(_ configuration: HostConfiguration) {
+        self.configuration = configuration
     }
 
     @discardableResult
@@ -246,6 +254,90 @@ public final class HostConfigurationEditor {
             slots: slots
         )
         return action
+    }
+
+    @discardableResult
+    public func placePreset(
+        pluginID: PluginID,
+        inSlotAt index: Int,
+        replacing: Bool = false
+    ) throws -> MenuItemConfiguration {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        guard configuration.menu.slots[index].item == nil || replacing else {
+            throw ConfigurationError.invalidMenu("Menu Slot is already occupied")
+        }
+        guard let preset = registry.menuItemPreset(for: pluginID), preset.isAvailable else {
+            throw ConfigurationError.invalidAction("Preset is unavailable")
+        }
+        guard preset.readiness == .readyToUse else {
+            throw ConfigurationError.invalidAction("Preset requires setup")
+        }
+
+        let declaration = preset.declaration
+        let primaryCommandID = declaration.defaultPrimaryCommandID ?? preset.commands[0].id
+        let commandIDs = [primaryCommandID] + declaration.defaultAlternateCommandIDs
+        let newActions = try commandIDs.map { commandID -> ActionConfiguration in
+            guard let command = preset.commands.first(where: { $0.id == commandID }),
+                  let input = declaration.defaultInputs[commandID.rawValue] else {
+                throw ConfigurationError.invalidAction("Preset defaults are incomplete")
+            }
+            return try ActionConfiguration(
+                id: ActionID(UUID().uuidString),
+                pluginID: pluginID,
+                command: command,
+                input: input
+            )
+        }
+        let item = try MenuItemConfiguration(
+            primaryActionID: newActions[0].id,
+            alternateActionIDs: newActions.dropFirst().map(\.id)
+        )
+        let replacedActionIDs = Set(
+            configuration.menu.slots[index].item.map {
+                [$0.primaryActionID] + $0.alternateActionIDs
+            } ?? []
+        )
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item)
+        try replaceConfiguration(
+            actions: configuration.actions.filter { !replacedActionIDs.contains($0.id) } + newActions,
+            slots: slots
+        )
+        return item
+    }
+
+    public func moveMenuItem(from sourceIndex: Int, to targetIndex: Int) throws {
+        guard configuration.menu.slots.indices.contains(sourceIndex),
+              configuration.menu.slots.indices.contains(targetIndex) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        guard sourceIndex != targetIndex else { return }
+        guard let item = configuration.menu.slots[sourceIndex].item else {
+            throw ConfigurationError.invalidMenu("Source Menu Slot is empty")
+        }
+        guard configuration.menu.slots[targetIndex].item == nil else {
+            throw ConfigurationError.invalidMenu("Target Menu Slot is occupied")
+        }
+        var slots = configuration.menu.slots
+        slots[sourceIndex] = .empty
+        slots[targetIndex] = .occupied(item)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
+    }
+
+    public func deleteMenuItem(at index: Int) throws {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        guard let item = configuration.menu.slots[index].item else { return }
+        let actionIDs = Set([item.primaryActionID] + item.alternateActionIDs)
+        var slots = configuration.menu.slots
+        slots[index] = .empty
+        try replaceConfiguration(
+            actions: configuration.actions.filter { !actionIDs.contains($0.id) },
+            slots: slots
+        )
     }
 
     private func action(with id: ActionID) -> ActionConfiguration? {

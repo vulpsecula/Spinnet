@@ -3,6 +3,15 @@
   "id": "com.spinnet.fixture",
   "name": "Spinnet Fixture Plugin",
   "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "fixture.open_url",
+    "default_alternate_command_ids": [],
+    "default_inputs": {
+      "fixture.open_url": "https://github.com/vulpsecula/Spinnet"
+    }
+  },
   "commands": [
     {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"}
   ]

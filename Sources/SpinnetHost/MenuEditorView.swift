@@ -5,39 +5,18 @@ struct MenuEditorView: View {
     let editor: HostConfigurationEditor
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
+    let librarySectionsForQuery: (String) -> [MenuItemPresetSection]
     let onPresetPlacement: (String, Int) -> Bool
 
     @State private var searchText = ""
 
-    private struct LibraryPlugin: Identifiable {
-        let id: String
-        let name: String
-        let commands: [AvailableCommand]
+    private var librarySections: [MenuItemPresetSection] {
+        librarySectionsForQuery(searchText)
     }
 
-    private var libraryPlugins: [LibraryPlugin] {
-        let grouped = Dictionary(grouping: editor.availableCommands, by: { $0.pluginID })
-        return grouped
-            .map { pluginID, commands in
-                LibraryPlugin(
-                    id: pluginID.rawValue,
-                    name: commands.first?.pluginName ?? pluginID.rawValue,
-                    commands: commands.sorted {
-                        $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
-                    }
-                )
-            }
-            .filter {
-                searchText.isEmpty
-                    || $0.name.localizedCaseInsensitiveContains(searchText)
-                    || $0.commands.contains { $0.title.localizedCaseInsensitiveContains(searchText) }
-            }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
-    private var selectedSlotIsEmpty: Bool {
+    private var selectedSlotIsOccupied: Bool {
         guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return false }
-        return editor.configuration.menu.slots[selectedMenuIndex].item == nil
+        return editor.configuration.menu.slots[selectedMenuIndex].item != nil
     }
 
     var body: some View {
@@ -50,21 +29,21 @@ struct MenuEditorView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Library").font(.title2.weight(.semibold))
-                    Text("Drag a Plugin onto an empty Slot in the Menu Editor.")
+                    Text("Drag a Menu Item Preset to a Slot, or add it with the keyboard-accessible button.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
-                TextField("Search Plugins", text: $searchText)
+                TextField("Search Presets and Commands", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Search Library")
 
-                if libraryPlugins.isEmpty {
+                if librarySections.allSatisfy({ $0.presets.isEmpty }) {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
                             .foregroundStyle(.secondary)
-                        Text("No Plugins Found").font(.headline)
+                        Text("No Presets Found").font(.headline)
                         Text("Try a different search.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -72,9 +51,24 @@ struct MenuEditorView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
                 } else {
-                    VStack(spacing: 10) {
-                        ForEach(libraryPlugins) { plugin in
-                            libraryCard(plugin)
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(librarySections, id: \.source) { section in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("\(section.source.title) Presets")
+                                    .font(.headline)
+                                    .accessibilityAddTraits(.isHeader)
+                                if section.presets.isEmpty {
+                                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? "No \(section.source.title) Presets available"
+                                        : "No matching Presets")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                } else {
+                                    ForEach(section.presets, id: \.id) { preset in
+                                        draggableLibraryCard(preset)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -102,41 +96,80 @@ struct MenuEditorView: View {
         .accessibilityLabel("Menu")
     }
 
-    private func libraryCard(_ plugin: LibraryPlugin) -> some View {
+    @ViewBuilder
+    private func draggableLibraryCard(_ preset: MenuItemPreset) -> some View {
+        if preset.isAvailable, preset.readiness == .readyToUse {
+            libraryCard(preset)
+                .onDrag {
+                    NSItemProvider(
+                        item: preset.id as NSString,
+                        typeIdentifier: RadialMenuView.libraryPresetPasteboardType.rawValue
+                    )
+                } preview: {
+                    Label(preset.name, systemImage: preset.source == .builtIn
+                        ? "sparkles"
+                        : "puzzlepiece.extension.fill")
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                }
+        } else {
+            libraryCard(preset)
+        }
+    }
+
+    private func libraryCard(_ preset: MenuItemPreset) -> some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.accentColor.opacity(0.14))
                 .frame(width: 42, height: 42)
                 .overlay {
-                    Image(systemName: "puzzlepiece.extension.fill")
+                    Image(systemName: preset.source == .builtIn
+                        ? "sparkles"
+                        : "puzzlepiece.extension.fill")
                         .foregroundStyle(Color.accentColor)
                 }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(plugin.name).font(.headline)
-                Text(plugin.commands.map(\.title).joined(separator: " · "))
+                Text(preset.name).font(.headline)
+                Text(preset.commands.map(\.title).joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                HStack(spacing: 10) {
+                    Label(
+                        preset.stateLabel,
+                        systemImage: presetStateImageName(preset)
+                    )
+                    Label(
+                        preset.configurationLabel,
+                        systemImage: preset.isConfigurable ? "slider.horizontal.3" : "checkmark.seal"
+                    )
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             Button {
-                _ = onPresetPlacement(plugin.id, selectedMenuIndex)
+                _ = onPresetPlacement(preset.id, selectedMenuIndex)
             } label: {
-                Image(systemName: "plus")
+                Image(systemName: selectedSlotIsOccupied
+                    ? "arrow.triangle.2.circlepath"
+                    : "plus")
             }
             .buttonStyle(.borderless)
-            .disabled(!selectedSlotIsEmpty)
-            .help(selectedSlotIsEmpty ? "Add to selected empty Slot" : "Select an empty Slot first")
-            .accessibilityLabel("Add \(plugin.name) to selected Slot")
+            .disabled(!preset.isAvailable || preset.readiness != .readyToUse)
+            .help(presetActionHelp(preset))
+            .accessibilityLabel(selectedSlotIsOccupied
+                ? "Replace selected Slot with \(preset.name)"
+                : "Add \(preset.name) to selected Slot")
 
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary)
                 .accessibilityHidden(true)
         }
-        .padding(12)
+        .padding(10)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -146,15 +179,23 @@ struct MenuEditorView: View {
                 }
         }
         .contentShape(Rectangle())
-        .onDrag {
-            NSItemProvider(object: plugin.id as NSString)
-        } preview: {
-            Label(plugin.name, systemImage: "puzzlepiece.extension.fill")
-                .padding(10)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(plugin.name) Plugin preset")
-        .accessibilityHint("Drag to an empty Menu Slot or select an empty Slot and use Add.")
+        .accessibilityLabel(preset.accessibilityLabel)
+        .accessibilityHint(presetActionHelp(preset))
+    }
+
+    private func presetStateImageName(_ preset: MenuItemPreset) -> String {
+        guard preset.isAvailable else { return "exclamationmark.octagon" }
+        return preset.readiness == .readyToUse
+            ? "checkmark.circle"
+            : "wrench.and.screwdriver"
+    }
+
+    private func presetActionHelp(_ preset: MenuItemPreset) -> String {
+        guard preset.isAvailable else { return "This Preset is unavailable" }
+        guard preset.readiness == .readyToUse else { return "This Preset requires setup before it can be added" }
+        return selectedSlotIsOccupied
+            ? "Replace the Menu Item in the selected Slot after confirmation"
+            : "Add to selected empty Slot"
     }
 }

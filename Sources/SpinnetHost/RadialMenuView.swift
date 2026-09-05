@@ -8,11 +8,20 @@ enum RadialMenuPresentationMode {
 }
 
 final class RadialMenuView: NSView {
+    static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
+        "com.spinnet.library-preset"
+    )
+    static let menuItemPasteboardType = NSPasteboard.PasteboardType(
+        "com.spinnet.menu-item"
+    )
+
     private var layout: RadialMenuLayout
     private var slots: [MenuSlotPresentation]
     private let presentationMode: RadialMenuPresentationMode
     private var appearanceConfiguration = MenuAppearanceConfiguration()
     private var trackingArea: NSTrackingArea?
+    private var editorMouseDownIndex: Int?
+    private var editorDragStarted = false
     private(set) var selectedIndex: Int? {
         didSet {
             needsDisplay = true
@@ -28,6 +37,7 @@ final class RadialMenuView: NSView {
     var onEditorSelection: ((Int) -> Void)?
     var onEditorEditRequested: ((Int) -> Void)?
     var onPresetDrop: ((String, Int) -> Bool)?
+    var onMenuItemDrop: ((Int, Int) -> Bool)?
     var editorAccentColor: NSColor = .controlAccentColor {
         didSet { needsDisplay = true }
     }
@@ -54,7 +64,10 @@ final class RadialMenuView: NSView {
             setAccessibilityRole(.group)
             setAccessibilityLabel("Editor Mode Menu")
             setAccessibilityHelp("Select a Menu Slot to edit it. Actions do not execute in Editor Mode.")
-            registerForDraggedTypes([.string])
+            registerForDraggedTypes([
+                Self.libraryPresetPasteboardType,
+                Self.menuItemPasteboardType
+            ])
         }
         setAccessibilityValue("No Menu Item selected")
     }
@@ -139,7 +152,10 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard presentationMode == .runtime else { return }
+        guard presentationMode == .runtime else {
+            beginEditorDrag(with: event)
+            return
+        }
         updateSelection(at: convert(event.locationInWindow, from: nil))
     }
 
@@ -148,9 +164,8 @@ final class RadialMenuView: NSView {
         guard presentationMode == .runtime else {
             if let selectedIndex {
                 onEditorSelection?(selectedIndex)
-                if slots[selectedIndex].item != nil {
-                    onEditorEditRequested?(selectedIndex)
-                }
+                editorMouseDownIndex = selectedIndex
+                editorDragStarted = false
             }
             return
         }
@@ -167,7 +182,16 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard presentationMode == .runtime else { return }
+        guard presentationMode == .runtime else {
+            defer {
+                editorMouseDownIndex = nil
+                editorDragStarted = false
+            }
+            guard !editorDragStarted, let editorMouseDownIndex,
+                  slots[editorMouseDownIndex].item != nil else { return }
+            onEditorEditRequested?(editorMouseDownIndex)
+            return
+        }
         updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
         onPrimarySelection?(selectedIndex)
@@ -206,12 +230,12 @@ final class RadialMenuView: NSView {
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard presentationMode == .editor else { return [] }
-        return updateDropTarget(sender) == nil ? [] : .copy
+        return dropOperation(for: sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard presentationMode == .editor else { return [] }
-        return updateDropTarget(sender) == nil ? [] : .copy
+        return dropOperation(for: sender)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -221,12 +245,60 @@ final class RadialMenuView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard presentationMode == .editor,
-              let index = updateDropTarget(sender),
-              let pluginID = sender.draggingPasteboard.string(forType: .string) else {
+              let index = updateDropTarget(sender) else {
             return false
         }
         onEditorSelection?(index)
-        return onPresetDrop?(pluginID, index) ?? false
+        if let pluginID = sender.draggingPasteboard.string(
+            forType: Self.libraryPresetPasteboardType
+        ) {
+            return onPresetDrop?(pluginID, index) ?? false
+        }
+        if let source = sender.draggingPasteboard.string(
+            forType: Self.menuItemPasteboardType
+        ).flatMap(Int.init) {
+            return onMenuItemDrop?(source, index) ?? false
+        }
+        return false
+    }
+
+    private func dropOperation(for sender: NSDraggingInfo) -> NSDragOperation {
+        guard let target = updateDropTarget(sender) else { return [] }
+        if sender.draggingPasteboard.string(forType: Self.libraryPresetPasteboardType) != nil {
+            return .copy
+        }
+        if let source = sender.draggingPasteboard.string(
+            forType: Self.menuItemPasteboardType
+        ).flatMap(Int.init),
+           source != target,
+           slots[target].item == nil {
+            return .move
+        }
+        return []
+    }
+
+    private func beginEditorDrag(with event: NSEvent) {
+        guard !editorDragStarted,
+              let sourceIndex = editorMouseDownIndex,
+              slots.indices.contains(sourceIndex),
+              slots[sourceIndex].item != nil else { return }
+        editorDragStarted = true
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(
+            String(sourceIndex),
+            forType: Self.menuItemPasteboardType
+        )
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+        let image = NSImage(
+            systemSymbolName: "circle.grid.cross",
+            accessibilityDescription: "Move Menu Item"
+        ) ?? NSImage(size: NSSize(width: 28, height: 28))
+        let origin = convert(event.locationInWindow, from: nil)
+        draggingItem.setDraggingFrame(
+            NSRect(x: origin.x - 14, y: origin.y - 14, width: 28, height: 28),
+            contents: image
+        )
+        beginDraggingSession(with: [draggingItem], event: event, source: self)
     }
 
     private func updateDropTarget(_ sender: NSDraggingInfo) -> Int? {
@@ -394,5 +466,23 @@ final class RadialMenuView: NSView {
         let words = title.split(whereSeparator: \Character.isWhitespace)
         guard let firstWord = words.first, words.count > 1 else { return title }
         return String(firstWord) + "\n" + words.dropFirst().joined(separator: " ")
+    }
+}
+
+extension RadialMenuView: NSDraggingSource {
+    func draggingSession(
+        _ session: NSDraggingSession,
+        sourceOperationMaskFor context: NSDraggingContext
+    ) -> NSDragOperation {
+        .move
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        endedAt screenPoint: NSPoint,
+        operation: NSDragOperation
+    ) {
+        editorMouseDownIndex = nil
+        editorDragStarted = false
     }
 }

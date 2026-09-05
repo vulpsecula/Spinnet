@@ -134,6 +134,32 @@ public final class PluginRegistry {
             }
     }
 
+    public func menuItemPresets() -> [MenuItemPreset] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        return packages.values
+            .map { package in
+                MenuItemPreset(
+                    pluginID: package.manifest.id,
+                    name: package.manifest.name,
+                    commands: package.manifest.commands,
+                    source: package.presetSource,
+                    declaration: package.manifest.preset,
+                    unavailableReason: disabledPluginIDs.contains(package.manifest.id)
+                        ? .pluginDisabled
+                        : nil
+                )
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    public func menuItemPreset(for pluginID: PluginID) -> MenuItemPreset? {
+        menuItemPresets().first { $0.pluginID == pluginID }
+    }
+
     public func command(
         for pluginID: PluginID,
         commandID: CommandID

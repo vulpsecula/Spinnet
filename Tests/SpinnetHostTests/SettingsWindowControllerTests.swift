@@ -256,6 +256,237 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
     }
 
+    func testLibraryGroupsOnePresetPerSourceAndSearchesPluginCommands() throws {
+        let registry = PluginRegistry()
+        let builtIn = try PluginManifest(
+            id: PluginID("host.copy"),
+            name: "Copy",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: CommandID("host.copy.selection"),
+                title: "Copy Selected Text",
+                hostCommand: .openURL
+            )],
+            preset: MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                isConfigurable: false,
+                defaultPrimaryCommandID: CommandID("host.copy.selection"),
+                defaultInputs: ["host.copy.selection": .null]
+            )
+        )
+        let plugin = try PluginManifest(
+            id: PluginID("com.spinnet.search"),
+            name: "Search Tools",
+            version: "1.0.0",
+            commands: [
+                CommandDeclaration(
+                    id: CommandID("search.web"),
+                    title: "Search the Web",
+                    hostCommand: .openURL
+                ),
+                CommandDeclaration(
+                    id: CommandID("search.docs"),
+                    title: "Search Documentation",
+                    hostCommand: .openURL
+                )
+            ],
+            preset: MenuItemPresetDeclaration(
+                readiness: .setupRequired,
+                isConfigurable: true,
+                defaultPrimaryCommandID: CommandID("search.web")
+            )
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
+            manifest: builtIn,
+            presetSource: .builtIn
+        ))
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/search.spinnetplugin"),
+            manifest: plugin
+        ))
+        let configuration = try HostConfiguration(
+            actions: [],
+            menu: MenuConfiguration(slots: [.empty])
+        )
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(registry: registry, configuration: configuration),
+            metadata: .current
+        )
+
+        let sections = model.librarySections(matching: "")
+
+        XCTAssertEqual(sections.map(\.source), [.builtIn, .plugin])
+        XCTAssertEqual(sections.map { $0.presets.count }, [1, 1])
+        XCTAssertEqual(sections[1].presets[0].commands.count, 2)
+        XCTAssertEqual(sections[0].presets[0].stateLabel, "Ready to Use")
+        XCTAssertEqual(sections[0].presets[0].configurationLabel, "No Configuration")
+        XCTAssertEqual(sections[1].presets[0].stateLabel, "Setup Required")
+        XCTAssertEqual(sections[1].presets[0].configurationLabel, "Configurable")
+        XCTAssertEqual(
+            model.librarySections(matching: "documentation").flatMap(\.presets).map(\.name),
+            ["Search Tools"]
+        )
+        let emptyConfiguration = model.editor.configuration
+        XCTAssertFalse(model.placePreset(pluginID: plugin.id.rawValue, at: 0))
+        XCTAssertEqual(model.editor.configuration, emptyConfiguration)
+        XCTAssertEqual(model.placementMessage, "Invalid Action: Preset requires setup")
+        for accessibleName in [
+            "Built-in Presets",
+            "Plugin Presets",
+            "Copy, Ready to Use, No Configuration, Commands: Copy Selected Text",
+            "Search Tools, Setup Required, Configurable, Commands: Search the Web, Search Documentation"
+        ] {
+            XCTAssertTrue(model.accessibleNames.contains(accessibleName))
+        }
+
+        try registry.setEnabled(false, for: plugin.id)
+        let unavailablePreset = try XCTUnwrap(
+            model.librarySections(matching: "Search Tools").flatMap(\.presets).first
+        )
+        XCTAssertEqual(unavailablePreset.stateLabel, "Unavailable")
+        XCTAssertTrue(unavailablePreset.accessibilityLabel.contains("Plugin is disabled"))
+    }
+
+    func testOccupiedSlotRequiresExplicitPresetReplacementAndUndoRestoresIt() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        let originalConfiguration = model.editor.configuration
+
+        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 0))
+        XCTAssertEqual(model.editor.configuration, originalConfiguration)
+        XCTAssertEqual(
+            model.presetPendingReplacement,
+            PendingPresetReplacement(pluginID: "com.spinnet.fixture", slotIndex: 0)
+        )
+
+        model.confirmPresetReplacement()
+
+        XCTAssertNotEqual(model.editor.configuration, originalConfiguration)
+        XCTAssertNil(model.presetPendingReplacement)
+        XCTAssertTrue(model.canUndoSlotEdit)
+
+        model.undoSlotEdit()
+
+        XCTAssertEqual(model.editor.configuration, originalConfiguration)
+    }
+
+    func testMenuItemMovesOnlyToAnEmptySlotAndDeletionCanBeUndone() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+
+        XCTAssertTrue(model.moveMenuItem(from: 0, to: 1))
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertEqual(
+            model.editor.configuration.menu.slots[1].item?.primaryActionID,
+            ActionID("open-url")
+        )
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 0))
+        let occupiedConfiguration = model.editor.configuration
+
+        XCTAssertFalse(model.moveMenuItem(from: 1, to: 0))
+        XCTAssertEqual(model.editor.configuration, occupiedConfiguration)
+        XCTAssertEqual(model.placementMessage, "Slot 1 is occupied. Free it before moving a Menu Item there.")
+
+        model.deleteMenuItem(at: 1)
+
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
+        XCTAssertEqual(model.editor.configuration.actions.count, 1)
+
+        model.undoSlotEdit()
+
+        XCTAssertEqual(model.editor.configuration, occupiedConfiguration)
+    }
+
+    func testReadyPresetAutosavesAndProducesTheSameRuntimeMenuAfterRestart() throws {
+        let registry = PluginRegistry()
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.ready"),
+            name: "Ready Plugin",
+            version: "1.0.0",
+            commands: [
+                CommandDeclaration(
+                    id: CommandID("ready.primary"),
+                    title: "Primary",
+                    hostCommand: .openURL
+                ),
+                CommandDeclaration(
+                    id: CommandID("ready.alternate"),
+                    title: "Alternate",
+                    hostCommand: .openURL
+                )
+            ],
+            preset: MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                isConfigurable: false,
+                defaultPrimaryCommandID: CommandID("ready.primary"),
+                defaultAlternateCommandIDs: [CommandID("ready.alternate")],
+                defaultInputs: [
+                    "ready.primary": .string("https://example.com/primary"),
+                    "ready.alternate": .string("https://example.com/alternate")
+                ]
+            )
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/ready.spinnetplugin"),
+            manifest: manifest
+        ))
+        let configuration = try HostConfiguration(
+            actions: [],
+            menu: MenuConfiguration(slots: [.empty])
+        )
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetPresetWorkflow-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = HostConfigurationStore(
+            fileURL: directory.appendingPathComponent("configuration.json")
+        )
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(registry: registry, configuration: configuration),
+            metadata: .current
+        )
+        model.onConfigurationChanged = { try? store.save($0) }
+
+        XCTAssertTrue(model.placePreset(pluginID: manifest.id.rawValue, at: 0))
+
+        let restartedConfiguration = try XCTUnwrap(store.load())
+        let item = try XCTUnwrap(restartedConfiguration.menu.slots[0].item)
+        XCTAssertEqual(item.alternateActionIDs.count, 1)
+        XCTAssertEqual(
+            restartedConfiguration.actions.map(\.input),
+            [
+                .string("https://example.com/primary"),
+                .string("https://example.com/alternate")
+            ]
+        )
+        let runtimeSlots = MenuPresentationFactory.makeSlots(
+            configuration: restartedConfiguration,
+            availability: { _ in .available }
+        )
+        XCTAssertEqual(runtimeSlots[0].item?.primaryAction.title, "Primary")
+        XCTAssertEqual(runtimeSlots[0].item?.alternateActions.map(\.title), ["Alternate"])
+        XCTAssertNil(model.editingMenuIndex)
+    }
+
+    func testSettingsBoundaryExposesCompositionActionsWithoutRequiringDrag() throws {
+        let controller = try makeController(emptySlotCount: 1)
+
+        for accessibleName in [
+            "Add Fixture to selected Slot",
+            "Replace selected Slot with Fixture",
+            "Move selected Menu Item to Slot",
+            "Delete Menu Item from Slot 1",
+            "Remove Slot 1",
+            "Undo Slot edit",
+            "Redo Slot edit"
+        ] {
+            XCTAssertTrue(
+                controller.presentationSnapshot.accessibleNames.contains(accessibleName),
+                "Missing keyboard or assistive-technology action: \(accessibleName)"
+            )
+        }
+    }
+
     func testRemovingAnOccupiedSlotRequiresConfirmationAtTheSettingsWorkflowSeam() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
@@ -332,7 +563,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(model.editor.configuration.menu.slots.dropFirst().allSatisfy { $0.item == nil })
     }
 
-    func testPlacingAnItemInvalidatesStaleSlotStructureUndo() throws {
+    func testPlacementAndSlotAdditionUndoAsSeparateCompositionEdits() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
         model.addEmptySlot()
@@ -342,9 +573,16 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         XCTAssertTrue(model.canUndoSlotEdit)
         model.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 3)
+        XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
+        XCTAssertNil(model.editor.configuration.menu.slots[2].item)
+
+        model.undoSlotEdit()
+
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
-        XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
+        XCTAssertNil(model.editor.configuration.menu.slots[1].item)
     }
 
     func testEverySettingsPageRendersAtTheWindowBoundary() throws {
@@ -1027,7 +1265,13 @@ final class SettingsWindowControllerTests: XCTestCase {
                 id: CommandID("fixture.open"),
                 title: "Open URL",
                 hostCommand: .openURL
-            )]
+            )],
+            preset: MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                isConfigurable: true,
+                defaultPrimaryCommandID: CommandID("fixture.open"),
+                defaultInputs: ["fixture.open": .string("https://example.com")]
+            )
         )
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),

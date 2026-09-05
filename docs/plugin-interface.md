@@ -14,6 +14,15 @@ The current walking skeleton supports Host Commands only:
   "id": "com.example.plugin",
   "name": "Example Plugin",
   "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "example.open",
+    "default_alternate_command_ids": [],
+    "default_inputs": {
+      "example.open": "https://example.com"
+    }
+  },
   "commands": [
     {
       "id": "example.open",
@@ -28,6 +37,16 @@ The current walking skeleton supports Host Commands only:
 `id`, `name`, `version`, Command IDs, and Command titles must be non-empty and
 no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
+
+Every Plugin appears once in the Library through its single `preset` declaration.
+The Host assigns the trusted Built-in or Plugin Library group when it registers
+the package; a third-party manifest cannot claim Built-in identity. `readiness`
+is `ready_to_use` when every default Primary and Alternate Command
+has a value in `default_inputs`; otherwise use `setup_required`. The latter is
+visible in the Library but awaits the Configuration Sheet workflow before it can
+be added. `is_configurable` is presented independently from readiness. Manifests
+without `preset` remain compatible and appear as configurable, Setup-Required
+Plugin Presets whose Primary Command is the first declared Command.
 
 The supported Host Command is `url.open`. Its Action input is a JSON string
 containing a URL. The production Host passes the configured Action to the
@@ -67,11 +86,13 @@ to Menu Items:
 has one Primary Action and may have multiple Alternate Actions. Every bound
 Action ID must be unique and present in the Host configuration.
 
-`PluginRegistry.availableCommands()` supplies the enabled Plugin Commands to
-the Host-rendered settings window. The settings window provides a text or JSON
-input field for the Command's configuration value and supports creating,
-editing, and removing Actions. Changes are saved after each successful edit by
-`HostConfigurationStore` and restored on the next Host launch.
+`PluginRegistry.menuItemPresets()` supplies one Library entry per registered
+Plugin, including disabled Plugins as unavailable Presets. Commands are shown
+inside that entry rather than duplicated as top-level Library entries. The
+settings window supports adding a Ready-to-Use Preset, explicit replacement,
+moving a Menu Item only to an empty Slot, and deletion. Changes are saved after
+each successful edit by `HostConfigurationStore` and restored on the next Host
+launch.
 
 An Action retains the Command definition it was configured from. Before
 execution, the Host compares that snapshot with the currently registered
