@@ -3,6 +3,469 @@ import XCTest
 @testable import SpinnetCore
 
 final class PluginRuntimeTests: XCTestCase {
+    func testInvocationSchemaDeclaresItsMessageVariant() throws {
+        let invocation = PluginRuntimeInvocation(
+            pluginID: PluginID("com.example.fixture"),
+            actionID: ActionID("action-1"),
+            commandID: CommandID("fixture.transform_text"),
+            scriptPath: "transform-text.js",
+            scriptSource: "input",
+            input: .string("value")
+        )
+        let data = try JSONEncoder().encode(invocation)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        XCTAssertEqual(object["type"] as? String, "invocation")
+
+        var unsupported = object
+        unsupported["type"] = "host_service_request"
+        let unsupportedData = try JSONSerialization.data(withJSONObject: unsupported)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(PluginRuntimeInvocation.self, from: unsupportedData)
+        )
+    }
+
+    func testConnectionBindsPluginAndEnforcesRequestLifecycle() throws {
+        let pluginID = PluginID("com.example.fixture")
+        let connection = PluginRuntimeConnection(pluginID: pluginID)
+        let invocation = PluginRuntimeInvocation(
+            invocationID: "invocation-1",
+            pluginID: pluginID,
+            actionID: ActionID("action-1"),
+            commandID: CommandID("fixture.transform_text"),
+            scriptPath: "transform-text.js",
+            scriptSource: "input",
+            input: .string("value")
+        )
+
+        let requestData = try connection.prepareInvocation(invocation)
+        XCTAssertEqual(try PluginRuntimeProtocol.decodeInvocation(requestData), invocation)
+
+        let response = PluginRuntimeResponse(
+            invocationID: invocation.invocationID,
+            actionID: invocation.actionID,
+            terminal: .succeeded(.string("result"))
+        )
+        XCTAssertEqual(
+            try connection.acceptResponse(response),
+            response.terminal
+        )
+
+        let duplicateAction = PluginRuntimeInvocation(
+            invocationID: "invocation-2",
+            pluginID: pluginID,
+            actionID: invocation.actionID,
+            commandID: invocation.commandID,
+            scriptPath: invocation.scriptPath,
+            scriptSource: invocation.scriptSource,
+            input: invocation.input
+        )
+        let duplicateConnection = PluginRuntimeConnection(pluginID: pluginID)
+        _ = try duplicateConnection.prepareInvocation(invocation)
+        _ = try duplicateConnection.acceptResponse(response)
+        XCTAssertThrowsError(try duplicateConnection.prepareInvocation(duplicateAction))
+
+        let duplicateInvocation = PluginRuntimeInvocation(
+            invocationID: invocation.invocationID,
+            pluginID: pluginID,
+            actionID: ActionID("action-2"),
+            commandID: invocation.commandID,
+            scriptPath: invocation.scriptPath,
+            scriptSource: invocation.scriptSource,
+            input: invocation.input
+        )
+        let duplicateRequestConnection = PluginRuntimeConnection(pluginID: pluginID)
+        _ = try duplicateRequestConnection.prepareInvocation(invocation)
+        _ = try duplicateRequestConnection.acceptResponse(response)
+        XCTAssertThrowsError(
+            try duplicateRequestConnection.prepareInvocation(duplicateInvocation)
+        )
+
+        let outOfOrderConnection = PluginRuntimeConnection(pluginID: pluginID)
+        XCTAssertThrowsError(try outOfOrderConnection.acceptResponse(response))
+
+        let impersonation = PluginRuntimeInvocation(
+            invocationID: "invocation-3",
+            pluginID: PluginID("com.example.other"),
+            actionID: ActionID("action-3"),
+            commandID: invocation.commandID,
+            scriptPath: invocation.scriptPath,
+            scriptSource: invocation.scriptSource,
+            input: invocation.input
+        )
+        let freshConnection = PluginRuntimeConnection(pluginID: pluginID)
+        XCTAssertThrowsError(try freshConnection.prepareInvocation(impersonation))
+    }
+
+    func testInvocationMessageLimitAcceptsAtMostOneMiB() throws {
+        let base = try PluginRuntimeProtocol.encodeInvocation(
+            makeInvocation(scriptSource: "")
+        ).count
+        let below = makeInvocation(
+            scriptSource: String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base - 1)
+        )
+        let at = makeInvocation(
+            scriptSource: String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base)
+        )
+        let above = makeInvocation(
+            scriptSource: String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base + 1)
+        )
+
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.encodeInvocation(below).count,
+            PluginRuntimeProtocol.maximumMessageBytes - 1
+        )
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.encodeInvocation(at).count,
+            PluginRuntimeProtocol.maximumMessageBytes
+        )
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.decodeInvocation(
+                PluginRuntimeProtocol.encodeInvocation(at)
+            ),
+            at
+        )
+        XCTAssertThrowsError(try PluginRuntimeProtocol.encodeInvocation(above))
+    }
+
+    func testResponseMessageLimitAcceptsAtMostOneMiB() throws {
+        let makeResponse: (String) -> PluginRuntimeResponse = { value in
+            PluginRuntimeResponse(
+                invocationID: "invocation-1",
+                actionID: ActionID("action-1"),
+                terminal: .succeeded(.string(value))
+            )
+        }
+        let base = try PluginRuntimeProtocol.encodeResponse(makeResponse("")).count
+        let below = makeResponse(
+            String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base - 1)
+        )
+        let at = makeResponse(
+            String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base)
+        )
+        let above = makeResponse(
+            String(repeating: "x", count: PluginRuntimeProtocol.maximumMessageBytes - base + 1)
+        )
+
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.encodeResponse(below).count,
+            PluginRuntimeProtocol.maximumMessageBytes - 1
+        )
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.encodeResponse(at).count,
+            PluginRuntimeProtocol.maximumMessageBytes
+        )
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.decodeResponse(
+                PluginRuntimeProtocol.encodeResponse(at)
+            ),
+            at
+        )
+        XCTAssertThrowsError(try PluginRuntimeProtocol.encodeResponse(above))
+    }
+
+    func testPublicFrameReaderEnforcesOneMiBBodyLimitAtPipeBoundary() throws {
+        let below = Data(repeating: 0x78, count: PluginRuntimeProtocol.maximumMessageBytes - 1)
+        let at = Data(repeating: 0x78, count: PluginRuntimeProtocol.maximumMessageBytes)
+        let above = Data(repeating: 0x78, count: PluginRuntimeProtocol.maximumMessageBytes + 1)
+
+        XCTAssertEqual(try readFramedBody(below)?.count, below.count)
+        XCTAssertEqual(try readFramedBody(at)?.count, at.count)
+        XCTAssertThrowsError(try readFramedBody(above))
+    }
+
+    func testResponseSchemaRejectsUnsupportedVersionsAndVariants() throws {
+        let response = PluginRuntimeResponse(
+            invocationID: "invocation-1",
+            actionID: ActionID("action-1"),
+            terminal: .succeeded(.null)
+        )
+        let encoded = try PluginRuntimeProtocol.encodeResponse(response)
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        object["protocol_version"] = "2.0"
+        let unsupportedVersion = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(
+            try PluginRuntimeProtocol.decodeResponse(unsupportedVersion)
+        )
+
+        object["protocol_version"] = PluginRuntimeProtocol.version
+        object["type"] = "progress"
+        let unsupportedType = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(
+            try PluginRuntimeProtocol.decodeResponse(unsupportedType)
+        )
+
+        var invocation = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: PluginRuntimeProtocol.encodeInvocation(makeInvocation(scriptSource: "input"))
+            ) as? [String: Any]
+        )
+        invocation["protocol_version"] = "2.0"
+        let unsupportedInvocationVersion = try JSONSerialization.data(withJSONObject: invocation)
+        XCTAssertThrowsError(
+            try PluginRuntimeProtocol.decodeInvocation(unsupportedInvocationVersion)
+        )
+    }
+
+    func testSchemasRejectMalformedValuesAndUnknownTerminalKinds() throws {
+        var invocation = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: PluginRuntimeProtocol.encodeInvocation(makeInvocation(scriptSource: "input"))
+            ) as? [String: Any]
+        )
+        invocation["action_id"] = "   "
+        let emptyActionID = try JSONSerialization.data(withJSONObject: invocation)
+        XCTAssertThrowsError(try PluginRuntimeProtocol.decodeInvocation(emptyActionID))
+
+        let response = PluginRuntimeResponse(
+            invocationID: "invocation-1",
+            actionID: ActionID("action-1"),
+            terminal: .succeeded(.null)
+        )
+        var terminal = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: PluginRuntimeProtocol.encodeResponse(response)
+            ) as? [String: Any]
+        )
+        terminal["terminal"] = ["kind": "progress", "result": NSNull()]
+        let unknownTerminal = try JSONSerialization.data(withJSONObject: terminal)
+        XCTAssertThrowsError(try PluginRuntimeProtocol.decodeResponse(unknownTerminal))
+
+        terminal["terminal"] = [
+            "kind": "succeeded",
+            "result": NSNull(),
+            "failure": ["category": "helper_error", "message": "unexpected"]
+        ]
+        let ambiguousTerminal = try JSONSerialization.data(withJSONObject: terminal)
+        XCTAssertThrowsError(try PluginRuntimeProtocol.decodeResponse(ambiguousTerminal))
+
+        let connection = PluginRuntimeConnection(pluginID: PluginID("com.example.fixture"))
+        XCTAssertThrowsError(try connection.acceptResponse(response))
+        XCTAssertEqual(connection.state, .closed)
+    }
+
+    func testHelperIdentityAndCapabilityClaimsAreNotPartOfResponseAuthority() throws {
+        let pluginID = PluginID("com.example.fixture")
+        let invocation = makeInvocation(scriptSource: "input")
+        let connection = PluginRuntimeConnection(pluginID: pluginID)
+        _ = try connection.prepareInvocation(invocation)
+
+        let response = PluginRuntimeResponse(
+            invocationID: invocation.invocationID,
+            actionID: invocation.actionID,
+            terminal: .succeeded(.string("result"))
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: PluginRuntimeProtocol.encodeResponse(response)
+            ) as? [String: Any]
+        )
+        object["plugin_id"] = "com.example.impersonator"
+        object["capabilities"] = ["clipboard.read", "network"]
+        let claimed = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try PluginRuntimeProtocol.decodeResponse(claimed)
+        XCTAssertEqual(try connection.acceptResponse(decoded), .succeeded(.string("result")))
+    }
+
+    func testMalformedHelperTerminatesOnlyItsActionAndSecondPluginStillRuns() throws {
+        let helperURL = try XCTUnwrap(
+            helperURLIfBuilt(),
+            "Build SpinnetPluginHelper before running integration tests"
+        )
+        let hostileHelperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            printf '%s\\n' '{"type":"progress","protocol_version":"1.0","invocation_id":"wrong","action_id":"wrong","terminal":{"kind":"succeeded","result":null}}'
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: hostileHelperURL) }
+
+        let first = try makeScriptedPackage(
+            pluginID: PluginID("com.example.first"),
+            script: "input"
+        )
+        let second = try makeScriptedPackage(
+            pluginID: PluginID("com.example.second"),
+            script: "input"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: first.rootURL)
+            try? FileManager.default.removeItem(at: second.rootURL)
+        }
+
+        let firstAction = try ActionConfiguration(
+            id: ActionID("first-action"),
+            pluginID: first.manifest.id,
+            command: first.manifest.commands[0],
+            input: .string("first")
+        )
+        let secondAction = try ActionConfiguration(
+            id: ActionID("second-action"),
+            pluginID: second.manifest.id,
+            command: second.manifest.commands[0],
+            input: .string("second")
+        )
+        let registry = PluginRegistry()
+        try registry.register(first)
+        try registry.register(second)
+
+        let failed = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: hostileHelperURL)
+        ).invoke(firstAction, using: registry)
+        guard case .failed(let failure) = failed.terminal else {
+            return XCTFail("A hostile terminal message should fail its Action")
+        }
+        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+        XCTAssertEqual(failure.pluginID, firstAction.pluginID)
+        XCTAssertEqual(failure.actionID, firstAction.id)
+
+        let secondOutcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL)
+        ).invoke(secondAction, using: registry)
+        XCTAssertEqual(secondOutcome.terminal, .succeeded(.string("second")))
+    }
+
+    func testOversizedHelperResponseFailsClosedWithoutAffectingAnotherPlugin() throws {
+        let helperURL = try XCTUnwrap(
+            helperURLIfBuilt(),
+            "Build SpinnetPluginHelper before running integration tests"
+        )
+        let oversizedHelperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            printf '%s' '{"type":"terminal","protocol_version":"1.0","invocation_id":"wrong","action_id":"wrong","terminal":{"kind":"succeeded","result":"'
+            awk 'BEGIN { for (i = 0; i < 1048500; i++) printf "x" }'
+            printf '%s\\n' '"}}'
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: oversizedHelperURL) }
+
+        let first = try makeScriptedPackage(
+            pluginID: PluginID("com.example.oversized"),
+            script: "input"
+        )
+        let second = try makeScriptedPackage(
+            pluginID: PluginID("com.example.after-oversized"),
+            script: "input"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: first.rootURL)
+            try? FileManager.default.removeItem(at: second.rootURL)
+        }
+        let firstAction = try ActionConfiguration(
+            id: ActionID("oversized-action"),
+            pluginID: first.manifest.id,
+            command: first.manifest.commands[0],
+            input: .string("first")
+        )
+        let secondAction = try ActionConfiguration(
+            id: ActionID("after-oversized-action"),
+            pluginID: second.manifest.id,
+            command: second.manifest.commands[0],
+            input: .string("second")
+        )
+        let registry = PluginRegistry()
+        try registry.register(first)
+        try registry.register(second)
+
+        let failed = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: oversizedHelperURL)
+        ).invoke(firstAction, using: registry)
+        guard case .failed(let failure) = failed.terminal else {
+            return XCTFail("An oversized terminal message should fail its Action")
+        }
+        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+
+        let secondOutcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL)
+        ).invoke(secondAction, using: registry)
+        XCTAssertEqual(secondOutcome.terminal, .succeeded(.string("second")))
+    }
+
+    func testDuplicateTerminalMessagesFailClosed() throws {
+        let duplicateHelperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^"]*\\)".*/\\1/p')
+            action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^"]*\\)".*/\\1/p')
+            response=$(printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":null}}' "$invocation_id" "$action_id")
+            printf '%s\\n' "$response"
+            sleep 1
+            printf '%s\\n' "$response"
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: duplicateHelperURL) }
+
+        let package = try makeScriptedPackage(
+            pluginID: PluginID("com.example.duplicate"),
+            script: "input"
+        )
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let action = try ActionConfiguration(
+            id: ActionID("duplicate-action"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .string("value")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: duplicateHelperURL)
+        ).invoke(action, using: registry)
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A duplicate terminal message should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+    }
+
+    func testSilentHelperReachesAStableProtocolFailureAtTheActionDeadline() throws {
+        let silentHelperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            sleep 10
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: silentHelperURL) }
+
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-silent"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("Spinnet Plugin fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: silentHelperURL)
+        ).invoke(action, using: registry)
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A silent helper should produce a terminal protocol failure")
+        }
+        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+    }
+
     func testFixtureTextCommandRunsInTheJavaScriptCoreHelper() throws {
         let helperURL = try XCTUnwrap(helperURLIfBuilt(), "Build SpinnetPluginHelper before running integration tests")
         let package = try loadFixturePackage()
@@ -184,6 +647,67 @@ final class PluginRuntimeTests: XCTestCase {
         return try PluginManifestLoader.load(
             packageAt: root.appendingPathComponent("Plugins/SpinnetFixture.spinnetplugin")
         )
+    }
+
+    private func makeInvocation(scriptSource: String) -> PluginRuntimeInvocation {
+        PluginRuntimeInvocation(
+            invocationID: "invocation-1",
+            pluginID: PluginID("com.example.fixture"),
+            actionID: ActionID("action-1"),
+            commandID: CommandID("fixture.transform_text"),
+            scriptPath: "transform-text.js",
+            scriptSource: scriptSource,
+            input: .string("value")
+        )
+    }
+
+    private func readFramedBody(_ body: Data) throws -> Data? {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetProtocolFrame-\(UUID().uuidString)")
+        var framed = body
+        framed.append(0x0A)
+        try framed.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        return try PluginRuntimeProtocol.readFrame(
+            from: handle,
+            label: "Test message"
+        )
+    }
+
+    private func makeScriptedPackage(pluginID: PluginID, script: String) throws -> PluginPackage {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetProtocolPackage-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        try Data(script.utf8).write(to: directory.appendingPathComponent("action.js"))
+        let command = CommandDeclaration(
+            id: CommandID("\(pluginID.rawValue).action"),
+            title: "Action",
+            execution: .javascript,
+            script: "action.js"
+        )
+        let manifest = try PluginManifest(
+            id: pluginID,
+            name: pluginID.rawValue,
+            version: "1.0.0",
+            commands: [command]
+        )
+        return PluginPackage(rootURL: directory, manifest: manifest)
+    }
+
+    private func makeShellHelper(_ source: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetHostileHelper-\(UUID().uuidString)")
+        try Data(source.utf8).write(to: url)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: url.path
+        )
+        return url
     }
 
     private func helperURLIfBuilt() -> URL? {

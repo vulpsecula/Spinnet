@@ -10,15 +10,19 @@ struct SpinnetPluginHelperMain {
             exit(70)
         }
 
-        while let line = readLine(strippingNewline: true) {
-            guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+        while true {
             let response: PluginRuntimeResponse
             do {
-                let invocation = try decodeInvocation(line)
+                guard let data = try PluginRuntimeProtocol.readFrame(
+                    from: FileHandle.standardInput,
+                    label: "Invocation"
+                ) else { break }
+                let invocation = try PluginRuntimeProtocol.decodeInvocation(data)
                 response = execute(invocation)
             } catch let error as PluginRuntimeError {
                 response = PluginRuntimeResponse(
                     invocationID: "unknown",
+                    actionID: ActionID("unknown"),
                     terminal: .failed(PluginRuntimeFailure(
                         category: .invalidInvocation,
                         message: error.localizedDescription
@@ -27,6 +31,7 @@ struct SpinnetPluginHelperMain {
             } catch {
                 response = PluginRuntimeResponse(
                     invocationID: "unknown",
+                    actionID: ActionID("unknown"),
                     terminal: .failed(PluginRuntimeFailure(
                         category: .helperError,
                         message: "Helper could not decode its invocation"
@@ -39,28 +44,6 @@ struct SpinnetPluginHelperMain {
             // runtime fault local to this Plugin and Action.
             break
         }
-    }
-
-    private static func decodeInvocation(_ line: String) throws -> PluginRuntimeInvocation {
-        let data = Data(line.utf8)
-        guard data.count <= PluginRuntimeProtocol.maximumMessageBytes else {
-            throw PluginRuntimeError.protocolViolation("Invocation exceeds the message limit")
-        }
-        let invocation = try JSONDecoder().decode(PluginRuntimeInvocation.self, from: data)
-        guard invocation.protocolVersion == PluginRuntimeProtocol.version else {
-            throw PluginRuntimeError.protocolViolation(
-                "Unsupported protocol version \(invocation.protocolVersion)"
-            )
-        }
-        guard !invocation.invocationID.isEmpty,
-              !invocation.pluginID.rawValue.isEmpty,
-              !invocation.actionID.rawValue.isEmpty,
-              !invocation.commandID.rawValue.isEmpty,
-              !invocation.scriptPath.isEmpty,
-              !invocation.scriptSource.isEmpty else {
-            throw PluginRuntimeError.protocolViolation("Invocation is incomplete")
-        }
-        return invocation
     }
 
     private static func execute(_ invocation: PluginRuntimeInvocation) -> PluginRuntimeResponse {
@@ -85,6 +68,7 @@ struct SpinnetPluginHelperMain {
         guard let value = context.evaluateScript(invocation.scriptSource) else {
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
                 terminal: .failed(PluginRuntimeFailure(
                     category: .scriptError,
                     message: exceptionMessage ?? "Script returned no result"
@@ -94,6 +78,7 @@ struct SpinnetPluginHelperMain {
         guard exceptionMessage == nil else {
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
                 terminal: .failed(PluginRuntimeFailure(
                     category: .scriptError,
                     message: exceptionMessage ?? "Script evaluation failed"
@@ -105,11 +90,13 @@ struct SpinnetPluginHelperMain {
             let result = try jsonValue(from: value)
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
                 terminal: .succeeded(result)
             )
         } catch {
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
                 terminal: .failed(PluginRuntimeFailure(
                     category: .scriptError,
                     message: "Script returned a value that is not JSON"
@@ -130,13 +117,23 @@ struct SpinnetPluginHelperMain {
 
     private static func emit(_ response: PluginRuntimeResponse) {
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            let data = try encoder.encode(response)
+            let data = try PluginRuntimeProtocol.encodeResponse(response)
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data([0x0A]))
         } catch {
-            exit(70)
+            let fallback = PluginRuntimeResponse(
+                invocationID: "unknown",
+                actionID: ActionID("unknown"),
+                terminal: .failed(PluginRuntimeFailure(
+                    category: .helperError,
+                    message: "Terminal response could not be encoded"
+                ))
+            )
+            guard let data = try? PluginRuntimeProtocol.encodeResponse(fallback) else {
+                exit(70)
+            }
+            FileHandle.standardOutput.write(data)
+            FileHandle.standardOutput.write(Data([0x0A]))
         }
     }
 }

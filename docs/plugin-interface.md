@@ -73,6 +73,55 @@ initialize a JavaScript runtime. The script receives these globals:
   current invocation.
 
 The helper exchange is newline-delimited JSON using protocol version `1.0`.
+The JSON object before the newline is the message body; it is accepted when
+its UTF-8 representation is at most 1 MiB. The newline delimiter is framing
+and is not included in that limit. The two supported top-level message
+variants are:
+
+```json
+{
+  "type": "invocation",
+  "protocol_version": "1.0",
+  "invocation_id": "invocation-1",
+  "plugin_id": "com.example.plugin",
+  "action_id": "action-1",
+  "command_id": "example.transform",
+  "script_path": "transform.js",
+  "script_source": "input",
+  "input": "Selected text"
+}
+```
+
+```json
+{
+  "type": "terminal",
+  "protocol_version": "1.0",
+  "invocation_id": "invocation-1",
+  "action_id": "action-1",
+  "terminal": {
+    "kind": "succeeded",
+    "result": {"value": "transformed"}
+  }
+}
+```
+
+The terminal `kind` is either `succeeded` with a JSON `result`, or `failed`
+with a `failure` containing one of the documented failure categories. Unknown
+protocol versions, top-level `type` values, terminal `kind` values, missing
+fields, invalid values, and payloads above 1 MiB are rejected.
+
+The Host chooses the Plugin identity when it creates a helper connection. The
+`plugin_id` in an invocation is Host-owned context for the script; the Host
+does not accept Plugin identity or Capability claims from a helper response.
+Invocation and Action identifiers must be non-empty and unique on a
+connection. One invocation may be in flight at a time, and its terminal
+response must carry the matching invocation and Action identifiers. A
+duplicate, out-of-order, or otherwise invalid message closes only that helper
+connection and gives its Action the stable `runtime_protocol_failed` outcome.
+The Host also bounds the wait for a terminal frame by the four-second scripted
+Action deadline; a partial or silent helper is terminated and reported through
+the same stable failure path.
+
 Each invocation must produce exactly one terminal response, either a JSON
 result or a stable script failure. A helper process that exits by signal is
 reported by the Host as `helper_crashed`; the Host process remains alive.
