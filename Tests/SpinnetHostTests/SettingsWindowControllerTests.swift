@@ -283,7 +283,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(alternateExecutionCount, 0)
     }
 
-    func testEditorContextMenuShowsFocusedSlotDetailsAndDeletesTheSlot() throws {
+    func testEditorContextMenuShowsFocusedSlotDetailsAndClearsAnOccupiedSlot() throws {
         let editor = try makeEditor()
         try editor.addEmptySlot()
         let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
@@ -320,16 +320,45 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(menu.items.contains { $0.title == "Slot 1 — Open URL" })
         XCTAssertTrue(menu.items.contains { $0.title == "Primary Action: Open URL" })
         XCTAssertFalse(menu.items.contains { $0.title == "Move to Slot" })
-        let deleteItem = try XCTUnwrap(menu.items.first { $0.title == "Delete Slot" })
-        XCTAssertTrue(deleteItem.isEnabled)
+        let clearItem = try XCTUnwrap(menu.items.first { $0.title == "Clear Slot" })
+        XCTAssertTrue(clearItem.isEnabled)
 
         _ = NSApp.sendAction(
-            try XCTUnwrap(deleteItem.action),
-            to: deleteItem.target,
-            from: deleteItem
+            try XCTUnwrap(clearItem.action),
+            to: clearItem.target,
+            from: clearItem
         )
 
         XCTAssertEqual(deletedIndex, 0)
+    }
+
+    func testRuntimeActionMenuListsPrimaryAndAlternateActions() throws {
+        let primaryID = ActionID("primary")
+        let alternateID = ActionID("alternate")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(
+                primaryActionID: primaryID,
+                alternateActionIDs: [alternateID]
+            ),
+            primaryAction: MenuActionPresentation(
+                actionID: primaryID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: [MenuActionPresentation(
+                actionID: alternateID,
+                title: "Transform Text",
+                availability: .available
+            )]
+        )
+        let controller = MenuPresentationController(items: [.occupied(item)])
+
+        let menu = try XCTUnwrap(controller.makeActionMenu(for: 0))
+
+        XCTAssertEqual(
+            menu.items.filter { !$0.isSeparatorItem }.map(\.title),
+            ["Open URL", "Transform Text"]
+        )
     }
 
     func testSettingsAppearanceUpdatesTheRuntimeMenu() throws {
@@ -376,6 +405,22 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
         XCTAssertEqual(model.editingMenuIndex, 1)
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
+    }
+
+    func testPlacingAPluginPresetBindsItsDefaultAlternateActionToTheSlot() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+
+        let item = try XCTUnwrap(model.editor.configuration.menu.slots[1].item)
+        XCTAssertEqual(item.alternateActionIDs.count, 1)
+        let runtimeSlots = MenuPresentationFactory.makeSlots(
+            configuration: model.editor.configuration,
+            availability: { _ in .available }
+        )
+        XCTAssertEqual(runtimeSlots[1].item?.primaryAction.title, "Open URL")
+        XCTAssertEqual(runtimeSlots[1].item?.alternateActions.map(\.title), ["Transform Text"])
     }
 
     func testLibraryGroupsOnePresetPerSourceAndSearchesPluginCommands() throws {
@@ -513,7 +558,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.deleteMenuItem(at: 1)
 
         XCTAssertNil(model.editor.configuration.menu.slots[1].item)
-        XCTAssertEqual(model.editor.configuration.actions.count, 1)
+        XCTAssertEqual(model.editor.configuration.actions.count, 2)
 
         model.undoSlotEdit()
 
@@ -717,6 +762,19 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
+    }
+
+    func testDeleteSlotClearsAnOccupiedSlotBeforeRemovingAnEmptySlot() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+
+        XCTAssertTrue(model.deleteSlot(at: 0))
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+
+        XCTAssertTrue(model.deleteSlot(at: 0))
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
     }
 
     func testSlotEditsUndoRedoAndPersistThroughTheSettingsWorkflowSeam() throws {
@@ -1479,12 +1537,21 @@ final class SettingsWindowControllerTests: XCTestCase {
                 id: CommandID("fixture.open"),
                 title: "Open URL",
                 hostCommand: .openURL
+            ), CommandDeclaration(
+                id: CommandID("fixture.transform_text"),
+                title: "Transform Text",
+                execution: .javascript,
+                script: "transform-text.js"
             )],
             preset: MenuItemPresetDeclaration(
                 readiness: .readyToUse,
                 isConfigurable: true,
                 defaultPrimaryCommandID: CommandID("fixture.open"),
-                defaultInputs: [CommandID("fixture.open"): .string("https://example.com")]
+                defaultAlternateCommandIDs: [CommandID("fixture.transform_text")],
+                defaultInputs: [
+                    CommandID("fixture.open"): .string("https://example.com"),
+                    CommandID("fixture.transform_text"): .string("Spinnet Plugin fixture")
+                ]
             )
         )
         try registry.register(PluginPackage(

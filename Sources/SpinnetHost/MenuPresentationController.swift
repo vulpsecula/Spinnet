@@ -12,11 +12,11 @@ final class MenuPresentationController {
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
-    private var alternateMenu: NSMenu?
+    private var actionMenu: NSMenu?
 
     private(set) var isOpen = false
     var onPrimaryAction: ((ActionID) -> Void)?
-    var onAlternateAction: ((ActionID) -> Void)?
+    var onActionMenuSelection: ((ActionID) -> Void)?
     var onEmptySlotActivated: ((Int) -> Void)?
     var onDismiss: (() -> Void)?
 
@@ -84,7 +84,7 @@ final class MenuPresentationController {
 
     private func configureMenuView() {
         menuView.onPrimarySelection = { [weak self] index in self?.activateSlot(at: index) }
-        menuView.onAlternateSelection = { [weak self] index in self?.showAlternates(for: index) }
+        menuView.onAlternateSelection = { [weak self] index in self?.showActions(for: index) }
         menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
@@ -136,48 +136,51 @@ final class MenuPresentationController {
         onPrimaryAction?(item.configuration.primaryActionID)
     }
 
-    private func showAlternates(for index: Int) {
+    private func showActions(for index: Int) {
         guard slots.indices.contains(index) else { return }
-        guard let item = slots[index].item else {
+        guard slots[index].item != nil else {
             activateSlot(at: index)
             return
         }
 
-        let menu = NSMenu(title: "Alternate Actions")
+        guard let menu = makeActionMenu(for: index) else { return }
+        actionMenu = menu
+        let center = CGPoint(x: menuView.bounds.midX, y: menuView.bounds.midY)
+        menu.popUp(positioning: nil, at: center, in: menuView)
+        actionMenu = nil
+    }
+
+    func makeActionMenu(for index: Int) -> NSMenu? {
+        guard slots.indices.contains(index), let item = slots[index].item else {
+            return nil
+        }
+
+        let menu = NSMenu(title: "Actions")
         menu.autoenablesItems = false
-        for alternate in item.alternateActions {
+        let actions = [item.primaryAction] + item.alternateActions
+        for (index, action) in actions.enumerated() {
             let menuItem = NSMenuItem(
-                title: alternate.displayTitle,
-                action: #selector(selectAlternate(_:)),
+                title: action.displayTitle,
+                action: #selector(selectActionFromMenu(_:)),
                 keyEquivalent: ""
             )
             menuItem.target = self
-            menuItem.representedObject = alternate.actionID.rawValue
-            menuItem.isEnabled = alternate.isAvailable
-            menuItem.toolTip = alternate.accessibilityLabel
+            menuItem.representedObject = action.actionID.rawValue
+            menuItem.isEnabled = action.isAvailable
+            menuItem.toolTip = action.accessibilityLabel
             menu.addItem(menuItem)
+            if index == 0, !item.alternateActions.isEmpty {
+                menu.addItem(.separator())
+            }
         }
-        if item.alternateActions.isEmpty {
-            let emptyItem = NSMenuItem(
-                title: "No Alternate Actions configured",
-                action: nil,
-                keyEquivalent: ""
-            )
-            emptyItem.isEnabled = false
-            menu.addItem(emptyItem)
-        }
-
-        alternateMenu = menu
-        let center = CGPoint(x: menuView.bounds.midX, y: menuView.bounds.midY)
-        menu.popUp(positioning: nil, at: center, in: menuView)
-        alternateMenu = nil
+        return menu
     }
 
-    @objc private func selectAlternate(_ sender: NSMenuItem) {
+    @objc private func selectActionFromMenu(_ sender: NSMenuItem) {
         guard let rawID = sender.representedObject as? String else { return }
         let actionID = ActionID(rawID)
         dismiss()
-        onAlternateAction?(actionID)
+        onActionMenuSelection?(actionID)
     }
 
     private func installDismissalMonitors() {

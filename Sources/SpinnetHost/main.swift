@@ -64,7 +64,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 appearance: MenuAppearanceConfiguration(defaults: .standard)
             )
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
-            menu.onAlternateAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
+            menu.onActionMenuSelection = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onEmptySlotActivated = { [weak self] index in
                 self?.feedback.showMessage("Slot \(index + 1) is empty")
             }
@@ -115,7 +115,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     private func loadConfiguration(for manifest: PluginManifest) throws -> HostConfiguration {
         if let storedConfiguration = try configurationStore.load() {
-            return storedConfiguration
+            let migratedConfiguration = try migrateFixtureConfiguration(
+                storedConfiguration,
+                manifest: manifest
+            )
+            if migratedConfiguration != storedConfiguration {
+                try configurationStore.save(migratedConfiguration)
+            }
+            return migratedConfiguration
         }
 
         guard let command = manifest.commands.first(where: {
@@ -144,11 +151,79 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let configuration = try HostConfiguration(
             actions: [urlAction, textAction, structuredAction],
             menu: MenuConfiguration(items: [
-                try MenuItemConfiguration(primaryActionID: urlAction.id)
+                try MenuItemConfiguration(
+                    primaryActionID: urlAction.id,
+                    alternateActionIDs: [textAction.id]
+                )
             ])
         )
         try? configurationStore.save(configuration)
         return configuration
+    }
+
+    private func migrateFixtureConfiguration(
+        _ configuration: HostConfiguration,
+        manifest: PluginManifest
+    ) throws -> HostConfiguration {
+        guard manifest.id == PluginID("com.spinnet.fixture"),
+              let defaultPrimaryCommandID = manifest.preset.defaultPrimaryCommandID,
+              !manifest.preset.defaultAlternateCommandIDs.isEmpty else {
+            return configuration
+        }
+
+        var actions = configuration.actions
+        var slots = configuration.menu.slots
+        var changed = false
+
+        for index in slots.indices {
+            guard let item = slots[index].item,
+                  item.alternateActionIDs.isEmpty,
+                  let primaryAction = actions.first(where: { $0.id == item.primaryActionID }),
+                  primaryAction.pluginID == manifest.id,
+                  primaryAction.commandID == defaultPrimaryCommandID else {
+                continue
+            }
+
+            var alternateActionIDs: [ActionID] = []
+            for commandID in manifest.preset.defaultAlternateCommandIDs {
+                if let existingAction = actions.first(where: {
+                    $0.pluginID == manifest.id && $0.commandID == commandID
+                }) {
+                    alternateActionIDs.append(existingAction.id)
+                    continue
+                }
+
+                guard let command = manifest.commands.first(where: { $0.id == commandID }),
+                      let input = manifest.preset.defaultInputs[commandID] else {
+                    continue
+                }
+                let normalizedCommandID = commandID.rawValue
+                    .replacingOccurrences(of: "fixture.", with: "")
+                    .replacingOccurrences(of: "_", with: "-")
+                let actionID = ActionID("fixture-\(normalizedCommandID)")
+                let action = try ActionConfiguration(
+                    id: actionID,
+                    pluginID: manifest.id,
+                    command: command,
+                    input: input
+                )
+                actions.append(action)
+                alternateActionIDs.append(action.id)
+            }
+
+            guard !alternateActionIDs.isEmpty else { continue }
+            slots[index] = .occupied(try MenuItemConfiguration(
+                primaryActionID: item.primaryActionID,
+                alternateActionIDs: alternateActionIDs
+            ))
+            changed = true
+        }
+
+        guard changed else { return configuration }
+        return try HostConfiguration(
+            actions: actions,
+            menu: MenuConfiguration(slots: slots)
+        )
     }
 
     private func makeFixtureScriptAction(

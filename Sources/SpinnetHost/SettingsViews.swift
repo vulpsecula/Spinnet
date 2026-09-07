@@ -319,6 +319,13 @@ final class SettingsWindowModel: ObservableObject {
             placementMessage = "Menu Slot index is out of range."
             return false
         }
+
+        if editor.configuration.menu.slots[index].item != nil {
+            let before = editor.configuration
+            deleteMenuItem(at: index)
+            return editor.configuration != before
+        }
+
         guard editor.configuration.menu.slots.count > 1 else {
             placementMessage = "A Menu must contain at least one Slot."
             return false
@@ -867,13 +874,19 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
 }
 
 private struct SlotConfigurationSheet: View {
+    private struct ConfiguredAction: Identifiable {
+        let id: ActionID
+        let role: String
+        let action: ActionConfiguration
+    }
+
     @Environment(\.dismiss) private var dismiss
 
     let editor: HostConfigurationEditor
     let slotIndex: Int
     let onSaved: (HostConfiguration) -> Void
 
-    @State private var inputText: String
+    @State private var inputTexts: [ActionID: String]
     @State private var errorMessage: String?
 
     init(
@@ -884,8 +897,10 @@ private struct SlotConfigurationSheet: View {
         self.editor = editor
         self.slotIndex = slotIndex
         self.onSaved = onSaved
-        let action = Self.action(in: editor, slotIndex: slotIndex)
-        _inputText = State(initialValue: action.map { Self.displayValue(for: $0.input) } ?? "")
+        let actions = Self.configuredActions(in: editor, slotIndex: slotIndex)
+        _inputTexts = State(initialValue: Dictionary(uniqueKeysWithValues: actions.map {
+            ($0.id, Self.displayValue(for: $0.action.input))
+        }))
     }
 
     var body: some View {
@@ -893,13 +908,47 @@ private struct SlotConfigurationSheet: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Configure Slot \(slotIndex + 1)")
                     .font(.title2.weight(.semibold))
-                Text(action?.title ?? "Primary Action")
+                Text("Primary and Alternate Actions")
                     .foregroundStyle(.secondary)
             }
 
-            TextField("URL or configuration value", text: $inputText)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Action configuration input")
+            Text("The Plugin defines which Commands can be grouped in this Slot. Primary runs with the normal gesture; Alternate Actions appear in the runtime right-click menu.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Configured Actions")
+                    .font(.headline)
+
+                ForEach(Self.configuredActions(in: editor, slotIndex: slotIndex)) { configured in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Label(
+                                configured.role,
+                                systemImage: configured.role == "Primary"
+                                    ? "1.circle.fill"
+                                    : "arrow.turn.down.right"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            Text(configured.action.title)
+                                .font(.headline)
+                        }
+
+                        TextField(
+                            configured.action.execution == .javascript
+                                ? "Action input (optional)"
+                                : "URL or configuration value",
+                            text: inputBinding(for: configured.id)
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(
+                            "\(configured.role) \(configured.action.title) configuration input"
+                        )
+                    }
+                }
+            }
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -921,14 +970,14 @@ private struct SlotConfigurationSheet: View {
         .accessibilityLabel("Slot Configuration")
     }
 
-    private var action: ActionConfiguration? {
-        Self.action(in: editor, slotIndex: slotIndex)
-    }
-
     private func save() {
-        guard let action else { return }
         do {
-            _ = try editor.updateAction(id: action.id, input: inputValue)
+            for configured in Self.configuredActions(in: editor, slotIndex: slotIndex) {
+                _ = try editor.updateAction(
+                    id: configured.id,
+                    input: inputValue(for: configured.id)
+                )
+            }
             onSaved(editor.configuration)
             dismiss()
         } catch {
@@ -936,7 +985,15 @@ private struct SlotConfigurationSheet: View {
         }
     }
 
-    private var inputValue: JSONValue {
+    private func inputBinding(for id: ActionID) -> Binding<String> {
+        Binding(
+            get: { inputTexts[id] ?? "" },
+            set: { inputTexts[id] = $0 }
+        )
+    }
+
+    private func inputValue(for id: ActionID) -> JSONValue {
+        let inputText = inputTexts[id] ?? ""
         if let data = inputText.data(using: .utf8),
            let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
             return value
@@ -944,13 +1001,23 @@ private struct SlotConfigurationSheet: View {
         return .string(inputText)
     }
 
-    private static func action(
+    private static func configuredActions(
         in editor: HostConfigurationEditor,
         slotIndex: Int
-    ) -> ActionConfiguration? {
+    ) -> [ConfiguredAction] {
         guard editor.configuration.menu.slots.indices.contains(slotIndex),
-              let item = editor.configuration.menu.slots[slotIndex].item else { return nil }
-        return editor.configuration.actions.first { $0.id == item.primaryActionID }
+              let item = editor.configuration.menu.slots[slotIndex].item else { return [] }
+        let actionIDs = [item.primaryActionID] + item.alternateActionIDs
+        return actionIDs.enumerated().compactMap { index, actionID in
+            guard let action = editor.configuration.actions.first(where: { $0.id == actionID }) else {
+                return nil
+            }
+            return ConfiguredAction(
+                id: action.id,
+                role: index == 0 ? "Primary" : "Alternate",
+                action: action
+            )
+        }
     }
 
     private static func displayValue(for value: JSONValue) -> String {

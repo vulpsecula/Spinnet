@@ -64,6 +64,16 @@ be added. `is_configurable` is presented independently from readiness. Manifests
 without `preset` remain compatible and appear as configurable, Setup-Required
 Plugin Presets whose Primary Command is the first declared Command.
 
+When a ready Preset is placed into a Menu Slot, the Host creates one Action for
+the declared Primary Command and one Action for each
+`default_alternate_command_ids` entry, using `default_inputs` for each Action.
+The normal gesture runs the Primary Action; the runtime right-click Actions menu
+lists the Primary Action and all configured Alternate Actions. Commands omitted
+from the Preset's default list are not silently bound to the Slot. For example, a
+screenshot Plugin can declare `capture_region` as its Primary Command and put
+`capture_screen` in `default_alternate_command_ids`; a future third capture mode
+can be added to that same list without changing the Slot model.
+
 The supported Host Command is `url.open`. Its Action input is a JSON string
 containing a URL. The production Host passes the configured Action to the
 system workspace; tests inject a `HostCommandExecutor` at the
@@ -240,9 +250,9 @@ the stale Host executor is not called.
 
 The radial Menu executes a Primary Action with its normal selection gesture.
 Right-clicking a Menu Item, or pressing `Option-Return` after keyboard
-selection, opens its Alternate Actions. Arrow keys select Menu Items and
-Return executes the Primary Action. Alternate Actions that are unavailable
-are visible but disabled.
+selection, opens its Actions menu with the Primary Action followed by its
+Alternate Actions. Arrow keys select Menu Items and Return executes the Primary
+Action. Actions that are unavailable are visible but disabled.
 
 Capability-checked Host Services are available through the public helper
 protocol described above. The Host's Privacy & Permissions page presents and

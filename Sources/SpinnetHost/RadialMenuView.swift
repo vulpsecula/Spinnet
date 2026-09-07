@@ -93,7 +93,7 @@ final class RadialMenuView: NSView {
             setAccessibilityLabel("Spinnet Menu")
             setAccessibilityHelp(
                 "Use the arrow keys and Return for a Primary Action. "
-                    + "Right-click or Option-Return to show Alternate Actions."
+                    + "Right-click or Option-Return to choose from the configured Actions."
             )
         case .editor:
             setAccessibilityRole(.group)
@@ -447,17 +447,19 @@ final class RadialMenuView: NSView {
             menu.addItem(.separator())
         }
 
-        let deleteItem = NSMenuItem(
-            title: "Delete Slot",
+        let slotAction = NSMenuItem(
+            title: slot.isEmpty ? "Delete Slot" : "Clear Slot",
             action: #selector(deleteContextMenuSlot(_:)),
             keyEquivalent: ""
         )
-        deleteItem.target = self
-        deleteItem.isEnabled = slots.count > 1
-        deleteItem.toolTip = deleteItem.isEnabled
-            ? "Delete this Slot from the Menu"
-            : "A Menu must contain at least one Slot"
-        menu.addItem(deleteItem)
+        slotAction.target = self
+        slotAction.isEnabled = slot.isEmpty ? slots.count > 1 : true
+        slotAction.toolTip = slot.isEmpty
+            ? (slotAction.isEnabled
+                ? "Delete this empty Slot from the Menu"
+                : "A Menu must contain at least one Slot")
+            : "Clear the Menu Item from this Slot"
+        menu.addItem(slotAction)
         return menu
     }
 

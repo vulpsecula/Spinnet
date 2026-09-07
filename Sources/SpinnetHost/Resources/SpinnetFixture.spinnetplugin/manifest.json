@@ -8,9 +8,10 @@
     "readiness": "ready_to_use",
     "is_configurable": true,
     "default_primary_command_id": "fixture.open_url",
-    "default_alternate_command_ids": [],
+    "default_alternate_command_ids": ["fixture.transform_text"],
     "default_inputs": {
-      "fixture.open_url": "https://github.com/vulpsecula/Spinnet"
+      "fixture.open_url": "https://github.com/vulpsecula/Spinnet",
+      "fixture.transform_text": "Spinnet Plugin fixture"
     }
   },
   "commands": [
