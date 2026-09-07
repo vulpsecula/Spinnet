@@ -1064,12 +1064,21 @@ private struct PrivacySettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
                 VStack(spacing: 0) {
-                    privacyRow(
-                        icon: "gearshape.2",
-                        title: "System Permissions",
-                        body: "Accessibility lets Spinnet intercept the configured Side Button before the foreground App receives it.",
-                        status: accessibilityPermissionGranted ? "Accessibility granted" : "Accessibility required for mouse trigger"
-                    )
+                    ForEach(PluginSystemPermission.allCases, id: \.self) { permission in
+                        privacyRow(
+                            icon: systemPermissionIconName(permission),
+                            title: permission.title,
+                            body: permission.explanation,
+                            status: systemPermissionGranted(permission)
+                                ? "(permission.title) granted"
+                                : "(permission.title) required",
+                            actionTitle: "Open (permission.title) Settings…",
+                            action: { openSystemSettings(for: permission) }
+                        )
+                        if permission != PluginSystemPermission.allCases.last {
+                            Divider().padding(.leading, 52)
+                        }
+                    }
                     Divider().padding(.leading, 52)
                     privacyRow(icon: "lock.shield", title: "Sensitive Data Collection", body: "Host-owned data such as Clipboard History always requires a separate opt-in.", status: "Clipboard History is off")
                     Divider().padding(.leading, 52)
@@ -1093,13 +1102,6 @@ private struct PrivacySettingsView: View {
                 }
 
                 pluginCapabilityControls
-
-                Button("Open macOS System Settings…") {
-                    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
-                    _ = openURL(url)
-                }
-                .accessibilityLabel("Open macOS System Settings")
-                .accessibilityHint("Review Spinnet permissions in macOS System Settings.")
             }
             .frame(maxWidth: 760, alignment: .leading)
         }
@@ -1178,7 +1180,38 @@ private struct PrivacySettingsView: View {
         }
     }
 
-    private func privacyRow(icon: String, title: String, body: String, status: String) -> some View {
+    private func systemPermissionGranted(_ permission: PluginSystemPermission) -> Bool {
+        switch permission {
+        case .accessibility:
+            return accessibilityPermissionGranted
+        }
+    }
+
+    private func systemPermissionIconName(_ permission: PluginSystemPermission) -> String {
+        switch permission {
+        case .accessibility:
+            return "hand.raised"
+        }
+    }
+
+    private func openSystemSettings(for permission: PluginSystemPermission) {
+        let url: URL?
+        switch permission {
+        case .accessibility:
+            url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        }
+        guard let url else { return }
+        _ = openURL(url)
+    }
+
+    private func privacyRow(
+        icon: String,
+        title: String,
+        body: String,
+        status: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon).font(.title3).foregroundStyle(.secondary).frame(width: 28)
             VStack(alignment: .leading, spacing: 5) {
@@ -1191,6 +1224,13 @@ private struct PrivacySettingsView: View {
                     .padding(.vertical, 3)
                     .background(.quaternary, in: Capsule())
                     .accessibilityLabel("\(title): \(status)")
+            }
+            if let actionTitle, let action {
+                Spacer(minLength: 12)
+                Button(actionTitle, action: action)
+                    .controlSize(.small)
+                    .accessibilityLabel(actionTitle.replacingOccurrences(of: "…", with: ""))
+                    .accessibilityHint("Open the matching macOS System Settings pane.")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

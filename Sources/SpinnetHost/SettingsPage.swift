@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetCore
 
 enum SettingsPage: String, CaseIterable, Hashable {
     case menu
@@ -103,9 +104,10 @@ extension SettingsPage {
                         "Privacy & Permissions",
                         "System Permissions",
                         "Sensitive Data Collection",
-                        "Plugin Access",
-                        "Open macOS System Settings"
-                    ]
+                        "Plugin Access"
+                    ] + PluginSystemPermission.allCases.map {
+                        "Open \($0.title) Settings"
+                    }
                 }
             )
         case .about:

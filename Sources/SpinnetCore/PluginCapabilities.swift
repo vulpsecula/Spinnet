@@ -178,6 +178,20 @@ public final class PluginCapabilityGrantStore {
 /// Plugin Capability.
 public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Hashable {
     case accessibility
+
+    public var title: String {
+        switch self {
+        case .accessibility:
+            return "Accessibility"
+        }
+    }
+
+    public var explanation: String {
+        switch self {
+        case .accessibility:
+            return "Lets Spinnet intercept the configured Side Button and read selected text for an authorized Plugin."
+        }
+    }
 }
 
 /// A narrow operation exposed by the Host to a Plugin helper.

@@ -44,7 +44,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             "System Permissions",
             "Sensitive Data Collection",
             "Plugin Access",
-            "Open macOS System Settings"
+            "Open Accessibility Settings"
         ] {
             XCTAssertTrue(
                 controller.presentationSnapshot.accessibleNames.contains(expectedName),
