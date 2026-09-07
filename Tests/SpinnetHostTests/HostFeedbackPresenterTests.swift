@@ -33,7 +33,7 @@ final class HostFeedbackPresenterTests: XCTestCase {
         XCTAssertTrue(progress.isHidden)
         XCTAssertEqual(button.accessibilityLabel(), "Retry Action")
         XCTAssertFalse(presenter.presentationSnapshot.message.contains("secret"))
-        XCTAssertTrue(presenter.presentationSnapshot.message.contains("cancelled"))
+        XCTAssertEqual(presenter.presentationSnapshot.message, "test.plugin — Run failed (cancelled)")
         XCTAssertEqual(retries, 0)
         button.performClick(nil)
         XCTAssertEqual(retries, 1)

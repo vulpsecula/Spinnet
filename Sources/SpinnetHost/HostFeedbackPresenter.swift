@@ -30,7 +30,6 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         panel.setAccessibilityLabel("Spinnet feedback")
 
         label.font = NSFont.systemFont(ofSize: 14, weight: .medium)
-        label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityRole(.staticText)
         label.alignment = .center
         label.maximumNumberOfLines = 3
@@ -79,7 +78,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         case .succeeded:
             showMessage(outcome.title + " completed")
         case .failed(let failure):
-            showMessage(failure.userMessage)
+            showMessage("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue))")
             if let retry {
                 configureButton("Retry", action: retry)
                 dismissalWorkItem?.cancel()
