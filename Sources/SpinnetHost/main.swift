@@ -216,7 +216,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             slots[index] = .occupied(try MenuItemConfiguration(
                 primaryActionID: item.primaryActionID,
                 alternateActionIDs: alternateActionIDs
-            ))
+            ), name: slots[index].name)
             changed = true
         }
 

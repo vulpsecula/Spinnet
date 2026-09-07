@@ -176,6 +176,24 @@ final class ManifestAndConfigurationTests: XCTestCase {
         )
     }
 
+    func testMenuSlotNameRoundTripsAndBlankNamesUseAutomaticMode() throws {
+        let menuItem = try MenuItemConfiguration(primaryActionID: ActionID("primary"))
+        let configuration = try MenuConfiguration(slots: [
+            .occupied(menuItem, name: "  Work  "),
+            MenuSlotConfiguration(item: nil, name: "   ")
+        ])
+
+        XCTAssertEqual(configuration.slots[0].name, "Work")
+        XCTAssertNil(configuration.slots[1].name)
+
+        let data = try JSONEncoder().encode(configuration)
+        let decoded = try JSONDecoder().decode(MenuConfiguration.self, from: data)
+
+        XCTAssertEqual(decoded, configuration)
+        XCTAssertEqual(decoded.slots[0].name, "Work")
+        XCTAssertNil(decoded.slots[1].name)
+    }
+
     func testMenuItemRejectsDuplicateOrPrimaryAlternateBindings() {
         XCTAssertThrowsError(try MenuItemConfiguration(
             primaryActionID: ActionID("same"),

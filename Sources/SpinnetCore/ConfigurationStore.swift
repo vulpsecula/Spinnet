@@ -162,7 +162,7 @@ public final class HostConfigurationEditor {
         var slots: [MenuSlotConfiguration] = []
         for slot in configuration.menu.slots {
             guard let item = slot.item else {
-                slots.append(.empty)
+                slots.append(slot)
                 continue
             }
             if item.primaryActionID == id {
@@ -171,15 +171,15 @@ public final class HostConfigurationEditor {
                     slots.append(.occupied(try MenuItemConfiguration(
                         primaryActionID: promotedPrimary,
                         alternateActionIDs: Array(remainingAlternates.dropFirst())
-                    )))
+                    ), name: slot.name))
                 } else {
-                    slots.append(.empty)
+                    slots.append(MenuSlotConfiguration(item: nil, name: slot.name))
                 }
             } else {
                 slots.append(.occupied(try MenuItemConfiguration(
                     primaryActionID: item.primaryActionID,
                     alternateActionIDs: item.alternateActionIDs.filter { $0 != id }
-                )))
+                ), name: slot.name))
             }
         }
 
@@ -200,7 +200,19 @@ public final class HostConfigurationEditor {
             alternateActionIDs: alternateActionIDs
         )
         var slots = configuration.menu.slots
-        slots[index] = .occupied(item)
+        slots[index] = .occupied(item, name: slots[index].name)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
+    }
+
+    /// Sets or clears the user override for a Slot's displayed name. A nil
+    /// name returns the Slot to automatic naming from its Primary Action.
+    public func renameSlot(at index: Int, name: String?) throws {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        let slot = configuration.menu.slots[index]
+        var slots = configuration.menu.slots
+        slots[index] = MenuSlotConfiguration(item: slot.item, name: name)
         try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
@@ -270,7 +282,7 @@ public final class HostConfigurationEditor {
             alternateActionIDs: newActions.dropFirst().map(\.id)
         )
         var slots = configuration.menu.slots
-        slots[index] = .occupied(item)
+        slots[index] = .occupied(item, name: configuration.menu.slots[index].name)
         try replaceConfiguration(
             actions: configuration.actions.filter { !oldActionIDs.contains($0.id) } + newActions,
             slots: slots
@@ -343,7 +355,7 @@ public final class HostConfigurationEditor {
         )
         let item = try MenuItemConfiguration(primaryActionID: action.id)
         var slots = configuration.menu.slots
-        slots[index] = .occupied(item)
+        slots[index] = .occupied(item, name: slots[index].name)
         try replaceConfiguration(
             actions: configuration.actions + [action],
             slots: slots
@@ -402,7 +414,7 @@ public final class HostConfigurationEditor {
             } ?? []
         )
         var slots = configuration.menu.slots
-        slots[index] = .occupied(item)
+        slots[index] = .occupied(item, name: slots[index].name)
         try replaceConfiguration(
             actions: configuration.actions.filter { !replacedActionIDs.contains($0.id) } + newActions,
             slots: slots
@@ -423,8 +435,10 @@ public final class HostConfigurationEditor {
             throw MenuItemMoveError.targetSlotOccupied(targetIndex)
         }
         var slots = configuration.menu.slots
-        slots[sourceIndex] = .empty
-        slots[targetIndex] = .occupied(item)
+        let sourceName = slots[sourceIndex].name
+        let targetName = slots[targetIndex].name
+        slots[sourceIndex] = MenuSlotConfiguration(item: nil, name: sourceName)
+        slots[targetIndex] = .occupied(item, name: targetName)
         try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
@@ -435,7 +449,7 @@ public final class HostConfigurationEditor {
         guard let item = configuration.menu.slots[index].item else { return }
         let actionIDs = Set([item.primaryActionID] + item.alternateActionIDs)
         var slots = configuration.menu.slots
-        slots[index] = .empty
+        slots[index] = MenuSlotConfiguration(item: nil, name: slots[index].name)
         try replaceConfiguration(
             actions: configuration.actions.filter { !actionIDs.contains($0.id) },
             slots: slots

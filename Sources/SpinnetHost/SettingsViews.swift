@@ -877,6 +877,7 @@ private struct SlotConfigurationSheet: View {
     private struct InitialState {
         let pluginManifest: PluginManifest?
         let pluginID: PluginID?
+        let slotName: String
         let primaryCommandID: CommandID
         let alternateCommandIDs: Set<CommandID>
         let inputTexts: [CommandID: String]
@@ -893,6 +894,7 @@ private struct SlotConfigurationSheet: View {
     @State private var primaryCommandID: CommandID
     @State private var alternateCommandIDs: Set<CommandID>
     @State private var inputTexts: [CommandID: String]
+    @State private var slotName: String
     @State private var errorMessage: String?
 
     init(
@@ -906,6 +908,7 @@ private struct SlotConfigurationSheet: View {
         let initialState = Self.initialState(in: editor, slotIndex: slotIndex)
         pluginManifest = initialState.pluginManifest
         pluginID = initialState.pluginID
+        _slotName = State(initialValue: initialState.slotName)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
         _alternateCommandIDs = State(initialValue: initialState.alternateCommandIDs)
         _inputTexts = State(initialValue: initialState.inputTexts)
@@ -919,8 +922,10 @@ private struct SlotConfigurationSheet: View {
                         Text("Configure Slot \(slotIndex + 1)")
                             .font(.title2.weight(.semibold))
                         Text(pluginManifest?.name ?? "Plugin unavailable")
-                            .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondary)
                     }
+
+                    slotNameEditor
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
@@ -953,7 +958,7 @@ private struct SlotConfigurationSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(pluginManifest == nil || selectedCommands.isEmpty)
+                    .disabled(pluginManifest != nil && selectedCommands.isEmpty)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -963,6 +968,19 @@ private struct SlotConfigurationSheet: View {
         .accessibilityLabel("Slot Configuration")
         .onChange(of: primaryCommandID) { commandID in
             alternateCommandIDs.remove(commandID)
+        }
+    }
+
+    private var slotNameEditor: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Slot Name")
+                .font(.headline)
+            TextField("Follow Primary Action", text: $slotName)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Slot Name")
+            Text("Leave blank to follow the Primary Action automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -1055,26 +1073,29 @@ private struct SlotConfigurationSheet: View {
     }
 
     private func save() {
-        guard let pluginID,
-              let primaryCommand = selectedCommands.first,
-              primaryCommand.id == primaryCommandID else {
-            errorMessage = "Choose a valid Primary Action before saving."
-            return
-        }
-
-        let alternateCommandIDs = selectedCommands.dropFirst().map(\.id)
-        let inputs = Dictionary(uniqueKeysWithValues: configurableCommands.map { command in
-            (command.id, inputValue(for: command.id))
-        })
-
         do {
-            try editor.configureMenuItem(
-                at: slotIndex,
-                pluginID: pluginID,
-                primaryCommandID: primaryCommandID,
-                alternateCommandIDs: alternateCommandIDs,
-                inputs: inputs
-            )
+            if pluginManifest != nil {
+                guard let pluginID,
+                      let primaryCommand = selectedCommands.first,
+                      primaryCommand.id == primaryCommandID else {
+                    errorMessage = "Choose a valid Primary Action before saving."
+                    return
+                }
+
+                let alternateCommandIDs = selectedCommands.dropFirst().map(\.id)
+                let inputs = Dictionary(uniqueKeysWithValues: configurableCommands.map { command in
+                    (command.id, inputValue(for: command.id))
+                })
+
+                try editor.configureMenuItem(
+                    at: slotIndex,
+                    pluginID: pluginID,
+                    primaryCommandID: primaryCommandID,
+                    alternateCommandIDs: alternateCommandIDs,
+                    inputs: inputs
+                )
+            }
+            try editor.renameSlot(at: slotIndex, name: slotName)
             onSaved(editor.configuration)
             dismiss()
         } catch {
@@ -1140,6 +1161,9 @@ private struct SlotConfigurationSheet: View {
         in editor: HostConfigurationEditor,
         slotIndex: Int
     ) -> InitialState {
+        let slotName = editor.configuration.menu.slots.indices.contains(slotIndex)
+            ? editor.configuration.menu.slots[slotIndex].name ?? ""
+            : ""
         guard editor.configuration.menu.slots.indices.contains(slotIndex),
               let item = editor.configuration.menu.slots[slotIndex].item,
               let primaryAction = editor.configuration.actions.first(where: {
@@ -1148,6 +1172,7 @@ private struct SlotConfigurationSheet: View {
             return InitialState(
                 pluginManifest: nil,
                 pluginID: nil,
+                slotName: slotName,
                 primaryCommandID: CommandID("missing"),
                 alternateCommandIDs: [],
                 inputTexts: [:]
@@ -1184,6 +1209,7 @@ private struct SlotConfigurationSheet: View {
         return InitialState(
             pluginManifest: pluginManifest,
             pluginID: pluginID,
+            slotName: slotName,
             primaryCommandID: primaryCommandID,
             alternateCommandIDs: alternateCommandIDs,
             inputTexts: inputTexts

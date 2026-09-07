@@ -319,6 +319,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(selectedIndex, 0)
         XCTAssertTrue(menu.items.contains { $0.title == "Slot 1 — Open URL" })
         XCTAssertTrue(menu.items.contains { $0.title == "Primary Action: Open URL" })
+        XCTAssertTrue(menu.items.contains { $0.title == "Edit Slot…" })
         XCTAssertFalse(menu.items.contains { $0.title == "Move to Slot" })
         let clearItem = try XCTUnwrap(menu.items.first { $0.title == "Clear Slot" })
         XCTAssertTrue(clearItem.isEnabled)
@@ -330,6 +331,38 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
 
         XCTAssertEqual(deletedIndex, 0)
+    }
+
+    func testMenuSlotTitleFollowsPrimaryActionUntilItIsRenamed() throws {
+        let editor = try makeEditor()
+        var slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        XCTAssertEqual(slots[0].title, "Open URL")
+
+        try editor.configureMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.transform_text"),
+            alternateCommandIDs: [CommandID("fixture.open")],
+            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")]
+        )
+        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        XCTAssertEqual(slots[0].title, "Transform Text")
+
+        try editor.renameSlot(at: 0, name: "Research")
+        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        XCTAssertEqual(slots[0].title, "Research")
+
+        try editor.renameSlot(at: 0, name: nil)
+        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        XCTAssertEqual(slots[0].title, "Transform Text")
     }
 
     func testRuntimeActionMenuListsPrimaryAndAlternateActions() throws {

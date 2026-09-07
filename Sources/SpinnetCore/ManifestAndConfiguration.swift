@@ -478,15 +478,27 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
     public let item: MenuItemConfiguration?
+    /// A user-provided Slot name. When nil, the Host derives the displayed
+    /// name from the bound Primary Action (or uses "Empty Slot").
+    public let name: String?
 
-    public static var empty: Self { Self(item: nil) }
+    public static var empty: Self { Self(item: nil, name: nil) }
 
-    public static func occupied(_ item: MenuItemConfiguration) -> Self {
-        Self(item: item)
+    public static func occupied(
+        _ item: MenuItemConfiguration,
+        name: String? = nil
+    ) -> Self {
+        Self(item: item, name: name)
     }
 
-    public init(item: MenuItemConfiguration?) {
+    public init(item: MenuItemConfiguration?, name: String? = nil) {
         self.item = item
+        if let name {
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.name = trimmedName.isEmpty ? nil : trimmedName
+        } else {
+            self.name = nil
+        }
     }
 }
 
@@ -498,7 +510,7 @@ public struct MenuConfiguration: Codable, Equatable {
     }
 
     public init(items: [MenuItemConfiguration]) throws {
-        try self.init(slots: items.map(MenuSlotConfiguration.occupied))
+        try self.init(slots: items.map { MenuSlotConfiguration.occupied($0) })
     }
 
     public init(slots: [MenuSlotConfiguration]) throws {

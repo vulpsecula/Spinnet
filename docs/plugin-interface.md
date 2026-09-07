@@ -240,9 +240,11 @@ to Menu Items:
 }
 ```
 
-`MenuConfiguration` contains between one and twelve Menu Items. Each Menu Item
-has one Primary Action and may have multiple Alternate Actions. Every bound
-Action ID must be unique and present in the Host configuration.
+`MenuConfiguration` contains between one and twelve Slots. Each Slot may carry
+an optional user-provided `name`; when omitted, the Host displays the bound
+Primary Action's title (or `Empty Slot` when the Slot has no Menu Item). Each
+Menu Item has one Primary Action and may have multiple Alternate Actions.
+Every bound Action ID must be unique and present in the Host configuration.
 
 `PluginRegistry.menuItemPresets()` supplies one Library entry per registered
 Plugin, including disabled Plugins as unavailable Presets. Commands are shown

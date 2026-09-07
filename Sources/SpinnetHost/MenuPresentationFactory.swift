@@ -7,7 +7,9 @@ enum MenuPresentationFactory {
     ) -> [MenuSlotPresentation] {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
         return configuration.menu.slots.map { slot in
-            guard let item = slot.item else { return .empty }
+            guard let item = slot.item else {
+                return MenuSlotPresentation(configuration: slot, item: nil)
+            }
             let primary = presentation(
                 for: item.primaryActionID,
                 actions: actions,
@@ -16,11 +18,14 @@ enum MenuPresentationFactory {
             let alternates = item.alternateActionIDs.map { actionID in
                 presentation(for: actionID, actions: actions, availability: availability)
             }
-            return .occupied(MenuItemPresentation(
-                configuration: item,
-                primaryAction: primary,
-                alternateActions: alternates
-            ))
+            return MenuSlotPresentation(
+                configuration: slot,
+                item: MenuItemPresentation(
+                    configuration: item,
+                    primaryAction: primary,
+                    alternateActions: alternates
+                )
+            )
         }
     }
 

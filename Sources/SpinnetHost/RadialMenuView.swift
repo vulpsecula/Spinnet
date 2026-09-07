@@ -437,11 +437,12 @@ final class RadialMenuView: NSView {
 
             menu.addItem(.separator())
             let editItem = NSMenuItem(
-                title: "Edit Menu Item",
+                title: "Edit Slot…",
                 action: #selector(editContextMenuSlot(_:)),
                 keyEquivalent: ""
             )
             editItem.target = self
+            editItem.toolTip = "Choose the Slot's Actions or give the Slot a custom name"
             menu.addItem(editItem)
         } else {
             menu.addItem(.separator())
@@ -587,11 +588,7 @@ final class RadialMenuView: NSView {
 
     private func updateAccessibilityValue() {
         if let selectedIndex, slots.indices.contains(selectedIndex) {
-            if let item = slots[selectedIndex].item {
-                setAccessibilityValue(item.primaryAction.accessibilityLabel)
-            } else {
-                setAccessibilityValue("Empty Slot \(selectedIndex + 1)")
-            }
+            setAccessibilityValue(slots[selectedIndex].title)
         } else {
             setAccessibilityValue(noSelectionAccessibilityValue)
         }

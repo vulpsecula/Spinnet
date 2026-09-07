@@ -264,6 +264,45 @@ final class ConfigurationEditorTests: XCTestCase {
         )
     }
 
+    func testSlotRenameIsPreservedByActionEditsAndBlankRestoresAutomaticNaming() throws {
+        let registry = try makeRegistry()
+        let openCommand = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.fixture"),
+            commandID: CommandID("fixture.open")
+        ))
+        let openAction = try ActionConfiguration(
+            id: ActionID("open"),
+            pluginID: PluginID("com.spinnet.fixture"),
+            command: openCommand,
+            input: .string("https://example.com")
+        )
+        let editor = HostConfigurationEditor(
+            registry: registry,
+            configuration: try HostConfiguration(
+                actions: [openAction],
+                menu: MenuConfiguration(slots: [
+                    .occupied(
+                        try MenuItemConfiguration(primaryActionID: openAction.id),
+                        name: "Research"
+                    )
+                ])
+            )
+        )
+
+        XCTAssertEqual(editor.configuration.menu.slots[0].name, "Research")
+
+        try editor.configureMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.open"),
+            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")]
+        )
+        XCTAssertEqual(editor.configuration.menu.slots[0].name, "Research")
+
+        try editor.renameSlot(at: 0, name: "  ")
+        XCTAssertNil(editor.configuration.menu.slots[0].name)
+    }
+
     private func makeRegistry() throws -> PluginRegistry {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(
