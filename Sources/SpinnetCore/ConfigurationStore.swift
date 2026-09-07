@@ -82,6 +82,10 @@ public final class HostConfigurationEditor {
         registry.menuItemPresets()
     }
 
+    public var pluginManifests: [PluginManifest] {
+        registry.manifests()
+    }
+
     public func availability(for actionID: ActionID) -> ActionAvailability? {
         guard let action = action(with: actionID) else { return nil }
         return registry.availability(for: action)

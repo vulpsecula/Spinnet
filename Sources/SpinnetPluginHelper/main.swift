@@ -49,6 +49,8 @@ struct SpinnetPluginHelperMain {
     private static func execute(_ invocation: PluginRuntimeInvocation) -> PluginRuntimeResponse {
         let context = JSContext()!
         var exceptionMessage: String?
+        var hostServiceFailure: PluginRuntimeFailure?
+        let hostServiceClient = PluginRuntimeHostServiceClient(invocation: invocation)
         context.exceptionHandler = { _, exception in
             exceptionMessage = exception?.toString()
         }
@@ -59,13 +61,49 @@ struct SpinnetPluginHelperMain {
         context.setObject(invocation.actionID.rawValue, forKeyedSubscript: "actionID" as NSString)
         context.setObject(invocation.commandID.rawValue, forKeyedSubscript: "commandID" as NSString)
         context.setObject(invocation.invocationID, forKeyedSubscript: "invocationID" as NSString)
+        let requestHostService: @convention(block) (String, String) -> String = {
+            serviceName,
+            inputJSON in
+            guard hostServiceFailure == nil else { return "!" }
+            do {
+                return try hostServiceClient.request(
+                    serviceName: serviceName,
+                    inputJSON: inputJSON
+                )
+            } catch let error as PluginRuntimeHostServiceClientError {
+                hostServiceFailure = error.failure
+                // Make the JavaScript wrapper throw immediately. Returning a
+                // valid JSON value here would let a denied request degrade to
+                // null and continue into a later protected operation.
+                return "!"
+            } catch {
+                hostServiceFailure = PluginRuntimeFailure(
+                    category: .helperError,
+                    message: "Host Service response was invalid"
+                )
+                return "!"
+            }
+        }
+        context.setObject(
+            requestHostService,
+            forKeyedSubscript: "__spinnetRequestHostService" as NSString
+        )
         context.evaluateScript(
-            "var __hostServiceRequests = []; "
-                + "function requestHostService(name) { "
-                + "__hostServiceRequests.push(String(name)); return null; }"
+            "function requestHostService(name, input) { "
+                + "var requestInput = arguments.length > 1 ? input : null; "
+                + "var encodedInput = JSON.stringify(requestInput); "
+                + "return JSON.parse(__spinnetRequestHostService(String(name), encodedInput === undefined ? 'null' : encodedInput)); "
+                + "}"
         )
 
         guard let value = context.evaluateScript(invocation.scriptSource) else {
+            if let hostServiceFailure {
+                return PluginRuntimeResponse(
+                    invocationID: invocation.invocationID,
+                    actionID: invocation.actionID,
+                    terminal: .failed(hostServiceFailure)
+                )
+            }
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
                 actionID: invocation.actionID,
@@ -73,6 +111,13 @@ struct SpinnetPluginHelperMain {
                     category: .scriptError,
                     message: exceptionMessage ?? "Script returned no result"
                 ))
+            )
+        }
+        if let hostServiceFailure {
+            return PluginRuntimeResponse(
+                invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
+                terminal: .failed(hostServiceFailure)
             )
         }
         guard exceptionMessage == nil else {
@@ -134,6 +179,84 @@ struct SpinnetPluginHelperMain {
             }
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data([0x0A]))
+        }
+    }
+}
+
+private struct PluginRuntimeHostServiceClientError: Error {
+    let failure: PluginRuntimeFailure
+}
+
+private final class PluginRuntimeHostServiceClient {
+    private let invocation: PluginRuntimeInvocation
+    private var requestSequence = 0
+
+    init(invocation: PluginRuntimeInvocation) {
+        self.invocation = invocation
+    }
+
+    func request(serviceName: String, inputJSON: String) throws -> String {
+        guard let service = PluginHostService(rawValue: serviceName) else {
+            throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
+                category: .helperError,
+                message: "Unsupported Host Service"
+            ))
+        }
+        guard let inputData = inputJSON.data(using: .utf8),
+              let input = try? JSONDecoder().decode(JSONValue.self, from: inputData) else {
+            throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
+                category: .helperError,
+                message: "Host Service input could not be encoded"
+            ))
+        }
+
+        requestSequence += 1
+        let request = PluginRuntimeHostServiceRequest(
+            invocationID: invocation.invocationID,
+            actionID: invocation.actionID,
+            requestID: "host-service-\(requestSequence)",
+            service: service,
+            input: input
+        )
+        do {
+            let data = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
+            FileHandle.standardOutput.write(data)
+            FileHandle.standardOutput.write(Data([0x0A]))
+            guard let responseData = try PluginRuntimeProtocol.readFrame(
+                from: FileHandle.standardInput,
+                label: "Host Service response"
+            ) else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service response is missing"
+                )
+            }
+            let response = try PluginRuntimeProtocol.decodeHostServiceResponse(responseData)
+            guard response.invocationID == request.invocationID,
+                  response.actionID == request.actionID,
+                  response.requestID == request.requestID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service response identifiers do not match"
+                )
+            }
+            switch response.outcome {
+            case .succeeded(let result):
+                let resultData = try JSONEncoder().encode(result)
+                return String(decoding: resultData, as: UTF8.self)
+            case .failed(let failure):
+                throw PluginRuntimeHostServiceClientError(failure: failure)
+            }
+        } catch let error as PluginRuntimeHostServiceClientError {
+            throw error
+        } catch let error as PluginRuntimeError {
+            throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
+                category: .helperError,
+                message: error.localizedDescription
+            ))
+        } catch {
+            throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
+                category: .helperError,
+                message: "Host Service exchange failed"
+            ))
         }
     }
 }

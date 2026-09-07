@@ -3,6 +3,7 @@
   "id": "com.spinnet.fixture",
   "name": "Spinnet Fixture Plugin",
   "version": "1.0.0",
+  "capabilities": ["read_selected_text", "write_clipboard"],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": true,

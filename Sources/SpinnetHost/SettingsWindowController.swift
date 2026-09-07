@@ -11,6 +11,7 @@ final class SettingsWindowController: NSWindowController {
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
+    var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
 
     var currentPage: SettingsPage {
         model.page
@@ -19,9 +20,14 @@ final class SettingsWindowController: NSWindowController {
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata = .current,
+        capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
     ) {
-        model = SettingsWindowModel(editor: editor, metadata: metadata)
+        model = SettingsWindowModel(
+            editor: editor,
+            metadata: metadata,
+            capabilityGrantStore: capabilityGrantStore
+        )
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1_360, height: 820),
@@ -64,6 +70,9 @@ final class SettingsWindowController: NSWindowController {
         }
         model.onMouseCaptureChanged = { [weak self] isCapturing, capture in
             self?.onMouseCaptureChanged?(isCapturing, capture)
+        }
+        model.onCapabilityGrantChanged = { [weak self] grants in
+            self?.onCapabilityGrantChanged?(grants)
         }
         let workspaceNotifications = NSWorkspace.shared.notificationCenter
         for name in [
@@ -129,5 +138,23 @@ final class SettingsWindowController: NSWindowController {
         if window?.isVisible == true, let hostingView {
             window?.makeFirstResponder(hostingView)
         }
+    }
+
+    var capabilityGrants: [PluginCapabilityGrant] {
+        model.capabilityGrants
+    }
+
+    func setCapabilityDecision(
+        _ decision: PluginCapabilityGrantDecision,
+        for pluginID: PluginID,
+        pluginVersion: String,
+        capability: PluginCapability
+    ) {
+        model.setCapabilityDecision(
+            decision,
+            for: pluginID,
+            pluginVersion: pluginVersion,
+            capability: capability
+        )
     }
 }

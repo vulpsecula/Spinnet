@@ -99,6 +99,52 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertThrowsError(try freshConnection.prepareInvocation(impersonation))
     }
 
+    func testHostServiceMessagesRoundTripThroughTheBoundConnection() throws {
+        let pluginID = PluginID("com.example.fixture")
+        let actionID = ActionID("action-1")
+        let connection = PluginRuntimeConnection(pluginID: pluginID)
+        let invocation = PluginRuntimeInvocation(
+            invocationID: "invocation-1",
+            pluginID: pluginID,
+            actionID: actionID,
+            commandID: CommandID("fixture.transform_text"),
+            scriptPath: "transform-text.js",
+            scriptSource: "input",
+            input: .string("value")
+        )
+        _ = try connection.prepareInvocation(invocation)
+
+        let request = PluginRuntimeHostServiceRequest(
+            invocationID: invocation.invocationID,
+            actionID: actionID,
+            requestID: "service-request-1",
+            service: .readSelectedText,
+            input: .null
+        )
+        let requestData = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
+        let decodedRequest = try PluginRuntimeProtocol.decodeHostServiceRequest(requestData)
+        XCTAssertEqual(try connection.acceptHostServiceRequest(decodedRequest), request)
+
+        let serviceResponse = PluginRuntimeHostServiceResponse(
+            invocationID: invocation.invocationID,
+            actionID: actionID,
+            requestID: request.requestID,
+            outcome: .succeeded(.string("selected text"))
+        )
+        let responseData = try connection.prepareHostServiceResponse(serviceResponse)
+        XCTAssertEqual(
+            try PluginRuntimeProtocol.decodeHostServiceResponse(responseData),
+            serviceResponse
+        )
+
+        let terminal = PluginRuntimeResponse(
+            invocationID: invocation.invocationID,
+            actionID: actionID,
+            terminal: .succeeded(.string("done"))
+        )
+        XCTAssertEqual(try connection.acceptResponse(terminal), terminal.terminal)
+    }
+
     func testInvocationMessageLimitAcceptsAtMostOneMiB() throws {
         let base = try PluginRuntimeProtocol.encodeInvocation(
             makeInvocation(scriptSource: "")
@@ -479,8 +525,32 @@ final class PluginRuntimeTests: XCTestCase {
             input: .string("Spinnet Plugin fixture")
         )
 
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var clipboardValue: String?
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "Spinnet Plugin fixture" },
+            clipboardWriter: { clipboardValue = $0 }
+        )
         let supervisor = PluginRuntimeSupervisor(helperURL: helperURL)
-        let result = try supervisor.execute(action, in: package)
+        let result = try supervisor.execute(
+            action,
+            in: package,
+            using: hostServiceBroker
+        )
 
         XCTAssertEqual(
             result,
@@ -489,6 +559,7 @@ final class PluginRuntimeTests: XCTestCase {
                 "output_bytes": .number(22)
             ])
         )
+        XCTAssertEqual(clipboardValue, "SPINNET-plugin-FIXTURE")
         XCTAssertEqual(supervisor.launchCount, 1)
     }
 
@@ -506,9 +577,30 @@ final class PluginRuntimeTests: XCTestCase {
         )
         let registry = PluginRegistry()
         try registry.register(package)
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var clipboardValue: String?
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "Spinnet Plugin fixture" },
+            clipboardWriter: { clipboardValue = $0 }
+        )
         let runner = HostActionRunner(
             executor: NoopHostCommandExecutor(),
-            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL)
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
         )
 
         let outcome = runner.invoke(action, using: registry)
@@ -522,6 +614,278 @@ final class PluginRuntimeTests: XCTestCase {
                 "output_bytes": .number(22)
             ]))
         )
+        XCTAssertEqual(clipboardValue, "SPINNET-plugin-FIXTURE")
+    }
+
+    func testHostActionRunnerReturnsCapabilityDeniedWhenReadGrantIsWithheld() throws {
+        let helperURL = try XCTUnwrap(helperURLIfBuilt(), "Build SpinnetPluginHelper before running integration tests")
+        let package = try loadFixturePackage()
+        XCTAssertEqual(
+            package.manifest.capabilities,
+            [.readSelectedText, .writeClipboard]
+        )
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-text-denied"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("Spinnet Plugin fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .denied,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var selectedTextProviderCalled = false
+        var clipboardWriterCalled = false
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: {
+                selectedTextProviderCalled = true
+                return "Spinnet Plugin fixture"
+            },
+            clipboardWriter: { _ in clipboardWriterCalled = true }
+        )
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A withheld read Capability should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .capabilityDenied)
+        XCTAssertFalse(selectedTextProviderCalled)
+        XCTAssertFalse(clipboardWriterCalled)
+    }
+
+    func testHostActionRunnerReturnsCapabilityDeniedWhenWriteGrantIsWithheld() throws {
+        let helperURL = try XCTUnwrap(helperURLIfBuilt(), "Build SpinnetPluginHelper before running integration tests")
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-text-write-denied"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("Spinnet Plugin fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .denied,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var selectedTextProviderCalled = false
+        var clipboardWriterCalled = false
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: {
+                selectedTextProviderCalled = true
+                return "Spinnet Plugin fixture"
+            },
+            clipboardWriter: { _ in clipboardWriterCalled = true }
+        )
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A withheld write Capability should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .capabilityDenied)
+        XCTAssertTrue(selectedTextProviderCalled)
+        XCTAssertFalse(clipboardWriterCalled)
+    }
+
+    func testHostActionRunnerReturnsSystemPermissionDeniedAtTheHostServiceSeam() throws {
+        let helperURL = try XCTUnwrap(helperURLIfBuilt(), "Build SpinnetPluginHelper before running integration tests")
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-text-permission-denied"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("Spinnet Plugin fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var selectedTextProviderCalled = false
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in false },
+            selectedTextProvider: {
+                selectedTextProviderCalled = true
+                return "Spinnet Plugin fixture"
+            },
+            clipboardWriter: { _ in }
+        )
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A missing System Permission should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .systemPermissionDenied)
+        XCTAssertFalse(selectedTextProviderCalled)
+    }
+
+    func testHostActionRunnerRechecksGrantBeforeEachHostServiceRequest() throws {
+        let helperURL = try XCTUnwrap(helperURLIfBuilt(), "Build SpinnetPluginHelper before running integration tests")
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-text-revoked"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("Spinnet Plugin fixture")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .writeClipboard
+        )
+        var clipboardWriterCalled = false
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: {
+                grantStore.setDecision(
+                    .denied,
+                    for: package.manifest.id,
+                    pluginVersion: package.manifest.version,
+                    capability: .writeClipboard
+                )
+                return "Spinnet Plugin fixture"
+            },
+            clipboardWriter: { _ in clipboardWriterCalled = true }
+        )
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A Capability revoked between requests should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .capabilityDenied)
+        XCTAssertFalse(clipboardWriterCalled)
+    }
+
+    func testHostUsesConnectionBoundIdentityForHostServiceAuthorization() throws {
+        let helperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^" ]*\\)".*/\\1/p')
+            action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^" ]*\\)".*/\\1/p')
+            printf '{"type":"host_service_request","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","request_id":"claim-1","service":"read_selected_text","input":null,"plugin_id":"com.attacker","capabilities":["write_clipboard"]}\\n' "$invocation_id" "$action_id"
+            IFS= read -r response
+            printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":"identity-bound"}}\\n' "$invocation_id" "$action_id"
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: helperURL) }
+
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id == CommandID("fixture.transform_text")
+        })
+        let action = try ActionConfiguration(
+            id: ActionID("fixture-transform-text-identity"),
+            pluginID: package.manifest.id,
+            command: command,
+            input: .string("ignored by helper")
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        let grantStore = PluginCapabilityGrantStore()
+        grantStore.setDecision(
+            .granted,
+            for: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capability: .readSelectedText
+        )
+        let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+            grantStore: grantStore,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "selected text" },
+            clipboardWriter: { _ in }
+        )
+
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: helperURL),
+            hostServiceBroker: hostServiceBroker
+        ).invoke(action, using: registry)
+
+        XCTAssertEqual(outcome.terminal, .succeeded(.string("identity-bound")))
     }
 
     func testFixtureStructuredDataCommandRunsInTheJavaScriptCoreHelper() throws {

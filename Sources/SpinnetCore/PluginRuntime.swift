@@ -7,6 +7,8 @@ import Darwin
 public enum PluginRuntimeProtocol {
     public enum MessageType: String, Codable, Equatable, Hashable {
         case invocation
+        case hostServiceRequest = "host_service_request"
+        case hostServiceResponse = "host_service_response"
         case terminal
     }
 
@@ -49,6 +51,68 @@ public enum PluginRuntimeProtocol {
         }
     }
 
+    public static func encodeHostServiceRequest(
+        _ request: PluginRuntimeHostServiceRequest
+    ) throws -> Data {
+        try validate(request)
+        return try encode(request, description: "Host Service request")
+    }
+
+    public static func decodeHostServiceRequest(
+        _ data: Data
+    ) throws -> PluginRuntimeHostServiceRequest {
+        try validateMessageSize(data, description: "Host Service request")
+        do {
+            let request = try JSONDecoder().decode(
+                PluginRuntimeHostServiceRequest.self,
+                from: data
+            )
+            try validate(request)
+            return request
+        } catch let error as PluginRuntimeError {
+            throw error
+        } catch {
+            throw PluginRuntimeError.protocolViolation("Host Service request is malformed")
+        }
+    }
+
+    public static func encodeHostServiceResponse(
+        _ response: PluginRuntimeHostServiceResponse
+    ) throws -> Data {
+        try validate(response)
+        return try encode(response, description: "Host Service response")
+    }
+
+    public static func decodeHostServiceResponse(
+        _ data: Data
+    ) throws -> PluginRuntimeHostServiceResponse {
+        try validateMessageSize(data, description: "Host Service response")
+        do {
+            let response = try JSONDecoder().decode(
+                PluginRuntimeHostServiceResponse.self,
+                from: data
+            )
+            try validate(response)
+            return response
+        } catch let error as PluginRuntimeError {
+            throw error
+        } catch {
+            throw PluginRuntimeError.protocolViolation("Host Service response is malformed")
+        }
+    }
+
+    public static func decodeMessageType(_ data: Data) throws -> MessageType {
+        try validateMessageSize(data, description: "Message")
+        struct Envelope: Decodable {
+            let type: MessageType
+        }
+        do {
+            return try JSONDecoder().decode(Envelope.self, from: data).type
+        } catch {
+            throw PluginRuntimeError.protocolViolation("Message type is invalid")
+        }
+    }
+
     /// Reads one newline-delimited message body without buffering more than
     /// the protocol limit. A nil result means the stream reached EOF before
     /// any bytes were received.
@@ -58,7 +122,7 @@ public enum PluginRuntimeProtocol {
     ) throws -> Data? {
         var line = Data()
         while true {
-            let chunk = handle.readData(ofLength: 8_192)
+            let chunk = try readAvailableChunk(from: handle, label: label)
             guard !chunk.isEmpty else {
                 if line.isEmpty { return nil }
                 throw PluginRuntimeError.protocolViolation(
@@ -80,6 +144,28 @@ public enum PluginRuntimeProtocol {
 
             line.append(contentsOf: chunk)
             try validateMessageSize(line, description: label)
+        }
+    }
+
+    private static func readAvailableChunk(
+        from handle: FileHandle,
+        label: String
+    ) throws -> Data {
+        var buffer = [UInt8](repeating: 0, count: 8_192)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(handle.fileDescriptor, bytes.baseAddress, bytes.count)
+            }
+            if count > 0 {
+                return Data(buffer.prefix(count))
+            }
+            if count == 0 {
+                return Data()
+            }
+            if errno == EINTR {
+                continue
+            }
+            throw PluginRuntimeError.protocolViolation(label + " could not be read")
         }
     }
 
@@ -117,6 +203,33 @@ public enum PluginRuntimeProtocol {
         if case .failed(let failure) = response.terminal {
             guard !failure.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw PluginRuntimeError.protocolViolation("Terminal failure has no message")
+            }
+        }
+    }
+
+    public static func validate(_ request: PluginRuntimeHostServiceRequest) throws {
+        guard request.protocolVersion == version else {
+            throw PluginRuntimeError.protocolViolation(
+                "Unsupported protocol version " + request.protocolVersion
+            )
+        }
+        try validateIdentifier(request.invocationID, named: "Invocation ID")
+        try validateIdentifier(request.actionID.rawValue, named: "Action ID")
+        try validateIdentifier(request.requestID, named: "Host Service request ID")
+    }
+
+    public static func validate(_ response: PluginRuntimeHostServiceResponse) throws {
+        guard response.protocolVersion == version else {
+            throw PluginRuntimeError.protocolViolation(
+                "Unsupported protocol version " + response.protocolVersion
+            )
+        }
+        try validateIdentifier(response.invocationID, named: "Invocation ID")
+        try validateIdentifier(response.actionID.rawValue, named: "Action ID")
+        try validateIdentifier(response.requestID, named: "Host Service request ID")
+        if case .failed(let failure) = response.outcome {
+            guard !failure.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw PluginRuntimeError.protocolViolation("Host Service failure has no message")
             }
         }
     }
@@ -230,10 +343,86 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     }
 }
 
+/// A request emitted by the helper while one Action is executing. The
+/// connection supplies Plugin identity; this message deliberately carries no
+/// helper-owned identity or Capability claims.
+public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
+    public let protocolVersion: String
+    public let invocationID: String
+    public let actionID: ActionID
+    public let requestID: String
+    public let service: PluginHostService
+    public let input: JSONValue
+
+    public init(
+        protocolVersion: String = PluginRuntimeProtocol.version,
+        invocationID: String,
+        actionID: ActionID,
+        requestID: String = UUID().uuidString,
+        service: PluginHostService,
+        input: JSONValue = .null
+    ) {
+        self.protocolVersion = protocolVersion
+        self.invocationID = invocationID
+        self.actionID = actionID
+        self.requestID = requestID
+        self.service = service
+        self.input = input
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case protocolVersion = "protocol_version"
+        case invocationID = "invocation_id"
+        case actionID = "action_id"
+        case requestID = "request_id"
+        case service
+        case input
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try PluginRuntimeProtocol.validate(self)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(
+            PluginRuntimeProtocol.MessageType.hostServiceRequest,
+            forKey: .type
+        )
+        try container.encode(protocolVersion, forKey: .protocolVersion)
+        try container.encode(invocationID, forKey: .invocationID)
+        try container.encode(actionID, forKey: .actionID)
+        try container.encode(requestID, forKey: .requestID)
+        try container.encode(service, forKey: .service)
+        try container.encode(input, forKey: .input)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(PluginRuntimeProtocol.MessageType.self, forKey: .type)
+                == .hostServiceRequest else {
+            throw PluginRuntimeError.protocolViolation(
+                "Unsupported Host Service request message type"
+            )
+        }
+        let request = PluginRuntimeHostServiceRequest(
+            protocolVersion: try container.decode(String.self, forKey: .protocolVersion),
+            invocationID: try container.decode(String.self, forKey: .invocationID),
+            actionID: try container.decode(ActionID.self, forKey: .actionID),
+            requestID: try container.decode(String.self, forKey: .requestID),
+            service: try container.decode(PluginHostService.self, forKey: .service),
+            input: try container.decode(JSONValue.self, forKey: .input)
+        )
+        try PluginRuntimeProtocol.validate(request)
+        self = request
+    }
+}
+
 public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case invalidInvocation = "invalid_invocation"
     case scriptError = "script_error"
     case helperError = "helper_error"
+    case capabilityDenied = "capability_denied"
+    case systemPermissionDenied = "system_permission_denied"
+    case hostServiceFailed = "host_service_failed"
 }
 
 public struct PluginRuntimeFailure: Codable, Equatable, Hashable {
@@ -243,6 +432,121 @@ public struct PluginRuntimeFailure: Codable, Equatable, Hashable {
     public init(category: PluginRuntimeFailureCategory, message: String) {
         self.category = category
         self.message = message
+    }
+}
+
+public enum PluginRuntimeHostServiceOutcome: Codable, Equatable, Hashable {
+    case succeeded(JSONValue)
+    case failed(PluginRuntimeFailure)
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case result
+        case failure
+    }
+
+    private enum Kind: String, Codable {
+        case succeeded
+        case failed
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .succeeded(let result):
+            try container.encode(Kind.succeeded, forKey: .kind)
+            try container.encode(result, forKey: .result)
+        case .failed(let failure):
+            try container.encode(Kind.failed, forKey: .kind)
+            try container.encode(failure, forKey: .failure)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .kind) {
+        case .succeeded:
+            guard container.contains(.result), !container.contains(.failure) else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Succeeded Host Service response has an invalid payload"
+                )
+            }
+            self = .succeeded(try container.decode(JSONValue.self, forKey: .result))
+        case .failed:
+            guard container.contains(.failure), !container.contains(.result) else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Failed Host Service response has an invalid payload"
+                )
+            }
+            self = .failed(try container.decode(PluginRuntimeFailure.self, forKey: .failure))
+        }
+    }
+}
+
+public struct PluginRuntimeHostServiceResponse: Codable, Equatable, Hashable {
+    public let protocolVersion: String
+    public let invocationID: String
+    public let actionID: ActionID
+    public let requestID: String
+    public let outcome: PluginRuntimeHostServiceOutcome
+
+    public init(
+        protocolVersion: String = PluginRuntimeProtocol.version,
+        invocationID: String,
+        actionID: ActionID,
+        requestID: String,
+        outcome: PluginRuntimeHostServiceOutcome
+    ) {
+        self.protocolVersion = protocolVersion
+        self.invocationID = invocationID
+        self.actionID = actionID
+        self.requestID = requestID
+        self.outcome = outcome
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case protocolVersion = "protocol_version"
+        case invocationID = "invocation_id"
+        case actionID = "action_id"
+        case requestID = "request_id"
+        case outcome
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try PluginRuntimeProtocol.validate(self)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(
+            PluginRuntimeProtocol.MessageType.hostServiceResponse,
+            forKey: .type
+        )
+        try container.encode(protocolVersion, forKey: .protocolVersion)
+        try container.encode(invocationID, forKey: .invocationID)
+        try container.encode(actionID, forKey: .actionID)
+        try container.encode(requestID, forKey: .requestID)
+        try container.encode(outcome, forKey: .outcome)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(PluginRuntimeProtocol.MessageType.self, forKey: .type)
+                == .hostServiceResponse else {
+            throw PluginRuntimeError.protocolViolation(
+                "Unsupported Host Service response message type"
+            )
+        }
+        let response = PluginRuntimeHostServiceResponse(
+            protocolVersion: try container.decode(String.self, forKey: .protocolVersion),
+            invocationID: try container.decode(String.self, forKey: .invocationID),
+            actionID: try container.decode(ActionID.self, forKey: .actionID),
+            requestID: try container.decode(String.self, forKey: .requestID),
+            outcome: try container.decode(
+                PluginRuntimeHostServiceOutcome.self,
+                forKey: .outcome
+            )
+        )
+        try PluginRuntimeProtocol.validate(response)
+        self = response
     }
 }
 
@@ -354,6 +658,9 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
     case helperCrashed(signal: Int32?)
     case protocolViolation(String)
     case scriptFailed(String)
+    case capabilityDenied(String)
+    case systemPermissionDenied(String)
+    case hostServiceFailed(String)
 
     public var description: String {
         switch self {
@@ -370,6 +677,12 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return "Plugin helper protocol violation: \(message)"
         case .scriptFailed(let message):
             return "Plugin script failed: \(message)"
+        case .capabilityDenied(let message):
+            return "Plugin Capability denied: \(message)"
+        case .systemPermissionDenied(let message):
+            return "Required System Permission denied: \(message)"
+        case .hostServiceFailed(let message):
+            return "Plugin Host Service failed: \(message)"
         }
     }
 
@@ -387,6 +700,12 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return .runtimeProtocolFailed
         case .scriptFailed:
             return .scriptedActionFailed
+        case .capabilityDenied:
+            return .capabilityDenied
+        case .systemPermissionDenied:
+            return .systemPermissionDenied
+        case .hostServiceFailed:
+            return .hostServiceFailed
         }
     }
 }
@@ -398,6 +717,11 @@ public final class PluginRuntimeConnection {
     public enum State: Equatable {
         case ready
         case awaitingResponse(invocationID: String, actionID: ActionID)
+        case awaitingHostServiceResponse(
+            invocationID: String,
+            actionID: ActionID,
+            requestID: String
+        )
         case closed
     }
 
@@ -406,6 +730,7 @@ public final class PluginRuntimeConnection {
 
     private var invocationIDs: Set<String> = []
     private var actionIDs: Set<ActionID> = []
+    private var hostServiceRequestIDs: Set<String> = []
 
     public init(pluginID: PluginID) {
         self.pluginID = pluginID
@@ -472,6 +797,85 @@ public final class PluginRuntimeConnection {
         }
     }
 
+    /// Accepts one helper Host Service request for the current Action. Only
+    /// one request may be waiting for a Host response at a time.
+    @discardableResult
+    public func acceptHostServiceRequest(
+        _ request: PluginRuntimeHostServiceRequest
+    ) throws -> PluginRuntimeHostServiceRequest {
+        guard case .awaitingResponse(let invocationID, let actionID) = state else {
+            return try fail("Host Service request is out of order")
+        }
+
+        do {
+            try PluginRuntimeProtocol.validate(request)
+            guard request.invocationID == invocationID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service request has the wrong invocation ID"
+                )
+            }
+            guard request.actionID == actionID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service request has the wrong Action ID"
+                )
+            }
+            guard hostServiceRequestIDs.insert(request.requestID).inserted else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service request ID is duplicated"
+                )
+            }
+            state = .awaitingHostServiceResponse(
+                invocationID: invocationID,
+                actionID: actionID,
+                requestID: request.requestID
+            )
+            return request
+        } catch {
+            state = .closed
+            throw error
+        }
+    }
+
+    /// Encodes the Host's response and returns the connection to the terminal
+    /// response state. The connection-bound Plugin identity is never taken
+    /// from the helper request or response.
+    public func prepareHostServiceResponse(
+        _ response: PluginRuntimeHostServiceResponse
+    ) throws -> Data {
+        guard case .awaitingHostServiceResponse(
+            let invocationID,
+            let actionID,
+            let requestID
+        ) = state else {
+            return try fail("Host Service response is out of order")
+        }
+
+        do {
+            try PluginRuntimeProtocol.validate(response)
+            guard response.invocationID == invocationID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service response has the wrong invocation ID"
+                )
+            }
+            guard response.actionID == actionID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service response has the wrong Action ID"
+                )
+            }
+            guard response.requestID == requestID else {
+                throw PluginRuntimeError.protocolViolation(
+                    "Host Service response has the wrong request ID"
+                )
+            }
+            let data = try PluginRuntimeProtocol.encodeHostServiceResponse(response)
+            state = .awaitingResponse(invocationID: invocationID, actionID: actionID)
+            return data
+        } catch {
+            state = .closed
+            throw error
+        }
+    }
+
     public func close() {
         state = .closed
     }
@@ -487,6 +891,22 @@ public final class PluginRuntimeConnection {
 /// inject a deterministic executor without reaching through the supervisor.
 public protocol ScriptedActionExecutor {
     func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue
+
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?
+    ) throws -> JSONValue
+}
+
+public extension ScriptedActionExecutor {
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?
+    ) throws -> JSONValue {
+        try execute(action, in: package)
+    }
 }
 
 /// Starts one helper for one scripted Action. The helper is deliberately
@@ -515,6 +935,14 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     }
 
     public func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue {
+        try execute(action, in: package, using: nil)
+    }
+
+    public func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?
+    ) throws -> JSONValue {
         guard action.execution == .javascript else {
             throw PluginRuntimeError.invalidAction("Action is not a JavaScript Command")
         }
@@ -572,26 +1000,22 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         }
         launchCount += 1
 
-        do {
-            inputPipe.fileHandleForWriting.write(requestData)
-            inputPipe.fileHandleForWriting.write(Data([0x0A]))
-            try inputPipe.fileHandleForWriting.close()
-        } catch {
-            terminateProcess(process)
-            process.waitUntilExit()
-            if process.terminationReason == .uncaughtSignal {
-                throw PluginRuntimeError.helperCrashed(signal: process.terminationStatus)
-            }
-            throw PluginRuntimeError.protocolViolation("Invocation could not be sent")
-        }
+        inputPipe.fileHandleForWriting.write(requestData)
+        inputPipe.fileHandleForWriting.write(Data([0x0A]))
 
         var processWasTerminatedByHost = false
-        let responseData: Data
+        let terminal: PluginRuntimeTerminal
         do {
-            responseData = try readSingleResponseFrame(
-                from: outputPipe.fileHandleForReading
+            terminal = try exchange(
+                connection: connection,
+                package: package,
+                action: action,
+                hostServiceBroker: hostServiceBroker,
+                input: inputPipe.fileHandleForWriting,
+                output: outputPipe.fileHandleForReading
             )
         } catch let error as PluginRuntimeError {
+            try? inputPipe.fileHandleForWriting.close()
             if process.isRunning {
                 terminateProcess(process)
                 processWasTerminatedByHost = true
@@ -604,9 +1028,10 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             throw error
         }
 
+        try? inputPipe.fileHandleForWriting.close()
         // A terminal response ends this short-lived connection. Terminating a
-        // helper that tries to send another message prevents a delayed
-        // duplicate from being accepted after the Action has completed.
+        // helper that stays alive after its terminal result keeps a delayed
+        // message from becoming a second Action outcome.
         if process.isRunning {
             terminateProcess(process)
             processWasTerminatedByHost = true
@@ -625,8 +1050,6 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             }
         }
 
-        let response = try decodeSingleResponse(responseData)
-        let terminal = try connection.acceptResponse(response)
         switch terminal {
         case .succeeded(let result):
             return result
@@ -636,6 +1059,102 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 throw PluginRuntimeError.scriptFailed(failure.message)
             case .invalidInvocation, .helperError:
                 throw PluginRuntimeError.protocolViolation(failure.message)
+            case .capabilityDenied:
+                throw PluginRuntimeError.capabilityDenied(failure.message)
+            case .systemPermissionDenied:
+                throw PluginRuntimeError.systemPermissionDenied(failure.message)
+            case .hostServiceFailed:
+                throw PluginRuntimeError.hostServiceFailed(failure.message)
+            }
+        }
+    }
+
+    private func exchange(
+        connection: PluginRuntimeConnection,
+        package: PluginPackage,
+        action: ActionConfiguration,
+        hostServiceBroker: PluginHostServiceBroker?,
+        input: FileHandle,
+        output: FileHandle
+    ) throws -> PluginRuntimeTerminal {
+        let deadline = Date().addingTimeInterval(4)
+
+        while true {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else {
+                throw PluginRuntimeError.protocolViolation("Plugin message timed out")
+            }
+            guard let frame = try readFrame(
+                from: output,
+                timeout: remaining,
+                label: "Plugin message"
+            ) else {
+                throw PluginRuntimeError.protocolViolation("Terminal result is missing")
+            }
+
+            switch try PluginRuntimeProtocol.decodeMessageType(frame) {
+            case .hostServiceRequest:
+                let request = try PluginRuntimeProtocol.decodeHostServiceRequest(frame)
+                _ = try connection.acceptHostServiceRequest(request)
+                let response: PluginRuntimeHostServiceResponse
+                do {
+                    guard let hostServiceBroker else {
+                        throw PluginHostServiceError.unavailable(
+                            "No Host Service broker is configured"
+                        )
+                    }
+                    let result = try hostServiceBroker.execute(
+                        request: request,
+                        for: package,
+                        action: action
+                    )
+                    response = PluginRuntimeHostServiceResponse(
+                        invocationID: request.invocationID,
+                        actionID: request.actionID,
+                        requestID: request.requestID,
+                        outcome: .succeeded(result)
+                    )
+                } catch let error as PluginHostServiceError {
+                    response = PluginRuntimeHostServiceResponse(
+                        invocationID: request.invocationID,
+                        actionID: request.actionID,
+                        requestID: request.requestID,
+                        outcome: .failed(PluginRuntimeFailure(
+                            category: error.runtimeFailureCategory,
+                            message: error.localizedDescription
+                        ))
+                    )
+                } catch {
+                    response = PluginRuntimeHostServiceResponse(
+                        invocationID: request.invocationID,
+                        actionID: request.actionID,
+                        requestID: request.requestID,
+                        outcome: .failed(PluginRuntimeFailure(
+                            category: .hostServiceFailed,
+                            message: "Host Service provider failed"
+                        ))
+                    )
+                }
+                let responseData = try connection.prepareHostServiceResponse(response)
+                input.write(responseData)
+                input.write(Data([0x0A]))
+            case .terminal:
+                let response = try PluginRuntimeProtocol.decodeResponse(frame)
+                let terminal = try connection.acceptResponse(response)
+                let trailing = try readTrailingByte(
+                    from: output,
+                    timeout: max(0, deadline.timeIntervalSinceNow)
+                )
+                guard trailing.isEmpty else {
+                    throw PluginRuntimeError.protocolViolation(
+                        "Expected exactly one terminal response"
+                    )
+                }
+                return terminal
+            case .invocation, .hostServiceResponse:
+                throw PluginRuntimeError.protocolViolation(
+                    "Unexpected message from Plugin helper"
+                )
             }
         }
     }
@@ -658,46 +1177,55 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         return candidate
     }
 
-    private func readSingleResponseFrame(
-        from handle: FileHandle
-    ) throws -> Data {
-        let result = PluginRuntimeReadResult()
+    private func readFrame(
+        from handle: FileHandle,
+        timeout: TimeInterval,
+        label: String
+    ) throws -> Data? {
+        let result = PluginRuntimeReadResult<Data?>()
         let completed = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
-            let value: Result<Data, PluginRuntimeError>
+            let value: Result<Data?, PluginRuntimeError>
             do {
-                guard let frame = try PluginRuntimeProtocol.readFrame(
+                let frame = try PluginRuntimeProtocol.readFrame(
                     from: handle,
-                    label: "Response"
-                ) else {
-                    value = .failure(.protocolViolation("Terminal result is missing"))
-                    result.set(value)
-                    completed.signal()
-                    return
-                }
-                guard handle.readData(ofLength: 1).isEmpty else {
-                    value = .failure(
-                        .protocolViolation("Expected exactly one terminal response")
-                    )
-                    result.set(value)
-                    completed.signal()
-                    return
-                }
+                    label: label
+                )
                 value = .success(frame)
             } catch let error as PluginRuntimeError {
                 value = .failure(error)
             } catch {
-                value = .failure(.protocolViolation("Response could not be read"))
+                value = .failure(.protocolViolation(label + " could not be read"))
             }
             result.set(value)
             completed.signal()
         }
 
-        guard completed.wait(timeout: .now() + .seconds(4)) == .success else {
-            throw PluginRuntimeError.protocolViolation("Terminal response timed out")
+        guard completed.wait(timeout: .now() + timeout) == .success else {
+            throw PluginRuntimeError.protocolViolation(label + " timed out")
         }
         guard let value = result.value else {
-            throw PluginRuntimeError.protocolViolation("Response could not be read")
+            throw PluginRuntimeError.protocolViolation(label + " could not be read")
+        }
+        return try value.get()
+    }
+
+    private func readTrailingByte(
+        from handle: FileHandle,
+        timeout: TimeInterval
+    ) throws -> Data {
+        guard timeout > 0 else { return Data() }
+        let result = PluginRuntimeReadResult<Data>()
+        let completed = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            result.set(.success(handle.readData(ofLength: 1)))
+            completed.signal()
+        }
+        guard completed.wait(timeout: .now() + timeout) == .success else {
+            return Data()
+        }
+        guard let value = result.value else {
+            throw PluginRuntimeError.protocolViolation("Trailing response could not be read")
         }
         return try value.get()
     }
@@ -714,29 +1242,22 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         }
     }
 
-    private func decodeSingleResponse(_ data: Data) throws -> PluginRuntimeResponse {
-        let lines = data.split(separator: 0x0A, omittingEmptySubsequences: true)
-        guard lines.count == 1 else {
-            throw PluginRuntimeError.protocolViolation("Expected exactly one terminal result")
-        }
-        return try PluginRuntimeProtocol.decodeResponse(Data(lines[0]))
-    }
 }
 
 public typealias PluginRuntimeRequest = PluginRuntimeInvocation
 public typealias PluginRuntimeResult = PluginRuntimeResponse
 
-private final class PluginRuntimeReadResult {
+private final class PluginRuntimeReadResult<Value> {
     private let lock = NSLock()
-    private var storedValue: Result<Data, PluginRuntimeError>?
+    private var storedValue: Result<Value, PluginRuntimeError>?
 
-    var value: Result<Data, PluginRuntimeError>? {
+    var value: Result<Value, PluginRuntimeError>? {
         lock.lock()
         defer { lock.unlock() }
         return storedValue
     }
 
-    func set(_ value: Result<Data, PluginRuntimeError>) {
+    func set(_ value: Result<Value, PluginRuntimeError>) {
         lock.lock()
         storedValue = value
         lock.unlock()

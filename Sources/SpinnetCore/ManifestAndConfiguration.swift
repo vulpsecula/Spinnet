@@ -112,6 +112,7 @@ public struct PluginManifest: Codable, Equatable {
     public let id: PluginID
     public let name: String
     public let version: String
+    public let capabilities: [PluginCapability]
     public let commands: [CommandDeclaration]
     public let preset: MenuItemPresetDeclaration
 
@@ -120,6 +121,7 @@ public struct PluginManifest: Codable, Equatable {
         id: PluginID,
         name: String,
         version: String,
+        capabilities: [PluginCapability] = [],
         commands: [CommandDeclaration],
         preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration()
     ) throws {
@@ -127,6 +129,7 @@ public struct PluginManifest: Codable, Equatable {
         self.id = id
         self.name = name
         self.version = version
+        self.capabilities = capabilities
         self.commands = commands
         self.preset = preset
         try validate()
@@ -137,6 +140,7 @@ public struct PluginManifest: Codable, Equatable {
         case id
         case name
         case version
+        case capabilities
         case commands
         case preset
     }
@@ -147,6 +151,10 @@ public struct PluginManifest: Codable, Equatable {
         self.id = try container.decode(PluginID.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
         self.version = try container.decode(String.self, forKey: .version)
+        self.capabilities = try container.decodeIfPresent(
+            [PluginCapability].self,
+            forKey: .capabilities
+        ) ?? []
         self.commands = try container.decode([CommandDeclaration].self, forKey: .commands)
         self.preset = try container.decodeIfPresent(
             MenuItemPresetDeclaration.self,
@@ -164,6 +172,9 @@ public struct PluginManifest: Codable, Equatable {
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")
         try validateText(version, name: "Plugin version")
+        guard Set(capabilities).count == capabilities.count else {
+            throw ConfigurationError.invalidManifest("Plugin declares a Capability more than once")
+        }
         guard !commands.isEmpty else {
             throw ConfigurationError.invalidManifest("Plugin declares no Commands")
         }
@@ -535,13 +546,16 @@ public protocol HostCommandExecutor {
 public struct HostActionRunner {
     private let executor: HostCommandExecutor
     private let scriptedExecutor: ScriptedActionExecutor?
+    private let hostServiceBroker: PluginHostServiceBroker?
 
     public init(
         executor: HostCommandExecutor,
-        scriptedExecutor: ScriptedActionExecutor? = nil
+        scriptedExecutor: ScriptedActionExecutor? = nil,
+        hostServiceBroker: PluginHostServiceBroker? = nil
     ) {
         self.executor = executor
         self.scriptedExecutor = scriptedExecutor
+        self.hostServiceBroker = hostServiceBroker
     }
 
     public func invoke(_ action: ActionConfiguration) -> ActionOutcome {
@@ -590,7 +604,11 @@ public struct HostActionRunner {
                     actionID: action.id,
                     pluginID: action.pluginID,
                     title: action.title,
-                    terminal: .succeeded(try scriptedExecutor.execute(action, in: package))
+                    terminal: .succeeded(try scriptedExecutor.execute(
+                        action,
+                        in: package,
+                        using: hostServiceBroker
+                    ))
                 )
             } catch let error as PluginRuntimeError {
                 return failure(

@@ -3,6 +3,7 @@
   "id": "com.spinnet.fixture",
   "name": "Spinnet Fixture Plugin",
   "version": "1.0.0",
+  "capabilities": ["read_selected_text", "write_clipboard"],
   "commands": [
     {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"},
     {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},

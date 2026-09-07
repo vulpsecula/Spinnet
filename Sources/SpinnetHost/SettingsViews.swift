@@ -46,6 +46,7 @@ final class SettingsWindowModel: ObservableObject {
     @Published var editingMenuIndex: Int?
     @Published private(set) var presetPendingReplacement: PendingPresetReplacement?
     @Published private(set) var refreshToken = 0
+    @Published private(set) var capabilityGrants: [PluginCapabilityGrant]
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
     @Published private(set) var accessibilityPermissionGranted: Bool
@@ -82,7 +83,9 @@ final class SettingsWindowModel: ObservableObject {
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
+    var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
     private let defaults: UserDefaults
+    private let capabilityGrantStore: PluginCapabilityGrantStore
     private let accessibilityPermissionCheck: () -> Bool
     private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
     private var slotIDs: [UUID]
@@ -92,6 +95,7 @@ final class SettingsWindowModel: ObservableObject {
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata,
+        capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
@@ -100,10 +104,12 @@ final class SettingsWindowModel: ObservableObject {
     ) {
         self.editor = editor
         self.metadata = metadata
+        self.capabilityGrantStore = capabilityGrantStore
         self.defaults = defaults
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.mouseInputConflictCheck = mouseInputConflictCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
+        capabilityGrants = []
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
         triggerMouseButton = triggerConfiguration.mouseButton
@@ -113,6 +119,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
+        refreshCapabilityGrants()
     }
 
     var menuSlots: [MenuSlotPresentation] {
@@ -165,6 +172,32 @@ final class SettingsWindowModel: ObservableObject {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
     }
 
+    func refreshCapabilityGrants() {
+        capabilityGrants = editor.pluginManifests.flatMap { manifest in
+            capabilityGrantStore.grants(
+                for: manifest.id,
+                pluginVersion: manifest.version,
+                capabilities: manifest.capabilities
+            )
+        }
+    }
+
+    func setCapabilityDecision(
+        _ decision: PluginCapabilityGrantDecision,
+        for pluginID: PluginID,
+        pluginVersion: String,
+        capability: PluginCapability
+    ) {
+        capabilityGrantStore.setDecision(
+            decision,
+            for: pluginID,
+            pluginVersion: pluginVersion,
+            capability: capability
+        )
+        refreshCapabilityGrants()
+        onCapabilityGrantChanged?(capabilityGrantStore.allGrants)
+    }
+
     func refreshMouseInputConflicts() {
         mouseInputConflicts = mouseInputConflictCheck(triggerMouseButton)
     }
@@ -192,6 +225,10 @@ final class SettingsWindowModel: ObservableObject {
                 "Undo Slot edit",
                 "Redo Slot edit"
             ])
+        } else if page == .privacyAndPermissions {
+            names.append(contentsOf: capabilityGrants.map { grant in
+                "\(grant.capability.title): \(grant.decision.title)"
+            })
         }
         return names
     }
@@ -745,6 +782,9 @@ struct SettingsRootView: View {
             case .privacyAndPermissions:
                 PrivacySettingsView(
                     accessibilityPermissionGranted: model.accessibilityPermissionGranted,
+                    pluginManifests: model.editor.pluginManifests,
+                    capabilityGrants: model.capabilityGrants,
+                    setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )
                 .onAppear { model.refreshSystemPermissionStatus() }
@@ -1009,7 +1049,16 @@ private struct AppearanceSettingsView: View {
 
 private struct PrivacySettingsView: View {
     let accessibilityPermissionGranted: Bool
+    let pluginManifests: [PluginManifest]
+    let capabilityGrants: [PluginCapabilityGrant]
+    let setCapabilityDecision: (
+        PluginCapabilityGrantDecision,
+        PluginID,
+        String,
+        PluginCapability
+    ) -> Void
     let openURL: (URL) -> Bool
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -1024,7 +1073,14 @@ private struct PrivacySettingsView: View {
                     Divider().padding(.leading, 52)
                     privacyRow(icon: "lock.shield", title: "Sensitive Data Collection", body: "Host-owned data such as Clipboard History always requires a separate opt-in.", status: "Clipboard History is off")
                     Divider().padding(.leading, 52)
-                    privacyRow(icon: "puzzlepiece.extension", title: "Plugin Access", body: "Each Plugin receives only the Capabilities you grant to it.", status: "No Capability grants configured")
+                    privacyRow(
+                        icon: "puzzlepiece.extension",
+                        title: "Plugin Access",
+                        body: "Each Plugin receives only the Capabilities you grant to it.",
+                        status: capabilityGrants.isEmpty
+                            ? "No declared Capability requests"
+                            : "\(capabilityGrants.count) Capability decisions"
+                    )
                 }
                 .padding(.horizontal, 18)
                 .background {
@@ -1036,6 +1092,8 @@ private struct PrivacySettingsView: View {
                         }
                 }
 
+                pluginCapabilityControls
+
                 Button("Open macOS System Settings…") {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
                     _ = openURL(url)
@@ -1044,6 +1102,79 @@ private struct PrivacySettingsView: View {
                 .accessibilityHint("Review Spinnet permissions in macOS System Settings.")
             }
             .frame(maxWidth: 760, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var pluginCapabilityControls: some View {
+        if pluginManifests.contains(where: { !$0.capabilities.isEmpty }) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Plugin Capability Grants")
+                    .font(.headline)
+                Text("Grant decisions apply to every Action from that Plugin and are checked again when the Action runs.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                ForEach(pluginManifests.filter { !$0.capabilities.isEmpty }, id: \.id) { manifest in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(manifest.name)
+                            .font(.subheadline.weight(.semibold))
+                        ForEach(manifest.capabilities, id: \.self) { capability in
+                            capabilityControl(for: manifest, capability: capability)
+                        }
+                    }
+                    .padding(14)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                            }
+                    }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Plugin Capability Grants")
+        }
+    }
+
+    private func capabilityControl(
+        for manifest: PluginManifest,
+        capability: PluginCapability
+    ) -> some View {
+        let decision = capabilityGrants.first {
+            $0.pluginID == manifest.id
+                && $0.pluginVersion == manifest.version
+                && $0.capability == capability
+        }?.decision ?? .notDetermined
+        return HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(capability.title)
+                    .font(.subheadline)
+                Text(capability.explanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Picker(
+                "\(capability.title) access",
+                selection: Binding(
+                    get: { decision },
+                    set: {
+                        setCapabilityDecision($0, manifest.id, manifest.version, capability)
+                    }
+                )
+            ) {
+                ForEach(PluginCapabilityGrantDecision.allCases, id: \.self) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 140)
+            .accessibilityLabel("\(manifest.name) \(capability.title)")
+            .accessibilityValue(decision.title)
         }
     }
 

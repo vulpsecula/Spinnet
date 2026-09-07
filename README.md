@@ -61,8 +61,10 @@ Action editing, configuration persistence, Menu geometry, and the Host-level
 `HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, global
 shortcuts, settings window, URL execution, and user-visible feedback.
 
-Capability-checked Host Services, helper reuse/retirement, and user-visible
-scripted Action lifecycle feedback are deferred to later tickets.
+Capability-checked Host Services are available through the documented helper
+protocol. The Host stores per-Plugin-version Capability decisions and exposes the
+current fixture grants in Privacy & Permissions; helper reuse/retirement and
+user-visible scripted Action lifecycle feedback remain later tickets.
 
 The current manifest shape is documented in
 [`docs/plugin-interface.md`](docs/plugin-interface.md).

@@ -11,6 +11,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var triggers: GlobalTriggerController?
     private var actions: [ActionID: ActionConfiguration] = [:]
+    private let capabilityGrants = PluginCapabilityGrantStore()
+    private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
     private let actionInvocationQueue = DispatchQueue(
         label: "com.vulpsecula.Spinnet.action-invocation",
         qos: .userInitiated
@@ -21,12 +23,32 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
         do {
             let manifest = try registry.register(packageAt: fixtureURL())
+            try loadCapabilityGrants()
+            capabilityGrants.register(
+                pluginID: manifest.id,
+                pluginVersion: manifest.version,
+                capabilities: manifest.capabilities
+            )
+            try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0)
             }
+            let hostServiceBroker = CapabilityCheckedHostServiceBroker(
+                grantStore: capabilityGrants,
+                systemPermissionCheck: { [pluginHostServiceProvider] permission in
+                    pluginHostServiceProvider.isGranted(permission)
+                },
+                selectedTextProvider: { [pluginHostServiceProvider] in
+                    try pluginHostServiceProvider.readSelectedText()
+                },
+                clipboardWriter: { [pluginHostServiceProvider] text in
+                    try pluginHostServiceProvider.writeClipboard(text)
+                }
+            )
             actionRunner = HostActionRunner(
                 executor: AppKitHostCommandExecutor(),
-                scriptedExecutor: scriptedExecutor
+                scriptedExecutor: scriptedExecutor,
+                hostServiceBroker: hostServiceBroker
             )
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
             let configuration = try loadConfiguration(for: manifest)
@@ -48,9 +70,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
             feedback = HostFeedbackPresenter()
-            settings = SettingsWindowController(editor: editor)
+            settings = SettingsWindowController(
+                editor: editor,
+                capabilityGrantStore: capabilityGrants
+            )
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
+            }
+            settings.onCapabilityGrantChanged = { [weak self] _ in
+                do {
+                    try self?.saveCapabilityGrants()
+                } catch {
+                    self?.showConfigurationError(error)
+                }
             }
             settings.onAppearanceChanged = { [weak self] appearance in
                 self?.menu.applyAppearance(appearance)
@@ -274,6 +306,53 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return supportDirectory
             .appendingPathComponent("Spinnet", isDirectory: true)
             .appendingPathComponent("configuration.json")
+    }
+
+    private func capabilityGrantsFileURL() -> URL {
+        configurationFileURL()
+            .deletingLastPathComponent()
+            .appendingPathComponent("capability-grants.json")
+    }
+
+    private func loadCapabilityGrants() throws {
+        let fileURL = capabilityGrantsFileURL()
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let grants = try JSONDecoder().decode([PluginCapabilityGrant].self, from: data)
+            for grant in grants {
+                capabilityGrants.setDecision(
+                    grant.decision,
+                    for: grant.pluginID,
+                    pluginVersion: grant.pluginVersion,
+                    capability: grant.capability
+                )
+            }
+        } catch {
+            throw ConfigurationError.persistence(
+                "Capability grants could not be loaded: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func saveCapabilityGrants() throws {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(capabilityGrants.allGrants)
+            let fileURL = capabilityGrantsFileURL()
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: fileURL, options: .atomic)
+        } catch let error as ConfigurationError {
+            throw error
+        } catch {
+            throw ConfigurationError.persistence(
+                "Capability grants could not be saved: \(error.localizedDescription)"
+            )
+        }
     }
 }
 

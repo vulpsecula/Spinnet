@@ -62,6 +62,49 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertFalse(controller.presentationSnapshot.visibleRegions.contains(.editorMode))
     }
 
+    func testPrivacyPagePresentsAndUpdatesPluginCapabilityGrants() throws {
+        let store = PluginCapabilityGrantStore()
+        let editor = try makeEditor(
+            capabilities: [.readSelectedText, .writeClipboard]
+        )
+        store.register(
+            pluginID: PluginID("com.spinnet.fixture"),
+            pluginVersion: "1.0.0",
+            capabilities: [.readSelectedText, .writeClipboard]
+        )
+        let controller = SettingsWindowController(
+            editor: editor,
+            capabilityGrantStore: store
+        )
+        controller.select(page: .privacyAndPermissions)
+
+        XCTAssertTrue(
+            controller.presentationSnapshot.accessibleNames.contains(
+                "Read Selected Text: Not Determined"
+            )
+        )
+        controller.setCapabilityDecision(
+            .granted,
+            for: PluginID("com.spinnet.fixture"),
+            pluginVersion: "1.0.0",
+            capability: .readSelectedText
+        )
+
+        XCTAssertEqual(
+            store.decision(
+                for: PluginID("com.spinnet.fixture"),
+                pluginVersion: "1.0.0",
+                capability: .readSelectedText
+            ),
+            .granted
+        )
+        XCTAssertTrue(
+            controller.presentationSnapshot.accessibleNames.contains(
+                "Read Selected Text: Granted"
+            )
+        )
+    }
+
     func testAboutPageExposesApplicationIdentityAndLinksAtSettingsBoundary() throws {
         let controller = try makeController()
         controller.select(page: .about)
@@ -1423,12 +1466,15 @@ final class SettingsWindowControllerTests: XCTestCase {
         return event
     }
 
-    private func makeEditor() throws -> HostConfigurationEditor {
+    private func makeEditor(
+        capabilities: [PluginCapability] = []
+    ) throws -> HostConfigurationEditor {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(
             id: PluginID("com.spinnet.fixture"),
             name: "Fixture",
             version: "1.0.0",
+            capabilities: capabilities,
             commands: [CommandDeclaration(
                 id: CommandID("fixture.open"),
                 title: "Open URL",

@@ -14,6 +14,7 @@ The current walking skeleton supports Host Commands and Common JavaScript Comman
   "id": "com.example.plugin",
   "name": "Example Plugin",
   "version": "1.0.0",
+  "capabilities": ["read_selected_text", "write_clipboard"],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": true,
@@ -44,6 +45,14 @@ The current walking skeleton supports Host Commands and Common JavaScript Comman
 no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
 
+`capabilities` is optional and declares which protected Host Services the
+Plugin may request. The supported declarations are `read_selected_text` and
+`write_clipboard`. A declaration is not a grant: the Host stores an explicit
+per-Plugin-version, per-Capability decision (`not_determined`, `denied`, or
+`granted`) and treats every decision other than `granted` as denied. A new
+manifest version starts with `not_determined` decisions, so expanding a
+Plugin's declared Capability scope requires fresh consent.
+
 Every Plugin appears once in the Library through its single `preset` declaration.
 The Host assigns the trusted Built-in or Plugin Library group when it registers
 the package; a third-party manifest cannot claim Built-in identity. `readiness`
@@ -71,12 +80,16 @@ initialize a JavaScript runtime. The script receives these globals:
 - `inputJSON`, containing the same value as JSON text; and
 - `pluginID`, `actionID`, `commandID`, and `invocationID` identifying the
   current invocation.
+- `requestHostService(name, input)`, which sends a Capability-checked request
+  to the Host and returns its JSON result. The helper exposes no direct
+  protected operating-system API.
 
 The helper exchange is newline-delimited JSON using protocol version `1.0`.
 The JSON object before the newline is the message body; it is accepted when
 its UTF-8 representation is at most 1 MiB. The newline delimiter is framing
-and is not included in that limit. The two supported top-level message
-variants are:
+and is not included in that limit. The four supported top-level message
+variants are `invocation`, `host_service_request`, `host_service_response`,
+and `terminal`:
 
 ```json
 {
@@ -91,6 +104,53 @@ variants are:
   "input": "Selected text"
 }
 ```
+
+While a script is running, the helper can request a Host Service. The request
+contains only the connection-bound invocation and Action identifiers; it does
+not carry a Plugin identity or Capability claims:
+
+```json
+{
+  "type": "host_service_request",
+  "protocol_version": "1.0",
+  "invocation_id": "invocation-1",
+  "action_id": "action-1",
+  "request_id": "host-service-1",
+  "service": "read_selected_text",
+  "input": null
+}
+```
+
+The Host responds on the same connection and evaluates the current manifest,
+stored grant, and required System Permission for every request:
+
+```json
+{
+  "type": "host_service_response",
+  "protocol_version": "1.0",
+  "invocation_id": "invocation-1",
+  "action_id": "action-1",
+  "request_id": "host-service-1",
+  "outcome": {
+    "kind": "succeeded",
+    "result": "Selected text"
+  }
+}
+```
+
+The MVP services are:
+
+- `read_selected_text` requires the `read_selected_text` Capability and the
+  macOS Accessibility System Permission. Its input is `null` and its result is
+  a string.
+- `write_clipboard` requires the `write_clipboard` Capability. Its input is a
+  string and its result is `null`.
+
+A withheld Capability produces a `capability_denied` failure; a missing
+required macOS permission produces `system_permission_denied`; and provider
+or request failures produce `host_service_failed`. The helper turns a failed
+Host Service response into a failed Action, so a denied request cannot fall
+through to a later protected operation.
 
 ```json
 {
@@ -111,8 +171,9 @@ protocol versions, top-level `type` values, terminal `kind` values, missing
 fields, invalid values, and payloads above 1 MiB are rejected.
 
 The Host chooses the Plugin identity when it creates a helper connection. The
-`plugin_id` in an invocation is Host-owned context for the script; the Host
-does not accept Plugin identity or Capability claims from a helper response.
+`plugin_id` in an invocation is Host-owned context for the script; Host Service
+authorization uses the registered package bound to that connection and does
+not accept Plugin identity or Capability claims from a helper message.
 Invocation and Action identifiers must be non-empty and unique on a
 connection. One invocation may be in flight at a time, and its terminal
 response must carry the matching invocation and Action identifiers. A
@@ -125,6 +186,10 @@ the same stable failure path.
 Each invocation must produce exactly one terminal response, either a JSON
 result or a stable script failure. A helper process that exits by signal is
 reported by the Host as `helper_crashed`; the Host process remains alive.
+
+The helper process is the JavaScript execution boundary, not a source of OS
+authority. Protected operations are performed by the Host-side broker only
+after the current Capability grant and System Permission checks succeed.
 
 ## Host configuration
 
@@ -179,7 +244,10 @@ selection, opens its Alternate Actions. Arrow keys select Menu Items and
 Return executes the Primary Action. Alternate Actions that are unavailable
 are visible but disabled.
 
-Capability-checked Host Services, helper reuse/retirement, and user-visible
-progress/cancellation remain later tickets. The initial helper exchange is
-deliberately narrow; it establishes the process boundary without granting a
-Plugin direct access to protected operating-system facilities.
+Capability-checked Host Services are available through the public helper
+protocol described above. The Host's Privacy & Permissions page presents and
+persists the current per-Plugin-version decisions; a later settings ticket can add
+installation-time consent and update-scope disclosure. Helper
+reuse/retirement and user-visible progress/cancellation remain separate
+lifecycle tickets. The helper exchange remains deliberately narrow and does
+not grant a Plugin direct access to protected operating-system facilities.
