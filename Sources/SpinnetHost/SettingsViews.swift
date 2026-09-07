@@ -1070,9 +1070,9 @@ private struct PrivacySettingsView: View {
                             title: permission.title,
                             body: permission.explanation,
                             status: systemPermissionGranted(permission)
-                                ? "(permission.title) granted"
-                                : "(permission.title) required",
-                            actionTitle: "Open (permission.title) Settings…",
+                                ? "\(permission.title) granted"
+                                : "\(permission.title) required",
+                            actionTitle: "Open \(permission.title) Settings…",
                             action: { openSystemSettings(for: permission) }
                         )
                         if permission != PluginSystemPermission.allCases.last {
@@ -1174,7 +1174,10 @@ private struct PrivacySettingsView: View {
                 }
             }
             .pickerStyle(.menu)
-            .frame(width: 140)
+            .labelsHidden()
+            .frame(width: 180, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
             .accessibilityLabel("\(manifest.name) \(capability.title)")
             .accessibilityValue(decision.title)
         }
