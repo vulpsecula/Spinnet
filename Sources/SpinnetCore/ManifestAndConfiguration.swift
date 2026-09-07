@@ -630,7 +630,8 @@ public struct HostActionRunner {
 
     public func invoke(
         _ action: ActionConfiguration,
-        using registry: PluginRegistry
+        using registry: PluginRegistry,
+        control: ActionExecutionControl = ActionExecutionControl()
     ) -> ActionOutcome {
         switch registry.availability(for: action) {
         case .available:
@@ -653,7 +654,8 @@ public struct HostActionRunner {
                     terminal: .succeeded(try scriptedExecutor.execute(
                         action,
                         in: package,
-                        using: hostServiceBroker
+                        using: hostServiceBroker,
+                        control: control
                     ))
                 )
             } catch let error as PluginRuntimeError {

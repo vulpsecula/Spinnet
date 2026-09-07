@@ -652,6 +652,9 @@ public struct PluginRuntimeResponse: Codable, Equatable, Hashable {
 }
 
 public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, LocalizedError {
+    case cancelled
+    case timedOut
+    case helperTerminated
     case invalidAction(String)
     case helperUnavailable(String)
     case helperLaunchFailed(String)
@@ -664,6 +667,9 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
 
     public var description: String {
         switch self {
+        case .cancelled: return "Action cancelled"
+        case .timedOut: return "Action deadline exceeded"
+        case .helperTerminated: return "Plugin helper terminated"
         case .invalidAction(let message):
             return "Invalid scripted Action: \(message)"
         case .helperUnavailable(let message):
@@ -690,6 +696,9 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
 
     public var failureCategory: ActionFailureCategory {
         switch self {
+        case .cancelled: return .cancelled
+        case .timedOut: return .timedOut
+        case .helperTerminated: return .helperTerminated
         case .invalidAction:
             return .invalidConfiguration
         case .helperUnavailable, .helperLaunchFailed:
@@ -890,6 +899,13 @@ public final class PluginRuntimeConnection {
 /// Plugin-owned script. Production uses `PluginRuntimeSupervisor`; tests can
 /// inject a deterministic executor without reaching through the supervisor.
 public protocol ScriptedActionExecutor {
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl
+    ) throws -> JSONValue
+
     func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue
 
     func execute(
@@ -900,6 +916,18 @@ public protocol ScriptedActionExecutor {
 }
 
 public extension ScriptedActionExecutor {
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl
+    ) throws -> JSONValue {
+        try control.check()
+        let result = try execute(action, in: package, using: hostServiceBroker)
+        try control.check()
+        return result
+    }
+
     func execute(
         _ action: ActionConfiguration,
         in package: PluginPackage,
@@ -920,7 +948,13 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     private let processFactory: () -> Process
     private let pipeFactory: () -> Pipe
 
-    public private(set) var launchCount = 0
+    private let launchLock = NSLock()
+    private var launches = 0
+    public var launchCount: Int {
+        launchLock.lock()
+        defer { launchLock.unlock() }
+        return launches
+    }
 
     public init(
         helperURL: URL,
@@ -943,6 +977,22 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         in package: PluginPackage,
         using hostServiceBroker: PluginHostServiceBroker?
     ) throws -> JSONValue {
+        try execute(action, in: package, using: hostServiceBroker, control: ActionExecutionControl())
+    }
+
+    public func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl
+    ) throws -> JSONValue {
+        try control.check()
+        let timeout = DispatchWorkItem { control.stop(.timedOut) }
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(
+            deadline: .now() + max(0, control.deadline - ProcessInfo.processInfo.systemUptime),
+            execute: timeout
+        )
+        defer { timeout.cancel(); control.clearTermination() }
         guard action.execution == .javascript else {
             throw PluginRuntimeError.invalidAction("Action is not a JavaScript Command")
         }
@@ -995,39 +1045,50 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         process.standardOutput = outputPipe
         process.standardError = FileHandle.standardError
 
+        try control.check()
         do {
             try process.run()
         } catch {
             throw PluginRuntimeError.helperLaunchFailed(error.localizedDescription)
         }
-        launchCount += 1
-
-        inputPipe.fileHandleForWriting.write(requestData)
-        inputPipe.fileHandleForWriting.write(Data([0x0A]))
+        launchLock.lock()
+        launches += 1
+        launchLock.unlock()
+        control.registerTermination {
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+        defer {
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+            try? inputPipe.fileHandleForWriting.close()
+        }
+        try control.check()
 
         var processWasTerminatedByHost = false
         let terminal: PluginRuntimeTerminal
         do {
+            try inputPipe.fileHandleForWriting.write(contentsOf: requestData + Data([0x0A]))
             terminal = try exchange(
                 connection: connection,
+                control: control,
                 package: package,
                 action: action,
                 hostServiceBroker: hostServiceBroker,
                 input: inputPipe.fileHandleForWriting,
                 output: outputPipe.fileHandleForReading
             )
-        } catch let error as PluginRuntimeError {
+        } catch {
             try? inputPipe.fileHandleForWriting.close()
             if process.isRunning {
                 terminateProcess(process)
                 processWasTerminatedByHost = true
             }
             process.waitUntilExit()
+            try control.check()
             if !processWasTerminatedByHost,
                process.terminationReason == .uncaughtSignal {
-                throw PluginRuntimeError.helperCrashed(signal: process.terminationStatus)
+                throw terminationError(process)
             }
-            throw error
+            throw (error as? PluginRuntimeError) ?? .protocolViolation("Plugin exchange failed")
         }
 
         try? inputPipe.fileHandleForWriting.close()
@@ -1042,7 +1103,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
 
         if !processWasTerminatedByHost,
            process.terminationReason == .uncaughtSignal {
-            throw PluginRuntimeError.helperCrashed(signal: process.terminationStatus)
+            throw terminationError(process)
         }
         if !processWasTerminatedByHost {
             guard process.terminationStatus == 0 else {
@@ -1052,6 +1113,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             }
         }
 
+        try control.check()
         switch terminal {
         case .succeeded(let result):
             return result
@@ -1073,19 +1135,17 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
 
     private func exchange(
         connection: PluginRuntimeConnection,
+        control: ActionExecutionControl,
         package: PluginPackage,
         action: ActionConfiguration,
         hostServiceBroker: PluginHostServiceBroker?,
         input: FileHandle,
         output: FileHandle
     ) throws -> PluginRuntimeTerminal {
-        let deadline = Date().addingTimeInterval(4)
-
         while true {
-            let remaining = deadline.timeIntervalSinceNow
-            guard remaining > 0 else {
-                throw PluginRuntimeError.protocolViolation("Plugin message timed out")
-            }
+            try control.check()
+            let remaining = control.deadline - ProcessInfo.processInfo.systemUptime
+            guard remaining > 0 else { throw PluginRuntimeError.timedOut }
             guard let frame = try readFrame(
                 from: output,
                 timeout: remaining,
@@ -1096,6 +1156,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
 
             switch try PluginRuntimeProtocol.decodeMessageType(frame) {
             case .hostServiceRequest:
+                try control.check()
                 let request = try PluginRuntimeProtocol.decodeHostServiceRequest(frame)
                 _ = try connection.acceptHostServiceRequest(request)
                 let response: PluginRuntimeHostServiceResponse
@@ -1137,15 +1198,15 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                         ))
                     )
                 }
+                try control.check()
                 let responseData = try connection.prepareHostServiceResponse(response)
-                input.write(responseData)
-                input.write(Data([0x0A]))
+                try input.write(contentsOf: responseData + Data([0x0A]))
             case .terminal:
                 let response = try PluginRuntimeProtocol.decodeResponse(frame)
                 let terminal = try connection.acceptResponse(response)
                 let trailing = try readTrailingByte(
                     from: output,
-                    timeout: max(0, deadline.timeIntervalSinceNow)
+                    timeout: max(0, control.deadline - ProcessInfo.processInfo.systemUptime)
                 )
                 guard trailing.isEmpty else {
                     throw PluginRuntimeError.protocolViolation(
@@ -1204,7 +1265,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         }
 
         guard completed.wait(timeout: .now() + timeout) == .success else {
-            throw PluginRuntimeError.protocolViolation(label + " timed out")
+            throw PluginRuntimeError.timedOut
         }
         guard let value = result.value else {
             throw PluginRuntimeError.protocolViolation(label + " could not be read")
@@ -1232,16 +1293,16 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         return try value.get()
     }
 
+    private func terminationError(_ process: Process) -> PluginRuntimeError {
+        switch process.terminationStatus {
+        case SIGTERM, SIGKILL: return .helperTerminated
+        default: return .helperCrashed(signal: process.terminationStatus)
+        }
+    }
+
     private func terminateProcess(_ process: Process) {
         guard process.isRunning else { return }
-        process.terminate()
-        let deadline = Date().addingTimeInterval(0.25)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        if process.isRunning {
-            _ = Darwin.kill(process.processIdentifier, SIGKILL)
-        }
+        _ = Darwin.kill(process.processIdentifier, SIGKILL)
     }
 
 }

@@ -479,7 +479,98 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(failure.category, .runtimeProtocolFailed)
     }
 
-    func testSilentHelperReachesAStableProtocolFailureAtTheActionDeadline() throws {
+    func testCancellationTerminatesOnlyTheAffectedHelperWithin250Milliseconds() throws {
+        let helper = try XCTUnwrap(helperURLIfBuilt())
+        let package = try makeScriptedPackage(pluginID: PluginID("test.cancel"), script: "while (true) {}")
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let action = try ActionConfiguration(id: ActionID("cancel"), pluginID: package.manifest.id,
+            command: package.manifest.commands[0], input: .null)
+        let process = Process()
+        let control = ActionExecutionControl()
+        let completed = expectation(description: "cancelled execution finished")
+        DispatchQueue.global().async {
+            defer { completed.fulfill() }
+            do {
+                _ = try PluginRuntimeSupervisor(helperURL: helper, processFactory: { process })
+                    .execute(action, in: package, using: nil, control: control)
+                XCTFail("The cancelled script must not succeed")
+            } catch {
+                XCTAssertEqual(error as? PluginRuntimeError, .cancelled)
+            }
+        }
+        let launchDeadline = ProcessInfo.processInfo.systemUptime + 2
+        while !process.isRunning && ProcessInfo.processInfo.systemUptime < launchDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertTrue(process.isRunning)
+        let cancelledAt = ProcessInfo.processInfo.systemUptime
+        control.stop(.cancelled)
+        wait(for: [completed], timeout: 0.25)
+        XCTAssertFalse(process.isRunning)
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - cancelledAt, 0.25)
+
+        let healthy = try makeScriptedPackage(pluginID: PluginID("test.healthy"), script: "42")
+        defer { try? FileManager.default.removeItem(at: healthy.rootURL) }
+        let healthyAction = try ActionConfiguration(id: ActionID("healthy"), pluginID: healthy.manifest.id,
+            command: healthy.manifest.commands[0], input: .null)
+        XCTAssertEqual(try PluginRuntimeSupervisor(helperURL: helper).execute(healthyAction, in: healthy), .number(42))
+    }
+
+    func testCancellationDuringHostServiceWorkKillsHelperAndRejectsLateServiceResult() throws {
+        let helper = try XCTUnwrap(helperURLIfBuilt())
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.execution == .javascript })
+        let action = try ActionConfiguration(id: ActionID("blocked-service"), pluginID: package.manifest.id,
+                                            command: command, input: .null)
+        let grants = PluginCapabilityGrantStore()
+        for capability in [PluginCapability.readSelectedText, .writeClipboard] {
+            grants.setDecision(.granted, for: package.manifest.id,
+                               pluginVersion: package.manifest.version, capability: capability)
+        }
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
+            systemPermissionCheck: { _ in true }, selectedTextProvider: {
+                entered.signal()
+                _ = release.wait(timeout: .now() + 5)
+                return "late result"
+            }, clipboardWriter: { _ in XCTFail("Cancelled execution must not request another service") })
+        let process = Process()
+        let control = ActionExecutionControl()
+        let completed = expectation(description: "late service discarded")
+        DispatchQueue.global().async {
+            defer { completed.fulfill() }
+            do {
+                _ = try PluginRuntimeSupervisor(helperURL: helper, processFactory: { process })
+                    .execute(action, in: package, using: broker, control: control)
+                XCTFail("Cancelled execution cannot succeed")
+            } catch { XCTAssertEqual(error as? PluginRuntimeError, .cancelled) }
+        }
+        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
+        control.stop(.cancelled)
+        let deadline = ProcessInfo.processInfo.systemUptime + 0.25
+        while process.isRunning && ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertFalse(process.isRunning)
+        release.signal()
+        wait(for: [completed], timeout: 1)
+    }
+
+    func testExternalHelperTerminationHasAStableCategory() throws {
+        let helper = try makeShellHelper("#!/bin/sh\nkill -TERM $$\n")
+        defer { try? FileManager.default.removeItem(at: helper) }
+        let package = try makeScriptedPackage(pluginID: PluginID("test.terminated"), script: "input")
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let action = try ActionConfiguration(id: ActionID("terminated"), pluginID: package.manifest.id,
+                                            command: package.manifest.commands[0], input: .null)
+        XCTAssertThrowsError(try PluginRuntimeSupervisor(helperURL: helper).execute(action, in: package)) {
+            XCTAssertEqual($0 as? PluginRuntimeError, .helperTerminated)
+        }
+    }
+
+    func testSilentHelperReachesAStableTimeoutAtTheActionDeadline() throws {
         let silentHelperURL = try makeShellHelper(
             """
             #!/bin/sh
@@ -502,14 +593,19 @@ final class PluginRuntimeTests: XCTestCase {
         let registry = PluginRegistry()
         try registry.register(package)
 
+        let invokedAt = ProcessInfo.processInfo.systemUptime
         let outcome = HostActionRunner(
             executor: NoopHostCommandExecutor(),
-            scriptedExecutor: PluginRuntimeSupervisor(helperURL: silentHelperURL)
+            scriptedExecutor: PluginRuntimeSupervisor(helperURL: silentHelperURL, processFactory: {
+                Thread.sleep(forTimeInterval: 0.4)
+                return Process()
+            })
         ).invoke(action, using: registry)
         guard case .failed(let failure) = outcome.terminal else {
-            return XCTFail("A silent helper should produce a terminal protocol failure")
+            return XCTFail("A silent helper should produce a terminal timeout")
         }
-        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+        XCTAssertEqual(failure.category, .timedOut)
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - invokedAt, 4.25)
     }
 
     func testFixtureTextCommandRunsInTheJavaScriptCoreHelper() throws {

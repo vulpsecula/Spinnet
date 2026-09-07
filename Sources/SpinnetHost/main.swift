@@ -13,6 +13,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var actions: [ActionID: ActionConfiguration] = [:]
     private let capabilityGrants = PluginCapabilityGrantStore()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
+    private var executions: [ActionID: ActionLifecycle] = [:]
+    private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
+    private var pluginQueues: [PluginID: DispatchQueue] = [:]
     private let actionInvocationQueue = DispatchQueue(
         label: "com.vulpsecula.Spinnet.action-invocation",
         qos: .userInitiated
@@ -311,17 +314,59 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func invoke(actionID: ActionID) {
-        guard let action = actions[actionID], let actionRunner else { return }
+        guard let action = actions[actionID] else { return }
+        invoke(action)
+    }
+
+    private func invoke(_ configuredAction: ActionConfiguration) {
+        guard let actionRunner else { return }
         let registry = self.registry
-        // Scripted Actions cross a process boundary and may encounter a
-        // process-fatal helper fault. Keep the AppKit event loop free while
-        // the Host waits for that isolated work to finish; only the feedback
-        // presentation returns to the main queue.
-        actionInvocationQueue.async { [weak self, actionRunner, registry, action] in
-            let outcome = actionRunner.invoke(action, using: registry)
-            DispatchQueue.main.async {
-                self?.feedback.showOutcome(outcome)
+        guard configuredAction.execution == .javascript else {
+            actionInvocationQueue.async { [weak self] in
+                let outcome = actionRunner.invoke(configuredAction, using: registry)
+                DispatchQueue.main.async { self?.feedback.showOutcome(outcome) }
             }
+            return
+        }
+        do {
+            let action = try configuredAction.newInvocation()
+            let presenter = HostFeedbackPresenter()
+            executionFeedback[action.id] = presenter
+            let queue = pluginQueues[action.pluginID] ?? DispatchQueue(
+                label: "com.vulpsecula.Spinnet.plugin.\(action.pluginID.rawValue)",
+                qos: .userInitiated
+            )
+            pluginQueues[action.pluginID] = queue
+            let lifecycle = ActionLifecycle(action: action, execute: { action, control, finish in
+                queue.async {
+                    let outcome = actionRunner.invoke(action, using: registry, control: control)
+                    DispatchQueue.main.async { finish(outcome) }
+                }
+            }, onChange: { [weak self, weak presenter] state in
+                guard let self, let presenter else { return }
+                switch state {
+                case .running(let visible):
+                    if visible {
+                        presenter.showProgress(for: action) { [weak self] in
+                            self?.executions[action.id]?.cancel()
+                        }
+                    }
+                case .finished(let outcome):
+                    self.executions.removeValue(forKey: action.id)
+                    presenter.showOutcome(outcome, retry: { [weak self, weak presenter] in
+                        presenter?.dismiss()
+                        self?.executionFeedback.removeValue(forKey: action.id)
+                        self?.invoke(configuredAction)
+                    })
+                    presenter.onDismiss = { [weak self] in
+                        self?.executionFeedback.removeValue(forKey: action.id)
+                    }
+                }
+            })
+            executions[action.id] = lifecycle
+            lifecycle.start()
+        } catch {
+            feedback.showMessage("Action configuration is unavailable")
         }
     }
 
