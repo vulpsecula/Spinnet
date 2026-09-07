@@ -653,39 +653,44 @@ final class RadialMenuView: NSView {
             }
             path.stroke()
 
-            let title = slot.isEmpty ? "+" : displayTitle(slot.title)
+            let title = slot.title
             let titleFontSize: CGFloat
-            if slot.isEmpty {
-                titleFontSize = 22
-            } else if layout.itemCount >= 10 {
+            if layout.itemCount >= 10 {
                 titleFontSize = 10
             } else if layout.itemCount >= 8 {
                 titleFontSize = 11
             } else {
                 titleFontSize = 13
             }
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = .center
-            paragraphStyle.lineBreakMode = .byTruncatingMiddle
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: titleFontSize, weight: .semibold),
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
-                    ? NSColor.white
-                    : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
-            ]
             let point = layout.itemCenter(index: index, center: center)
             let titleWidth = max(
                 36,
                 2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
             )
-            let titleHeight: CGFloat = layout.itemCount >= 10 ? 28 : 18
+            let titleFont = fittedTitleFont(
+                for: title,
+                maxWidth: titleWidth,
+                baseSize: titleFontSize
+            )
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            // The font and drawing rect are sized to the complete string. Do
+            // not let AppKit replace a long Slot name with an ellipsis.
+            paragraphStyle.lineBreakMode = .byClipping
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: titleFont,
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
+                    ? NSColor.white
+                    : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
+            ]
+            let renderedTitleSize = (title as NSString).size(withAttributes: attributes)
             title.draw(
                 in: NSRect(
-                    x: point.x - titleWidth / 2,
-                    y: point.y - titleHeight / 2 + (layout.itemCount >= 10 ? 4 : 0),
-                    width: titleWidth,
-                    height: titleHeight
+                    x: point.x - renderedTitleSize.width / 2,
+                    y: point.y - renderedTitleSize.height / 2 + (layout.itemCount >= 10 ? 4 : 0),
+                    width: renderedTitleSize.width,
+                    height: renderedTitleSize.height
                 ),
                 withAttributes: attributes
             )
@@ -729,11 +734,19 @@ final class RadialMenuView: NSView {
         )
     }
 
-    private func displayTitle(_ title: String) -> String {
-        guard layout.itemCount >= 10 else { return title }
-        let words = title.split(whereSeparator: \Character.isWhitespace)
-        guard let firstWord = words.first, words.count > 1 else { return title }
-        return String(firstWord) + "\n" + words.dropFirst().joined(separator: " ")
+    private func fittedTitleFont(
+        for title: String,
+        maxWidth: CGFloat,
+        baseSize: CGFloat
+    ) -> NSFont {
+        let baseFont = NSFont.systemFont(ofSize: baseSize, weight: .semibold)
+        let measuredWidth = (title as NSString).size(withAttributes: [.font: baseFont]).width
+        guard measuredWidth > maxWidth, measuredWidth > 0 else { return baseFont }
+
+        // Font metrics scale linearly enough for this calculation, and the
+        // tiny safety factor handles rounding at the edge of a narrow sector.
+        let fittedSize = max(0.1, baseSize * maxWidth / measuredWidth * 0.98)
+        return NSFont.systemFont(ofSize: fittedSize, weight: .semibold)
     }
 }
 
