@@ -2,6 +2,9 @@ import AppKit
 import SpinnetCore
 
 final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+    #if DEBUG
+    private var lifecycleTestWindow: LifecycleTestWindow?
+    #endif
     private let registry = PluginRegistry()
     private var actionRunner: HostActionRunner!
     private var menu: MenuPresentationController!
@@ -101,6 +104,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             installStatusItem()
             try installTriggers()
+            #if DEBUG
+            if CommandLine.arguments.contains("--lifecycle-check") {
+                lifecycleTestWindow = try LifecycleTestWindow(registry: registry) { [weak self] action in
+                    self?.invoke(action)
+                }
+                lifecycleTestWindow?.show()
+            }
+            #endif
         } catch {
             showStartupFailure(error)
         }
@@ -330,7 +341,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }
         do {
             let action = try configuredAction.newInvocation()
+            #if DEBUG
+            lifecycleTestWindow?.hide()
+            let presenter = HostFeedbackPresenter(
+                displayDuration: CommandLine.arguments.contains("--lifecycle-check") ? 10 : 1.5
+            )
+            #else
             let presenter = HostFeedbackPresenter()
+            #endif
             executionFeedback[action.id] = presenter
             let queue = pluginQueues[action.pluginID] ?? DispatchQueue(
                 label: "com.vulpsecula.Spinnet.plugin.\(action.pluginID.rawValue)",
@@ -360,6 +378,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     })
                     presenter.onDismiss = { [weak self] in
                         self?.executionFeedback.removeValue(forKey: action.id)
+                        #if DEBUG
+                        self?.lifecycleTestWindow?.show()
+                        #endif
                     }
                 }
             })

@@ -62,12 +62,14 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         progress.isHidden = false
         progress.startAnimation(nil)
         configureButton("Cancel", action: cancel)
+        panel.makeKeyAndOrderFront(nil)
     }
 
     @objc private func performAction() { onAction?() }
 
     private func configureButton(_ title: String, action: @escaping () -> Void) {
         actionButton.title = title
+        actionButton.keyEquivalent = title == "Cancel" ? "\u{1b}" : "\r"
         actionButton.setAccessibilityLabel(title + " Action")
         actionButton.isHidden = false
         onAction = action

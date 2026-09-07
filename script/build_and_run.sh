@@ -94,6 +94,9 @@ case "$MODE" in
     run)
         open_app
         ;;
+    --lifecycle-check)
+        /usr/bin/open -n "$APP_BUNDLE" --args --lifecycle-check
+        ;;
     --debug|debug)
         lldb -- "$APP_BINARY"
         ;;
@@ -116,7 +119,7 @@ case "$MODE" in
         done
         ;;
     *)
-        echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+        echo "usage: $0 [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]" >&2
         exit 2
         ;;
 esac

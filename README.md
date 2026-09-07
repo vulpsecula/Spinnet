@@ -54,6 +54,22 @@ Menu bindings, appearance, and triggers are saved automatically.
    Alternate Action, close and relaunch the Host, and confirm the binding is
    still present. Right-click the Menu Item to expose the Alternate Action.
 
+## Scripted Action lifecycle checks
+
+Run `./script/build_and_run.sh --lifecycle-check` to open the Debug-only
+lifecycle test window. It creates temporary scripted Actions without changing
+saved Menu configuration or requesting Capabilities:
+
+- **Slow success (3 seconds)** shows Progress after 500 ms, then completes.
+- **Hang until timeout** loops until the four-second deadline. Press Escape
+  while Progress is visible to cancel, or wait for `timed_out`.
+- Click **Retry** (or press Return) on a failure to start a new execution.
+
+The launcher returns when feedback is dismissed. In this Debug test mode,
+success feedback stays visible for ten seconds for inspection. Normal runs
+retain the standard feedback duration. The test window is excluded from
+release builds.
+
 ## Scope
 
 `SpinnetCore` owns manifest/configuration validation, Plugin registration,
@@ -63,8 +79,9 @@ shortcuts, settings window, URL execution, and user-visible feedback.
 
 Capability-checked Host Services are available through the documented helper
 protocol. The Host stores per-Plugin-version Capability decisions and exposes the
-current fixture grants in Privacy & Permissions; helper reuse/retirement and
-user-visible scripted Action lifecycle feedback remain later tickets.
+current fixture grants in Privacy & Permissions. The Host owns scripted Action
+progress, cancellation, deadlines, and terminal feedback; helper reuse and
+retirement remain later tickets.
 
 The current manifest shape is documented in
 [`docs/plugin-interface.md`](docs/plugin-interface.md).
