@@ -949,7 +949,9 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         guard package.manifest.id == action.pluginID else {
             throw PluginRuntimeError.invalidAction("Action and Plugin package do not match")
         }
-        guard package.manifest.commands.contains(action.declaredCommand) else {
+        guard package.manifest.commands.contains(where: {
+            $0.matchesExecutableDefinition(action.declaredCommand)
+        }) else {
             throw PluginRuntimeError.invalidAction("Action Command is not declared by the Plugin")
         }
         guard let scriptPath = action.scriptPath else {

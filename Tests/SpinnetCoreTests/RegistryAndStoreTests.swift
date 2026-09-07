@@ -16,6 +16,8 @@ final class RegistryAndStoreTests: XCTestCase {
                 CommandID("fixture.transform_data")
             ]
         )
+        XCTAssertFalse(manifest.commands[1].isConfigurable)
+        XCTAssertTrue(manifest.commands[2].isConfigurable)
         XCTAssertEqual(registry.package(for: manifest.id)?.manifest, manifest)
         XCTAssertEqual(registry.manifests().map(\.id), [manifest.id])
     }
@@ -95,6 +97,49 @@ final class RegistryAndStoreTests: XCTestCase {
             registry.availability(for: action),
             .unavailable(.commandMissing)
         )
+    }
+
+    func testChangingCommandConfigurationMetadataDoesNotInvalidateAnAction() throws {
+        let registry = PluginRegistry()
+        let originalManifest = try PluginManifest(
+            id: PluginID("com.spinnet.fixture"),
+            name: "Fixture",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: CommandID("fixture.open"),
+                title: "Open URL",
+                isConfigurable: true,
+                hostCommand: .openURL
+            )]
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: originalManifest
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("open-action"),
+            pluginID: originalManifest.id,
+            command: originalManifest.commands[0],
+            input: .string("https://example.com")
+        )
+
+        let updatedManifest = try PluginManifest(
+            id: originalManifest.id,
+            name: originalManifest.name,
+            version: originalManifest.version,
+            commands: [CommandDeclaration(
+                id: CommandID("fixture.open"),
+                title: "Open URL",
+                isConfigurable: false,
+                hostCommand: .openURL
+            )]
+        )
+        try registry.replace(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: updatedManifest
+        ))
+
+        XCTAssertEqual(registry.availability(for: action), .available)
     }
 
     func testRegistryReportsMissingPluginAndCommand() throws {

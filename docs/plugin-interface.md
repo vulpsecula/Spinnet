@@ -29,12 +29,14 @@ The current walking skeleton supports Host Commands and Common JavaScript Comman
       "id": "example.open",
       "title": "Open URL",
       "execution": "host",
+      "is_configurable": true,
       "host_command": "url.open"
     },
     {
       "id": "example.transform",
       "title": "Transform Text",
       "execution": "javascript",
+      "is_configurable": false,
       "script": "transform.js"
     }
   ]
@@ -56,23 +58,30 @@ Plugin's declared Capability scope requires fresh consent.
 Every Plugin appears once in the Library through its single `preset` declaration.
 The Host assigns the trusted Built-in or Plugin Library group when it registers
 the package; a third-party manifest cannot claim Built-in identity. `readiness`
-is `ready_to_use` when every default Primary and Alternate Command
-has a valid, immediately executable value in `default_inputs`; otherwise use
-`setup_required`. The latter is
+is `ready_to_use` when every configurable default Primary and Alternate Command
+has a valid, immediately executable value in `default_inputs`; a non-configurable
+Command does not need an input. Otherwise use `setup_required`. The latter is
 visible in the Library but awaits the Configuration Sheet workflow before it can
-be added. `is_configurable` is presented independently from readiness. Manifests
-without `preset` remain compatible and appear as configurable, Setup-Required
-Plugin Presets whose Primary Command is the first declared Command.
+be added. Preset-level `is_configurable` describes whether the Slot can be
+edited; each Command's `is_configurable` independently controls whether that
+Command exposes an Action parameter editor. Manifests without `preset` remain
+compatible and appear as configurable, Setup-Required Plugin Presets whose
+Primary Command is the first declared Command.
 
 When a ready Preset is placed into a Menu Slot, the Host creates one Action for
 the declared Primary Command and one Action for each
-`default_alternate_command_ids` entry, using `default_inputs` for each Action.
+`default_alternate_command_ids` entry. Configurable Actions use their matching
+`default_inputs` value; non-configurable Actions receive a null internal input
+and do not show a parameter field.
 The normal gesture runs the Primary Action; the runtime right-click Actions menu
 lists the Primary Action and all configured Alternate Actions. Commands omitted
 from the Preset's default list are not silently bound to the Slot. For example, a
 screenshot Plugin can declare `capture_region` as its Primary Command and put
 `capture_screen` in `default_alternate_command_ids`; a future third capture mode
-can be added to that same list without changing the Slot model.
+can be added to that same list without changing the Slot model. The Slot
+Configuration Sheet may select any other Command from the same Plugin as an
+Alternate Action; only Commands whose declaration sets `is_configurable` to
+true receive a parameter field.
 
 The supported Host Command is `url.open`. Its Action input is a JSON string
 containing a URL. The production Host passes the configured Action to the
@@ -215,6 +224,7 @@ to Menu Items:
       "commandID": "example.open",
       "title": "Open URL",
       "execution": "host",
+      "isConfigurable": true,
       "hostCommand": "url.open",
       "input": "https://example.com"
     }

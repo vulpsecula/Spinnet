@@ -182,7 +182,7 @@ public final class PluginRegistry {
         guard let command = package.manifest.commands.first(where: { $0.id == action.commandID }) else {
             return .unavailable(.commandMissing)
         }
-        guard command == action.declaredCommand else {
+        guard command.matchesExecutableDefinition(action.declaredCommand) else {
             return .unavailable(.commandChanged)
         }
         return .available

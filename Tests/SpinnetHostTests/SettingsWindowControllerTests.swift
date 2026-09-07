@@ -415,6 +415,11 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         let item = try XCTUnwrap(model.editor.configuration.menu.slots[1].item)
         XCTAssertEqual(item.alternateActionIDs.count, 1)
+        let transformAction = try XCTUnwrap(model.editor.configuration.actions.first {
+            $0.commandID == CommandID("fixture.transform_text")
+        })
+        XCTAssertFalse(transformAction.isConfigurable)
+        XCTAssertEqual(transformAction.input, .null)
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: model.editor.configuration,
             availability: { _ in .available }
@@ -1541,6 +1546,7 @@ final class SettingsWindowControllerTests: XCTestCase {
                 id: CommandID("fixture.transform_text"),
                 title: "Transform Text",
                 execution: .javascript,
+                isConfigurable: false,
                 script: "transform-text.js"
             )],
             preset: MenuItemPresetDeclaration(
@@ -1548,10 +1554,7 @@ final class SettingsWindowControllerTests: XCTestCase {
                 isConfigurable: true,
                 defaultPrimaryCommandID: CommandID("fixture.open"),
                 defaultAlternateCommandIDs: [CommandID("fixture.transform_text")],
-                defaultInputs: [
-                    CommandID("fixture.open"): .string("https://example.com"),
-                    CommandID("fixture.transform_text"): .string("Spinnet Plugin fixture")
-                ]
+                defaultInputs: [CommandID("fixture.open"): .string("https://example.com")]
             )
         )
         try registry.register(PluginPackage(

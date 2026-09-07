@@ -10,13 +10,12 @@
     "default_primary_command_id": "fixture.open_url",
     "default_alternate_command_ids": ["fixture.transform_text"],
     "default_inputs": {
-      "fixture.open_url": "https://github.com/vulpsecula/Spinnet",
-      "fixture.transform_text": "Spinnet Plugin fixture"
+      "fixture.open_url": "https://github.com/vulpsecula/Spinnet"
     }
   },
   "commands": [
-    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"},
-    {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},
-    {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "script": "structured-data.js"}
+    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "is_configurable": true, "host_command": "url.open"},
+    {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "is_configurable": false, "script": "transform-text.js"},
+    {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "is_configurable": true, "script": "structured-data.js"}
   ]
 }

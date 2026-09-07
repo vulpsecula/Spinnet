@@ -471,7 +471,7 @@ final class SettingsWindowModel: ObservableObject {
             try editor.deleteMenuItem(at: index)
             guard editor.configuration != before else { return }
             selectedMenuIndex = index
-            placementMessage = "Menu Item deleted from Slot \(index + 1)."
+            placementMessage = "Menu Item cleared from Slot \(index + 1)."
             configurationDidChange(editor.configuration)
             recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
         } catch {
@@ -874,10 +874,12 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
 }
 
 private struct SlotConfigurationSheet: View {
-    private struct ConfiguredAction: Identifiable {
-        let id: ActionID
-        let role: String
-        let action: ActionConfiguration
+    private struct InitialState {
+        let pluginManifest: PluginManifest?
+        let pluginID: PluginID?
+        let primaryCommandID: CommandID
+        let alternateCommandIDs: Set<CommandID>
+        let inputTexts: [CommandID: String]
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -885,8 +887,12 @@ private struct SlotConfigurationSheet: View {
     let editor: HostConfigurationEditor
     let slotIndex: Int
     let onSaved: (HostConfiguration) -> Void
+    private let pluginManifest: PluginManifest?
+    private let pluginID: PluginID?
 
-    @State private var inputTexts: [ActionID: String]
+    @State private var primaryCommandID: CommandID
+    @State private var alternateCommandIDs: Set<CommandID>
+    @State private var inputTexts: [CommandID: String]
     @State private var errorMessage: String?
 
     init(
@@ -897,64 +903,49 @@ private struct SlotConfigurationSheet: View {
         self.editor = editor
         self.slotIndex = slotIndex
         self.onSaved = onSaved
-        let actions = Self.configuredActions(in: editor, slotIndex: slotIndex)
-        _inputTexts = State(initialValue: Dictionary(uniqueKeysWithValues: actions.map {
-            ($0.id, Self.displayValue(for: $0.action.input))
-        }))
+        let initialState = Self.initialState(in: editor, slotIndex: slotIndex)
+        pluginManifest = initialState.pluginManifest
+        pluginID = initialState.pluginID
+        _primaryCommandID = State(initialValue: initialState.primaryCommandID)
+        _alternateCommandIDs = State(initialValue: initialState.alternateCommandIDs)
+        _inputTexts = State(initialValue: initialState.inputTexts)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Configure Slot \(slotIndex + 1)")
-                    .font(.title2.weight(.semibold))
-                Text("Primary and Alternate Actions")
-                    .foregroundStyle(.secondary)
-            }
-
-            Text("The Plugin defines which Commands can be grouped in this Slot. Primary runs with the normal gesture; Alternate Actions appear in the runtime right-click menu.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Configured Actions")
-                    .font(.headline)
-
-                ForEach(Self.configuredActions(in: editor, slotIndex: slotIndex)) { configured in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Label(
-                                configured.role,
-                                systemImage: configured.role == "Primary"
-                                    ? "1.circle.fill"
-                                    : "arrow.turn.down.right"
-                            )
-                            .font(.caption.weight(.semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Configure Slot \(slotIndex + 1)")
+                            .font(.title2.weight(.semibold))
+                        Text(pluginManifest?.name ?? "Plugin unavailable")
                             .foregroundStyle(.secondary)
-                            Text(configured.action.title)
-                                .font(.headline)
-                        }
+                    }
 
-                        TextField(
-                            configured.action.execution == .javascript
-                                ? "Action input (optional)"
-                                : "URL or configuration value",
-                            text: inputBinding(for: configured.id)
+                    if let pluginManifest {
+                        actionSelection(for: pluginManifest)
+                        Divider()
+                        actionParameters()
+                    } else {
+                        Label(
+                            "The Plugin for this Slot is unavailable, so its Actions cannot be changed.",
+                            systemImage: "exclamationmark.triangle.fill"
                         )
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel(
-                            "\(configured.role) \(configured.action.title) configuration input"
-                        )
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
+                .padding(24)
             }
 
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
+            Divider()
 
             HStack {
                 Spacer()
@@ -962,22 +953,128 @@ private struct SlotConfigurationSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(pluginManifest == nil || selectedCommands.isEmpty)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .padding(24)
-        .frame(width: 440)
+        .frame(width: 540, height: 600)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Slot Configuration")
+        .onChange(of: primaryCommandID) { commandID in
+            alternateCommandIDs.remove(commandID)
+        }
+    }
+
+    @ViewBuilder
+    private func actionSelection(for plugin: PluginManifest) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Choose Actions")
+                    .font(.headline)
+                Text("Choose the Action used by the normal gesture, then select which other Plugin Actions appear in the runtime right-click menu.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Primary Action")
+                    .frame(width: 118, alignment: .leading)
+                Picker("Primary Action", selection: $primaryCommandID) {
+                    ForEach(plugin.commands, id: \.id) { command in
+                        Text(command.title).tag(command.id)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Primary Action")
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Alternate Actions")
+                    .font(.subheadline.weight(.semibold))
+
+                if alternateCommands.isEmpty {
+                    Text("This Plugin does not provide another Action.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(alternateCommands, id: \.id) { command in
+                        Toggle(isOn: alternateBinding(for: command.id)) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(command.title)
+                                    Text(command.isConfigurable ? "Supports parameters" : "No parameters")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .toggleStyle(.checkbox)
+                        .accessibilityLabel("Alternate Action \(command.title)")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actionParameters() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Action Parameters")
+                    .font(.headline)
+                Text("Parameters are shown only for the selected Actions that declare configuration support.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if configurableCommands.isEmpty {
+                Text("The selected Actions do not require configuration.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(configurableCommands, id: \.id) { command in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(command.title)
+                            .font(.subheadline.weight(.semibold))
+                        TextField(
+                            parameterPlaceholder(for: command),
+                            text: inputBinding(for: command.id)
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("\(command.title) configuration input")
+                    }
+                }
+            }
+        }
     }
 
     private func save() {
+        guard let pluginID,
+              let primaryCommand = selectedCommands.first,
+              primaryCommand.id == primaryCommandID else {
+            errorMessage = "Choose a valid Primary Action before saving."
+            return
+        }
+
+        let alternateCommandIDs = selectedCommands.dropFirst().map(\.id)
+        let inputs = Dictionary(uniqueKeysWithValues: configurableCommands.map { command in
+            (command.id, inputValue(for: command.id))
+        })
+
         do {
-            for configured in Self.configuredActions(in: editor, slotIndex: slotIndex) {
-                _ = try editor.updateAction(
-                    id: configured.id,
-                    input: inputValue(for: configured.id)
-                )
-            }
+            try editor.configureMenuItem(
+                at: slotIndex,
+                pluginID: pluginID,
+                primaryCommandID: primaryCommandID,
+                alternateCommandIDs: alternateCommandIDs,
+                inputs: inputs
+            )
             onSaved(editor.configuration)
             dismiss()
         } catch {
@@ -985,15 +1082,28 @@ private struct SlotConfigurationSheet: View {
         }
     }
 
-    private func inputBinding(for id: ActionID) -> Binding<String> {
+    private func alternateBinding(for commandID: CommandID) -> Binding<Bool> {
         Binding(
-            get: { inputTexts[id] ?? "" },
-            set: { inputTexts[id] = $0 }
+            get: { alternateCommandIDs.contains(commandID) },
+            set: { isSelected in
+                if isSelected {
+                    alternateCommandIDs.insert(commandID)
+                } else {
+                    alternateCommandIDs.remove(commandID)
+                }
+            }
         )
     }
 
-    private func inputValue(for id: ActionID) -> JSONValue {
-        let inputText = inputTexts[id] ?? ""
+    private func inputBinding(for commandID: CommandID) -> Binding<String> {
+        return Binding(
+            get: { inputTexts[commandID] ?? "" },
+            set: { inputTexts[commandID] = $0 }
+        )
+    }
+
+    private func inputValue(for commandID: CommandID) -> JSONValue {
+        let inputText = inputTexts[commandID] ?? ""
         if let data = inputText.data(using: .utf8),
            let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
             return value
@@ -1001,23 +1111,83 @@ private struct SlotConfigurationSheet: View {
         return .string(inputText)
     }
 
-    private static func configuredActions(
+    private var alternateCommands: [CommandDeclaration] {
+        guard let pluginManifest else { return [] }
+        return pluginManifest.commands.filter { $0.id != primaryCommandID }
+    }
+
+    private var selectedCommands: [CommandDeclaration] {
+        guard let pluginManifest,
+              let primaryCommand = pluginManifest.commands.first(where: {
+                  $0.id == primaryCommandID
+              }) else {
+            return []
+        }
+        return [primaryCommand] + pluginManifest.commands.filter {
+            $0.id != primaryCommandID && alternateCommandIDs.contains($0.id)
+        }
+    }
+
+    private var configurableCommands: [CommandDeclaration] {
+        selectedCommands.filter(\.isConfigurable)
+    }
+
+    private func parameterPlaceholder(for command: CommandDeclaration) -> String {
+        command.hostCommand == .openURL ? "URL" : "Configuration value (JSON or text)"
+    }
+
+    private static func initialState(
         in editor: HostConfigurationEditor,
         slotIndex: Int
-    ) -> [ConfiguredAction] {
+    ) -> InitialState {
         guard editor.configuration.menu.slots.indices.contains(slotIndex),
-              let item = editor.configuration.menu.slots[slotIndex].item else { return [] }
-        let actionIDs = [item.primaryActionID] + item.alternateActionIDs
-        return actionIDs.enumerated().compactMap { index, actionID in
-            guard let action = editor.configuration.actions.first(where: { $0.id == actionID }) else {
-                return nil
-            }
-            return ConfiguredAction(
-                id: action.id,
-                role: index == 0 ? "Primary" : "Alternate",
-                action: action
+              let item = editor.configuration.menu.slots[slotIndex].item,
+              let primaryAction = editor.configuration.actions.first(where: {
+                  $0.id == item.primaryActionID
+              }) else {
+            return InitialState(
+                pluginManifest: nil,
+                pluginID: nil,
+                primaryCommandID: CommandID("missing"),
+                alternateCommandIDs: [],
+                inputTexts: [:]
             )
         }
+
+        let pluginID = primaryAction.pluginID
+        let pluginManifest = editor.pluginManifests.first { $0.id == pluginID }
+        let commands = pluginManifest?.commands ?? []
+        let primaryCommandID = commands.contains(where: { $0.id == primaryAction.commandID })
+            ? primaryAction.commandID
+            : (commands.first?.id ?? primaryAction.commandID)
+        let boundActionIDs = [item.primaryActionID] + item.alternateActionIDs
+        let boundActions = boundActionIDs.compactMap { actionID in
+            editor.configuration.actions.first(where: { $0.id == actionID })
+        }
+        let alternateCommandIDs: Set<CommandID> = Set(boundActions.compactMap { action in
+            guard action.pluginID == pluginID,
+                  action.id != primaryAction.id,
+                  commands.contains(where: { $0.id == action.commandID }),
+                  action.commandID != primaryCommandID else { return nil }
+            return action.commandID
+        })
+        var inputTexts: [CommandID: String] = [:]
+        for command in commands {
+            if let action = boundActions.first(where: {
+                $0.pluginID == pluginID && $0.commandID == command.id
+            }) {
+                inputTexts[command.id] = displayValue(for: action.input)
+            } else if let input = pluginManifest?.preset.defaultInputs[command.id] {
+                inputTexts[command.id] = displayValue(for: input)
+            }
+        }
+        return InitialState(
+            pluginManifest: pluginManifest,
+            pluginID: pluginID,
+            primaryCommandID: primaryCommandID,
+            alternateCommandIDs: alternateCommandIDs,
+            inputTexts: inputTexts
+        )
     }
 
     private static func displayValue(for value: JSONValue) -> String {

@@ -36,6 +36,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     public let id: CommandID
     public let title: String
     public let execution: CommandExecution
+    public let isConfigurable: Bool
     public let hostCommand: HostCommand?
     public let script: String?
 
@@ -43,12 +44,14 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         id: CommandID,
         title: String,
         execution: CommandExecution = .host,
+        isConfigurable: Bool = true,
         hostCommand: HostCommand? = nil,
         script: String? = nil
     ) {
         self.id = id
         self.title = title
         self.execution = execution
+        self.isConfigurable = isConfigurable
         self.hostCommand = hostCommand
         self.script = script
     }
@@ -61,12 +64,14 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         id: CommandID,
         title: String,
         execution: CommandExecution = .javascript,
+        isConfigurable: Bool = true,
         scriptPath: String
     ) {
         self.init(
             id: id,
             title: title,
             execution: execution,
+            isConfigurable: isConfigurable,
             script: scriptPath
         )
     }
@@ -75,6 +80,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case id
         case title
         case execution
+        case isConfigurable = "is_configurable"
         case hostCommand = "host_command"
         case script
         case scriptPath = "script_path"
@@ -90,6 +96,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             id: try container.decode(CommandID.self, forKey: .id),
             title: try container.decode(String.self, forKey: .title),
             execution: try container.decode(CommandExecution.self, forKey: .execution),
+            isConfigurable: try container.decodeIfPresent(Bool.self, forKey: .isConfigurable) ?? true,
             hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
             script: script
         )
@@ -100,8 +107,20 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encode(id, forKey: .id)
         try container.encode(title, forKey: .title)
         try container.encode(execution, forKey: .execution)
+        try container.encode(isConfigurable, forKey: .isConfigurable)
         try container.encodeIfPresent(hostCommand, forKey: .hostCommand)
         try container.encodeIfPresent(script, forKey: .script)
+    }
+
+    /// Configuration metadata may change without invalidating an existing
+    /// executable Action. The Host still needs the other Command fields to
+    /// match before it can run a persisted Action.
+    public func matchesExecutableDefinition(_ other: CommandDeclaration) -> Bool {
+        id == other.id
+            && title == other.title
+            && execution == other.execution
+            && hostCommand == other.hostCommand
+            && script == other.script
     }
 }
 
@@ -200,19 +219,26 @@ public struct PluginManifest: Codable, Equatable {
               preset.defaultAlternateCommandIDs.allSatisfy(commandIDs.contains) else {
             throw ConfigurationError.invalidManifest("Preset Alternate Commands are invalid")
         }
-        guard preset.defaultInputs.keys.allSatisfy(commandIDs.contains) else {
-            throw ConfigurationError.invalidManifest("Preset input references an undeclared Command")
+        guard preset.defaultInputs.keys.allSatisfy({ commandID in
+            guard let command = commands.first(where: { $0.id == commandID }) else {
+                return false
+            }
+            return command.isConfigurable
+        }) else {
+            throw ConfigurationError.invalidManifest(
+                "Preset input references an undeclared or non-configurable Command"
+            )
         }
         if preset.readiness == .readyToUse {
             let defaultCommandIDs = [primaryCommandID] + preset.defaultAlternateCommandIDs
-            guard defaultCommandIDs.allSatisfy({ preset.defaultInputs[$0] != nil }) else {
-                throw ConfigurationError.invalidManifest(
-                    "Ready-to-Use Preset requires an input for every default Command"
-                )
-            }
             for commandID in defaultCommandIDs {
-                guard let command = commands.first(where: { $0.id == commandID }),
-                      let input = preset.defaultInputs[commandID],
+                guard let command = commands.first(where: { $0.id == commandID }) else {
+                    throw ConfigurationError.invalidManifest(
+                        "Ready-to-Use Preset references an undeclared Command"
+                    )
+                }
+                guard command.isConfigurable else { continue }
+                guard let input = preset.defaultInputs[commandID],
                       validDefaultInput(input, for: command) else {
                     throw ConfigurationError.invalidManifest(
                         "Ready-to-Use Preset input is invalid for Command \(commandID.rawValue)"
@@ -314,6 +340,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     public let commandID: CommandID
     public let title: String
     public let execution: CommandExecution
+    public let isConfigurable: Bool
     public let hostCommand: HostCommand?
     public let script: String?
     public let input: JSONValue
@@ -352,6 +379,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         self.commandID = command.id
         self.title = command.title
         self.execution = command.execution
+        self.isConfigurable = command.isConfigurable
         self.hostCommand = command.hostCommand
         self.script = command.script
         self.input = input
@@ -364,6 +392,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
             id: commandID,
             title: title,
             execution: execution,
+            isConfigurable: isConfigurable,
             hostCommand: hostCommand,
             script: script
         )
@@ -375,6 +404,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         case commandID
         case title
         case execution
+        case isConfigurable
         case hostCommand
         case script
         case input
@@ -383,15 +413,19 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
-            id: container.decode(ActionID.self, forKey: .id),
-            pluginID: container.decode(PluginID.self, forKey: .pluginID),
-            command: CommandDeclaration(
-                id: container.decode(CommandID.self, forKey: .commandID),
-                title: container.decode(String.self, forKey: .title),
-                execution: container.decode(CommandExecution.self, forKey: .execution),
-                hostCommand: container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
-                script: container.decodeIfPresent(String.self, forKey: .script)
-            ),
+                id: container.decode(ActionID.self, forKey: .id),
+                pluginID: container.decode(PluginID.self, forKey: .pluginID),
+                command: CommandDeclaration(
+                    id: container.decode(CommandID.self, forKey: .commandID),
+                    title: container.decode(String.self, forKey: .title),
+                    execution: container.decode(CommandExecution.self, forKey: .execution),
+                    isConfigurable: container.decodeIfPresent(
+                        Bool.self,
+                        forKey: .isConfigurable
+                    ) ?? true,
+                    hostCommand: container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
+                    script: container.decodeIfPresent(String.self, forKey: .script)
+                ),
             input: container.decode(JSONValue.self, forKey: .input)
         )
     }

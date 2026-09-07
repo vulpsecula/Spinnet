@@ -204,6 +204,79 @@ public final class HostConfigurationEditor {
         try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
+    /// Rebuilds one Menu Slot from a single Plugin's selected Commands. The
+    /// operation keeps existing Action IDs when a selected Command remains in
+    /// the Slot, creates Actions for newly selected Commands, and removes the
+    /// Slot's old Actions in the same configuration replacement.
+    public func configureMenuItem(
+        at index: Int,
+        pluginID: PluginID,
+        primaryCommandID: CommandID,
+        alternateCommandIDs: [CommandID] = [],
+        inputs: [CommandID: JSONValue] = [:]
+    ) throws {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Item index is out of range")
+        }
+        guard let existingItem = configuration.menu.slots[index].item else {
+            throw ConfigurationError.invalidMenu("Menu Slot is empty")
+        }
+
+        let selectedCommandIDs = [primaryCommandID] + alternateCommandIDs
+        guard Set(selectedCommandIDs).count == selectedCommandIDs.count else {
+            throw ConfigurationError.invalidMenu("A Command is selected more than once")
+        }
+        guard inputs.keys.allSatisfy(selectedCommandIDs.contains) else {
+            throw ConfigurationError.invalidAction(
+                "Configuration input references an unselected Command"
+            )
+        }
+
+        let oldActionIDs = Set(
+            [existingItem.primaryActionID] + existingItem.alternateActionIDs
+        )
+        let oldActions = configuration.actions.filter { oldActionIDs.contains($0.id) }
+        let presetInputs = registry.menuItemPreset(for: pluginID)?.declaration.defaultInputs ?? [:]
+        var existingActionsByCommandID: [CommandID: ActionConfiguration] = [:]
+        for action in oldActions where action.pluginID == pluginID {
+            existingActionsByCommandID[action.commandID] = action
+        }
+
+        let newActions = try selectedCommandIDs.map { commandID -> ActionConfiguration in
+            guard let command = registry.command(for: pluginID, commandID: commandID) else {
+                throw ConfigurationError.invalidAction("Command is unavailable")
+            }
+            let existingAction = existingActionsByCommandID[commandID]
+            let actionID = existingAction?.id ?? ActionID(UUID().uuidString)
+            let input: JSONValue
+            if !command.isConfigurable {
+                input = .null
+            } else {
+                input = inputs[commandID]
+                    ?? existingAction?.input
+                    ?? presetInputs[commandID]
+                    ?? .null
+            }
+            return try makeAvailableAction(
+                id: actionID,
+                pluginID: pluginID,
+                commandID: commandID,
+                input: input
+            )
+        }
+
+        let item = try MenuItemConfiguration(
+            primaryActionID: newActions[0].id,
+            alternateActionIDs: newActions.dropFirst().map(\.id)
+        )
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item)
+        try replaceConfiguration(
+            actions: configuration.actions.filter { !oldActionIDs.contains($0.id) } + newActions,
+            slots: slots
+        )
+    }
+
     public func addMenuItem(
         primaryActionID: ActionID,
         alternateActionIDs: [ActionID] = []
@@ -301,8 +374,15 @@ public final class HostConfigurationEditor {
         let primaryCommandID = declaration.defaultPrimaryCommandID ?? preset.commands[0].id
         let commandIDs = [primaryCommandID] + declaration.defaultAlternateCommandIDs
         let newActions = try commandIDs.map { commandID -> ActionConfiguration in
-            guard let command = preset.commands.first(where: { $0.id == commandID }),
-                  let input = declaration.defaultInputs[commandID] else {
+            guard let command = preset.commands.first(where: { $0.id == commandID }) else {
+                throw ConfigurationError.invalidAction("Preset defaults are incomplete")
+            }
+            let input: JSONValue
+            if let configuredInput = declaration.defaultInputs[commandID] {
+                input = configuredInput
+            } else if !command.isConfigurable {
+                input = .null
+            } else {
                 throw ConfigurationError.invalidAction("Preset defaults are incomplete")
             }
             return try ActionConfiguration(

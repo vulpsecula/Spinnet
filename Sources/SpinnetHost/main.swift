@@ -140,7 +140,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             manifest: manifest,
             commandID: "fixture.transform_text",
             actionID: "fixture-transform-text",
-            input: .string("Spinnet Plugin fixture")
+            input: .null
         )
         let structuredAction = try makeFixtureScriptAction(
             manifest: manifest,
@@ -194,9 +194,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 }
 
                 guard let command = manifest.commands.first(where: { $0.id == commandID }),
-                      let input = manifest.preset.defaultInputs[commandID] else {
+                      manifest.preset.defaultInputs[commandID] != nil || !command.isConfigurable else {
                     continue
                 }
+                let input = manifest.preset.defaultInputs[commandID] ?? .null
                 let normalizedCommandID = commandID.rawValue
                     .replacingOccurrences(of: "fixture.", with: "")
                     .replacingOccurrences(of: "_", with: "-")

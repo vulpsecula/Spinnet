@@ -221,6 +221,49 @@ final class ConfigurationEditorTests: XCTestCase {
         XCTAssertNil(editor.configuration.menu.slots[1].item)
     }
 
+    func testEditorReconfiguresASlotFromPluginCommandsAndClearsNoParameterInput() throws {
+        let registry = try makeRegistry()
+        let openCommand = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.fixture"),
+            commandID: CommandID("fixture.open")
+        ))
+        let openAction = try ActionConfiguration(
+            id: ActionID("open"),
+            pluginID: PluginID("com.spinnet.fixture"),
+            command: openCommand,
+            input: .string("https://example.com")
+        )
+        let editor = HostConfigurationEditor(
+            registry: registry,
+            configuration: try HostConfiguration(
+                actions: [openAction],
+                menu: MenuConfiguration(items: [
+                    try MenuItemConfiguration(primaryActionID: openAction.id)
+                ])
+            )
+        )
+
+        try editor.configureMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.open"),
+            alternateCommandIDs: [CommandID("fixture.transform_text")],
+            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")]
+        )
+
+        let item = try XCTUnwrap(editor.configuration.menu.items.first)
+        let alternateAction = try XCTUnwrap(editor.configuration.actions.first {
+            $0.id == item.alternateActionIDs.first
+        })
+        XCTAssertEqual(alternateAction.commandID, CommandID("fixture.transform_text"))
+        XCTAssertFalse(alternateAction.isConfigurable)
+        XCTAssertEqual(alternateAction.input, .null)
+        XCTAssertEqual(
+            editor.configuration.actions.first(where: { $0.id == item.primaryActionID })?.input,
+            .string("https://spinnet.dev")
+        )
+    }
+
     private func makeRegistry() throws -> PluginRegistry {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(
@@ -237,6 +280,13 @@ final class ConfigurationEditorTests: XCTestCase {
                     id: CommandID("fixture.copy"),
                     title: "Copy",
                     hostCommand: .openURL
+                ),
+                CommandDeclaration(
+                    id: CommandID("fixture.transform_text"),
+                    title: "Transform Text",
+                    execution: .javascript,
+                    isConfigurable: false,
+                    script: "transform-text.js"
                 )
             ]
         )

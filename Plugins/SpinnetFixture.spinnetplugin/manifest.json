@@ -5,8 +5,8 @@
   "version": "1.0.0",
   "capabilities": ["read_selected_text", "write_clipboard"],
   "commands": [
-    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "host_command": "url.open"},
-    {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},
-    {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "script": "structured-data.js"}
+    {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "is_configurable": true, "host_command": "url.open"},
+    {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "is_configurable": false, "script": "transform-text.js"},
+    {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "is_configurable": true, "script": "structured-data.js"}
   ]
 }

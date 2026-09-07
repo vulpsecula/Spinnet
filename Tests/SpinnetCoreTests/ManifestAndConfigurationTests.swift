@@ -65,8 +65,8 @@ final class ManifestAndConfigurationTests: XCTestCase {
           "name": "Fixture",
           "version": "1.0.0",
           "commands": [
-            {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "script": "transform-text.js"},
-            {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "script": "structured-data.js"}
+            {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "is_configurable": false, "script": "transform-text.js"},
+            {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "is_configurable": true, "script": "structured-data.js"}
           ]
         }
         """#.utf8)
@@ -75,6 +75,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
 
         XCTAssertEqual(manifest.commands.map(\.execution), [.javascript, .javascript])
         XCTAssertEqual(manifest.commands.map(\.scriptPath), ["transform-text.js", "structured-data.js"])
+        XCTAssertEqual(manifest.commands.map(\.isConfigurable), [false, true])
         XCTAssertNil(manifest.commands[0].hostCommand)
     }
 
