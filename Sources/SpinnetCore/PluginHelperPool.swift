@@ -43,12 +43,25 @@ final class PluginHelperPool {
 
     func start(_ lease: Lease, create: () throws -> PluginHelperProcess) throws -> PluginHelperProcess {
         condition.lock()
-        defer { condition.unlock() }
-        guard !lease.retired, !stopped else { throw PluginRuntimeError.helperTerminated }
-        if let helper = lease.helper, helper.isUsable { return helper }
+        guard !lease.retired, !stopped else {
+            condition.unlock()
+            throw PluginRuntimeError.helperTerminated
+        }
+        if let helper = lease.helper, helper.isUsable {
+            condition.unlock()
+            return helper
+        }
         lease.helper?.terminate()
-        let helper = try create()
-        lease.helper = helper
+        let helper: PluginHelperProcess
+        do {
+            helper = try create()
+            lease.helper = helper
+        } catch {
+            condition.unlock()
+            throw error
+        }
+        condition.unlock()
+        helper.startResourceMonitor()
         return helper
     }
 
@@ -88,9 +101,9 @@ final class PluginHelperPool {
         }
     }
 
-    func terminate(_ lease: Lease) {
+    func terminate(_ lease: Lease, reason: PluginRuntimeError = .helperTerminated) {
         condition.lock()
-        retire(lease)
+        retire(lease, reason: reason)
         condition.unlock()
     }
 
@@ -120,9 +133,9 @@ final class PluginHelperPool {
         condition.unlock()
     }
 
-    private func retire(_ lease: Lease) {
+    private func retire(_ lease: Lease, reason: PluginRuntimeError = .helperTerminated) {
         lease.retired = true
-        lease.helper?.terminate()
+        lease.helper?.terminate(reason: reason)
         if leases[lease.pluginID] === lease { leases.removeValue(forKey: lease.pluginID) }
         condition.broadcast()
     }
@@ -151,10 +164,14 @@ final class PluginHelperProcess {
     private let output: FileHandle
     private let pluginID: PluginID
     private let resourceLimitBytes: UInt64
+    private let onFailure: ((PluginRuntimeError) -> Void)?
     private var resourceMonitor: PluginHelperResourceMonitor?
     private let condition = NSCondition()
     private var frame: Data?
     private var failure: PluginRuntimeError?
+    private var invalidatesBufferedFrame = false
+    private var bufferedTerminal = false
+    private var terminalDelivered = false
     private var awaitingMessage = false
     private var exiting = false
 
@@ -165,7 +182,8 @@ final class PluginHelperProcess {
         pluginID: PluginID,
         resourceSampler: @escaping PluginHelperResourceMonitor.Sample,
         resourceSchedule: @escaping PluginHelperResourceMonitor.Schedule,
-        resourceLimitBytes: UInt64
+        resourceLimitBytes: UInt64,
+        onFailure: ((PluginRuntimeError) -> Void)? = nil
     ) {
         self.process = process
         self.inputPipe = input
@@ -174,6 +192,7 @@ final class PluginHelperProcess {
         self.output = output.fileHandleForReading
         self.pluginID = pluginID
         self.resourceLimitBytes = resourceLimitBytes
+        self.onFailure = onFailure
         self.resourceMonitor = PluginHelperResourceMonitor(
             process: process,
             sample: resourceSampler,
@@ -183,8 +202,10 @@ final class PluginHelperProcess {
                 self?.resourceLimitExceeded(footprint: footprint)
             }
         )
-        DispatchQueue.global(qos: .userInitiated).async { self.readMessages() }
-        resourceMonitor?.start()
+        // The reader blocks on the helper pipe for the whole warm connection.
+        // Give each helper its own thread so one idle Plugin cannot consume a
+        // shared global-queue worker needed by another Plugin.
+        Thread.detachNewThread { [self] in readMessages() }
     }
 
     var isUsable: Bool {
@@ -200,6 +221,7 @@ final class PluginHelperProcess {
         guard !exiting, !awaitingMessage, frame == nil else {
             throw PluginRuntimeError.protocolViolation("Invocation is out of order")
         }
+        terminalDelivered = false
         awaitingMessage = true
     }
 
@@ -210,13 +232,40 @@ final class PluginHelperProcess {
         while frame == nil && failure == nil {
             guard condition.wait(until: deadline) else { throw PluginRuntimeError.timedOut }
         }
+        if invalidatesBufferedFrame, let failure {
+            frame = nil
+            condition.broadcast()
+            throw failure
+        }
         // A valid terminal can precede normal EOF from a helper. Deliver it.
         if let frame {
             self.frame = nil
+            if bufferedTerminal {
+                terminalDelivered = true
+                bufferedTerminal = false
+            }
             condition.broadcast()
             return frame
         }
         throw failure ?? .helperTerminated
+    }
+
+    func checkForInvalidation() throws {
+        condition.lock()
+        defer { condition.unlock() }
+        guard invalidatesBufferedFrame else { return }
+        throw failure ?? .helperTerminated
+    }
+
+    func invalidationError() -> PluginRuntimeError? {
+        condition.lock()
+        defer { condition.unlock() }
+        guard invalidatesBufferedFrame else { return nil }
+        return failure ?? .helperTerminated
+    }
+
+    func startResourceMonitor() {
+        resourceMonitor?.start()
     }
 
     func requestExit() {
@@ -235,6 +284,7 @@ final class PluginHelperProcess {
         condition.lock()
         exiting = true
         if failure == nil { failure = reason }
+        invalidatesBufferedFrame = true
         if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
         try? input.close()
         condition.broadcast()
@@ -249,6 +299,7 @@ final class PluginHelperProcess {
             footprint: footprint,
             limit: resourceLimitBytes
         )
+        onFailure?(.helperResourceExceeded)
         terminate(reason: .helperResourceExceeded)
     }
 
@@ -270,7 +321,10 @@ final class PluginHelperProcess {
                     condition.unlock()
                     throw PluginRuntimeError.protocolViolation("Unexpected message from Plugin helper")
                 }
-                if type == .terminal { awaitingMessage = false }
+                if type == .terminal {
+                    awaitingMessage = false
+                    bufferedTerminal = true
+                }
                 frame = data
                 condition.broadcast()
                 // Host Service replies are written only after consuming this
@@ -284,21 +338,29 @@ final class PluginHelperProcess {
                 case SIGTERM, SIGKILL: error = .helperTerminated
                 default: error = .helperCrashed(signal: process.terminationStatus)
                 }
-            } else if isExitingNormally {
+                fail(error, invalidatesBufferedFrame: true)
+                if !isExitingNow { onFailure?(error) }
+                return
+            } else if isExitingNormally || hasCompletedTerminal {
                 return
             } else {
                 error = .protocolViolation("Terminal result is missing")
             }
-            fail(error)
+            fail(error, invalidatesBufferedFrame: true)
+            if !isExitingNow { onFailure?(error) }
         } catch {
-            fail((error as? PluginRuntimeError) ?? .protocolViolation("Plugin message could not be read"))
-            terminate()
+            let runtimeError = (error as? PluginRuntimeError)
+                ?? .protocolViolation("Plugin message could not be read")
+            fail(runtimeError, invalidatesBufferedFrame: true)
+            if !isExitingNow { onFailure?(runtimeError) }
+            terminate(reason: runtimeError)
         }
     }
 
-    private func fail(_ error: PluginRuntimeError) {
+    private func fail(_ error: PluginRuntimeError, invalidatesBufferedFrame: Bool = false) {
         condition.lock()
         if failure == nil { failure = error }
+        if invalidatesBufferedFrame { self.invalidatesBufferedFrame = true }
         condition.broadcast()
         condition.unlock()
     }
@@ -307,5 +369,17 @@ final class PluginHelperProcess {
         condition.lock()
         defer { condition.unlock() }
         return exiting && process.terminationReason == .exit && process.terminationStatus == 0
+    }
+
+    private var hasCompletedTerminal: Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return terminalDelivered || bufferedTerminal
+    }
+
+    private var isExitingNow: Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return exiting
     }
 }

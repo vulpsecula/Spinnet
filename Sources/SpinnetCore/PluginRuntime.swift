@@ -1102,7 +1102,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 pluginID: action.pluginID,
                 resourceSampler: resourceSampler,
                 resourceSchedule: resourceSchedule,
-                resourceLimitBytes: resourceLimitBytes
+                resourceLimitBytes: resourceLimitBytes,
+                onFailure: { [weak self, weak lease] reason in
+                    guard let self, let lease else { return }
+                    self.helpers.terminate(lease, reason: reason)
+                }
             )
         }
         let helper: PluginHelperProcess
@@ -1126,46 +1130,34 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 helper: helper
             )
         } catch {
+            let helperError = helper.invalidationError()
             helpers.terminate(lease)
             let runtimeError: PluginRuntimeError
             do {
                 try control.check()
-                runtimeError = (error as? PluginRuntimeError)
+                runtimeError = helperError
+                    ?? (error as? PluginRuntimeError)
                     ?? PluginRuntimeError.protocolViolation("Plugin exchange failed")
             } catch let controlError as PluginRuntimeError {
                 runtimeError = controlError
             } catch {
                 runtimeError = .protocolViolation("Plugin exchange failed")
             }
-            PluginRuntimeDiagnostics.helperFailure(
-                pluginID: action.pluginID,
-                actionID: action.id,
-                error: runtimeError
-            )
-            throw runtimeError
+            try fail(action: action, error: runtimeError)
         }
 
         do {
             try control.check()
+            try helper.checkForInvalidation()
         } catch let error as PluginRuntimeError {
             helpers.terminate(lease)
-            PluginRuntimeDiagnostics.helperFailure(
-                pluginID: action.pluginID,
-                actionID: action.id,
-                error: error
-            )
-            throw error
+            try fail(action: action, error: error)
         } catch {
             helpers.terminate(lease)
             let runtimeError = PluginRuntimeError.protocolViolation(
                 "Plugin Action completion could not be validated"
             )
-            PluginRuntimeDiagnostics.helperFailure(
-                pluginID: action.pluginID,
-                actionID: action.id,
-                error: runtimeError
-            )
-            throw runtimeError
+            try fail(action: action, error: runtimeError)
         }
         switch terminal {
         case .succeeded(let result):
@@ -1185,13 +1177,17 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             case .hostServiceFailed:
                 runtimeError = .hostServiceFailed(failure.message)
             }
-            PluginRuntimeDiagnostics.helperFailure(
-                pluginID: action.pluginID,
-                actionID: action.id,
-                error: runtimeError
-            )
-            throw runtimeError
+            try fail(action: action, error: runtimeError)
         }
+    }
+
+    private func fail(action: ActionConfiguration, error: PluginRuntimeError) throws -> Never {
+        PluginRuntimeDiagnostics.helperFailure(
+            pluginID: action.pluginID,
+            actionID: action.id,
+            error: error
+        )
+        throw error
     }
 
     private func exchange(

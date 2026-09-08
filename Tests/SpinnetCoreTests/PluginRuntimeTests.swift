@@ -1115,11 +1115,10 @@ final class PluginRuntimeTests: XCTestCase {
             #!/bin/sh
             while IFS= read -r request; do
                 case "$request" in
-                    *com.spinnet.crash*) sleep 0.3; kill -ABRT $$ ;;
+                    *com.spinnet.crash*) sleep 0.5; kill -ABRT $$ ;;
                     *)
                         invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^"]*\\)".*/\\1/p')
                         action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^"]*\\)".*/\\1/p')
-                        sleep 1
                         printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":"healthy"}}\\n' "$invocation_id" "$action_id"
                         ;;
                 esac
@@ -1173,46 +1172,42 @@ final class PluginRuntimeTests: XCTestCase {
             scriptedExecutor: supervisor
         )
 
-        let start = DispatchSemaphore(value: 0)
-        let ready = DispatchGroup()
-        let completed = DispatchGroup()
+        let crashCompleted = DispatchSemaphore(value: 0)
+        let healthyStarted = DispatchSemaphore(value: 0)
+        let healthyCompleted = DispatchSemaphore(value: 0)
         let outcomeLock = NSLock()
         var crashed: ActionOutcome?
         var healthy: ActionOutcome?
-        ready.enter()
-        completed.enter()
         DispatchQueue.global().async {
-            ready.leave()
-            start.wait()
             let outcome = runner.invoke(crashingAction, using: registry)
             outcomeLock.lock()
             crashed = outcome
             outcomeLock.unlock()
-            completed.leave()
+            crashCompleted.signal()
         }
-        ready.enter()
-        completed.enter()
+        let launchDeadline = ProcessInfo.processInfo.systemUptime + 2
+        while supervisor.launchCount < 1,
+              ProcessInfo.processInfo.systemUptime < launchDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertEqual(supervisor.launchCount, 1)
         DispatchQueue.global().async {
-            ready.leave()
-            start.wait()
+            healthyStarted.signal()
             let outcome = runner.invoke(healthyAction, using: registry)
             outcomeLock.lock()
             healthy = outcome
             outcomeLock.unlock()
-            completed.leave()
+            healthyCompleted.signal()
         }
-        XCTAssertEqual(ready.wait(timeout: .now() + 1), .success)
-        XCTAssertEqual(ready.wait(timeout: .now() + 1), .success)
-        start.signal()
-        start.signal()
-        let launchDeadline = ProcessInfo.processInfo.systemUptime + 0.2
+        XCTAssertEqual(healthyStarted.wait(timeout: .now() + 1), .success)
+        let independentDeadline = ProcessInfo.processInfo.systemUptime + 0.25
         while supervisor.launchCount < 2,
-              ProcessInfo.processInfo.systemUptime < launchDeadline {
+              ProcessInfo.processInfo.systemUptime < independentDeadline {
             Thread.sleep(forTimeInterval: 0.001)
         }
         XCTAssertEqual(supervisor.launchCount, 2, "Different Plugins need independent helpers")
-        XCTAssertEqual(completed.wait(timeout: .now() + 2), .success)
-        XCTAssertEqual(completed.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(healthyCompleted.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(crashCompleted.wait(timeout: .now() + 2), .success)
         outcomeLock.lock()
         let outcomes = (crashed, healthy)
         outcomeLock.unlock()

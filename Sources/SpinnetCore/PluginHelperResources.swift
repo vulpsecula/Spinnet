@@ -30,9 +30,6 @@ public enum PluginHelperResourceSampler {
         return usage.ri_phys_footprint
     }
 
-    public static func physFootprint(for processID: Int32) -> UInt64? {
-        physFootprint(processID: processID)
-    }
 }
 
 /// Repeatedly samples one helper and reports a limit breach after the
