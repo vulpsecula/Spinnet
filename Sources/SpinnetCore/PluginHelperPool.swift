@@ -4,11 +4,35 @@ import Darwin
 /// Owns process lifetimes separately from the thread performing an Action.
 /// The condition protects startup, retirement and per-Plugin queue admission.
 final class PluginHelperPool {
+    enum StartError: Error {
+        case replacementRequired
+    }
+
+    struct StartedHelper {
+        let lease: Lease
+        let helper: PluginHelperProcess
+    }
+
     final class Lease {
+        final class Waiter {
+            let wasBusyAtArrival: Bool
+
+            init(wasBusyAtArrival: Bool) {
+                self.wasBusyAtArrival = wasBusyAtArrival
+            }
+        }
+
         let pluginID: PluginID
         var helper: PluginHelperProcess?
         var retired = false
         var busy = false
+        var waiters: [Waiter] = []
+        var retirementReason: PluginRuntimeError?
+        var retirementAllowsReplacement = false
+        // Set for the Action currently owning this lease. A waiter that was
+        // already behind a busy helper must observe a retirement instead of
+        // starting replacement work on the new helper generation.
+        var waitedForBusy = false
         var idleToken = UUID()
         init(pluginID: PluginID) { self.pluginID = pluginID }
     }
@@ -24,45 +48,144 @@ final class PluginHelperPool {
     }
 
     func acquire(pluginID: PluginID, control: ActionExecutionControl) throws -> Lease {
-        condition.lock()
-        defer { condition.unlock() }
-        guard !stopped else { throw PluginRuntimeError.helperTerminated }
-        try control.check()
-        let lease = leases[pluginID] ?? Lease(pluginID: pluginID)
-        leases[pluginID] = lease
-        while lease.busy && !lease.retired {
-            try control.check()
-            _ = condition.wait(until: Date(timeIntervalSinceNow: 0.01))
+        while true {
+            condition.lock()
+            guard !stopped else {
+                condition.unlock()
+                throw PluginRuntimeError.helperTerminated
+            }
+            do {
+                try control.check()
+            } catch {
+                condition.unlock()
+                throw error
+            }
+
+            let lease = leases[pluginID] ?? Lease(pluginID: pluginID)
+            leases[pluginID] = lease
+            if !lease.busy, lease.waiters.isEmpty, !lease.retired {
+                lease.busy = true
+                lease.waitedForBusy = false
+                lease.idleToken = UUID()
+                condition.unlock()
+                return lease
+            }
+
+            // Keep explicit arrivals behind an already queued Action. This
+            // prevents a new caller from stealing the idle window after the
+            // previous Action releases the lease but before its waiter wakes.
+            let waiter = Lease.Waiter(wasBusyAtArrival: lease.busy)
+            lease.waiters.append(waiter)
+            while true {
+                do {
+                    try control.check()
+                } catch {
+                    remove(waiter, from: lease)
+                    condition.unlock()
+                    throw error
+                }
+                if lease.retired {
+                    remove(waiter, from: lease)
+                    let reason = lease.retirementReason ?? .helperTerminated
+                    condition.unlock()
+                    if waiter.wasBusyAtArrival || !lease.retirementAllowsReplacement {
+                        throw reason
+                    }
+                    // An explicit Action that arrived after the lease became
+                    // idle may retry against the fresh lease generation.
+                    break
+                }
+                if !lease.busy, lease.waiters.first === waiter {
+                    lease.waiters.removeFirst()
+                    lease.busy = true
+                    lease.waitedForBusy = waiter.wasBusyAtArrival
+                    lease.idleToken = UUID()
+                    condition.unlock()
+                    return lease
+                }
+                _ = condition.wait(until: Date(timeIntervalSinceNow: 0.01))
+            }
         }
-        try control.check()
-        guard !lease.retired, !stopped else { throw PluginRuntimeError.helperTerminated }
-        lease.busy = true
-        lease.idleToken = UUID()
-        return lease
     }
 
-    func start(_ lease: Lease, create: () throws -> PluginHelperProcess) throws -> PluginHelperProcess {
+    private func remove(_ waiter: Lease.Waiter, from lease: Lease) {
+        if let index = lease.waiters.firstIndex(where: { $0 === waiter }) {
+            lease.waiters.remove(at: index)
+            condition.broadcast()
+        }
+    }
+
+    func waitingActionCount(for pluginID: PluginID) -> Int {
         condition.lock()
-        guard !lease.retired, !stopped else {
+        defer { condition.unlock() }
+        return leases[pluginID]?.waiters.count ?? 0
+    }
+
+    func start(
+        _ lease: Lease,
+        control: ActionExecutionControl,
+        create: (Lease) throws -> PluginHelperProcess,
+        allowLeaseReplacement: Bool = true
+    ) throws -> StartedHelper {
+        condition.lock()
+        let waitedForBusy = lease.waitedForBusy
+        lease.waitedForBusy = false
+        guard !stopped else {
             condition.unlock()
             throw PluginRuntimeError.helperTerminated
         }
+        if lease.retired {
+            let reason = lease.retirementReason ?? .helperTerminated
+            let allowsReplacement = lease.retirementAllowsReplacement
+            condition.unlock()
+            if waitedForBusy || !allowsReplacement { throw reason }
+            guard allowLeaseReplacement else { throw StartError.replacementRequired }
+            let replacement = try acquire(pluginID: lease.pluginID, control: control)
+            do {
+                return try start(
+                    replacement,
+                    control: control,
+                    create: create,
+                    allowLeaseReplacement: true
+                )
+            } catch {
+                release(replacement)
+                throw error
+            }
+        }
         if let helper = lease.helper, helper.isUsable {
             condition.unlock()
-            return helper
+            return StartedHelper(lease: lease, helper: helper)
         }
         if let helper = lease.helper {
             if let failure = helper.failureIfUnusable() {
-                retire(lease, reason: failure)
+                if waitedForBusy {
+                    retire(lease, reason: failure, allowsReplacement: true)
+                    condition.unlock()
+                    throw failure
+                }
+                retire(lease, reason: failure, allowsReplacement: true)
                 condition.unlock()
-                throw failure
+                guard allowLeaseReplacement else { throw StartError.replacementRequired }
+                let replacement = try acquire(pluginID: lease.pluginID, control: control)
+                do {
+                    return try start(
+                        replacement,
+                        control: control,
+                        create: create,
+                        allowLeaseReplacement: true
+                    )
+                } catch {
+                    release(replacement)
+                    throw error
+                }
             }
             helper.terminate()
             lease.helper = nil
         }
         let helper: PluginHelperProcess
         do {
-            helper = try create()
+            helper = try create(lease)
             lease.helper = helper
         } catch {
             condition.unlock()
@@ -70,7 +193,7 @@ final class PluginHelperPool {
         }
         condition.unlock()
         helper.startResourceMonitor()
-        return helper
+        return StartedHelper(lease: lease, helper: helper)
     }
 
     func release(_ lease: Lease) {
@@ -118,14 +241,20 @@ final class PluginHelperPool {
     func terminate(
         _ lease: Lease,
         helper: PluginHelperProcess,
-        reason: PluginRuntimeError = .helperTerminated
+        reason: PluginRuntimeError = .helperTerminated,
+        preservingCompletedTerminal: Bool = false
     ) {
         condition.lock()
         guard !lease.retired, lease.helper === helper else {
             condition.unlock()
             return
         }
-        retire(lease, reason: reason)
+        retire(
+            lease,
+            reason: reason,
+            preservingCompletedTerminal: preservingCompletedTerminal,
+            allowsReplacement: true
+        )
         condition.unlock()
     }
 
@@ -155,9 +284,20 @@ final class PluginHelperPool {
         condition.unlock()
     }
 
-    private func retire(_ lease: Lease, reason: PluginRuntimeError = .helperTerminated) {
+    private func retire(
+        _ lease: Lease,
+        reason: PluginRuntimeError = .helperTerminated,
+        preservingCompletedTerminal: Bool = false,
+        allowsReplacement: Bool = false
+    ) {
+        guard !lease.retired else { return }
         lease.retired = true
-        lease.helper?.terminate(reason: reason)
+        lease.retirementReason = reason
+        lease.retirementAllowsReplacement = allowsReplacement
+        lease.helper?.terminate(
+            reason: reason,
+            preservingCompletedTerminal: preservingCompletedTerminal
+        )
         if leases[lease.pluginID] === lease { leases.removeValue(forKey: lease.pluginID) }
         condition.broadcast()
     }
@@ -186,7 +326,7 @@ final class PluginHelperProcess {
     private let output: FileHandle
     private let pluginID: PluginID
     private let resourceLimitBytes: UInt64
-    private let onFailure: ((PluginHelperProcess, PluginRuntimeError) -> Void)?
+    private let onFailure: ((PluginHelperProcess, PluginRuntimeError, Bool) -> Void)?
     private var resourceMonitor: PluginHelperResourceMonitor?
     private let condition = NSCondition()
     private var frame: Data?
@@ -205,7 +345,7 @@ final class PluginHelperProcess {
         resourceSampler: @escaping PluginHelperResourceMonitor.Sample,
         resourceSchedule: @escaping PluginHelperResourceMonitor.Schedule,
         resourceLimitBytes: UInt64,
-        onFailure: ((PluginHelperProcess, PluginRuntimeError) -> Void)? = nil
+        onFailure: ((PluginHelperProcess, PluginRuntimeError, Bool) -> Void)? = nil
     ) {
         self.process = process
         self.inputPipe = input
@@ -236,9 +376,9 @@ final class PluginHelperProcess {
         return failure == nil && !exiting && process.isRunning
     }
 
-    /// Returns a fault that must retire this lease. A cleanly exited helper
-    /// can be replaced for a later explicit Action; a faulted helper cannot
-    /// be replaced in-place because queued Actions must observe the failure.
+    /// Returns a fault that must retire this helper. A cleanly exited helper
+    /// can be replaced for a later Action; callers that were queued behind a
+    /// busy helper retire the lease so they observe a fault instead.
     func failureIfUnusable() -> PluginRuntimeError? {
         condition.lock()
         defer { condition.unlock() }
@@ -323,17 +463,25 @@ final class PluginHelperProcess {
         try? input.close()
     }
 
-    func terminate(reason: PluginRuntimeError = .helperTerminated) {
+    func terminate(
+        reason: PluginRuntimeError = .helperTerminated,
+        preservingCompletedTerminal: Bool = false
+    ) {
         resourceMonitor?.stop()
         condition.lock()
         exiting = true
         if failure == nil { failure = reason }
-        invalidatesBufferedFrame = true
-        if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        let preserveTerminal = preservingCompletedTerminal
+            && !process.isRunning
+            && (terminalDelivered || bufferedTerminal)
+        if !preserveTerminal {
+            invalidatesBufferedFrame = true
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
         try? input.close()
         condition.broadcast()
         condition.unlock()
-        waitForExit()
+        if !preserveTerminal { waitForExit() }
     }
 
     private func resourceLimitExceeded(footprint: UInt64) {
@@ -343,7 +491,7 @@ final class PluginHelperProcess {
             footprint: footprint,
             limit: resourceLimitBytes
         )
-        onFailure?(self, .helperResourceExceeded)
+        onFailure?(self, .helperResourceExceeded, false)
         terminate(reason: .helperResourceExceeded)
     }
 
@@ -383,20 +531,28 @@ final class PluginHelperProcess {
                 default: error = .helperCrashed(signal: process.terminationStatus)
                 }
                 fail(error, invalidatesBufferedFrame: true)
-                if !isExitingNow { onFailure?(self, error) }
+                if !isExitingNow { onFailure?(self, error, false) }
                 return
-            } else if isExitingNormally || hasCompletedTerminal {
+            } else if isExitingNormally {
+                return
+            } else if hasCompletedTerminal,
+                      process.terminationReason == .exit,
+                      process.terminationStatus != 0 {
+                fail(.helperTerminated)
+                if !isExitingNow { onFailure?(self, .helperTerminated, true) }
+                return
+            } else if hasCompletedTerminal {
                 return
             } else {
                 error = .protocolViolation("Terminal result is missing")
             }
             fail(error, invalidatesBufferedFrame: true)
-            if !isExitingNow { onFailure?(self, error) }
+            if !isExitingNow { onFailure?(self, error, false) }
         } catch {
             let runtimeError = (error as? PluginRuntimeError)
                 ?? .protocolViolation("Plugin message could not be read")
             fail(runtimeError, invalidatesBufferedFrame: true)
-            if !isExitingNow { onFailure?(self, runtimeError) }
+            if !isExitingNow { onFailure?(self, runtimeError, false) }
             terminate(reason: runtimeError)
         }
     }

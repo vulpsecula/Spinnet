@@ -966,6 +966,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         return launches
     }
 
+    /// Internal observation point for serialized work admission.
+    func queuedActionCount(for pluginID: PluginID) -> Int {
+        helpers.waitingActionCount(for: pluginID)
+    }
+
     public init(
         helperURL: URL,
         registry: PluginRegistry? = nil,
@@ -1028,7 +1033,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         using hostServiceBroker: PluginHostServiceBroker?,
         control: ActionExecutionControl
     ) throws -> JSONValue {
-        let lease = try helpers.acquire(pluginID: action.pluginID, control: control)
+        var lease = try helpers.acquire(pluginID: action.pluginID, control: control)
         defer { helpers.release(lease) }
         try control.check()
         let timeout = DispatchWorkItem { control.stop(.timedOut) }
@@ -1080,7 +1085,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             throw PluginRuntimeError.protocolViolation("Invocation could not be encoded")
         }
 
-        let create = { [self] () throws -> PluginHelperProcess in
+        let create = { [self] (helperLease: PluginHelperPool.Lease) throws -> PluginHelperProcess in
             let process = processFactory()
             let inputPipe = pipeFactory()
             let outputPipe = pipeFactory()
@@ -1103,20 +1108,41 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 resourceSampler: resourceSampler,
                 resourceSchedule: resourceSchedule,
                 resourceLimitBytes: resourceLimitBytes,
-                onFailure: { [weak self, weak lease] helper, reason in
-                    guard let self, let lease else { return }
-                    self.helpers.terminate(lease, helper: helper, reason: reason)
+                onFailure: { [weak self, weak helperLease] helper, reason, preservingCompletedTerminal in
+                    guard let self, let helperLease else { return }
+                    self.helpers.terminate(
+                        helperLease,
+                        helper: helper,
+                        reason: reason,
+                        preservingCompletedTerminal: preservingCompletedTerminal
+                    )
                 }
             )
         }
         let helper: PluginHelperProcess
         do {
             if let registry {
-                helper = try registry.withCurrentPackage(package) {
-                    try helpers.start(lease, create: create)
+                while true {
+                    do {
+                        let started = try registry.withCurrentPackage(package) {
+                            try helpers.start(
+                                lease,
+                                control: control,
+                                create: create,
+                                allowLeaseReplacement: false
+                            )
+                        }
+                        lease = started.lease
+                        helper = started.helper
+                        break
+                    } catch is PluginHelperPool.StartError {
+                        lease = try helpers.acquire(pluginID: action.pluginID, control: control)
+                    }
                 }
             } else {
-                helper = try helpers.start(lease, create: create)
+                let started = try helpers.start(lease, control: control, create: create)
+                lease = started.lease
+                helper = started.helper
             }
         } catch let error as PluginRuntimeError {
             try fail(action: action, error: error)

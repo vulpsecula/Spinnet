@@ -1266,7 +1266,7 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - startedAt, 4.25)
     }
 
-    func testFaultedHelperCannotBeReplacedWithinItsLease() throws {
+    func testExplicitActionGetsFreshHelperAfterCompletedHelperFault() throws {
         let helperURL = try makeShellHelper(
             """
             #!/bin/sh
@@ -1290,17 +1290,24 @@ final class PluginRuntimeTests: XCTestCase {
             input: .null
         )
         let secondAction = try ActionConfiguration(
-            id: ActionID("must-not-replay"),
+            id: ActionID("fresh-helper"),
             pluginID: package.manifest.id,
             command: package.manifest.commands[0],
             input: .null
         )
         let registry = PluginRegistry()
         try registry.register(package)
-        let process = Process()
+        let processLock = NSLock()
+        var processes: [Process] = []
         let supervisor = PluginRuntimeSupervisor(
             helperURL: helperURL,
-            processFactory: { process }
+            processFactory: {
+                let process = Process()
+                processLock.lock()
+                processes.append(process)
+                processLock.unlock()
+                return process
+            }
         )
         defer { supervisor.shutdown() }
         let runner = HostActionRunner(
@@ -1310,19 +1317,19 @@ final class PluginRuntimeTests: XCTestCase {
 
         XCTAssertEqual(runner.invoke(firstAction, using: registry).terminal,
                        .succeeded(.string("finished")))
+        processLock.lock()
+        let firstProcess = processes[0]
+        processLock.unlock()
         let exitDeadline = ProcessInfo.processInfo.systemUptime + 2
-        while process.isRunning,
+        while firstProcess.isRunning,
               ProcessInfo.processInfo.systemUptime < exitDeadline {
             Thread.sleep(forTimeInterval: 0.001)
         }
-        XCTAssertFalse(process.isRunning)
+        XCTAssertFalse(firstProcess.isRunning)
 
         let outcome = runner.invoke(secondAction, using: registry)
-        guard case .failed(let failure) = outcome.terminal else {
-            return XCTFail("A faulted helper must invalidate the next Action")
-        }
-        XCTAssertEqual(failure.category, .helperTerminated)
-        XCTAssertEqual(supervisor.launchCount, 1, "A faulted lease must not replay work")
+        XCTAssertEqual(outcome.terminal, .succeeded(.string("finished")))
+        XCTAssertEqual(supervisor.launchCount, 2, "An explicit Action after a fault gets a fresh helper")
     }
 
     func testTerminatingAPluginInvalidatesCurrentAndQueuedActionsOnce() throws {
@@ -1405,7 +1412,12 @@ final class PluginRuntimeTests: XCTestCase {
             }
         }
 
-        Thread.sleep(forTimeInterval: 0.05)
+        let queueDeadline = ProcessInfo.processInfo.systemUptime + 2
+        while supervisor.queuedActionCount(for: package.manifest.id) < 1,
+              ProcessInfo.processInfo.systemUptime < queueDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertEqual(supervisor.queuedActionCount(for: package.manifest.id), 1)
         supervisor.terminate(pluginID: package.manifest.id)
         wait(for: [firstFinished, secondFinished], timeout: 1)
         lock.lock()
