@@ -58,7 +58,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 }
             )
             actionRunner = HostActionRunner(
-                executor: AppKitHostCommandExecutor(),
+                executor: AppKitHostCommandExecutor(
+                    grantStore: capabilityGrants,
+                    systemPermissionCheck: { [pluginHostServiceProvider] permission in
+                        pluginHostServiceProvider.isGranted(permission)
+                    },
+                    feedbackPresenter: { [weak self] message in
+                        DispatchQueue.main.async { [weak self] in
+                            self?.feedback?.showMessage(message)
+                        }
+                    }
+                ),
                 scriptedExecutor: scriptedExecutor,
                 hostServiceBroker: hostServiceBroker
             )

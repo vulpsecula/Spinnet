@@ -20,15 +20,226 @@ public enum CommandExecution: String, Codable, Equatable, Hashable {
     }
 }
 
+/// Declarative operations performed by the trusted Host on behalf of a
+/// configured Action. The raw values are part of the public Plugin Interface.
 public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case openURL = "url.open"
+    case openApplication = "application.open"
+    case openFile = "file.open"
+    case openFolder = "folder.open"
+    case invokeKeyboardShortcut = "keyboard_shortcut.invoke"
+    case invokeService = "service.invoke"
+    case invokeShortcut = "shortcut.invoke"
+    case copyText = "clipboard.copy"
+    case presentFeedback = "feedback.present"
 
+    /// A protected Host Command is still declarative, but it must pass through
+    /// the same authority checks as an equivalent Host Service request.
+    public var requiredCapability: PluginCapability? {
+        switch self {
+        case .copyText:
+            return .writeClipboard
+        default:
+            return nil
+        }
+    }
+
+    public var requiredSystemPermission: PluginSystemPermission? {
+        switch self {
+        case .invokeKeyboardShortcut:
+            return .accessibility
+        default:
+            return nil
+        }
+    }
+
+    public var inputPlaceholder: String {
+        switch self {
+        case .openURL:
+            return "https://example.com"
+        case .openApplication:
+            return "Application path or bundle identifier"
+        case .openFile:
+            return "File path"
+        case .openFolder:
+            return "Folder path"
+        case .invokeKeyboardShortcut:
+            return "{\"key\":\"P\",\"modifiers\":[\"command\",\"shift\"]}"
+        case .invokeService:
+            return "macOS Service name"
+        case .invokeShortcut:
+            return "Shortcut name"
+        case .copyText:
+            return "Text to copy"
+        case .presentFeedback:
+            return "Feedback message"
+        }
+    }
+
+    /// Returns the URL-shaped value used by URL Commands. The Host keeps the
+    /// parser here so manifest default validation and execution share one
+    /// definition of a valid external URL.
     public func resolvedURL(from input: JSONValue) -> URL? {
         guard self == .openURL,
-              case .string(let value) = input,
+              let value = stringValue(from: input, keys: ["url"]),
               let url = URL(string: value),
               url.scheme?.isEmpty == false else { return nil }
         return url
+    }
+
+    /// Validates the public JSON shape before a configured Action is admitted
+    /// to a Ready-to-Use Preset. Resource existence and OS permissions remain
+    /// runtime concerns and are reported as unavailable Host operations.
+    public func isValidInput(_ input: JSONValue) -> Bool {
+        switch self {
+        case .openURL:
+            return resolvedURL(from: input) != nil
+        case .openApplication:
+            return stringValue(
+                from: input,
+                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"]
+            ) != nil
+        case .openFile, .openFolder:
+            return stringValue(from: input, keys: ["path"]) != nil
+        case .invokeKeyboardShortcut:
+            return validKeyboardShortcutInput(input)
+        case .invokeService:
+            return validNamedInput(input, keys: ["name", "service"])
+        case .invokeShortcut:
+            return validNamedInput(input, keys: ["name", "shortcut"])
+        case .copyText:
+            return containsStringValue(from: input, keys: ["text"])
+        case .presentFeedback:
+            return stringValue(from: input, keys: ["message", "text"]) != nil
+        }
+    }
+
+    private func validKeyboardShortcutInput(_ input: JSONValue) -> Bool {
+        switch input {
+        case .string(let value):
+            return validKeyboardShortcutString(value)
+        case .object(let values):
+            if let modifiers = values["modifiers"] ?? values["modifier_flags"],
+               !validKeyboardModifiers(modifiers) {
+                return false
+            }
+            if let keyCode = values["key_code"], case .number(let value) = keyCode,
+               value.isFinite, value.rounded() == value, (0...127).contains(value) {
+                return true
+            }
+            guard let key = stringValue(from: input, keys: ["key", "character"]) else {
+                return false
+            }
+            return validKeyboardKey(key)
+        default:
+            return false
+        }
+    }
+
+    private func validKeyboardShortcutString(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        var key = trimmed
+        let symbols = ["⌘", "⇧", "⌥", "⌃"]
+        for symbol in symbols {
+            key = key.replacingOccurrences(of: symbol, with: "")
+        }
+        let parts = key.split(separator: "+", omittingEmptySubsequences: true)
+        guard let keyPart = parts.last,
+              validKeyboardKey(String(keyPart)) else {
+            return false
+        }
+        return parts.dropLast().allSatisfy { validKeyboardModifier(String($0)) }
+    }
+
+    private func validKeyboardModifiers(_ input: JSONValue) -> Bool {
+        switch input {
+        case .number(let value):
+            return UInt64(exactly: value) != nil
+        case .string(let value):
+            let parts = value.split(separator: "+", omittingEmptySubsequences: true)
+            return !parts.isEmpty && parts.allSatisfy { validKeyboardModifier(String($0)) }
+        case .array(let values):
+            return values.allSatisfy { value in
+                guard case .string(let modifier) = value else { return false }
+                return validKeyboardModifier(modifier)
+            }
+        default:
+            return false
+        }
+    }
+
+    private func validKeyboardModifier(_ value: String) -> Bool {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "command", "cmd", "⌘", "shift", "⇧", "option", "alt", "⌥",
+             "control", "ctrl", "⌃", "function", "fn", "caps_lock", "caps lock":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func validKeyboardKey(_ value: String) -> Bool {
+        let key = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !key.isEmpty else { return false }
+        if key.count == 1,
+           let scalar = key.unicodeScalars.first,
+           ((65...90).contains(scalar.value) || (48...57).contains(scalar.value)) {
+            return true
+        }
+        switch key {
+        case "RETURN", "ENTER", "ESCAPE", "ESC", "TAB", "SPACE", "DELETE", "BACKSPACE",
+             "LEFT", "RIGHT", "UP", "DOWN":
+            return true
+        default:
+            return (1...20).contains { key == "F\($0)" }
+        }
+    }
+
+    private func validNamedInput(_ input: JSONValue, keys: [String]) -> Bool {
+        switch input {
+        case .string:
+            return stringValue(from: input, keys: keys) != nil
+        case .object(let values):
+            guard stringValue(from: input, keys: keys) != nil else { return false }
+            guard let payload = values["input"] ?? values["text"] else { return true }
+            if case .string = payload { return true }
+            return false
+        default:
+            return false
+        }
+    }
+
+    private func stringValue(from input: JSONValue, keys: [String]) -> String? {
+        switch input {
+        case .string(let value):
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : value
+        case .object(let values):
+            for key in keys {
+                if case .string(let value) = values[key],
+                   !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return value
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func containsStringValue(from input: JSONValue, keys: [String]) -> Bool {
+        switch input {
+        case .string:
+            return true
+        case .object(let values):
+            return keys.contains { key in
+                if case .string = values[key] { return true }
+                return false
+            }
+        default:
+            return false
+        }
     }
 }
 
@@ -251,9 +462,15 @@ public struct PluginManifest: Codable, Equatable {
     private func validate(_ command: CommandDeclaration) throws {
         switch command.execution {
         case .host:
-            guard command.hostCommand != nil, command.script == nil else {
+            guard let hostCommand = command.hostCommand, command.script == nil else {
                 throw ConfigurationError.invalidManifest(
                     "Host Command \(command.id.rawValue) must declare host_command only"
+                )
+            }
+            if let requiredCapability = hostCommand.requiredCapability,
+               !capabilities.contains(requiredCapability) {
+                throw ConfigurationError.invalidManifest(
+                    "Host Command \(command.id.rawValue) requires Capability \(requiredCapability.rawValue)"
                 )
             }
         case .javascript:
@@ -271,7 +488,7 @@ public struct PluginManifest: Codable, Equatable {
         switch command.execution {
         case .host:
             guard let hostCommand = command.hostCommand else { return false }
-            return hostCommand.resolvedURL(from: input) != nil
+            return hostCommand.isValidInput(input)
         case .javascript:
             return (try? JSONEncoder().encode(input)) != nil
         }
@@ -584,8 +801,59 @@ public struct HostConfiguration: Codable, Equatable {
     }
 }
 
+/// Stable errors emitted by a Host Command adapter. The Action runner maps
+/// these to the documented terminal categories while preserving the detailed
+/// reason for protected diagnostics.
+public enum HostCommandExecutionError: Error, Equatable, CustomStringConvertible, LocalizedError {
+    case invalidInput(String)
+    case unavailable(String)
+    case capabilityDenied(PluginCapability)
+    case systemPermissionDenied(PluginSystemPermission)
+    case failed(String)
+
+    public var description: String {
+        switch self {
+        case .invalidInput(let message):
+            return "Host Command input is invalid: \(message)"
+        case .unavailable(let message):
+            return "Host Command is unavailable: \(message)"
+        case .capabilityDenied(let capability):
+            return "Capability \(capability.rawValue) is not granted"
+        case .systemPermissionDenied(let permission):
+            return "System Permission \(permission.rawValue) is not granted"
+        case .failed(let message):
+            return "Host Command failed: \(message)"
+        }
+    }
+
+    public var errorDescription: String? { description }
+
+    public var actionFailureCategory: ActionFailureCategory {
+        switch self {
+        case .invalidInput:
+            return .invalidConfiguration
+        case .unavailable:
+            return .commandUnavailable
+        case .capabilityDenied:
+            return .capabilityDenied
+        case .systemPermissionDenied:
+            return .systemPermissionDenied
+        case .failed:
+            return .hostCommandFailed
+        }
+    }
+}
+
 public protocol HostCommandExecutor {
     func execute(_ action: ActionConfiguration) throws -> JSONValue
+}
+
+/// Optional context-aware extension for Host executors that enforce a
+/// Command's declared Capability and System Permission against its package.
+/// Keeping this separate preserves source compatibility for lightweight test
+/// executors and third-party adapters that only need the Action seam.
+public protocol ContextualHostCommandExecutor: HostCommandExecutor {
+    func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue
 }
 
 /// The Host-level Action seam used by the production Host and automated tests.
@@ -612,19 +880,8 @@ public struct HostActionRunner {
                 message: "Action is not a Host Command"
             )
         }
-        do {
-            return ActionOutcome(
-                actionID: action.id,
-                pluginID: action.pluginID,
-                title: action.title,
-                terminal: .succeeded(try executor.execute(action))
-            )
-        } catch {
-            return failure(
-                for: action,
-                category: .hostCommandFailed,
-                message: error.localizedDescription
-            )
+        return invokeHost(action) {
+            try self.executor.execute(action)
         }
     }
 
@@ -636,7 +893,13 @@ public struct HostActionRunner {
         switch registry.availability(for: action) {
         case .available:
             guard action.execution == .javascript else {
-                return invoke(action)
+                guard let package = registry.package(for: action.pluginID),
+                      let contextualExecutor = executor as? ContextualHostCommandExecutor else {
+                    return invoke(action)
+                }
+                return invokeHost(action) {
+                    try contextualExecutor.execute(action, in: package)
+                }
             }
             guard let scriptedExecutor,
                   let package = registry.package(for: action.pluginID) else {
@@ -676,6 +939,38 @@ public struct HostActionRunner {
                 for: action,
                 category: .commandUnavailable,
                 message: reason.description
+            )
+        }
+    }
+
+    private func invokeHost(
+        _ action: ActionConfiguration,
+        execute: () throws -> JSONValue
+    ) -> ActionOutcome {
+        do {
+            return ActionOutcome(
+                actionID: action.id,
+                pluginID: action.pluginID,
+                title: action.title,
+                terminal: .succeeded(try execute())
+            )
+        } catch let error as HostCommandExecutionError {
+            return failure(
+                for: action,
+                category: error.actionFailureCategory,
+                message: error.localizedDescription
+            )
+        } catch let error as PluginHostServiceError {
+            return failure(
+                for: action,
+                category: error.actionFailureCategory,
+                message: error.localizedDescription
+            )
+        } catch {
+            return failure(
+                for: action,
+                category: .hostCommandFailed,
+                message: error.localizedDescription
             )
         }
     }

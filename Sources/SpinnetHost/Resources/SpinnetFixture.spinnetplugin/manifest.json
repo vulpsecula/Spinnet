@@ -15,6 +15,14 @@
   },
   "commands": [
     {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "is_configurable": true, "host_command": "url.open"},
+    {"id": "fixture.open_application", "title": "Open Application", "execution": "host", "is_configurable": true, "host_command": "application.open"},
+    {"id": "fixture.open_file", "title": "Open File", "execution": "host", "is_configurable": true, "host_command": "file.open"},
+    {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "is_configurable": true, "host_command": "folder.open"},
+    {"id": "fixture.invoke_keyboard_shortcut", "title": "Run Keyboard Shortcut", "execution": "host", "is_configurable": true, "host_command": "keyboard_shortcut.invoke"},
+    {"id": "fixture.invoke_service", "title": "Run macOS Service", "execution": "host", "is_configurable": true, "host_command": "service.invoke"},
+    {"id": "fixture.invoke_shortcut", "title": "Run Shortcut", "execution": "host", "is_configurable": true, "host_command": "shortcut.invoke"},
+    {"id": "fixture.copy_text", "title": "Copy Text", "execution": "host", "is_configurable": true, "host_command": "clipboard.copy"},
+    {"id": "fixture.present_feedback", "title": "Present Feedback", "execution": "host", "is_configurable": true, "host_command": "feedback.present"},
     {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "is_configurable": false, "script": "transform-text.js"},
     {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "is_configurable": true, "script": "structured-data.js"}
   ]

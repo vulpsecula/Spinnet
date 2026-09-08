@@ -12,12 +12,26 @@ final class RegistryAndStoreTests: XCTestCase {
             manifest.commands.map(\.id),
             [
                 CommandID("fixture.open_url"),
+                CommandID("fixture.open_application"),
+                CommandID("fixture.open_file"),
+                CommandID("fixture.open_folder"),
+                CommandID("fixture.invoke_keyboard_shortcut"),
+                CommandID("fixture.invoke_service"),
+                CommandID("fixture.invoke_shortcut"),
+                CommandID("fixture.copy_text"),
+                CommandID("fixture.present_feedback"),
                 CommandID("fixture.transform_text"),
                 CommandID("fixture.transform_data")
             ]
         )
-        XCTAssertFalse(manifest.commands[1].isConfigurable)
-        XCTAssertTrue(manifest.commands[2].isConfigurable)
+        let transformText = try XCTUnwrap(
+            manifest.commands.first { $0.id == CommandID("fixture.transform_text") }
+        )
+        let transformData = try XCTUnwrap(
+            manifest.commands.first { $0.id == CommandID("fixture.transform_data") }
+        )
+        XCTAssertFalse(transformText.isConfigurable)
+        XCTAssertTrue(transformData.isConfigurable)
         XCTAssertEqual(registry.package(for: manifest.id)?.manifest, manifest)
         XCTAssertEqual(registry.manifests().map(\.id), [manifest.id])
     }

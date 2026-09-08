@@ -57,6 +57,89 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertThrowsError(try PluginManifestLoader.decode(duplicate))
     }
 
+    func testHostCommandCatalogueExposesInputContractsAndAuthority() throws {
+        let manifest = try PluginManifestLoader.decode(Data(#"""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.fixture",
+          "name": "Fixture",
+          "version": "1.0.0",
+          "capabilities": ["write_clipboard"],
+          "commands": [
+            {"id": "fixture.open_app", "title": "Open Application", "execution": "host", "host_command": "application.open"},
+            {"id": "fixture.open_file", "title": "Open File", "execution": "host", "host_command": "file.open"},
+            {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "host_command": "folder.open"},
+            {"id": "fixture.keyboard", "title": "Keyboard Shortcut", "execution": "host", "host_command": "keyboard_shortcut.invoke"},
+            {"id": "fixture.service", "title": "Service", "execution": "host", "host_command": "service.invoke"},
+            {"id": "fixture.shortcut", "title": "Shortcut", "execution": "host", "host_command": "shortcut.invoke"},
+            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.copy"},
+            {"id": "fixture.feedback", "title": "Feedback", "execution": "host", "host_command": "feedback.present"}
+          ]
+        }
+        """#.utf8))
+
+        XCTAssertEqual(manifest.commands.map(\.hostCommand), [
+            .openApplication, .openFile, .openFolder, .invokeKeyboardShortcut,
+            .invokeService, .invokeShortcut, .copyText, .presentFeedback
+        ])
+        XCTAssertEqual(HostCommand.copyText.requiredCapability, .writeClipboard)
+        XCTAssertEqual(HostCommand.invokeKeyboardShortcut.requiredSystemPermission, .accessibility)
+        XCTAssertTrue(HostCommand.openApplication.isValidInput(.string("com.apple.TextEdit")))
+        XCTAssertTrue(HostCommand.openFile.isValidInput(.object(["path": .string("/tmp/file")])))
+        XCTAssertTrue(HostCommand.invokeKeyboardShortcut.isValidInput(.object([
+            "key_code": .number(35),
+            "modifiers": .array([.string("command")])
+        ])))
+        XCTAssertFalse(HostCommand.openURL.isValidInput(.string("not a URL")))
+    }
+
+    func testManifestRejectsAProtectedHostCommandWithoutItsCapabilityDeclaration() {
+        let data = Data(#"""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.fixture",
+          "name": "Fixture",
+          "version": "1.0.0",
+          "commands": [
+            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.copy"}
+          ]
+        }
+        """#.utf8)
+
+        XCTAssertThrowsError(try PluginManifestLoader.decode(data))
+    }
+
+    func testReadyPresetRejectsUnknownKeyboardKeyAndModifier() {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.keyboard"),
+            title: "Keyboard Shortcut",
+            hostCommand: .invokeKeyboardShortcut
+        )
+        let inputs: [JSONValue] = [
+            .string("not-a-key"),
+            .object([
+                "key": .string("P"),
+                "modifiers": .array([.string("unknown")])
+            ]),
+            .object(["key": .string("F01")])
+        ]
+
+        for input in inputs {
+            let preset = MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                defaultPrimaryCommandID: command.id,
+                defaultInputs: [command.id: input]
+            )
+            XCTAssertThrowsError(try PluginManifest(
+                id: PluginID("com.example.fixture"),
+                name: "Fixture",
+                version: "1.0.0",
+                commands: [command],
+                preset: preset
+            ))
+        }
+    }
+
     func testManifestLoadsCommonJavaScriptCommandsWithScriptReferences() throws {
         let data = Data(#"""
         {

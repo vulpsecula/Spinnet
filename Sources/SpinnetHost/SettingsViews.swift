@@ -1154,7 +1154,7 @@ private struct SlotConfigurationSheet: View {
     }
 
     private func parameterPlaceholder(for command: CommandDeclaration) -> String {
-        command.hostCommand == .openURL ? "URL" : "Configuration value (JSON or text)"
+        command.hostCommand?.inputPlaceholder ?? "Configuration value (JSON or text)"
     }
 
     private static func initialState(

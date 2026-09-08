@@ -1,9 +1,9 @@
 # Spinnet
 
 Spinnet is a native macOS Host for mouse-first radial Menus. This slice
-implements frontier tickets #12 and #7: a bundled Plugin registers a
-Host-backed URL Action plus deterministic Common JavaScript transformations,
-and the Host exposes them through the public Action seam.
+implements frontier tickets #12, #7, and #17: a bundled Plugin registers
+Host-backed common Commands plus deterministic Common JavaScript
+transformations, and the Host exposes them through the public Action seam.
 
 ## Run
 
@@ -32,8 +32,11 @@ permission again after rebuilding them.
 
 The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
 manifest loader and opens the radial Menu with Mouse Side Button 1 by default.
-Scripted Actions launch `SpinnetPluginHelper` on demand; registration, idle
-state, Menu opening, and Host-backed Actions do not launch a helper.
+The fixture declares Host Commands for opening applications, files, folders,
+and URLs; invoking keyboard shortcuts, macOS Services, and Shortcuts; copying
+explicit text; and presenting Host-rendered feedback. Scripted Actions launch
+`SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
+Host-backed Actions do not launch a helper.
 An optional keyboard shortcut can be recorded under Settings → Menu. The
 fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
 Menu bindings, appearance, and triggers are saved automatically.
@@ -53,6 +56,13 @@ Menu bindings, appearance, and triggers are saved automatically.
 6. Open Settings from the status item. Create a second Action, select it as an
    Alternate Action, close and relaunch the Host, and confirm the binding is
    still present. Right-click the Menu Item to expose the Alternate Action.
+7. In the Slot Configuration Sheet, choose each fixture Host Command and save
+   it as a Primary or Alternate Action. Use a real application, file, folder,
+   macOS Service, and Shortcut for the corresponding inputs; missing resources
+   remain configured and report an unavailable Action instead of doing nothing.
+8. Grant `Write Clipboard` in Privacy & Permissions before running `Copy Text`.
+   Grant Accessibility before running `Run Keyboard Shortcut`; denied grants
+   produce visible, stable failure categories.
 
 ## Scripted Action lifecycle checks
 
@@ -75,7 +85,8 @@ release builds.
 `SpinnetCore` owns manifest/configuration validation, Plugin registration,
 Action editing, configuration persistence, Menu geometry, and the Host-level
 `HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, global
-shortcuts, settings window, URL execution, and user-visible feedback.
+shortcuts, settings window, common Host Command adapters, and user-visible
+feedback.
 
 Capability-checked Host Services are available through the documented helper
 protocol. The Host stores per-Plugin-version Capability decisions and exposes the

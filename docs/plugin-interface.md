@@ -1,6 +1,6 @@
 # Documented Plugin Interface
 
-Frontier tickets #7, #12, and #13 accept a local `.spinnetplugin` directory
+Frontier tickets #7, #12, #13, and #17 accept a local `.spinnetplugin` directory
 containing a `manifest.json`. The Host loads the package through
 `PluginManifestLoader` and registers it with `PluginRegistry`.
 
@@ -83,10 +83,34 @@ Configuration Sheet may select any other Command from the same Plugin as an
 Alternate Action; only Commands whose declaration sets `is_configurable` to
 true receive a parameter field.
 
-The supported Host Command is `url.open`. Its Action input is a JSON string
-containing a URL. The production Host passes the configured Action to the
-system workspace; tests inject a `HostCommandExecutor` at the
-`HostActionRunner` seam.
+The supported Host Command catalogue is:
+
+| Host Command | Action input | Host integration | Authority |
+| --- | --- | --- | --- |
+| `url.open` | URL string, or `{ "url": "…" }` | `NSWorkspace` | none |
+| `application.open` | application path or bundle identifier | `NSWorkspace` | none |
+| `file.open` | file path, or `{ "path": "…" }` | `NSWorkspace` | file must exist |
+| `folder.open` | folder path, or `{ "path": "…" }` | `NSWorkspace` | folder must exist |
+| `keyboard_shortcut.invoke` | `{ "key": "P", "modifiers": ["command"] }` or `key_code` | Quartz Event Services | Accessibility System Permission |
+| `service.invoke` | Service name, or `{ "name": "…", "input": "…" }` | macOS Services | service availability |
+| `shortcut.invoke` | Shortcut name, or `{ "name": "…", "input": "…" }` | Public `shortcuts` command-line interface | Shortcut availability |
+| `clipboard.copy` | text string, or `{ "text": "…" }` | Host clipboard | `write_clipboard` Capability |
+| `feedback.present` | message string, or `{ "message": "…" }` | Host-rendered feedback | none |
+
+The bundled fixture Plugin declares one Command for each catalogue entry using
+IDs such as `fixture.open_application`, `fixture.invoke_service`, and
+`fixture.present_feedback`. The production Host validates the configured JSON
+shape before executing an Action, checks the Command's required Capability and
+System Permission, then passes the request to an AppKit adapter. Tests inject a
+recording adapter at the `HostActionRunner` seam, so automated checks verify the
+external request without opening a real application, mutating the clipboard, or
+posting a keyboard event.
+
+An unavailable application, file, folder, Service, Shortcut, or system request
+produces a stable terminal failure. A missing `write_clipboard` grant produces
+`capability_denied`; a missing Accessibility grant for a keyboard shortcut
+produces `system_permission_denied`. The Host never silently falls back to a
+different Command.
 
 The `javascript` execution kind points to a UTF-8 Common JavaScript source
 file relative to the Plugin package root. The Host reads that source and sends

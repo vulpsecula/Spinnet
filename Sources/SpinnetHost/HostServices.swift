@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import Darwin
 import SpinnetCore
 
 enum HostCommandError: Error, CustomStringConvertible, LocalizedError {
@@ -18,21 +19,552 @@ enum HostCommandError: Error, CustomStringConvertible, LocalizedError {
     var errorDescription: String? { description }
 }
 
-/// The first Host Command implementation is intentionally small: the
-/// production Host owns opening URLs, while the Action seam remains injectable
-/// for tests and future Host Commands.
-final class AppKitHostCommandExecutor: HostCommandExecutor {
-    func execute(_ action: ActionConfiguration) throws -> JSONValue {
-        guard let hostCommand = action.hostCommand,
-              let url = hostCommand.resolvedURL(from: action.input),
-              case .string(let value) = action.input else {
-            throw HostCommandError.invalidInput
+/// The adapter boundary keeps real macOS integrations out of automated tests.
+/// Each method represents one documented Host Command operation and returns
+/// whether the external request was accepted by the system.
+protocol HostCommandAdapter {
+    func openApplication(_ value: String) -> Bool
+    func openFile(_ path: String) -> Bool
+    func openFolder(_ path: String) -> Bool
+    func openURL(_ url: URL) -> Bool
+    func invokeKeyboardShortcut(_ shortcut: HostKeyboardShortcut) -> Bool
+    func invokeService(name: String, input: String?) -> Bool
+    func invokeShortcut(name: String, input: String?) -> Bool
+    func copyText(_ text: String) -> Bool
+}
+
+struct HostKeyboardShortcut: Equatable, Hashable {
+    let keyCode: UInt16
+    let modifiers: UInt64
+}
+
+/// AppKit and Carbon implementation of the common Host Command adapters.
+/// Plugins never receive this object or the framework handles it owns.
+final class AppKitHostCommandAdapter: HostCommandAdapter {
+    private static let shortcutExecutionTimeout: TimeInterval = 4
+
+    func openApplication(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        if looksLikePath(trimmed) {
+            let url = fileURL(for: trimmed)
+            guard FileManager.default.fileExists(atPath: url.path) else { return false }
+            return NSWorkspace.shared.open(url)
         }
 
-        guard NSWorkspace.shared.open(url) else {
-            throw HostCommandError.failed("The URL could not be opened")
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: trimmed) else {
+            return false
         }
-        return .object(["opened": .string(value)])
+        return NSWorkspace.shared.open(url)
+    }
+
+    func openFile(_ path: String) -> Bool {
+        let url = fileURL(for: path)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else { return false }
+        return NSWorkspace.shared.open(url)
+    }
+
+    func openFolder(_ path: String) -> Bool {
+        let url = fileURL(for: path)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return false }
+        return NSWorkspace.shared.open(url)
+    }
+
+    func openURL(_ url: URL) -> Bool {
+        NSWorkspace.shared.open(url)
+    }
+
+    func invokeKeyboardShortcut(_ shortcut: HostKeyboardShortcut) -> Bool {
+        guard let keyDown = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(shortcut.keyCode),
+            keyDown: true
+        ), let keyUp = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(shortcut.keyCode),
+            keyDown: false
+        ) else { return false }
+
+        let flags = CGEventFlags(rawValue: shortcut.modifiers)
+        keyDown.flags = flags
+        keyUp.flags = flags
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
+    }
+
+    func invokeService(name: String, input: String?) -> Bool {
+        let pasteboard = NSPasteboard.withUniqueName()
+        pasteboard.clearContents()
+        if let input {
+            guard pasteboard.setString(input, forType: .string) else { return false }
+        }
+        return NSPerformService(name, pasteboard)
+    }
+
+    func invokeShortcut(name: String, input: String?) -> Bool {
+        // The URL scheme only reports that the Shortcuts app accepted the
+        // request. The public command-line interface waits for the Shortcut
+        // to run and returns a failure for an unknown name or failed action.
+        let inputURL: URL?
+        if let input {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("spinnet-shortcut-input-\(UUID().uuidString).txt")
+            do {
+                try Data(input.utf8).write(to: url, options: .atomic)
+            } catch {
+                return false
+            }
+            inputURL = url
+        } else {
+            inputURL = nil
+        }
+        defer {
+            if let inputURL {
+                try? FileManager.default.removeItem(at: inputURL)
+            }
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+        process.arguments = ["run", name] + (inputURL.map { ["--input-path", $0.path] } ?? [])
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            let deadline = Date(timeIntervalSinceNow: Self.shortcutExecutionTimeout)
+            while process.isRunning {
+                let remaining = deadline.timeIntervalSinceNow
+                guard remaining > 0 else {
+                    _ = Darwin.kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                    return false
+                }
+                Thread.sleep(forTimeInterval: min(0.01, remaining))
+            }
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    func copyText(_ text: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        guard pasteboard.clearContents() != 0 else { return false }
+        return pasteboard.setString(text, forType: .string)
+    }
+
+    private func fileURL(for path: String) -> URL {
+        let expanded = (path as NSString).expandingTildeInPath
+        return URL(fileURLWithPath: expanded)
+    }
+
+    private func looksLikePath(_ value: String) -> Bool {
+        value.hasPrefix("/") || value.hasPrefix("~") || value.contains("/") || value.hasSuffix(".app")
+    }
+}
+
+/// The Host-level executor validates and authorizes a Command before handing
+/// it to an external adapter. Contextual execution is used by the registry
+/// path so a Plugin cannot bypass its current Capability decision.
+final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
+    private let adapter: HostCommandAdapter
+    private let grantStore: PluginCapabilityGrantStore?
+    private let systemPermissionCheck: (PluginSystemPermission) -> Bool
+    private let feedbackPresenter: (String) -> Void
+
+    init(
+        adapter: HostCommandAdapter = AppKitHostCommandAdapter(),
+        grantStore: PluginCapabilityGrantStore? = nil,
+        systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { permission in
+            switch permission {
+            case .accessibility:
+                return AXIsProcessTrusted()
+            }
+        },
+        feedbackPresenter: @escaping (String) -> Void = { _ in }
+    ) {
+        self.adapter = adapter
+        self.grantStore = grantStore
+        self.systemPermissionCheck = systemPermissionCheck
+        self.feedbackPresenter = feedbackPresenter
+    }
+
+    func execute(_ action: ActionConfiguration) throws -> JSONValue {
+        try execute(action, package: nil)
+    }
+
+    func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue {
+        try execute(action, package: package)
+    }
+
+    private func execute(
+        _ action: ActionConfiguration,
+        package: PluginPackage?
+    ) throws -> JSONValue {
+        guard action.execution == .host,
+              let command = action.hostCommand else {
+            throw HostCommandExecutionError.invalidInput("Action does not contain a Host Command")
+        }
+
+        if let package {
+            guard package.manifest.id == action.pluginID,
+                  let declared = package.manifest.commands.first(where: { $0.id == action.commandID }),
+                  declared.matchesExecutableDefinition(action.declaredCommand) else {
+                throw HostCommandExecutionError.unavailable("Command is no longer registered")
+            }
+        }
+
+        try authorize(command, package: package)
+        guard command.isValidInput(action.input) else {
+            throw HostCommandExecutionError.invalidInput(
+                "Input is invalid for \(command.rawValue)"
+            )
+        }
+
+        switch command {
+        case .openURL:
+            guard let url = command.resolvedURL(from: action.input),
+                  let value = stringValue(from: action.input, keys: ["url"]) else {
+                throw HostCommandExecutionError.invalidInput("Expected a URL string")
+            }
+            guard adapter.openURL(url) else {
+                throw HostCommandExecutionError.failed("The URL could not be opened")
+            }
+            return .object(["opened": .string(value)])
+        case .openApplication:
+            let value = try requiredString(
+                from: action.input,
+                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"],
+                description: "an application path or bundle identifier"
+            )
+            guard adapter.openApplication(value) else {
+                throw HostCommandExecutionError.unavailable("The application is not available")
+            }
+            return .object(["opened": .string(value)])
+        case .openFile:
+            let path = try requiredString(
+                from: action.input,
+                keys: ["path"],
+                description: "a file path"
+            )
+            guard adapter.openFile(path) else {
+                throw HostCommandExecutionError.unavailable("The file is not available")
+            }
+            return .object(["opened": .string(path)])
+        case .openFolder:
+            let path = try requiredString(
+                from: action.input,
+                keys: ["path"],
+                description: "a folder path"
+            )
+            guard adapter.openFolder(path) else {
+                throw HostCommandExecutionError.unavailable("The folder is not available")
+            }
+            return .object(["opened": .string(path)])
+        case .invokeKeyboardShortcut:
+            let shortcut = try parseKeyboardShortcut(action.input)
+            guard adapter.invokeKeyboardShortcut(shortcut) else {
+                throw HostCommandExecutionError.failed("The keyboard shortcut could not be sent")
+            }
+            return .object(["posted": .bool(true)])
+        case .invokeService:
+            let request = try namedRequest(
+                from: action.input,
+                primaryKey: "service",
+                description: "a macOS Service name"
+            )
+            guard adapter.invokeService(name: request.name, input: request.input) else {
+                throw HostCommandExecutionError.failed("The macOS Service could not be invoked")
+            }
+            return .object(["invoked": .string(request.name)])
+        case .invokeShortcut:
+            let request = try namedRequest(
+                from: action.input,
+                primaryKey: "shortcut",
+                description: "a Shortcut name"
+            )
+            guard adapter.invokeShortcut(name: request.name, input: request.input) else {
+                throw HostCommandExecutionError.failed("The Shortcut could not be invoked")
+            }
+            return .object(["invoked": .string(request.name)])
+        case .copyText:
+            let text = try requiredString(
+                from: action.input,
+                keys: ["text"],
+                description: "text to copy",
+                allowEmpty: true
+            )
+            guard adapter.copyText(text) else {
+                throw HostCommandExecutionError.failed("The clipboard could not be updated")
+            }
+            return .object(["copied": .string(text)])
+        case .presentFeedback:
+            let message = try requiredString(
+                from: action.input,
+                keys: ["message", "text"],
+                description: "a feedback message"
+            )
+            feedbackPresenter(message)
+            return .object(["presented": .string(message)])
+        }
+    }
+
+    private func authorize(
+        _ command: HostCommand,
+        package: PluginPackage?
+    ) throws {
+        if let capability = command.requiredCapability {
+            guard let package,
+                  package.manifest.capabilities.contains(capability),
+                  let grantStore else {
+                throw HostCommandExecutionError.capabilityDenied(capability)
+            }
+            grantStore.register(
+                pluginID: package.manifest.id,
+                pluginVersion: package.manifest.version,
+                capabilities: package.manifest.capabilities
+            )
+            guard grantStore.decision(
+                for: package.manifest.id,
+                pluginVersion: package.manifest.version,
+                capability: capability
+            ) == .granted else {
+                throw HostCommandExecutionError.capabilityDenied(capability)
+            }
+        }
+
+        if let permission = command.requiredSystemPermission,
+           !systemPermissionCheck(permission) {
+            throw HostCommandExecutionError.systemPermissionDenied(permission)
+        }
+    }
+
+    private func requiredString(
+        from input: JSONValue,
+        keys: [String],
+        description: String,
+        allowEmpty: Bool = false
+    ) throws -> String {
+        if allowEmpty {
+            switch input {
+            case .string(let value):
+                return value
+            case .object(let values):
+                for key in keys {
+                    if case .string(let value) = values[key] { return value }
+                }
+            default:
+                break
+            }
+        }
+        guard let value = stringValue(from: input, keys: keys) else {
+            throw HostCommandExecutionError.invalidInput("Expected \(description)")
+        }
+        return value
+    }
+
+    private func namedRequest(
+        from input: JSONValue,
+        primaryKey: String,
+        description: String
+    ) throws -> (name: String, input: String?) {
+        switch input {
+        case .string(let name):
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw HostCommandExecutionError.invalidInput("Expected \(description)")
+            }
+            return (name, nil)
+        case .object(let values):
+            guard let name = stringValue(from: input, keys: ["name", primaryKey]) else {
+                throw HostCommandExecutionError.invalidInput("Expected \(description)")
+            }
+            let payload: String?
+            if let rawPayload = values["input"] ?? values["text"] {
+                guard case .string(let value) = rawPayload else {
+                    throw HostCommandExecutionError.invalidInput("Expected text input for \(description)")
+                }
+                payload = value
+            } else {
+                payload = nil
+            }
+            return (name, payload)
+        default:
+            throw HostCommandExecutionError.invalidInput("Expected \(description)")
+        }
+    }
+
+    private func parseKeyboardShortcut(_ input: JSONValue) throws -> HostKeyboardShortcut {
+        switch input {
+        case .string(let value):
+            return try parseKeyboardShortcutString(value)
+        case .object(let values):
+            let parsedKeyCode: UInt16
+            if case .number(let rawKeyCode) = values["key_code"],
+               rawKeyCode.isFinite,
+               rawKeyCode.rounded() == rawKeyCode,
+               (0...127).contains(rawKeyCode) {
+                parsedKeyCode = UInt16(rawKeyCode)
+            } else if let key = stringValue(from: input, keys: ["key", "character"]) {
+                parsedKeyCode = try keyCode(for: key)
+            } else {
+                throw HostCommandExecutionError.invalidInput("Expected a key or key_code")
+            }
+            let modifiers = try parseModifiers(values["modifiers"] ?? values["modifier_flags"])
+            return HostKeyboardShortcut(keyCode: parsedKeyCode, modifiers: modifiers)
+        default:
+            throw HostCommandExecutionError.invalidInput("Expected a keyboard shortcut")
+        }
+    }
+
+    private func parseKeyboardShortcutString(_ value: String) throws -> HostKeyboardShortcut {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw HostCommandExecutionError.invalidInput("Expected a keyboard shortcut")
+        }
+        var modifiers: UInt64 = 0
+        var key = trimmed
+        let symbols: [(String, UInt64)] = [
+            ("⌘", UInt64(CGEventFlags.maskCommand.rawValue)),
+            ("⇧", UInt64(CGEventFlags.maskShift.rawValue)),
+            ("⌥", UInt64(CGEventFlags.maskAlternate.rawValue)),
+            ("⌃", UInt64(CGEventFlags.maskControl.rawValue))
+        ]
+        for (symbol, flag) in symbols where key.contains(symbol) {
+            modifiers |= flag
+            key = key.replacingOccurrences(of: symbol, with: "")
+        }
+        let parts = key.split(separator: "+", omittingEmptySubsequences: true)
+        if parts.count > 1 {
+            key = String(parts.last!)
+            for modifier in parts.dropLast() {
+                modifiers |= try parseModifier(String(modifier))
+            }
+        }
+        return HostKeyboardShortcut(
+            keyCode: try keyCode(for: key),
+            modifiers: modifiers
+        )
+    }
+
+    private func parseModifiers(_ input: JSONValue?) throws -> UInt64 {
+        guard let input else { return 0 }
+        switch input {
+        case .number(let value):
+            guard let modifiers = UInt64(exactly: value) else {
+                throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
+            }
+            return modifiers
+        case .string(let value):
+            return try value.split(separator: "+").reduce(into: UInt64(0)) { result, part in
+                result |= try parseModifier(String(part))
+            }
+        case .array(let values):
+            return try values.reduce(into: UInt64(0)) { result, value in
+                guard case .string(let modifier) = value else {
+                    throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
+                }
+                result |= try parseModifier(modifier)
+            }
+        default:
+            throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
+        }
+    }
+
+    private func parseModifier(_ value: String) throws -> UInt64 {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "command", "cmd", "⌘":
+            return UInt64(CGEventFlags.maskCommand.rawValue)
+        case "shift", "⇧":
+            return UInt64(CGEventFlags.maskShift.rawValue)
+        case "option", "alt", "⌥":
+            return UInt64(CGEventFlags.maskAlternate.rawValue)
+        case "control", "ctrl", "⌃":
+            return UInt64(CGEventFlags.maskControl.rawValue)
+        case "function", "fn":
+            return UInt64(CGEventFlags.maskSecondaryFn.rawValue)
+        case "caps_lock", "caps lock":
+            return UInt64(CGEventFlags.maskAlphaShift.rawValue)
+        default:
+            throw HostCommandExecutionError.invalidInput("Unknown keyboard modifier \(value)")
+        }
+    }
+
+    private func keyCode(for value: String) throws -> UInt16 {
+        let key = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let alphaNumeric: [String: UInt16] = [
+            "A": UInt16(kVK_ANSI_A), "B": UInt16(kVK_ANSI_B),
+            "C": UInt16(kVK_ANSI_C), "D": UInt16(kVK_ANSI_D),
+            "E": UInt16(kVK_ANSI_E), "F": UInt16(kVK_ANSI_F),
+            "G": UInt16(kVK_ANSI_G), "H": UInt16(kVK_ANSI_H),
+            "I": UInt16(kVK_ANSI_I), "J": UInt16(kVK_ANSI_J),
+            "K": UInt16(kVK_ANSI_K), "L": UInt16(kVK_ANSI_L),
+            "M": UInt16(kVK_ANSI_M), "N": UInt16(kVK_ANSI_N),
+            "O": UInt16(kVK_ANSI_O), "P": UInt16(kVK_ANSI_P),
+            "Q": UInt16(kVK_ANSI_Q), "R": UInt16(kVK_ANSI_R),
+            "S": UInt16(kVK_ANSI_S), "T": UInt16(kVK_ANSI_T),
+            "U": UInt16(kVK_ANSI_U), "V": UInt16(kVK_ANSI_V),
+            "W": UInt16(kVK_ANSI_W), "X": UInt16(kVK_ANSI_X),
+            "Y": UInt16(kVK_ANSI_Y), "Z": UInt16(kVK_ANSI_Z),
+            "0": UInt16(kVK_ANSI_0), "1": UInt16(kVK_ANSI_1),
+            "2": UInt16(kVK_ANSI_2), "3": UInt16(kVK_ANSI_3),
+            "4": UInt16(kVK_ANSI_4), "5": UInt16(kVK_ANSI_5),
+            "6": UInt16(kVK_ANSI_6), "7": UInt16(kVK_ANSI_7),
+            "8": UInt16(kVK_ANSI_8), "9": UInt16(kVK_ANSI_9)
+        ]
+        if let code = alphaNumeric[key] { return code }
+        let named: [String: UInt16] = [
+            "RETURN": UInt16(kVK_Return),
+            "ENTER": UInt16(kVK_Return),
+            "ESCAPE": UInt16(kVK_Escape),
+            "ESC": UInt16(kVK_Escape),
+            "TAB": UInt16(kVK_Tab),
+            "SPACE": UInt16(kVK_Space),
+            "DELETE": UInt16(kVK_Delete),
+            "BACKSPACE": UInt16(kVK_Delete),
+            "LEFT": UInt16(kVK_LeftArrow),
+            "RIGHT": UInt16(kVK_RightArrow),
+            "UP": UInt16(kVK_UpArrow),
+            "DOWN": UInt16(kVK_DownArrow)
+        ]
+        if let code = named[key] { return code }
+        let functionKeys: [String: UInt16] = [
+            "F1": UInt16(kVK_F1), "F2": UInt16(kVK_F2),
+            "F3": UInt16(kVK_F3), "F4": UInt16(kVK_F4),
+            "F5": UInt16(kVK_F5), "F6": UInt16(kVK_F6),
+            "F7": UInt16(kVK_F7), "F8": UInt16(kVK_F8),
+            "F9": UInt16(kVK_F9), "F10": UInt16(kVK_F10),
+            "F11": UInt16(kVK_F11), "F12": UInt16(kVK_F12),
+            "F13": UInt16(kVK_F13), "F14": UInt16(kVK_F14),
+            "F15": UInt16(kVK_F15), "F16": UInt16(kVK_F16),
+            "F17": UInt16(kVK_F17), "F18": UInt16(kVK_F18),
+            "F19": UInt16(kVK_F19), "F20": UInt16(kVK_F20)
+        ]
+        if let code = functionKeys[key] { return code }
+        throw HostCommandExecutionError.invalidInput("Unknown keyboard key \(value)")
+    }
+
+    private func stringValue(from input: JSONValue, keys: [String]) -> String? {
+        switch input {
+        case .string(let value):
+            return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
+        case .object(let values):
+            for key in keys {
+                if case .string(let value) = values[key],
+                   !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return value
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 }
 

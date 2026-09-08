@@ -273,6 +273,17 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .hostServiceFailed
         }
     }
+
+    public var actionFailureCategory: ActionFailureCategory {
+        switch self {
+        case .capabilityDenied:
+            return .capabilityDenied
+        case .systemPermissionDenied:
+            return .systemPermissionDenied
+        case .invalidInput, .unavailable, .failed:
+            return .hostServiceFailed
+        }
+    }
 }
 
 /// The Host-side seam used to broker a validated Plugin request. The package
