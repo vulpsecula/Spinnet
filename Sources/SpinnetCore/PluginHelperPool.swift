@@ -141,6 +141,11 @@ final class PluginHelperPool {
 /// the process without buffering unbounded data or replaying a finished Action.
 final class PluginHelperProcess {
     let process: Process
+    // Keep the Pipe owners alive for the whole warm connection. Retaining only
+    // their file handles lets the temporary Pipe deallocate after launch,
+    // closing stdin/stdout and making the helper mistake that for Host EOF.
+    private let inputPipe: Pipe
+    private let outputPipe: Pipe
     let input: FileHandle
     private let output: FileHandle
     private let condition = NSCondition()
@@ -151,6 +156,8 @@ final class PluginHelperProcess {
 
     init(process: Process, input: Pipe, output: Pipe) {
         self.process = process
+        self.inputPipe = input
+        self.outputPipe = output
         self.input = input.fileHandleForWriting
         self.output = output.fileHandleForReading
         DispatchQueue.global(qos: .userInitiated).async { self.readMessages() }
