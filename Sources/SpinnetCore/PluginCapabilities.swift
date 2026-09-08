@@ -71,6 +71,23 @@ public final class PluginCapabilityGrantStore {
     private let lock = NSLock()
     private var decisions: [PluginID: [String: [PluginCapability: PluginCapabilityGrantDecision]]] = [:]
 
+    private var revocationObservers: [UUID: (PluginID) -> Void] = [:]
+
+    /// Observers retire helpers synchronously and must not reenter this store.
+    public func observeRevocation(_ observer: @escaping (PluginID) -> Void) -> UUID {
+        lock.lock()
+        defer { lock.unlock() }
+        let token = UUID()
+        revocationObservers[token] = observer
+        return token
+    }
+
+    public func removeRevocationObserver(_ token: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        revocationObservers.removeValue(forKey: token)
+    }
+
     public init(grants: [PluginCapabilityGrant] = []) {
         for grant in grants {
             decisions[grant.pluginID, default: [:]][grant.pluginVersion, default: [:]][grant.capability] = grant.decision
@@ -94,7 +111,11 @@ public final class PluginCapabilityGrantStore {
         capability: PluginCapability
     ) {
         lock.lock()
+        let previous = decisions[pluginID]?[pluginVersion]?[capability]
         decisions[pluginID, default: [:]][pluginVersion, default: [:]][capability] = decision
+        if previous == .granted && decision != .granted {
+            for observer in revocationObservers.values { observer(pluginID) }
+        }
         lock.unlock()
     }
 

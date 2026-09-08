@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import AppKit
 @testable import SpinnetCore
 
 final class PluginRuntimeTests: XCTestCase {
@@ -440,7 +441,7 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(secondOutcome.terminal, .succeeded(.string("second")))
     }
 
-    func testDuplicateTerminalMessagesFailClosed() throws {
+    func testLateDuplicateTerminalRetiresHelperWithoutReplayingFinishedAction() throws {
         let duplicateHelperURL = try makeShellHelper(
             """
             #!/bin/sh
@@ -451,6 +452,7 @@ final class PluginRuntimeTests: XCTestCase {
             printf '%s\\n' "$response"
             sleep 1
             printf '%s\\n' "$response"
+            while :; do :; done
             """
         )
         defer { try? FileManager.default.removeItem(at: duplicateHelperURL) }
@@ -469,14 +471,20 @@ final class PluginRuntimeTests: XCTestCase {
         let registry = PluginRegistry()
         try registry.register(package)
 
-        let outcome = HostActionRunner(
+        var processes: [Process] = []
+        let supervisor = PluginRuntimeSupervisor(helperURL: duplicateHelperURL,
+            processFactory: { let process = Process(); processes.append(process); return process })
+        defer { supervisor.shutdown() }
+        let runner = HostActionRunner(
             executor: NoopHostCommandExecutor(),
-            scriptedExecutor: PluginRuntimeSupervisor(helperURL: duplicateHelperURL)
-        ).invoke(action, using: registry)
-        guard case .failed(let failure) = outcome.terminal else {
-            return XCTFail("A duplicate terminal message should fail the Action")
-        }
-        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+            scriptedExecutor: supervisor)
+        let outcome = runner.invoke(action, using: registry)
+        XCTAssertEqual(outcome.terminal, .succeeded(.null))
+        assertExits(processes[0])
+        XCTAssertEqual(processes[0].terminationStatus, SIGKILL)
+        XCTAssertEqual(supervisor.launchCount, 1, "Retirement must not replay work")
+        XCTAssertEqual(runner.invoke(try action.newInvocation(), using: registry).terminal, .succeeded(.null))
+        XCTAssertEqual(supervisor.launchCount, 2)
     }
 
     func testCancellationTerminatesOnlyTheAffectedHelperWithin250Milliseconds() throws {
@@ -1101,6 +1109,289 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(supervisor.launchCount, 1)
     }
 
+    func testConsecutiveActionsReuseTheLazyPluginHelper() throws {
+        let package = try makeScriptedPackage(pluginID: PluginID("com.example.reuse"), script: "input")
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let registry = PluginRegistry()
+        let process = Process()
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+            registry: registry, processFactory: { process })
+        defer { supervisor.shutdown() }
+        try registry.register(package)
+        XCTAssertEqual(supervisor.launchCount, 0)
+        XCTAssertFalse(process.isRunning)
+        let action = try ActionConfiguration(id: ActionID("repeat"), pluginID: package.manifest.id,
+            command: package.manifest.commands[0], input: .string("first"))
+        XCTAssertEqual(try supervisor.execute(action, in: package), .string("first"))
+        let pid = process.processIdentifier
+        XCTAssertTrue(process.isRunning)
+        XCTAssertEqual(try supervisor.execute(action, in: package), .string("first"))
+        XCTAssertTrue(process.isRunning)
+        XCTAssertEqual(process.processIdentifier, pid)
+        XCTAssertEqual(supervisor.launchCount, 1)
+    }
+
+    func testIdleHelperExitsGracefullyAndExplicitActionStartsFresh() throws {
+        let (package, action) = try lifecycleAction()
+        let clock = RuntimeTestClock()
+        var processes: [Process] = []
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+            processFactory: { let process = Process(); processes.append(process); return process },
+            schedule: clock.schedule)
+        defer { supervisor.shutdown() }
+        XCTAssertEqual(try supervisor.execute(action, in: package), .number(42))
+        clock.advance(by: 29.99)
+        XCTAssertTrue(processes[0].isRunning)
+        clock.advance(by: 0.01)
+        assertExits(processes[0])
+        XCTAssertEqual(processes[0].terminationReason, .exit)
+        XCTAssertEqual(processes[0].terminationStatus, 0)
+        XCTAssertEqual(try supervisor.execute(action, in: package), .number(42))
+        XCTAssertEqual(supervisor.launchCount, 2)
+        XCTAssertNotEqual(processes[0].processIdentifier, processes[1].processIdentifier)
+        clock.advance(by: 0.25)
+        XCTAssertTrue(processes[1].isRunning, "Old exit allowance must not kill the replacement")
+    }
+
+    func testUnresponsiveIdleHelperIsKilledOnlyAfterExitAllowance() throws {
+        let (package, action) = try lifecycleAction()
+        let helper = try makeShellHelper("""
+            #!/bin/sh
+            IFS= read -r request
+            invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^"]*\\)".*/\\1/p')
+            action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^"]*\\)".*/\\1/p')
+            printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":42}}\\n' "$invocation_id" "$action_id"
+            while :; do :; done
+            """)
+        defer { try? FileManager.default.removeItem(at: helper) }
+        let clock = RuntimeTestClock()
+        let process = Process()
+        let supervisor = PluginRuntimeSupervisor(helperURL: helper,
+            processFactory: { process }, schedule: clock.schedule)
+        defer { supervisor.shutdown() }
+        XCTAssertEqual(try supervisor.execute(action, in: package), .number(42))
+        clock.advance(by: 30)
+        XCTAssertTrue(process.isRunning)
+        clock.advance(by: 0.249)
+        XCTAssertTrue(process.isRunning)
+        clock.advance(by: 0.0011)
+        XCTAssertFalse(process.isRunning)
+        XCTAssertEqual(process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(process.terminationStatus, SIGKILL)
+    }
+
+    func testPluginMutationsRetireHelpersBeforeReturning() throws {
+        for mutation in ["disable", "uninstall", "update"] {
+            let (package, action) = try lifecycleAction()
+            let registry = PluginRegistry()
+            try registry.register(package)
+            var processes: [Process] = []
+            let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+                registry: registry,
+                processFactory: { let process = Process(); processes.append(process); return process })
+            defer { supervisor.shutdown() }
+            XCTAssertEqual(try supervisor.execute(action, in: package), .number(42))
+            var currentPackage = package
+            switch mutation {
+            case "disable":
+                try registry.setEnabled(false, for: package.manifest.id)
+                XCTAssertFalse(processes[0].isRunning)
+                XCTAssertThrowsError(try supervisor.execute(action, in: package))
+                try registry.setEnabled(true, for: package.manifest.id)
+            case "uninstall":
+                registry.unregister(package.manifest.id)
+                XCTAssertFalse(processes[0].isRunning)
+                XCTAssertThrowsError(try supervisor.execute(action, in: package))
+                try registry.register(package)
+            default:
+                currentPackage = try makeScriptedPackage(pluginID: package.manifest.id, script: "99")
+                addTeardownBlock { try? FileManager.default.removeItem(at: currentPackage.rootURL) }
+                try registry.replace(currentPackage)
+                XCTAssertFalse(processes[0].isRunning)
+                XCTAssertThrowsError(try supervisor.execute(action, in: package), "Reject stale package snapshot")
+            }
+            XCTAssertEqual(try supervisor.execute(action, in: currentPackage),
+                .number(mutation == "update" ? 99 : 42))
+            XCTAssertEqual(supervisor.launchCount, 2)
+            XCTAssertTrue(processes[1].isRunning)
+        }
+    }
+
+    func testRevokingEitherCapabilityRetiresHelperAndLaterActionUsesCurrentGrants() throws {
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id == CommandID("fixture.transform_text") })
+        let action = try ActionConfiguration(id: ActionID("revocation"), pluginID: package.manifest.id,
+            command: command, input: .null)
+        for capability in PluginCapability.allCases {
+            let registry = PluginRegistry()
+            try registry.register(package)
+            let grants = PluginCapabilityGrantStore()
+            for grant in PluginCapability.allCases {
+                grants.setDecision(.granted, for: package.manifest.id,
+                    pluginVersion: package.manifest.version, capability: grant)
+            }
+            var writes = 0
+            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
+                systemPermissionCheck: { _ in true }, selectedTextProvider: { "example" },
+                clipboardWriter: { _ in writes += 1 })
+            var processes: [Process] = []
+            let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+                registry: registry, grantStore: grants,
+                processFactory: { let process = Process(); processes.append(process); return process })
+            defer { supervisor.shutdown() }
+            let runner = HostActionRunner(executor: NoopHostCommandExecutor(),
+                scriptedExecutor: supervisor, hostServiceBroker: broker)
+            guard case .succeeded = runner.invoke(action, using: registry).terminal else {
+                return XCTFail("Granted Action should succeed")
+            }
+            XCTAssertEqual(writes, 1)
+            grants.setDecision(.denied, for: package.manifest.id,
+                pluginVersion: package.manifest.version, capability: capability)
+            XCTAssertFalse(processes[0].isRunning)
+            let outcome = runner.invoke(try action.newInvocation(), using: registry)
+            guard case .failed(let failure) = outcome.terminal else {
+                return XCTFail("The new Action must observe revocation")
+            }
+            XCTAssertEqual(failure.category, .capabilityDenied)
+            XCTAssertEqual(writes, 1)
+            XCTAssertEqual(supervisor.launchCount, 2)
+        }
+    }
+
+    func testQueuedActionsSerializeAndOldIdleTimerCannotRetireActiveHelper() throws {
+        let package = try loadFixturePackage()
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id == CommandID("fixture.transform_text") })
+        let action = try ActionConfiguration(id: ActionID("serialized"), pluginID: package.manifest.id,
+            command: command, input: .null)
+        let grants = PluginCapabilityGrantStore()
+        for capability in PluginCapability.allCases {
+            grants.setDecision(.granted, for: package.manifest.id,
+                pluginVersion: package.manifest.version, capability: capability)
+        }
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 1)
+        defer { release.signal(); release.signal() }
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
+            systemPermissionCheck: { _ in true }, selectedTextProvider: {
+                entered.signal()
+                guard release.wait(timeout: .now() + 3) == .success else {
+                    throw PluginRuntimeError.timedOut
+                }
+                return "example"
+            }, clipboardWriter: { _ in })
+        let clock = RuntimeTestClock()
+        let process = Process()
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+            processFactory: { process }, schedule: clock.schedule)
+        defer { supervisor.shutdown() }
+        _ = try supervisor.execute(action, in: package, using: broker)
+        XCTAssertEqual(entered.wait(timeout: .now() + 1), .success)
+        let second = expectation(description: "second Action")
+        DispatchQueue.global().async {
+            defer { second.fulfill() }
+            do { _ = try supervisor.execute(action, in: package, using: broker) }
+            catch { XCTFail("Second Action failed: \(error)") }
+        }
+        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
+        clock.advance(by: 30)
+        XCTAssertTrue(process.isRunning, "The old idle deadline expired during an Action")
+        let third = expectation(description: "third Action")
+        let submitted = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            defer { third.fulfill() }
+            submitted.signal()
+            do { _ = try supervisor.execute(action, in: package, using: broker) }
+            catch { XCTFail("Third Action failed: \(error)") }
+        }
+        XCTAssertEqual(submitted.wait(timeout: .now() + 1), .success)
+        XCTAssertEqual(entered.wait(timeout: .now() + 0.05), .timedOut)
+        release.signal()
+        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(supervisor.launchCount, 1)
+        release.signal()
+        wait(for: [second, third], timeout: 2)
+        clock.advance(by: 29)
+        XCTAssertTrue(process.isRunning)
+        clock.advance(by: 1)
+        assertExits(process)
+        XCTAssertEqual(process.terminationReason, .exit)
+    }
+
+    func testShutdownReapsIdleAndActiveHelpersAndRejectsLaterExecution() throws {
+        _ = NSApplication.shared
+        for _ in 0..<20 {
+            try checkShutdownDuringHelperStartup()
+        }
+    }
+
+    private func checkShutdownDuringHelperStartup() throws {
+        let (idlePackage, idleAction) = try lifecycleAction()
+        let activePackage = try makeScriptedPackage(pluginID: PluginID("test.shutdown.active"),
+            script: "while (true) {}")
+        defer { try? FileManager.default.removeItem(at: activePackage.rootURL) }
+        let activeAction = try ActionConfiguration(id: ActionID("active"), pluginID: activePackage.manifest.id,
+            command: activePackage.manifest.commands[0], input: .null)
+        let processes = [Process(), Process()]
+        var nextProcess = 0
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+            processFactory: { defer { nextProcess += 1 }; return processes[nextProcess] })
+        defer { supervisor.shutdown() }
+        XCTAssertEqual(try supervisor.execute(idleAction, in: idlePackage), .number(42))
+        let completed = expectation(description: "active execution interrupted by shutdown")
+        DispatchQueue.global().async {
+            defer { completed.fulfill() }
+            do {
+                _ = try supervisor.execute(activeAction, in: activePackage)
+                XCTFail("Shutdown must interrupt the active Action")
+            } catch { XCTAssertEqual(error as? PluginRuntimeError, .helperTerminated) }
+        }
+        let deadline = ProcessInfo.processInfo.systemUptime + 2
+        while !processes[1].isRunning && ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertTrue(processes[0].isRunning)
+        XCTAssertTrue(processes[1].isRunning)
+        supervisor.shutdown()
+        XCTAssertTrue(processes.allSatisfy { !$0.isRunning })
+        wait(for: [completed], timeout: 1)
+        XCTAssertThrowsError(try supervisor.execute(idleAction, in: idlePackage)) {
+            XCTAssertEqual($0 as? PluginRuntimeError, .helperTerminated)
+        }
+        XCTAssertEqual(supervisor.launchCount, 2)
+    }
+
+    func testRegistryMenuDataAndDeclarativeActionStartNoHelper() throws {
+        let package = try loadFixturePackage()
+        let registry = PluginRegistry()
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
+            registry: registry, processFactory: { XCTFail("Helper must remain lazy"); return Process() })
+        defer { supervisor.shutdown() }
+        try registry.register(package)
+        XCTAssertFalse(registry.menuItemPresets().isEmpty)
+        XCTAssertFalse(registry.availableCommands().isEmpty)
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.execution == .host })
+        let action = try ActionConfiguration(id: ActionID("declarative"), pluginID: package.manifest.id,
+            command: command, input: .string("https://example.com"))
+        let runner = HostActionRunner(executor: NoopHostCommandExecutor(), scriptedExecutor: supervisor)
+        XCTAssertEqual(runner.invoke(action, using: registry).terminal, .succeeded(.null))
+        XCTAssertEqual(supervisor.launchCount, 0)
+    }
+
+    private func lifecycleAction(script: String = "42") throws -> (PluginPackage, ActionConfiguration) {
+        let package = try makeScriptedPackage(pluginID: PluginID("test.lifecycle"), script: script)
+        addTeardownBlock { try? FileManager.default.removeItem(at: package.rootURL) }
+        let action = try ActionConfiguration(id: ActionID("lifecycle"), pluginID: package.manifest.id,
+            command: package.manifest.commands[0], input: .null)
+        return (package, action)
+    }
+
+    private func assertExits(_ process: Process, file: StaticString = #filePath, line: UInt = #line) {
+        let exited = expectation(description: "helper exited")
+        DispatchQueue.global().async { process.waitUntilExit(); exited.fulfill() }
+        wait(for: [exited], timeout: 2)
+        XCTAssertFalse(process.isRunning, file: file, line: line)
+    }
+
     private func loadFixturePackage() throws -> PluginPackage {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { root.deleteLastPathComponent() }
@@ -1208,4 +1499,30 @@ final class PluginRuntimeTests: XCTestCase {
 
 private struct NoopHostCommandExecutor: HostCommandExecutor {
     func execute(_ action: ActionConfiguration) throws -> JSONValue { .null }
+}
+
+/// Virtual time is injected only at the OS timer boundary. Processes and the
+/// Host/helper wire protocol remain real in lifecycle integration tests.
+private final class RuntimeTestClock {
+    private let lock = NSLock()
+    private var now: TimeInterval = 0
+    private var operations: [(TimeInterval, () -> Void)] = []
+
+    func schedule(_ delay: TimeInterval, _ operation: @escaping () -> Void) {
+        lock.lock()
+        operations.append((now + delay, operation))
+        lock.unlock()
+    }
+
+    func advance(by interval: TimeInterval) {
+        lock.lock()
+        now += interval
+        while let index = operations.firstIndex(where: { $0.0 <= now }) {
+            let operation = operations.remove(at: index).1
+            lock.unlock()
+            operation()
+            lock.lock()
+        }
+        lock.unlock()
+    }
 }

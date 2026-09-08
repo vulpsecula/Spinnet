@@ -80,8 +80,10 @@ shortcuts, settings window, URL execution, and user-visible feedback.
 Capability-checked Host Services are available through the documented helper
 protocol. The Host stores per-Plugin-version Capability decisions and exposes the
 current fixture grants in Privacy & Permissions. The Host owns scripted Action
-progress, cancellation, deadlines, and terminal feedback; helper reuse and
-retirement remain later tickets.
+progress, cancellation, deadlines, and terminal feedback. Scripted Actions
+reuse one serialized helper per Plugin. After 30 seconds idle the Host requests
+exit, then force-terminates any survivor 250 ms later. Plugin disable, uninstall,
+update, Capability revocation, and Host shutdown retire helpers immediately.
 
 The current manifest shape is documented in
 [`docs/plugin-interface.md`](docs/plugin-interface.md).

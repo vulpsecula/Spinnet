@@ -50,6 +50,43 @@ public final class PluginRegistry {
     private let lock = NSLock()
     private var packages: [PluginID: PluginPackage] = [:]
     private var disabledPluginIDs: Set<PluginID> = []
+    private var invalidationObservers: [UUID: (PluginID) -> Void] = [:]
+
+    /// Observers must only retire runtime work; they must not reenter the registry.
+    public func observeInvalidation(_ observer: @escaping (PluginID) -> Void) -> UUID {
+        lock.lock()
+        defer { lock.unlock() }
+        let token = UUID()
+        invalidationObservers[token] = observer
+        return token
+    }
+
+    public func removeInvalidationObserver(_ token: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        invalidationObservers.removeValue(forKey: token)
+    }
+
+    /// Keeps validation and helper admission atomic with Plugin mutations.
+    func withCurrentPackage<T>(_ package: PluginPackage, operation: () throws -> T) throws -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let current = packages[package.manifest.id],
+              current.rootURL == package.rootURL,
+              current.manifest == package.manifest,
+              !disabledPluginIDs.contains(package.manifest.id) else {
+            throw PluginRuntimeError.invalidAction("Plugin package is no longer active")
+        }
+        return try operation()
+    }
+
+    public func unregister(_ pluginID: PluginID) {
+        lock.lock()
+        defer { lock.unlock() }
+        packages.removeValue(forKey: pluginID)
+        disabledPluginIDs.remove(pluginID)
+        for observer in invalidationObservers.values { observer(pluginID) }
+    }
 
     public init() {}
 
@@ -87,6 +124,7 @@ public final class PluginRegistry {
             )
         }
         packages[package.manifest.id] = package
+        for observer in invalidationObservers.values { observer(package.manifest.id) }
     }
 
     public func setEnabled(_ enabled: Bool, for pluginID: PluginID) throws {
@@ -102,6 +140,7 @@ public final class PluginRegistry {
             disabledPluginIDs.remove(pluginID)
         } else {
             disabledPluginIDs.insert(pluginID)
+            for observer in invalidationObservers.values { observer(pluginID) }
         }
     }
 

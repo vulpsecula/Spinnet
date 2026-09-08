@@ -7,6 +7,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     #endif
     private let registry = PluginRegistry()
     private var actionRunner: HostActionRunner!
+    private var pluginRuntime: PluginRuntimeSupervisor?
     private var menu: MenuPresentationController!
     private var feedback: HostFeedbackPresenter!
     private var settings: SettingsWindowController!
@@ -24,6 +25,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         qos: .userInitiated
     )
 
+    func applicationWillTerminate(_ notification: Notification) {
+        pluginRuntime?.shutdown()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
@@ -37,8 +42,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             )
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
-                PluginRuntimeSupervisor(helperURL: $0)
+                PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)
             }
+            pluginRuntime = scriptedExecutor
             let hostServiceBroker = CapabilityCheckedHostServiceBroker(
                 grantStore: capabilityGrants,
                 systemPermissionCheck: { [pluginHostServiceProvider] permission in

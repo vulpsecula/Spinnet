@@ -17,6 +17,14 @@ struct SpinnetPluginHelperMain {
                     from: FileHandle.standardInput,
                     label: "Invocation"
                 ) else { break }
+                if try PluginRuntimeProtocol.decodeMessageType(data) == .shutdown {
+                    struct Shutdown: Decodable { let protocol_version: String }
+                    let request = try JSONDecoder().decode(Shutdown.self, from: data)
+                    guard request.protocol_version == PluginRuntimeProtocol.version else {
+                        throw PluginRuntimeError.protocolViolation("Unsupported shutdown version")
+                    }
+                    break
+                }
                 let invocation = try PluginRuntimeProtocol.decodeInvocation(data)
                 response = execute(invocation)
             } catch let error as PluginRuntimeError {
@@ -39,10 +47,6 @@ struct SpinnetPluginHelperMain {
                 )
             }
             emit(response)
-            // The initial production exchange is one invocation per helper.
-            // Exiting after the first terminal result also makes a process-fatal
-            // runtime fault local to this Plugin and Action.
-            break
         }
     }
 

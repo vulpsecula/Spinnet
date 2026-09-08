@@ -10,6 +10,7 @@ public enum PluginRuntimeProtocol {
         case hostServiceRequest = "host_service_request"
         case hostServiceResponse = "host_service_response"
         case terminal
+        case shutdown
     }
 
     public static let version = "1.0"
@@ -937,10 +938,7 @@ public extension ScriptedActionExecutor {
     }
 }
 
-/// Starts one helper for one scripted Action. The helper is deliberately
-/// launched only from `execute`, keeping Plugin registration, idle state, and
-/// Menu presentation free of JavaScriptCore and child processes. A later
-/// lifecycle ticket can layer warm reuse over this narrow exchange.
+/// Lazily owns one serialized, reusable helper per Plugin.
 public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     public let helperURL: URL
 
@@ -948,6 +946,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     private let processFactory: () -> Process
     private let pipeFactory: () -> Pipe
 
+    private let registry: PluginRegistry?
+    private let grantStore: PluginCapabilityGrantStore?
+    private var registryObserver: UUID?
+    private var grantObserver: UUID?
+    private let helpers: PluginHelperPool
     private let launchLock = NSLock()
     private var launches = 0
     public var launchCount: Int {
@@ -958,14 +961,34 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
 
     public init(
         helperURL: URL,
+        registry: PluginRegistry? = nil,
+        grantStore: PluginCapabilityGrantStore? = nil,
         fileManager: FileManager = .default,
         processFactory: @escaping () -> Process = Process.init,
-        pipeFactory: @escaping () -> Pipe = Pipe.init
+        pipeFactory: @escaping () -> Pipe = Pipe.init,
+        schedule: @escaping (TimeInterval, @escaping () -> Void) -> Void = { delay, operation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
+        }
     ) {
+        self.registry = registry
+        self.grantStore = grantStore
+        self.helpers = PluginHelperPool(schedule: schedule)
         self.helperURL = helperURL
         self.fileManager = fileManager
         self.processFactory = processFactory
         self.pipeFactory = pipeFactory
+        registryObserver = registry?.observeInvalidation { [weak self] in self?.terminate(pluginID: $0) }
+        grantObserver = grantStore?.observeRevocation { [weak self] in self?.terminate(pluginID: $0) }
+    }
+
+    public func terminate(pluginID: PluginID) { helpers.terminate(pluginID: pluginID) }
+
+    public func shutdown() { helpers.shutdown() }
+
+    deinit {
+        if let registryObserver { registry?.removeInvalidationObserver(registryObserver) }
+        if let grantObserver { grantStore?.removeRevocationObserver(grantObserver) }
+        shutdown()
     }
 
     public func execute(_ action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue {
@@ -986,6 +1009,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         using hostServiceBroker: PluginHostServiceBroker?,
         control: ActionExecutionControl
     ) throws -> JSONValue {
+        let lease = try helpers.acquire(pluginID: action.pluginID, control: control)
+        defer { helpers.release(lease) }
         try control.check()
         let timeout = DispatchWorkItem { control.stop(.timedOut) }
         DispatchQueue.global(qos: .userInitiated).asyncAfter(
@@ -1036,81 +1061,47 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             throw PluginRuntimeError.protocolViolation("Invocation could not be encoded")
         }
 
-        let process = processFactory()
-        let inputPipe = pipeFactory()
-        let outputPipe = pipeFactory()
-        process.executableURL = helperURL
-        process.arguments = []
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.standardError
-
-        try control.check()
-        do {
-            try process.run()
-        } catch {
-            throw PluginRuntimeError.helperLaunchFailed(error.localizedDescription)
+        let create = { [self] () throws -> PluginHelperProcess in
+            let process = processFactory()
+            let inputPipe = pipeFactory()
+            let outputPipe = pipeFactory()
+            process.executableURL = helperURL
+            process.arguments = []
+            process.standardInput = inputPipe
+            process.standardOutput = outputPipe
+            process.standardError = FileHandle.standardError
+            try control.check()
+            do { try process.run() }
+            catch { throw PluginRuntimeError.helperLaunchFailed(error.localizedDescription) }
+            launchLock.lock()
+            launches += 1
+            launchLock.unlock()
+            return PluginHelperProcess(process: process, input: inputPipe, output: outputPipe)
         }
-        launchLock.lock()
-        launches += 1
-        launchLock.unlock()
-        control.registerTermination {
-            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        let helper: PluginHelperProcess
+        if let registry {
+            helper = try registry.withCurrentPackage(package) { try helpers.start(lease, create: create) }
+        } else {
+            helper = try helpers.start(lease, create: create)
         }
-        defer {
-            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
-            try? inputPipe.fileHandleForWriting.close()
-        }
-        try control.check()
-
-        var processWasTerminatedByHost = false
+        control.registerTermination(helpers.cancellation(for: lease))
         let terminal: PluginRuntimeTerminal
         do {
-            try inputPipe.fileHandleForWriting.write(contentsOf: requestData + Data([0x0A]))
+            try control.check()
+            try helper.beginInvocation()
+            try helper.input.write(contentsOf: requestData + Data([0x0A]))
             terminal = try exchange(
                 connection: connection,
                 control: control,
                 package: package,
                 action: action,
                 hostServiceBroker: hostServiceBroker,
-                input: inputPipe.fileHandleForWriting,
-                output: outputPipe.fileHandleForReading
+                helper: helper
             )
         } catch {
-            try? inputPipe.fileHandleForWriting.close()
-            if process.isRunning {
-                terminateProcess(process)
-                processWasTerminatedByHost = true
-            }
-            process.waitUntilExit()
+            helpers.terminate(lease)
             try control.check()
-            if !processWasTerminatedByHost,
-               process.terminationReason == .uncaughtSignal {
-                throw terminationError(process)
-            }
             throw (error as? PluginRuntimeError) ?? .protocolViolation("Plugin exchange failed")
-        }
-
-        try? inputPipe.fileHandleForWriting.close()
-        // A terminal response ends this short-lived connection. Terminating a
-        // helper that stays alive after its terminal result keeps a delayed
-        // message from becoming a second Action outcome.
-        if process.isRunning {
-            terminateProcess(process)
-            processWasTerminatedByHost = true
-        }
-        process.waitUntilExit()
-
-        if !processWasTerminatedByHost,
-           process.terminationReason == .uncaughtSignal {
-            throw terminationError(process)
-        }
-        if !processWasTerminatedByHost {
-            guard process.terminationStatus == 0 else {
-                throw PluginRuntimeError.helperLaunchFailed(
-                    "Helper exited with status \(process.terminationStatus)"
-                )
-            }
         }
 
         try control.check()
@@ -1122,6 +1113,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             case .scriptError:
                 throw PluginRuntimeError.scriptFailed(failure.message)
             case .invalidInvocation, .helperError:
+                helpers.terminate(lease)
                 throw PluginRuntimeError.protocolViolation(failure.message)
             case .capabilityDenied:
                 throw PluginRuntimeError.capabilityDenied(failure.message)
@@ -1139,20 +1131,13 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         package: PluginPackage,
         action: ActionConfiguration,
         hostServiceBroker: PluginHostServiceBroker?,
-        input: FileHandle,
-        output: FileHandle
+        helper: PluginHelperProcess
     ) throws -> PluginRuntimeTerminal {
         while true {
             try control.check()
             let remaining = control.deadline - ProcessInfo.processInfo.systemUptime
             guard remaining > 0 else { throw PluginRuntimeError.timedOut }
-            guard let frame = try readFrame(
-                from: output,
-                timeout: remaining,
-                label: "Plugin message"
-            ) else {
-                throw PluginRuntimeError.protocolViolation("Terminal result is missing")
-            }
+            let frame = try helper.readFrame(timeout: remaining)
 
             switch try PluginRuntimeProtocol.decodeMessageType(frame) {
             case .hostServiceRequest:
@@ -1200,21 +1185,12 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 }
                 try control.check()
                 let responseData = try connection.prepareHostServiceResponse(response)
-                try input.write(contentsOf: responseData + Data([0x0A]))
+                try helper.input.write(contentsOf: responseData + Data([0x0A]))
             case .terminal:
                 let response = try PluginRuntimeProtocol.decodeResponse(frame)
                 let terminal = try connection.acceptResponse(response)
-                let trailing = try readTrailingByte(
-                    from: output,
-                    timeout: max(0, control.deadline - ProcessInfo.processInfo.systemUptime)
-                )
-                guard trailing.isEmpty else {
-                    throw PluginRuntimeError.protocolViolation(
-                        "Expected exactly one terminal response"
-                    )
-                }
                 return terminal
-            case .invocation, .hostServiceResponse:
+            case .invocation, .hostServiceResponse, .shutdown:
                 throw PluginRuntimeError.protocolViolation(
                     "Unexpected message from Plugin helper"
                 )
@@ -1240,89 +1216,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         return candidate
     }
 
-    private func readFrame(
-        from handle: FileHandle,
-        timeout: TimeInterval,
-        label: String
-    ) throws -> Data? {
-        let result = PluginRuntimeReadResult<Data?>()
-        let completed = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let value: Result<Data?, PluginRuntimeError>
-            do {
-                let frame = try PluginRuntimeProtocol.readFrame(
-                    from: handle,
-                    label: label
-                )
-                value = .success(frame)
-            } catch let error as PluginRuntimeError {
-                value = .failure(error)
-            } catch {
-                value = .failure(.protocolViolation(label + " could not be read"))
-            }
-            result.set(value)
-            completed.signal()
-        }
-
-        guard completed.wait(timeout: .now() + timeout) == .success else {
-            throw PluginRuntimeError.timedOut
-        }
-        guard let value = result.value else {
-            throw PluginRuntimeError.protocolViolation(label + " could not be read")
-        }
-        return try value.get()
-    }
-
-    private func readTrailingByte(
-        from handle: FileHandle,
-        timeout: TimeInterval
-    ) throws -> Data {
-        guard timeout > 0 else { return Data() }
-        let result = PluginRuntimeReadResult<Data>()
-        let completed = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            result.set(.success(handle.readData(ofLength: 1)))
-            completed.signal()
-        }
-        guard completed.wait(timeout: .now() + timeout) == .success else {
-            return Data()
-        }
-        guard let value = result.value else {
-            throw PluginRuntimeError.protocolViolation("Trailing response could not be read")
-        }
-        return try value.get()
-    }
-
-    private func terminationError(_ process: Process) -> PluginRuntimeError {
-        switch process.terminationStatus {
-        case SIGTERM, SIGKILL: return .helperTerminated
-        default: return .helperCrashed(signal: process.terminationStatus)
-        }
-    }
-
-    private func terminateProcess(_ process: Process) {
-        guard process.isRunning else { return }
-        _ = Darwin.kill(process.processIdentifier, SIGKILL)
-    }
 
 }
 
 public typealias PluginRuntimeRequest = PluginRuntimeInvocation
 public typealias PluginRuntimeResult = PluginRuntimeResponse
-
-private final class PluginRuntimeReadResult<Value> {
-    private let lock = NSLock()
-    private var storedValue: Result<Value, PluginRuntimeError>?
-
-    var value: Result<Value, PluginRuntimeError>? {
-        lock.lock()
-        defer { lock.unlock() }
-        return storedValue
-    }
-
-    func set(_ value: Result<Value, PluginRuntimeError>) {
-        lock.lock()
-        storedValue = value
-        lock.unlock()
-    }
-}

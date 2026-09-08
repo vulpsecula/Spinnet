@@ -90,7 +90,7 @@ system workspace; tests inject a `HostCommandExecutor` at the
 
 The `javascript` execution kind points to a UTF-8 Common JavaScript source
 file relative to the Plugin package root. The Host reads that source and sends
-it, together with the configured input, to a short-lived helper executable.
+it, together with the configured input, to an on-demand per-Plugin helper executable.
 The helper is a separate SwiftPM product that links the system
 `JavaScriptCore` framework; `SpinnetHost` and `SpinnetCore` do not link or
 initialize a JavaScript runtime. The script receives these globals:
@@ -193,11 +193,14 @@ The Host chooses the Plugin identity when it creates a helper connection. The
 `plugin_id` in an invocation is Host-owned context for the script; Host Service
 authorization uses the registered package bound to that connection and does
 not accept Plugin identity or Capability claims from a helper message.
-Invocation and Action identifiers must be non-empty and unique on a
-connection. One invocation may be in flight at a time, and its terminal
+Invocation and Action identifiers must be non-empty. The Host generates a fresh
+invocation identifier for every explicit execution, including repeated execution
+of a configured Action. One invocation may be in flight per Plugin, and its terminal
 response must carry the matching invocation and Action identifiers. A
 duplicate, out-of-order, or otherwise invalid message closes only that helper
-connection and gives its Action the stable `runtime_protocol_failed` outcome.
+connection and gives any waiting Action the stable `runtime_protocol_failed` outcome.
+An unsolicited message received after an Action finishes retires the helper;
+it cannot change the finished outcome or become the next Action's result.
 The Host also bounds the wait for a terminal frame by the four-second scripted
 Action deadline; a partial or silent helper is terminated and reported through
 the same stable failure path.
@@ -205,6 +208,23 @@ the same stable failure path.
 Each invocation must produce exactly one terminal response, either a JSON
 result or a stable script failure. A helper process that exits by signal is
 reported by the Host as `helper_crashed`; the Host process remains alive.
+
+Consecutive scripted Actions reuse their Plugin's process; each invocation
+receives a fresh JavaScript context. Registration, installed-idle state, Menu
+opening, and declarative Commands start no helper. After its Action queue has
+been empty for 30 seconds, the Host sends this graceful-exit request and closes
+the input stream:
+
+```json
+{"type":"shutdown","protocol_version":"1.0"}
+```
+
+The helper exits on this request or input EOF. A process still alive 250 ms
+after the request is force-terminated. Disabling, uninstalling, or updating a
+Plugin, revoking a granted Capability, or shutting down the Host terminates
+its helpers immediately, including processes already awaiting graceful exit.
+An explicit later scripted Action can start a fresh helper; retired work is
+never replayed. The Host rejects new helper execution after shutdown.
 
 The helper process is the JavaScript execution boundary, not a source of OS
 authority. Protected operations are performed by the Host-side broker only
@@ -269,7 +289,6 @@ Action. Actions that are unavailable are visible but disabled.
 Capability-checked Host Services are available through the public helper
 protocol described above. The Host's Privacy & Permissions page presents and
 persists the current per-Plugin-version decisions; a later settings ticket can add
-installation-time consent and update-scope disclosure. Helper
-reuse/retirement and user-visible progress/cancellation remain separate
-lifecycle tickets. The helper exchange remains deliberately narrow and does
+installation-time consent and update-scope disclosure. The Host owns helper
+reuse/retirement and user-visible progress/cancellation. The helper exchange does
 not grant a Plugin direct access to protected operating-system facilities.
