@@ -51,7 +51,15 @@ final class PluginHelperPool {
             condition.unlock()
             return helper
         }
-        lease.helper?.terminate()
+        if let helper = lease.helper {
+            if let failure = helper.failureIfUnusable() {
+                retire(lease, reason: failure)
+                condition.unlock()
+                throw failure
+            }
+            helper.terminate()
+            lease.helper = nil
+        }
         let helper: PluginHelperProcess
         do {
             helper = try create()
@@ -103,6 +111,20 @@ final class PluginHelperPool {
 
     func terminate(_ lease: Lease, reason: PluginRuntimeError = .helperTerminated) {
         condition.lock()
+        retire(lease, reason: reason)
+        condition.unlock()
+    }
+
+    func terminate(
+        _ lease: Lease,
+        helper: PluginHelperProcess,
+        reason: PluginRuntimeError = .helperTerminated
+    ) {
+        condition.lock()
+        guard !lease.retired, lease.helper === helper else {
+            condition.unlock()
+            return
+        }
         retire(lease, reason: reason)
         condition.unlock()
     }
@@ -164,7 +186,7 @@ final class PluginHelperProcess {
     private let output: FileHandle
     private let pluginID: PluginID
     private let resourceLimitBytes: UInt64
-    private let onFailure: ((PluginRuntimeError) -> Void)?
+    private let onFailure: ((PluginHelperProcess, PluginRuntimeError) -> Void)?
     private var resourceMonitor: PluginHelperResourceMonitor?
     private let condition = NSCondition()
     private var frame: Data?
@@ -183,7 +205,7 @@ final class PluginHelperProcess {
         resourceSampler: @escaping PluginHelperResourceMonitor.Sample,
         resourceSchedule: @escaping PluginHelperResourceMonitor.Schedule,
         resourceLimitBytes: UInt64,
-        onFailure: ((PluginRuntimeError) -> Void)? = nil
+        onFailure: ((PluginHelperProcess, PluginRuntimeError) -> Void)? = nil
     ) {
         self.process = process
         self.inputPipe = input
@@ -212,6 +234,28 @@ final class PluginHelperProcess {
         condition.lock()
         defer { condition.unlock() }
         return failure == nil && !exiting && process.isRunning
+    }
+
+    /// Returns a fault that must retire this lease. A cleanly exited helper
+    /// can be replaced for a later explicit Action; a faulted helper cannot
+    /// be replaced in-place because queued Actions must observe the failure.
+    func failureIfUnusable() -> PluginRuntimeError? {
+        condition.lock()
+        defer { condition.unlock() }
+        if invalidatesBufferedFrame { return failure ?? .helperTerminated }
+        if let failure { return failure }
+        if exiting { return .helperTerminated }
+        guard !process.isRunning else { return .helperTerminated }
+        if process.terminationReason == .exit, process.terminationStatus == 0 {
+            return nil
+        }
+        if process.terminationReason == .uncaughtSignal {
+            switch process.terminationStatus {
+            case SIGTERM, SIGKILL: return .helperTerminated
+            default: return .helperCrashed(signal: process.terminationStatus)
+            }
+        }
+        return .helperTerminated
     }
 
     func beginInvocation() throws {
@@ -299,7 +343,7 @@ final class PluginHelperProcess {
             footprint: footprint,
             limit: resourceLimitBytes
         )
-        onFailure?(.helperResourceExceeded)
+        onFailure?(self, .helperResourceExceeded)
         terminate(reason: .helperResourceExceeded)
     }
 
@@ -339,7 +383,7 @@ final class PluginHelperProcess {
                 default: error = .helperCrashed(signal: process.terminationStatus)
                 }
                 fail(error, invalidatesBufferedFrame: true)
-                if !isExitingNow { onFailure?(error) }
+                if !isExitingNow { onFailure?(self, error) }
                 return
             } else if isExitingNormally || hasCompletedTerminal {
                 return
@@ -347,12 +391,12 @@ final class PluginHelperProcess {
                 error = .protocolViolation("Terminal result is missing")
             }
             fail(error, invalidatesBufferedFrame: true)
-            if !isExitingNow { onFailure?(error) }
+            if !isExitingNow { onFailure?(self, error) }
         } catch {
             let runtimeError = (error as? PluginRuntimeError)
                 ?? .protocolViolation("Plugin message could not be read")
             fail(runtimeError, invalidatesBufferedFrame: true)
-            if !isExitingNow { onFailure?(runtimeError) }
+            if !isExitingNow { onFailure?(self, runtimeError) }
             terminate(reason: runtimeError)
         }
     }

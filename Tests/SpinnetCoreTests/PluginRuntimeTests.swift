@@ -1266,6 +1266,65 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - startedAt, 4.25)
     }
 
+    func testFaultedHelperCannotBeReplacedWithinItsLease() throws {
+        let helperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            IFS= read -r request
+            invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^\"]*\\)".*/\\1/p')
+            action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^\"]*\\)".*/\\1/p')
+            printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":"finished"}}\\n' "$invocation_id" "$action_id"
+            exit 1
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: helperURL) }
+        let package = try makeScriptedPackage(
+            pluginID: PluginID("com.spinnet.faulted-lease"),
+            script: "input"
+        )
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let firstAction = try ActionConfiguration(
+            id: ActionID("finished"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .null
+        )
+        let secondAction = try ActionConfiguration(
+            id: ActionID("must-not-replay"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .null
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let process = Process()
+        let supervisor = PluginRuntimeSupervisor(
+            helperURL: helperURL,
+            processFactory: { process }
+        )
+        defer { supervisor.shutdown() }
+        let runner = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: supervisor
+        )
+
+        XCTAssertEqual(runner.invoke(firstAction, using: registry).terminal,
+                       .succeeded(.string("finished")))
+        let exitDeadline = ProcessInfo.processInfo.systemUptime + 2
+        while process.isRunning,
+              ProcessInfo.processInfo.systemUptime < exitDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertFalse(process.isRunning)
+
+        let outcome = runner.invoke(secondAction, using: registry)
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A faulted helper must invalidate the next Action")
+        }
+        XCTAssertEqual(failure.category, .helperTerminated)
+        XCTAssertEqual(supervisor.launchCount, 1, "A faulted lease must not replay work")
+    }
+
     func testTerminatingAPluginInvalidatesCurrentAndQueuedActionsOnce() throws {
         let helperURL = try makeShellHelper(
             """

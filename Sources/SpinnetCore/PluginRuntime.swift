@@ -1103,17 +1103,28 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 resourceSampler: resourceSampler,
                 resourceSchedule: resourceSchedule,
                 resourceLimitBytes: resourceLimitBytes,
-                onFailure: { [weak self, weak lease] reason in
+                onFailure: { [weak self, weak lease] helper, reason in
                     guard let self, let lease else { return }
-                    self.helpers.terminate(lease, reason: reason)
+                    self.helpers.terminate(lease, helper: helper, reason: reason)
                 }
             )
         }
         let helper: PluginHelperProcess
-        if let registry {
-            helper = try registry.withCurrentPackage(package) { try helpers.start(lease, create: create) }
-        } else {
-            helper = try helpers.start(lease, create: create)
+        do {
+            if let registry {
+                helper = try registry.withCurrentPackage(package) {
+                    try helpers.start(lease, create: create)
+                }
+            } else {
+                helper = try helpers.start(lease, create: create)
+            }
+        } catch let error as PluginRuntimeError {
+            try fail(action: action, error: error)
+        } catch {
+            try fail(
+                action: action,
+                error: .protocolViolation("Plugin helper could not start")
+            )
         }
         control.registerTermination(helpers.cancellation(for: lease))
         let terminal: PluginRuntimeTerminal
