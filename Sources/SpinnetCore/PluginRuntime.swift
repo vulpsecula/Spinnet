@@ -656,6 +656,7 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
     case cancelled
     case timedOut
     case helperTerminated
+    case helperResourceExceeded
     case invalidAction(String)
     case helperUnavailable(String)
     case helperLaunchFailed(String)
@@ -671,6 +672,7 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
         case .cancelled: return "Action cancelled"
         case .timedOut: return "Action deadline exceeded"
         case .helperTerminated: return "Plugin helper terminated"
+        case .helperResourceExceeded: return "Plugin helper exceeded its memory limit"
         case .invalidAction(let message):
             return "Invalid scripted Action: \(message)"
         case .helperUnavailable(let message):
@@ -700,6 +702,7 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
         case .cancelled: return .cancelled
         case .timedOut: return .timedOut
         case .helperTerminated: return .helperTerminated
+        case .helperResourceExceeded: return .helperTerminated
         case .invalidAction:
             return .invalidConfiguration
         case .helperUnavailable, .helperLaunchFailed:
@@ -943,8 +946,12 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     public let helperURL: URL
 
     private let fileManager: FileManager
+    private let helperArguments: [String]
     private let processFactory: () -> Process
     private let pipeFactory: () -> Pipe
+    private let resourceSampler: PluginHelperResourceSamplerClosure
+    private let resourceSchedule: PluginHelperResourceScheduler
+    private let resourceLimitBytes: UInt64
 
     private let registry: PluginRegistry?
     private let grantStore: PluginCapabilityGrantStore?
@@ -964,19 +971,31 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         registry: PluginRegistry? = nil,
         grantStore: PluginCapabilityGrantStore? = nil,
         fileManager: FileManager = .default,
+        helperArguments: [String] = [],
         processFactory: @escaping () -> Process = Process.init,
         pipeFactory: @escaping () -> Pipe = Pipe.init,
         schedule: @escaping (TimeInterval, @escaping () -> Void) -> Void = { delay, operation in
             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
-        }
+        },
+        resourceSampler: @escaping PluginHelperResourceSamplerClosure = { processID in
+            PluginHelperResourceSampler.physFootprint(processID: processID)
+        },
+        resourceSchedule: @escaping PluginHelperResourceScheduler = { delay, operation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
+        },
+        resourceLimitBytes: UInt64 = PluginHelperResourceLimits.physFootprintBytes
     ) {
         self.registry = registry
         self.grantStore = grantStore
         self.helpers = PluginHelperPool(schedule: schedule)
         self.helperURL = helperURL
         self.fileManager = fileManager
+        self.helperArguments = helperArguments
         self.processFactory = processFactory
         self.pipeFactory = pipeFactory
+        self.resourceSampler = resourceSampler
+        self.resourceSchedule = resourceSchedule
+        self.resourceLimitBytes = resourceLimitBytes
         registryObserver = registry?.observeInvalidation { [weak self] in self?.terminate(pluginID: $0) }
         grantObserver = grantStore?.observeRevocation { [weak self] in self?.terminate(pluginID: $0) }
     }
@@ -1066,7 +1085,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             let inputPipe = pipeFactory()
             let outputPipe = pipeFactory()
             process.executableURL = helperURL
-            process.arguments = []
+            process.arguments = helperArguments
             process.standardInput = inputPipe
             process.standardOutput = outputPipe
             process.standardError = FileHandle.standardError
@@ -1076,7 +1095,15 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             launchLock.lock()
             launches += 1
             launchLock.unlock()
-            return PluginHelperProcess(process: process, input: inputPipe, output: outputPipe)
+            return PluginHelperProcess(
+                process: process,
+                input: inputPipe,
+                output: outputPipe,
+                pluginID: action.pluginID,
+                resourceSampler: resourceSampler,
+                resourceSchedule: resourceSchedule,
+                resourceLimitBytes: resourceLimitBytes
+            )
         }
         let helper: PluginHelperProcess
         if let registry {
@@ -1100,28 +1127,70 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             )
         } catch {
             helpers.terminate(lease)
-            try control.check()
-            throw (error as? PluginRuntimeError) ?? .protocolViolation("Plugin exchange failed")
+            let runtimeError: PluginRuntimeError
+            do {
+                try control.check()
+                runtimeError = (error as? PluginRuntimeError)
+                    ?? PluginRuntimeError.protocolViolation("Plugin exchange failed")
+            } catch let controlError as PluginRuntimeError {
+                runtimeError = controlError
+            } catch {
+                runtimeError = .protocolViolation("Plugin exchange failed")
+            }
+            PluginRuntimeDiagnostics.helperFailure(
+                pluginID: action.pluginID,
+                actionID: action.id,
+                error: runtimeError
+            )
+            throw runtimeError
         }
 
-        try control.check()
+        do {
+            try control.check()
+        } catch let error as PluginRuntimeError {
+            helpers.terminate(lease)
+            PluginRuntimeDiagnostics.helperFailure(
+                pluginID: action.pluginID,
+                actionID: action.id,
+                error: error
+            )
+            throw error
+        } catch {
+            helpers.terminate(lease)
+            let runtimeError = PluginRuntimeError.protocolViolation(
+                "Plugin Action completion could not be validated"
+            )
+            PluginRuntimeDiagnostics.helperFailure(
+                pluginID: action.pluginID,
+                actionID: action.id,
+                error: runtimeError
+            )
+            throw runtimeError
+        }
         switch terminal {
         case .succeeded(let result):
             return result
         case .failed(let failure):
+            let runtimeError: PluginRuntimeError
             switch failure.category {
             case .scriptError:
-                throw PluginRuntimeError.scriptFailed(failure.message)
+                runtimeError = .scriptFailed(failure.message)
             case .invalidInvocation, .helperError:
                 helpers.terminate(lease)
-                throw PluginRuntimeError.protocolViolation(failure.message)
+                runtimeError = .protocolViolation(failure.message)
             case .capabilityDenied:
-                throw PluginRuntimeError.capabilityDenied(failure.message)
+                runtimeError = .capabilityDenied(failure.message)
             case .systemPermissionDenied:
-                throw PluginRuntimeError.systemPermissionDenied(failure.message)
+                runtimeError = .systemPermissionDenied(failure.message)
             case .hostServiceFailed:
-                throw PluginRuntimeError.hostServiceFailed(failure.message)
+                runtimeError = .hostServiceFailed(failure.message)
             }
+            PluginRuntimeDiagnostics.helperFailure(
+                pluginID: action.pluginID,
+                actionID: action.id,
+                error: runtimeError
+            )
+            throw runtimeError
         }
     }
 

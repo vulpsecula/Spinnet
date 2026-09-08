@@ -1109,6 +1109,259 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(supervisor.launchCount, 1)
     }
 
+    func testDifferentPluginHelpersRemainIndependentWhenOneCrashes() throws {
+        let helperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            while IFS= read -r request; do
+                case "$request" in
+                    *com.spinnet.crash*) sleep 0.3; kill -ABRT $$ ;;
+                    *)
+                        invocation_id=$(printf '%s' "$request" | sed -n 's/.*"invocation_id":"\\([^"]*\\)".*/\\1/p')
+                        action_id=$(printf '%s' "$request" | sed -n 's/.*"action_id":"\\([^"]*\\)".*/\\1/p')
+                        sleep 1
+                        printf '{"type":"terminal","protocol_version":"1.0","invocation_id":"%s","action_id":"%s","terminal":{"kind":"succeeded","result":"healthy"}}\\n' "$invocation_id" "$action_id"
+                        ;;
+                esac
+            done
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: helperURL) }
+
+        let crashingPackage = try makeScriptedPackage(
+            pluginID: PluginID("com.spinnet.crash"),
+            script: "input"
+        )
+        let healthyPackage = try makeScriptedPackage(
+            pluginID: PluginID("com.spinnet.healthy"),
+            script: "input"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: crashingPackage.rootURL)
+            try? FileManager.default.removeItem(at: healthyPackage.rootURL)
+        }
+        let crashingAction = try ActionConfiguration(
+            id: ActionID("crash-action"),
+            pluginID: crashingPackage.manifest.id,
+            command: crashingPackage.manifest.commands[0],
+            input: .null
+        )
+        let healthyAction = try ActionConfiguration(
+            id: ActionID("healthy-action"),
+            pluginID: healthyPackage.manifest.id,
+            command: healthyPackage.manifest.commands[0],
+            input: .null
+        )
+        let registry = PluginRegistry()
+        try registry.register(crashingPackage)
+        try registry.register(healthyPackage)
+        let processLock = NSLock()
+        var processes: [Process] = []
+        let supervisor = PluginRuntimeSupervisor(
+            helperURL: helperURL,
+            processFactory: {
+                let process = Process()
+                processLock.lock()
+                processes.append(process)
+                processLock.unlock()
+                return process
+            }
+        )
+        defer { supervisor.shutdown() }
+        let runner = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: supervisor
+        )
+
+        let start = DispatchSemaphore(value: 0)
+        let ready = DispatchGroup()
+        let completed = DispatchGroup()
+        let outcomeLock = NSLock()
+        var crashed: ActionOutcome?
+        var healthy: ActionOutcome?
+        ready.enter()
+        completed.enter()
+        DispatchQueue.global().async {
+            ready.leave()
+            start.wait()
+            let outcome = runner.invoke(crashingAction, using: registry)
+            outcomeLock.lock()
+            crashed = outcome
+            outcomeLock.unlock()
+            completed.leave()
+        }
+        ready.enter()
+        completed.enter()
+        DispatchQueue.global().async {
+            ready.leave()
+            start.wait()
+            let outcome = runner.invoke(healthyAction, using: registry)
+            outcomeLock.lock()
+            healthy = outcome
+            outcomeLock.unlock()
+            completed.leave()
+        }
+        XCTAssertEqual(ready.wait(timeout: .now() + 1), .success)
+        XCTAssertEqual(ready.wait(timeout: .now() + 1), .success)
+        start.signal()
+        start.signal()
+        let launchDeadline = ProcessInfo.processInfo.systemUptime + 0.2
+        while supervisor.launchCount < 2,
+              ProcessInfo.processInfo.systemUptime < launchDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertEqual(supervisor.launchCount, 2, "Different Plugins need independent helpers")
+        XCTAssertEqual(completed.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(completed.wait(timeout: .now() + 2), .success)
+        outcomeLock.lock()
+        let outcomes = (crashed, healthy)
+        outcomeLock.unlock()
+        guard case .failed(let crashFailure) = outcomes.0?.terminal else {
+            return XCTFail("The crashing Plugin should produce a terminal failure")
+        }
+        XCTAssertEqual(crashFailure.category, .helperCrashed)
+        XCTAssertEqual(outcomes.1?.terminal, .succeeded(.string("healthy")))
+        XCTAssertEqual(supervisor.launchCount, 2)
+        processLock.lock()
+        let processCount = processes.count
+        processLock.unlock()
+        XCTAssertEqual(processCount, 2)
+    }
+
+    func testMemoryLimitTerminatesProductionHelperAfterTwoSamples() throws {
+        let helperURL = try XCTUnwrap(
+            helperURLIfBuilt(),
+            "Build SpinnetPluginHelper before running integration tests"
+        )
+        let package = try makeScriptedPackage(
+            pluginID: PluginID("com.spinnet.memory"),
+            script: "input"
+        )
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let action = try ActionConfiguration(
+            id: ActionID("memory-action"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .null
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let sampleCount = LockedCounter()
+        let supervisor = PluginRuntimeSupervisor(
+            helperURL: helperURL,
+            helperArguments: ["--fault-memory"],
+            resourceSampler: { processID in
+                sampleCount.increment()
+                return PluginHelperResourceSampler.physFootprint(processID: processID)
+            }
+        )
+        defer { supervisor.shutdown() }
+
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let outcome = HostActionRunner(
+            executor: NoopHostCommandExecutor(),
+            scriptedExecutor: supervisor
+        ).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A memory-hungry helper must terminate with a failure")
+        }
+        XCTAssertEqual(failure.category, .helperTerminated)
+        XCTAssertGreaterThanOrEqual(sampleCount.value, 2)
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - startedAt, 4.25)
+    }
+
+    func testTerminatingAPluginInvalidatesCurrentAndQueuedActionsOnce() throws {
+        let helperURL = try makeShellHelper(
+            """
+            #!/bin/sh
+            while IFS= read -r request; do sleep 10; done
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: helperURL) }
+        let package = try makeScriptedPackage(
+            pluginID: PluginID("com.spinnet.queued"),
+            script: "input"
+        )
+        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        let firstAction = try ActionConfiguration(
+            id: ActionID("current"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .null
+        )
+        let secondAction = try ActionConfiguration(
+            id: ActionID("queued"),
+            pluginID: package.manifest.id,
+            command: package.manifest.commands[0],
+            input: .null
+        )
+        let supervisor = PluginRuntimeSupervisor(helperURL: helperURL)
+        defer { supervisor.shutdown() }
+        let firstControl = ActionExecutionControl()
+        let secondControl = ActionExecutionControl()
+        let firstFinished = expectation(description: "current Action invalidated")
+        let secondFinished = expectation(description: "queued Action invalidated")
+        let lock = NSLock()
+        var firstError: PluginRuntimeError?
+        var secondError: PluginRuntimeError?
+
+        DispatchQueue.global().async {
+            defer { firstFinished.fulfill() }
+            do {
+                _ = try supervisor.execute(
+                    firstAction,
+                    in: package,
+                    using: nil,
+                    control: firstControl
+                )
+                XCTFail("The current Action must be invalidated")
+            } catch let error as PluginRuntimeError {
+                lock.lock()
+                firstError = error
+                lock.unlock()
+            } catch {
+                XCTFail("Unexpected current Action error: \(error)")
+            }
+        }
+
+        let launchDeadline = ProcessInfo.processInfo.systemUptime + 2
+        while supervisor.launchCount == 0,
+              ProcessInfo.processInfo.systemUptime < launchDeadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertEqual(supervisor.launchCount, 1)
+
+        DispatchQueue.global().async {
+            defer { secondFinished.fulfill() }
+            do {
+                _ = try supervisor.execute(
+                    secondAction,
+                    in: package,
+                    using: nil,
+                    control: secondControl
+                )
+                XCTFail("The queued Action must be invalidated")
+            } catch let error as PluginRuntimeError {
+                lock.lock()
+                secondError = error
+                lock.unlock()
+            } catch {
+                XCTFail("Unexpected queued Action error: \(error)")
+            }
+        }
+
+        Thread.sleep(forTimeInterval: 0.05)
+        supervisor.terminate(pluginID: package.manifest.id)
+        wait(for: [firstFinished, secondFinished], timeout: 1)
+        lock.lock()
+        let errors = (firstError, secondError)
+        lock.unlock()
+        XCTAssertEqual(errors.0, .helperTerminated)
+        XCTAssertEqual(errors.1, .helperTerminated)
+        XCTAssertEqual(supervisor.launchCount, 1, "Invalidated work must not replay")
+    }
+
     func testConsecutiveActionsReuseTheLazyPluginHelper() throws {
         let package = try makeScriptedPackage(pluginID: PluginID("com.example.reuse"), script: "input")
         defer { try? FileManager.default.removeItem(at: package.rootURL) }
@@ -1523,6 +1776,23 @@ private final class RuntimeTestClock {
             operation()
             lock.lock()
         }
+        lock.unlock()
+    }
+}
+
+private final class LockedCounter {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func increment() {
+        lock.lock()
+        storage += 1
         lock.unlock()
     }
 }

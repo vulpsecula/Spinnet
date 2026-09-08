@@ -226,6 +226,14 @@ its helpers immediately, including processes already awaiting graceful exit.
 An explicit later scripted Action can start a fresh helper; retired work is
 never replayed. The Host rejects new helper execution after shutdown.
 
+While a helper is alive, the Host samples its macOS `phys_footprint` every
+100 ms. Two consecutive samples at or above 64 MiB force-terminate that helper
+and invalidate its current or queued Actions exactly once. The resulting
+user-facing category is the stable `helper_terminated` category. The resource
+breach and any protocol or process diagnostics are written to the protected
+system log; user-facing feedback receives only the Plugin, Action, and stable
+failure category.
+
 The helper process is the JavaScript execution boundary, not a source of OS
 authority. Protected operations are performed by the Host-side broker only
 after the current Capability grant and System Permission checks succeed.

@@ -112,7 +112,8 @@ final class PluginHelperPool {
     func terminate(pluginID: PluginID) {
         condition.lock()
         if let lease = leases[pluginID] { retire(lease) }
-        for (token, entry) in retiring where entry.pluginID == pluginID {
+        for token in Array(retiring.keys) {
+            guard let entry = retiring[token], entry.pluginID == pluginID else { continue }
             entry.helper.terminate()
             retiring.removeValue(forKey: token)
         }
@@ -148,19 +149,42 @@ final class PluginHelperProcess {
     private let outputPipe: Pipe
     let input: FileHandle
     private let output: FileHandle
+    private let pluginID: PluginID
+    private let resourceLimitBytes: UInt64
+    private var resourceMonitor: PluginHelperResourceMonitor?
     private let condition = NSCondition()
     private var frame: Data?
     private var failure: PluginRuntimeError?
     private var awaitingMessage = false
     private var exiting = false
 
-    init(process: Process, input: Pipe, output: Pipe) {
+    init(
+        process: Process,
+        input: Pipe,
+        output: Pipe,
+        pluginID: PluginID,
+        resourceSampler: @escaping PluginHelperResourceMonitor.Sample,
+        resourceSchedule: @escaping PluginHelperResourceMonitor.Schedule,
+        resourceLimitBytes: UInt64
+    ) {
         self.process = process
         self.inputPipe = input
         self.outputPipe = output
         self.input = input.fileHandleForWriting
         self.output = output.fileHandleForReading
+        self.pluginID = pluginID
+        self.resourceLimitBytes = resourceLimitBytes
+        self.resourceMonitor = PluginHelperResourceMonitor(
+            process: process,
+            sample: resourceSampler,
+            schedule: resourceSchedule,
+            limitBytes: resourceLimitBytes,
+            onLimitExceeded: { [weak self] footprint in
+                self?.resourceLimitExceeded(footprint: footprint)
+            }
+        )
         DispatchQueue.global(qos: .userInitiated).async { self.readMessages() }
+        resourceMonitor?.start()
     }
 
     var isUsable: Bool {
@@ -206,15 +230,26 @@ final class PluginHelperProcess {
         try? input.close()
     }
 
-    func terminate() {
+    func terminate(reason: PluginRuntimeError = .helperTerminated) {
+        resourceMonitor?.stop()
         condition.lock()
         exiting = true
-        if failure == nil { failure = .helperTerminated }
+        if failure == nil { failure = reason }
         if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
         try? input.close()
         condition.broadcast()
         condition.unlock()
         waitForExit()
+    }
+
+    private func resourceLimitExceeded(footprint: UInt64) {
+        PluginRuntimeDiagnostics.helperResourceExceeded(
+            pluginID: pluginID,
+            processID: process.processIdentifier,
+            footprint: footprint,
+            limit: resourceLimitBytes
+        )
+        terminate(reason: .helperResourceExceeded)
     }
 
     private func waitForExit() {
@@ -249,6 +284,8 @@ final class PluginHelperProcess {
                 case SIGTERM, SIGKILL: error = .helperTerminated
                 default: error = .helperCrashed(signal: process.terminationStatus)
                 }
+            } else if isExitingNormally {
+                return
             } else {
                 error = .protocolViolation("Terminal result is missing")
             }
@@ -264,5 +301,11 @@ final class PluginHelperProcess {
         if failure == nil { failure = error }
         condition.broadcast()
         condition.unlock()
+    }
+
+    private var isExitingNormally: Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return exiting && process.terminationReason == .exit && process.terminationStatus == 0
     }
 }

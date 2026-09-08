@@ -9,6 +9,9 @@ struct SpinnetPluginHelperMain {
             raise(SIGABRT)
             exit(70)
         }
+        if CommandLine.arguments.contains("--fault-memory") {
+            occupyMemoryUntilTerminated()
+        }
 
         while true {
             let response: PluginRuntimeResponse
@@ -184,6 +187,19 @@ struct SpinnetPluginHelperMain {
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data([0x0A]))
         }
+    }
+
+    /// Deterministic integration fixture for the Host's helper resource
+    /// boundary. Pages are touched so `phys_footprint` reflects the allocation
+    /// instead of lazily reserving virtual address space.
+    private static func occupyMemoryUntilTerminated() -> Never {
+        let bytes = 80 * 1024 * 1024
+        let allocation = UnsafeMutableRawPointer.allocate(
+            byteCount: bytes,
+            alignment: MemoryLayout<UInt64>.alignment
+        )
+        allocation.initializeMemory(as: UInt8.self, repeating: 0xA5, count: bytes)
+        while true { Thread.sleep(forTimeInterval: 1) }
     }
 }
 
