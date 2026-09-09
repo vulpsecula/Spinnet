@@ -66,6 +66,7 @@ final class MenuPresentationController {
         self.menuView = RadialMenuView(slots: items)
         menuView.applyAppearance(appearanceConfiguration)
         menuViewAppearanceNeedsSync = false
+        panel.appearance = appearanceConfiguration.appearance
         panel.contentView = menuView
         configureMenuView()
     }

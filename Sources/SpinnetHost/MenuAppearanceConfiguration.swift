@@ -156,11 +156,6 @@ struct MenuAppearanceConfiguration: Equatable {
     /// Slider's preset snap window or rounding it to an integer.
     static func exactMenuSizeValue(forPercentage percentage: Double) -> String {
         let clampedPercentage = clampedMenuSizePercentage(percentage)
-        if let snapPoint = Size.allCases.first(where: {
-            abs($0.percentage - clampedPercentage) < 0.0001
-        }) {
-            return snapPoint.rawValue
-        }
         if clampedPercentage.rounded() == clampedPercentage {
             return String(Int(clampedPercentage))
         }
@@ -211,7 +206,16 @@ struct MenuAppearanceConfiguration: Equatable {
         if Size(rawValue: value) != nil {
             return value
         }
-        return exactMenuSizeValue(forPercentage: menuSizePercentage(from: value))
+        guard let numericValue = Double(value), numericValue.isFinite else {
+            return Size.medium.rawValue
+        }
+        let percentage = menuSizePercentage(from: value)
+        if numericValue < menuSizeMinimumPercentage
+            || numericValue > menuSizeMaximumPercentage
+            || Size.allCases.contains(where: { abs($0.percentage - percentage) < 0.0000001 }) {
+            return menuSizeValue(forPercentage: percentage)
+        }
+        return exactMenuSizeValue(forPercentage: percentage)
     }
 
     private static func normalizedFontFamily(_ font: String) -> String {

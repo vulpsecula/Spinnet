@@ -211,9 +211,10 @@ final class RadialMenuView: NSView {
         appearance: MenuAppearanceConfiguration
     ) {
         let slotsChanged = self.slots != slots
-        let appearanceChanged = appearanceConfiguration != appearance
+        let oldAppearance = appearanceConfiguration
+        let appearanceChanged = oldAppearance != appearance
         let renderingAppearanceChanged = appearanceAffectsRendering(
-            from: appearanceConfiguration,
+            from: oldAppearance,
             to: appearance
         )
         guard slotsChanged || appearanceChanged else { return }
@@ -228,8 +229,12 @@ final class RadialMenuView: NSView {
                 invalidatePreviewImage()
             }
             appearanceConfiguration = appearance
-            editorAccentColor = appearance.accentColor
-            self.appearance = appearance.appearance
+            if appearance.accent != oldAppearance.accent {
+                editorAccentColor = appearance.accentColor
+            }
+            if appearance.theme != oldAppearance.theme {
+                self.appearance = appearance.appearance
+            }
         }
 
         layout = previewLayout(for: appearanceConfiguration)
@@ -338,7 +343,8 @@ final class RadialMenuView: NSView {
     func selectEditorItem(at index: Int) {
         guard presentationMode == .editor,
               allowsEditing,
-              slots.indices.contains(index) else { return }
+              slots.indices.contains(index),
+              selectedIndex != index else { return }
         selectedIndex = index
         updateAccessibilityValue()
     }
@@ -1045,7 +1051,10 @@ final class RadialMenuView: NSView {
         maxWidth: CGFloat,
         baseSize: CGFloat
     ) -> MenuTitleLayout {
-        let widthBucket = max(1, Int(maxWidth.rounded(.down)))
+        // Width changes by fractions of a point while the size Slider moves.
+        // Reusing a conservative four-point bucket avoids remeasuring every
+        // title on every sample without allowing text to exceed its sector.
+        let widthBucket = max(1, Int(maxWidth / 4) * 4)
         let key = MenuTitleLayoutCacheKey(
             title: title,
             widthBucket: widthBucket,

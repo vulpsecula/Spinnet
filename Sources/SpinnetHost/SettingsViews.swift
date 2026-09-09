@@ -2387,6 +2387,7 @@ private struct AppearanceSettingsView: View {
                 settingsSection(title: "Menu Size", description: "Adjust continuously, snap to three recommended sizes, or enter an exact percentage.") {
                     MenuSizeControl(
                         menuSize: $menuSize,
+                        accent: accent,
                         beginAdjustment: beginMenuSizeAdjustment,
                         endAdjustment: endMenuSizeAdjustment
                     )
@@ -2475,6 +2476,7 @@ private struct AppearanceSettingsView: View {
 
 private struct MenuSizeControl: View {
     @Binding var menuSize: String
+    let accent: String
     let beginAdjustment: () -> Void
     let endAdjustment: () -> Void
     @State private var inputValue = ""
@@ -2491,6 +2493,7 @@ private struct MenuSizeControl: View {
                     MenuSizeSliderRepresentable(
                         value: sizeBinding,
                         range: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
+                        accentColor: MenuAppearanceConfiguration(accent: accent).accentColor,
                         onEditingChanged: { isEditing in
                             if isEditing {
                                 beginAdjustment()

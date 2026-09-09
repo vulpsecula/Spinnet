@@ -1067,7 +1067,11 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(custom.menuSize, "125")
         XCTAssertEqual(custom.scale, 1.25, accuracy: 0.001)
         XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "125.5").menuSize, "125.5")
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "100.00005").menuSize, "100.00005")
         XCTAssertEqual(MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: 100.4), "100.4")
+        XCTAssertEqual(MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: 100), "100")
+        XCTAssertEqual(MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: 150), "150")
+        XCTAssertEqual(MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: 200), "200")
 
         XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "20").menuSize, "50")
         XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "999").menuSize, "Large")
@@ -1125,6 +1129,14 @@ final class SettingsWindowControllerTests: XCTestCase {
                     ... MenuAppearanceConfiguration.menuSizeMaximumPercentage)
             ).activeSnapPoint,
             "A precise custom percentage must not appear selected"
+        )
+        XCTAssertNil(
+            MenuSizeSliderView(
+                value: 100.00005,
+                range: (MenuAppearanceConfiguration.menuSizeMinimumPercentage
+                    ... MenuAppearanceConfiguration.menuSizeMaximumPercentage)
+            ).activeSnapPoint,
+            "A manually entered value that is merely close to a preset must not appear selected"
         )
 
         let nativeSlider = slider.nativeSlider

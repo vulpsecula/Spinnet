@@ -7,6 +7,7 @@ import SwiftUI
 struct MenuSizeSliderRepresentable: NSViewRepresentable {
     @Binding var value: Double
     let range: ClosedRange<Double>
+    let accentColor: NSColor
     let onEditingChanged: (Bool) -> Void
 
     final class Coordinator: NSObject {
@@ -24,7 +25,11 @@ struct MenuSizeSliderRepresentable: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> MenuSizeSliderView {
-        let view = MenuSizeSliderView(value: value, range: range)
+        let view = MenuSizeSliderView(
+            value: value,
+            range: range,
+            accentColor: accentColor
+        )
         view.onValueChanged = { value in
             context.coordinator.value.wrappedValue = value
         }
@@ -37,6 +42,7 @@ struct MenuSizeSliderRepresentable: NSViewRepresentable {
     func updateNSView(_ nsView: MenuSizeSliderView, context: Context) {
         context.coordinator.value = $value
         context.coordinator.onEditingChanged = onEditingChanged
+        nsView.accentColor = accentColor
         nsView.setValue(value)
     }
 }
@@ -94,12 +100,17 @@ final class MenuSizeSliderView: NSView {
 
     static let labelHeight: CGFloat = 18
     static let sliderHeight: CGFloat = 20
+    private static let horizontalInset: CGFloat = 24
 
     private let slider: TrackingSlider
     private let sizes = MenuAppearanceConfiguration.Size.allCases
     private let range: ClosedRange<Double>
     private var cachedNativeThumbTravel: ClosedRange<CGFloat>?
     private var lastLaidOutBounds: NSRect?
+
+    var accentColor: NSColor {
+        didSet { needsDisplay = true }
+    }
 
     var onValueChanged: ((Double) -> Void)?
     var onEditingChanged: ((Bool) -> Void)? {
@@ -108,8 +119,13 @@ final class MenuSizeSliderView: NSView {
         }
     }
 
-    init(value: Double, range: ClosedRange<Double>) {
+    init(
+        value: Double,
+        range: ClosedRange<Double>,
+        accentColor: NSColor = .controlAccentColor
+    ) {
         self.range = range
+        self.accentColor = accentColor
         self.slider = TrackingSlider(
             value: value,
             minValue: range.lowerBound,
@@ -146,9 +162,9 @@ final class MenuSizeSliderView: NSView {
             lastLaidOutBounds = bounds
         }
         slider.frame = NSRect(
-            x: 0,
+            x: Self.horizontalInset,
             y: Self.labelHeight,
-            width: bounds.width,
+            width: max(0, bounds.width - 2 * Self.horizontalInset),
             height: max(Self.sliderHeight, bounds.height - Self.labelHeight)
         )
         _ = nativeThumbTravel
@@ -161,41 +177,50 @@ final class MenuSizeSliderView: NSView {
         guard thumbTravel.upperBound > thumbTravel.lowerBound else { return }
 
         let activeSize = activeSnapPoint
+        let approachingSize = MenuAppearanceConfiguration.menuSizeSnapPoint(
+            near: slider.doubleValue
+        )
         for size in sizes {
+            let isActive = activeSize == size
+            let isApproaching = approachingSize == size && !isActive
             let x = thumbTravel.lowerBound
                 + (thumbTravel.upperBound - thumbTravel.lowerBound)
                     * normalizedValue(for: size.percentage)
-            let tickColor = activeSize == size
-                ? NSColor.controlAccentColor
+            let tickColor = isActive
+                ? accentColor
+                : isApproaching
+                ? accentColor.withAlphaComponent(0.58)
                 : NSColor.separatorColor.withAlphaComponent(0.72)
             tickColor.setFill()
             NSBezierPath(
                 rect: NSRect(
-                    x: x - 0.5,
-                    y: Self.labelHeight - 5,
-                    width: 1,
-                    height: 5
+                    x: x - (isActive ? 1.25 : isApproaching ? 1 : 0.5),
+                    y: Self.labelHeight - (isActive ? 8 : isApproaching ? 7 : 5),
+                    width: isActive ? 2.5 : isApproaching ? 2 : 1,
+                    height: isActive ? 8 : isApproaching ? 7 : 5
                 )
             ).fill()
 
             let font = NSFont.systemFont(
                 ofSize: NSFont.smallSystemFontSize,
-                weight: activeSize == size ? .semibold : .regular
+                weight: isActive ? .semibold : isApproaching ? .medium : .regular
             )
             let title = "\(size.rawValue) \(Int(size.percentage.rounded()))%"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: activeSize == size
-                    ? NSColor.controlAccentColor
+                .foregroundColor: isActive
+                    ? accentColor
+                    : isApproaching
+                    ? accentColor.withAlphaComponent(0.82)
                     : NSColor.secondaryLabelColor
             ]
             let titleSize = (title as NSString).size(withAttributes: attributes)
-            let titleX = size == sizes.last
-                ? x - titleSize.width
-                : x - titleSize.width / 2
             (title as NSString).draw(
                 in: NSRect(
-                    x: titleX,
+                    // Keep every title's optical center on its tick. The
+                    // inset slider frame leaves enough room for the endpoint
+                    // label without shifting it away from the thumb travel.
+                    x: x - titleSize.width / 2,
                     y: 0,
                     width: titleSize.width,
                     height: Self.labelHeight
@@ -244,13 +269,13 @@ final class MenuSizeSliderView: NSView {
 
     var activeSnapPoint: MenuAppearanceConfiguration.Size? {
         sizes.first {
-            abs($0.percentage - slider.doubleValue) < 0.0001
+            abs($0.percentage - slider.doubleValue) < 0.000001
         }
     }
 
     func setValue(_ value: Double) {
         let clampedValue = min(max(value, range.lowerBound), range.upperBound)
-        guard abs(slider.doubleValue - clampedValue) > 0.0001 else {
+        guard abs(slider.doubleValue - clampedValue) > 0.000001 else {
             needsDisplay = true
             return
         }
