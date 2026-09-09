@@ -1401,7 +1401,7 @@ private struct SlotConfigurationSheet: View {
     private struct InitialState {
         let pluginManifest: PluginManifest?
         let pluginID: PluginID?
-        let slotName: String
+        let itemAlias: String
         let primaryCommandID: CommandID
         let alternateCommandOrder: [CommandID]
         let enabledAlternateCommandIDs: Set<CommandID>
@@ -1424,7 +1424,7 @@ private struct SlotConfigurationSheet: View {
     @State private var alternateCommandIDs: Set<CommandID>
     @State private var inputTexts: [CommandID: String]
     @State private var originalInputValues: [CommandID: JSONValue]
-    @State private var slotName: String
+    @State private var itemAlias: String
     @State private var errorMessage: String?
 
     init(
@@ -1444,7 +1444,7 @@ private struct SlotConfigurationSheet: View {
         )
         pluginManifest = initialState.pluginManifest
         pluginID = initialState.pluginID
-        _slotName = State(initialValue: initialState.slotName)
+        _itemAlias = State(initialValue: initialState.itemAlias)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
         _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
         _alternateCommandOrder = State(initialValue: initialState.alternateCommandOrder)
@@ -1464,7 +1464,7 @@ private struct SlotConfigurationSheet: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    slotNameEditor
+                    itemAliasEditor
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
@@ -1518,11 +1518,11 @@ private struct SlotConfigurationSheet: View {
         }
     }
 
-    private var slotNameEditor: some View {
+    private var itemAliasEditor: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Menu Item Alias")
                 .font(.headline)
-            TextField("Follow Primary Action", text: $slotName)
+            TextField("Follow Primary Action", text: $itemAlias)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Menu Item Alias")
             Text("Leave blank to follow the Primary Action automatically.")
@@ -1720,10 +1720,10 @@ private struct SlotConfigurationSheet: View {
                     preserveUnselectedAlternates: true
                 )
                 var slots = candidate.menu.slots
-                slots[slotIndex] = MenuSlotConfiguration(
-                    item: slots[slotIndex].item,
-                    name: normalizedSlotName
-                )
+                guard let item = slots[slotIndex].item else {
+                    throw ConfigurationError.invalidMenu("Cannot save an empty Menu Slot")
+                }
+                slots[slotIndex] = .occupied(item.withAlias(normalizedItemAlias))
                 let finalConfiguration = try HostConfiguration(
                     actions: candidate.actions,
                     menu: MenuConfiguration(slots: slots)
@@ -1737,7 +1737,10 @@ private struct SlotConfigurationSheet: View {
             }
             let slot = editor.configuration.menu.slots[slotIndex]
             var slots = editor.configuration.menu.slots
-            slots[slotIndex] = MenuSlotConfiguration(item: slot.item, name: normalizedSlotName)
+            guard let item = slot.item else {
+                throw ConfigurationError.invalidMenu("Cannot rename an empty Menu Slot")
+            }
+            slots[slotIndex] = .occupied(item.withAlias(normalizedItemAlias))
             let finalConfiguration = try HostConfiguration(
                 actions: editor.configuration.actions,
                 menu: MenuConfiguration(slots: slots)
@@ -1936,8 +1939,8 @@ private struct SlotConfigurationSheet: View {
             ?? "Configuration value (JSON or text)"
     }
 
-    private var normalizedSlotName: String? {
-        let value = slotName.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var normalizedItemAlias: String? {
+        let value = itemAlias.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
 
@@ -1946,15 +1949,15 @@ private struct SlotConfigurationSheet: View {
         slotIndex: Int,
         presetPluginID: PluginID?
     ) -> InitialState {
-        let slotName = editor.configuration.menu.slots.indices.contains(slotIndex)
-            ? editor.configuration.menu.slots[slotIndex].name ?? ""
+        let itemAlias = editor.configuration.menu.slots.indices.contains(slotIndex)
+            ? editor.configuration.menu.slots[slotIndex].item?.alias ?? ""
             : ""
 
         guard editor.configuration.menu.slots.indices.contains(slotIndex) else {
             return InitialState(
                 pluginManifest: nil,
                 pluginID: nil,
-                slotName: slotName,
+                itemAlias: itemAlias,
                 primaryCommandID: CommandID("missing"),
                 alternateCommandOrder: [],
                 enabledAlternateCommandIDs: [],
@@ -1976,7 +1979,7 @@ private struct SlotConfigurationSheet: View {
             return InitialState(
                 pluginManifest: nil,
                 pluginID: nil,
-                slotName: slotName,
+                itemAlias: itemAlias,
                 primaryCommandID: CommandID("missing"),
                 alternateCommandOrder: [],
                 enabledAlternateCommandIDs: [],
@@ -2058,7 +2061,7 @@ private struct SlotConfigurationSheet: View {
         return InitialState(
             pluginManifest: pluginManifest,
             pluginID: pluginID,
-            slotName: slotName,
+            itemAlias: itemAlias,
             primaryCommandID: primaryCommandID,
             alternateCommandOrder: alternateCommandOrder,
             enabledAlternateCommandIDs: enabledAlternateCommandIDs,
@@ -2467,22 +2470,27 @@ private struct MenuSizeControl: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 12) {
-                Slider(
-                    value: sizeBinding,
-                    in: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
-                    onEditingChanged: { isEditing in
-                        if isEditing {
-                            beginAdjustment()
-                        } else {
-                            let snapped = MenuAppearanceConfiguration.snappedMenuSizePercentage(currentPercentage)
-                            menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: snapped)
-                            endAdjustment()
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Slider(
+                        value: sizeBinding,
+                        in: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
+                        onEditingChanged: { isEditing in
+                            if isEditing {
+                                beginAdjustment()
+                            } else {
+                                let snapped = MenuAppearanceConfiguration.snappedMenuSizePercentage(currentPercentage)
+                                menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: snapped)
+                                endAdjustment()
+                            }
                         }
-                    }
-                )
-                .accessibilityLabel("Menu Size")
-                .accessibilityValue("\(Int(currentPercentage.rounded())) percent")
+                    )
+                    .accessibilityLabel("Menu Size")
+                    .accessibilityValue("\(Int(currentPercentage.rounded())) percent")
+
+                    snapPointLabels
+                }
+                .frame(maxWidth: .infinity)
 
                 HStack(spacing: 4) {
                     TextField("100", text: $inputValue, onEditingChanged: { isEditing in
@@ -2498,18 +2506,6 @@ private struct MenuSizeControl: View {
                     Text("%")
                         .foregroundStyle(.secondary)
                 }
-            }
-
-            HStack(spacing: 12) {
-                ForEach(MenuAppearanceConfiguration.Size.allCases, id: \.self) { size in
-                    Text("\(size.rawValue) \(Int(size.percentage.rounded()))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Text("Max \(Int(MenuAppearanceConfiguration.menuSizeMaximumPercentage.rounded()))%")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
         }
         .frame(maxWidth: 520, alignment: .leading)
@@ -2529,6 +2525,38 @@ private struct MenuSizeControl: View {
                 menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: percentage)
             }
         )
+    }
+
+    private var snapPointLabels: some View {
+        GeometryReader { proxy in
+            let sizes = MenuAppearanceConfiguration.Size.allCases
+            let frameWidth = proxy.size.width / CGFloat(sizes.count)
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(sizes.indices), id: \.self) { index in
+                    let position = CGFloat(index + 1) / CGFloat(sizes.count)
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.42))
+                        .frame(width: 1, height: 5)
+                        .offset(x: proxy.size.width * position - 0.5)
+                }
+                ForEach(Array(sizes.enumerated()), id: \.element) { index, size in
+                    let position = CGFloat(index + 1) / CGFloat(sizes.count)
+                    let isLast = index == sizes.count - 1
+                    Text("\(size.rawValue) \(Int(size.percentage.rounded()))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(
+                            width: frameWidth,
+                            alignment: isLast ? .trailing : .center
+                        )
+                        .offset(
+                            x: proxy.size.width * (position - (isLast ? 1 / 3 : 1 / 6)),
+                            y: 5
+                        )
+                }
+            }
+        }
+        .frame(height: 18)
     }
 
     private func syncInput() {

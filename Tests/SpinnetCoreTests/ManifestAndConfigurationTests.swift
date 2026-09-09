@@ -317,22 +317,59 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertEqual(decoded.allAlternateActionIDs, [ActionID("hidden"), ActionID("enabled")])
     }
 
-    func testMenuSlotNameRoundTripsAndBlankNamesUseAutomaticMode() throws {
-        let menuItem = try MenuItemConfiguration(primaryActionID: ActionID("primary"))
+    func testMenuItemAliasRoundTripsAndBlankAliasesUseAutomaticMode() throws {
+        let menuItem = try MenuItemConfiguration(
+            primaryActionID: ActionID("primary"),
+            alias: "  Work  "
+        )
         let configuration = try MenuConfiguration(slots: [
-            .occupied(menuItem, name: "  Work  "),
-            MenuSlotConfiguration(item: nil, name: "   ")
+            .occupied(menuItem),
+            .empty
         ])
 
-        XCTAssertEqual(configuration.slots[0].name, "Work")
-        XCTAssertNil(configuration.slots[1].name)
+        XCTAssertEqual(configuration.slots[0].item?.alias, "Work")
+        XCTAssertNil(configuration.slots[1].item?.alias)
 
         let data = try JSONEncoder().encode(configuration)
         let decoded = try JSONDecoder().decode(MenuConfiguration.self, from: data)
 
         XCTAssertEqual(decoded, configuration)
-        XCTAssertEqual(decoded.slots[0].name, "Work")
-        XCTAssertNil(decoded.slots[1].name)
+        XCTAssertEqual(decoded.slots[0].item?.alias, "Work")
+        XCTAssertNil(decoded.slots[1].item?.alias)
+    }
+
+    func testLegacySlotNameMigratesToTheBoundMenuItem() throws {
+        let legacyData = Data(#"""
+        {
+          "slots": [
+            {
+              "item": {"primary_action_id": "primary"},
+              "name": "  Work  "
+            },
+            {
+              "item": null,
+              "name": "Stale Empty Slot Alias"
+            }
+          ]
+        }
+        """#.utf8)
+
+        let decoded = try JSONDecoder().decode(MenuConfiguration.self, from: legacyData)
+
+        XCTAssertEqual(decoded.slots[0].item?.alias, "Work")
+        XCTAssertNil(decoded.slots[1].item)
+        XCTAssertNil(decoded.slots[1].item?.alias)
+
+        let migratedData = try JSONEncoder().encode(decoded)
+        let migratedJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: migratedData) as? [String: Any]
+        )
+        let migratedSlots = try XCTUnwrap(migratedJSON["slots"] as? [[String: Any]])
+        XCTAssertEqual(migratedSlots[0]["name"] as? String, nil)
+        XCTAssertEqual(
+            (migratedSlots[0]["item"] as? [String: Any])?["alias"] as? String,
+            "Work"
+        )
     }
 
     func testMenuItemRejectsDuplicateOrPrimaryAlternateBindings() {

@@ -376,7 +376,7 @@ final class ConfigurationEditorTests: XCTestCase {
         )
     }
 
-    func testSlotRenameIsPreservedByActionEditsAndBlankRestoresAutomaticNaming() throws {
+    func testMenuItemAliasIsPreservedByActionEditsAndBlankRestoresAutomaticNaming() throws {
         let registry = try makeRegistry()
         let openCommand = try XCTUnwrap(registry.command(
             for: PluginID("com.spinnet.fixture"),
@@ -394,14 +394,16 @@ final class ConfigurationEditorTests: XCTestCase {
                 actions: [openAction],
                 menu: MenuConfiguration(slots: [
                     .occupied(
-                        try MenuItemConfiguration(primaryActionID: openAction.id),
-                        name: "Research"
+                        try MenuItemConfiguration(
+                            primaryActionID: openAction.id,
+                            alias: "Research"
+                        )
                     )
                 ])
             )
         )
 
-        XCTAssertEqual(editor.configuration.menu.slots[0].name, "Research")
+        XCTAssertEqual(editor.configuration.menu.slots[0].item?.alias, "Research")
 
         try editor.configureMenuItem(
             at: 0,
@@ -409,10 +411,10 @@ final class ConfigurationEditorTests: XCTestCase {
             primaryCommandID: CommandID("fixture.open"),
             inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")]
         )
-        XCTAssertEqual(editor.configuration.menu.slots[0].name, "Research")
+        XCTAssertEqual(editor.configuration.menu.slots[0].item?.alias, "Research")
 
-        try editor.renameSlot(at: 0, name: "  ")
-        XCTAssertNil(editor.configuration.menu.slots[0].name)
+        try editor.renameMenuItem(at: 0, name: "  ")
+        XCTAssertNil(editor.configuration.menu.slots[0].item?.alias)
     }
 
     private func makeRegistry() throws -> PluginRegistry {

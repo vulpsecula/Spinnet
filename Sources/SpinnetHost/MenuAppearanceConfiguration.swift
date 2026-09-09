@@ -24,9 +24,9 @@ struct MenuAppearanceConfiguration: Equatable {
 
         var scale: CGFloat {
             switch self {
-            case .small: return 0.86
-            case .medium: return 1
-            case .large: return 1.08
+            case .small: return 1
+            case .medium: return 1.5
+            case .large: return 2
             }
         }
 
@@ -92,8 +92,10 @@ struct MenuAppearanceConfiguration: Equatable {
     static let themeOptions = Theme.allCases.map(\.rawValue)
     static let accentOptions = Accent.allCases.map(\.rawValue)
     static let menuSizeOptions = Size.allCases.map(\.rawValue)
-    static let menuSizeMinimumPercentage = 70.0
-    static let menuSizeMaximumPercentage = 240.0
+    // Keep the three named presets on the one-third, two-third, and endpoint
+    // positions of the continuous 50%...200% range.
+    static let menuSizeMinimumPercentage = 50.0
+    static let menuSizeMaximumPercentage = 200.0
     static let menuSizeSnapDistance = 5.0
     static let menuSizeSnapPoints = Size.allCases.map(\.percentage)
     static let fontOptions: [String] = {

@@ -287,19 +287,23 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         window.contentView = view
 
-        view.applyAppearance(MenuAppearanceConfiguration(theme: "Light"))
+        let lightAppearance = MenuAppearanceConfiguration(theme: "Light", menuSize: "100")
+        let darkAppearance = MenuAppearanceConfiguration(theme: "Dark", menuSize: "100")
+        view.applyAppearance(lightAppearance)
         let light = try render(view).colorAt(
             x: Int(view.bounds.midX),
             y: 2
         )
-        view.applyAppearance(MenuAppearanceConfiguration(theme: "Dark"))
+        view.applyAppearance(darkAppearance)
         let dark = try render(view).colorAt(
             x: Int(view.bounds.midX),
             y: 2
         )
 
-        XCTAssertGreaterThan(view.geometryLayout.outerRadius, 142)
         XCTAssertGreaterThan(colorDistance(try XCTUnwrap(light), try XCTUnwrap(dark)), 0.2)
+
+        view.applyAppearance(MenuAppearanceConfiguration(menuSize: "Medium"))
+        XCTAssertGreaterThan(view.geometryLayout.outerRadius, 142)
 
         let largePreview = RadialMenuView(
             slots: [],
@@ -309,7 +313,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             previewCanvasDiameter: 376,
             showsPreviewBackground: true
         )
-        largePreview.applyAppearance(MenuAppearanceConfiguration(menuSize: "240"))
+        largePreview.applyAppearance(MenuAppearanceConfiguration(menuSize: "200"))
         let largeOuterRadius = largePreview.geometryLayout.outerRadius
         XCTAssertEqual(largePreview.bounds.width, 376, accuracy: 0.1)
         XCTAssertLessThanOrEqual(largePreview.geometryLayout.contentDiameter, 376)
@@ -663,7 +667,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         XCTAssertEqual(slots[0].title, "Fixture")
 
-        try editor.renameSlot(at: 0, name: "Research")
+        try editor.renameMenuItem(at: 0, name: "Research")
         slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
             availability: {
@@ -673,7 +677,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         XCTAssertEqual(slots[0].title, "Research")
 
-        try editor.renameSlot(at: 0, name: nil)
+        try editor.renameMenuItem(at: 0, name: nil)
         slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
             availability: {
@@ -904,7 +908,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             CGPoint(x: visibleFrame.midX, y: visibleFrame.maxY - 1)
         ]
 
-        let menuSizes = MenuAppearanceConfiguration.menuSizeOptions + ["150", "240"]
+        let menuSizes = MenuAppearanceConfiguration.menuSizeOptions + ["125", "200"]
         for size in menuSizes {
             let appearance = MenuAppearanceConfiguration(menuSize: size)
             for slotCount in [1, 4, 8, 12] {
@@ -1012,25 +1016,40 @@ final class SettingsWindowControllerTests: XCTestCase {
     }
 
     func testMenuSizeSupportsContinuousPercentagesAndThreeSnapPoints() {
-        XCTAssertEqual(MenuAppearanceConfiguration.Size.small.percentage, 86)
-        XCTAssertEqual(MenuAppearanceConfiguration.Size.medium.percentage, 100)
-        XCTAssertEqual(MenuAppearanceConfiguration.Size.large.percentage, 108)
-        XCTAssertEqual(MenuAppearanceConfiguration.menuSizeSnapPoints, [86, 100, 108])
-
-        let custom = MenuAppearanceConfiguration(menuSize: "150")
-        XCTAssertEqual(custom.menuSize, "150")
-        XCTAssertEqual(custom.scale, 1.5, accuracy: 0.001)
-
-        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "20").menuSize, "70")
-        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "999").menuSize, "240")
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.small.percentage, 100)
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.medium.percentage, 150)
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.large.percentage, 200)
+        XCTAssertEqual(MenuAppearanceConfiguration.menuSizeSnapPoints, [100, 150, 200])
         XCTAssertEqual(
-            MenuAppearanceConfiguration.snappedMenuSizePercentage(83),
-            86,
+            MenuAppearanceConfiguration.menuSizeSnapPoints[1]
+                - MenuAppearanceConfiguration.menuSizeSnapPoints[0],
+            MenuAppearanceConfiguration.menuSizeSnapPoints[2]
+                - MenuAppearanceConfiguration.menuSizeSnapPoints[1]
+        )
+        for (index, point) in MenuAppearanceConfiguration.menuSizeSnapPoints.enumerated() {
+            XCTAssertEqual(
+                (point - MenuAppearanceConfiguration.menuSizeMinimumPercentage)
+                    / (MenuAppearanceConfiguration.menuSizeMaximumPercentage
+                        - MenuAppearanceConfiguration.menuSizeMinimumPercentage),
+                Double(index + 1) / 3,
+                accuracy: 0.001
+            )
+        }
+
+        let custom = MenuAppearanceConfiguration(menuSize: "125")
+        XCTAssertEqual(custom.menuSize, "125")
+        XCTAssertEqual(custom.scale, 1.25, accuracy: 0.001)
+
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "20").menuSize, "50")
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "999").menuSize, "Large")
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.snappedMenuSizePercentage(97),
+            100,
             accuracy: 0.001
         )
         XCTAssertEqual(
-            MenuAppearanceConfiguration.snappedMenuSizePercentage(106),
-            108,
+            MenuAppearanceConfiguration.snappedMenuSizePercentage(153),
+            150,
             accuracy: 0.001
         )
         XCTAssertEqual(
@@ -1055,10 +1074,10 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.beginAppearanceMenuSizeAdjustment()
         model.appearanceMenuSize = "112"
         model.appearanceMenuSize = "148"
-        model.appearanceMenuSize = "150"
+        model.appearanceMenuSize = "125"
         model.endAppearanceMenuSizeAdjustment()
 
-        XCTAssertEqual(model.appearanceMenuSize, "150")
+        XCTAssertEqual(model.appearanceMenuSize, "125")
         XCTAssertTrue(model.canUndoAppearance)
 
         model.undoAppearance()
@@ -1272,9 +1291,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             validateInputs: true
         )
         var firstNamedSlots = firstCandidate.menu.slots
-        firstNamedSlots[1] = MenuSlotConfiguration(
-            item: firstNamedSlots[1].item,
-            name: "First Item"
+        firstNamedSlots[1] = .occupied(
+            try XCTUnwrap(firstNamedSlots[1].item).withAlias("First Item")
         )
         let firstNamedCandidate = try HostConfiguration(
             actions: firstCandidate.actions,
@@ -1286,8 +1304,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         let secondItem = try XCTUnwrap(model.editor.configuration.menu.slots[2].item)
         let secondPrimaryID = secondItem.primaryActionID
         XCTAssertNotEqual(firstPrimaryID, secondPrimaryID)
-        XCTAssertEqual(model.editor.configuration.menu.slots[1].alias, "First Item")
-        XCTAssertNil(model.editor.configuration.menu.slots[2].alias)
+        XCTAssertEqual(model.editor.configuration.menu.slots[1].item?.alias, "First Item")
+        XCTAssertNil(model.editor.configuration.menu.slots[2].item?.alias)
 
         let firstAction = try XCTUnwrap(model.editor.configuration.actions.first {
             $0.id == firstPrimaryID
@@ -1541,16 +1559,27 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, occupiedConfiguration)
     }
 
+    func testMenuItemAliasMovesWithTheMenuItem() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        try model.editor.renameMenuItem(at: 0, name: "Pinned")
+
+        XCTAssertTrue(model.moveMenuItem(from: 0, to: 1))
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item?.alias)
+        XCTAssertEqual(model.editor.configuration.menu.slots[1].item?.alias, "Pinned")
+        XCTAssertEqual(model.menuSlots[1].title, "Pinned")
+    }
+
     func testDeleteSelectedContentClearsAnItemThenRemovesAnEmptySlot() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
         model.selectMenuItem(at: 0)
-        try model.editor.renameSlot(at: 0, name: "Custom Alias")
+        try model.editor.renameMenuItem(at: 0, name: "Custom Alias")
 
         model.deleteSelectedContent()
 
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
-        XCTAssertNil(model.editor.configuration.menu.slots[0].alias)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item?.alias)
         XCTAssertTrue(model.editor.configuration.actions.isEmpty)
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
 

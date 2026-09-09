@@ -268,8 +268,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             guard !alternateActionIDs.isEmpty else { continue }
             slots[index] = .occupied(try MenuItemConfiguration(
                 primaryActionID: item.primaryActionID,
-                alternateActionIDs: alternateActionIDs
-            ), name: slots[index].name)
+                alternateActionIDs: alternateActionIDs,
+                alias: item.alias
+            ))
             changed = true
         }
 

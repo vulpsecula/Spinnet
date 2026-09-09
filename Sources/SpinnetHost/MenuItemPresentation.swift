@@ -22,12 +22,12 @@ struct MenuItemPresentation {
     let configuration: MenuItemConfiguration
     let primaryAction: MenuActionPresentation
     let alternateActions: [MenuActionPresentation]
-    /// The Menu Item Preset name used when the user has not supplied an
+    /// The Menu Item Preset name used when the item has not supplied an
     /// explicit Alias. This stays separate from an Action's availability
-    /// annotation so a missing resource cannot replace the Slot title.
+    /// annotation so a missing resource cannot replace the Menu Item title.
     let defaultTitle: String?
 
-    var title: String { defaultTitle ?? primaryAction.title }
+    var title: String { configuration.alias ?? defaultTitle ?? primaryAction.title }
 
     init(
         configuration: MenuItemConfiguration,
@@ -47,11 +47,11 @@ struct MenuSlotPresentation {
     let item: MenuItemPresentation?
 
     var isEmpty: Bool { item == nil }
-    /// Uses the user's Menu Item Alias when present; otherwise the Slot uses
-    /// its Preset name and falls back to the Primary Action title or the
-    /// empty-state label.
+    /// Uses the Menu Item's Alias when present; otherwise it uses its Preset
+    /// name and falls back to the Primary Action title or the empty-state
+    /// label.
     var title: String {
-        configuration.alias ?? item?.title ?? "Empty Slot"
+        item?.title ?? "Empty Slot"
     }
 
     static var empty: Self {

@@ -772,6 +772,9 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     public let primaryActionID: ActionID
+    /// A user-defined display name for this Menu Item. The alias belongs to
+    /// the item rather than the Slot so moving the item preserves its name.
+    public let alias: String?
     /// Alternate Actions currently exposed by the runtime context menu.
     public let alternateActionIDs: [ActionID]
     /// Alternate Actions retained by the editor but currently hidden from the
@@ -786,7 +789,8 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
         primaryActionID: ActionID,
         alternateActionIDs: [ActionID] = [],
         disabledAlternateActionIDs: [ActionID] = [],
-        alternateActionOrder: [ActionID]? = nil
+        alternateActionOrder: [ActionID]? = nil,
+        alias: String? = nil
     ) throws {
         guard !primaryActionID.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConfigurationError.invalidMenu("Primary Action ID is empty")
@@ -817,9 +821,31 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
             throw ConfigurationError.invalidMenu("Alternate Action order does not match its Actions")
         }
         self.primaryActionID = primaryActionID
+        self.alias = Self.normalizedAlias(alias)
         self.alternateActionIDs = alternateActionIDs
         self.disabledAlternateActionIDs = disabledAlternateActionIDs
         self.alternateActionOrder = resolvedAlternateActionOrder
+    }
+
+    private init(copying item: Self, alias: String?) {
+        self.primaryActionID = item.primaryActionID
+        self.alias = Self.normalizedAlias(alias)
+        self.alternateActionIDs = item.alternateActionIDs
+        self.disabledAlternateActionIDs = item.disabledAlternateActionIDs
+        self.alternateActionOrder = item.alternateActionOrder
+    }
+
+    /// Returns the same Menu Item with a replaced or cleared display alias.
+    /// The existing item has already passed validation, so changing only its
+    /// presentation metadata does not need to repeat action-binding checks.
+    public func withAlias(_ alias: String?) -> Self {
+        Self(copying: self, alias: alias)
+    }
+
+    private static func normalizedAlias(_ alias: String?) -> String? {
+        guard let alias else { return nil }
+        let trimmedAlias = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedAlias.isEmpty ? nil : trimmedAlias
     }
 
     /// All Alternate Action IDs in editor order, including Actions that are
@@ -832,6 +858,7 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case primaryActionID = "primary_action_id"
+        case alias
         case alternateActionIDs = "alternate_action_ids"
         case disabledAlternateActionIDs = "disabled_alternate_action_ids"
         case alternateActionOrder = "alternate_action_order"
@@ -854,13 +881,15 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
             alternateActionOrder: container.decodeIfPresent(
                 [ActionID].self,
                 forKey: .alternateActionOrder
-            )
+            ),
+            alias: container.decodeIfPresent(String.self, forKey: .alias)
         )
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(primaryActionID, forKey: .primaryActionID)
+        try container.encodeIfPresent(alias, forKey: .alias)
         try container.encode(alternateActionIDs, forKey: .alternateActionIDs)
         if !disabledAlternateActionIDs.isEmpty {
             try container.encode(disabledAlternateActionIDs, forKey: .disabledAlternateActionIDs)
@@ -873,32 +902,61 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
     public let item: MenuItemConfiguration?
-    /// Legacy storage for a user-provided Menu Item Alias. When nil, the Host
-    /// derives the displayed name from the bound Menu Item Preset (or falls
-    /// back to its Primary Action when that Preset is unavailable). The `alias`
-    /// spelling is exposed for new callers while `name` remains decodable for
-    /// configurations written by earlier builds.
-    public let name: String?
+    /// Compatibility accessor for callers that still read a Slot name. New
+    /// code should read the alias from the Menu Item instead.
+    @available(*, deprecated, message: "Read MenuItemConfiguration.alias instead")
+    public var alias: String? { item?.alias }
+    @available(*, deprecated, message: "Menu Item aliases are no longer stored on Slots")
+    public var name: String? { item?.alias }
 
-    public var alias: String? { name }
+    public static var empty: Self { Self(item: nil) }
 
-    public static var empty: Self { Self(item: nil, name: nil) }
-
-    public static func occupied(
-        _ item: MenuItemConfiguration,
-        name: String? = nil
-    ) -> Self {
-        Self(item: item, name: name)
+    public static func occupied(_ item: MenuItemConfiguration) -> Self {
+        Self(item: item)
     }
 
-    public init(item: MenuItemConfiguration?, name: String? = nil) {
+    @available(*, deprecated, message: "Pass the alias to MenuItemConfiguration instead")
+    public static func occupied(
+        _ item: MenuItemConfiguration,
+        name: String?
+    ) -> Self {
+        Self(item: item, legacyName: name)
+    }
+
+    public init(item: MenuItemConfiguration?) {
         self.item = item
-        if let name {
-            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            self.name = trimmedName.isEmpty ? nil : trimmedName
-        } else {
-            self.name = nil
+    }
+
+    @available(*, deprecated, message: "Pass the alias to MenuItemConfiguration instead")
+    public init(item: MenuItemConfiguration?, name: String?) {
+        self.init(item: item, legacyName: name)
+    }
+
+    private init(item: MenuItemConfiguration?, legacyName: String?) {
+        guard let item, item.alias == nil, legacyName != nil else {
+            self.item = item
+            return
         }
+        self.item = item.withAlias(legacyName)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case item
+        case name
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let item = try container.decodeIfPresent(MenuItemConfiguration.self, forKey: .item)
+        // Older configurations stored the alias on the Slot as `name`. Move
+        // that value onto the decoded Menu Item exactly once at the boundary.
+        let legacyName = try container.decodeIfPresent(String.self, forKey: .name)
+        self.init(item: item, legacyName: legacyName)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(item, forKey: .item)
     }
 }
 

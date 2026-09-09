@@ -309,21 +309,24 @@ to Menu Items:
     }
   ],
   "menu": {
-    "items": [
+    "slots": [
       {
-        "primary_action_id": "fixture-open-url",
-        "alternate_action_ids": []
+        "item": {
+          "primary_action_id": "fixture-open-url",
+          "alternate_action_ids": [],
+          "alias": "Open Website"
+        }
       }
     ]
   }
 }
 ```
 
-`MenuConfiguration` contains between one and twelve Slots. Each Slot may carry
-an optional user-provided Menu Item Alias in the `name` field; when it
-is omitted, the Host displays the bound Menu Item Preset's name (or falls back
-to the Primary Action's title when that Preset is unavailable, and uses
-`Empty Slot` when the Slot has no Menu Item). Each Menu Item has one Primary Action and may
+`MenuConfiguration` contains between one and twelve Slots. Each Slot may be
+empty or contain one Menu Item. A Menu Item may carry an optional user-provided
+`alias`; when it is omitted, the Host displays the bound Menu Item Preset's
+name (or falls back to the Primary Action's title when that Preset is
+unavailable). Empty Slots display `Empty Slot`. Each Menu Item has one Primary Action and may
 have multiple Alternate Actions. A Menu Item may also retain
 `disabled_alternate_action_ids` and an `alternate_action_order` so the
 Settings editor can hide an Alternate without discarding its parameters; older
