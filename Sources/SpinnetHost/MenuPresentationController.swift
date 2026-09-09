@@ -75,8 +75,8 @@ final class MenuPresentationController {
         appearanceConfiguration = appearance
         layout = appearance.layout(slotCount: slots.count)
         panel.appearance = appearance.appearance
-        // Settings can produce many Appearance samples while the runtime Menu
-        // is hidden. Defer AppKit layout and drawing until the next open.
+        // Settings can produce many Appearance samples while the Runtime Mode
+        // panel is hidden. Defer AppKit layout and drawing until the next open.
         menuViewAppearanceNeedsSync = true
     }
 

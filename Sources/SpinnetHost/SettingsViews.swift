@@ -2457,29 +2457,6 @@ private struct AppearanceSettingsView: View {
 
 }
 
-enum MenuSizeSliderLayout {
-    /// The macOS Slider thumb center is inset from the control bounds by
-    /// approximately half the thumb width. Labels and tick marks use the same
-    /// inset so their positions share the Slider's actual travel range.
-    static let nativeTrackInset: CGFloat = 8
-
-    static func trackWidth(for width: CGFloat) -> CGFloat {
-        max(width - 2 * nativeTrackInset, 0)
-    }
-
-    static func normalizedValue(for percentage: Double) -> CGFloat {
-        let minimum = MenuAppearanceConfiguration.menuSizeMinimumPercentage
-        let maximum = MenuAppearanceConfiguration.menuSizeMaximumPercentage
-        guard percentage.isFinite, maximum > minimum else { return 0 }
-        return CGFloat(min(max((percentage - minimum) / (maximum - minimum), 0), 1))
-    }
-
-    static func trackPosition(for percentage: Double, width: CGFloat) -> CGFloat {
-        guard width > 0 else { return 0 }
-        return nativeTrackInset + trackWidth(for: width) * normalizedValue(for: percentage)
-    }
-}
-
 private struct MenuSizeControl: View {
     @Binding var menuSize: String
     let beginAdjustment: () -> Void
@@ -2495,9 +2472,9 @@ private struct MenuSizeControl: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Slider(
+                    MenuSizeSliderRepresentable(
                         value: sizeBinding,
-                        in: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
+                        range: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
                         onEditingChanged: { isEditing in
                             if isEditing {
                                 beginAdjustment()
@@ -2508,10 +2485,9 @@ private struct MenuSizeControl: View {
                             }
                         }
                     )
+                    .frame(height: MenuSizeSliderView.labelHeight + MenuSizeSliderView.sliderHeight)
                     .accessibilityLabel("Menu Size")
                     .accessibilityValue("\(Int(currentPercentage.rounded())) percent")
-
-                    snapPointLabels
                 }
                 .frame(maxWidth: .infinity)
 
@@ -2550,45 +2526,6 @@ private struct MenuSizeControl: View {
         )
     }
 
-    private var snapPointLabels: some View {
-        GeometryReader { proxy in
-            let sizes = MenuAppearanceConfiguration.Size.allCases
-            let trackWidth = MenuSizeSliderLayout.trackWidth(for: proxy.size.width)
-            let frameWidth = trackWidth / CGFloat(sizes.count)
-            let trackStart = MenuSizeSliderLayout.nativeTrackInset
-            let activeSize = MenuAppearanceConfiguration.menuSizeSnapPoint(near: currentPercentage)
-            ZStack(alignment: .topLeading) {
-                ForEach(Array(sizes.indices), id: \.self) { index in
-                    let size = sizes[index]
-                    Rectangle()
-                        .fill(activeSize == size ? Color.accentColor : Color.secondary.opacity(0.42))
-                        .frame(width: 1, height: 5)
-                        .offset(
-                            x: MenuSizeSliderLayout.trackPosition(
-                                for: size.percentage,
-                                width: proxy.size.width
-                            ) - 0.5
-                        )
-                }
-                ForEach(Array(sizes.enumerated()), id: \.element) { index, size in
-                    let position = MenuSizeSliderLayout.normalizedValue(for: size.percentage)
-                    let isLast = index == sizes.count - 1
-                    Text("\(size.rawValue) \(Int(size.percentage.rounded()))%")
-                        .font(.caption.weight(activeSize == size ? .semibold : .regular))
-                        .foregroundStyle(activeSize == size ? Color.accentColor : .secondary)
-                        .frame(
-                            width: frameWidth,
-                            alignment: isLast ? .trailing : .center
-                        )
-                        .offset(
-                            x: trackStart + trackWidth * (position - (isLast ? 1 / 3 : 1 / 6)),
-                            y: 5
-                        )
-                }
-            }
-        }
-        .frame(height: 18)
-    }
 
     private func syncInput() {
         inputValue = String(Int(currentPercentage.rounded()))

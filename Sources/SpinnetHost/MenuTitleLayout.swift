@@ -18,12 +18,23 @@ enum MenuTitleLayoutEngine {
         font: MenuAppearanceConfiguration.MenuFont,
         weight: MenuAppearanceConfiguration.MenuFontWeight = .semibold
     ) -> MenuTitleLayout {
+        layout(
+            title: title,
+            maxWidth: maxWidth,
+            baseFont: font.makeFont(ofSize: baseSize, weight: weight)
+        )
+    }
+
+    static func layout(
+        title: String,
+        maxWidth: CGFloat,
+        baseFont: NSFont
+    ) -> MenuTitleLayout {
         let normalizedTitle = title
             .replacingOccurrences(of: "\n", with: " ")
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
         let safeTitle = normalizedTitle.isEmpty ? " " : normalizedTitle
-        let baseFont = font.makeFont(ofSize: baseSize, weight: weight)
 
         guard maxWidth > 0 else {
             return makeLayout(text: safeTitle, font: baseFont, maxWidth: maxWidth)

@@ -322,7 +322,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertLessThan(largePreview.geometryLayout.outerRadius, largeOuterRadius)
     }
 
-    func testAppearanceOnlyMenuUpdateDoesNotReloadEditorSlots() throws {
+    func testAppearanceOnlyMenuUpdateDoesNotReloadEditorModeMenuSlots() throws {
         let actionID = ActionID("appearance-update-action")
         let item = MenuItemPresentation(
             configuration: try MenuItemConfiguration(primaryActionID: actionID),
@@ -1100,13 +1100,28 @@ final class SettingsWindowControllerTests: XCTestCase {
             "106"
         )
 
-        let width: CGFloat = 300
-        let trackInset = MenuSizeSliderLayout.nativeTrackInset
-        let trackWidth = width - 2 * trackInset
-        for (index, size) in MenuAppearanceConfiguration.Size.allCases.enumerated() {
-            let expected = trackInset + trackWidth * CGFloat(index + 1) / 3
+        let slider = MenuSizeSliderView(
+            value: 150,
+            range: (MenuAppearanceConfiguration.menuSizeMinimumPercentage
+                ... MenuAppearanceConfiguration.menuSizeMaximumPercentage)
+        )
+        slider.frame = NSRect(x: 0, y: 0, width: 300, height: 38)
+        slider.layoutSubtreeIfNeeded()
+
+        XCTAssertNil(
+            MenuSizeSliderView(
+                value: 104,
+                range: (MenuAppearanceConfiguration.menuSizeMinimumPercentage
+                    ... MenuAppearanceConfiguration.menuSizeMaximumPercentage)
+            ).activeSnapPoint,
+            "A custom percentage near a preset must not appear selected"
+        )
+
+        for (index, _) in MenuAppearanceConfiguration.Size.allCases.enumerated() {
+            let track = slider.nativeTrackRect
+            let expected = track.minX + track.width * CGFloat(index + 1) / 3
             XCTAssertEqual(
-                MenuSizeSliderLayout.trackPosition(for: size.percentage, width: width),
+                slider.snapPointXPositions[index],
                 expected,
                 accuracy: 0.001
             )

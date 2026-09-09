@@ -37,6 +37,12 @@ private final class RadialMenuEditButton: NSButton {
 }
 
 final class RadialMenuView: NSView {
+    private struct MenuFontCacheKey: Hashable {
+        let font: MenuAppearanceConfiguration.MenuFont
+        let weight: MenuAppearanceConfiguration.MenuFontWeight
+        let baseSize: Int
+    }
+
     private struct MenuTitleLayoutCacheKey: Hashable {
         let title: String
         let widthBucket: Int
@@ -55,6 +61,7 @@ final class RadialMenuView: NSView {
 
     private var layout: RadialMenuLayout
     private var slots: [MenuSlotPresentation]
+    private var menuFontCache: [MenuFontCacheKey: NSFont] = [:]
     private var menuTitleLayoutCache: [MenuTitleLayoutCacheKey: MenuTitleLayout] = [:]
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
@@ -190,9 +197,9 @@ final class RadialMenuView: NSView {
         updateAccessibilityValue()
     }
 
-    /// Applies the smallest update needed by the settings preview. Appearance
-    /// changes arrive for every Slider sample, so reloading unchanged Slots
-    /// here would unnecessarily clear selection and rebuild Edit buttons.
+    /// Applies the smallest update needed by the Editor Mode Menu. Appearance
+    /// changes arrive for every Slider sample, so reloading unchanged Menu
+    /// Slots here would unnecessarily clear selection and rebuild Edit buttons.
     func update(
         slots: [MenuSlotPresentation],
         appearance: MenuAppearanceConfiguration
@@ -212,10 +219,10 @@ final class RadialMenuView: NSView {
         }
 
         layout = previewLayout(for: appearanceConfiguration)
-        setFrameSize(previewFrameSize(for: layout))
+        updateFrameSize(for: layout)
         if slotsChanged {
             rebuildEditButtons()
-        } else {
+        } else if presentationMode == .editor, allowsEditing {
             layoutEditButtons()
         }
         needsDisplay = true
@@ -224,7 +231,7 @@ final class RadialMenuView: NSView {
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
         layout = previewLayout(for: appearanceConfiguration)
-        setFrameSize(previewFrameSize(for: layout))
+        updateFrameSize(for: layout)
         clearSelection()
         rebuildEditButtons()
         needsDisplay = true
@@ -239,7 +246,7 @@ final class RadialMenuView: NSView {
         editorAccentColor = appearance.accentColor
         self.appearance = appearance.appearance
         layout = previewLayout(for: appearance)
-        setFrameSize(previewFrameSize(for: layout))
+        updateFrameSize(for: layout)
         layoutEditButtons()
         needsDisplay = true
     }
@@ -289,6 +296,11 @@ final class RadialMenuView: NSView {
     private func previewFrameSize(for layout: RadialMenuLayout) -> NSSize {
         let diameter = previewCanvasDiameter ?? layout.contentDiameter
         return NSSize(width: diameter, height: diameter)
+    }
+
+    private func updateFrameSize(for layout: RadialMenuLayout) {
+        guard previewCanvasDiameter == nil else { return }
+        setFrameSize(previewFrameSize(for: layout))
     }
 
     func selectEditorItem(at index: Int) {
@@ -916,12 +928,23 @@ final class RadialMenuView: NSView {
             return cached
         }
 
+        let fontKey = MenuFontCacheKey(
+            font: appearanceConfiguration.menuFont,
+            weight: appearanceConfiguration.menuFontWeight,
+            baseSize: Int(baseSize.rounded())
+        )
+        let baseFont = menuFontCache[fontKey] ?? {
+            let font = appearanceConfiguration.menuFont.makeFont(
+                ofSize: baseSize,
+                weight: appearanceConfiguration.menuFontWeight
+            )
+            menuFontCache[fontKey] = font
+            return font
+        }()
         let layout = MenuTitleLayoutEngine.layout(
             title: title,
             maxWidth: CGFloat(widthBucket),
-            baseSize: baseSize,
-            font: appearanceConfiguration.menuFont,
-            weight: appearanceConfiguration.menuFontWeight
+            baseFont: baseFont
         )
         menuTitleLayoutCache[key] = layout
         return layout
