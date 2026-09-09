@@ -10,6 +10,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         _ = NSApplication.shared
     }
 
+    private var testMenuFontFamily: String {
+        MenuAppearanceConfiguration.fontOptions.first {
+            $0 != MenuAppearanceConfiguration.MenuFont.system.rawValue
+        } ?? MenuAppearanceConfiguration.MenuFont.system.rawValue
+    }
+
     func testConfigurationInputResolverPreservesLegacyObjectPayloads() {
         let field = CommandConfigurationField(kind: .shortcut)
         let original: JSONValue = .object([
@@ -734,13 +740,13 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceTheme = "Dark"
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
-        model.appearanceFont = "Monospaced"
+        model.appearanceFont = testMenuFontFamily
         model.appearanceFontWeight = "Bold"
 
         XCTAssertEqual(runtimeMenu.presentationSnapshot.theme, "Dark")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.accent, "Purple")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.menuSize, "Large")
-        XCTAssertEqual(runtimeMenu.presentationSnapshot.font, "Monospaced")
+        XCTAssertEqual(runtimeMenu.presentationSnapshot.font, testMenuFontFamily)
         XCTAssertEqual(runtimeMenu.presentationSnapshot.fontWeight, "Bold")
         XCTAssertGreaterThan(runtimeMenu.presentationSnapshot.outerRadius, 142)
     }
@@ -770,13 +776,13 @@ final class SettingsWindowControllerTests: XCTestCase {
             baseSize: 13,
             font: .system
         )
-        let monospaced = MenuTitleLayoutEngine.layout(
+        let customFamily = MenuTitleLayoutEngine.layout(
             title: "Open",
             maxWidth: 80,
             baseSize: 13,
-            font: .monospaced
+            font: MenuAppearanceConfiguration.MenuFont(rawValue: testMenuFontFamily)
         )
-        XCTAssertNotEqual(system.font.fontName, monospaced.font.fontName)
+        XCTAssertNotEqual(system.font.fontName, customFamily.font.fontName)
 
         let regular = MenuTitleLayoutEngine.layout(
             title: "Open",
@@ -793,6 +799,22 @@ final class SettingsWindowControllerTests: XCTestCase {
             weight: .bold
         )
         XCTAssertNotEqual(regular.font.fontDescriptor, bold.font.fontDescriptor)
+    }
+
+    func testMenuFontOptionsIncludeEveryInstalledFontFamily() throws {
+        let installedFamilies = Set(NSFontManager.shared.availableFontFamilies)
+        let options = MenuAppearanceConfiguration.fontOptions
+
+        XCTAssertEqual(options.first, MenuAppearanceConfiguration.MenuFont.system.rawValue)
+        XCTAssertTrue(installedFamilies.isSubset(of: Set(options)))
+        XCTAssertGreaterThan(options.count, 4)
+
+        let family = try XCTUnwrap(options.dropFirst().first)
+        let configuration = MenuAppearanceConfiguration(font: family)
+        XCTAssertEqual(configuration.font, family)
+
+        let renderedFont = configuration.titleFont(ofSize: 13, weight: .regular)
+        XCTAssertEqual(renderedFont.familyName, family)
     }
 
     func testMenuThemeDoesNotOverrideSettingsWindowAppearance() throws {
@@ -946,7 +968,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceTheme = "Dark"
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
-        model.appearanceFont = "Monospaced"
+        model.appearanceFont = testMenuFontFamily
         model.appearanceFontWeight = "Bold"
         XCTAssertTrue(model.canUndoAppearance)
         model.undoAppearance()
@@ -964,7 +986,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(model.appearanceConfiguration.theme, "Dark")
         XCTAssertEqual(model.appearanceConfiguration.accent, "Purple")
         XCTAssertEqual(model.appearanceConfiguration.menuSize, "Large")
-        XCTAssertEqual(model.appearanceConfiguration.font, "Monospaced")
+        XCTAssertEqual(model.appearanceConfiguration.font, testMenuFontFamily)
         XCTAssertEqual(model.appearanceConfiguration.fontWeight, "Bold")
 
         model.clipboardCollectionEnabled = true
@@ -1003,7 +1025,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceTheme = "Dark"
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
-        model.appearanceFont = "Monospaced"
+        model.appearanceFont = testMenuFontFamily
         model.appearanceFontWeight = "Bold"
         let customized = model.appearanceConfiguration
 
@@ -1773,18 +1795,18 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceTheme = "Dark"
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
-        model.appearanceFont = "Monospaced"
+        model.appearanceFont = testMenuFontFamily
         model.appearanceFontWeight = "Bold"
 
         XCTAssertEqual(appliedAppearance?.theme, "Dark")
         XCTAssertEqual(appliedAppearance?.accent, "Purple")
         XCTAssertEqual(appliedAppearance?.menuSize, "Large")
-        XCTAssertEqual(appliedAppearance?.font, "Monospaced")
+        XCTAssertEqual(appliedAppearance?.font, testMenuFontFamily)
         XCTAssertEqual(appliedAppearance?.fontWeight, "Bold")
         XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "Dark")
         XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "Purple")
         XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Large")
-        XCTAssertEqual(defaults.string(forKey: "appearance.font"), "Monospaced")
+        XCTAssertEqual(defaults.string(forKey: "appearance.font"), testMenuFontFamily)
         XCTAssertEqual(defaults.string(forKey: "appearance.font-weight"), "Bold")
 
         let restored = SettingsWindowModel(
@@ -1795,7 +1817,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(restored.appearanceTheme, "Dark")
         XCTAssertEqual(restored.appearanceAccent, "Purple")
         XCTAssertEqual(restored.appearanceMenuSize, "Large")
-        XCTAssertEqual(restored.appearanceFont, "Monospaced")
+        XCTAssertEqual(restored.appearanceFont, testMenuFontFamily)
         XCTAssertEqual(restored.appearanceFontWeight, "Bold")
     }
 

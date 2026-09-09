@@ -31,37 +31,31 @@ struct MenuAppearanceConfiguration: Equatable {
         }
     }
 
-    enum MenuFont: String, CaseIterable, Hashable {
-        case system = "System"
-        case rounded = "Rounded"
-        case serif = "Serif"
-        case monospaced = "Monospaced"
+    struct MenuFont: RawRepresentable, Equatable, Hashable {
+        let rawValue: String
+
+        init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        static let system = MenuFont(rawValue: "System")
 
         func makeFont(
             ofSize size: CGFloat,
             weight: MenuFontWeight = .semibold
         ) -> NSFont {
             let systemFont = NSFont.systemFont(ofSize: size, weight: weight.nsWeight)
-            switch self {
-            case .system:
+
+            if rawValue == Self.system.rawValue {
                 return systemFont
-            case .rounded:
-                return NSFontManager.shared.font(
-                    withFamily: "Avenir Next",
-                    traits: [],
-                    weight: weight.fontManagerWeight,
-                    size: size
-                ) ?? systemFont
-            case .serif:
-                return NSFontManager.shared.font(
-                    withFamily: "Georgia",
-                    traits: [],
-                    weight: weight.fontManagerWeight,
-                    size: size
-                ) ?? systemFont
-            case .monospaced:
-                return NSFont.monospacedSystemFont(ofSize: size, weight: weight.nsWeight)
             }
+
+            return NSFontManager.shared.font(
+                withFamily: rawValue,
+                traits: [],
+                weight: weight.fontManagerWeight,
+                size: size
+            ) ?? systemFont
         }
     }
 
@@ -94,7 +88,12 @@ struct MenuAppearanceConfiguration: Equatable {
     static let themeOptions = Theme.allCases.map(\.rawValue)
     static let accentOptions = Accent.allCases.map(\.rawValue)
     static let menuSizeOptions = Size.allCases.map(\.rawValue)
-    static let fontOptions = MenuFont.allCases.map(\.rawValue)
+    static let fontOptions: [String] = {
+        let families = NSFontManager.shared.availableFontFamilies
+            .filter { $0 != MenuFont.system.rawValue }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        return [MenuFont.system.rawValue] + families
+    }()
     static let fontWeightOptions = MenuFontWeight.allCases.map(\.rawValue)
 
     static let themeDefaultsKey = "appearance.theme"
@@ -119,8 +118,18 @@ struct MenuAppearanceConfiguration: Equatable {
         self.theme = Theme(rawValue: theme)?.rawValue ?? Theme.system.rawValue
         self.accent = Accent(rawValue: accent)?.rawValue ?? Accent.system.rawValue
         self.menuSize = Size(rawValue: menuSize)?.rawValue ?? Size.medium.rawValue
-        self.font = MenuFont(rawValue: font)?.rawValue ?? MenuFont.system.rawValue
+        self.font = Self.normalizedFontFamily(font)
         self.fontWeight = MenuFontWeight(rawValue: fontWeight)?.rawValue ?? MenuFontWeight.semibold.rawValue
+    }
+
+    private static func normalizedFontFamily(_ font: String) -> String {
+        let legacyFontMapping = [
+            "Rounded": "Avenir Next",
+            "Serif": "Georgia",
+            "Monospaced": "SF Mono"
+        ]
+        let candidate = legacyFontMapping[font] ?? font
+        return fontOptions.contains(candidate) ? candidate : MenuFont.system.rawValue
     }
 
     init(defaults: UserDefaults) {
@@ -165,7 +174,7 @@ struct MenuAppearanceConfiguration: Equatable {
     }
 
     var menuFont: MenuFont {
-        MenuFont(rawValue: font) ?? .system
+        MenuFont(rawValue: font)
     }
 
     var menuFontWeight: MenuFontWeight {

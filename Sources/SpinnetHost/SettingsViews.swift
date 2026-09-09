@@ -2363,12 +2363,14 @@ private struct AppearanceSettingsView: View {
                                 .frame(width: 76, alignment: .leading)
                             Picker("Menu Font", selection: $font) {
                                 ForEach(MenuAppearanceConfiguration.fontOptions, id: \.self) { value in
-                                    Text(value).tag(value)
+                                    Text(value)
+                                        .font(menuFontPreview(value))
+                                        .tag(value)
                                 }
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
-                            .frame(width: 190, alignment: .leading)
+                            .frame(width: 240, alignment: .leading)
                             .accessibilityLabel("Menu Font")
                         }
                         HStack(spacing: 16) {
@@ -2381,7 +2383,7 @@ private struct AppearanceSettingsView: View {
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
-                            .frame(width: 190, alignment: .leading)
+                            .frame(width: 240, alignment: .leading)
                             .accessibilityLabel("Menu Font Weight")
                         }
                     }
@@ -2414,6 +2416,12 @@ private struct AppearanceSettingsView: View {
             }
             .frame(maxWidth: 560, alignment: .leading)
         }
+    }
+
+    private func menuFontPreview(_ family: String) -> Font {
+        family == MenuAppearanceConfiguration.MenuFont.system.rawValue
+            ? .system(size: 13)
+            : .custom(family, size: 13)
     }
 
     @ViewBuilder
