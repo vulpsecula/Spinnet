@@ -4,6 +4,8 @@ import Foundation
 /// The geometry contract for a Menu. Angles start at 12 o'clock and advance
 /// clockwise, matching the pointer semantics used by the Host's overlay.
 public struct RadialMenuLayout: Equatable {
+    public static let defaultOverlayPadding: CGFloat = 8
+
     public let itemCount: Int
     public let innerRadius: CGFloat
     public let outerRadius: CGFloat
@@ -21,6 +23,14 @@ public struct RadialMenuLayout: Equatable {
         self.innerRadius = innerRadius
         self.outerRadius = outerRadius
         self.itemCenterRadius = itemCenterRadius ?? (innerRadius + outerRadius) / 2
+    }
+
+    /// The square content size used by both the Editor Mode view and the
+    /// Runtime Mode overlay. Keeping this derived from the same padding as the
+    /// overlay prevents a size preset from drifting between drawing and the
+    /// window that contains it.
+    public var contentDiameter: CGFloat {
+        (outerRadius + Self.defaultOverlayPadding) * 2
     }
 
     /// Returns the only Menu Item containing `point`, or nil for the center
@@ -57,7 +67,7 @@ public struct RadialMenuLayout: Equatable {
     public func constrainedCenter(
         for preferredCenter: CGPoint,
         in visibleFrame: CGRect,
-        padding: CGFloat = 8
+        padding: CGFloat = Self.defaultOverlayPadding
     ) -> CGPoint {
         precondition(padding >= 0, "Menu padding cannot be negative")
         let margin = outerRadius + padding
@@ -80,7 +90,7 @@ public struct RadialMenuLayout: Equatable {
     public func overlayFrame(
         for preferredCenter: CGPoint,
         in visibleFrame: CGRect,
-        padding: CGFloat = 8
+        padding: CGFloat = Self.defaultOverlayPadding
     ) -> CGRect {
         let center = constrainedCenter(for: preferredCenter, in: visibleFrame, padding: padding)
         let radius = outerRadius + padding

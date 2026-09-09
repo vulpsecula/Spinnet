@@ -148,6 +148,10 @@ final class SettingsWindowController: NSWindowController {
         model.redoAppearance()
     }
 
+    func resetAppearance() {
+        model.resetAppearance()
+    }
+
     func cancelPresetSetup() {
         model.cancelPresetSetup()
     }

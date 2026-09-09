@@ -339,6 +339,81 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(alternateExecutionCount, 0)
     }
 
+    func testAppearanceEditorModeDoesNotExecuteOrEditSlots() throws {
+        let actionID = ActionID("appearance-editor-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let view = RadialMenuView(items: [item], mode: .editor, allowsEditing: false)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+
+        var editCount = 0
+        var primaryExecutionCount = 0
+        var alternateExecutionCount = 0
+        view.onEditorEditRequested = { _ in editCount += 1 }
+        view.onPrimarySelection = { _ in primaryExecutionCount += 1 }
+        view.onAlternateSelection = { _ in alternateExecutionCount += 1 }
+
+        let location = NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90)
+        let hover = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: location,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ))
+        view.mouseMoved(with: hover)
+
+        let click = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: location,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 2,
+            pressure: 1
+        ))
+        view.mouseDown(with: click)
+        view.mouseUp(with: click)
+
+        let key = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: UInt16(kVK_Return)
+        ))
+        view.keyDown(with: key)
+
+        XCTAssertNil(view.selectedIndex)
+        XCTAssertEqual(editCount, 0)
+        XCTAssertEqual(primaryExecutionCount, 0)
+        XCTAssertEqual(alternateExecutionCount, 0)
+    }
+
     func testDoubleClickingAnOccupiedEditorSlotRequestsEdit() throws {
         let actionID = ActionID("editor-action")
         let item = MenuItemPresentation(
@@ -628,6 +703,122 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertGreaterThan(runtimeMenu.presentationSnapshot.outerRadius, 142)
     }
 
+    func testAppearanceSizeUsesOneGeometryContractAcrossEditorRuntimeAndScreenEdges() throws {
+        let visibleFrame = try XCTUnwrap(NSScreen.main).visibleFrame
+        let centre = CGPoint(x: visibleFrame.midX, y: visibleFrame.midY)
+        let edgePointers = [
+            CGPoint(x: visibleFrame.minX + 1, y: visibleFrame.midY),
+            CGPoint(x: visibleFrame.maxX - 1, y: visibleFrame.midY),
+            CGPoint(x: visibleFrame.midX, y: visibleFrame.minY + 1),
+            CGPoint(x: visibleFrame.midX, y: visibleFrame.maxY - 1)
+        ]
+
+        for size in MenuAppearanceConfiguration.menuSizeOptions {
+            let appearance = MenuAppearanceConfiguration(menuSize: size)
+            for slotCount in [1, 4, 8, 12] {
+                let slots = Array(repeating: MenuSlotPresentation.empty, count: slotCount)
+                let editorView = RadialMenuView(slots: slots, mode: .editor)
+                editorView.applyAppearance(appearance)
+                let runtimeMenu = MenuPresentationController(
+                    items: slots,
+                    appearance: appearance
+                )
+                var activatedRuntimeSlot: Int?
+                runtimeMenu.onEmptySlotActivated = { activatedRuntimeSlot = $0 }
+
+                runtimeMenu.open(at: centre)
+                let runtimeGeometry = runtimeMenu.geometrySnapshot
+                XCTAssertEqual(editorView.geometryLayout, runtimeGeometry.layout)
+                XCTAssertEqual(
+                    editorView.bounds.width,
+                    runtimeGeometry.contentSize.width,
+                    accuracy: 1
+                )
+                XCTAssertEqual(
+                    editorView.bounds.height,
+                    runtimeGeometry.contentSize.height,
+                    accuracy: 1
+                )
+
+                let editorCenter = CGPoint(
+                    x: editorView.bounds.midX,
+                    y: editorView.bounds.midY
+                )
+                let runtimeCenter = CGPoint(
+                    x: runtimeGeometry.overlayFrame.midX,
+                    y: runtimeGeometry.overlayFrame.midY
+                )
+                let editorItemCenter = editorView.geometryLayout.itemCenter(
+                    index: 0,
+                    center: editorCenter
+                )
+                let editorWindow = NSWindow(
+                    contentRect: editorView.bounds,
+                    styleMask: .borderless,
+                    backing: .buffered,
+                    defer: false
+                )
+                editorWindow.contentView = editorView
+                var selectedEditorIndex: Int?
+                editorView.onEditorSelection = { selectedEditorIndex = $0 }
+                let editorEvent = try XCTUnwrap(NSEvent.mouseEvent(
+                    with: .leftMouseDown,
+                    location: editorItemCenter,
+                    modifierFlags: [],
+                    timestamp: 0,
+                    windowNumber: editorWindow.windowNumber,
+                    context: nil,
+                    eventNumber: 0,
+                    clickCount: 1,
+                    pressure: 1
+                ))
+                editorView.mouseDown(with: editorEvent)
+                XCTAssertEqual(
+                    selectedEditorIndex,
+                    runtimeGeometry.layout.hitTest(
+                        point: editorItemCenter,
+                        center: editorCenter
+                    )
+                )
+
+                let runtimeItemOffset = runtimeGeometry.layout.itemCenter(
+                    index: 0,
+                    center: .zero
+                )
+                runtimeMenu.finishGesture(at: CGPoint(
+                    x: runtimeCenter.x + runtimeItemOffset.x,
+                    y: runtimeCenter.y + runtimeItemOffset.y
+                ))
+                XCTAssertEqual(activatedRuntimeSlot, 0)
+                runtimeMenu.dismiss()
+
+                for pointer in edgePointers {
+                    runtimeMenu.open(at: pointer)
+                    let actualFrame = runtimeMenu.geometrySnapshot.overlayFrame
+                    let expectedFrame = appearance.layout(slotCount: slotCount).overlayFrame(
+                        for: pointer,
+                        in: visibleFrame
+                    )
+                    XCTAssertEqual(actualFrame.minX, expectedFrame.minX, accuracy: 1)
+                    XCTAssertEqual(actualFrame.minY, expectedFrame.minY, accuracy: 1)
+                    XCTAssertEqual(actualFrame.width, expectedFrame.width, accuracy: 1)
+                    XCTAssertEqual(actualFrame.height, expectedFrame.height, accuracy: 1)
+                    activatedRuntimeSlot = nil
+                    let edgeItemOffset = runtimeMenu.geometrySnapshot.layout.itemCenter(
+                        index: 0,
+                        center: .zero
+                    )
+                    runtimeMenu.finishGesture(at: CGPoint(
+                        x: actualFrame.midX + edgeItemOffset.x,
+                        y: actualFrame.midY + edgeItemOffset.y
+                    ))
+                    XCTAssertEqual(activatedRuntimeSlot, 0)
+                    runtimeMenu.dismiss()
+                }
+            }
+        }
+    }
+
     func testAppearanceUndoRedoAndClipboardPrivacyStatePersistAtTheSettingsSeam() throws {
         let suiteName = "SpinnetHostTests.SettingsState.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -680,6 +871,39 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(restored.clipboardCollectionEnabled)
         XCTAssertTrue(restored.clipboardCollectionPaused)
         XCTAssertEqual(restored.clipboardRetention, .oneWeek)
+    }
+
+    func testResetAppearanceIsOneUndoableChange() throws {
+        let suiteName = "SpinnetHostTests.AppearanceReset.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+
+        model.appearanceTheme = "Dark"
+        model.appearanceAccent = "Purple"
+        model.appearanceMenuSize = "Large"
+        let customized = model.appearanceConfiguration
+
+        model.resetAppearance()
+
+        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
+        XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "System")
+        XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "System")
+        XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Medium")
+
+        model.undoAppearance()
+
+        XCTAssertEqual(model.appearanceConfiguration, customized)
+        XCTAssertTrue(model.canRedoAppearance)
+
+        model.redoAppearance()
+        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
     }
 
     func testSetupRequiredPresetStaysEmptyUntilValidConfigurationIsSaved() throws {

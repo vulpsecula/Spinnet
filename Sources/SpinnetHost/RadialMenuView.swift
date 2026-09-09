@@ -48,6 +48,7 @@ final class RadialMenuView: NSView {
     private var layout: RadialMenuLayout
     private var slots: [MenuSlotPresentation]
     private let presentationMode: RadialMenuPresentationMode
+    private let allowsEditing: Bool
     private var appearanceConfiguration = MenuAppearanceConfiguration()
     private var trackingArea: NSTrackingArea?
     private var editorMouseDownIndex: Int?
@@ -79,14 +80,22 @@ final class RadialMenuView: NSView {
 
     init(
         slots: [MenuSlotPresentation],
-        mode: RadialMenuPresentationMode = .runtime
+        mode: RadialMenuPresentationMode = .runtime,
+        allowsEditing: Bool = true
     ) {
         self.slots = slots
         self.presentationMode = mode
+        self.allowsEditing = allowsEditing
         let layout = RadialMenuLayout(itemCount: max(slots.count, 1))
         self.layout = layout
-        let diameter = (layout.outerRadius + 8) * 2
-        super.init(frame: CGRect(x: 0, y: 0, width: diameter, height: diameter))
+        super.init(
+            frame: CGRect(
+                x: 0,
+                y: 0,
+                width: layout.contentDiameter,
+                height: layout.contentDiameter
+            )
+        )
         switch mode {
         case .runtime:
             setAccessibilityRole(.menu)
@@ -98,27 +107,39 @@ final class RadialMenuView: NSView {
         case .editor:
             setAccessibilityRole(.group)
             setAccessibilityLabel("Editor Mode Menu")
-            setAccessibilityHelp(
-                "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure "
-                + "an occupied Slot, double-click an occupied Slot, or right-click for details "
-                + "and actions. Press Return, Space, or Command-E to edit the focused Slot. "
-                + "Actions do not execute in Editor Mode."
-            )
-            registerForDraggedTypes([
-                Self.libraryPresetPasteboardType,
-                Self.textPasteboardType,
-                Self.menuItemPasteboardType
-            ])
-            rebuildEditButtons()
+            if allowsEditing {
+                setAccessibilityHelp(
+                    "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure "
+                        + "an occupied Slot, double-click an occupied Slot, or right-click for details "
+                        + "and actions. Press Return, Space, or Command-E to edit the focused Slot. "
+                        + "Actions do not execute in Editor Mode."
+                )
+                registerForDraggedTypes([
+                    Self.libraryPresetPasteboardType,
+                    Self.textPasteboardType,
+                    Self.menuItemPasteboardType
+                ])
+                rebuildEditButtons()
+            } else {
+                setAccessibilityHelp(
+                    "Move the pointer over a Menu Slot to inspect its Appearance. "
+                        + "Actions and Menu edits are disabled in Editor Mode."
+                )
+            }
         }
         setAccessibilityValue(noSelectionAccessibilityValue)
     }
 
     convenience init(
         items: [MenuItemPresentation],
-        mode: RadialMenuPresentationMode = .runtime
+        mode: RadialMenuPresentationMode = .runtime,
+        allowsEditing: Bool = true
     ) {
-        self.init(slots: items.map(MenuSlotPresentation.occupied), mode: mode)
+        self.init(
+            slots: items.map(MenuSlotPresentation.occupied),
+            mode: mode,
+            allowsEditing: allowsEditing
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -141,8 +162,7 @@ final class RadialMenuView: NSView {
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
         layout = appearanceConfiguration.layout(slotCount: slots.count)
-        let diameter = (layout.outerRadius + 8) * 2
-        setFrameSize(NSSize(width: diameter, height: diameter))
+        setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
         clearSelection()
         rebuildEditButtons()
         needsDisplay = true
@@ -156,14 +176,22 @@ final class RadialMenuView: NSView {
         appearanceConfiguration = appearance
         editorAccentColor = appearance.accentColor
         layout = appearance.layout(slotCount: slots.count)
-        let diameter = (layout.outerRadius + 8) * 2
-        setFrameSize(NSSize(width: diameter, height: diameter))
+        setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
         layoutEditButtons()
         needsDisplay = true
     }
 
+    /// The complete drawing and hit-testing geometry currently used by this
+    /// view. Runtime Mode exposes the same contract through its presentation
+    /// snapshot so Editor and Runtime can be verified at their boundary.
+    var geometryLayout: RadialMenuLayout {
+        layout
+    }
+
     func selectEditorItem(at index: Int) {
-        guard presentationMode == .editor, slots.indices.contains(index) else { return }
+        guard presentationMode == .editor,
+              allowsEditing,
+              slots.indices.contains(index) else { return }
         selectedIndex = index
         updateAccessibilityValue()
     }
@@ -199,7 +227,7 @@ final class RadialMenuView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if presentationMode == .editor {
+        if presentationMode != .runtime {
             updateHover(at: point)
         } else {
             updateSelection(at: point)
@@ -208,6 +236,7 @@ final class RadialMenuView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         guard presentationMode == .runtime else {
+            guard allowsEditing else { return }
             beginEditorDrag(with: event)
             return
         }
@@ -217,7 +246,10 @@ final class RadialMenuView: NSView {
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         guard presentationMode == .editor else {
-            updateSelection(at: point)
+            updateSelection(at: convert(event.locationInWindow, from: nil))
+            return
+        }
+        guard allowsEditing else {
             return
         }
 
@@ -237,6 +269,7 @@ final class RadialMenuView: NSView {
 
     override func rightMouseDown(with event: NSEvent) {
         guard presentationMode == .runtime else {
+            guard allowsEditing else { return }
             super.rightMouseDown(with: event)
             return
         }
@@ -244,7 +277,7 @@ final class RadialMenuView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard presentationMode == .editor else { return super.menu(for: event) }
+        guard presentationMode == .editor, allowsEditing else { return nil }
         let point = convert(event.locationInWindow, from: nil)
         guard let index = slotIndex(at: point) else { return nil }
         updateHover(at: point)
@@ -262,29 +295,33 @@ final class RadialMenuView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard presentationMode == .runtime else {
-            defer {
-                editorMouseDownIndex = nil
-                editorMouseDownIsEdit = false
-                editorDragStarted = false
-            }
-            guard !editorDragStarted,
-                  let editorMouseDownIndex,
-                  slots.indices.contains(editorMouseDownIndex),
-                  slots[editorMouseDownIndex].item != nil else { return }
-            let clickedEditButton = isEditButtonHit(
-                at: convert(event.locationInWindow, from: nil),
-                index: editorMouseDownIndex
-            )
-            let shouldOpenEditor = editorMouseDownIsEdit
-                || (event.clickCount >= 2 && !clickedEditButton)
-            guard shouldOpenEditor else { return }
-            onEditorEditRequested?(editorMouseDownIndex)
+        guard presentationMode == .editor else {
+            updateSelection(at: convert(event.locationInWindow, from: nil))
+            guard let selectedIndex else { return }
+            onPrimarySelection?(selectedIndex)
             return
         }
-        updateSelection(at: convert(event.locationInWindow, from: nil))
-        guard let selectedIndex else { return }
-        onPrimarySelection?(selectedIndex)
+        guard allowsEditing else {
+            return
+        }
+        defer {
+            editorMouseDownIndex = nil
+            editorMouseDownIsEdit = false
+            editorDragStarted = false
+        }
+        guard !editorDragStarted,
+              let editorMouseDownIndex,
+              slots.indices.contains(editorMouseDownIndex),
+              slots[editorMouseDownIndex].item != nil else { return }
+        let clickedEditButton = isEditButtonHit(
+            at: convert(event.locationInWindow, from: nil),
+            index: editorMouseDownIndex
+        )
+        let shouldOpenEditor = editorMouseDownIsEdit
+            || (event.clickCount >= 2 && !clickedEditButton)
+        guard shouldOpenEditor else { return }
+        onEditorEditRequested?(editorMouseDownIndex)
+        return
     }
 
     override func rightMouseUp(with event: NSEvent) {
@@ -295,6 +332,7 @@ final class RadialMenuView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        guard presentationMode == .runtime || allowsEditing else { return }
         if presentationMode == .editor,
            event.keyCode == UInt16(kVK_ANSI_E),
            event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command],
@@ -329,22 +367,23 @@ final class RadialMenuView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard presentationMode == .editor else { return [] }
+        guard presentationMode == .editor, allowsEditing else { return [] }
         return dropOperation(for: sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard presentationMode == .editor else { return [] }
+        guard presentationMode == .editor, allowsEditing else { return [] }
         return dropOperation(for: sender)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
-        guard presentationMode == .editor else { return }
+        guard presentationMode == .editor, allowsEditing else { return }
         updateHover(at: nil)
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard presentationMode == .editor,
+              allowsEditing,
               let index = updateDropTarget(sender) else {
             return false
         }
@@ -478,7 +517,7 @@ final class RadialMenuView: NSView {
     }
 
     private func rebuildEditButtons() {
-        guard presentationMode == .editor else { return }
+        guard presentationMode == .editor, allowsEditing else { return }
         for button in editButtons.values {
             button.removeFromSuperview()
         }
@@ -528,7 +567,7 @@ final class RadialMenuView: NSView {
     }
 
     private func layoutEditButtons() {
-        guard presentationMode == .editor else { return }
+        guard presentationMode == .editor, allowsEditing else { return }
         for (index, button) in editButtons {
             button.frame = editorEditButtonRect(at: index)
         }
@@ -538,6 +577,7 @@ final class RadialMenuView: NSView {
     /// place lets mouse-event fallbacks and UI tests follow the native button.
     func editorEditButtonRect(at index: Int) -> NSRect {
         guard presentationMode == .editor,
+              allowsEditing,
               slots.indices.contains(index),
               slots[index].item != nil else {
             return .zero
@@ -608,7 +648,7 @@ final class RadialMenuView: NSView {
     }
 
     private var noSelectionAccessibilityValue: String {
-        presentationMode == .editor ? "No Slot selected" : "No Menu Item selected"
+        presentationMode == .runtime ? "No Menu Item selected" : "No Slot selected"
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -708,7 +748,7 @@ final class RadialMenuView: NSView {
                 withAttributes: attributes
             )
 
-            if presentationMode == .editor, selectedIndex == index, slot.isEmpty {
+            if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
                 let hint = "DROP HERE" as NSString
                 let hintAttributes: [NSAttributedString.Key: Any] = [
                     .font: NSFont.systemFont(ofSize: 9, weight: .bold),

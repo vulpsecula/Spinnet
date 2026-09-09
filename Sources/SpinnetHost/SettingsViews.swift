@@ -256,25 +256,31 @@ final class SettingsWindowModel: ObservableObject {
     @Published var appearanceTheme: String {
         willSet { recordAppearanceWillChange() }
         didSet {
-            defaults.set(appearanceTheme, forKey: "appearance.theme")
+            defaults.set(appearanceTheme, forKey: MenuAppearanceConfiguration.themeDefaultsKey)
             recordAppearanceDidChange()
-            onAppearanceChanged?(appearanceConfiguration)
+            if !suppressAppearanceNotifications {
+                onAppearanceChanged?(appearanceConfiguration)
+            }
         }
     }
     @Published var appearanceAccent: String {
         willSet { recordAppearanceWillChange() }
         didSet {
-            defaults.set(appearanceAccent, forKey: "appearance.accent")
+            defaults.set(appearanceAccent, forKey: MenuAppearanceConfiguration.accentDefaultsKey)
             recordAppearanceDidChange()
-            onAppearanceChanged?(appearanceConfiguration)
+            if !suppressAppearanceNotifications {
+                onAppearanceChanged?(appearanceConfiguration)
+            }
         }
     }
     @Published var appearanceMenuSize: String {
         willSet { recordAppearanceWillChange() }
         didSet {
-            defaults.set(appearanceMenuSize, forKey: "appearance.menu-size")
+            defaults.set(appearanceMenuSize, forKey: MenuAppearanceConfiguration.menuSizeDefaultsKey)
             recordAppearanceDidChange()
-            onAppearanceChanged?(appearanceConfiguration)
+            if !suppressAppearanceNotifications {
+                onAppearanceChanged?(appearanceConfiguration)
+            }
         }
     }
 
@@ -297,6 +303,7 @@ final class SettingsWindowModel: ObservableObject {
     private var appearanceUndoHistory: [AppearanceHistoryEntry] = []
     private var appearanceRedoHistory: [AppearanceHistoryEntry] = []
     private var applyingAppearanceHistory = false
+    private var suppressAppearanceNotifications = false
     private var lastAppearanceBeforeMutation: MenuAppearanceConfiguration?
 
     private enum Keys {
@@ -330,9 +337,11 @@ final class SettingsWindowModel: ObservableObject {
         triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
         triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
         mouseInputConflicts = mouseInputConflictCheck(triggerConfiguration.mouseButton)
-        appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
-        appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
-        appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
+        let savedAppearance = MenuAppearanceConfiguration(defaults: defaults)
+        savedAppearance.save(to: defaults)
+        appearanceTheme = savedAppearance.theme
+        appearanceAccent = savedAppearance.accent
+        appearanceMenuSize = savedAppearance.menuSize
         clipboardCollectionEnabled = defaults.bool(forKey: Keys.clipboardCollectionEnabled)
         clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
@@ -417,13 +426,27 @@ final class SettingsWindowModel: ObservableObject {
         refreshAppearanceUndoState()
     }
 
+    func resetAppearance() {
+        let before = appearanceConfiguration
+        let after = MenuAppearanceConfiguration.defaultConfiguration
+        guard before != after else { return }
+
+        applyAppearance(after)
+        appearanceUndoHistory.append(AppearanceHistoryEntry(before: before, after: after))
+        appearanceRedoHistory.removeAll()
+        refreshAppearanceUndoState()
+    }
+
     private func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        suppressAppearanceNotifications = true
         applyingAppearanceHistory = true
         appearanceTheme = appearance.theme
         appearanceAccent = appearance.accent
         appearanceMenuSize = appearance.menuSize
         applyingAppearanceHistory = false
+        suppressAppearanceNotifications = false
         lastAppearanceBeforeMutation = nil
+        onAppearanceChanged?(appearance)
     }
 
     var clipboardCollectionStatus: String {
@@ -978,11 +1001,11 @@ struct SettingsRootView: View {
     private var editorMode: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(model.page == .menu ? "Menu Editor" : "Menu Preview")
+                Text("Editor Mode")
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
                     ? "Left-click a Slot to focus it; use its Edit button, double-click, or Command-E to configure an item. Right-click for details. Actions never run here."
-                    : "Preview appearance changes. Actions never run here.")
+                    : "Appearance changes are shown here. Actions and Menu edits are disabled.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1005,13 +1028,16 @@ struct SettingsRootView: View {
                     slots: model.menuSlots,
                     selectedIndex: model.selectedMenuIndex,
                     appearance: model.appearanceConfiguration,
+                    mode: .editor,
+                    allowsEditing: model.page == .menu,
                     onSelection: model.selectMenuItem,
                     onEdit: model.requestEdit,
                     onSlotDelete: { _ = model.deleteSlot(at: $0) },
                     onPresetDrop: model.placePreset,
                     onMenuItemDrop: model.moveMenuItem
                 )
-                .frame(width: 324, height: 324)
+                .id(model.page)
+                .frame(width: menuEditorDiameter, height: menuEditorDiameter)
             }
             .frame(width: 354, height: 354)
             .frame(maxWidth: .infinity)
@@ -1137,6 +1163,12 @@ struct SettingsRootView: View {
         .accessibilityLabel("Menu Trigger")
     }
 
+    private var menuEditorDiameter: CGFloat {
+        model.appearanceConfiguration
+            .layout(slotCount: model.menuSlots.count)
+            .contentDiameter
+    }
+
     private func openAccessibilitySettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
         _ = openURL(url)
@@ -1163,7 +1195,8 @@ struct SettingsRootView: View {
                     canUndo: model.canUndoAppearance,
                     canRedo: model.canRedoAppearance,
                     undo: model.undoAppearance,
-                    redo: model.redoAppearance
+                    redo: model.redoAppearance,
+                    reset: model.resetAppearance
                 )
             case .privacyAndPermissions:
                 PrivacySettingsView(
@@ -1240,6 +1273,8 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let slots: [MenuSlotPresentation]
     let selectedIndex: Int
     let appearance: MenuAppearanceConfiguration
+    let mode: RadialMenuPresentationMode
+    let allowsEditing: Bool
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
@@ -1247,26 +1282,38 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let onMenuItemDrop: (Int, Int) -> Bool
 
     func makeNSView(context: Context) -> RadialMenuView {
-        let view = RadialMenuView(slots: slots, mode: .editor)
-        view.onEditorSelection = onSelection
-        view.onEditorEditRequested = onEdit
-        view.onEditorSlotDeleteRequested = onSlotDelete
-        view.onPresetDrop = onPresetDrop
-        view.onMenuItemDrop = onMenuItemDrop
+        let view = RadialMenuView(
+            slots: slots,
+            mode: mode,
+            allowsEditing: allowsEditing
+        )
+        applyCallbacks(to: view)
         view.applyAppearance(appearance)
         view.selectEditorItem(at: selectedIndex)
         return view
     }
 
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
-        nsView.onEditorSelection = onSelection
-        nsView.onEditorEditRequested = onEdit
-        nsView.onEditorSlotDeleteRequested = onSlotDelete
-        nsView.onPresetDrop = onPresetDrop
-        nsView.onMenuItemDrop = onMenuItemDrop
+        applyCallbacks(to: nsView)
         nsView.reload(slots: slots)
         nsView.applyAppearance(appearance)
         nsView.selectEditorItem(at: selectedIndex)
+    }
+
+    private func applyCallbacks(to view: RadialMenuView) {
+        guard mode == .editor, allowsEditing else {
+            view.onEditorSelection = nil
+            view.onEditorEditRequested = nil
+            view.onEditorSlotDeleteRequested = nil
+            view.onPresetDrop = nil
+            view.onMenuItemDrop = nil
+            return
+        }
+        view.onEditorSelection = onSelection
+        view.onEditorEditRequested = onEdit
+        view.onEditorSlotDeleteRequested = onSlotDelete
+        view.onPresetDrop = onPresetDrop
+        view.onMenuItemDrop = onMenuItemDrop
     }
 }
 
@@ -2194,7 +2241,7 @@ private struct AppearanceSettingsView: View {
     let canRedo: Bool
     let undo: () -> Void
     let redo: () -> Void
-    private let accents = ["System", "Blue", "Purple", "Pink", "Orange", "Green"]
+    let reset: () -> Void
 
     var body: some View {
         ScrollView {
@@ -2203,9 +2250,9 @@ private struct AppearanceSettingsView: View {
 
                 settingsSection(title: "Theme", description: "Follow macOS or choose a fixed appearance.") {
                     Picker("Theme", selection: $theme) {
-                        Text("System").tag("System")
-                        Text("Light").tag("Light")
-                        Text("Dark").tag("Dark")
+                        ForEach(MenuAppearanceConfiguration.themeOptions, id: \.self) { value in
+                            Text(value).tag(value)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -2215,7 +2262,7 @@ private struct AppearanceSettingsView: View {
 
                 settingsSection(title: "Accent Colour", description: "Used for the selected Menu Slot and focus states.") {
                     HStack(spacing: 12) {
-                        ForEach(accents, id: \.self) { name in
+                        ForEach(MenuAppearanceConfiguration.accentOptions, id: \.self) { name in
                             Button { accent = name } label: {
                                 Circle()
                                     .fill(spinnetAccentColor(named: name))
@@ -2236,9 +2283,9 @@ private struct AppearanceSettingsView: View {
 
                 settingsSection(title: "Menu Size", description: "Uses one geometry in Editor and Runtime modes.") {
                     Picker("Menu Size", selection: $menuSize) {
-                        Text("Small").tag("Small")
-                        Text("Medium").tag("Medium")
-                        Text("Large").tag("Large")
+                        ForEach(MenuAppearanceConfiguration.menuSizeOptions, id: \.self) { value in
+                            Text(value).tag(value)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -2266,11 +2313,7 @@ private struct AppearanceSettingsView: View {
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .help("Redo Appearance change")
                     .accessibilityLabel("Redo Appearance change")
-                    Button("Reset Appearance") {
-                        theme = "System"
-                        accent = "System"
-                        menuSize = "Medium"
-                    }
+                    Button("Reset Appearance", action: reset)
                     .accessibilityLabel("Reset Appearance")
                 }
             }
@@ -2594,12 +2637,5 @@ private func spinnetAccentColor(named name: String) -> Color {
 }
 
 private func spinnetNSAccentColor(named name: String) -> NSColor {
-    switch name {
-    case "Blue": return .systemBlue
-    case "Purple": return .systemPurple
-    case "Pink": return .systemPink
-    case "Orange": return .systemOrange
-    case "Green": return .systemGreen
-    default: return .controlAccentColor
-    }
+    MenuAppearanceConfiguration(accent: name).accentColor
 }

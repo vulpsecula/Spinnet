@@ -2,6 +2,12 @@ import AppKit
 import Carbon
 import SpinnetCore
 
+struct MenuPresentationGeometrySnapshot: Equatable {
+    let layout: RadialMenuLayout
+    let overlayFrame: CGRect
+    let contentSize: CGSize
+}
+
 final class MenuPresentationController {
     private var layout: RadialMenuLayout
     private let panel: NSPanel
@@ -82,6 +88,14 @@ final class MenuPresentationController {
             appearanceConfiguration.accent,
             appearanceConfiguration.menuSize,
             layout.outerRadius
+        )
+    }
+
+    var geometrySnapshot: MenuPresentationGeometrySnapshot {
+        MenuPresentationGeometrySnapshot(
+            layout: layout,
+            overlayFrame: panel.frame,
+            contentSize: menuView.bounds.size
         )
     }
 
