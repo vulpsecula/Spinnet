@@ -75,7 +75,7 @@ the Host-rendered field kind: `text`, `multiline_text`, `toggle`, `choice`,
 `application`, `file`, `folder`, `shortcut`, `keyboard_shortcut`, or `url`.
 `choice` fields provide a non-empty `choices` array. The Host supplies native
 application/file/folder pickers and keyboard shortcut recording controls;
-plain text and URL fields include a Paste action. Manifests without `preset`
+plain text and URL fields use the standard macOS editing commands. Manifests without `preset`
 remain compatible and appear as configurable, Setup-Required Plugin Presets
 whose Primary Command is the first declared Command.
 
@@ -106,11 +106,18 @@ The supported Host Command catalogue is:
 | `service.invoke` | Service name, or `{ "name": "…", "input": "…" }` | macOS Services | service availability |
 | `shortcut.invoke` | Shortcut name, or `{ "name": "…", "input": "…" }` | Public `shortcuts` command-line interface | Shortcut availability |
 | `clipboard.copy` | `null` to copy current selected text, or legacy text string / `{ "text": "…" }` | Host clipboard | `write_clipboard`; `read_selected_text` when input is `null` |
+| `clipboard.paste` | `null` | Quartz Event Services (`Command-V`) | Accessibility System Permission |
+| `clipboard.cut` | `null` | Quartz Event Services (`Command-X`) | Accessibility System Permission |
 | `feedback.present` | message string, or `{ "message": "…" }` | Host-rendered feedback | none |
+
+For `service.invoke`, use the exact item title shown in the active application's
+Services menu. A selected text object must be present when the service expects
+text input; nested service paths use `/` separators. The Settings sheet explains
+this beside the service name field.
 
 The Host also registers standalone Built-in Presets for Open URL, Open
 Application, Open File, Open Folder, Run Shortcut, Run Keyboard Shortcut, Run
-macOS Service, and Copy Selected Text. They share the same Command catalogue
+macOS Service, Copy Selected Text, Paste, and Cut. They share the same Command catalogue
 and Settings workflow without requiring a fixture Plugin. The bundled fixture
 Plugin retains its declarations for compatibility with existing persisted
 Actions and continues to provide deterministic JavaScript examples. The

@@ -52,6 +52,8 @@ final class HostServicesTests: XCTestCase {
             .invokeService: .object(["name": .string("Copy")]),
             .invokeShortcut: .object(["name": .string("Spinnet")]),
             .copyText: .string("copied text"),
+            .pasteText: .null,
+            .cutText: .null,
             .presentFeedback: .string("fixture feedback")
         ]
 
@@ -78,6 +80,8 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(adapter.shortcuts.map { $0.0 }, ["Spinnet"])
         XCTAssertEqual(adapter.shortcuts.map { $0.1 }, [nil])
         XCTAssertEqual(adapter.copiedTexts, ["copied text"])
+        XCTAssertEqual(adapter.pasteCount, 1)
+        XCTAssertEqual(adapter.cutCount, 1)
         XCTAssertEqual(feedback, ["fixture feedback"])
     }
 
@@ -232,9 +236,43 @@ final class HostServicesTests: XCTestCase {
         XCTAssertTrue(presets.contains { $0.name == "Open File" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Open Folder" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Run Shortcut" && $0.readiness == .setupRequired })
+        XCTAssertTrue(presets.contains { $0.name == "Paste" && $0.readiness == .readyToUse })
+        XCTAssertTrue(presets.contains { $0.name == "Cut" && $0.readiness == .readyToUse })
         let copy = try XCTUnwrap(presets.first { $0.name == "Copy Selected Text" })
         XCTAssertFalse(copy.isConfigurable)
         XCTAssertEqual(copy.commands.first?.hostCommand, .copyText)
+    }
+
+    func testPasteAndCutPresetsRequireAccessibilityBeforeSendingTheEdit() throws {
+        let packages = try BuiltInPresetCatalog.makePackages()
+        let registry = PluginRegistry()
+        for package in packages { try registry.register(package) }
+        let adapter = RecordingHostCommandAdapter()
+        let executor = AppKitHostCommandExecutor(
+            adapter: adapter,
+            systemPermissionCheck: { _ in false }
+        )
+
+        for name in ["Paste", "Cut"] {
+            let preset = try XCTUnwrap(registry.menuItemPresets().first { $0.name == name })
+            let command = try XCTUnwrap(preset.commands.first)
+            let action = try ActionConfiguration(
+                id: ActionID("\(name.lowercased())-action"),
+                pluginID: preset.pluginID,
+                command: command,
+                input: .null
+            )
+
+            let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
+
+            guard case .failed(let failure) = outcome.terminal else {
+                return XCTFail("\(name) should require Accessibility")
+            }
+            XCTAssertEqual(failure.category, .systemPermissionDenied)
+        }
+
+        XCTAssertEqual(adapter.pasteCount, 0)
+        XCTAssertEqual(adapter.cutCount, 0)
     }
 
     func testKeyboardShortcutRequiresAccessibilitySystemPermission() throws {
@@ -445,6 +483,8 @@ private final class RecordingHostCommandAdapter: HostCommandAdapter {
     private(set) var services: [(String, String?)] = []
     private(set) var shortcuts: [(String, String?)] = []
     private(set) var copiedTexts: [String] = []
+    private(set) var pasteCount = 0
+    private(set) var cutCount = 0
 
     init(accepted: Bool = true) {
         self.accepted = accepted
@@ -487,6 +527,16 @@ private final class RecordingHostCommandAdapter: HostCommandAdapter {
 
     func copyText(_ text: String) -> Bool {
         copiedTexts.append(text)
+        return accepted
+    }
+
+    func pasteText() -> Bool {
+        pasteCount += 1
+        return accepted
+    }
+
+    func cutText() -> Bool {
+        cutCount += 1
         return accepted
     }
 }

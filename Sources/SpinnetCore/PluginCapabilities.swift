@@ -210,7 +210,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
     public var explanation: String {
         switch self {
         case .accessibility:
-            return "Lets Spinnet intercept the configured Side Button and read selected text for an authorized Plugin."
+            return "Lets Spinnet intercept the configured Side Button, read selected text, and send keyboard actions such as Paste or Cut."
         }
     }
 }

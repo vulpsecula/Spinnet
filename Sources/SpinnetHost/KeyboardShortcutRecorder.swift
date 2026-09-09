@@ -31,6 +31,8 @@ final class KeyboardShortcutCaptureView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var intrinsicContentSize: NSSize { NSSize(width: 164, height: 30) }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setAccessibilityElement(true)
@@ -50,24 +52,60 @@ final class KeyboardShortcutCaptureView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        guard isRecording else {
+            if isClearEvent(event) {
+                clearShortcut()
+            } else {
+                super.keyDown(with: event)
+            }
+            return
+        }
+        _ = record(event)
+    }
+
+    /// AppKit routes Command-key equivalents through this method before it
+    /// reaches `keyDown`. Without handling it here, common shortcuts such as
+    /// Command-V and Command-C are consumed by the window's edit menu and the
+    /// recorder never sees them.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isRecording else {
+            return super.performKeyEquivalent(with: event)
+        }
+        return record(event)
+    }
+
+    @discardableResult
+    private func record(_ event: NSEvent) -> Bool {
         if event.keyCode == 53 {
             isRecording = false
             needsDisplay = true
-            return
+            return true
         }
-        if event.keyCode == 51 || event.keyCode == 117 {
-            shortcut = nil
-            onChange?(nil)
-            isRecording = false
-            return
+        if isClearEvent(event) {
+            clearShortcut()
+            return true
         }
         guard let recorded = MenuKeyboardShortcut(event: event) else {
             NSSound.beep()
-            return
+            return false
         }
         shortcut = recorded
         onChange?(recorded)
         isRecording = false
+        needsDisplay = true
+        return true
+    }
+
+    private func isClearEvent(_ event: NSEvent) -> Bool {
+        guard event.keyCode == 51 || event.keyCode == 117 else { return false }
+        return event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
+    }
+
+    private func clearShortcut() {
+        shortcut = nil
+        onChange?(nil)
+        isRecording = false
+        needsDisplay = true
     }
 
     override func resignFirstResponder() -> Bool {

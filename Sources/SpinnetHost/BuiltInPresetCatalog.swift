@@ -17,6 +17,8 @@ enum BuiltInPresetCatalog {
         case .invokeKeyboardShortcut: return PluginID("com.spinnet.builtin.keyboard-shortcut")
         case .invokeService: return PluginID("com.spinnet.builtin.service")
         case .copyText: return PluginID("com.spinnet.builtin.copy-selected-text")
+        case .pasteText: return PluginID("com.spinnet.builtin.paste")
+        case .cutText: return PluginID("com.spinnet.builtin.cut")
         case .presentFeedback: return nil
         }
     }
@@ -81,6 +83,24 @@ enum BuiltInPresetCatalog {
                 commandTitle: "Copy Selected Text",
                 hostCommand: .copyText,
                 capabilities: [.readSelectedText, .writeClipboard],
+                isConfigurable: false,
+                readiness: .readyToUse
+            ),
+            try package(
+                id: PluginID("com.spinnet.builtin.paste"),
+                name: "Paste",
+                commandID: "builtin.paste",
+                commandTitle: "Paste",
+                hostCommand: .pasteText,
+                isConfigurable: false,
+                readiness: .readyToUse
+            ),
+            try package(
+                id: PluginID("com.spinnet.builtin.cut"),
+                name: "Cut",
+                commandID: "builtin.cut",
+                commandTitle: "Cut",
+                hostCommand: .cutText,
                 isConfigurable: false,
                 readiness: .readyToUse
             )

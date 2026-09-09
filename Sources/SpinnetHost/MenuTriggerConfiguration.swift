@@ -20,13 +20,15 @@ struct MenuKeyboardShortcut: Codable, Equatable {
         if flags.contains(.option) { carbonModifiers |= UInt32(optionKey) }
         if flags.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
 
-        guard carbonModifiers != 0,
-              let key = event.charactersIgnoringModifiers?.uppercased(),
-              !key.isEmpty else { return nil }
+        guard carbonModifiers != 0 else { return nil }
+
+        let key = event.charactersIgnoringModifiers?.uppercased() ?? ""
+        let displayKey = Self.displayKey(key, keyCode: event.keyCode)
+        guard !displayKey.isEmpty else { return nil }
 
         keyCode = UInt32(event.keyCode)
         modifiers = carbonModifiers
-        displayValue = Self.modifierSymbols(for: flags) + Self.displayKey(key, keyCode: event.keyCode)
+        displayValue = Self.modifierSymbols(for: flags) + displayKey
     }
 
     private static func modifierSymbols(for flags: NSEvent.ModifierFlags) -> String {
@@ -49,6 +51,31 @@ struct MenuKeyboardShortcut: Codable, Equatable {
         case kVK_RightArrow: return "→"
         case kVK_UpArrow: return "↑"
         case kVK_DownArrow: return "↓"
+        case kVK_Home: return "Home"
+        case kVK_End: return "End"
+        case kVK_PageUp: return "Page Up"
+        case kVK_PageDown: return "Page Down"
+        case kVK_Help: return "Help"
+        case kVK_F1: return "F1"
+        case kVK_F2: return "F2"
+        case kVK_F3: return "F3"
+        case kVK_F4: return "F4"
+        case kVK_F5: return "F5"
+        case kVK_F6: return "F6"
+        case kVK_F7: return "F7"
+        case kVK_F8: return "F8"
+        case kVK_F9: return "F9"
+        case kVK_F10: return "F10"
+        case kVK_F11: return "F11"
+        case kVK_F12: return "F12"
+        case kVK_F13: return "F13"
+        case kVK_F14: return "F14"
+        case kVK_F15: return "F15"
+        case kVK_F16: return "F16"
+        case kVK_F17: return "F17"
+        case kVK_F18: return "F18"
+        case kVK_F19: return "F19"
+        case kVK_F20: return "F20"
         default: return key
         }
     }

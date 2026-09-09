@@ -31,6 +31,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case invokeService = "service.invoke"
     case invokeShortcut = "shortcut.invoke"
     case copyText = "clipboard.copy"
+    case pasteText = "clipboard.paste"
+    case cutText = "clipboard.cut"
     case presentFeedback = "feedback.present"
 
     /// A protected Host Command is still declarative, but it must pass through
@@ -46,7 +48,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
 
     public var requiredSystemPermission: PluginSystemPermission? {
         switch self {
-        case .invokeKeyboardShortcut:
+        case .invokeKeyboardShortcut, .pasteText, .cutText:
             return .accessibility
         default:
             return nil
@@ -66,11 +68,15 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .invokeKeyboardShortcut:
             return "{\"key\":\"P\",\"modifiers\":[\"command\",\"shift\"]}"
         case .invokeService:
-            return "macOS Service name"
+            return "Exact title from the active app's Services menu"
         case .invokeShortcut:
             return "Shortcut name"
         case .copyText:
             return "Uses the current selected text"
+        case .pasteText:
+            return "Pastes the current clipboard into the focused app"
+        case .cutText:
+            return "Cuts the current selection in the focused app"
         case .presentFeedback:
             return "Feedback message"
         }
@@ -129,7 +135,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
                 title: "macOS Service",
                 placeholder: inputPlaceholder
             )
-        case .copyText:
+        case .copyText, .pasteText, .cutText:
             return nil
         }
     }
@@ -170,6 +176,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             // string/object forms remain accepted for backwards compatibility
             // with persisted Actions created before the Built-in Preset.
             return input == .null || containsStringValue(from: input, keys: ["text"])
+        case .pasteText, .cutText:
+            return input == .null
         case .presentFeedback:
             return stringValue(from: input, keys: ["message", "text"]) != nil
         }

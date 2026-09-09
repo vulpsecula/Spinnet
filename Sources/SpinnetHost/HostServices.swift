@@ -31,6 +31,8 @@ protocol HostCommandAdapter {
     func invokeService(name: String, input: String?) -> Bool
     func invokeShortcut(name: String, input: String?) -> Bool
     func copyText(_ text: String) -> Bool
+    func pasteText() -> Bool
+    func cutText() -> Bool
 }
 
 struct HostKeyboardShortcut: Equatable, Hashable {
@@ -158,6 +160,21 @@ final class AppKitHostCommandAdapter: HostCommandAdapter {
         let pasteboard = NSPasteboard.general
         guard pasteboard.clearContents() != 0 else { return false }
         return pasteboard.setString(text, forType: .string)
+    }
+
+    func pasteText() -> Bool {
+        invokeKeyboardShortcut(Self.commandShortcut(for: UInt16(kVK_ANSI_V)))
+    }
+
+    func cutText() -> Bool {
+        invokeKeyboardShortcut(Self.commandShortcut(for: UInt16(kVK_ANSI_X)))
+    }
+
+    private static func commandShortcut(for keyCode: UInt16) -> HostKeyboardShortcut {
+        HostKeyboardShortcut(
+            keyCode: keyCode,
+            modifiers: UInt64(CGEventFlags.maskCommand.rawValue)
+        )
     }
 
     private func fileURL(for path: String) -> URL {
@@ -318,6 +335,16 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 throw HostCommandExecutionError.failed("The clipboard could not be updated")
             }
             return .object(["copied": .string(text)])
+        case .pasteText:
+            guard adapter.pasteText() else {
+                throw HostCommandExecutionError.failed("The clipboard could not be pasted")
+            }
+            return .object(["pasted": .bool(true)])
+        case .cutText:
+            guard adapter.cutText() else {
+                throw HostCommandExecutionError.failed("The selection could not be cut")
+            }
+            return .object(["cut": .bool(true)])
         case .presentFeedback:
             let message = try requiredString(
                 from: action.input,

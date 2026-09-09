@@ -73,6 +73,8 @@ final class ManifestAndConfigurationTests: XCTestCase {
             {"id": "fixture.service", "title": "Service", "execution": "host", "host_command": "service.invoke"},
             {"id": "fixture.shortcut", "title": "Shortcut", "execution": "host", "host_command": "shortcut.invoke"},
             {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.copy"},
+            {"id": "fixture.paste", "title": "Paste", "execution": "host", "host_command": "clipboard.paste"},
+            {"id": "fixture.cut", "title": "Cut", "execution": "host", "host_command": "clipboard.cut"},
             {"id": "fixture.feedback", "title": "Feedback", "execution": "host", "host_command": "feedback.present"}
           ]
         }
@@ -80,10 +82,13 @@ final class ManifestAndConfigurationTests: XCTestCase {
 
         XCTAssertEqual(manifest.commands.map(\.hostCommand), [
             .openApplication, .openFile, .openFolder, .invokeKeyboardShortcut,
-            .invokeService, .invokeShortcut, .copyText, .presentFeedback
+            .invokeService, .invokeShortcut, .copyText, .pasteText, .cutText,
+            .presentFeedback
         ])
         XCTAssertEqual(HostCommand.copyText.requiredCapability, .writeClipboard)
         XCTAssertEqual(HostCommand.invokeKeyboardShortcut.requiredSystemPermission, .accessibility)
+        XCTAssertEqual(HostCommand.pasteText.requiredSystemPermission, .accessibility)
+        XCTAssertEqual(HostCommand.cutText.requiredSystemPermission, .accessibility)
         XCTAssertTrue(HostCommand.openApplication.isValidInput(.string("com.apple.TextEdit")))
         XCTAssertTrue(HostCommand.openFile.isValidInput(.object(["path": .string("/tmp/file")])))
         XCTAssertTrue(HostCommand.invokeKeyboardShortcut.isValidInput(.object([
@@ -105,6 +110,8 @@ final class ManifestAndConfigurationTests: XCTestCase {
         )
         XCTAssertNil(HostCommand.copyText.configurationField)
         XCTAssertTrue(HostCommand.copyText.isValidInput(.null))
+        XCTAssertTrue(HostCommand.pasteText.isValidInput(.null))
+        XCTAssertTrue(HostCommand.cutText.isValidInput(.null))
     }
 
     func testCommandConfigurationFieldRoundTripsAndSupportsMultilineText() throws {

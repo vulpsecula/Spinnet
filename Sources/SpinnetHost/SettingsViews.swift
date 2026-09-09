@@ -1514,7 +1514,7 @@ private struct SlotConfigurationSheet: View {
             )
             .accessibilityLabel("\(command.title) configuration input")
         case .multilineText:
-            PasteableTextEditor(
+            ConfigurationTextEditor(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
             )
@@ -1536,14 +1536,25 @@ private struct SlotConfigurationSheet: View {
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                PasteableTextField(
+                ConfigurationTextField(
                     text: inputBinding(for: command.id),
                     placeholder: parameterPlaceholder(for: command)
                 )
                 .accessibilityLabel("\(command.title) configuration input")
             }
-        case .text, .url:
-            PasteableTextField(
+        case .text:
+            if command.hostCommand == .invokeService {
+                ServiceNameField(value: inputBinding(for: command.id))
+                    .accessibilityLabel("\(command.title) configuration input")
+            } else {
+                ConfigurationTextField(
+                    text: inputBinding(for: command.id),
+                    placeholder: parameterPlaceholder(for: command)
+                )
+                .accessibilityLabel("\(command.title) configuration input")
+            }
+        case .url:
+            ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
             )
@@ -1932,20 +1943,27 @@ private struct SlotConfigurationSheet: View {
     }
 }
 
-private struct PasteableTextField: View {
+private struct ConfigurationTextField: View {
     @Binding var text: String
     let placeholder: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            TextField(placeholder, text: $text)
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.roundedBorder)
+    }
+}
+
+private struct ServiceNameField: View {
+    @Binding var value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            TextField("Service name from the active app's Services menu", text: $value)
                 .textFieldStyle(.roundedBorder)
-            Button("Paste") {
-                guard let pasted = NSPasteboard.general.string(forType: .string) else { return }
-                text = pasted
-            }
-            .controlSize(.small)
-            .accessibilityLabel("Paste into configuration field")
+            Text("Use the exact title shown in the target app's Services menu. Select text in that app first; submenu entries use slash separators.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1958,7 +1976,7 @@ private struct PermissionGuideBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Spinnet Permissions", systemImage: "hand.raised")
                 .font(.headline)
-            Text("Enable Accessibility for mouse triggers, or continue and grant it later in Privacy & Permissions.")
+            Text("Enable Accessibility for mouse triggers, keyboard shortcuts, Paste, and Cut, or continue and grant it later in Privacy & Permissions.")
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
@@ -1983,7 +2001,7 @@ private struct PermissionGuideBanner: View {
     }
 }
 
-private struct PasteableTextEditor: View {
+private struct ConfigurationTextEditor: View {
     @Binding var text: String
     let placeholder: String
 
@@ -2010,15 +2028,6 @@ private struct PasteableTextEditor: View {
                         .allowsHitTesting(false)
                 }
             }
-            HStack {
-                Spacer()
-                Button("Paste") {
-                    guard let pasted = NSPasteboard.general.string(forType: .string) else { return }
-                    text = pasted
-                }
-                .controlSize(.small)
-                .accessibilityLabel("Paste into configuration field")
-            }
         }
     }
 }
@@ -2031,13 +2040,6 @@ private struct ResourcePathField: View {
         HStack(spacing: 8) {
             TextField(kind.title, text: $value)
                 .textFieldStyle(.roundedBorder)
-            Button("Paste") {
-                if let pasted = NSPasteboard.general.string(forType: .string) {
-                    value = pasted
-                }
-            }
-            .controlSize(.small)
-            .accessibilityLabel("Paste into (kind.title) field")
             Button("Choose…", action: chooseResource)
                 .controlSize(.small)
                 .accessibilityLabel("Choose \(kind.title)")
@@ -2068,13 +2070,6 @@ private struct ShortcutNameField: View {
         HStack(spacing: 8) {
             TextField("Shortcut name", text: $value)
                 .textFieldStyle(.roundedBorder)
-            Button("Paste") {
-                if let pasted = NSPasteboard.general.string(forType: .string) {
-                    value = pasted
-                }
-            }
-            .controlSize(.small)
-            .accessibilityLabel("Paste into Shortcut field")
             Menu("Choose…") {
                 if isLoading {
                     Text("Loading Shortcuts…")
