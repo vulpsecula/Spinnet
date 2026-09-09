@@ -241,6 +241,37 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
+    func testVirtualMenuPreviewUsesThemeSpecificBackgroundAndLargerScale() throws {
+        let view = RadialMenuView(
+            items: [],
+            mode: .editor,
+            allowsEditing: false,
+            previewScale: 1.16,
+            showsPreviewBackground: true
+        )
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+
+        view.applyAppearance(MenuAppearanceConfiguration(theme: "Light"))
+        let light = try render(view).colorAt(
+            x: Int(view.bounds.midX),
+            y: 2
+        )
+        view.applyAppearance(MenuAppearanceConfiguration(theme: "Dark"))
+        let dark = try render(view).colorAt(
+            x: Int(view.bounds.midX),
+            y: 2
+        )
+
+        XCTAssertGreaterThan(view.geometryLayout.outerRadius, 142)
+        XCTAssertGreaterThan(colorDistance(try XCTUnwrap(light), try XCTUnwrap(dark)), 0.2)
+    }
+
     func testEditorMenuSelectsSlotsWithoutExecutingActions() throws {
         let actionID = ActionID("editor-action")
         let item = MenuItemPresentation(
@@ -704,11 +735,13 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
         model.appearanceFont = "Monospaced"
+        model.appearanceFontWeight = "Bold"
 
         XCTAssertEqual(runtimeMenu.presentationSnapshot.theme, "Dark")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.accent, "Purple")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.menuSize, "Large")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.font, "Monospaced")
+        XCTAssertEqual(runtimeMenu.presentationSnapshot.fontWeight, "Bold")
         XCTAssertGreaterThan(runtimeMenu.presentationSnapshot.outerRadius, 142)
     }
 
@@ -723,6 +756,14 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertFalse(wrapped.text.contains("…"))
         XCTAssertGreaterThanOrEqual(wrapped.font.pointSize, 10)
 
+        let singleWord = MenuTitleLayoutEngine.layout(
+            title: "Fixture",
+            maxWidth: 36,
+            baseSize: 10,
+            font: .system
+        )
+        XCTAssertFalse(singleWord.text.contains("\n"))
+
         let system = MenuTitleLayoutEngine.layout(
             title: "Open",
             maxWidth: 80,
@@ -736,6 +777,22 @@ final class SettingsWindowControllerTests: XCTestCase {
             font: .monospaced
         )
         XCTAssertNotEqual(system.font.fontName, monospaced.font.fontName)
+
+        let regular = MenuTitleLayoutEngine.layout(
+            title: "Open",
+            maxWidth: 80,
+            baseSize: 13,
+            font: .system,
+            weight: .regular
+        )
+        let bold = MenuTitleLayoutEngine.layout(
+            title: "Open",
+            maxWidth: 80,
+            baseSize: 13,
+            font: .system,
+            weight: .bold
+        )
+        XCTAssertNotEqual(regular.font.fontDescriptor, bold.font.fontDescriptor)
     }
 
     func testMenuThemeDoesNotOverrideSettingsWindowAppearance() throws {
@@ -890,7 +947,9 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
         model.appearanceFont = "Monospaced"
+        model.appearanceFontWeight = "Bold"
         XCTAssertTrue(model.canUndoAppearance)
+        model.undoAppearance()
         model.undoAppearance()
         model.undoAppearance()
         model.undoAppearance()
@@ -901,10 +960,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.redoAppearance()
         model.redoAppearance()
         model.redoAppearance()
+        model.redoAppearance()
         XCTAssertEqual(model.appearanceConfiguration.theme, "Dark")
         XCTAssertEqual(model.appearanceConfiguration.accent, "Purple")
         XCTAssertEqual(model.appearanceConfiguration.menuSize, "Large")
         XCTAssertEqual(model.appearanceConfiguration.font, "Monospaced")
+        XCTAssertEqual(model.appearanceConfiguration.fontWeight, "Bold")
 
         model.clipboardCollectionEnabled = true
         model.clipboardCollectionPaused = true
@@ -943,6 +1004,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
         model.appearanceFont = "Monospaced"
+        model.appearanceFontWeight = "Bold"
         let customized = model.appearanceConfiguration
 
         model.resetAppearance()
@@ -952,6 +1014,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "System")
         XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Medium")
         XCTAssertEqual(defaults.string(forKey: "appearance.font"), "System")
+        XCTAssertEqual(defaults.string(forKey: "appearance.font-weight"), "Semibold")
 
         model.undoAppearance()
 
@@ -1633,7 +1696,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             "appearance.theme",
             "appearance.accent",
             "appearance.menu-size",
-            "appearance.font"
+            "appearance.font",
+            "appearance.font-weight"
         ]
         let originalAppearance = Dictionary(uniqueKeysWithValues: appearanceKeys.map { ($0, defaults.object(forKey: $0)) })
         if let theme = ProcessInfo.processInfo.environment["SPINNET_UI_THEME"] {
@@ -1647,6 +1711,9 @@ final class SettingsWindowControllerTests: XCTestCase {
         }
         if let font = ProcessInfo.processInfo.environment["SPINNET_UI_FONT"] {
             defaults.set(font, forKey: "appearance.font")
+        }
+        if let fontWeight = ProcessInfo.processInfo.environment["SPINNET_UI_FONT_WEIGHT"] {
+            defaults.set(fontWeight, forKey: "appearance.font-weight")
         }
         defer {
             for key in appearanceKeys {
@@ -1707,15 +1774,18 @@ final class SettingsWindowControllerTests: XCTestCase {
         model.appearanceAccent = "Purple"
         model.appearanceMenuSize = "Large"
         model.appearanceFont = "Monospaced"
+        model.appearanceFontWeight = "Bold"
 
         XCTAssertEqual(appliedAppearance?.theme, "Dark")
         XCTAssertEqual(appliedAppearance?.accent, "Purple")
         XCTAssertEqual(appliedAppearance?.menuSize, "Large")
         XCTAssertEqual(appliedAppearance?.font, "Monospaced")
+        XCTAssertEqual(appliedAppearance?.fontWeight, "Bold")
         XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "Dark")
         XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "Purple")
         XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Large")
         XCTAssertEqual(defaults.string(forKey: "appearance.font"), "Monospaced")
+        XCTAssertEqual(defaults.string(forKey: "appearance.font-weight"), "Bold")
 
         let restored = SettingsWindowModel(
             editor: editor,
@@ -1726,6 +1796,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(restored.appearanceAccent, "Purple")
         XCTAssertEqual(restored.appearanceMenuSize, "Large")
         XCTAssertEqual(restored.appearanceFont, "Monospaced")
+        XCTAssertEqual(restored.appearanceFontWeight, "Bold")
     }
 
     func testMenuTriggerDefaultsToMouseSideButtonWithoutAKeyboardShortcut() throws {

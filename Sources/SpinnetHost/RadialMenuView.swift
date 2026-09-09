@@ -49,6 +49,8 @@ final class RadialMenuView: NSView {
     private var slots: [MenuSlotPresentation]
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
+    private let previewScale: CGFloat
+    private let showsPreviewBackground: Bool
     private var appearanceConfiguration = MenuAppearanceConfiguration()
     private var trackingArea: NSTrackingArea?
     private var editorMouseDownIndex: Int?
@@ -81,12 +83,21 @@ final class RadialMenuView: NSView {
     init(
         slots: [MenuSlotPresentation],
         mode: RadialMenuPresentationMode = .runtime,
-        allowsEditing: Bool = true
+        allowsEditing: Bool = true,
+        previewScale: CGFloat = 1,
+        showsPreviewBackground: Bool = false
     ) {
         self.slots = slots
         self.presentationMode = mode
         self.allowsEditing = allowsEditing
-        let layout = RadialMenuLayout(itemCount: max(slots.count, 1))
+        self.previewScale = max(previewScale, 0.1)
+        self.showsPreviewBackground = showsPreviewBackground
+        let layout = RadialMenuLayout(
+            itemCount: max(slots.count, 1),
+            innerRadius: 38 * self.previewScale,
+            outerRadius: 142 * self.previewScale,
+            itemCenterRadius: 90 * self.previewScale
+        )
         self.layout = layout
         super.init(
             frame: CGRect(
@@ -133,12 +144,16 @@ final class RadialMenuView: NSView {
     convenience init(
         items: [MenuItemPresentation],
         mode: RadialMenuPresentationMode = .runtime,
-        allowsEditing: Bool = true
+        allowsEditing: Bool = true,
+        previewScale: CGFloat = 1,
+        showsPreviewBackground: Bool = false
     ) {
         self.init(
             slots: items.map(MenuSlotPresentation.occupied),
             mode: mode,
-            allowsEditing: allowsEditing
+            allowsEditing: allowsEditing,
+            previewScale: previewScale,
+            showsPreviewBackground: showsPreviewBackground
         )
     }
 
@@ -163,7 +178,7 @@ final class RadialMenuView: NSView {
 
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
-        layout = appearanceConfiguration.layout(slotCount: slots.count)
+        layout = previewLayout(for: appearanceConfiguration)
         setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
         clearSelection()
         rebuildEditButtons()
@@ -177,7 +192,8 @@ final class RadialMenuView: NSView {
     func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
         appearanceConfiguration = appearance
         editorAccentColor = appearance.accentColor
-        layout = appearance.layout(slotCount: slots.count)
+        self.appearance = appearance.appearance
+        layout = previewLayout(for: appearance)
         setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
         layoutEditButtons()
         needsDisplay = true
@@ -188,6 +204,17 @@ final class RadialMenuView: NSView {
     /// snapshot so Editor and Runtime can be verified at their boundary.
     var geometryLayout: RadialMenuLayout {
         layout
+    }
+
+    private func previewLayout(for appearance: MenuAppearanceConfiguration) -> RadialMenuLayout {
+        let baseLayout = appearance.layout(slotCount: slots.count)
+        guard previewScale != 1 else { return baseLayout }
+        return RadialMenuLayout(
+            itemCount: baseLayout.itemCount,
+            innerRadius: baseLayout.innerRadius * previewScale,
+            outerRadius: baseLayout.outerRadius * previewScale,
+            itemCenterRadius: baseLayout.itemCenterRadius * previewScale
+        )
     }
 
     func selectEditorItem(at index: Int) {
@@ -656,6 +683,9 @@ final class RadialMenuView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         dirtyRect.fill()
+        if showsPreviewBackground {
+            drawPreviewBackground()
+        }
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let step = 360 / CGFloat(layout.itemCount)
 
@@ -726,7 +756,8 @@ final class RadialMenuView: NSView {
                 title: title,
                 maxWidth: titleWidth,
                 baseSize: titleFontSize,
-                font: appearanceConfiguration.menuFont
+                font: appearanceConfiguration.menuFont,
+                weight: appearanceConfiguration.menuFontWeight
             )
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
@@ -790,6 +821,42 @@ final class RadialMenuView: NSView {
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
         )
+    }
+
+    private func drawPreviewBackground() {
+        let rect = bounds.insetBy(dx: 1, dy: 1)
+        let path = NSBezierPath(
+            roundedRect: rect,
+            xRadius: min(28, rect.width / 2),
+            yRadius: min(28, rect.height / 2)
+        )
+        previewBackgroundColor.setFill()
+        path.fill()
+        previewBorderColor.setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    private var previewBackgroundColor: NSColor {
+        switch MenuAppearanceConfiguration.Theme(rawValue: appearanceConfiguration.theme) ?? .system {
+        case .system:
+            return NSColor.controlBackgroundColor
+        case .light:
+            return NSColor(calibratedRed: 0.94, green: 0.96, blue: 0.99, alpha: 1)
+        case .dark:
+            return NSColor(calibratedRed: 0.11, green: 0.13, blue: 0.17, alpha: 1)
+        }
+    }
+
+    private var previewBorderColor: NSColor {
+        switch MenuAppearanceConfiguration.Theme(rawValue: appearanceConfiguration.theme) ?? .system {
+        case .system:
+            return NSColor.separatorColor
+        case .light:
+            return NSColor(calibratedRed: 0.55, green: 0.61, blue: 0.72, alpha: 0.7)
+        case .dark:
+            return NSColor(calibratedRed: 0.64, green: 0.70, blue: 0.82, alpha: 0.48)
+        }
     }
 
 }

@@ -82,6 +82,7 @@ final class MenuPresentationController {
         accent: String,
         menuSize: String,
         font: String,
+        fontWeight: String,
         outerRadius: CGFloat
     ) {
         (
@@ -89,6 +90,7 @@ final class MenuPresentationController {
             appearanceConfiguration.accent,
             appearanceConfiguration.menuSize,
             appearanceConfiguration.font,
+            appearanceConfiguration.fontWeight,
             layout.outerRadius
         )
     }

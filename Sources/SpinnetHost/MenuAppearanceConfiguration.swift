@@ -37,17 +37,55 @@ struct MenuAppearanceConfiguration: Equatable {
         case serif = "Serif"
         case monospaced = "Monospaced"
 
-        func makeFont(ofSize size: CGFloat, weight: NSFont.Weight = .semibold) -> NSFont {
-            let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
+        func makeFont(
+            ofSize size: CGFloat,
+            weight: MenuFontWeight = .semibold
+        ) -> NSFont {
+            let systemFont = NSFont.systemFont(ofSize: size, weight: weight.nsWeight)
             switch self {
             case .system:
                 return systemFont
             case .rounded:
-                return NSFont(name: "Avenir Next Demi Bold", size: size) ?? systemFont
+                return NSFontManager.shared.font(
+                    withFamily: "Avenir Next",
+                    traits: [],
+                    weight: weight.fontManagerWeight,
+                    size: size
+                ) ?? systemFont
             case .serif:
-                return NSFont(name: "Georgia-Bold", size: size) ?? systemFont
+                return NSFontManager.shared.font(
+                    withFamily: "Georgia",
+                    traits: [],
+                    weight: weight.fontManagerWeight,
+                    size: size
+                ) ?? systemFont
             case .monospaced:
-                return NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+                return NSFont.monospacedSystemFont(ofSize: size, weight: weight.nsWeight)
+            }
+        }
+    }
+
+    enum MenuFontWeight: String, CaseIterable, Hashable {
+        case regular = "Regular"
+        case medium = "Medium"
+        case semibold = "Semibold"
+        case bold = "Bold"
+
+        var nsWeight: NSFont.Weight {
+            switch self {
+            case .regular: return .regular
+            case .medium: return .medium
+            case .semibold: return .semibold
+            case .bold: return .bold
+            }
+        }
+
+        var fontManagerWeight: Int {
+            switch self {
+            case .regular: return 4
+            case .medium: return 6
+            case .semibold: return 8
+            case .bold: return 9
             }
         }
     }
@@ -57,27 +95,32 @@ struct MenuAppearanceConfiguration: Equatable {
     static let accentOptions = Accent.allCases.map(\.rawValue)
     static let menuSizeOptions = Size.allCases.map(\.rawValue)
     static let fontOptions = MenuFont.allCases.map(\.rawValue)
+    static let fontWeightOptions = MenuFontWeight.allCases.map(\.rawValue)
 
     static let themeDefaultsKey = "appearance.theme"
     static let accentDefaultsKey = "appearance.accent"
     static let menuSizeDefaultsKey = "appearance.menu-size"
     static let fontDefaultsKey = "appearance.font"
+    static let fontWeightDefaultsKey = "appearance.font-weight"
 
     let theme: String
     let accent: String
     let menuSize: String
     let font: String
+    let fontWeight: String
 
     init(
         theme: String = Theme.system.rawValue,
         accent: String = Accent.system.rawValue,
         menuSize: String = Size.medium.rawValue,
-        font: String = MenuFont.system.rawValue
+        font: String = MenuFont.system.rawValue,
+        fontWeight: String = MenuFontWeight.semibold.rawValue
     ) {
         self.theme = Theme(rawValue: theme)?.rawValue ?? Theme.system.rawValue
         self.accent = Accent(rawValue: accent)?.rawValue ?? Accent.system.rawValue
         self.menuSize = Size(rawValue: menuSize)?.rawValue ?? Size.medium.rawValue
         self.font = MenuFont(rawValue: font)?.rawValue ?? MenuFont.system.rawValue
+        self.fontWeight = MenuFontWeight(rawValue: fontWeight)?.rawValue ?? MenuFontWeight.semibold.rawValue
     }
 
     init(defaults: UserDefaults) {
@@ -85,7 +128,8 @@ struct MenuAppearanceConfiguration: Equatable {
             theme: defaults.string(forKey: Self.themeDefaultsKey) ?? Theme.system.rawValue,
             accent: defaults.string(forKey: Self.accentDefaultsKey) ?? Accent.system.rawValue,
             menuSize: defaults.string(forKey: Self.menuSizeDefaultsKey) ?? Size.medium.rawValue,
-            font: defaults.string(forKey: Self.fontDefaultsKey) ?? MenuFont.system.rawValue
+            font: defaults.string(forKey: Self.fontDefaultsKey) ?? MenuFont.system.rawValue,
+            fontWeight: defaults.string(forKey: Self.fontWeightDefaultsKey) ?? MenuFontWeight.semibold.rawValue
         )
     }
 
@@ -94,6 +138,7 @@ struct MenuAppearanceConfiguration: Equatable {
         defaults.set(accent, forKey: Self.accentDefaultsKey)
         defaults.set(menuSize, forKey: Self.menuSizeDefaultsKey)
         defaults.set(font, forKey: Self.fontDefaultsKey)
+        defaults.set(fontWeight, forKey: Self.fontWeightDefaultsKey)
     }
 
     var appearance: NSAppearance? {
@@ -123,8 +168,15 @@ struct MenuAppearanceConfiguration: Equatable {
         MenuFont(rawValue: font) ?? .system
     }
 
-    func titleFont(ofSize size: CGFloat, weight: NSFont.Weight = .semibold) -> NSFont {
-        menuFont.makeFont(ofSize: size, weight: weight)
+    var menuFontWeight: MenuFontWeight {
+        MenuFontWeight(rawValue: fontWeight) ?? .semibold
+    }
+
+    func titleFont(
+        ofSize size: CGFloat,
+        weight: MenuFontWeight? = nil
+    ) -> NSFont {
+        menuFont.makeFont(ofSize: size, weight: weight ?? menuFontWeight)
     }
 
     func layout(slotCount: Int) -> RadialMenuLayout {

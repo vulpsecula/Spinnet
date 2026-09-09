@@ -293,6 +293,16 @@ final class SettingsWindowModel: ObservableObject {
             }
         }
     }
+    @Published var appearanceFontWeight: String {
+        willSet { recordAppearanceWillChange() }
+        didSet {
+            defaults.set(appearanceFontWeight, forKey: MenuAppearanceConfiguration.fontWeightDefaultsKey)
+            recordAppearanceDidChange()
+            if !suppressAppearanceNotifications {
+                onAppearanceChanged?(appearanceConfiguration)
+            }
+        }
+    }
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
@@ -353,6 +363,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceAccent = savedAppearance.accent
         appearanceMenuSize = savedAppearance.menuSize
         appearanceFont = savedAppearance.font
+        appearanceFontWeight = savedAppearance.fontWeight
         clipboardCollectionEnabled = defaults.bool(forKey: Keys.clipboardCollectionEnabled)
         clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
@@ -394,7 +405,8 @@ final class SettingsWindowModel: ObservableObject {
             theme: appearanceTheme,
             accent: appearanceAccent,
             menuSize: appearanceMenuSize,
-            font: appearanceFont
+            font: appearanceFont,
+            fontWeight: appearanceFontWeight
         )
     }
 
@@ -456,6 +468,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceAccent = appearance.accent
         appearanceMenuSize = appearance.menuSize
         appearanceFont = appearance.font
+        appearanceFontWeight = appearance.fontWeight
         applyingAppearanceHistory = false
         suppressAppearanceNotifications = false
         lastAppearanceBeforeMutation = nil
@@ -921,13 +934,14 @@ struct SettingsRootView: View {
     @ObservedObject var model: SettingsWindowModel
     let openURL: (URL) -> Bool
     @FocusState private var focusedPage: SettingsPage?
+    private let menuPreviewScale: CGFloat = 1.16
 
     var body: some View {
         HStack(spacing: 0) {
-            navigation.frame(width: 196)
+            navigation.frame(width: 188)
             Divider()
             if model.page.showsEditorMode {
-                editorMode.frame(width: 410)
+                editorMode.frame(width: 448)
                 Divider()
             }
             pageContent
@@ -935,7 +949,7 @@ struct SettingsRootView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(spinnetAccentColor(named: model.appearanceAccent))
-        .frame(minWidth: 1_080, maxWidth: .infinity, minHeight: 680, maxHeight: .infinity, alignment: .topLeading)
+        .frame(minWidth: 1_120, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { focusedPage = model.page }
         .onChange(of: model.page) { focusedPage = $0 }
         .onDeleteCommand {
@@ -1024,18 +1038,18 @@ struct SettingsRootView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
+            .padding(.horizontal, 22)
+            .padding(.top, 20)
 
             Spacer(minLength: 8)
             ZStack {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(menuPreviewContainerColor)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(menuPreviewBorderColor, lineWidth: 1)
                     }
-                    .shadow(color: .black.opacity(0.08), radius: 18, y: 8)
+                    .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
 
                 MenuEditorModeRepresentable(
                     slots: model.menuSlots,
@@ -1043,6 +1057,7 @@ struct SettingsRootView: View {
                     appearance: model.appearanceConfiguration,
                     mode: .editor,
                     allowsEditing: model.page == .menu,
+                    previewScale: menuPreviewScale,
                     onSelection: model.selectMenuItem,
                     onEdit: model.requestEdit,
                     onSlotDelete: { _ = model.deleteSlot(at: $0) },
@@ -1052,7 +1067,7 @@ struct SettingsRootView: View {
                 .id(model.page)
                 .frame(width: menuEditorDiameter, height: menuEditorDiameter)
             }
-            .frame(width: 354, height: 354)
+            .frame(width: 400, height: 400)
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Editor Mode")
@@ -1180,6 +1195,33 @@ struct SettingsRootView: View {
         model.appearanceConfiguration
             .layout(slotCount: model.menuSlots.count)
             .contentDiameter
+            * menuPreviewScale
+    }
+
+    private var menuPreviewTheme: MenuAppearanceConfiguration.Theme {
+        MenuAppearanceConfiguration.Theme(rawValue: model.appearanceTheme) ?? .system
+    }
+
+    private var menuPreviewContainerColor: Color {
+        switch menuPreviewTheme {
+        case .system:
+            return Color(nsColor: .controlBackgroundColor)
+        case .light:
+            return Color(red: 0.94, green: 0.96, blue: 0.99)
+        case .dark:
+            return Color(red: 0.11, green: 0.13, blue: 0.17)
+        }
+    }
+
+    private var menuPreviewBorderColor: Color {
+        switch menuPreviewTheme {
+        case .system:
+            return Color(nsColor: .separatorColor)
+        case .light:
+            return Color(red: 0.55, green: 0.61, blue: 0.72).opacity(0.7)
+        case .dark:
+            return Color(red: 0.64, green: 0.70, blue: 0.82).opacity(0.48)
+        }
     }
 
     private func openAccessibilitySettings() {
@@ -1206,6 +1248,7 @@ struct SettingsRootView: View {
                     accent: $model.appearanceAccent,
                     menuSize: $model.appearanceMenuSize,
                     font: $model.appearanceFont,
+                    fontWeight: $model.appearanceFontWeight,
                     canUndo: model.canUndoAppearance,
                     canRedo: model.canRedoAppearance,
                     undo: model.undoAppearance,
@@ -1289,6 +1332,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let appearance: MenuAppearanceConfiguration
     let mode: RadialMenuPresentationMode
     let allowsEditing: Bool
+    let previewScale: CGFloat
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
@@ -1299,7 +1343,9 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
         let view = RadialMenuView(
             slots: slots,
             mode: mode,
-            allowsEditing: allowsEditing
+            allowsEditing: allowsEditing,
+            previewScale: previewScale,
+            showsPreviewBackground: true
         )
         applyCallbacks(to: view)
         view.applyAppearance(appearance)
@@ -1315,6 +1361,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     }
 
     private func applyCallbacks(to view: RadialMenuView) {
+        view.appearance = appearance.appearance
         guard mode == .editor, allowsEditing else {
             view.onEditorSelection = nil
             view.onEditorEditRequested = nil
@@ -2252,6 +2299,7 @@ private struct AppearanceSettingsView: View {
     @Binding var accent: String
     @Binding var menuSize: String
     @Binding var font: String
+    @Binding var fontWeight: String
     let canUndo: Bool
     let canRedo: Bool
     let undo: () -> Void
@@ -2308,16 +2356,36 @@ private struct AppearanceSettingsView: View {
                     .accessibilityLabel("Menu Size")
                 }
 
-                settingsSection(title: "Menu Font", description: "Sets the typeface used by Menu Item names in Editor and Runtime modes.") {
-                    Picker("Menu Font", selection: $font) {
-                        ForEach(MenuAppearanceConfiguration.fontOptions, id: \.self) { value in
-                            Text(value).tag(value)
+                settingsSection(title: "Menu Font", description: "Choose the typeface and weight used by Menu Item names in Editor and Runtime modes.") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 16) {
+                            Text("Typeface")
+                                .frame(width: 76, alignment: .leading)
+                            Picker("Menu Font", selection: $font) {
+                                ForEach(MenuAppearanceConfiguration.fontOptions, id: \.self) { value in
+                                    Text(value).tag(value)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 190, alignment: .leading)
+                            .accessibilityLabel("Menu Font")
+                        }
+                        HStack(spacing: 16) {
+                            Text("Weight")
+                                .frame(width: 76, alignment: .leading)
+                            Picker("Menu Font Weight", selection: $fontWeight) {
+                                ForEach(MenuAppearanceConfiguration.fontWeightOptions, id: \.self) { value in
+                                    Text(value).tag(value)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 190, alignment: .leading)
+                            .accessibilityLabel("Menu Font Weight")
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 420)
-                    .accessibilityLabel("Menu Font")
+                    .frame(maxWidth: 420, alignment: .leading)
                 }
 
                 Divider()
