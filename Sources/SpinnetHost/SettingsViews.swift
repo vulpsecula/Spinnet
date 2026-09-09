@@ -2528,7 +2528,7 @@ private struct MenuSizeControl: View {
 
 
     private func syncInput() {
-        inputValue = String(Int(currentPercentage.rounded()))
+        inputValue = MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: currentPercentage)
     }
 
     private func commitInput() {
@@ -2537,7 +2537,7 @@ private struct MenuSizeControl: View {
             syncInput()
             return
         }
-        menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: percentage)
+        menuSize = MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: percentage)
         syncInput()
     }
 }

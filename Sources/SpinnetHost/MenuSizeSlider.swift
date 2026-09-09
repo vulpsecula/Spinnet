@@ -45,14 +45,50 @@ final class MenuSizeSliderView: NSView {
     private final class TrackingSlider: NSSlider {
         var onEditingChanged: ((Bool) -> Void)?
 
-        override func mouseDown(with event: NSEvent) {
+        private var isEditing = false
+
+        private func beginEditing() {
+            guard !isEditing else { return }
+            isEditing = true
             onEditingChanged?(true)
+        }
+
+        private func endEditing() {
+            guard isEditing else { return }
+            isEditing = false
+            onEditingChanged?(false)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            beginEditing()
             super.mouseDown(with: event)
         }
 
         override func mouseUp(with event: NSEvent) {
             super.mouseUp(with: event)
-            onEditingChanged?(false)
+            endEditing()
+        }
+
+        override func keyDown(with event: NSEvent) {
+            beginEditing()
+            super.keyDown(with: event)
+        }
+
+        override func keyUp(with event: NSEvent) {
+            super.keyUp(with: event)
+            endEditing()
+        }
+
+        override func accessibilityPerformIncrement() -> Bool {
+            beginEditing()
+            defer { endEditing() }
+            return super.accessibilityPerformIncrement()
+        }
+
+        override func accessibilityPerformDecrement() -> Bool {
+            beginEditing()
+            defer { endEditing() }
+            return super.accessibilityPerformDecrement()
         }
     }
 
@@ -112,12 +148,14 @@ final class MenuSizeSliderView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        let track = nativeTrackRect
-        guard track.width > 0 else { return }
+        let thumbTravel = nativeThumbTravel
+        guard thumbTravel.upperBound > thumbTravel.lowerBound else { return }
 
         let activeSize = activeSnapPoint
         for size in sizes {
-            let x = track.minX + track.width * normalizedValue(for: size.percentage)
+            let x = thumbTravel.lowerBound
+                + (thumbTravel.upperBound - thumbTravel.lowerBound)
+                    * normalizedValue(for: size.percentage)
             let tickColor = activeSize == size
                 ? NSColor.controlAccentColor
                 : NSColor.separatorColor.withAlphaComponent(0.72)
@@ -158,24 +196,37 @@ final class MenuSizeSliderView: NSView {
         }
     }
 
-    /// The native track in the same NSSlider used for interaction. This is
-    /// also the coordinate contract used by the preset labels and ticks.
-    var nativeTrackRect: NSRect {
-        let cellTrack = (slider.cell as? NSSliderCell)?.trackRect ?? slider.bounds
-        return NSRect(
-            x: slider.frame.minX + cellTrack.minX,
-            y: slider.frame.minY + cellTrack.minY,
-            width: cellTrack.width,
-            height: cellTrack.height
-        )
+    /// The thumb-center travel range of the same NSSlider used for
+    /// interaction. Labels and ticks must follow the thumb centers, not the
+    /// visual track's outer edges.
+    var nativeThumbTravel: ClosedRange<CGFloat> {
+        guard let cell = slider.cell as? NSSliderCell,
+              slider.bounds.width > 0 else {
+            return slider.frame.minX...slider.frame.maxX
+        }
+
+        let originalValue = slider.doubleValue
+        defer { slider.doubleValue = originalValue }
+
+        slider.doubleValue = range.lowerBound
+        let minimumX = slider.frame.minX
+            + cell.knobRect(flipped: slider.isFlipped).midX
+        slider.doubleValue = range.upperBound
+        let maximumX = slider.frame.minX
+            + cell.knobRect(flipped: slider.isFlipped).midX
+        return min(minimumX, maximumX)...max(minimumX, maximumX)
     }
 
     var snapPointXPositions: [CGFloat] {
-        sizes.map { size in
-            nativeTrackRect.minX
-                + nativeTrackRect.width * normalizedValue(for: size.percentage)
+        let travel = nativeThumbTravel
+        return sizes.map { size in
+            travel.lowerBound
+                + (travel.upperBound - travel.lowerBound)
+                    * normalizedValue(for: size.percentage)
         }
     }
+
+    var nativeSlider: NSSlider { slider }
 
     var activeSnapPoint: MenuAppearanceConfiguration.Size? {
         sizes.first {

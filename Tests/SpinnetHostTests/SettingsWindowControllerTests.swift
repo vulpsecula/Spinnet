@@ -1066,6 +1066,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         let custom = MenuAppearanceConfiguration(menuSize: "125")
         XCTAssertEqual(custom.menuSize, "125")
         XCTAssertEqual(custom.scale, 1.25, accuracy: 0.001)
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "125.5").menuSize, "125.5")
+        XCTAssertEqual(MenuAppearanceConfiguration.exactMenuSizeValue(forPercentage: 100.4), "100.4")
 
         XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "20").menuSize, "50")
         XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "999").menuSize, "Large")
@@ -1086,7 +1088,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
-    func testMenuSizeSliderSnapsDuringDragAndAlignsLabelsToTheNativeTrack() {
+    func testMenuSizeSliderSnapsDuringDragAndAlignsLabelsToTheNativeThumbTravel() throws {
         XCTAssertEqual(
             MenuAppearanceConfiguration.interactiveMenuSizeValue(forPercentage: 98),
             "Small"
@@ -1117,9 +1119,22 @@ final class SettingsWindowControllerTests: XCTestCase {
             "A custom percentage near a preset must not appear selected"
         )
 
+        let nativeSlider = slider.nativeSlider
+        let cell = try XCTUnwrap(nativeSlider.cell as? NSSliderCell)
+        let originalValue = nativeSlider.doubleValue
+        nativeSlider.doubleValue = MenuAppearanceConfiguration.menuSizeMinimumPercentage
+        let expectedMinimum = nativeSlider.frame.minX
+            + cell.knobRect(flipped: nativeSlider.isFlipped).midX
+        nativeSlider.doubleValue = MenuAppearanceConfiguration.menuSizeMaximumPercentage
+        let expectedMaximum = nativeSlider.frame.minX
+            + cell.knobRect(flipped: nativeSlider.isFlipped).midX
+        nativeSlider.doubleValue = originalValue
+
+        XCTAssertEqual(slider.nativeThumbTravel.lowerBound, expectedMinimum, accuracy: 0.001)
+        XCTAssertEqual(slider.nativeThumbTravel.upperBound, expectedMaximum, accuracy: 0.001)
         for (index, _) in MenuAppearanceConfiguration.Size.allCases.enumerated() {
-            let track = slider.nativeTrackRect
-            let expected = track.minX + track.width * CGFloat(index + 1) / 3
+            let expected = expectedMinimum
+                + (expectedMaximum - expectedMinimum) * CGFloat(index + 1) / 3
             XCTAssertEqual(
                 slider.snapPointXPositions[index],
                 expected,
