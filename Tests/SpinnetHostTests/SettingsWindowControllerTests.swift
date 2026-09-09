@@ -491,39 +491,45 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
-    func testEditorMenuKeepsWrappedTitleAboveItsEditButton() throws {
+    func testEditorMenuKeepsWrappedTitleAboveItsEditButtonInEverySlot() throws {
         let title = "Copy Selected Text"
         let actionID = ActionID("wrapped-title-layout")
         let configuration = try MenuItemConfiguration(
             primaryActionID: actionID,
             alias: title
         )
-        let slots = [
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.empty,
-            MenuSlotPresentation.occupied(MenuItemPresentation(
-                configuration: configuration,
-                primaryAction: MenuActionPresentation(
-                    actionID: actionID,
-                    title: title,
-                    availability: .available
-                ),
-                alternateActions: []
-            )),
-            MenuSlotPresentation.empty
-        ]
+        let item = MenuItemPresentation(
+            configuration: configuration,
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: title,
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let slots = Array(repeating: MenuSlotPresentation.occupied(item), count: 9)
         let view = RadialMenuView(slots: slots, mode: .editor)
         let titleRect = view.menuTitleRect(at: 7)
 
-        XCTAssertLessThanOrEqual(
-            view.editorEditButtonRect(at: 7).maxY,
-            titleRect.minY - 4,
-            "A wrapped title must not overlap its Edit control"
+        for index in slots.indices {
+            let slotTitleRect = view.menuTitleRect(at: index)
+            XCTAssertLessThanOrEqual(
+                view.editorEditButtonRect(at: index).maxY,
+                slotTitleRect.minY - 4,
+                "A wrapped title must not overlap its Edit control"
+            )
+        }
+
+        let center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        let titleCenter = CGPoint(x: titleRect.midX, y: titleRect.midY)
+        let titleDistanceFromHub = hypot(
+            titleCenter.x - center.x,
+            titleCenter.y - center.y
+        )
+        XCTAssertGreaterThan(
+            titleDistanceFromHub,
+            view.geometryLayout.itemCenterRadius + 6,
+            "An editable title should sit outward from the Slot's geometry center"
         )
     }
 

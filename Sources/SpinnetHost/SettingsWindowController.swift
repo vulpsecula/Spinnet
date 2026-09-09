@@ -78,7 +78,7 @@ final class SettingsWindowController: NSWindowController {
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         window.title = "Spinnet Settings"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 1_120, height: 720)
+        window.minSize = NSSize(width: 1_280, height: 720)
         window.setAccessibilityLabel("Spinnet Settings")
         window.setAccessibilityHelp(
             "Use the Settings navigation to switch between Menu, Appearance, Privacy & Permissions, and About."

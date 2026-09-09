@@ -966,15 +966,19 @@ struct SettingsRootView: View {
     @ObservedObject var model: SettingsWindowModel
     let openURL: (URL) -> Bool
     @FocusState private var focusedPage: SettingsPage?
-    private let menuPreviewScale: CGFloat = 1.16
-    private let menuPreviewCanvasDiameter: CGFloat = 376
+    // The Editor Mode column owns enough width for the radial Menu to remain
+    // legible while the page content keeps a usable control width beside it.
+    private let editorModeColumnWidth: CGFloat = 520
+    private let menuPreviewScale: CGFloat = 1.24
+    private let menuPreviewCanvasDiameter: CGFloat = 432
+    private let menuPreviewContainerDiameter: CGFloat = 456
 
     var body: some View {
         HStack(spacing: 0) {
             navigation.frame(width: 188)
             Divider()
             if model.page.showsEditorMode {
-                editorMode.frame(width: 448)
+                editorMode.frame(width: editorModeColumnWidth)
                 Divider()
             }
             pageContent
@@ -982,7 +986,7 @@ struct SettingsRootView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(spinnetAccentColor(named: model.appearanceAccent))
-        .frame(minWidth: 1_120, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
+        .frame(minWidth: 1_280, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             focusedPage = model.page
             model.refreshMenuSlots()
@@ -1106,7 +1110,10 @@ struct SettingsRootView: View {
                 .id(model.page)
                 .frame(width: menuPreviewCanvasDiameter, height: menuPreviewCanvasDiameter)
             }
-            .frame(width: 400, height: 400)
+            .frame(
+                width: menuPreviewContainerDiameter,
+                height: menuPreviewContainerDiameter
+            )
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .accessibilityElement(children: .contain)

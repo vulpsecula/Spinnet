@@ -55,6 +55,7 @@ final class RadialMenuView: NSView {
         let point: CGPoint
         let layout: MenuTitleLayout
         let rect: NSRect
+        let buttonAnchorMinY: CGFloat
     }
 
     static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
@@ -747,9 +748,16 @@ final class RadialMenuView: NSView {
         let width = min(48, max(38, sectorWidth))
         let height: CGFloat = 20
         let titleToButtonGap: CGFloat = 8
+        // Keep the button on the inner anchor when the title moves away from
+        // it, but follow the title when radial movement would reduce the gap
+        // (for example, in the bottom Slot).
+        let buttonTitleMinY = min(
+            titleMetrics.rect.minY,
+            titleMetrics.buttonAnchorMinY
+        )
         return NSRect(
             x: point.x - width / 2,
-            y: titleMetrics.rect.minY - titleToButtonGap - height,
+            y: buttonTitleMinY - titleToButtonGap - height,
             width: width,
             height: height
         )
@@ -1073,16 +1081,33 @@ final class RadialMenuView: NSView {
             + layout.font.leading
         let titleHeight = max(layout.size.height, fontLineHeight)
         let verticalOffset: CGFloat = menuLayout.itemCount >= 10 ? 4 : 0
-        let titleRect = NSRect(
+        let baseTitleRect = NSRect(
             x: point.x - titleWidth / 2,
             y: point.y - titleHeight / 2 + verticalOffset,
             width: titleWidth,
             height: titleHeight
         )
+        let titleRect: NSRect
+        if presentationMode == .editor, allowsEditing, slots[index].item != nil {
+            let radialX = point.x - center.x
+            let radialY = point.y - center.y
+            let radialDistance = max(hypot(radialX, radialY), 1)
+            let offset = min(
+                18,
+                max(10, (menuLayout.outerRadius - menuLayout.itemCenterRadius) * 0.24)
+            )
+            titleRect = baseTitleRect.offsetBy(
+                dx: radialX / radialDistance * offset,
+                dy: radialY / radialDistance * offset
+            )
+        } else {
+            titleRect = baseTitleRect
+        }
         return MenuTitleDrawingMetrics(
             point: point,
             layout: layout,
-            rect: titleRect
+            rect: titleRect,
+            buttonAnchorMinY: baseTitleRect.minY
         )
     }
 
