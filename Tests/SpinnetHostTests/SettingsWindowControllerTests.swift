@@ -447,6 +447,86 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(alternateExecutionCount, 0)
     }
 
+    func testVirtualMenuPreviewKeepsSelectionWithItsSlotGeometry() throws {
+        let view = RadialMenuView(
+            slots: Array(repeating: .empty, count: 8),
+            mode: .editor,
+            allowsEditing: true,
+            previewScale: 1.16,
+            previewCanvasDiameter: 376,
+            showsPreviewBackground: true
+        )
+        view.editorAccentColor = .systemRed
+        view.selectEditorItem(at: 3)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        let image = try render(view)
+        let scale = CGFloat(image.pixelsWide) / view.bounds.width
+        let center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        let radius = view.geometryLayout.outerRadius - 24
+
+        func accentRed(at index: Int, invertY: Bool) throws -> CGFloat {
+            let itemCenter = view.geometryLayout.itemCenter(index: index, center: center)
+            let distance = hypot(itemCenter.x - center.x, itemCenter.y - center.y)
+            let point = CGPoint(
+                x: center.x + (itemCenter.x - center.x) * radius / distance,
+                y: center.y + (itemCenter.y - center.y) * radius / distance
+            )
+            let color = try XCTUnwrap(image.colorAt(
+                x: Int((point.x * scale).rounded()),
+                y: Int(((invertY ? view.bounds.height - point.y : point.y) * scale).rounded())
+            )).usingColorSpace(.deviceRGB)
+            return try XCTUnwrap(color).redComponent
+        }
+
+        XCTAssertGreaterThan(
+            try accentRed(at: 3, invertY: true),
+            try accentRed(at: 0, invertY: true) + 0.1,
+            "The selected Slot's highlight must stay with its label and wedge"
+        )
+    }
+
+    func testEditorMenuKeepsWrappedTitleAboveItsEditButton() throws {
+        let title = "Copy Selected Text"
+        let actionID = ActionID("wrapped-title-layout")
+        let configuration = try MenuItemConfiguration(
+            primaryActionID: actionID,
+            alias: title
+        )
+        let slots = [
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.empty,
+            MenuSlotPresentation.occupied(MenuItemPresentation(
+                configuration: configuration,
+                primaryAction: MenuActionPresentation(
+                    actionID: actionID,
+                    title: title,
+                    availability: .available
+                ),
+                alternateActions: []
+            )),
+            MenuSlotPresentation.empty
+        ]
+        let view = RadialMenuView(slots: slots, mode: .editor)
+        let titleRect = view.menuTitleRect(at: 7)
+
+        XCTAssertLessThanOrEqual(
+            view.editorEditButtonRect(at: 7).maxY,
+            titleRect.minY - 4,
+            "A wrapped title must not overlap its Edit control"
+        )
+    }
+
     func testAppearanceEditorModeDoesNotExecuteOrEditSlots() throws {
         let actionID = ActionID("appearance-editor-action")
         let item = MenuItemPresentation(

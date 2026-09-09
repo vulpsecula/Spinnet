@@ -51,6 +51,12 @@ final class RadialMenuView: NSView {
         let weight: MenuAppearanceConfiguration.MenuFontWeight
     }
 
+    private struct MenuTitleDrawingMetrics {
+        let point: CGPoint
+        let layout: MenuTitleLayout
+        let rect: NSRect
+    }
+
     static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
         "com.spinnet.library-preset"
     )
@@ -735,14 +741,15 @@ final class RadialMenuView: NSView {
               slots[index].item != nil else {
             return .zero
         }
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let point = layout.itemCenter(index: index, center: center)
-        let sectorWidth = 2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
+        let titleMetrics = titleDrawingMetrics(at: index, using: layout, in: bounds)
+        let point = titleMetrics.point
+        let sectorWidth = Self.menuTitleWidth(for: layout)
         let width = min(48, max(38, sectorWidth))
         let height: CGFloat = 20
+        let titleToButtonGap: CGFloat = 8
         return NSRect(
             x: point.x - width / 2,
-            y: point.y - 34,
+            y: titleMetrics.rect.minY - titleToButtonGap - height,
             width: width,
             height: height
         )
@@ -872,7 +879,11 @@ final class RadialMenuView: NSView {
         )
         let image = NSImage(size: imageSize)
         let drawImage = {
-            image.lockFocusFlipped(true)
+            // The cached geometry is composited into this ordinary, unflipped
+            // NSView together with live labels and controls. Drawing it in a
+            // flipped image would mirror the slot wedges vertically while
+            // leaving the labels in their original positions.
+            image.lockFocusFlipped(false)
             NSGraphicsContext.current?.saveGraphicsState()
             NSBezierPath(
                 rect: NSRect(origin: .zero, size: imageSize)
@@ -977,21 +988,12 @@ final class RadialMenuView: NSView {
         for index in 0..<menuLayout.itemCount where slots.indices.contains(index) {
             let slot = slots[index]
             let isFocused = selectedIndex == index
-            let titleFontSize: CGFloat
-            if menuLayout.itemCount >= 10 {
-                titleFontSize = 10
-            } else if menuLayout.itemCount >= 8 {
-                titleFontSize = 11
-            } else {
-                titleFontSize = 13
-            }
-            let point = menuLayout.itemCenter(index: index, center: center)
-            let titleWidth = Self.menuTitleWidth(for: menuLayout)
-            let titleLayout = titleLayout(
-                for: slot.title,
-                maxWidth: titleWidth,
-                baseSize: titleFontSize
+            let metrics = titleDrawingMetrics(
+                at: index,
+                using: menuLayout,
+                in: canvas
             )
+            let titleLayout = metrics.layout
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
             paragraphStyle.lineBreakMode = .byWordWrapping
@@ -1003,17 +1005,8 @@ final class RadialMenuView: NSView {
                     ? NSColor.white
                     : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
             ]
-            let fontLineHeight = titleLayout.font.ascender
-                - titleLayout.font.descender
-                + titleLayout.font.leading
-            let titleHeight = max(titleLayout.size.height, fontLineHeight)
             titleLayout.text.draw(
-                in: NSRect(
-                    x: point.x - titleWidth / 2,
-                    y: point.y - titleHeight / 2 + (menuLayout.itemCount >= 10 ? 4 : 0),
-                    width: titleWidth,
-                    height: titleHeight
-                ),
+                in: metrics.rect,
                 withAttributes: attributes
             )
 
@@ -1025,7 +1018,10 @@ final class RadialMenuView: NSView {
                 ]
                 let hintSize = hint.size(withAttributes: hintAttributes)
                 hint.draw(
-                    at: CGPoint(x: point.x - hintSize.width / 2, y: point.y - hintSize.height / 2 - 20),
+                    at: CGPoint(
+                        x: metrics.point.x - hintSize.width / 2,
+                        y: metrics.point.y - hintSize.height / 2 - 20
+                    ),
                     withAttributes: hintAttributes
                 )
             }
@@ -1040,6 +1036,53 @@ final class RadialMenuView: NSView {
         centerLabel.draw(
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
+        )
+    }
+
+    /// Returns the actual title frame used by the virtual Menu renderer. It
+    /// is kept as a single geometry seam so edit controls can make room for
+    /// wrapped titles instead of assuming every title is one line tall.
+    func menuTitleRect(at index: Int) -> NSRect {
+        guard slots.indices.contains(index) else { return .zero }
+        return titleDrawingMetrics(at: index, using: layout, in: bounds).rect
+    }
+
+    private func titleDrawingMetrics(
+        at index: Int,
+        using menuLayout: RadialMenuLayout,
+        in canvas: NSRect
+    ) -> MenuTitleDrawingMetrics {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let point = menuLayout.itemCenter(index: index, center: center)
+        let titleFontSize: CGFloat
+        if menuLayout.itemCount >= 10 {
+            titleFontSize = 10
+        } else if menuLayout.itemCount >= 8 {
+            titleFontSize = 11
+        } else {
+            titleFontSize = 13
+        }
+        let titleWidth = Self.menuTitleWidth(for: menuLayout)
+        let layout = titleLayout(
+            for: slots[index].title,
+            maxWidth: titleWidth,
+            baseSize: titleFontSize
+        )
+        let fontLineHeight = layout.font.ascender
+            - layout.font.descender
+            + layout.font.leading
+        let titleHeight = max(layout.size.height, fontLineHeight)
+        let verticalOffset: CGFloat = menuLayout.itemCount >= 10 ? 4 : 0
+        let titleRect = NSRect(
+            x: point.x - titleWidth / 2,
+            y: point.y - titleHeight / 2 + verticalOffset,
+            width: titleWidth,
+            height: titleHeight
+        )
+        return MenuTitleDrawingMetrics(
+            point: point,
+            layout: layout,
+            rect: titleRect
         )
     }
 
