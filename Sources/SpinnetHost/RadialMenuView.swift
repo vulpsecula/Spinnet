@@ -100,8 +100,9 @@ final class RadialMenuView: NSView {
             setAccessibilityLabel("Editor Mode Menu")
             setAccessibilityHelp(
                 "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure "
-                    + "an occupied Slot, or right-click for details and actions. Actions do not "
-                    + "execute in Editor Mode."
+                + "an occupied Slot, double-click an occupied Slot, or right-click for details "
+                + "and actions. Press Return, Space, or Command-E to edit the focused Slot. "
+                + "Actions do not execute in Editor Mode."
             )
             registerForDraggedTypes([
                 Self.libraryPresetPasteboardType,
@@ -268,14 +269,16 @@ final class RadialMenuView: NSView {
                 editorDragStarted = false
             }
             guard !editorDragStarted,
-                  editorMouseDownIsEdit,
                   let editorMouseDownIndex,
                   slots.indices.contains(editorMouseDownIndex),
-                  slots[editorMouseDownIndex].item != nil,
-                  isEditButtonHit(
-                    at: convert(event.locationInWindow, from: nil),
-                    index: editorMouseDownIndex
-                  ) else { return }
+                  slots[editorMouseDownIndex].item != nil else { return }
+            let clickedEditButton = isEditButtonHit(
+                at: convert(event.locationInWindow, from: nil),
+                index: editorMouseDownIndex
+            )
+            let shouldOpenEditor = editorMouseDownIsEdit
+                || (event.clickCount >= 2 && !clickedEditButton)
+            guard shouldOpenEditor else { return }
             onEditorEditRequested?(editorMouseDownIndex)
             return
         }
@@ -292,6 +295,16 @@ final class RadialMenuView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if presentationMode == .editor,
+           event.keyCode == UInt16(kVK_ANSI_E),
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command],
+           let selectedIndex,
+           slots.indices.contains(selectedIndex),
+           slots[selectedIndex].item != nil {
+            onEditorEditRequested?(selectedIndex)
+            return
+        }
+
         switch event.keyCode {
         case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
             moveSelection(by: -1)

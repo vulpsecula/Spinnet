@@ -63,6 +63,42 @@ final class HostActionRunnerTests: XCTestCase {
         XCTAssertEqual(failure.userMessage, "com.example.fixture — action-1 failed (command_unavailable)")
     }
 
+    func testMissingResourceDoesNotReachExecutorWhenResourceCheckingIsEnabled() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.open_file"),
+            title: "Open File",
+            hostCommand: .openFile
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("missing-file"),
+            pluginID: PluginID("com.example.fixture"),
+            command: command,
+            input: .object(["path": .string("/tmp/spinnet-missing-runtime-file")])
+        )
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: try PluginManifest(
+                id: action.pluginID,
+                name: "Fixture",
+                version: "1.0.0",
+                commands: [command]
+            )
+        ))
+        let executor = RecordingHostCommandExecutor(result: .success(.null))
+
+        let outcome = HostActionRunner(
+            executor: executor,
+            resourceAvailability: { ActionResourceAvailability.missingReason(for: $0) }
+        ).invoke(action, using: registry)
+
+        XCTAssertTrue(executor.actions.isEmpty)
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A missing resource should produce a failed outcome")
+        }
+        XCTAssertEqual(failure.category, .commandUnavailable)
+    }
+
     func testConfiguredJavaScriptActionRunsThroughScriptedActionSeam() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.transform_text"),

@@ -111,6 +111,47 @@ final class ConfigurationEditorTests: XCTestCase {
         XCTAssertEqual(editor.configuration.actions, [action])
     }
 
+    func testEditorDisablesOnlyTheActionWhoseResourceIsMissing() throws {
+        let registry = try makeResourceRegistry()
+        let fileCommand = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.resource-test"),
+            commandID: CommandID("resource.file")
+        ))
+        let folderCommand = try XCTUnwrap(registry.command(
+            for: PluginID("com.spinnet.resource-test"),
+            commandID: CommandID("resource.folder")
+        ))
+        let missingFile = try ActionConfiguration(
+            id: ActionID("missing-file"),
+            pluginID: PluginID("com.spinnet.resource-test"),
+            command: fileCommand,
+            input: .object(["path": .string("/tmp/spinnet-resource-missing")])
+        )
+        let existingFolder = try ActionConfiguration(
+            id: ActionID("existing-folder"),
+            pluginID: PluginID("com.spinnet.resource-test"),
+            command: folderCommand,
+            input: .object(["path": .string("/tmp")])
+        )
+        let editor = HostConfigurationEditor(
+            registry: registry,
+            configuration: try HostConfiguration(
+                actions: [missingFile, existingFolder],
+                menu: MenuConfiguration(items: [try MenuItemConfiguration(
+                    primaryActionID: missingFile.id,
+                    alternateActionIDs: [existingFolder.id]
+                )])
+            )
+        )
+
+        XCTAssertEqual(
+            editor.availability(for: missingFile.id),
+            .unavailable(.resourceMissing)
+        )
+        XCTAssertEqual(editor.availability(for: existingFolder.id), .available)
+        XCTAssertEqual(editor.configuration.actions.count, 2)
+    }
+
     func testRemovingPrimaryPromotesTheFirstAlternate() throws {
         let registry = try makeRegistry()
         let commands = try [
@@ -402,6 +443,32 @@ final class ConfigurationEditorTests: XCTestCase {
         )
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
+            manifest: manifest
+        ))
+        return registry
+    }
+
+    private func makeResourceRegistry() throws -> PluginRegistry {
+        let registry = PluginRegistry()
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.resource-test"),
+            name: "Resource Test",
+            version: "1.0.0",
+            commands: [
+                CommandDeclaration(
+                    id: CommandID("resource.file"),
+                    title: "Open File",
+                    hostCommand: .openFile
+                ),
+                CommandDeclaration(
+                    id: CommandID("resource.folder"),
+                    title: "Open Folder",
+                    hostCommand: .openFolder
+                )
+            ]
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/resource-test.spinnetplugin"),
             manifest: manifest
         ))
         return registry

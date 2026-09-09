@@ -320,13 +320,14 @@ to Menu Items:
 ```
 
 `MenuConfiguration` contains between one and twelve Slots. Each Slot may carry
-an optional user-provided `name`; when omitted, the Host displays the bound
-Primary Action's title (or `Empty Slot` when the Slot has no Menu Item). Each
-Menu Item has one Primary Action and may have multiple Alternate Actions. A
-Menu Item may also retain `disabled_alternate_action_ids` and an
-`alternate_action_order` so the Settings editor can hide an Alternate without
-discarding its parameters; older configurations may omit both keys. Every
-bound Action ID must be unique and present in the Host configuration.
+an optional user-provided Menu Item Alias in the `name` field; when it
+is omitted, the Host displays the bound Primary Action's title (or `Empty Slot`
+when the Slot has no Menu Item). Each Menu Item has one Primary Action and may
+have multiple Alternate Actions. A Menu Item may also retain
+`disabled_alternate_action_ids` and an `alternate_action_order` so the
+Settings editor can hide an Alternate without discarding its parameters; older
+configurations may omit both keys. Every bound Action ID must be unique and
+present in the Host configuration.
 
 `PluginRegistry.menuItemPresets()` supplies one Library entry per registered
 Plugin that opts into the user-facing catalogue, including disabled Plugins as
@@ -348,8 +349,12 @@ the stale Host executor is not called.
 The radial Menu executes a Primary Action with its normal selection gesture.
 Right-clicking a Menu Item, or pressing `Option-Return` after keyboard
 selection, opens its Actions menu with the Primary Action followed by its
-Alternate Actions. Arrow keys select Menu Items and Return executes the Primary
-Action. Actions that are unavailable are visible but disabled.
+Alternate Actions. In Editor Mode, the visible Edit button, a double-click,
+`Command-E`, or `Return`/`Space` on the focused Slot opens its Configuration
+Sheet. Arrow keys select Menu Items and Return executes the Primary Action in
+Runtime Mode. Actions that are unavailable, including Actions whose selected
+application, file, or folder has disappeared, remain visible but disabled;
+their Configuration Sheet offers a native Choose Again picker.
 
 Capability-checked Host Services are available through the public helper
 protocol described above. The Host's Privacy & Permissions page presents and

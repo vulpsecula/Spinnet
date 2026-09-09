@@ -66,7 +66,9 @@ Menu bindings, appearance, and triggers are saved automatically.
    utility still intercepts the event, choose `Choose Manually…` and select
    modifiers and a key from the two lists. Text and URL fields use the standard
    macOS editing menu and keyboard shortcuts. Cancel leaves the Slot unchanged;
-   Save commits all fields at once.
+   Save commits all fields at once. Rename the Menu Item with its optional
+   alias, and use the visible Edit button, double-click, `Command-E`, or
+   `Return`/`Space` after focusing a Slot to reopen the sheet.
 8. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
    Clipboard` capabilities in Privacy & Permissions, select text in another
    app, and run the Menu Item. The copied value comes from the current
@@ -78,6 +80,9 @@ Menu bindings, appearance, and triggers are saved automatically.
     and copy the exact title from that app's Services menu into the
     Configuration Sheet. Use the full menu path with `/` separators when the
     service is nested.
+11. If an application, file, or folder used by a Menu Item is later removed,
+    the Menu Item remains in its Slot and only that Action is disabled. Open its
+    Configuration Sheet and use `Choose Again…` to repair the path.
 
 ## Scripted Action lifecycle checks
 

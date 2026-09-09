@@ -19,6 +19,9 @@ final class MenuPresentationController {
     var onActionMenuSelection: ((ActionID) -> Void)?
     var onEmptySlotActivated: ((Int) -> Void)?
     var onDismiss: (() -> Void)?
+    /// Rebuilds runtime item availability immediately before a menu interaction.
+    /// Resource-backed Actions can become stale while the menu is open.
+    var onRefresh: (() -> [MenuSlotPresentation])?
 
     init(
         items: [MenuSlotPresentation],
@@ -89,6 +92,7 @@ final class MenuPresentationController {
     }
 
     func open(at pointer: CGPoint) {
+        refreshItemsIfNeeded()
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
         }
@@ -127,6 +131,7 @@ final class MenuPresentationController {
     }
 
     func activateSlot(at index: Int) {
+        refreshItemsIfNeeded()
         guard slots.indices.contains(index) else { return }
         dismiss()
         guard let item = slots[index].item else {
@@ -151,6 +156,7 @@ final class MenuPresentationController {
     }
 
     func makeActionMenu(for index: Int) -> NSMenu? {
+        refreshItemsIfNeeded()
         guard slots.indices.contains(index), let item = slots[index].item else {
             return nil
         }
@@ -174,6 +180,15 @@ final class MenuPresentationController {
             }
         }
         return menu
+    }
+
+    private func refreshItemsIfNeeded() {
+        guard let onRefresh else { return }
+        let refreshedSlots = onRefresh()
+        slots = refreshedSlots
+        layout = appearanceConfiguration.layout(slotCount: refreshedSlots.count)
+        menuView.reload(slots: refreshedSlots)
+        panel.setContentSize(menuView.bounds.size)
     }
 
     @objc private func selectActionFromMenu(_ sender: NSMenuItem) {

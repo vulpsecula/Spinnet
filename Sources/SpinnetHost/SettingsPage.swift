@@ -80,6 +80,7 @@ extension SettingsPage {
                         "Keyboard shortcut optional",
                         "Accessibility status",
                         "Library",
+                        "Menu Item Alias",
                         "Add empty Slot",
                         "Edit on the Menu"
                     ]

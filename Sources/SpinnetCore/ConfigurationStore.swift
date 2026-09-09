@@ -68,10 +68,18 @@ public final class HostConfigurationEditor {
     public private(set) var configuration: HostConfiguration
 
     private let registry: PluginRegistry
+    private let resourceAvailability: (ActionConfiguration) -> ActionUnavailableReason?
 
-    public init(registry: PluginRegistry, configuration: HostConfiguration) {
+    public init(
+        registry: PluginRegistry,
+        configuration: HostConfiguration,
+        resourceAvailability: @escaping (ActionConfiguration) -> ActionUnavailableReason? = {
+            ActionResourceAvailability.missingReason(for: $0)
+        }
+    ) {
         self.registry = registry
         self.configuration = configuration
+        self.resourceAvailability = resourceAvailability
     }
 
     public var availableCommands: [AvailableCommand] {
@@ -88,7 +96,10 @@ public final class HostConfigurationEditor {
 
     public func availability(for actionID: ActionID) -> ActionAvailability? {
         guard let action = action(with: actionID) else { return nil }
-        return registry.availability(for: action)
+        return registry.availability(
+            for: action,
+            resourceAvailability: resourceAvailability
+        )
     }
 
     public func restore(_ configuration: HostConfiguration) {

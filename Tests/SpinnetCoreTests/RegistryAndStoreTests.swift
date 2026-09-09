@@ -193,6 +193,84 @@ final class RegistryAndStoreTests: XCTestCase {
         )
     }
 
+    func testRegistryMarksMissingFileResourceUnavailableWithoutDiscardingAction() throws {
+        let registry = PluginRegistry()
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.resource-test"),
+            name: "Resource Test",
+            version: "1.0.0",
+            commands: [CommandDeclaration(
+                id: CommandID("resource.open-file"),
+                title: "Open File",
+                hostCommand: .openFile
+            )]
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/resource-test.spinnetplugin"),
+            manifest: manifest
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("missing-file"),
+            pluginID: manifest.id,
+            command: manifest.commands[0],
+            input: .object(["path": .string("/tmp/spinnet-file-that-does-not-exist")])
+        )
+
+        let configuration = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(items: [
+                try MenuItemConfiguration(primaryActionID: action.id)
+            ])
+        )
+        let editor = HostConfigurationEditor(
+            registry: registry,
+            configuration: configuration
+        )
+
+        XCTAssertEqual(
+            editor.availability(for: action.id),
+            .unavailable(.resourceMissing)
+        )
+        XCTAssertEqual(action.input, .object([
+            "path": .string("/tmp/spinnet-file-that-does-not-exist")
+        ]))
+    }
+
+    func testResourceResolverCanValidateApplicationBundleIdentifiersAtHostBoundary() throws {
+        let command = CommandDeclaration(
+            id: CommandID("resource.open-application"),
+            title: "Open Application",
+            hostCommand: .openApplication
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("missing-application"),
+            pluginID: PluginID("com.spinnet.resource-test"),
+            command: command,
+            input: .string("com.example.missing")
+        )
+
+        XCTAssertEqual(
+            ActionResourceAvailability.missingReason(
+                for: action,
+                applicationExists: { _ in false }
+            ),
+            .resourceMissing
+        )
+        XCTAssertNil(
+            ActionResourceAvailability.missingReason(
+                for: action,
+                applicationExists: { _ in true }
+            )
+        )
+        XCTAssertFalse(
+            ActionResourceAvailability.resourceExists(
+                kind: .application,
+                value: "com.example.missing",
+                applicationExists: { _ in false }
+            )
+        )
+    }
+
     private func makeManifest(
         title: String,
         commandID: CommandID = CommandID("fixture.open")

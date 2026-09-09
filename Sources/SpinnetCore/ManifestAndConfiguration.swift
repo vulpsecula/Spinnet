@@ -873,9 +873,13 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
     public let item: MenuItemConfiguration?
-    /// A user-provided Slot name. When nil, the Host derives the displayed
-    /// name from the bound Primary Action (or uses "Empty Slot").
+    /// Legacy storage for a user-provided Menu Item Alias. When nil, the Host
+    /// derives the displayed name from the bound Primary Action (or uses
+    /// "Empty Slot"). The `alias` spelling is exposed for new callers while
+    /// `name` remains decodable for configurations written by earlier builds.
     public let name: String?
+
+    public var alias: String? { name }
 
     public static var empty: Self { Self(item: nil, name: nil) }
 
@@ -1039,15 +1043,18 @@ public struct HostActionRunner {
     private let executor: HostCommandExecutor
     private let scriptedExecutor: ScriptedActionExecutor?
     private let hostServiceBroker: PluginHostServiceBroker?
+    private let resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)?
 
     public init(
         executor: HostCommandExecutor,
         scriptedExecutor: ScriptedActionExecutor? = nil,
-        hostServiceBroker: PluginHostServiceBroker? = nil
+        hostServiceBroker: PluginHostServiceBroker? = nil,
+        resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)? = nil
     ) {
         self.executor = executor
         self.scriptedExecutor = scriptedExecutor
         self.hostServiceBroker = hostServiceBroker
+        self.resourceAvailability = resourceAvailability
     }
 
     public func invoke(_ action: ActionConfiguration) -> ActionOutcome {
@@ -1068,7 +1075,10 @@ public struct HostActionRunner {
         using registry: PluginRegistry,
         control: ActionExecutionControl = ActionExecutionControl()
     ) -> ActionOutcome {
-        switch registry.availability(for: action) {
+        switch registry.availability(
+            for: action,
+            resourceAvailability: resourceAvailability
+        ) {
         case .available:
             guard action.execution == .javascript else {
                 guard let package = registry.package(for: action.pluginID),

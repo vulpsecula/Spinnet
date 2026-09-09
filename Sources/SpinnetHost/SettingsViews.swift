@@ -975,7 +975,7 @@ struct SettingsRootView: View {
                 Text(model.page == .menu ? "Menu Editor" : "Menu Preview")
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
-                    ? "Left-click a Slot to focus it; use its Edit button to configure an item, or right-click for details. Actions never run here."
+                    ? "Left-click a Slot to focus it; use its Edit button, double-click, or Command-E to configure an item. Right-click for details. Actions never run here."
                     : "Preview appearance changes. Actions never run here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -1387,11 +1387,11 @@ private struct SlotConfigurationSheet: View {
 
     private var slotNameEditor: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Slot Name")
+            Text("Menu Item Alias")
                 .font(.headline)
             TextField("Follow Primary Action", text: $slotName)
                 .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Slot Name")
+                .accessibilityLabel("Menu Item Alias")
             Text("Leave blank to follow the Primary Action automatically.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -2040,10 +2040,38 @@ private struct ResourcePathField: View {
         HStack(spacing: 8) {
             TextField(kind.title, text: $value)
                 .textFieldStyle(.roundedBorder)
-            Button("Choose…", action: chooseResource)
+                .padding(.leading, isMissing ? 20 : 0)
+            Button(buttonTitle, action: chooseResource)
                 .controlSize(.small)
-                .accessibilityLabel("Choose \(kind.title)")
+                .accessibilityLabel("\(buttonTitle.replacingOccurrences(of: "…", with: "")) \(kind.title)")
+                .help(isMissing
+                    ? "The previously selected \(kind.title.lowercased()) is unavailable. Choose a replacement."
+                    : "Choose a \(kind.title.lowercased())")
         }
+        .overlay(alignment: .leading) {
+            if isMissing {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .padding(.leading, 8)
+                    .accessibilityLabel("Missing \(kind.title)")
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var hasValue: Bool {
+        !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isMissing: Bool {
+        hasValue && !HostResourceAvailability.resourceExists(
+            kind: kind,
+            value: value
+        )
+    }
+
+    private var buttonTitle: String {
+        isMissing ? "Choose Again…" : "Choose…"
     }
 
     private func chooseResource() {

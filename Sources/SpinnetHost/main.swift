@@ -15,6 +15,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var triggers: GlobalTriggerController?
     private var actions: [ActionID: ActionConfiguration] = [:]
+    private var currentConfiguration: HostConfiguration?
     private let capabilityGrants = PluginCapabilityGrantStore()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
     private var executions: [ActionID: ActionLifecycle] = [:]
@@ -85,13 +86,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     }
                 ),
                 scriptedExecutor: scriptedExecutor,
-                hostServiceBroker: hostServiceBroker
+                hostServiceBroker: hostServiceBroker,
+                resourceAvailability: HostResourceAvailability.missingReason
             )
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
             let configuration = try loadConfiguration(for: manifest)
             let editor = HostConfigurationEditor(
                 registry: registry,
-                configuration: configuration
+                configuration: configuration,
+                resourceAvailability: HostResourceAvailability.missingReason
             )
             applyConfiguration(configuration)
 
@@ -100,6 +103,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 items: menuSlots,
                 appearance: MenuAppearanceConfiguration(defaults: .standard)
             )
+            menu.onRefresh = { [weak self] in
+                guard let self, let configuration = self.currentConfiguration else { return [] }
+                return self.makeMenuSlots(from: configuration)
+            }
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onActionMenuSelection = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onEmptySlotActivated = { [weak self] index in
@@ -321,14 +328,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func applyConfiguration(_ configuration: HostConfiguration) {
+        currentConfiguration = configuration
         actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
         menu?.reload(items: makeMenuSlots(from: configuration))
     }
 
     private func makeMenuSlots(from configuration: HostConfiguration) -> [MenuSlotPresentation] {
         MenuPresentationFactory.makeSlots(configuration: configuration) {
-            registry.availability(for: $0)
+            actionAvailability(for: $0)
         }
+    }
+
+    private func actionAvailability(for action: ActionConfiguration) -> ActionAvailability {
+        registry.availability(
+            for: action,
+            resourceAvailability: HostResourceAvailability.missingReason
+        )
     }
 
     private func installStatusItem() {

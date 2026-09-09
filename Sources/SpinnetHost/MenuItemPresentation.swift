@@ -41,10 +41,11 @@ struct MenuSlotPresentation {
     let item: MenuItemPresentation?
 
     var isEmpty: Bool { item == nil }
-    /// Uses the user's Slot name when present; otherwise the Slot follows its
-    /// Primary Action title and falls back to the empty-state label.
+    /// Uses the user's Menu Item Alias when present; otherwise the Slot
+    /// follows its Primary Action title and falls back to the empty-state
+    /// label.
     var title: String {
-        configuration.name ?? item?.title ?? "Empty Slot"
+        configuration.alias ?? item?.title ?? "Empty Slot"
     }
 
     static var empty: Self {

@@ -82,7 +82,7 @@ struct MenuEditorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Edit on the Menu", systemImage: "cursorarrow.motionlines")
                         .font(.headline)
-                    Text("Left-click a Slot to focus it. Use its Edit button to configure a Menu Item, or right-click for details and slot actions. Slot configuration stays attached to the Menu instead of the Library.")
+                    Text("Left-click a Slot to focus it. Use its Edit button, double-click, or Command-E to configure a Menu Item; press Return or Space after focusing it. Right-click for details and Slot actions. Slot configuration stays attached to the Menu instead of the Library.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -339,6 +339,91 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(alternateExecutionCount, 0)
     }
 
+    func testDoubleClickingAnOccupiedEditorSlotRequestsEdit() throws {
+        let actionID = ActionID("editor-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let view = RadialMenuView(items: [item], mode: .editor)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        var editedIndex: Int?
+        view.onEditorEditRequested = { editedIndex = $0 }
+
+        let location = NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90)
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = try XCTUnwrap(NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 2,
+                pressure: 1
+            ))
+            if type == .leftMouseDown {
+                view.mouseDown(with: event)
+            } else {
+                view.mouseUp(with: event)
+            }
+        }
+
+        XCTAssertEqual(editedIndex, 0)
+    }
+
+    func testCommandEOpensTheFocusedEditorSlotConfiguration() throws {
+        let actionID = ActionID("editor-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let view = RadialMenuView(items: [item], mode: .editor)
+        let window = NSWindow(
+            contentRect: view.bounds,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        view.selectEditorItem(at: 0)
+        var editedIndex: Int?
+        view.onEditorEditRequested = { editedIndex = $0 }
+
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "e",
+            charactersIgnoringModifiers: "e",
+            isARepeat: false,
+            keyCode: UInt16(kVK_ANSI_E)
+        ))
+        view.keyDown(with: event)
+
+        XCTAssertEqual(editedIndex, 0)
+    }
+
     func testEditorContextMenuShowsFocusedSlotDetailsAndClearsAnOccupiedSlot() throws {
         let editor = try makeEditor()
         try editor.addEmptySlot()
@@ -448,6 +533,38 @@ final class SettingsWindowControllerTests: XCTestCase {
             menu.items.filter { !$0.isSeparatorItem }.map(\.title),
             ["Open URL", "Transform Text"]
         )
+    }
+
+    func testRuntimeActionMenuRefreshesStaleResourceAvailability() throws {
+        let actionID = ActionID("resource-action")
+        let configuration = try MenuItemConfiguration(primaryActionID: actionID)
+        var resourceAvailable = true
+
+        func makeSlots() -> [MenuSlotPresentation] {
+            let availability: ActionAvailability = resourceAvailable
+                ? .available
+                : .unavailable(.resourceMissing)
+            return [.occupied(MenuItemPresentation(
+                configuration: configuration,
+                primaryAction: MenuActionPresentation(
+                    actionID: actionID,
+                    title: "Open File",
+                    availability: availability
+                ),
+                alternateActions: []
+            ))]
+        }
+
+        let controller = MenuPresentationController(items: makeSlots())
+        controller.onRefresh = makeSlots
+
+        let availableMenu = try XCTUnwrap(controller.makeActionMenu(for: 0))
+        XCTAssertTrue(try XCTUnwrap(availableMenu.items.first).isEnabled)
+
+        resourceAvailable = false
+        let unavailableMenu = try XCTUnwrap(controller.makeActionMenu(for: 0))
+        XCTAssertFalse(try XCTUnwrap(unavailableMenu.items.first).isEnabled)
+        XCTAssertTrue(unavailableMenu.items.first?.title.contains("Unavailable") == true)
     }
 
     func testSettingsAppearanceUpdatesTheRuntimeMenu() throws {
@@ -581,6 +698,81 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertNil(model.pendingPresetSetup)
         XCTAssertNil(model.editingMenuIndex)
         XCTAssertTrue(model.canUndoSlotEdit)
+    }
+
+    func testCancellingSetupRequiredPresetLeavesItsSlotEmpty() throws {
+        let registry = PluginRegistry()
+        let packages = try BuiltInPresetCatalog.makePackages()
+        for package in packages { try registry.register(package) }
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(
+                registry: registry,
+                configuration: try HostConfiguration(
+                    actions: [],
+                    menu: MenuConfiguration(slots: [.empty])
+                )
+            ),
+            metadata: .current,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        let applicationPreset = try XCTUnwrap(
+            packages.first { $0.manifest.name == "Open Application" }
+        )
+
+        XCTAssertFalse(model.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
+        XCTAssertNotNil(model.pendingPresetSetup)
+
+        model.cancelPresetSetup()
+
+        XCTAssertNil(model.pendingPresetSetup)
+        XCTAssertNil(model.editingMenuIndex)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertTrue(model.editor.configuration.actions.isEmpty)
+    }
+
+    func testAddingTheSamePresetTwiceKeepsMenuItemActionsIndependent() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        model.addEmptySlot()
+        model.addEmptySlot()
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        let firstItem = try XCTUnwrap(model.editor.configuration.menu.slots[1].item)
+        let firstPrimaryID = firstItem.primaryActionID
+
+        let firstCandidate = try model.editor.configuredMenuItem(
+            at: 1,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.open"),
+            inputs: [CommandID("fixture.open"): .string("https://first.example")],
+            validateInputs: true
+        )
+        var firstNamedSlots = firstCandidate.menu.slots
+        firstNamedSlots[1] = MenuSlotConfiguration(
+            item: firstNamedSlots[1].item,
+            name: "First Item"
+        )
+        let firstNamedCandidate = try HostConfiguration(
+            actions: firstCandidate.actions,
+            menu: MenuConfiguration(slots: firstNamedSlots)
+        )
+        model.saveMenuItemConfiguration(firstNamedCandidate)
+
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
+        let secondItem = try XCTUnwrap(model.editor.configuration.menu.slots[2].item)
+        let secondPrimaryID = secondItem.primaryActionID
+        XCTAssertNotEqual(firstPrimaryID, secondPrimaryID)
+        XCTAssertEqual(model.editor.configuration.menu.slots[1].alias, "First Item")
+        XCTAssertNil(model.editor.configuration.menu.slots[2].alias)
+
+        let firstAction = try XCTUnwrap(model.editor.configuration.actions.first {
+            $0.id == firstPrimaryID
+        })
+        let secondAction = try XCTUnwrap(model.editor.configuration.actions.first {
+            $0.id == secondPrimaryID
+        })
+        XCTAssertEqual(firstAction.input, .string("https://first.example"))
+        XCTAssertEqual(secondAction.input, .string("https://example.com"))
     }
 
     func testSettingsPageSelectionIsBlockedWhileAConfigurationSheetIsOpen() throws {
