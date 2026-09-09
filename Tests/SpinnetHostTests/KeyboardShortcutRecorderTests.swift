@@ -34,6 +34,22 @@ final class KeyboardShortcutRecorderTests: XCTestCase {
         XCTAssertEqual(captured?.displayValue, "⌘V")
     }
 
+    func testActiveRecordingConsumesTheSessionKeyboardEvent() throws {
+        let view = KeyboardShortcutCaptureView(frame: NSRect(x: 0, y: 0, width: 164, height: 30))
+        view.mouseDown(with: try XCTUnwrap(mouseDownEvent()))
+        let event = try XCTUnwrap(CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(kVK_ANSI_D),
+            keyDown: true
+        ))
+        event.flags = .maskAlternate
+
+        let forwardedEvent = view.interceptKeyboardEvent(type: .keyDown, event: event)
+
+        XCTAssertNil(forwardedEvent)
+        XCTAssertEqual(view.shortcut?.displayValue, "⌥D")
+    }
+
     func testKeysPressedAfterRecordingDoNotChangeTheCapturedShortcut() throws {
         let view = KeyboardShortcutCaptureView(frame: NSRect(x: 0, y: 0, width: 164, height: 30))
         let shortcut = MenuKeyboardShortcut(

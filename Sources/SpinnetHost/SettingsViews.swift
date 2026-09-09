@@ -1095,7 +1095,7 @@ struct SettingsRootView: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 8) {
-                    Label("Accessibility is required for mouse triggers", systemImage: "exclamationmark.triangle.fill")
+                    Label("Accessibility enables mouse triggers and protected keyboard recording", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                     Spacer(minLength: 4)

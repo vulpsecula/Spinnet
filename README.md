@@ -61,11 +61,12 @@ Menu bindings, appearance, and triggers are saved automatically.
    still present. Right-click the Menu Item to expose the Alternate Action.
 7. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
    Shortcut`, or `Run Keyboard Shortcut`. The Configuration Sheet offers native
-   pickers or a shortcut recorder. If another utility intercepts a shortcut
-   while recording, choose `Enter Manually…` and enter notation such as `⌥D`
-   or `Option+D`. Text and URL fields use the standard macOS editing menu and
-   keyboard shortcuts. Cancel leaves the Slot unchanged; Save commits all
-   fields at once.
+   pickers or a shortcut recorder. Recording temporarily blocks keyboard
+   events from reaching other apps when Accessibility is available. If a
+   utility still intercepts the event, choose `Choose Manually…` and select
+   modifiers and a key from the two lists. Text and URL fields use the standard
+   macOS editing menu and keyboard shortcuts. Cancel leaves the Slot unchanged;
+   Save commits all fields at once.
 8. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
    Clipboard` capabilities in Privacy & Permissions, select text in another
    app, and run the Menu Item. The copied value comes from the current
