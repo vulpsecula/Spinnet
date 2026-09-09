@@ -653,7 +653,7 @@ public final class HostConfigurationEditor {
         guard let item = configuration.menu.slots[index].item else { return }
         let actionIDs = Set(item.boundActionIDs)
         var slots = configuration.menu.slots
-        slots[index] = MenuSlotConfiguration(item: nil, name: slots[index].name)
+        slots[index] = .empty
         try replaceConfiguration(
             actions: configuration.actions.filter { !actionIDs.contains($0.id) },
             slots: slots

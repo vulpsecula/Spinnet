@@ -1284,10 +1284,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
         model.selectMenuItem(at: 0)
+        try model.editor.renameSlot(at: 0, name: "Custom Alias")
 
         model.deleteSelectedContent()
 
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertNil(model.editor.configuration.menu.slots[0].alias)
         XCTAssertTrue(model.editor.configuration.actions.isEmpty)
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
 
