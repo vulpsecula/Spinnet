@@ -802,14 +802,19 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         XCTAssertFalse(singleWord.text.contains("\n"))
 
-        let truncatedWord = MenuTitleLayoutEngine.layout(
+        let wrappedWord = MenuTitleLayoutEngine.layout(
             title: "ExtremelyLongSlotName",
             maxWidth: 36,
             baseSize: 10,
             font: .system
         )
-        XCTAssertEqual(truncatedWord.font.pointSize, 10)
-        XCTAssertTrue(truncatedWord.text.contains("…"))
+        XCTAssertEqual(wrappedWord.font.pointSize, 10)
+        XCTAssertFalse(wrappedWord.text.contains("…"))
+        XCTAssertGreaterThan(wrappedWord.lineCount, 1)
+        XCTAssertEqual(
+            wrappedWord.text.replacingOccurrences(of: "\n", with: ""),
+            "ExtremelyLongSlotName"
+        )
 
         let system = MenuTitleLayoutEngine.layout(
             title: "Open",

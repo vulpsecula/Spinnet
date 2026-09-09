@@ -37,28 +37,13 @@ enum MenuTitleLayoutEngine {
         let wrappedLines = balancedLines(
             for: safeTitle,
             font: baseFont,
-            maxWidth: maxWidth,
-            minimumFontSize: baseSize
+            maxWidth: maxWidth
         )
-        guard wrappedLines.count > 1 else {
-            return makeLayout(
-                text: truncate(safeTitle, font: baseFont, maxWidth: maxWidth),
-                font: baseFont,
-                maxWidth: maxWidth
-            )
-        }
-
-        let wrappedText = wrappedLines.joined(separator: "\n")
-        let widestWrappedLine = wrappedLines.map { width(of: $0, font: baseFont) }.max() ?? 0
-        if widestWrappedLine <= maxWidth {
-            return makeLayout(text: wrappedText, font: baseFont, maxWidth: maxWidth)
-        }
-
-        let truncatedLines = wrappedLines.map {
-            truncate($0, font: baseFont, maxWidth: maxWidth)
+        let fullyWrappedLines = wrappedLines.flatMap {
+            wrapLine($0, font: baseFont, maxWidth: maxWidth)
         }
         return makeLayout(
-            text: truncatedLines.joined(separator: "\n"),
+            text: fullyWrappedLines.joined(separator: "\n"),
             font: baseFont,
             maxWidth: maxWidth
         )
@@ -67,10 +52,8 @@ enum MenuTitleLayoutEngine {
     private static func balancedLines(
         for title: String,
         font: NSFont,
-        maxWidth: CGFloat,
-        minimumFontSize: CGFloat
+        maxWidth: CGFloat
     ) -> [String] {
-        let minimumFont = font.withSize(minimumFontSize)
         let words = title.split(separator: " ").map(String.init)
         guard words.count > 1 else {
             return [title]
@@ -86,8 +69,8 @@ enum MenuTitleLayoutEngine {
             let minimumOverflow = max(
                 0,
                 max(
-                    width(of: first, font: minimumFont),
-                    width(of: second, font: minimumFont)
+                    firstWidth,
+                    secondWidth
                 ) - maxWidth
             )
             let balance = abs(firstWidth - secondWidth)
@@ -100,20 +83,64 @@ enum MenuTitleLayoutEngine {
         return bestLines ?? [title]
     }
 
-    private static func truncate(
-        _ text: String,
+    private static func wrapLine(
+        _ line: String,
         font: NSFont,
         maxWidth: CGFloat
-    ) -> String {
-        guard width(of: text, font: font) > maxWidth else { return text }
-        let ellipsis = "…"
-        var result = ""
-        for character in text {
-            let candidate = result + String(character) + ellipsis
-            guard width(of: candidate, font: font) <= maxWidth else { break }
-            result.append(character)
+    ) -> [String] {
+        guard width(of: line, font: font) > maxWidth else { return [line] }
+
+        var result: [String] = []
+        var currentLine = ""
+        for word in line.split(separator: " ").map(String.init) {
+            let wordLines = wrapWord(word, font: font, maxWidth: maxWidth)
+            guard wordLines.count > 1 else {
+                let candidate = currentLine.isEmpty ? word : "\(currentLine) \(word)"
+                if currentLine.isEmpty || width(of: candidate, font: font) <= maxWidth {
+                    currentLine = candidate
+                } else {
+                    result.append(currentLine)
+                    currentLine = word
+                }
+                continue
+            }
+
+            if !currentLine.isEmpty {
+                result.append(currentLine)
+                currentLine = ""
+            }
+            result.append(contentsOf: wordLines.dropLast())
+            currentLine = wordLines.last ?? ""
         }
-        return result.isEmpty ? ellipsis : result + ellipsis
+
+        if !currentLine.isEmpty {
+            result.append(currentLine)
+        }
+        return result.isEmpty ? [line] : result
+    }
+
+    private static func wrapWord(
+        _ word: String,
+        font: NSFont,
+        maxWidth: CGFloat
+    ) -> [String] {
+        guard width(of: word, font: font) > maxWidth else { return [word] }
+
+        var result: [String] = []
+        var current = ""
+        for character in word {
+            let candidate = current + String(character)
+            if current.isEmpty || width(of: candidate, font: font) <= maxWidth {
+                current = candidate
+            } else {
+                result.append(current)
+                current = String(character)
+            }
+        }
+        if !current.isEmpty {
+            result.append(current)
+        }
+        return result.isEmpty ? [word] : result
     }
 
     private static func width(of text: String, font: NSFont) -> CGFloat {
