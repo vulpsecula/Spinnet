@@ -264,6 +264,77 @@ final class ConfigurationEditorTests: XCTestCase {
         )
     }
 
+    func testConfigurationSheetCanHideAnAlternateWithoutLosingItsInputOrOrder() throws {
+        let registry = try makeRegistry()
+        let commands = try [
+            XCTUnwrap(registry.command(
+                for: PluginID("com.spinnet.fixture"),
+                commandID: CommandID("fixture.open")
+            )),
+            XCTUnwrap(registry.command(
+                for: PluginID("com.spinnet.fixture"),
+                commandID: CommandID("fixture.copy")
+            )),
+            XCTUnwrap(registry.command(
+                for: PluginID("com.spinnet.fixture"),
+                commandID: CommandID("fixture.transform_text")
+            ))
+        ]
+        let actions = try [
+            ActionConfiguration(
+                id: ActionID("primary"),
+                pluginID: PluginID("com.spinnet.fixture"),
+                command: commands[2],
+                input: .null
+            ),
+            ActionConfiguration(
+                id: ActionID("enabled"),
+                pluginID: PluginID("com.spinnet.fixture"),
+                command: commands[0],
+                input: .string("https://enabled.example")
+            ),
+            ActionConfiguration(
+                id: ActionID("hidden"),
+                pluginID: PluginID("com.spinnet.fixture"),
+                command: commands[1],
+                input: .string("https://hidden.example")
+            )
+        ]
+        let initial = try HostConfiguration(
+            actions: actions,
+            menu: MenuConfiguration(items: [try MenuItemConfiguration(
+                primaryActionID: actions[0].id,
+                alternateActionIDs: [actions[1].id],
+                disabledAlternateActionIDs: [actions[2].id],
+                alternateActionOrder: [actions[2].id, actions[1].id]
+            )])
+        )
+        let editor = HostConfigurationEditor(registry: registry, configuration: initial)
+
+        let candidate = try editor.configuredMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: commands[2].id,
+            alternateCommandIDs: [commands[0].id],
+            inputs: [commands[0].id: .string("https://updated.example")],
+            alternateCommandOrder: [commands[1].id, commands[0].id],
+            preserveUnselectedAlternates: true
+        )
+
+        let item = try XCTUnwrap(candidate.menu.items.first)
+        XCTAssertEqual(item.alternateActionIDs, [actions[1].id])
+        XCTAssertEqual(item.disabledAlternateActionIDs, [actions[2].id])
+        XCTAssertEqual(item.alternateActionOrder, [actions[2].id, actions[1].id])
+        XCTAssertEqual(
+            candidate.actions.first(where: { $0.id == actions[2].id })?.input,
+            .string("https://hidden.example")
+        )
+        XCTAssertEqual(
+            candidate.actions.first(where: { $0.id == actions[1].id })?.input,
+            .string("https://updated.example")
+        )
+    }
+
     func testSlotRenameIsPreservedByActionEditsAndBlankRestoresAutomaticNaming() throws {
         let registry = try makeRegistry()
         let openCommand = try XCTUnwrap(registry.command(

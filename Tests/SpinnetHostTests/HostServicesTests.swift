@@ -122,6 +122,121 @@ final class HostServicesTests: XCTestCase {
         XCTAssertTrue(adapter.copiedTexts.isEmpty)
     }
 
+    func testCopyTextWithoutInputCopiesTheCurrentSelectedText() throws {
+        let command = CommandDeclaration(
+            id: CommandID("builtin.copy_selected_text"),
+            title: "Copy Selected Text",
+            isConfigurable: false,
+            hostCommand: .copyText
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.builtin.copy"),
+            name: "Copy Selected Text",
+            version: "1.0.0",
+            capabilities: [.readSelectedText, .writeClipboard],
+            commands: [command]
+        )
+        let package = PluginPackage(
+            rootURL: URL(fileURLWithPath: "/System/Library/CoreServices/SpinnetBuiltInPresets"),
+            manifest: manifest,
+            presetSource: .builtIn
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let grants = PluginCapabilityGrantStore()
+        for capability in [PluginCapability.readSelectedText, .writeClipboard] {
+            grants.setDecision(
+                .granted,
+                for: manifest.id,
+                pluginVersion: manifest.version,
+                capability: capability
+            )
+        }
+        let adapter = RecordingHostCommandAdapter()
+        let executor = AppKitHostCommandExecutor(
+            adapter: adapter,
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "selected from the focused app" }
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("copy-selection"),
+            pluginID: manifest.id,
+            command: command,
+            input: .null
+        )
+
+        let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
+
+        guard case .succeeded = outcome.terminal else {
+            return XCTFail("Copy Selected Text should succeed")
+        }
+        XCTAssertEqual(adapter.copiedTexts, ["selected from the focused app"])
+    }
+
+    func testCopyTextWithoutInputRequiresBothSelectionAndClipboardGrants() throws {
+        let command = CommandDeclaration(
+            id: CommandID("builtin.copy_selected_text"),
+            title: "Copy Selected Text",
+            isConfigurable: false,
+            hostCommand: .copyText
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.builtin.copy"),
+            name: "Copy Selected Text",
+            version: "1.0.0",
+            capabilities: [.readSelectedText, .writeClipboard],
+            commands: [command]
+        )
+        let package = PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
+            manifest: manifest,
+            presetSource: .builtIn
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
+        let adapter = RecordingHostCommandAdapter()
+        let executor = AppKitHostCommandExecutor(
+            adapter: adapter,
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "selection" }
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("copy-selection"),
+            pluginID: manifest.id,
+            command: command,
+            input: .null
+        )
+
+        let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
+
+        guard case .failed(let failure) = outcome.terminal else {
+            return XCTFail("A missing selection grant should fail")
+        }
+        XCTAssertEqual(failure.category, .capabilityDenied)
+        XCTAssertTrue(adapter.copiedTexts.isEmpty)
+    }
+
+    func testBuiltInPresetCatalogExposesIndependentHostOperations() throws {
+        let packages = try BuiltInPresetCatalog.makePackages()
+        let registry = PluginRegistry()
+        for package in packages { try registry.register(package) }
+
+        let presets = registry.menuItemPresets()
+        XCTAssertEqual(presets.map(\.source).filter { $0 == .builtIn }.count, packages.count)
+        XCTAssertTrue(presets.contains { $0.name == "Open URL" && $0.readiness == .readyToUse })
+        XCTAssertTrue(presets.contains { $0.name == "Open Application" && $0.readiness == .setupRequired })
+        XCTAssertTrue(presets.contains { $0.name == "Open File" && $0.readiness == .setupRequired })
+        XCTAssertTrue(presets.contains { $0.name == "Open Folder" && $0.readiness == .setupRequired })
+        XCTAssertTrue(presets.contains { $0.name == "Run Shortcut" && $0.readiness == .setupRequired })
+        let copy = try XCTUnwrap(presets.first { $0.name == "Copy Selected Text" })
+        XCTAssertFalse(copy.isConfigurable)
+        XCTAssertEqual(copy.commands.first?.hostCommand, .copyText)
+    }
+
     func testKeyboardShortcutRequiresAccessibilitySystemPermission() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.keyboard_shortcut"),

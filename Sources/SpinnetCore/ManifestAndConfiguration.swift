@@ -70,9 +70,67 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .invokeShortcut:
             return "Shortcut name"
         case .copyText:
-            return "Text to copy"
+            return "Uses the current selected text"
         case .presentFeedback:
             return "Feedback message"
+        }
+    }
+
+    /// The default editor metadata for a declarative Host Command. Plugin
+    /// manifests may override this with `configuration_field` when a command
+    /// needs a more specific presentation.
+    public var configurationField: CommandConfigurationField? {
+        switch self {
+        case .openURL:
+            return CommandConfigurationField(
+                kind: .url,
+                title: "URL",
+                placeholder: inputPlaceholder
+            )
+        case .openApplication:
+            return CommandConfigurationField(
+                kind: .application,
+                title: "Application",
+                placeholder: inputPlaceholder
+            )
+        case .openFile:
+            return CommandConfigurationField(
+                kind: .file,
+                title: "File",
+                placeholder: inputPlaceholder
+            )
+        case .openFolder:
+            return CommandConfigurationField(
+                kind: .folder,
+                title: "Folder",
+                placeholder: inputPlaceholder
+            )
+        case .invokeKeyboardShortcut:
+            return CommandConfigurationField(
+                kind: .keyboardShortcut,
+                title: "Keyboard Shortcut",
+                placeholder: inputPlaceholder
+            )
+        case .invokeShortcut:
+            return CommandConfigurationField(
+                kind: .shortcut,
+                title: "Shortcut",
+                placeholder: inputPlaceholder
+            )
+        case .presentFeedback:
+            return CommandConfigurationField(
+                kind: .multilineText,
+                title: "Feedback",
+                placeholder: inputPlaceholder
+            )
+        case .invokeService:
+            return CommandConfigurationField(
+                kind: .text,
+                title: "macOS Service",
+                placeholder: inputPlaceholder
+            )
+        case .copyText:
+            return nil
         }
     }
 
@@ -108,7 +166,10 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .invokeShortcut:
             return validNamedInput(input, keys: ["name", "shortcut"])
         case .copyText:
-            return containsStringValue(from: input, keys: ["text"])
+            // A null input means “copy the current selected text”. The
+            // string/object forms remain accepted for backwards compatibility
+            // with persisted Actions created before the Built-in Preset.
+            return input == .null || containsStringValue(from: input, keys: ["text"])
         case .presentFeedback:
             return stringValue(from: input, keys: ["message", "text"]) != nil
         }
@@ -250,6 +311,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     public let isConfigurable: Bool
     public let hostCommand: HostCommand?
     public let script: String?
+    public let configurationField: CommandConfigurationField?
 
     public init(
         id: CommandID,
@@ -257,7 +319,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         execution: CommandExecution = .host,
         isConfigurable: Bool = true,
         hostCommand: HostCommand? = nil,
-        script: String? = nil
+        script: String? = nil,
+        configurationField: CommandConfigurationField? = nil
     ) {
         self.id = id
         self.title = title
@@ -265,6 +328,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         self.isConfigurable = isConfigurable
         self.hostCommand = hostCommand
         self.script = script
+        self.configurationField = configurationField
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -296,6 +360,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case script
         case scriptPath = "script_path"
         case javascript
+        case configurationField = "configuration_field"
+        case configuration
     }
 
     public init(from decoder: Decoder) throws {
@@ -303,13 +369,21 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         let script = try container.decodeIfPresent(String.self, forKey: .script)
             ?? container.decodeIfPresent(String.self, forKey: .scriptPath)
             ?? container.decodeIfPresent(String.self, forKey: .javascript)
+        let configurationField = try container.decodeIfPresent(
+            CommandConfigurationField.self,
+            forKey: .configurationField
+        ) ?? container.decodeIfPresent(
+            CommandConfigurationField.self,
+            forKey: .configuration
+        )
         self.init(
             id: try container.decode(CommandID.self, forKey: .id),
             title: try container.decode(String.self, forKey: .title),
             execution: try container.decode(CommandExecution.self, forKey: .execution),
             isConfigurable: try container.decodeIfPresent(Bool.self, forKey: .isConfigurable) ?? true,
             hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
-            script: script
+            script: script,
+            configurationField: configurationField
         )
     }
 
@@ -321,6 +395,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encode(isConfigurable, forKey: .isConfigurable)
         try container.encodeIfPresent(hostCommand, forKey: .hostCommand)
         try container.encodeIfPresent(script, forKey: .script)
+        try container.encodeIfPresent(configurationField, forKey: .configurationField)
     }
 
     /// Configuration metadata may change without invalidating an existing
@@ -419,6 +494,7 @@ public struct PluginManifest: Codable, Equatable {
             try validateText(command.id.rawValue, name: "Command ID")
             try validateText(command.title, name: "Command title")
             try validate(command)
+            try validateConfigurationField(command)
         }
 
         let primaryCommandID = preset.defaultPrimaryCommandID ?? commands[0].id
@@ -484,6 +560,39 @@ public struct PluginManifest: Codable, Equatable {
         }
     }
 
+    private func validateConfigurationField(_ command: CommandDeclaration) throws {
+        guard let field = command.configurationField else { return }
+        guard command.isConfigurable else {
+            throw ConfigurationError.invalidManifest(
+                "Non-configurable Command \(command.id.rawValue) cannot declare a Configuration field"
+            )
+        }
+        if let title = field.title {
+            try validateText(title, name: "Configuration field title")
+        }
+        if let placeholder = field.placeholder {
+            guard placeholder.count <= 512 else {
+                throw ConfigurationError.invalidManifest(
+                    "Configuration field placeholder is too long"
+                )
+            }
+        }
+        guard field.kind == .choice || field.choices.isEmpty else {
+            throw ConfigurationError.invalidManifest(
+                "Configuration field choices require the choice kind"
+            )
+        }
+        if field.kind == .choice {
+            guard !field.choices.isEmpty,
+                  Set(field.choices).count == field.choices.count,
+                  field.choices.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+                throw ConfigurationError.invalidManifest(
+                    "Choice Configuration field must declare unique non-empty choices"
+                )
+            }
+        }
+    }
+
     private func validDefaultInput(_ input: JSONValue, for command: CommandDeclaration) -> Bool {
         switch command.execution {
         case .host:
@@ -516,15 +625,20 @@ public struct PluginPackage {
     public let rootURL: URL
     public let manifest: PluginManifest
     public let presetSource: MenuItemPresetSource
+    /// Compatibility packages can remain registered for persisted Actions
+    /// without adding another user-facing Library entry.
+    public let isVisibleInLibrary: Bool
 
     public init(
         rootURL: URL,
         manifest: PluginManifest,
-        presetSource: MenuItemPresetSource = .plugin
+        presetSource: MenuItemPresetSource = .plugin,
+        isVisibleInLibrary: Bool = true
     ) {
         self.rootURL = rootURL
         self.manifest = manifest
         self.presetSource = presetSource
+        self.isVisibleInLibrary = isVisibleInLibrary
     }
 }
 
@@ -650,16 +764,27 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     public let primaryActionID: ActionID
+    /// Alternate Actions currently exposed by the runtime context menu.
     public let alternateActionIDs: [ActionID]
+    /// Alternate Actions retained by the editor but currently hidden from the
+    /// runtime context menu. Keeping these IDs lets a user untick an Action,
+    /// save, and re-enable it later without losing its parameters.
+    public let disabledAlternateActionIDs: [ActionID]
+    /// The stable editor order for both enabled and disabled Alternate
+    /// Actions. Legacy configurations derive this from the enabled list.
+    public let alternateActionOrder: [ActionID]
 
     public init(
         primaryActionID: ActionID,
-        alternateActionIDs: [ActionID] = []
+        alternateActionIDs: [ActionID] = [],
+        disabledAlternateActionIDs: [ActionID] = [],
+        alternateActionOrder: [ActionID]? = nil
     ) throws {
         guard !primaryActionID.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConfigurationError.invalidMenu("Primary Action ID is empty")
         }
-        guard alternateActionIDs.allSatisfy({
+        let allAlternateActionIDs = alternateActionIDs + disabledAlternateActionIDs
+        guard allAlternateActionIDs.allSatisfy({
             !$0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }) else {
             throw ConfigurationError.invalidMenu("Alternate Action ID is empty")
@@ -667,29 +792,74 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
         guard Set(alternateActionIDs).count == alternateActionIDs.count else {
             throw ConfigurationError.invalidMenu("An Alternate Action is bound more than once")
         }
-        guard !alternateActionIDs.contains(primaryActionID) else {
+        guard Set(disabledAlternateActionIDs).count == disabledAlternateActionIDs.count else {
+            throw ConfigurationError.invalidMenu("An Alternate Action is retained more than once")
+        }
+        guard Set(allAlternateActionIDs).count == allAlternateActionIDs.count else {
+            throw ConfigurationError.invalidMenu("An Action cannot be both enabled and disabled")
+        }
+        guard !allAlternateActionIDs.contains(primaryActionID) else {
             throw ConfigurationError.invalidMenu(
                 "An Action cannot be both Primary and Alternate"
             )
         }
+        let resolvedAlternateActionOrder = alternateActionOrder ?? allAlternateActionIDs
+        guard Set(resolvedAlternateActionOrder).count == resolvedAlternateActionOrder.count,
+              Set(resolvedAlternateActionOrder) == Set(allAlternateActionIDs) else {
+            throw ConfigurationError.invalidMenu("Alternate Action order does not match its Actions")
+        }
         self.primaryActionID = primaryActionID
         self.alternateActionIDs = alternateActionIDs
+        self.disabledAlternateActionIDs = disabledAlternateActionIDs
+        self.alternateActionOrder = resolvedAlternateActionOrder
     }
+
+    /// All Alternate Action IDs in editor order, including Actions that are
+    /// currently disabled in the runtime menu.
+    public var allAlternateActionIDs: [ActionID] { alternateActionOrder }
+
+    /// Every Action ID retained by this Menu Item, in Primary-then-Alternate
+    /// order. This is useful for safely removing an item and its hidden state.
+    public var boundActionIDs: [ActionID] { [primaryActionID] + alternateActionOrder }
 
     private enum CodingKeys: String, CodingKey {
         case primaryActionID = "primary_action_id"
         case alternateActionIDs = "alternate_action_ids"
+        case disabledAlternateActionIDs = "disabled_alternate_action_ids"
+        case alternateActionOrder = "alternate_action_order"
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let alternateActionIDs = try container.decodeIfPresent(
+            [ActionID].self,
+            forKey: .alternateActionIDs
+        ) ?? []
+        let disabledAlternateActionIDs = try container.decodeIfPresent(
+            [ActionID].self,
+            forKey: .disabledAlternateActionIDs
+        ) ?? []
         try self.init(
             primaryActionID: container.decode(ActionID.self, forKey: .primaryActionID),
-            alternateActionIDs: container.decodeIfPresent(
+            alternateActionIDs: alternateActionIDs,
+            disabledAlternateActionIDs: disabledAlternateActionIDs,
+            alternateActionOrder: container.decodeIfPresent(
                 [ActionID].self,
-                forKey: .alternateActionIDs
-            ) ?? []
+                forKey: .alternateActionOrder
+            )
         )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(primaryActionID, forKey: .primaryActionID)
+        try container.encode(alternateActionIDs, forKey: .alternateActionIDs)
+        if !disabledAlternateActionIDs.isEmpty {
+            try container.encode(disabledAlternateActionIDs, forKey: .disabledAlternateActionIDs)
+        }
+        if !alternateActionOrder.isEmpty {
+            try container.encode(alternateActionOrder, forKey: .alternateActionOrder)
+        }
     }
 }
 
@@ -736,7 +906,7 @@ public struct MenuConfiguration: Codable, Equatable {
         }
         var actionIDs = Set<ActionID>()
         for item in slots.compactMap(\.item) {
-            for actionID in [item.primaryActionID] + item.alternateActionIDs {
+            for actionID in item.boundActionIDs {
                 guard actionIDs.insert(actionID).inserted else {
                     throw ConfigurationError.invalidMenu("An Action is bound more than once")
                 }
@@ -777,7 +947,7 @@ public struct HostConfiguration: Codable, Equatable {
             }
         }
         for item in menu.slots.compactMap(\.item) {
-            for actionID in [item.primaryActionID] + item.alternateActionIDs {
+            for actionID in item.boundActionIDs {
                 guard actionIDs.contains(actionID) else {
                     throw ConfigurationError.invalidMenu("Menu Item references an unknown Action")
                 }

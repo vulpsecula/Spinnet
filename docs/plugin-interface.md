@@ -1,6 +1,6 @@
 # Documented Plugin Interface
 
-Frontier tickets #7, #12, #13, and #17 accept a local `.spinnetplugin` directory
+Frontier tickets #7, #12, #13, #17, and #18 accept a local `.spinnetplugin` directory
 containing a `manifest.json`. The Host loads the package through
 `PluginManifestLoader` and registers it with `PluginRegistry`.
 
@@ -30,7 +30,12 @@ The current walking skeleton supports Host Commands and Common JavaScript Comman
       "title": "Open URL",
       "execution": "host",
       "is_configurable": true,
-      "host_command": "url.open"
+      "host_command": "url.open",
+      "configuration_field": {
+        "kind": "url",
+        "title": "URL",
+        "placeholder": "https://example.com"
+      }
     },
     {
       "id": "example.transform",
@@ -64,9 +69,15 @@ Command does not need an input. Otherwise use `setup_required`. The latter is
 visible in the Library but awaits the Configuration Sheet workflow before it can
 be added. Preset-level `is_configurable` describes whether the Slot can be
 edited; each Command's `is_configurable` independently controls whether that
-Command exposes an Action parameter editor. Manifests without `preset` remain
-compatible and appear as configurable, Setup-Required Plugin Presets whose
-Primary Command is the first declared Command.
+Command exposes an Action parameter editor. A configurable Command may also
+declare a `configuration_field` (or the legacy `configuration` key) to select
+the Host-rendered field kind: `text`, `multiline_text`, `toggle`, `choice`,
+`application`, `file`, `folder`, `shortcut`, `keyboard_shortcut`, or `url`.
+`choice` fields provide a non-empty `choices` array. The Host supplies native
+application/file/folder pickers and keyboard shortcut recording controls;
+plain text and URL fields include a Paste action. Manifests without `preset`
+remain compatible and appear as configurable, Setup-Required Plugin Presets
+whose Primary Command is the first declared Command.
 
 When a ready Preset is placed into a Menu Slot, the Host creates one Action for
 the declared Primary Command and one Action for each
@@ -94,17 +105,21 @@ The supported Host Command catalogue is:
 | `keyboard_shortcut.invoke` | `{ "key": "P", "modifiers": ["command"] }` or `key_code` | Quartz Event Services | Accessibility System Permission |
 | `service.invoke` | Service name, or `{ "name": "…", "input": "…" }` | macOS Services | service availability |
 | `shortcut.invoke` | Shortcut name, or `{ "name": "…", "input": "…" }` | Public `shortcuts` command-line interface | Shortcut availability |
-| `clipboard.copy` | text string, or `{ "text": "…" }` | Host clipboard | `write_clipboard` Capability |
+| `clipboard.copy` | `null` to copy current selected text, or legacy text string / `{ "text": "…" }` | Host clipboard | `write_clipboard`; `read_selected_text` when input is `null` |
 | `feedback.present` | message string, or `{ "message": "…" }` | Host-rendered feedback | none |
 
-The bundled fixture Plugin declares one Command for each catalogue entry using
-IDs such as `fixture.open_application`, `fixture.invoke_service`, and
-`fixture.present_feedback`. The production Host validates the configured JSON
-shape before executing an Action, checks the Command's required Capability and
-System Permission, then passes the request to an AppKit adapter. Tests inject a
-recording adapter at the `HostActionRunner` seam, so automated checks verify the
-external request without opening a real application, mutating the clipboard, or
-posting a keyboard event.
+The Host also registers standalone Built-in Presets for Open URL, Open
+Application, Open File, Open Folder, Run Shortcut, Run Keyboard Shortcut, Run
+macOS Service, and Copy Selected Text. They share the same Command catalogue
+and Settings workflow without requiring a fixture Plugin. The bundled fixture
+Plugin retains its declarations for compatibility with existing persisted
+Actions and continues to provide deterministic JavaScript examples. The
+production Host validates the configured JSON shape before executing an
+Action, checks the Command's required Capability and System Permission, then
+passes the request to an AppKit adapter. Tests inject a recording adapter at
+the `HostActionRunner` seam, so automated checks verify the external request
+without opening a real application, mutating the clipboard, or posting a
+keyboard event.
 
 An unavailable application, file, folder, Service, Shortcut, or system request
 produces a stable terminal failure. A missing `write_clipboard` grant produces
@@ -295,16 +310,22 @@ to Menu Items:
 `MenuConfiguration` contains between one and twelve Slots. Each Slot may carry
 an optional user-provided `name`; when omitted, the Host displays the bound
 Primary Action's title (or `Empty Slot` when the Slot has no Menu Item). Each
-Menu Item has one Primary Action and may have multiple Alternate Actions.
-Every bound Action ID must be unique and present in the Host configuration.
+Menu Item has one Primary Action and may have multiple Alternate Actions. A
+Menu Item may also retain `disabled_alternate_action_ids` and an
+`alternate_action_order` so the Settings editor can hide an Alternate without
+discarding its parameters; older configurations may omit both keys. Every
+bound Action ID must be unique and present in the Host configuration.
 
 `PluginRegistry.menuItemPresets()` supplies one Library entry per registered
-Plugin, including disabled Plugins as unavailable Presets. Commands are shown
-inside that entry rather than duplicated as top-level Library entries. The
-settings window supports adding a Ready-to-Use Preset, explicit replacement,
-moving a Menu Item only to an empty Slot, and deletion. Changes are saved after
-each successful edit by `HostConfigurationStore` and restored on the next Host
-launch.
+Plugin that opts into the user-facing catalogue, including disabled Plugins as
+unavailable Presets. Commands are shown inside that entry rather than
+duplicated as top-level Library entries. A compatibility package can remain
+registered for persisted Actions while opting out of the Library. The
+settings window supports adding a Ready-to-Use Preset, a Configuration Sheet
+for Setup-Required Presets, explicit replacement, moving a Menu Item only to an
+empty Slot, and deletion. Sheet edits use Save/Cancel atomically; page-level
+edits and Appearance changes are saved immediately and expose Undo/Redo.
+Changes are restored on the next Host launch.
 
 An Action retains the Command definition it was configured from. Before
 execution, the Host compares that snapshot with the currently registered

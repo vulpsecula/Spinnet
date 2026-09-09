@@ -178,6 +178,7 @@ public final class PluginRegistry {
         defer { lock.unlock() }
 
         return packages.values
+            .filter(\.isVisibleInLibrary)
             .map { package in
                 MenuItemPreset(
                     pluginID: package.manifest.id,

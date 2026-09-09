@@ -33,13 +33,25 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         do {
-            let manifest = try registry.register(packageAt: fixtureURL())
+            for package in try BuiltInPresetCatalog.makePackages() {
+                try registry.register(package)
+            }
+            let fixturePackage = try PluginManifestLoader.load(packageAt: fixtureURL())
+            try registry.register(PluginPackage(
+                rootURL: fixturePackage.rootURL,
+                manifest: fixturePackage.manifest,
+                presetSource: fixturePackage.presetSource,
+                isVisibleInLibrary: false
+            ))
+            let manifest = fixturePackage.manifest
             try loadCapabilityGrants()
-            capabilityGrants.register(
-                pluginID: manifest.id,
-                pluginVersion: manifest.version,
-                capabilities: manifest.capabilities
-            )
+            for registeredManifest in registry.manifests() {
+                capabilityGrants.register(
+                    pluginID: registeredManifest.id,
+                    pluginVersion: registeredManifest.version,
+                    capabilities: registeredManifest.capabilities
+                )
+            }
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)
@@ -62,6 +74,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     grantStore: capabilityGrants,
                     systemPermissionCheck: { [pluginHostServiceProvider] permission in
                         pluginHostServiceProvider.isGranted(permission)
+                    },
+                    selectedTextProvider: { [pluginHostServiceProvider] in
+                        try pluginHostServiceProvider.readSelectedText()
                     },
                     feedbackPresenter: { [weak self] message in
                         DispatchQueue.main.async { [weak self] in
@@ -155,16 +170,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             return migratedConfiguration
         }
 
-        guard let command = manifest.commands.first(where: {
-            $0.id.rawValue == "fixture.open_url"
-        }) else {
-            throw ConfigurationError.invalidManifest("Fixture URL Command is missing")
+        let defaultURLPluginID = BuiltInPresetCatalog.openURLPluginID
+        guard let defaultURLPackage = registry.package(for: defaultURLPluginID),
+              let command = defaultURLPackage.manifest.commands.first else {
+            throw ConfigurationError.invalidManifest("Built-in Open URL Command is missing")
         }
         let urlAction = try ActionConfiguration(
             id: ActionID("fixture-open-url"),
-            pluginID: manifest.id,
+            pluginID: defaultURLPluginID,
             command: command,
-            input: .string("https://github.com/vulpsecula/Spinnet/issues/12")
+            input: defaultURLPackage.manifest.preset.defaultInputs[command.id]
+                ?? .string("https://github.com/vulpsecula/Spinnet")
         )
         let textAction = try makeFixtureScriptAction(
             manifest: manifest,
@@ -247,6 +263,27 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 primaryActionID: item.primaryActionID,
                 alternateActionIDs: alternateActionIDs
             ), name: slots[index].name)
+            changed = true
+        }
+
+        // The common Host Commands used to live in the fixture manifest. Keep
+        // those persisted Actions executable while moving them to the
+        // standalone Built-in Presets shown in the Library.
+        for index in actions.indices {
+            let action = actions[index]
+            guard action.pluginID == manifest.id,
+                  let hostCommand = action.hostCommand,
+                  let builtInPluginID = BuiltInPresetCatalog.pluginID(for: hostCommand),
+                  let builtInPackage = registry.package(for: builtInPluginID),
+                  let builtInCommand = builtInPackage.manifest.commands.first else {
+                continue
+            }
+            actions[index] = try ActionConfiguration(
+                id: action.id,
+                pluginID: builtInPluginID,
+                command: builtInCommand,
+                input: action.input
+            )
             changed = true
         }
 

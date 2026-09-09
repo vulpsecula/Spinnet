@@ -1,9 +1,9 @@
 # Spinnet
 
 Spinnet is a native macOS Host for mouse-first radial Menus. This slice
-implements frontier tickets #12, #7, and #17: a bundled Plugin registers
-Host-backed common Commands plus deterministic Common JavaScript
-transformations, and the Host exposes them through the public Action seam.
+implements the Menu-first Settings workflow from #18 on top of the common
+Host Command and Plugin runtime seams: Host-owned Built-in Presets are the
+user-facing entry points, and configuration stays in the Settings window.
 
 ## Run
 
@@ -30,11 +30,14 @@ SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
 Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
 permission again after rebuilding them.
 
-The Host registers `Plugins/SpinnetFixture.spinnetplugin` through the public
-manifest loader and opens the radial Menu with Mouse Side Button 1 by default.
-The fixture declares Host Commands for opening applications, files, folders,
-and URLs; invoking keyboard shortcuts, macOS Services, and Shortcuts; copying
-explicit text; and presenting Host-rendered feedback. Scripted Actions launch
+The Host registers standalone Built-in Presets for Open URL, Open Application,
+Open File, Open Folder, Shortcuts, Services, and Copy Selected Text, then
+loads `Plugins/SpinnetFixture.spinnetplugin` through the public manifest
+loader for its deterministic JavaScript compatibility Actions. The fixture
+retains the common Host Command declarations for existing persisted
+configurations, but is hidden from the Library so those operations appear only
+as standalone Built-in Presets. The Host opens the radial Menu with Mouse Side
+Button 1 by default. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
 Host-backed Actions do not launch a helper.
 An optional keyboard shortcut can be recorded under Settings → Menu. The
@@ -56,13 +59,15 @@ Menu bindings, appearance, and triggers are saved automatically.
 6. Open Settings from the status item. Create a second Action, select it as an
    Alternate Action, close and relaunch the Host, and confirm the binding is
    still present. Right-click the Menu Item to expose the Alternate Action.
-7. In the Slot Configuration Sheet, choose each fixture Host Command and save
-   it as a Primary or Alternate Action. Use a real application, file, folder,
-   macOS Service, and Shortcut for the corresponding inputs; missing resources
-   remain configured and report an unavailable Action instead of doing nothing.
-8. Grant `Write Clipboard` in Privacy & Permissions before running `Copy Text`.
-   Grant Accessibility before running `Run Keyboard Shortcut`; denied grants
-   produce visible, stable failure categories.
+7. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
+   Shortcut`, or `Run Keyboard Shortcut`. The Configuration Sheet offers native
+   pickers or a shortcut recorder, plus an explicit Paste button for text and
+   URL fields. Cancel leaves the Slot unchanged; Save commits all fields at
+   once.
+8. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
+   Clipboard` capabilities in Privacy & Permissions, select text in another
+   app, and run the Menu Item. The copied value comes from the current
+   selection rather than a configured text parameter.
 
 ## Scripted Action lifecycle checks
 

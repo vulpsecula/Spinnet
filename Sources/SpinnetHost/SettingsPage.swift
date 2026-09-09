@@ -91,7 +91,10 @@ extension SettingsPage {
                 showsEditorMode: true,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.appearance"),
                 contentAccessibilityNames: { _ in
-                    ["Appearance", "Theme", "Accent Colour", "Menu Size", "Reset Appearance"]
+                    [
+                        "Appearance", "Theme", "Accent Colour", "Menu Size",
+                        "Undo Appearance change", "Redo Appearance change", "Reset Appearance"
+                    ]
                 }
             )
         case .privacyAndPermissions:
@@ -104,6 +107,9 @@ extension SettingsPage {
                         "Privacy & Permissions",
                         "System Permissions",
                         "Sensitive Data Collection",
+                        "Collect Clipboard History",
+                        "Pause Clipboard History collection",
+                        "Clipboard retention",
                         "Plugin Access"
                     ] + PluginSystemPermission.allCases.map {
                         "Open \($0.title) Settings"

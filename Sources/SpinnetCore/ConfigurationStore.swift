@@ -165,12 +165,22 @@ public final class HostConfigurationEditor {
                 slots.append(slot)
                 continue
             }
+            let remainingEnabled = item.alternateActionIDs.filter { $0 != id }
+            let remainingDisabled = item.disabledAlternateActionIDs.filter { $0 != id }
+            let remainingOrder = item.alternateActionOrder.filter { $0 != id }
             if item.primaryActionID == id {
-                let remainingAlternates = item.alternateActionIDs.filter { $0 != id }
-                if let promotedPrimary = remainingAlternates.first {
+                // Promote the first visible Alternate when possible. If all
+                // remaining Alternates are hidden, promote the first retained
+                // one so deleting a Primary does not discard saved setup.
+                let promotedPrimary = remainingEnabled.first ?? remainingDisabled.first
+                if let promotedPrimary {
+                    let enabled = remainingEnabled.filter { $0 != promotedPrimary }
+                    let disabled = remainingDisabled.filter { $0 != promotedPrimary }
                     slots.append(.occupied(try MenuItemConfiguration(
                         primaryActionID: promotedPrimary,
-                        alternateActionIDs: Array(remainingAlternates.dropFirst())
+                        alternateActionIDs: enabled,
+                        disabledAlternateActionIDs: disabled,
+                        alternateActionOrder: remainingOrder.filter { $0 != promotedPrimary }
                     ), name: slot.name))
                 } else {
                     slots.append(MenuSlotConfiguration(item: nil, name: slot.name))
@@ -178,7 +188,9 @@ public final class HostConfigurationEditor {
             } else {
                 slots.append(.occupied(try MenuItemConfiguration(
                     primaryActionID: item.primaryActionID,
-                    alternateActionIDs: item.alternateActionIDs.filter { $0 != id }
+                    alternateActionIDs: remainingEnabled,
+                    disabledAlternateActionIDs: remainingDisabled,
+                    alternateActionOrder: remainingOrder
                 ), name: slot.name))
             }
         }
@@ -227,14 +239,85 @@ public final class HostConfigurationEditor {
         alternateCommandIDs: [CommandID] = [],
         inputs: [CommandID: JSONValue] = [:]
     ) throws {
+        configuration = try configuredMenuItem(
+            at: index,
+            pluginID: pluginID,
+            primaryCommandID: primaryCommandID,
+            alternateCommandIDs: alternateCommandIDs,
+            inputs: inputs,
+            replacingEmptySlot: false,
+            validateInputs: false
+        )
+    }
+
+    /// Builds a complete configuration for a Menu Item edit without mutating
+    /// the editor. Settings sheets use this to apply all fields atomically.
+    public func configuredMenuItem(
+        at index: Int,
+        pluginID: PluginID,
+        primaryCommandID: CommandID,
+        alternateCommandIDs: [CommandID] = [],
+        inputs: [CommandID: JSONValue] = [:],
+        alternateCommandOrder: [CommandID]? = nil,
+        replacingEmptySlot: Bool = false,
+        validateInputs: Bool = true,
+        preserveUnselectedAlternates: Bool = false
+    ) throws -> HostConfiguration {
+        let requestedAlternateOrder = alternateCommandOrder ?? alternateCommandIDs
+        let selectedAlternateIDs = Set(alternateCommandIDs)
+        guard requestedAlternateOrder.count == Set(requestedAlternateOrder).count,
+              !requestedAlternateOrder.contains(primaryCommandID),
+              selectedAlternateIDs.isSubset(of: Set(requestedAlternateOrder)) else {
+            throw ConfigurationError.invalidMenu("Alternate Command order is invalid")
+        }
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
         guard let existingItem = configuration.menu.slots[index].item else {
-            throw ConfigurationError.invalidMenu("Menu Slot is empty")
+            guard replacingEmptySlot else {
+                throw ConfigurationError.invalidMenu("Menu Slot is empty")
+            }
+            return try configuredEmptyMenuItem(
+                at: index,
+                pluginID: pluginID,
+                primaryCommandID: primaryCommandID,
+                alternateCommandIDs: alternateCommandIDs,
+                alternateCommandOrder: requestedAlternateOrder,
+                inputs: inputs,
+                validateInputs: validateInputs
+            )
         }
 
-        let selectedCommandIDs = [primaryCommandID] + alternateCommandIDs
+        return try configuredExistingMenuItem(
+            at: index,
+            existingItem: existingItem,
+            pluginID: pluginID,
+            primaryCommandID: primaryCommandID,
+            alternateCommandIDs: alternateCommandIDs,
+            alternateCommandOrder: requestedAlternateOrder,
+            inputs: inputs,
+            validateInputs: validateInputs,
+            preserveUnselectedAlternates: preserveUnselectedAlternates
+        )
+    }
+
+    private func configuredExistingMenuItem(
+        at index: Int,
+        existingItem: MenuItemConfiguration,
+        pluginID: PluginID,
+        primaryCommandID: CommandID,
+        alternateCommandIDs: [CommandID],
+        alternateCommandOrder: [CommandID],
+        inputs: [CommandID: JSONValue],
+        validateInputs: Bool,
+        preserveUnselectedAlternates: Bool
+    ) throws -> HostConfiguration {
+        let selectedAlternateIDs = Set(alternateCommandIDs)
+        let orderedSelectedAlternateIDs = alternateCommandOrder.filter(selectedAlternateIDs.contains)
+        guard Set(orderedSelectedAlternateIDs) == selectedAlternateIDs else {
+            throw ConfigurationError.invalidMenu("Alternate Command order is incomplete")
+        }
+        let selectedCommandIDs = [primaryCommandID] + orderedSelectedAlternateIDs
         guard Set(selectedCommandIDs).count == selectedCommandIDs.count else {
             throw ConfigurationError.invalidMenu("A Command is selected more than once")
         }
@@ -244,9 +327,7 @@ public final class HostConfigurationEditor {
             )
         }
 
-        let oldActionIDs = Set(
-            [existingItem.primaryActionID] + existingItem.alternateActionIDs
-        )
+        let oldActionIDs = Set(existingItem.boundActionIDs)
         let oldActions = configuration.actions.filter { oldActionIDs.contains($0.id) }
         let presetInputs = registry.menuItemPreset(for: pluginID)?.declaration.defaultInputs ?? [:]
         var existingActionsByCommandID: [CommandID: ActionConfiguration] = [:]
@@ -254,39 +335,151 @@ public final class HostConfigurationEditor {
             existingActionsByCommandID[action.commandID] = action
         }
 
-        let newActions = try selectedCommandIDs.map { commandID -> ActionConfiguration in
+        let newActions = try makeActions(
+            selectedCommandIDs: selectedCommandIDs,
+            pluginID: pluginID,
+            inputs: inputs,
+            fallbackInputs: presetInputs,
+            existingActionsByCommandID: existingActionsByCommandID,
+            validateInputs: validateInputs
+        )
+
+        let newActionsByCommandID = Dictionary(
+            uniqueKeysWithValues: newActions.map { ($0.commandID, $0) }
+        )
+        var retainedActions: [ActionConfiguration] = []
+        var enabledAlternateActionIDs: [ActionID] = []
+        var disabledAlternateActionIDs: [ActionID] = []
+        var alternateActionOrder: [ActionID] = []
+        var representedCommandIDs = Set<CommandID>()
+
+        for commandID in alternateCommandOrder where commandID != primaryCommandID {
+            if let action = newActionsByCommandID[commandID] {
+                alternateActionOrder.append(action.id)
+                enabledAlternateActionIDs.append(action.id)
+                representedCommandIDs.insert(commandID)
+                continue
+            }
+            guard preserveUnselectedAlternates,
+                  let action = existingActionsByCommandID[commandID] else { continue }
+            alternateActionOrder.append(action.id)
+            disabledAlternateActionIDs.append(action.id)
+            retainedActions.append(action)
+            representedCommandIDs.insert(commandID)
+        }
+
+        if preserveUnselectedAlternates {
+            // Keep an old Alternate whose Command is no longer surfaced by
+            // the current manifest at the end of the editor order. This makes
+            // stale configuration recoverable instead of silently deleting it.
+            for actionID in existingItem.alternateActionOrder {
+                guard let action = existingActionsByCommandID.first(where: { $0.value.id == actionID })?.value,
+                      action.commandID != primaryCommandID,
+                      !representedCommandIDs.contains(action.commandID) else { continue }
+                alternateActionOrder.append(action.id)
+                disabledAlternateActionIDs.append(action.id)
+                retainedActions.append(action)
+                representedCommandIDs.insert(action.commandID)
+            }
+        }
+
+        let item = try MenuItemConfiguration(
+            primaryActionID: newActions[0].id,
+            alternateActionIDs: enabledAlternateActionIDs,
+            disabledAlternateActionIDs: disabledAlternateActionIDs,
+            alternateActionOrder: alternateActionOrder
+        )
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item, name: configuration.menu.slots[index].name)
+        return try HostConfiguration(
+            actions: configuration.actions.filter { !oldActionIDs.contains($0.id) }
+                + newActions
+                + retainedActions,
+            menu: MenuConfiguration(slots: slots)
+        )
+    }
+
+    private func configuredEmptyMenuItem(
+        at index: Int,
+        pluginID: PluginID,
+        primaryCommandID: CommandID,
+        alternateCommandIDs: [CommandID],
+        alternateCommandOrder: [CommandID],
+        inputs: [CommandID: JSONValue],
+        validateInputs: Bool
+    ) throws -> HostConfiguration {
+        let selectedAlternateIDs = Set(alternateCommandIDs)
+        let orderedSelectedAlternateIDs = alternateCommandOrder.filter(selectedAlternateIDs.contains)
+        let selectedCommandIDs = [primaryCommandID] + orderedSelectedAlternateIDs
+        guard Set(selectedCommandIDs).count == selectedCommandIDs.count else {
+            throw ConfigurationError.invalidMenu("A Command is selected more than once")
+        }
+        guard inputs.keys.allSatisfy(selectedCommandIDs.contains) else {
+            throw ConfigurationError.invalidAction(
+                "Configuration input references an unselected Command"
+            )
+        }
+        let presetInputs = registry.menuItemPreset(for: pluginID)?.declaration.defaultInputs ?? [:]
+        let newActions = try makeActions(
+            selectedCommandIDs: selectedCommandIDs,
+            pluginID: pluginID,
+            inputs: inputs,
+            fallbackInputs: presetInputs,
+            existingActionsByCommandID: [:],
+            validateInputs: validateInputs
+        )
+        guard let primary = newActions.first else {
+            throw ConfigurationError.invalidAction("A Primary Action is required")
+        }
+        let item = try MenuItemConfiguration(
+            primaryActionID: primary.id,
+            alternateActionIDs: newActions.dropFirst().map(\.id)
+        )
+        var slots = configuration.menu.slots
+        slots[index] = .occupied(item, name: slots[index].name)
+        return try HostConfiguration(
+            actions: configuration.actions + newActions,
+            menu: MenuConfiguration(slots: slots)
+        )
+    }
+
+    private func makeActions(
+        selectedCommandIDs: [CommandID],
+        pluginID: PluginID,
+        inputs: [CommandID: JSONValue],
+        fallbackInputs: [CommandID: JSONValue],
+        existingActionsByCommandID: [CommandID: ActionConfiguration],
+        validateInputs: Bool
+    ) throws -> [ActionConfiguration] {
+        try selectedCommandIDs.map { commandID -> ActionConfiguration in
             guard let command = registry.command(for: pluginID, commandID: commandID) else {
                 throw ConfigurationError.invalidAction("Command is unavailable")
             }
             let existingAction = existingActionsByCommandID[commandID]
-            let actionID = existingAction?.id ?? ActionID(UUID().uuidString)
             let input: JSONValue
             if !command.isConfigurable {
                 input = .null
             } else {
                 input = inputs[commandID]
                     ?? existingAction?.input
-                    ?? presetInputs[commandID]
+                    ?? fallbackInputs[commandID]
                     ?? .null
+                if validateInputs,
+                   command.execution == .host,
+                   let hostCommand = command.hostCommand,
+                   !hostCommand.isValidInput(input) {
+                    throw ConfigurationError.invalidAction(
+                        "Configuration input is invalid for Command \(commandID.rawValue)"
+                    )
+                }
             }
             return try makeAvailableAction(
-                id: actionID,
+                id: existingAction?.id ?? ActionID(UUID().uuidString),
                 pluginID: pluginID,
                 commandID: commandID,
                 input: input
             )
         }
-
-        let item = try MenuItemConfiguration(
-            primaryActionID: newActions[0].id,
-            alternateActionIDs: newActions.dropFirst().map(\.id)
-        )
-        var slots = configuration.menu.slots
-        slots[index] = .occupied(item, name: configuration.menu.slots[index].name)
-        try replaceConfiguration(
-            actions: configuration.actions.filter { !oldActionIDs.contains($0.id) } + newActions,
-            slots: slots
-        )
     }
 
     public func addMenuItem(
@@ -410,7 +603,7 @@ public final class HostConfigurationEditor {
         )
         let replacedActionIDs = Set(
             configuration.menu.slots[index].item.map {
-                [$0.primaryActionID] + $0.alternateActionIDs
+                $0.boundActionIDs
             } ?? []
         )
         var slots = configuration.menu.slots
@@ -447,7 +640,7 @@ public final class HostConfigurationEditor {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
         guard let item = configuration.menu.slots[index].item else { return }
-        let actionIDs = Set([item.primaryActionID] + item.alternateActionIDs)
+        let actionIDs = Set(item.boundActionIDs)
         var slots = configuration.menu.slots
         slots[index] = MenuSlotConfiguration(item: nil, name: slots[index].name)
         try replaceConfiguration(

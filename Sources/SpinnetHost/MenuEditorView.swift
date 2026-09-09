@@ -102,7 +102,7 @@ struct MenuEditorView: View {
 
     @ViewBuilder
     private func draggableLibraryCard(_ preset: MenuItemPreset) -> some View {
-        if preset.isAvailable, preset.readiness == .readyToUse {
+        if preset.isAvailable {
             libraryCard(preset)
                 .onDrag {
                     Self.libraryPresetDragProvider(for: preset.id)
@@ -159,7 +159,7 @@ struct MenuEditorView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .disabled(!preset.isAvailable || preset.readiness != .readyToUse)
+                .disabled(!preset.isAvailable)
                 .help(presetActionHelp(preset))
                 .accessibilityLabel("Add \(preset.name) to selected Slot")
             }

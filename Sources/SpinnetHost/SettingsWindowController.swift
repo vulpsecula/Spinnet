@@ -17,16 +17,38 @@ final class SettingsWindowController: NSWindowController {
         model.page
     }
 
+    var permissionGuidePresented: Bool { model.permissionGuidePresented }
+    var clipboardCollectionEnabled: Bool {
+        get { model.clipboardCollectionEnabled }
+        set { model.clipboardCollectionEnabled = newValue }
+    }
+    var clipboardCollectionPaused: Bool {
+        get { model.clipboardCollectionPaused }
+        set { model.clipboardCollectionPaused = newValue }
+    }
+    var clipboardRetention: ClipboardRetention {
+        get { model.clipboardRetention }
+        set { model.clipboardRetention = newValue }
+    }
+    var canUndoAppearance: Bool { model.canUndoAppearance }
+    var canRedoAppearance: Bool { model.canRedoAppearance }
+    var pendingPresetSetup: PendingPresetSetup? { model.pendingPresetSetup }
+    var editingMenuIndex: Int? { model.editingMenuIndex }
+    var selectedMenuIndex: Int { model.selectedMenuIndex }
+    var placementMessage: String? { model.placementMessage }
+
     init(
         editor: HostConfigurationEditor,
         metadata: ApplicationMetadata = .current,
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
+        defaults: UserDefaults = .standard,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
     ) {
         model = SettingsWindowModel(
             editor: editor,
             metadata: metadata,
-            capabilityGrantStore: capabilityGrantStore
+            capabilityGrantStore: capabilityGrantStore,
+            defaults: defaults
         )
 
         let window = NSWindow(
@@ -114,6 +136,22 @@ final class SettingsWindowController: NSWindowController {
         model.refreshSystemPermissionStatus()
     }
 
+    func dismissPermissionGuide() {
+        model.dismissPermissionGuide()
+    }
+
+    func undoAppearance() {
+        model.undoAppearance()
+    }
+
+    func redoAppearance() {
+        model.redoAppearance()
+    }
+
+    func cancelPresetSetup() {
+        model.cancelPresetSetup()
+    }
+
     /// The observable Settings window seam used by host-level UI tests.
     var presentationSnapshot: SettingsWindowSnapshot {
         var visibleRegions: [SettingsRegion] = [.navigation]
@@ -134,7 +172,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func select(page: SettingsPage) {
-        model.page = page
+        model.selectPage(page)
         if window?.isVisible == true, let hostingView {
             window?.makeFirstResponder(hostingView)
         }

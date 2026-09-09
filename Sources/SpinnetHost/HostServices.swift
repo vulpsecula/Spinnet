@@ -177,6 +177,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
     private let adapter: HostCommandAdapter
     private let grantStore: PluginCapabilityGrantStore?
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
+    private let selectedTextProvider: (() throws -> String)?
     private let feedbackPresenter: (String) -> Void
 
     init(
@@ -188,11 +189,13 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 return AXIsProcessTrusted()
             }
         },
+        selectedTextProvider: (() throws -> String)? = nil,
         feedbackPresenter: @escaping (String) -> Void = { _ in }
     ) {
         self.adapter = adapter
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
+        self.selectedTextProvider = selectedTextProvider
         self.feedbackPresenter = feedbackPresenter
     }
 
@@ -221,7 +224,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             }
         }
 
-        try authorize(command, package: package)
+        try authorize(command, package: package, input: action.input)
         guard command.isValidInput(action.input) else {
             throw HostCommandExecutionError.invalidInput(
                 "Input is invalid for \(command.rawValue)"
@@ -295,12 +298,22 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             }
             return .object(["invoked": .string(request.name)])
         case .copyText:
-            let text = try requiredString(
-                from: action.input,
-                keys: ["text"],
-                description: "text to copy",
-                allowEmpty: true
-            )
+            let text: String
+            if action.input == .null {
+                guard let selectedTextProvider else {
+                    throw HostCommandExecutionError.unavailable(
+                        "Selected text is unavailable from the Host"
+                    )
+                }
+                text = try selectedTextProvider()
+            } else {
+                text = try requiredString(
+                    from: action.input,
+                    keys: ["text"],
+                    description: "text to copy",
+                    allowEmpty: true
+                )
+            }
             guard adapter.copyText(text) else {
                 throw HostCommandExecutionError.failed("The clipboard could not be updated")
             }
@@ -318,9 +331,18 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
 
     private func authorize(
         _ command: HostCommand,
-        package: PluginPackage?
+        package: PluginPackage?,
+        input: JSONValue
     ) throws {
+        var requiredCapabilities: [PluginCapability] = []
         if let capability = command.requiredCapability {
+            requiredCapabilities.append(capability)
+        }
+        if command == .copyText, input == .null {
+            requiredCapabilities.append(.readSelectedText)
+        }
+        var checkedCapabilities = Set<PluginCapability>()
+        for capability in requiredCapabilities where checkedCapabilities.insert(capability).inserted {
             guard let package,
                   package.manifest.capabilities.contains(capability),
                   let grantStore else {
@@ -682,7 +704,10 @@ final class GlobalTriggerController {
         mouseInterceptionAvailable = installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
         if !mouseInterceptionAvailable {
-            accessibilityPermission.requestOnceIfNeeded()
+            // Do not trigger a macOS prompt during launch. The Settings
+            // permission guide is the explicit user action that opens the
+            // Accessibility pane, so users can skip it and still use any
+            // permission-free Menu Actions.
             schedulePermissionRetry()
         }
 

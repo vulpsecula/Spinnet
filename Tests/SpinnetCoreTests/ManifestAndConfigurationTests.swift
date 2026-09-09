@@ -91,6 +91,41 @@ final class ManifestAndConfigurationTests: XCTestCase {
             "modifiers": .array([.string("command")])
         ])))
         XCTAssertFalse(HostCommand.openURL.isValidInput(.string("not a URL")))
+        XCTAssertEqual(
+            HostCommand.openApplication.configurationField?.kind,
+            .application
+        )
+        XCTAssertEqual(
+            HostCommand.openFolder.configurationField?.kind,
+            .folder
+        )
+        XCTAssertEqual(
+            HostCommand.invokeShortcut.configurationField?.kind,
+            .shortcut
+        )
+        XCTAssertNil(HostCommand.copyText.configurationField)
+        XCTAssertTrue(HostCommand.copyText.isValidInput(.null))
+    }
+
+    func testCommandConfigurationFieldRoundTripsAndSupportsMultilineText() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.feedback"),
+            title: "Feedback",
+            hostCommand: .presentFeedback,
+            configurationField: CommandConfigurationField(
+                kind: .multilineText,
+                title: "Message",
+                placeholder: "Tell us what happened"
+            )
+        )
+        let restored = try JSONDecoder().decode(
+            CommandDeclaration.self,
+            from: JSONEncoder().encode(command)
+        )
+
+        XCTAssertEqual(restored.configurationField?.kind, .multilineText)
+        XCTAssertEqual(restored.configurationField?.displayTitle, "Message")
+        XCTAssertEqual(restored.configurationField?.placeholder, "Tell us what happened")
     }
 
     func testManifestRejectsAProtectedHostCommandWithoutItsCapabilityDeclaration() {
@@ -257,6 +292,22 @@ final class ManifestAndConfigurationTests: XCTestCase {
             decoded.menu.items[0].alternateActionIDs,
             [ActionID("alternate-1"), ActionID("alternate-2")]
         )
+    }
+
+    func testMenuItemRoundTripsHiddenAlternatesAndTheirEditorOrder() throws {
+        let item = try MenuItemConfiguration(
+            primaryActionID: ActionID("primary"),
+            alternateActionIDs: [ActionID("enabled")],
+            disabledAlternateActionIDs: [ActionID("hidden")],
+            alternateActionOrder: [ActionID("hidden"), ActionID("enabled")]
+        )
+        let decoded = try JSONDecoder().decode(
+            MenuItemConfiguration.self,
+            from: JSONEncoder().encode(item)
+        )
+
+        XCTAssertEqual(decoded, item)
+        XCTAssertEqual(decoded.allAlternateActionIDs, [ActionID("hidden"), ActionID("enabled")])
     }
 
     func testMenuSlotNameRoundTripsAndBlankNamesUseAutomaticMode() throws {

@@ -10,6 +10,62 @@ final class SettingsWindowControllerTests: XCTestCase {
         _ = NSApplication.shared
     }
 
+    func testConfigurationInputResolverPreservesLegacyObjectPayloads() {
+        let field = CommandConfigurationField(kind: .shortcut)
+        let original: JSONValue = .object([
+            "name": .string("Build project"),
+            "input": .string("source tree")
+        ])
+
+        XCTAssertEqual(
+            ConfigurationInputValueResolver.presentationValue(
+                for: original,
+                field: field,
+                hostCommand: .invokeShortcut
+            ),
+            "Build project"
+        )
+        XCTAssertEqual(
+            ConfigurationInputValueResolver.resolve(
+                text: "Build project",
+                field: field,
+                hostCommand: .invokeShortcut,
+                original: original
+            ),
+            original
+        )
+        XCTAssertEqual(
+            ConfigurationInputValueResolver.resolve(
+                text: "Run project",
+                field: field,
+                hostCommand: .invokeShortcut,
+                original: original
+            ),
+            .object([
+                "name": .string("Run project"),
+                "input": .string("source tree")
+            ])
+        )
+
+        let pathField = CommandConfigurationField(kind: .file)
+        let pathInput: JSONValue = .object([
+            "path": .string("/tmp/report.txt"),
+            "bookmark": .string("retained")
+        ])
+        XCTAssertEqual(
+            ConfigurationInputValueResolver.resolve(
+                text: "/tmp/renamed.txt",
+                field: pathField,
+                hostCommand: .openFile,
+                original: pathInput
+            ),
+            .object([
+                "path": .string("/tmp/renamed.txt"),
+                "bookmark": .string("retained")
+            ])
+        )
+    }
+
     func testSettingsNavigationKeepsEditorModeOnlyOnMenuAndAppearance() throws {
         let controller = try makeController()
 
@@ -414,6 +470,172 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(runtimeMenu.presentationSnapshot.accent, "Purple")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.menuSize, "Large")
         XCTAssertGreaterThan(runtimeMenu.presentationSnapshot.outerRadius, 142)
+    }
+
+    func testAppearanceUndoRedoAndClipboardPrivacyStatePersistAtTheSettingsSeam() throws {
+        let suiteName = "SpinnetHostTests.SettingsState.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+
+        XCTAssertTrue(model.permissionGuidePresented)
+        model.dismissPermissionGuide()
+        XCTAssertFalse(model.permissionGuidePresented)
+        XCTAssertTrue(defaults.bool(forKey: "privacy.permission-guide-shown"))
+
+        model.appearanceTheme = "Dark"
+        model.appearanceAccent = "Purple"
+        model.appearanceMenuSize = "Large"
+        XCTAssertTrue(model.canUndoAppearance)
+        model.undoAppearance()
+        model.undoAppearance()
+        model.undoAppearance()
+        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
+        XCTAssertTrue(model.canRedoAppearance)
+        model.redoAppearance()
+        model.redoAppearance()
+        model.redoAppearance()
+        XCTAssertEqual(model.appearanceConfiguration.theme, "Dark")
+        XCTAssertEqual(model.appearanceConfiguration.accent, "Purple")
+        XCTAssertEqual(model.appearanceConfiguration.menuSize, "Large")
+
+        model.clipboardCollectionEnabled = true
+        model.clipboardCollectionPaused = true
+        model.clipboardRetention = .oneWeek
+        XCTAssertEqual(model.clipboardCollectionStatus, "Paused — existing entries are retained")
+        XCTAssertTrue(defaults.bool(forKey: "privacy.clipboard-collection-enabled"))
+        XCTAssertTrue(defaults.bool(forKey: "privacy.clipboard-collection-paused"))
+        XCTAssertEqual(defaults.string(forKey: "privacy.clipboard-retention"), "1 week")
+
+        let restored = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        XCTAssertFalse(restored.permissionGuidePresented)
+        XCTAssertTrue(restored.clipboardCollectionEnabled)
+        XCTAssertTrue(restored.clipboardCollectionPaused)
+        XCTAssertEqual(restored.clipboardRetention, .oneWeek)
+    }
+
+    func testSetupRequiredPresetStaysEmptyUntilValidConfigurationIsSaved() throws {
+        let registry = PluginRegistry()
+        let packages = try BuiltInPresetCatalog.makePackages()
+        for package in packages { try registry.register(package) }
+        let configuration = try HostConfiguration(
+            actions: [],
+            menu: MenuConfiguration(slots: [.empty])
+        )
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(registry: registry, configuration: configuration),
+            metadata: .current,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        let applicationPreset = try XCTUnwrap(
+            packages.first { $0.manifest.name == "Open Application" }
+        )
+
+        XCTAssertFalse(model.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
+        XCTAssertEqual(
+            model.pendingPresetSetup,
+            PendingPresetSetup(
+                pluginID: applicationPreset.manifest.id.rawValue,
+                slotIndex: 0,
+                replacing: false
+            )
+        )
+        XCTAssertNil(model.editor.configuration.menu.slots[0].item)
+
+        let command = try XCTUnwrap(applicationPreset.manifest.commands.first)
+        XCTAssertThrowsError(try model.editor.configuredMenuItem(
+            at: 0,
+            pluginID: applicationPreset.manifest.id,
+            primaryCommandID: command.id,
+            inputs: [command.id: .string("")],
+            replacingEmptySlot: true,
+            validateInputs: true
+        ))
+        let candidate = try model.editor.configuredMenuItem(
+            at: 0,
+            pluginID: applicationPreset.manifest.id,
+            primaryCommandID: command.id,
+            inputs: [command.id: .string("/Applications/TextEdit.app")],
+            replacingEmptySlot: true,
+            validateInputs: true
+        )
+        model.savePresetSetup(
+            candidate,
+            for: try XCTUnwrap(model.pendingPresetSetup)
+        )
+
+        XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
+        XCTAssertNil(model.pendingPresetSetup)
+        XCTAssertNil(model.editingMenuIndex)
+        XCTAssertTrue(model.canUndoSlotEdit)
+    }
+
+    func testSettingsPageSelectionIsBlockedWhileAConfigurationSheetIsOpen() throws {
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        model.requestEdit(at: 0)
+        XCTAssertEqual(model.editingMenuIndex, 0)
+        model.selectPage(.privacyAndPermissions)
+        XCTAssertEqual(model.page, .menu)
+        model.editingMenuIndex = nil
+        model.selectPage(.privacyAndPermissions)
+        XCTAssertEqual(model.page, .privacyAndPermissions)
+    }
+
+    func testMenuItemConfigurationSaveIsAtomicAndParticipatesInUndoRedo() throws {
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        let original = model.editor.configuration
+
+        XCTAssertThrowsError(try model.editor.configuredMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.open"),
+            inputs: [CommandID("fixture.open"): .string("not a URL")],
+            validateInputs: true
+        ))
+        XCTAssertEqual(model.editor.configuration, original)
+
+        let candidate = try model.editor.configuredMenuItem(
+            at: 0,
+            pluginID: PluginID("com.spinnet.fixture"),
+            primaryCommandID: CommandID("fixture.open"),
+            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")],
+            validateInputs: true
+        )
+        model.saveMenuItemConfiguration(candidate)
+        XCTAssertEqual(
+            model.editor.configuration.actions.first?.input,
+            .string("https://spinnet.dev")
+        )
+        model.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration, original)
+        model.redoSlotEdit()
+        XCTAssertEqual(
+            model.editor.configuration.actions.first?.input,
+            .string("https://spinnet.dev")
+        )
     }
 
     func testAddingAnEmptySlotAndPlacingALibraryPluginOpensThatSlotEditor() throws {

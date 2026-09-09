@@ -1,10 +1,184 @@
 import AppKit
+import Carbon
+import Darwin
 import SwiftUI
 import SpinnetCore
+import UniformTypeIdentifiers
 
 struct PendingPresetReplacement: Equatable {
     let pluginID: String
     let slotIndex: Int
+}
+
+struct PendingPresetSetup: Equatable {
+    let pluginID: String
+    let slotIndex: Int
+    let replacing: Bool
+}
+
+enum ClipboardRetention: String, CaseIterable, Equatable {
+    case oneDay = "1 day"
+    case oneWeek = "1 week"
+    case oneMonth = "1 month"
+
+    var hours: Int {
+        switch self {
+        case .oneDay: return 24
+        case .oneWeek: return 24 * 7
+        case .oneMonth: return 24 * 30
+        }
+    }
+}
+
+/// Keeps the editor's friendly field presentation separate from the JSON
+/// shape accepted by a Command. Existing Actions may use an object input with
+/// extra members (for example, a Shortcut payload); a field edit should only
+/// replace the member represented by that field.
+struct ConfigurationInputValueResolver {
+    static func presentationValue(
+        for value: JSONValue,
+        field: CommandConfigurationField?,
+        hostCommand: HostCommand?
+    ) -> String {
+        guard let field else { return encodedValue(for: value) }
+
+        switch field.kind {
+        case .application:
+            return stringMember(in: value, keys: [
+                "path", "bundle_id", "bundle_identifier", "bundleIdentifier"
+            ]) ?? encodedValue(for: value)
+        case .file, .folder:
+            return stringMember(in: value, keys: ["path"]) ?? encodedValue(for: value)
+        case .url:
+            return stringMember(in: value, keys: ["url"]) ?? encodedValue(for: value)
+        case .shortcut:
+            return stringMember(in: value, keys: ["name", "shortcut"]) ?? encodedValue(for: value)
+        case .text:
+            let keys: [String]
+            switch hostCommand {
+            case .invokeService: keys = ["name", "service"]
+            case .invokeShortcut: keys = ["name", "shortcut"]
+            default: keys = ["value"]
+            }
+            return stringMember(in: value, keys: keys) ?? encodedValue(for: value)
+        case .multilineText:
+            let keys: [String] = hostCommand == .presentFeedback
+                ? ["message", "text"]
+                : ["value"]
+            return stringMember(in: value, keys: keys) ?? encodedValue(for: value)
+        case .choice:
+            return stringMember(in: value, keys: ["value", "choice", "name"])
+                ?? encodedValue(for: value)
+        case .toggle:
+            if case .bool(let enabled) = value { return enabled ? "true" : "false" }
+            if case .object(let values) = value {
+                for key in ["enabled", "value", "checked"] {
+                    if case .bool(let enabled) = values[key] {
+                        return enabled ? "true" : "false"
+                    }
+                }
+            }
+            return encodedValue(for: value)
+        case .keyboardShortcut:
+            return encodedValue(for: value)
+        }
+    }
+
+    static func resolve(
+        text: String,
+        field: CommandConfigurationField?,
+        hostCommand: HostCommand?,
+        original: JSONValue?
+    ) -> JSONValue {
+        if let original,
+           text == presentationValue(for: original, field: field, hostCommand: hostCommand) {
+            return original
+        }
+
+        guard let field else { return decodeOrString(text) }
+        switch field.kind {
+        case .application:
+            return replacingStringMember(
+                in: original,
+                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"],
+                with: text
+            )
+        case .file, .folder:
+            return replacingStringMember(in: original, keys: ["path"], with: text)
+        case .url:
+            return replacingStringMember(in: original, keys: ["url"], with: text)
+        case .shortcut:
+            return replacingStringMember(in: original, keys: ["name", "shortcut"], with: text)
+        case .text:
+            let keys: [String]
+            switch hostCommand {
+            case .invokeService: keys = ["name", "service"]
+            case .invokeShortcut: keys = ["name", "shortcut"]
+            default: keys = ["value"]
+            }
+            return replacingStringMember(in: original, keys: keys, with: text)
+        case .multilineText:
+            let keys: [String] = hostCommand == .presentFeedback
+                ? ["message", "text"]
+                : ["value"]
+            return replacingStringMember(in: original, keys: keys, with: text)
+        case .choice:
+            return replacingStringMember(in: original, keys: ["value", "choice", "name"], with: text)
+        case .toggle:
+            let enabled = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+            return replacingBoolMember(in: original, keys: ["enabled", "value", "checked"], with: enabled)
+        case .keyboardShortcut:
+            return decodeOrString(text)
+        }
+    }
+
+    private static func encodedValue(for value: JSONValue) -> String {
+        if case .string(let value) = value { return value }
+        guard let data = try? JSONEncoder().encode(value) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private static func decodeOrString(_ text: String) -> JSONValue {
+        guard let data = text.data(using: .utf8),
+              let value = try? JSONDecoder().decode(JSONValue.self, from: data) else {
+            return .string(text)
+        }
+        return value
+    }
+
+    private static func stringMember(in value: JSONValue, keys: [String]) -> String? {
+        guard case .object(let values) = value else { return nil }
+        for key in keys {
+            if case .string(let member) = values[key] { return member }
+        }
+        return nil
+    }
+
+    private static func replacingStringMember(
+        in original: JSONValue?,
+        keys: [String],
+        with text: String
+    ) -> JSONValue {
+        guard case .object(var values) = original else { return .string(text) }
+        if let key = keys.first(where: { values[$0] != nil }) {
+            values[key] = .string(text)
+            return .object(values)
+        }
+        return .string(text)
+    }
+
+    private static func replacingBoolMember(
+        in original: JSONValue?,
+        keys: [String],
+        with enabled: Bool
+    ) -> JSONValue {
+        guard case .object(var values) = original else { return .bool(enabled) }
+        if let key = keys.first(where: { values[$0] != nil }) {
+            values[key] = .bool(enabled)
+            return .object(values)
+        }
+        return .bool(enabled)
+    }
 }
 
 final class SettingsWindowModel: ObservableObject {
@@ -45,12 +219,31 @@ final class SettingsWindowModel: ObservableObject {
     @Published var placementMessage: String?
     @Published var editingMenuIndex: Int?
     @Published private(set) var presetPendingReplacement: PendingPresetReplacement?
+    @Published private(set) var pendingPresetSetup: PendingPresetSetup?
     @Published private(set) var refreshToken = 0
     @Published private(set) var capabilityGrants: [PluginCapabilityGrant]
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
+    @Published private(set) var canUndoAppearance = false
+    @Published private(set) var canRedoAppearance = false
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
+    @Published var clipboardCollectionEnabled: Bool {
+        didSet { defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled) }
+    }
+    @Published var clipboardCollectionPaused: Bool {
+        didSet { defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused) }
+    }
+    @Published var clipboardRetention: ClipboardRetention {
+        didSet { defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention) }
+    }
+    @Published var permissionGuidePresented: Bool {
+        didSet {
+            if !permissionGuidePresented {
+                defaults.set(true, forKey: Keys.permissionGuideShown)
+            }
+        }
+    }
     @Published var triggerMouseButton: Int {
         didSet { triggerConfigurationDidChange() }
     }
@@ -61,20 +254,26 @@ final class SettingsWindowModel: ObservableObject {
         didSet { triggerConfigurationDidChange() }
     }
     @Published var appearanceTheme: String {
+        willSet { recordAppearanceWillChange() }
         didSet {
             defaults.set(appearanceTheme, forKey: "appearance.theme")
+            recordAppearanceDidChange()
             onAppearanceChanged?(appearanceConfiguration)
         }
     }
     @Published var appearanceAccent: String {
+        willSet { recordAppearanceWillChange() }
         didSet {
             defaults.set(appearanceAccent, forKey: "appearance.accent")
+            recordAppearanceDidChange()
             onAppearanceChanged?(appearanceConfiguration)
         }
     }
     @Published var appearanceMenuSize: String {
+        willSet { recordAppearanceWillChange() }
         didSet {
             defaults.set(appearanceMenuSize, forKey: "appearance.menu-size")
+            recordAppearanceDidChange()
             onAppearanceChanged?(appearanceConfiguration)
         }
     }
@@ -91,6 +290,21 @@ final class SettingsWindowModel: ObservableObject {
     private var slotIDs: [UUID]
     private var undoHistory: [MenuHistoryEntry] = []
     private var redoHistory: [MenuHistoryEntry] = []
+    private struct AppearanceHistoryEntry {
+        let before: MenuAppearanceConfiguration
+        let after: MenuAppearanceConfiguration
+    }
+    private var appearanceUndoHistory: [AppearanceHistoryEntry] = []
+    private var appearanceRedoHistory: [AppearanceHistoryEntry] = []
+    private var applyingAppearanceHistory = false
+    private var lastAppearanceBeforeMutation: MenuAppearanceConfiguration?
+
+    private enum Keys {
+        static let clipboardCollectionEnabled = "privacy.clipboard-collection-enabled"
+        static let clipboardCollectionPaused = "privacy.clipboard-collection-paused"
+        static let clipboardRetention = "privacy.clipboard-retention"
+        static let permissionGuideShown = "privacy.permission-guide-shown"
+    }
 
     init(
         editor: HostConfigurationEditor,
@@ -119,6 +333,10 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = defaults.string(forKey: "appearance.theme") ?? "System"
         appearanceAccent = defaults.string(forKey: "appearance.accent") ?? "System"
         appearanceMenuSize = defaults.string(forKey: "appearance.menu-size") ?? "Medium"
+        clipboardCollectionEnabled = defaults.bool(forKey: Keys.clipboardCollectionEnabled)
+        clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
+        clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
+        permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         refreshCapabilityGrants()
     }
 
@@ -151,6 +369,72 @@ final class SettingsWindowModel: ObservableObject {
             accent: appearanceAccent,
             menuSize: appearanceMenuSize
         )
+    }
+
+    private func recordAppearanceWillChange() {
+        guard !applyingAppearanceHistory else { return }
+        lastAppearanceBeforeMutation = appearanceConfiguration
+    }
+
+    private func recordAppearanceDidChange() {
+        guard !applyingAppearanceHistory,
+              let before = lastAppearanceBeforeMutation,
+              before != appearanceConfiguration else {
+            lastAppearanceBeforeMutation = nil
+            return
+        }
+        appearanceUndoHistory.append(AppearanceHistoryEntry(
+            before: before,
+            after: appearanceConfiguration
+        ))
+        appearanceRedoHistory.removeAll()
+        lastAppearanceBeforeMutation = nil
+        refreshAppearanceUndoState()
+    }
+
+    private func refreshAppearanceUndoState() {
+        canUndoAppearance = !appearanceUndoHistory.isEmpty
+        canRedoAppearance = !appearanceRedoHistory.isEmpty
+    }
+
+    func undoAppearance() {
+        guard let entry = appearanceUndoHistory.popLast() else { return }
+        appearanceRedoHistory.append(entry)
+        applyAppearance(entry.before)
+        refreshAppearanceUndoState()
+    }
+
+    func redoAppearance() {
+        guard let entry = appearanceRedoHistory.popLast() else { return }
+        appearanceUndoHistory.append(entry)
+        applyAppearance(entry.after)
+        refreshAppearanceUndoState()
+    }
+
+    private func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        applyingAppearanceHistory = true
+        appearanceTheme = appearance.theme
+        appearanceAccent = appearance.accent
+        appearanceMenuSize = appearance.menuSize
+        applyingAppearanceHistory = false
+        lastAppearanceBeforeMutation = nil
+    }
+
+    var clipboardCollectionStatus: String {
+        guard clipboardCollectionEnabled else { return "Off — no new entries are collected" }
+        return clipboardCollectionPaused
+            ? "Paused — existing entries are retained"
+            : "On — collection enabled; Clipboard History is not installed yet"
+    }
+
+    func dismissPermissionGuide() {
+        permissionGuidePresented = false
+        defaults.set(true, forKey: Keys.permissionGuideShown)
+    }
+
+    func selectPage(_ page: SettingsPage) {
+        guard editingMenuIndex == nil else { return }
+        self.page = page
     }
 
     var triggerConfiguration: MenuTriggerConfiguration {
@@ -226,9 +510,19 @@ final class SettingsWindowModel: ObservableObject {
                 "Redo Slot edit"
             ])
         } else if page == .privacyAndPermissions {
+            names.append(contentsOf: [
+                "Collect Clipboard History",
+                "Pause Clipboard History collection",
+                "Clipboard retention"
+            ])
             names.append(contentsOf: capabilityGrants.map { grant in
                 "\(grant.capability.title): \(grant.decision.title)"
             })
+        }
+        if permissionGuidePresented {
+            names.append("Spinnet Permissions")
+            names.append("Open Accessibility Settings")
+            names.append("Skip for now")
         }
         return names
     }
@@ -433,17 +727,81 @@ final class SettingsWindowModel: ObservableObject {
             placementMessage = "Replace the Menu Item in Slot \(index + 1)?"
             return false
         }
+        guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
+            placementMessage = "The selected Preset is unavailable."
+            return false
+        }
+        guard preset.isAvailable else {
+            placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
+            return false
+        }
+        if preset.readiness == .setupRequired {
+            pendingPresetSetup = PendingPresetSetup(
+                pluginID: pluginID,
+                slotIndex: index,
+                replacing: false
+            )
+            editingMenuIndex = index
+            placementMessage = "Invalid Action: Preset requires setup"
+            return false
+        }
         return applyPreset(pluginID: pluginID, at: index, replacing: false)
     }
 
     func confirmPresetReplacement() {
         guard let pending = presetPendingReplacement else { return }
         presetPendingReplacement = nil
+        guard let preset = editor.menuItemPresets.first(where: { $0.id == pending.pluginID }) else {
+            placementMessage = "The selected Preset is unavailable."
+            return
+        }
+        if preset.readiness == .setupRequired {
+            pendingPresetSetup = PendingPresetSetup(
+                pluginID: pending.pluginID,
+                slotIndex: pending.slotIndex,
+                replacing: true
+            )
+            editingMenuIndex = pending.slotIndex
+            return
+        }
         _ = applyPreset(pluginID: pending.pluginID, at: pending.slotIndex, replacing: true)
     }
 
     func cancelPresetReplacement() {
         presetPendingReplacement = nil
+    }
+
+    func cancelPresetSetup() {
+        pendingPresetSetup = nil
+        editingMenuIndex = nil
+    }
+
+    func savePresetSetup(_ configuration: HostConfiguration, for setup: PendingPresetSetup) {
+        let before = editor.configuration
+        let selectedIndexBefore = selectedMenuIndex
+        editor.restore(configuration)
+        pendingPresetSetup = nil
+        editingMenuIndex = nil
+        selectedMenuIndex = setup.slotIndex
+        placementMessage = setup.replacing
+            ? "Menu Item in Slot \(setup.slotIndex + 1) replaced."
+            : "Menu Item added to Slot \(setup.slotIndex + 1)."
+        configurationDidChange(configuration)
+        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
+    }
+
+    func saveMenuItemConfiguration(_ configuration: HostConfiguration) {
+        let before = editor.configuration
+        let selectedIndexBefore = selectedMenuIndex
+        guard configuration != before else {
+            editingMenuIndex = nil
+            return
+        }
+        editor.restore(configuration)
+        editingMenuIndex = nil
+        placementMessage = "Menu Item in Slot \(selectedMenuIndex + 1) updated."
+        configurationDidChange(configuration)
+        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
     }
 
     @discardableResult
@@ -552,6 +910,15 @@ struct SettingsRootView: View {
         } message: {
             Text("The current Menu Item and its Actions will be replaced by the selected Preset.")
         }
+        .overlay(alignment: .topTrailing) {
+            if model.permissionGuidePresented {
+                PermissionGuideBanner(
+                    openSettings: openAccessibilitySettings,
+                    dismiss: model.dismissPermissionGuide
+                )
+                .padding(16)
+            }
+        }
     }
 
     private var presetReplacementAlertBinding: Binding<Bool> {
@@ -571,8 +938,10 @@ struct SettingsRootView: View {
 
             ForEach(SettingsPage.allCases, id: \.self) { page in
                 Button {
-                    model.page = page
-                    focusedPage = page
+                    model.selectPage(page)
+                    if model.page == page {
+                        focusedPage = page
+                    }
                 } label: {
                     Label(page.title, systemImage: page.systemImageName)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -784,13 +1153,21 @@ struct SettingsRootView: View {
                 AppearanceSettingsView(
                     theme: $model.appearanceTheme,
                     accent: $model.appearanceAccent,
-                    menuSize: $model.appearanceMenuSize
+                    menuSize: $model.appearanceMenuSize,
+                    canUndo: model.canUndoAppearance,
+                    canRedo: model.canRedoAppearance,
+                    undo: model.undoAppearance,
+                    redo: model.redoAppearance
                 )
             case .privacyAndPermissions:
                 PrivacySettingsView(
                     accessibilityPermissionGranted: model.accessibilityPermissionGranted,
                     pluginManifests: model.editor.pluginManifests,
                     capabilityGrants: model.capabilityGrants,
+                    clipboardCollectionEnabled: $model.clipboardCollectionEnabled,
+                    clipboardCollectionPaused: $model.clipboardCollectionPaused,
+                    clipboardRetention: $model.clipboardRetention,
+                    clipboardCollectionStatus: model.clipboardCollectionStatus,
                     setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )
@@ -809,7 +1186,14 @@ struct SettingsRootView: View {
                 SlotConfigurationSheet(
                     editor: model.editor,
                     slotIndex: index,
-                    onSaved: model.configurationDidChange
+                    presetPluginID: model.pendingPresetSetup.map { PluginID($0.pluginID) },
+                    onSaved: { configuration in
+                        if let setup = model.pendingPresetSetup {
+                            model.savePresetSetup(configuration, for: setup)
+                        } else {
+                            model.saveMenuItemConfiguration(configuration)
+                        }
+                    }
                 )
             }
         }
@@ -818,7 +1202,14 @@ struct SettingsRootView: View {
     private var editingSheetBinding: Binding<Bool> {
         Binding(
             get: { model.editingMenuIndex != nil },
-            set: { if !$0 { model.editingMenuIndex = nil } }
+            set: {
+                guard !$0 else { return }
+                if model.pendingPresetSetup != nil {
+                    model.cancelPresetSetup()
+                } else {
+                    model.editingMenuIndex = nil
+                }
+            }
         )
     }
 }
@@ -879,39 +1270,54 @@ private struct SlotConfigurationSheet: View {
         let pluginID: PluginID?
         let slotName: String
         let primaryCommandID: CommandID
-        let alternateCommandIDs: Set<CommandID>
+        let alternateCommandOrder: [CommandID]
+        let enabledAlternateCommandIDs: Set<CommandID>
         let inputTexts: [CommandID: String]
+        let originalInputValues: [CommandID: JSONValue]
     }
 
     @Environment(\.dismiss) private var dismiss
 
     let editor: HostConfigurationEditor
     let slotIndex: Int
+    let presetPluginID: PluginID?
     let onSaved: (HostConfiguration) -> Void
     private let pluginManifest: PluginManifest?
     private let pluginID: PluginID?
 
     @State private var primaryCommandID: CommandID
+    @State private var lastPrimaryCommandID: CommandID
+    @State private var alternateCommandOrder: [CommandID]
     @State private var alternateCommandIDs: Set<CommandID>
     @State private var inputTexts: [CommandID: String]
+    @State private var originalInputValues: [CommandID: JSONValue]
     @State private var slotName: String
     @State private var errorMessage: String?
 
     init(
         editor: HostConfigurationEditor,
         slotIndex: Int,
+        presetPluginID: PluginID? = nil,
         onSaved: @escaping (HostConfiguration) -> Void
     ) {
         self.editor = editor
         self.slotIndex = slotIndex
+        self.presetPluginID = presetPluginID
         self.onSaved = onSaved
-        let initialState = Self.initialState(in: editor, slotIndex: slotIndex)
+        let initialState = Self.initialState(
+            in: editor,
+            slotIndex: slotIndex,
+            presetPluginID: presetPluginID
+        )
         pluginManifest = initialState.pluginManifest
         pluginID = initialState.pluginID
         _slotName = State(initialValue: initialState.slotName)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
-        _alternateCommandIDs = State(initialValue: initialState.alternateCommandIDs)
+        _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
+        _alternateCommandOrder = State(initialValue: initialState.alternateCommandOrder)
+        _alternateCommandIDs = State(initialValue: initialState.enabledAlternateCommandIDs)
         _inputTexts = State(initialValue: initialState.inputTexts)
+        _originalInputValues = State(initialValue: initialState.originalInputValues)
     }
 
     var body: some View {
@@ -922,7 +1328,7 @@ private struct SlotConfigurationSheet: View {
                         Text("Configure Slot \(slotIndex + 1)")
                             .font(.title2.weight(.semibold))
                         Text(pluginManifest?.name ?? "Plugin unavailable")
-                        .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     slotNameEditor
@@ -967,7 +1373,15 @@ private struct SlotConfigurationSheet: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Slot Configuration")
         .onChange(of: primaryCommandID) { commandID in
+            let previousPrimaryCommandID = lastPrimaryCommandID
+            lastPrimaryCommandID = commandID
             alternateCommandIDs.remove(commandID)
+            alternateCommandOrder.removeAll { $0 == commandID }
+            if previousPrimaryCommandID != commandID,
+               pluginManifest?.commands.contains(where: { $0.id == previousPrimaryCommandID }) == true,
+               !alternateCommandOrder.contains(previousPrimaryCommandID) {
+                alternateCommandOrder.append(previousPrimaryCommandID)
+            }
         }
     }
 
@@ -1020,19 +1434,31 @@ private struct SlotConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(alternateCommands, id: \.id) { command in
-                        Toggle(isOn: alternateBinding(for: command.id)) {
-                            HStack {
+                        HStack(spacing: 8) {
+                            Toggle(isOn: alternateBinding(for: command.id)) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(command.title)
                                     Text(command.isConfigurable ? "Supports parameters" : "No parameters")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Spacer()
                             }
+                            .toggleStyle(.checkbox)
+                            .accessibilityLabel("Alternate Action \(command.title)")
+                            Spacer(minLength: 4)
+                            Button { moveAlternate(command.id, offset: -1) } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(!canMoveAlternate(command.id, offset: -1))
+                            .accessibilityLabel("Move Alternate Action \(command.title) up")
+                            Button { moveAlternate(command.id, offset: 1) } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(!canMoveAlternate(command.id, offset: 1))
+                            .accessibilityLabel("Move Alternate Action \(command.title) down")
                         }
-                        .toggleStyle(.checkbox)
-                        .accessibilityLabel("Alternate Action \(command.title)")
                     }
                 }
             }
@@ -1060,23 +1486,75 @@ private struct SlotConfigurationSheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(command.title)
                             .font(.subheadline.weight(.semibold))
-                        TextField(
-                            parameterPlaceholder(for: command),
-                            text: inputBinding(for: command.id)
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("\(command.title) configuration input")
+                        commandConfigurationField(for: command)
                     }
                 }
             }
         }
     }
 
+    @ViewBuilder
+    private func commandConfigurationField(for command: CommandDeclaration) -> some View {
+        let metadata = command.configurationField ?? command.hostCommand?.configurationField
+        switch metadata?.kind ?? .text {
+        case .application, .file, .folder:
+            ResourcePathField(
+                kind: metadata?.kind ?? .file,
+                value: inputBinding(for: command.id)
+            )
+            .accessibilityLabel("\(command.title) configuration input")
+        case .shortcut:
+            ShortcutNameField(
+                value: inputBinding(for: command.id)
+            )
+            .accessibilityLabel("\(command.title) configuration input")
+        case .keyboardShortcut:
+            KeyboardShortcutRecorder(
+                shortcut: keyboardShortcutBinding(for: command.id)
+            )
+            .accessibilityLabel("\(command.title) configuration input")
+        case .multilineText:
+            PasteableTextEditor(
+                text: inputBinding(for: command.id),
+                placeholder: parameterPlaceholder(for: command)
+            )
+            .accessibilityLabel("\(command.title) configuration input")
+        case .toggle:
+            Toggle("Enabled", isOn: boolBinding(for: command.id))
+                .toggleStyle(.switch)
+                .accessibilityLabel("\(command.title) configuration input")
+        case .choice:
+            if let choices = metadata?.choices, !choices.isEmpty {
+                Picker(
+                    "\(command.title) configuration input",
+                    selection: inputBinding(for: command.id)
+                ) {
+                    ForEach(choices, id: \.self) { choice in
+                        Text(choice).tag(choice)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                PasteableTextField(
+                    text: inputBinding(for: command.id),
+                    placeholder: parameterPlaceholder(for: command)
+                )
+                .accessibilityLabel("\(command.title) configuration input")
+            }
+        case .text, .url:
+            PasteableTextField(
+                text: inputBinding(for: command.id),
+                placeholder: parameterPlaceholder(for: command)
+            )
+            .accessibilityLabel("\(command.title) configuration input")
+        }
+    }
+
     private func save() {
         do {
-            if pluginManifest != nil {
-                guard let pluginID,
-                      let primaryCommand = selectedCommands.first,
+            if let pluginID, pluginManifest != nil {
+                guard let primaryCommand = selectedCommands.first,
                       primaryCommand.id == primaryCommandID else {
                     errorMessage = "Choose a valid Primary Action before saving."
                     return
@@ -1086,17 +1564,41 @@ private struct SlotConfigurationSheet: View {
                 let inputs = Dictionary(uniqueKeysWithValues: configurableCommands.map { command in
                     (command.id, inputValue(for: command.id))
                 })
-
-                try editor.configureMenuItem(
+                let candidate = try editor.configuredMenuItem(
                     at: slotIndex,
                     pluginID: pluginID,
                     primaryCommandID: primaryCommandID,
                     alternateCommandIDs: alternateCommandIDs,
-                    inputs: inputs
+                    inputs: inputs,
+                    alternateCommandOrder: alternateCommandOrder,
+                    replacingEmptySlot: editor.configuration.menu.slots[slotIndex].item == nil,
+                    validateInputs: true,
+                    preserveUnselectedAlternates: true
                 )
+                var slots = candidate.menu.slots
+                slots[slotIndex] = MenuSlotConfiguration(
+                    item: slots[slotIndex].item,
+                    name: normalizedSlotName
+                )
+                let finalConfiguration = try HostConfiguration(
+                    actions: candidate.actions,
+                    menu: MenuConfiguration(slots: slots)
+                )
+                onSaved(finalConfiguration)
+                dismiss()
+                return
             }
-            try editor.renameSlot(at: slotIndex, name: slotName)
-            onSaved(editor.configuration)
+            guard editor.configuration.menu.slots.indices.contains(slotIndex) else {
+                throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+            }
+            let slot = editor.configuration.menu.slots[slotIndex]
+            var slots = editor.configuration.menu.slots
+            slots[slotIndex] = MenuSlotConfiguration(item: slot.item, name: normalizedSlotName)
+            let finalConfiguration = try HostConfiguration(
+                actions: editor.configuration.actions,
+                menu: MenuConfiguration(slots: slots)
+            )
+            onSaved(finalConfiguration)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -1116,6 +1618,18 @@ private struct SlotConfigurationSheet: View {
         )
     }
 
+    private func moveAlternate(_ commandID: CommandID, offset: Int) {
+        guard let index = alternateCommandOrder.firstIndex(of: commandID) else { return }
+        let target = index + offset
+        guard alternateCommandOrder.indices.contains(target) else { return }
+        alternateCommandOrder.swapAt(index, target)
+    }
+
+    private func canMoveAlternate(_ commandID: CommandID, offset: Int) -> Bool {
+        guard let index = alternateCommandOrder.firstIndex(of: commandID) else { return false }
+        return alternateCommandOrder.indices.contains(index + offset)
+    }
+
     private func inputBinding(for commandID: CommandID) -> Binding<String> {
         return Binding(
             get: { inputTexts[commandID] ?? "" },
@@ -1125,16 +1639,131 @@ private struct SlotConfigurationSheet: View {
 
     private func inputValue(for commandID: CommandID) -> JSONValue {
         let inputText = inputTexts[commandID] ?? ""
-        if let data = inputText.data(using: .utf8),
-           let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
-            return value
+        guard let command = pluginManifest?.commands.first(where: { $0.id == commandID }) else {
+            return ConfigurationInputValueResolver.resolve(
+                text: inputText,
+                field: nil,
+                hostCommand: nil,
+                original: originalInputValues[commandID]
+            )
         }
-        return .string(inputText)
+        return ConfigurationInputValueResolver.resolve(
+            text: inputText,
+            field: command.configurationField ?? command.hostCommand?.configurationField,
+            hostCommand: command.hostCommand,
+            original: originalInputValues[commandID]
+        )
+    }
+
+    private func boolBinding(for commandID: CommandID) -> Binding<Bool> {
+        Binding(
+            get: {
+                switch inputValue(for: commandID) {
+                case .bool(let value): return value
+                case .string(let value): return value.lowercased() == "true"
+                case .object(let values):
+                    for key in ["enabled", "value", "checked"] {
+                        if case .bool(let value) = values[key] { return value }
+                    }
+                    return false
+                default: return false
+                }
+            },
+            set: { inputTexts[commandID] = $0 ? "true" : "false" }
+        )
+    }
+
+    private func keyboardShortcutBinding(for commandID: CommandID) -> Binding<MenuKeyboardShortcut?> {
+        Binding(
+            get: { menuKeyboardShortcut(from: inputValue(for: commandID)) },
+            set: { shortcut in
+                guard let shortcut else {
+                    inputTexts[commandID] = ""
+                    return
+                }
+                inputTexts[commandID] = Self.displayValue(for: .object([
+                    "key_code": .number(Double(shortcut.keyCode)),
+                    "modifiers": .array(carbonModifierNames(for: shortcut.modifiers).map { .string($0) }),
+                    "display_value": .string(shortcut.displayValue)
+                ]))
+            }
+        )
+    }
+
+    private func menuKeyboardShortcut(from value: JSONValue) -> MenuKeyboardShortcut? {
+        guard case .object(let values) = value,
+              case .number(let rawKeyCode) = values["key_code"],
+              rawKeyCode.isFinite,
+              rawKeyCode.rounded() == rawKeyCode,
+              (0...127).contains(rawKeyCode),
+              let keyCode = UInt32(exactly: rawKeyCode),
+              let displayValue = values["display_value"].flatMap(stringValue),
+              let modifiers = carbonModifiers(from: values["modifiers"]) else {
+            return nil
+        }
+        return MenuKeyboardShortcut(
+            keyCode: keyCode,
+            modifiers: modifiers,
+            displayValue: displayValue
+        )
+    }
+
+    private func carbonModifiers(from value: JSONValue?) -> UInt32? {
+        guard let value else { return 0 }
+        switch value {
+        case .number(let rawValue):
+            guard rawValue.isFinite, rawValue.rounded() == rawValue,
+                  let modifiers = UInt32(exactly: rawValue) else { return nil }
+            return modifiers
+        case .string(let rawValue):
+            return rawValue.split(separator: "+").reduce(into: UInt32(0)) { result, value in
+                result |= carbonModifier(for: String(value))
+            }
+        case .array(let values):
+            return values.reduce(into: UInt32(0)) { result, value in
+                guard case .string(let modifier) = value else { return }
+                result |= carbonModifier(for: modifier)
+            }
+        default:
+            return nil
+        }
+    }
+
+    private func carbonModifier(for value: String) -> UInt32 {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "command", "cmd", "⌘": return UInt32(cmdKey)
+        case "shift", "⇧": return UInt32(shiftKey)
+        case "option", "alt", "⌥": return UInt32(optionKey)
+        case "control", "ctrl", "⌃": return UInt32(controlKey)
+        default: return 0
+        }
+    }
+
+    private func carbonModifierNames(for modifiers: UInt32) -> [String] {
+        [
+            (UInt32(cmdKey), "command"),
+            (UInt32(shiftKey), "shift"),
+            (UInt32(optionKey), "option"),
+            (UInt32(controlKey), "control"),
+        ].compactMap { bit, name in
+            modifiers & bit == 0 ? nil : name
+        }
+    }
+
+    private func stringValue(_ value: JSONValue?) -> String? {
+        guard case .string(let value) = value else { return nil }
+        return value
     }
 
     private var alternateCommands: [CommandDeclaration] {
         guard let pluginManifest else { return [] }
-        return pluginManifest.commands.filter { $0.id != primaryCommandID }
+        let ordered = alternateCommandOrder.compactMap { id in
+            pluginManifest.commands.first { $0.id == id }
+        }
+        let missing = pluginManifest.commands.filter { command in
+            command.id != primaryCommandID && !alternateCommandOrder.contains(command.id)
+        }
+        return ordered + missing.filter { $0.id != primaryCommandID }
     }
 
     private var selectedCommands: [CommandDeclaration] {
@@ -1144,8 +1773,11 @@ private struct SlotConfigurationSheet: View {
               }) else {
             return []
         }
-        return [primaryCommand] + pluginManifest.commands.filter {
-            $0.id != primaryCommandID && alternateCommandIDs.contains($0.id)
+        return [primaryCommand] + alternateCommandOrder.compactMap { commandID in
+            guard alternateCommandIDs.contains(commandID), commandID != primaryCommandID else {
+                return nil
+            }
+            return pluginManifest.commands.first { $0.id == commandID }
         }
     }
 
@@ -1154,56 +1786,129 @@ private struct SlotConfigurationSheet: View {
     }
 
     private func parameterPlaceholder(for command: CommandDeclaration) -> String {
-        command.hostCommand?.inputPlaceholder ?? "Configuration value (JSON or text)"
+        command.configurationField?.placeholder
+            ?? command.hostCommand?.configurationField?.placeholder
+            ?? command.hostCommand?.inputPlaceholder
+            ?? "Configuration value (JSON or text)"
+    }
+
+    private var normalizedSlotName: String? {
+        let value = slotName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 
     private static func initialState(
         in editor: HostConfigurationEditor,
-        slotIndex: Int
+        slotIndex: Int,
+        presetPluginID: PluginID?
     ) -> InitialState {
         let slotName = editor.configuration.menu.slots.indices.contains(slotIndex)
             ? editor.configuration.menu.slots[slotIndex].name ?? ""
             : ""
-        guard editor.configuration.menu.slots.indices.contains(slotIndex),
-              let item = editor.configuration.menu.slots[slotIndex].item,
-              let primaryAction = editor.configuration.actions.first(where: {
-                  $0.id == item.primaryActionID
-              }) else {
+
+        guard editor.configuration.menu.slots.indices.contains(slotIndex) else {
             return InitialState(
                 pluginManifest: nil,
                 pluginID: nil,
                 slotName: slotName,
                 primaryCommandID: CommandID("missing"),
-                alternateCommandIDs: [],
-                inputTexts: [:]
+                alternateCommandOrder: [],
+                enabledAlternateCommandIDs: [],
+                inputTexts: [:],
+                originalInputValues: [:]
             )
         }
 
-        let pluginID = primaryAction.pluginID
-        let pluginManifest = editor.pluginManifests.first { $0.id == pluginID }
+        let item = editor.configuration.menu.slots[slotIndex].item
+        let primaryAction = item.flatMap { item in
+            editor.configuration.actions.first(where: { $0.id == item.primaryActionID })
+        }
+        let pluginID = presetPluginID ?? primaryAction?.pluginID
+        let pluginManifest = pluginID.flatMap { id in
+            editor.pluginManifests.first { $0.id == id }
+        }
         let commands = pluginManifest?.commands ?? []
-        let primaryCommandID = commands.contains(where: { $0.id == primaryAction.commandID })
-            ? primaryAction.commandID
-            : (commands.first?.id ?? primaryAction.commandID)
-        let boundActionIDs = [item.primaryActionID] + item.alternateActionIDs
+        guard let pluginManifest, let pluginID, !commands.isEmpty else {
+            return InitialState(
+                pluginManifest: nil,
+                pluginID: nil,
+                slotName: slotName,
+                primaryCommandID: CommandID("missing"),
+                alternateCommandOrder: [],
+                enabledAlternateCommandIDs: [],
+                inputTexts: [:],
+                originalInputValues: [:]
+            )
+        }
+
+        let defaultPrimaryCommandID = pluginManifest.preset.defaultPrimaryCommandID
+            ?? commands[0].id
+        let primaryCommandID: CommandID
+        if let primaryAction,
+           primaryAction.pluginID == pluginID,
+           commands.contains(where: { $0.id == primaryAction.commandID }) {
+            primaryCommandID = primaryAction.commandID
+        } else {
+            primaryCommandID = defaultPrimaryCommandID
+        }
+
+        let boundActionIDs = item?.boundActionIDs ?? []
         let boundActions = boundActionIDs.compactMap { actionID in
             editor.configuration.actions.first(where: { $0.id == actionID })
         }
-        let alternateCommandIDs: Set<CommandID> = Set(boundActions.compactMap { action in
+
+        var alternateCommandOrder: [CommandID] = []
+        for action in boundActions {
             guard action.pluginID == pluginID,
-                  action.id != primaryAction.id,
+                  action.commandID != primaryCommandID,
                   commands.contains(where: { $0.id == action.commandID }),
-                  action.commandID != primaryCommandID else { return nil }
-            return action.commandID
-        })
+                  !alternateCommandOrder.contains(action.commandID) else { continue }
+            alternateCommandOrder.append(action.commandID)
+        }
+        for command in commands where command.id != primaryCommandID {
+            if !alternateCommandOrder.contains(command.id) {
+                alternateCommandOrder.append(command.id)
+            }
+        }
+
+        var enabledAlternateCommandIDs = Set<CommandID>()
+        let enabledActionIDs = Set(item?.alternateActionIDs ?? [])
+        for action in boundActions where action.pluginID == pluginID {
+            if action.commandID != primaryCommandID,
+               (item == nil || enabledActionIDs.contains(action.id)),
+               alternateCommandOrder.contains(action.commandID) {
+                enabledAlternateCommandIDs.insert(action.commandID)
+            }
+        }
+        if item == nil {
+            enabledAlternateCommandIDs = Set(
+                pluginManifest.preset.defaultAlternateCommandIDs.filter {
+                    $0 != primaryCommandID && alternateCommandOrder.contains($0)
+                }
+            )
+        }
+
         var inputTexts: [CommandID: String] = [:]
+        var originalInputValues: [CommandID: JSONValue] = [:]
         for command in commands {
             if let action = boundActions.first(where: {
                 $0.pluginID == pluginID && $0.commandID == command.id
             }) {
-                inputTexts[command.id] = displayValue(for: action.input)
-            } else if let input = pluginManifest?.preset.defaultInputs[command.id] {
-                inputTexts[command.id] = displayValue(for: input)
+                let field = command.configurationField ?? command.hostCommand?.configurationField
+                inputTexts[command.id] = ConfigurationInputValueResolver.presentationValue(
+                    for: action.input,
+                    field: field,
+                    hostCommand: command.hostCommand
+                )
+                originalInputValues[command.id] = action.input
+            } else if let input = pluginManifest.preset.defaultInputs[command.id] {
+                let field = command.configurationField ?? command.hostCommand?.configurationField
+                inputTexts[command.id] = ConfigurationInputValueResolver.presentationValue(
+                    for: input,
+                    field: field,
+                    hostCommand: command.hostCommand
+                )
+                originalInputValues[command.id] = input
             }
         }
         return InitialState(
@@ -1211,15 +1916,244 @@ private struct SlotConfigurationSheet: View {
             pluginID: pluginID,
             slotName: slotName,
             primaryCommandID: primaryCommandID,
-            alternateCommandIDs: alternateCommandIDs,
-            inputTexts: inputTexts
+            alternateCommandOrder: alternateCommandOrder,
+            enabledAlternateCommandIDs: enabledAlternateCommandIDs,
+            inputTexts: inputTexts,
+            originalInputValues: originalInputValues
         )
     }
 
     private static func displayValue(for value: JSONValue) -> String {
-        if case .string(let value) = value { return value }
-        guard let data = try? JSONEncoder().encode(value) else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
+        ConfigurationInputValueResolver.presentationValue(
+            for: value,
+            field: nil,
+            hostCommand: nil
+        )
+    }
+}
+
+private struct PasteableTextField: View {
+    @Binding var text: String
+    let placeholder: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+            Button("Paste") {
+                guard let pasted = NSPasteboard.general.string(forType: .string) else { return }
+                text = pasted
+            }
+            .controlSize(.small)
+            .accessibilityLabel("Paste into configuration field")
+        }
+    }
+}
+
+private struct PermissionGuideBanner: View {
+    let openSettings: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Spinnet Permissions", systemImage: "hand.raised")
+                .font(.headline)
+            Text("Enable Accessibility for mouse triggers, or continue and grant it later in Privacy & Permissions.")
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Open Accessibility Settings", action: openSettings)
+                    .controlSize(.small)
+                    .accessibilityLabel("Open Accessibility Settings")
+                Button("Skip for now", action: dismiss)
+                    .controlSize(.small)
+                    .accessibilityLabel("Skip for now")
+            }
+        }
+        .padding(14)
+        .frame(width: 310, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Spinnet Permissions")
+    }
+}
+
+private struct PasteableTextEditor: View {
+    @Binding var text: String
+    let placeholder: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $text)
+                    .font(.body)
+                    .frame(minHeight: 84)
+                    .padding(4)
+                    .background {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                            }
+                    }
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 12)
+                        .allowsHitTesting(false)
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Paste") {
+                    guard let pasted = NSPasteboard.general.string(forType: .string) else { return }
+                    text = pasted
+                }
+                .controlSize(.small)
+                .accessibilityLabel("Paste into configuration field")
+            }
+        }
+    }
+}
+
+private struct ResourcePathField: View {
+    let kind: CommandConfigurationFieldKind
+    @Binding var value: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField(kind.title, text: $value)
+                .textFieldStyle(.roundedBorder)
+            Button("Paste") {
+                if let pasted = NSPasteboard.general.string(forType: .string) {
+                    value = pasted
+                }
+            }
+            .controlSize(.small)
+            .accessibilityLabel("Paste into (kind.title) field")
+            Button("Choose…", action: chooseResource)
+                .controlSize(.small)
+                .accessibilityLabel("Choose \(kind.title)")
+        }
+    }
+
+    private func chooseResource() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = kind != .folder
+        panel.canChooseDirectories = kind == .folder
+        panel.prompt = "Choose"
+        if kind == .application {
+            panel.allowedContentTypes = [.applicationBundle]
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        value = url.path
+    }
+}
+
+private struct ShortcutNameField: View {
+    @Binding var value: String
+    @State private var shortcutNames: [String] = []
+    @State private var isLoading = false
+    @State private var hasLoaded = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("Shortcut name", text: $value)
+                .textFieldStyle(.roundedBorder)
+            Button("Paste") {
+                if let pasted = NSPasteboard.general.string(forType: .string) {
+                    value = pasted
+                }
+            }
+            .controlSize(.small)
+            .accessibilityLabel("Paste into Shortcut field")
+            Menu("Choose…") {
+                if isLoading {
+                    Text("Loading Shortcuts…")
+                        .foregroundStyle(.secondary)
+                } else if shortcutNames.isEmpty {
+                    Text("No Shortcuts found")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(shortcutNames, id: \.self) { name in
+                        Button(name) { value = name }
+                    }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("Choose Shortcut")
+        }
+        .onAppear { loadShortcutNamesInBackground() }
+    }
+
+    private func loadShortcutNamesInBackground() {
+        guard !isLoading, !hasLoaded else { return }
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let names = Self.loadShortcutNames()
+            DispatchQueue.main.async {
+                shortcutNames = names
+                isLoading = false
+                hasLoaded = true
+            }
+        }
+    }
+
+    private static func loadShortcutNames() -> [String] {
+        let process = Process()
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinnet-shortcuts-\(UUID().uuidString).txt")
+        guard FileManager.default.createFile(atPath: outputURL.path, contents: nil) else {
+            return []
+        }
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let outputHandle: FileHandle
+        do {
+            outputHandle = try FileHandle(forWritingTo: outputURL)
+        } catch {
+            return []
+        }
+        defer { try? outputHandle.close() }
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+        process.arguments = ["list"]
+        process.standardOutput = outputHandle
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+        let deadline = Date(timeIntervalSinceNow: 2)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if process.isRunning {
+            process.terminate()
+            let terminateDeadline = Date(timeIntervalSinceNow: 0.2)
+            while process.isRunning, Date() < terminateDeadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            if process.isRunning {
+                _ = kill(process.processIdentifier, SIGKILL)
+            }
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return [] }
+        let data = (try? Data(contentsOf: outputURL)) ?? Data()
+        return String(data: data, encoding: .utf8)?
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted() ?? []
     }
 }
 
@@ -1227,6 +2161,10 @@ private struct AppearanceSettingsView: View {
     @Binding var theme: String
     @Binding var accent: String
     @Binding var menuSize: String
+    let canUndo: Bool
+    let canRedo: Bool
+    let undo: () -> Void
+    let redo: () -> Void
     private let accents = ["System", "Blue", "Purple", "Pink", "Orange", "Green"]
 
     var body: some View {
@@ -1285,6 +2223,20 @@ private struct AppearanceSettingsView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Button(action: undo) {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!canUndo)
+                    .keyboardShortcut("z", modifiers: .command)
+                    .help("Undo Appearance change")
+                    .accessibilityLabel("Undo Appearance change")
+                    Button(action: redo) {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!canRedo)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .help("Redo Appearance change")
+                    .accessibilityLabel("Redo Appearance change")
                     Button("Reset Appearance") {
                         theme = "System"
                         accent = "System"
@@ -1314,6 +2266,10 @@ private struct PrivacySettingsView: View {
     let accessibilityPermissionGranted: Bool
     let pluginManifests: [PluginManifest]
     let capabilityGrants: [PluginCapabilityGrant]
+    @Binding var clipboardCollectionEnabled: Bool
+    @Binding var clipboardCollectionPaused: Bool
+    @Binding var clipboardRetention: ClipboardRetention
+    let clipboardCollectionStatus: String
     let setCapabilityDecision: (
         PluginCapabilityGrantDecision,
         PluginID,
@@ -1343,7 +2299,36 @@ private struct PrivacySettingsView: View {
                         }
                     }
                     Divider().padding(.leading, 52)
-                    privacyRow(icon: "lock.shield", title: "Sensitive Data Collection", body: "Host-owned data such as Clipboard History always requires a separate opt-in.", status: "Clipboard History is off")
+                    VStack(alignment: .leading, spacing: 12) {
+                        privacyRow(
+                            icon: "lock.shield",
+                            title: "Sensitive Data Collection",
+                            body: "Host-owned data such as Clipboard History always requires a separate opt-in.",
+                            status: clipboardCollectionStatus
+                        )
+                        Toggle("Collect Clipboard History", isOn: $clipboardCollectionEnabled)
+                            .toggleStyle(.switch)
+                            .accessibilityLabel("Collect Clipboard History")
+                            .accessibilityValue(clipboardCollectionEnabled ? "On" : "Off")
+                        Toggle("Pause collection", isOn: $clipboardCollectionPaused)
+                            .toggleStyle(.switch)
+                            .disabled(!clipboardCollectionEnabled)
+                            .accessibilityLabel("Pause Clipboard History collection")
+                            .accessibilityValue(clipboardCollectionPaused ? "Paused" : "Running")
+                        HStack {
+                            Text("Keep entries for")
+                            Picker("Clipboard retention", selection: $clipboardRetention) {
+                                ForEach(ClipboardRetention.allCases, id: \.self) { retention in
+                                    Text(retention.rawValue).tag(retention)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .accessibilityLabel("Clipboard retention")
+                            Spacer()
+                        }
+                        .disabled(!clipboardCollectionEnabled)
+                    }
                     Divider().padding(.leading, 52)
                     privacyRow(
                         icon: "puzzlepiece.extension",

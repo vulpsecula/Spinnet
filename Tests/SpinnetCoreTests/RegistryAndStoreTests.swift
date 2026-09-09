@@ -113,6 +113,24 @@ final class RegistryAndStoreTests: XCTestCase {
         )
     }
 
+    func testCompatibilityPackageCanStayRegisteredWithoutALibraryPreset() throws {
+        let manifest = try makeManifest(title: "Fixture Compatibility")
+        let package = PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/fixture-compatibility.spinnetplugin"),
+            manifest: manifest,
+            isVisibleInLibrary: false
+        )
+        let registry = PluginRegistry()
+        try registry.register(package)
+
+        XCTAssertNil(registry.menuItemPreset(for: manifest.id))
+        XCTAssertEqual(
+            registry.command(for: manifest.id, commandID: manifest.commands[0].id),
+            manifest.commands[0]
+        )
+        XCTAssertEqual(registry.manifests(), [manifest])
+    }
+
     func testChangingCommandConfigurationMetadataDoesNotInvalidateAnAction() throws {
         let registry = PluginRegistry()
         let originalManifest = try PluginManifest(
