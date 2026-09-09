@@ -167,6 +167,14 @@ struct MenuAppearanceConfiguration: Equatable {
         return String(clampedPercentage)
     }
 
+    static func menuSizePercentageText(forPercentage percentage: Double) -> String {
+        let clampedPercentage = clampedMenuSizePercentage(percentage)
+        if clampedPercentage.rounded() == clampedPercentage {
+            return String(Int(clampedPercentage))
+        }
+        return String(clampedPercentage)
+    }
+
     /// Returns the value used while dragging. Unlike numeric input, the
     /// Slider enters a named preset as soon as its thumb reaches the snap
     /// window, making the three recommended sizes visibly magnetic.

@@ -1118,6 +1118,14 @@ final class SettingsWindowControllerTests: XCTestCase {
             ).activeSnapPoint,
             "A custom percentage near a preset must not appear selected"
         )
+        XCTAssertNil(
+            MenuSizeSliderView(
+                value: 100.4,
+                range: (MenuAppearanceConfiguration.menuSizeMinimumPercentage
+                    ... MenuAppearanceConfiguration.menuSizeMaximumPercentage)
+            ).activeSnapPoint,
+            "A precise custom percentage must not appear selected"
+        )
 
         let nativeSlider = slider.nativeSlider
         let cell = try XCTUnwrap(nativeSlider.cell as? NSSliderCell)

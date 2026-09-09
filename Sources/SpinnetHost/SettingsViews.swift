@@ -221,6 +221,7 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var presetPendingReplacement: PendingPresetReplacement?
     @Published private(set) var pendingPresetSetup: PendingPresetSetup?
     @Published private(set) var refreshToken = 0
+    @Published private(set) var menuSlots: [MenuSlotPresentation]
     @Published private(set) var capabilityGrants: [PluginCapabilityGrant]
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
@@ -351,6 +352,7 @@ final class SettingsWindowModel: ObservableObject {
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.mouseInputConflictCheck = mouseInputConflictCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
+        menuSlots = []
         capabilityGrants = []
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
@@ -369,10 +371,11 @@ final class SettingsWindowModel: ObservableObject {
         clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
+        menuSlots = makeMenuSlots()
         refreshCapabilityGrants()
     }
 
-    var menuSlots: [MenuSlotPresentation] {
+    private func makeMenuSlots() -> [MenuSlotPresentation] {
         MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
             availability: {
@@ -603,6 +606,7 @@ final class SettingsWindowModel: ObservableObject {
 
     func configurationDidChange(_ configuration: HostConfiguration) {
         selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))
+        menuSlots = makeMenuSlots()
         refreshToken += 1
         onConfigurationChanged?(configuration)
     }
@@ -2487,7 +2491,9 @@ private struct MenuSizeControl: View {
                     )
                     .frame(height: MenuSizeSliderView.labelHeight + MenuSizeSliderView.sliderHeight)
                     .accessibilityLabel("Menu Size")
-                    .accessibilityValue("\(Int(currentPercentage.rounded())) percent")
+                    .accessibilityValue(
+                        "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: currentPercentage)) percent"
+                    )
                 }
                 .frame(maxWidth: .infinity)
 

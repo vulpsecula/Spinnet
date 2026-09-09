@@ -63,6 +63,8 @@ final class RadialMenuView: NSView {
     private var slots: [MenuSlotPresentation]
     private var menuFontCache: [MenuFontCacheKey: NSFont] = [:]
     private var menuTitleLayoutCache: [MenuTitleLayoutCacheKey: MenuTitleLayout] = [:]
+    private var cachedPreviewImage: NSImage?
+    private var lastPreviewBounds: NSRect?
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
     private let previewScale: CGFloat
@@ -80,6 +82,7 @@ final class RadialMenuView: NSView {
         didSet {
             needsDisplay = true
             if oldValue != selectedIndex {
+                invalidatePreviewImage()
                 NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
             }
         }
@@ -193,7 +196,10 @@ final class RadialMenuView: NSView {
 
     func clearSelection() {
         selectedIndex = nil
-        hoveredIndex = nil
+        if hoveredIndex != nil {
+            hoveredIndex = nil
+            invalidatePreviewImage()
+        }
         updateAccessibilityValue()
     }
 
@@ -206,13 +212,21 @@ final class RadialMenuView: NSView {
     ) {
         let slotsChanged = self.slots != slots
         let appearanceChanged = appearanceConfiguration != appearance
+        let renderingAppearanceChanged = appearanceAffectsRendering(
+            from: appearanceConfiguration,
+            to: appearance
+        )
         guard slotsChanged || appearanceChanged else { return }
 
         if slotsChanged {
             self.slots = slots
+            invalidatePreviewImage()
             clearSelection()
         }
         if appearanceChanged {
+            if renderingAppearanceChanged {
+                invalidatePreviewImage()
+            }
             appearanceConfiguration = appearance
             editorAccentColor = appearance.accentColor
             self.appearance = appearance.appearance
@@ -230,6 +244,7 @@ final class RadialMenuView: NSView {
 
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
+        invalidatePreviewImage()
         layout = previewLayout(for: appearanceConfiguration)
         updateFrameSize(for: layout)
         clearSelection()
@@ -242,6 +257,9 @@ final class RadialMenuView: NSView {
     }
 
     func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        if appearanceAffectsRendering(from: appearanceConfiguration, to: appearance) {
+            invalidatePreviewImage()
+        }
         appearanceConfiguration = appearance
         editorAccentColor = appearance.accentColor
         self.appearance = appearance.appearance
@@ -249,6 +267,20 @@ final class RadialMenuView: NSView {
         updateFrameSize(for: layout)
         layoutEditButtons()
         needsDisplay = true
+    }
+
+    private func appearanceAffectsRendering(
+        from oldAppearance: MenuAppearanceConfiguration,
+        to newAppearance: MenuAppearanceConfiguration
+    ) -> Bool {
+        oldAppearance.theme != newAppearance.theme
+            || oldAppearance.accent != newAppearance.accent
+            || oldAppearance.font != newAppearance.font
+            || oldAppearance.fontWeight != newAppearance.fontWeight
+    }
+
+    private func invalidatePreviewImage() {
+        cachedPreviewImage = nil
     }
 
     /// The complete drawing and hit-testing geometry currently used by this
@@ -743,6 +775,7 @@ final class RadialMenuView: NSView {
         let nextIndex = point.flatMap(slotIndex(at:))
         guard hoveredIndex != nextIndex else { return }
         hoveredIndex = nextIndex
+        invalidatePreviewImage()
         needsDisplay = true
     }
 
@@ -776,23 +809,102 @@ final class RadialMenuView: NSView {
         if showsPreviewBackground {
             drawPreviewBackground()
         }
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let step = 360 / CGFloat(layout.itemCount)
+        if previewCanvasDiameter != nil {
+            drawCachedPreviewMenu()
+        } else {
+            drawMenuContents(using: layout, in: bounds)
+        }
+    }
 
-        for index in 0..<layout.itemCount where slots.indices.contains(index) {
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        invalidatePreviewImage()
+        needsDisplay = true
+    }
+
+    private func drawCachedPreviewMenu() {
+        if lastPreviewBounds != bounds {
+            lastPreviewBounds = bounds
+            invalidatePreviewImage()
+        }
+        let previewAppearance = MenuAppearanceConfiguration(
+            theme: appearanceConfiguration.theme,
+            accent: appearanceConfiguration.accent,
+            menuSize: MenuAppearanceConfiguration.Size.medium.rawValue,
+            font: appearanceConfiguration.font,
+            fontWeight: appearanceConfiguration.fontWeight
+        )
+        let previewLayout = previewLayout(for: previewAppearance)
+        let image = cachedPreviewImage(for: previewLayout)
+        let scale = layout.outerRadius / previewLayout.outerRadius
+        let imageSize = NSSize(
+            width: image.size.width * scale,
+            height: image.size.height * scale
+        )
+        image.draw(
+            in: NSRect(
+                x: bounds.midX - imageSize.width / 2,
+                y: bounds.midY - imageSize.height / 2,
+                width: imageSize.width,
+                height: imageSize.height
+            ),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+    }
+
+    private func cachedPreviewImage(for menuLayout: RadialMenuLayout) -> NSImage {
+        if let cachedPreviewImage {
+            return cachedPreviewImage
+        }
+
+        let imageSize = NSSize(
+            width: menuLayout.contentDiameter,
+            height: menuLayout.contentDiameter
+        )
+        let image = NSImage(size: imageSize)
+        let drawImage = {
+            image.lockFocusFlipped(true)
+            NSGraphicsContext.current?.saveGraphicsState()
+            NSBezierPath(
+                rect: NSRect(origin: .zero, size: imageSize)
+            ).addClip()
+            self.drawMenuContents(
+                using: menuLayout,
+                in: NSRect(origin: .zero, size: imageSize)
+            )
+            NSGraphicsContext.current?.restoreGraphicsState()
+            image.unlockFocus()
+        }
+
+        if let appearance {
+            appearance.performAsCurrentDrawingAppearance(drawImage)
+        } else {
+            drawImage()
+        }
+        cachedPreviewImage = image
+        return image
+    }
+
+    private func drawMenuContents(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let step = 360 / CGFloat(menuLayout.itemCount)
+
+        for index in 0..<menuLayout.itemCount where slots.indices.contains(index) {
             let slot = slots[index]
             let isFocused = selectedIndex == index
             let isHovered = presentationMode == .editor && hoveredIndex == index
             let path = NSBezierPath()
             path.appendArc(
                 withCenter: center,
-                radius: layout.outerRadius,
+                radius: menuLayout.outerRadius,
                 startAngle: 90 - CGFloat(index + 1) * step + 2,
                 endAngle: 90 - CGFloat(index) * step - 2
             )
             path.appendArc(
                 withCenter: center,
-                radius: layout.innerRadius,
+                radius: menuLayout.innerRadius,
                 startAngle: 90 - CGFloat(index) * step - 2,
                 endAngle: 90 - CGFloat(index + 1) * step + 2,
                 clockwise: true
@@ -830,17 +942,17 @@ final class RadialMenuView: NSView {
 
             let title = slot.title
             let titleFontSize: CGFloat
-            if layout.itemCount >= 10 {
+            if menuLayout.itemCount >= 10 {
                 titleFontSize = 10
-            } else if layout.itemCount >= 8 {
+            } else if menuLayout.itemCount >= 8 {
                 titleFontSize = 11
             } else {
                 titleFontSize = 13
             }
-            let point = layout.itemCenter(index: index, center: center)
+            let point = menuLayout.itemCenter(index: index, center: center)
             let titleWidth = max(
                 36,
-                2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
+                2 * menuLayout.itemCenterRadius * sin(.pi / CGFloat(menuLayout.itemCount)) - 8
             )
             let titleLayout = titleLayout(
                 for: title,
@@ -865,7 +977,7 @@ final class RadialMenuView: NSView {
             titleLayout.text.draw(
                 in: NSRect(
                     x: point.x - titleWidth / 2,
-                    y: point.y - titleHeight / 2 + (layout.itemCount >= 10 ? 4 : 0),
+                    y: point.y - titleHeight / 2 + (menuLayout.itemCount >= 10 ? 4 : 0),
                     width: titleWidth,
                     height: titleHeight
                 ),
@@ -887,10 +999,10 @@ final class RadialMenuView: NSView {
         }
 
         let hubRect = NSRect(
-            x: center.x - layout.innerRadius + 8,
-            y: center.y - layout.innerRadius + 8,
-            width: (layout.innerRadius - 8) * 2,
-            height: (layout.innerRadius - 8) * 2
+            x: center.x - menuLayout.innerRadius + 8,
+            y: center.y - menuLayout.innerRadius + 8,
+            width: (menuLayout.innerRadius - 8) * 2,
+            height: (menuLayout.innerRadius - 8) * 2
         )
         let hubPath = NSBezierPath(ovalIn: hubRect)
         NSColor.windowBackgroundColor.setFill()

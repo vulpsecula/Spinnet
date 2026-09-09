@@ -98,6 +98,8 @@ final class MenuSizeSliderView: NSView {
     private let slider: TrackingSlider
     private let sizes = MenuAppearanceConfiguration.Size.allCases
     private let range: ClosedRange<Double>
+    private var cachedNativeThumbTravel: ClosedRange<CGFloat>?
+    private var lastLaidOutBounds: NSRect?
 
     var onValueChanged: ((Double) -> Void)?
     var onEditingChanged: ((Bool) -> Void)? {
@@ -121,7 +123,9 @@ final class MenuSizeSliderView: NSView {
         slider.target = self
         slider.action = #selector(sliderValueChanged(_:))
         slider.setAccessibilityLabel("Menu Size")
-        slider.setAccessibilityValue("\(Int(value.rounded())) percent")
+        slider.setAccessibilityValue(
+            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: value)) percent"
+        )
         addSubview(slider)
     }
 
@@ -137,12 +141,17 @@ final class MenuSizeSliderView: NSView {
 
     override func layout() {
         super.layout()
+        if lastLaidOutBounds != bounds {
+            cachedNativeThumbTravel = nil
+            lastLaidOutBounds = bounds
+        }
         slider.frame = NSRect(
             x: 0,
             y: Self.labelHeight,
             width: bounds.width,
             height: max(Self.sliderHeight, bounds.height - Self.labelHeight)
         )
+        _ = nativeThumbTravel
         needsDisplay = true
     }
 
@@ -200,6 +209,9 @@ final class MenuSizeSliderView: NSView {
     /// interaction. Labels and ticks must follow the thumb centers, not the
     /// visual track's outer edges.
     var nativeThumbTravel: ClosedRange<CGFloat> {
+        if let cachedNativeThumbTravel {
+            return cachedNativeThumbTravel
+        }
         guard let cell = slider.cell as? NSSliderCell,
               slider.bounds.width > 0 else {
             return slider.frame.minX...slider.frame.maxX
@@ -214,7 +226,9 @@ final class MenuSizeSliderView: NSView {
         slider.doubleValue = range.upperBound
         let maximumX = slider.frame.minX
             + cell.knobRect(flipped: slider.isFlipped).midX
-        return min(minimumX, maximumX)...max(minimumX, maximumX)
+        let travel = min(minimumX, maximumX)...max(minimumX, maximumX)
+        cachedNativeThumbTravel = travel
+        return travel
     }
 
     var snapPointXPositions: [CGFloat] {
@@ -230,7 +244,7 @@ final class MenuSizeSliderView: NSView {
 
     var activeSnapPoint: MenuAppearanceConfiguration.Size? {
         sizes.first {
-            abs($0.percentage - slider.doubleValue) < 0.5
+            abs($0.percentage - slider.doubleValue) < 0.0001
         }
     }
 
@@ -241,12 +255,16 @@ final class MenuSizeSliderView: NSView {
             return
         }
         slider.doubleValue = clampedValue
-        slider.setAccessibilityValue("\(Int(clampedValue.rounded())) percent")
+        slider.setAccessibilityValue(
+            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: clampedValue)) percent"
+        )
         needsDisplay = true
     }
 
     @objc private func sliderValueChanged(_ sender: NSSlider) {
-        sender.setAccessibilityValue("\(Int(sender.doubleValue.rounded())) percent")
+        sender.setAccessibilityValue(
+            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: sender.doubleValue)) percent"
+        )
         onValueChanged?(sender.doubleValue)
         needsDisplay = true
     }
