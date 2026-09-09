@@ -1046,7 +1046,9 @@ struct SettingsRootView: View {
     }
 
     private var editorMode: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let menuSlots = model.menuSlots
+
+        return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Editor Mode")
                     .font(.title2.weight(.semibold))
@@ -1072,7 +1074,7 @@ struct SettingsRootView: View {
                     .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
 
                 MenuEditorModeRepresentable(
-                    slots: model.menuSlots,
+                    slots: menuSlots,
                     selectedIndex: model.selectedMenuIndex,
                     appearance: model.appearanceConfiguration,
                     mode: .editor,
@@ -1099,7 +1101,7 @@ struct SettingsRootView: View {
                     Button(action: model.addEmptySlot) {
                         Image(systemName: "plus")
                     }
-                    .disabled(model.menuSlots.count >= 12)
+                    .disabled(menuSlots.count >= 12)
                     .accessibilityLabel("Add empty Slot")
                     .help("Add empty Slot")
                     Button(action: model.undoSlotEdit) {
@@ -1117,9 +1119,9 @@ struct SettingsRootView: View {
                     .help("Redo Slot edit")
                     .accessibilityLabel("Redo Slot edit")
                     Spacer()
-                    Text("\(model.menuSlots.count) / 12")
+                    Text("\(menuSlots.count) / 12")
                         .monospacedDigit()
-                        .accessibilityLabel("\(model.menuSlots.count) of 12 Slots")
+                        .accessibilityLabel("\(menuSlots.count) of 12 Slots")
                 }
                 .padding(.horizontal, 28)
                 .padding(.top, 10)
@@ -1374,13 +1376,11 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
 
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         applyCallbacks(to: nsView)
-        nsView.reload(slots: slots)
-        nsView.applyAppearance(appearance)
+        nsView.update(slots: slots, appearance: appearance)
         nsView.selectEditorItem(at: selectedIndex)
     }
 
     private func applyCallbacks(to view: RadialMenuView) {
-        view.appearance = appearance.appearance
         guard mode == .editor, allowsEditing else {
             view.onEditorSelection = nil
             view.onEditorEditRequested = nil
@@ -2457,6 +2457,29 @@ private struct AppearanceSettingsView: View {
 
 }
 
+enum MenuSizeSliderLayout {
+    /// The macOS Slider thumb center is inset from the control bounds by
+    /// approximately half the thumb width. Labels and tick marks use the same
+    /// inset so their positions share the Slider's actual travel range.
+    static let nativeTrackInset: CGFloat = 8
+
+    static func trackWidth(for width: CGFloat) -> CGFloat {
+        max(width - 2 * nativeTrackInset, 0)
+    }
+
+    static func normalizedValue(for percentage: Double) -> CGFloat {
+        let minimum = MenuAppearanceConfiguration.menuSizeMinimumPercentage
+        let maximum = MenuAppearanceConfiguration.menuSizeMaximumPercentage
+        guard percentage.isFinite, maximum > minimum else { return 0 }
+        return CGFloat(min(max((percentage - minimum) / (maximum - minimum), 0), 1))
+    }
+
+    static func trackPosition(for percentage: Double, width: CGFloat) -> CGFloat {
+        guard width > 0 else { return 0 }
+        return nativeTrackInset + trackWidth(for: width) * normalizedValue(for: percentage)
+    }
+}
+
 private struct MenuSizeControl: View {
     @Binding var menuSize: String
     let beginAdjustment: () -> Void
@@ -2522,7 +2545,7 @@ private struct MenuSizeControl: View {
         Binding(
             get: { currentPercentage },
             set: { percentage in
-                menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: percentage)
+                menuSize = MenuAppearanceConfiguration.interactiveMenuSizeValue(forPercentage: percentage)
             }
         )
     }
@@ -2530,27 +2553,35 @@ private struct MenuSizeControl: View {
     private var snapPointLabels: some View {
         GeometryReader { proxy in
             let sizes = MenuAppearanceConfiguration.Size.allCases
-            let frameWidth = proxy.size.width / CGFloat(sizes.count)
+            let trackWidth = MenuSizeSliderLayout.trackWidth(for: proxy.size.width)
+            let frameWidth = trackWidth / CGFloat(sizes.count)
+            let trackStart = MenuSizeSliderLayout.nativeTrackInset
+            let activeSize = MenuAppearanceConfiguration.menuSizeSnapPoint(near: currentPercentage)
             ZStack(alignment: .topLeading) {
                 ForEach(Array(sizes.indices), id: \.self) { index in
-                    let position = CGFloat(index + 1) / CGFloat(sizes.count)
+                    let size = sizes[index]
                     Rectangle()
-                        .fill(Color.secondary.opacity(0.42))
+                        .fill(activeSize == size ? Color.accentColor : Color.secondary.opacity(0.42))
                         .frame(width: 1, height: 5)
-                        .offset(x: proxy.size.width * position - 0.5)
+                        .offset(
+                            x: MenuSizeSliderLayout.trackPosition(
+                                for: size.percentage,
+                                width: proxy.size.width
+                            ) - 0.5
+                        )
                 }
                 ForEach(Array(sizes.enumerated()), id: \.element) { index, size in
-                    let position = CGFloat(index + 1) / CGFloat(sizes.count)
+                    let position = MenuSizeSliderLayout.normalizedValue(for: size.percentage)
                     let isLast = index == sizes.count - 1
                     Text("\(size.rawValue) \(Int(size.percentage.rounded()))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(activeSize == size ? .semibold : .regular))
+                        .foregroundStyle(activeSize == size ? Color.accentColor : .secondary)
                         .frame(
                             width: frameWidth,
                             alignment: isLast ? .trailing : .center
                         )
                         .offset(
-                            x: proxy.size.width * (position - (isLast ? 1 / 3 : 1 / 6)),
+                            x: trackStart + trackWidth * (position - (isLast ? 1 / 3 : 1 / 6)),
                             y: 5
                         )
                 }

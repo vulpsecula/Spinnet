@@ -1,6 +1,6 @@
 import SpinnetCore
 
-struct MenuActionPresentation {
+struct MenuActionPresentation: Equatable {
     let actionID: ActionID
     let title: String
     let availability: ActionAvailability
@@ -18,7 +18,7 @@ struct MenuActionPresentation {
     }
 }
 
-struct MenuItemPresentation {
+struct MenuItemPresentation: Equatable {
     let configuration: MenuItemConfiguration
     let primaryAction: MenuActionPresentation
     let alternateActions: [MenuActionPresentation]
@@ -42,7 +42,7 @@ struct MenuItemPresentation {
     }
 }
 
-struct MenuSlotPresentation {
+struct MenuSlotPresentation: Equatable {
     let configuration: MenuSlotConfiguration
     let item: MenuItemPresentation?
 

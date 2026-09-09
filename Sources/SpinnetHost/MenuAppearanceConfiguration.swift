@@ -152,16 +152,28 @@ struct MenuAppearanceConfiguration: Equatable {
         return String(Int(clampedPercentage.rounded()))
     }
 
+    /// Returns the value used while dragging. Unlike numeric input, the
+    /// Slider enters a named preset as soon as its thumb reaches the snap
+    /// window, making the three recommended sizes visibly magnetic.
+    static func interactiveMenuSizeValue(forPercentage percentage: Double) -> String {
+        menuSizeValue(forPercentage: snappedMenuSizePercentage(percentage))
+    }
+
+    static func menuSizeSnapPoint(near percentage: Double) -> Size? {
+        let clampedPercentage = clampedMenuSizePercentage(percentage)
+        guard let nearestSnapPoint = Size.allCases.min(by: {
+            abs($0.percentage - clampedPercentage) < abs($1.percentage - clampedPercentage)
+        }) else {
+            return nil
+        }
+        return abs(nearestSnapPoint.percentage - clampedPercentage) <= menuSizeSnapDistance
+            ? nearestSnapPoint
+            : nil
+    }
+
     static func snappedMenuSizePercentage(_ percentage: Double) -> Double {
         let clampedPercentage = clampedMenuSizePercentage(percentage)
-        guard let nearestSnapPoint = menuSizeSnapPoints.min(by: {
-            abs($0 - clampedPercentage) < abs($1 - clampedPercentage)
-        }) else {
-            return clampedPercentage
-        }
-        return abs(nearestSnapPoint - clampedPercentage) <= menuSizeSnapDistance
-            ? nearestSnapPoint
-            : clampedPercentage
+        return menuSizeSnapPoint(near: clampedPercentage)?.percentage ?? clampedPercentage
     }
 
     private static func clampedMenuSizePercentage(_ percentage: Double) -> Double {

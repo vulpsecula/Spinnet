@@ -322,6 +322,33 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertLessThan(largePreview.geometryLayout.outerRadius, largeOuterRadius)
     }
 
+    func testAppearanceOnlyMenuUpdateDoesNotReloadEditorSlots() throws {
+        let actionID = ActionID("appearance-update-action")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open URL",
+                availability: .available
+            ),
+            alternateActions: []
+        )
+        let slots = [MenuSlotPresentation.occupied(item)]
+        let view = RadialMenuView(slots: slots, mode: .editor)
+        view.selectEditorItem(at: 0)
+
+        view.update(
+            slots: slots,
+            appearance: MenuAppearanceConfiguration(menuSize: "Large")
+        )
+
+        XCTAssertEqual(
+            view.selectedIndex,
+            0,
+            "Changing Menu Appearance should not reload unchanged Menu Slots"
+        )
+    }
+
     func testEditorMenuSelectsSlotsWithoutExecutingActions() throws {
         let actionID = ActionID("editor-action")
         let item = MenuItemPresentation(
@@ -1057,6 +1084,33 @@ final class SettingsWindowControllerTests: XCTestCase {
             160,
             accuracy: 0.001
         )
+    }
+
+    func testMenuSizeSliderSnapsDuringDragAndAlignsLabelsToTheNativeTrack() {
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.interactiveMenuSizeValue(forPercentage: 98),
+            "Small"
+        )
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.interactiveMenuSizeValue(forPercentage: 104),
+            "Small"
+        )
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.interactiveMenuSizeValue(forPercentage: 106),
+            "106"
+        )
+
+        let width: CGFloat = 300
+        let trackInset = MenuSizeSliderLayout.nativeTrackInset
+        let trackWidth = width - 2 * trackInset
+        for (index, size) in MenuAppearanceConfiguration.Size.allCases.enumerated() {
+            let expected = trackInset + trackWidth * CGFloat(index + 1) / 3
+            XCTAssertEqual(
+                MenuSizeSliderLayout.trackPosition(for: size.percentage, width: width),
+                expected,
+                accuracy: 0.001
+            )
+        }
     }
 
     func testMenuSizeSliderAdjustmentCreatesOneUndoEntry() throws {

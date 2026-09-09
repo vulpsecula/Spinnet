@@ -14,6 +14,7 @@ final class MenuPresentationController {
     private var menuView: RadialMenuView
     private var slots: [MenuSlotPresentation]
     private var appearanceConfiguration: MenuAppearanceConfiguration
+    private var menuViewAppearanceNeedsSync = false
     private var outsideClickMonitor: Any?
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
@@ -64,6 +65,7 @@ final class MenuPresentationController {
         self.layout = appearanceConfiguration.layout(slotCount: items.count)
         self.menuView = RadialMenuView(slots: items)
         menuView.applyAppearance(appearanceConfiguration)
+        menuViewAppearanceNeedsSync = false
         panel.contentView = menuView
         configureMenuView()
     }
@@ -73,8 +75,9 @@ final class MenuPresentationController {
         appearanceConfiguration = appearance
         layout = appearance.layout(slotCount: slots.count)
         panel.appearance = appearance.appearance
-        menuView.applyAppearance(appearance)
-        panel.setContentSize(menuView.bounds.size)
+        // Settings can produce many Appearance samples while the runtime Menu
+        // is hidden. Defer AppKit layout and drawing until the next open.
+        menuViewAppearanceNeedsSync = true
     }
 
     var presentationSnapshot: (
@@ -99,7 +102,9 @@ final class MenuPresentationController {
         MenuPresentationGeometrySnapshot(
             layout: layout,
             overlayFrame: panel.frame,
-            contentSize: menuView.bounds.size
+            contentSize: menuViewAppearanceNeedsSync
+                ? CGSize(width: layout.contentDiameter, height: layout.contentDiameter)
+                : menuView.bounds.size
         )
     }
 
@@ -110,6 +115,7 @@ final class MenuPresentationController {
     }
 
     func open(at pointer: CGPoint) {
+        syncMenuViewAppearanceIfNeeded()
         refreshItemsIfNeeded()
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
@@ -122,6 +128,13 @@ final class MenuPresentationController {
         panel.makeFirstResponder(menuView)
         isOpen = true
         installDismissalMonitors()
+    }
+
+    private func syncMenuViewAppearanceIfNeeded() {
+        guard menuViewAppearanceNeedsSync else { return }
+        menuView.applyAppearance(appearanceConfiguration)
+        panel.setContentSize(menuView.bounds.size)
+        menuViewAppearanceNeedsSync = false
     }
 
     func dismiss() {

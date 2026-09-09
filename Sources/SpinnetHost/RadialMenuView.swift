@@ -37,6 +37,14 @@ private final class RadialMenuEditButton: NSButton {
 }
 
 final class RadialMenuView: NSView {
+    private struct MenuTitleLayoutCacheKey: Hashable {
+        let title: String
+        let widthBucket: Int
+        let baseSize: Int
+        let font: MenuAppearanceConfiguration.MenuFont
+        let weight: MenuAppearanceConfiguration.MenuFontWeight
+    }
+
     static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
         "com.spinnet.library-preset"
     )
@@ -47,6 +55,7 @@ final class RadialMenuView: NSView {
 
     private var layout: RadialMenuLayout
     private var slots: [MenuSlotPresentation]
+    private var menuTitleLayoutCache: [MenuTitleLayoutCacheKey: MenuTitleLayout] = [:]
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
     private let previewScale: CGFloat
@@ -179,6 +188,37 @@ final class RadialMenuView: NSView {
         selectedIndex = nil
         hoveredIndex = nil
         updateAccessibilityValue()
+    }
+
+    /// Applies the smallest update needed by the settings preview. Appearance
+    /// changes arrive for every Slider sample, so reloading unchanged Slots
+    /// here would unnecessarily clear selection and rebuild Edit buttons.
+    func update(
+        slots: [MenuSlotPresentation],
+        appearance: MenuAppearanceConfiguration
+    ) {
+        let slotsChanged = self.slots != slots
+        let appearanceChanged = appearanceConfiguration != appearance
+        guard slotsChanged || appearanceChanged else { return }
+
+        if slotsChanged {
+            self.slots = slots
+            clearSelection()
+        }
+        if appearanceChanged {
+            appearanceConfiguration = appearance
+            editorAccentColor = appearance.accentColor
+            self.appearance = appearance.appearance
+        }
+
+        layout = previewLayout(for: appearanceConfiguration)
+        setFrameSize(previewFrameSize(for: layout))
+        if slotsChanged {
+            rebuildEditButtons()
+        } else {
+            layoutEditButtons()
+        }
+        needsDisplay = true
     }
 
     func reload(slots: [MenuSlotPresentation]) {
@@ -790,12 +830,10 @@ final class RadialMenuView: NSView {
                 36,
                 2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
             )
-            let titleLayout = MenuTitleLayoutEngine.layout(
-                title: title,
+            let titleLayout = titleLayout(
+                for: title,
                 maxWidth: titleWidth,
-                baseSize: titleFontSize,
-                font: appearanceConfiguration.menuFont,
-                weight: appearanceConfiguration.menuFontWeight
+                baseSize: titleFontSize
             )
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
@@ -859,6 +897,34 @@ final class RadialMenuView: NSView {
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
         )
+    }
+
+    private func titleLayout(
+        for title: String,
+        maxWidth: CGFloat,
+        baseSize: CGFloat
+    ) -> MenuTitleLayout {
+        let widthBucket = max(1, Int(maxWidth.rounded(.down)))
+        let key = MenuTitleLayoutCacheKey(
+            title: title,
+            widthBucket: widthBucket,
+            baseSize: Int(baseSize.rounded()),
+            font: appearanceConfiguration.menuFont,
+            weight: appearanceConfiguration.menuFontWeight
+        )
+        if let cached = menuTitleLayoutCache[key] {
+            return cached
+        }
+
+        let layout = MenuTitleLayoutEngine.layout(
+            title: title,
+            maxWidth: CGFloat(widthBucket),
+            baseSize: baseSize,
+            font: appearanceConfiguration.menuFont,
+            weight: appearanceConfiguration.menuFontWeight
+        )
+        menuTitleLayoutCache[key] = layout
+        return layout
     }
 
     private func drawPreviewBackground() {
