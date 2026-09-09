@@ -71,10 +71,10 @@ final class MenuPresentationController {
     }
 
     func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
+        guard appearanceConfiguration != appearance else { return }
         if isOpen { dismiss() }
         appearanceConfiguration = appearance
         layout = appearance.layout(slotCount: slots.count)
-        panel.appearance = appearance.appearance
         // Settings can produce many Appearance samples while the Runtime Mode
         // panel is hidden. Defer AppKit layout and drawing until the next open.
         menuViewAppearanceNeedsSync = true
@@ -132,6 +132,7 @@ final class MenuPresentationController {
 
     private func syncMenuViewAppearanceIfNeeded() {
         guard menuViewAppearanceNeedsSync else { return }
+        panel.appearance = appearanceConfiguration.appearance
         menuView.applyAppearance(appearanceConfiguration)
         panel.setContentSize(menuView.bounds.size)
         menuViewAppearanceNeedsSync = false

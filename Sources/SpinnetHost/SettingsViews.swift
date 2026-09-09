@@ -387,6 +387,12 @@ final class SettingsWindowModel: ObservableObject {
         )
     }
 
+    /// Refreshes availability-sensitive Menu Slot presentation without tying
+    /// it to every Appearance sample from the size Slider.
+    func refreshMenuSlots() {
+        menuSlots = makeMenuSlots()
+    }
+
     func librarySections(matching query: String) -> [MenuItemPresetSection] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let presets = editor.menuItemPresets.filter { preset in
@@ -511,6 +517,9 @@ final class SettingsWindowModel: ObservableObject {
 
     func selectPage(_ page: SettingsPage) {
         guard editingMenuIndex == nil else { return }
+        if page.showsEditorMode {
+            refreshMenuSlots()
+        }
         self.page = page
     }
 
@@ -606,7 +615,7 @@ final class SettingsWindowModel: ObservableObject {
 
     func configurationDidChange(_ configuration: HostConfiguration) {
         selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))
-        menuSlots = makeMenuSlots()
+        refreshMenuSlots()
         refreshToken += 1
         onConfigurationChanged?(configuration)
     }
@@ -974,7 +983,10 @@ struct SettingsRootView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(spinnetAccentColor(named: model.appearanceAccent))
         .frame(minWidth: 1_120, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear { focusedPage = model.page }
+        .onAppear {
+            focusedPage = model.page
+            model.refreshMenuSlots()
+        }
         .onChange(of: model.page) { focusedPage = $0 }
         .onDeleteCommand {
             guard model.page == .menu else { return }

@@ -811,6 +811,7 @@ final class RadialMenuView: NSView {
         }
         if previewCanvasDiameter != nil {
             drawCachedPreviewMenu()
+            drawMenuLabels(using: layout, in: bounds)
         } else {
             drawMenuContents(using: layout, in: bounds)
         }
@@ -872,7 +873,8 @@ final class RadialMenuView: NSView {
             ).addClip()
             self.drawMenuContents(
                 using: menuLayout,
-                in: NSRect(origin: .zero, size: imageSize)
+                in: NSRect(origin: .zero, size: imageSize),
+                includesLabels: false
             )
             NSGraphicsContext.current?.restoreGraphicsState()
             image.unlockFocus()
@@ -887,7 +889,11 @@ final class RadialMenuView: NSView {
         return image
     }
 
-    private func drawMenuContents(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+    private func drawMenuContents(
+        using menuLayout: RadialMenuLayout,
+        in canvas: NSRect,
+        includesLabels: Bool = true
+    ) {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
         let step = 360 / CGFloat(menuLayout.itemCount)
 
@@ -940,7 +946,31 @@ final class RadialMenuView: NSView {
             }
             path.stroke()
 
-            let title = slot.title
+        }
+
+        let hubRect = NSRect(
+            x: center.x - menuLayout.innerRadius + 8,
+            y: center.y - menuLayout.innerRadius + 8,
+            width: (menuLayout.innerRadius - 8) * 2,
+            height: (menuLayout.innerRadius - 8) * 2
+        )
+        let hubPath = NSBezierPath(ovalIn: hubRect)
+        NSColor.windowBackgroundColor.setFill()
+        hubPath.fill()
+        NSColor.separatorColor.withAlphaComponent(0.75).setStroke()
+        hubPath.lineWidth = 1
+        hubPath.stroke()
+
+        if includesLabels {
+            drawMenuLabels(using: menuLayout, in: canvas)
+        }
+    }
+
+    private func drawMenuLabels(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        for index in 0..<menuLayout.itemCount where slots.indices.contains(index) {
+            let slot = slots[index]
+            let isFocused = selectedIndex == index
             let titleFontSize: CGFloat
             if menuLayout.itemCount >= 10 {
                 titleFontSize = 10
@@ -955,7 +985,7 @@ final class RadialMenuView: NSView {
                 2 * menuLayout.itemCenterRadius * sin(.pi / CGFloat(menuLayout.itemCount)) - 8
             )
             let titleLayout = titleLayout(
-                for: title,
+                for: slot.title,
                 maxWidth: titleWidth,
                 baseSize: titleFontSize
             )
@@ -997,19 +1027,6 @@ final class RadialMenuView: NSView {
                 )
             }
         }
-
-        let hubRect = NSRect(
-            x: center.x - menuLayout.innerRadius + 8,
-            y: center.y - menuLayout.innerRadius + 8,
-            width: (menuLayout.innerRadius - 8) * 2,
-            height: (menuLayout.innerRadius - 8) * 2
-        )
-        let hubPath = NSBezierPath(ovalIn: hubRect)
-        NSColor.windowBackgroundColor.setFill()
-        hubPath.fill()
-        NSColor.separatorColor.withAlphaComponent(0.75).setStroke()
-        hubPath.lineWidth = 1
-        hubPath.stroke()
 
         let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
