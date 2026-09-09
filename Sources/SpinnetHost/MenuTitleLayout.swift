@@ -34,30 +34,16 @@ enum MenuTitleLayoutEngine {
             return makeLayout(text: safeTitle, font: baseFont, maxWidth: maxWidth)
         }
 
-        // Keep one-line labels when they only need a modest reduction. Once
-        // the type would become noticeably small, use two balanced lines so
-        // the eye can scan the name without a tiny, stretched-looking label.
-        let minimumReadableSize = max(8.5, baseSize * 0.78)
-        let fittedSize = max(
-            minimumReadableSize,
-            baseSize * maxWidth / singleLineWidth * 0.98
-        )
-        let fittedFont = font.makeFont(ofSize: fittedSize, weight: weight)
-        if width(of: safeTitle, font: fittedFont) <= maxWidth {
-            return makeLayout(text: safeTitle, font: fittedFont, maxWidth: maxWidth)
-        }
-
         let wrappedLines = balancedLines(
             for: safeTitle,
             font: baseFont,
             maxWidth: maxWidth,
-            minimumFontSize: minimumReadableSize
+            minimumFontSize: baseSize
         )
         guard wrappedLines.count > 1 else {
-            let compactFont = font.makeFont(ofSize: minimumReadableSize, weight: weight)
             return makeLayout(
-                text: truncate(safeTitle, font: compactFont, maxWidth: maxWidth),
-                font: compactFont,
+                text: truncate(safeTitle, font: baseFont, maxWidth: maxWidth),
+                font: baseFont,
                 maxWidth: maxWidth
             )
         }
@@ -68,21 +54,12 @@ enum MenuTitleLayoutEngine {
             return makeLayout(text: wrappedText, font: baseFont, maxWidth: maxWidth)
         }
 
-        let wrappedSize = max(
-            minimumReadableSize,
-            baseSize * maxWidth / widestWrappedLine * 0.98
-        )
-        let wrappedFont = font.makeFont(ofSize: wrappedSize, weight: weight)
-        if wrappedLines.allSatisfy({ width(of: $0, font: wrappedFont) <= maxWidth }) {
-            return makeLayout(text: wrappedText, font: wrappedFont, maxWidth: maxWidth)
-        }
-
         let truncatedLines = wrappedLines.map {
-            truncate($0, font: wrappedFont, maxWidth: maxWidth)
+            truncate($0, font: baseFont, maxWidth: maxWidth)
         }
         return makeLayout(
             text: truncatedLines.joined(separator: "\n"),
-            font: wrappedFont,
+            font: baseFont,
             maxWidth: maxWidth
         )
     }

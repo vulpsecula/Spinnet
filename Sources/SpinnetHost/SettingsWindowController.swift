@@ -2,6 +2,19 @@ import AppKit
 import SwiftUI
 import SpinnetCore
 
+private final class SettingsWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "w" else {
+            return super.performKeyEquivalent(with: event)
+        }
+
+        performClose(nil)
+        return true
+    }
+}
+
 final class SettingsWindowController: NSWindowController {
     private let model: SettingsWindowModel
     private var hostingView: NSHostingView<SettingsRootView>!
@@ -51,7 +64,7 @@ final class SettingsWindowController: NSWindowController {
             defaults: defaults
         )
 
-        let window = NSWindow(
+        let window = SettingsWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1_360, height: 820),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,

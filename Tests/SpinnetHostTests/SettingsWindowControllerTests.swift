@@ -208,6 +208,30 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
+    func testSettingsWindowClosesWithCommandW() throws {
+        let controller = try makeController()
+        defer { controller.close() }
+        controller.present()
+
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertTrue(window.isVisible)
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "w",
+            charactersIgnoringModifiers: "w",
+            isARepeat: false,
+            keyCode: 13
+        ))
+
+        XCTAssertTrue(window.performKeyEquivalent(with: event))
+        XCTAssertFalse(window.isVisible)
+    }
+
     func testStatusItemMenuOnlyOffersSettingsAndQuitWithAccessibleNames() {
         let statusItem = StatusItemController(openSettings: {}, quit: {})
         let menu = statusItem.makeMenu()
@@ -754,13 +778,21 @@ final class SettingsWindowControllerTests: XCTestCase {
     func testMenuTitleLayoutUsesReadableWrappingAndConfiguredFont() {
         let wrapped = MenuTitleLayoutEngine.layout(
             title: "A Very Long Menu Item Name",
-            maxWidth: 100,
+            maxWidth: 120,
             baseSize: 13,
             font: .system
         )
         XCTAssertEqual(wrapped.lineCount, 2)
         XCTAssertFalse(wrapped.text.contains("…"))
-        XCTAssertGreaterThanOrEqual(wrapped.font.pointSize, 10)
+        XCTAssertEqual(wrapped.font.pointSize, 13)
+
+        let short = MenuTitleLayoutEngine.layout(
+            title: "Open",
+            maxWidth: 120,
+            baseSize: 13,
+            font: .system
+        )
+        XCTAssertEqual(wrapped.font.fontDescriptor, short.font.fontDescriptor)
 
         let singleWord = MenuTitleLayoutEngine.layout(
             title: "Fixture",
@@ -769,6 +801,15 @@ final class SettingsWindowControllerTests: XCTestCase {
             font: .system
         )
         XCTAssertFalse(singleWord.text.contains("\n"))
+
+        let truncatedWord = MenuTitleLayoutEngine.layout(
+            title: "ExtremelyLongSlotName",
+            maxWidth: 36,
+            baseSize: 10,
+            font: .system
+        )
+        XCTAssertEqual(truncatedWord.font.pointSize, 10)
+        XCTAssertTrue(truncatedWord.text.contains("…"))
 
         let system = MenuTitleLayoutEngine.layout(
             title: "Open",
