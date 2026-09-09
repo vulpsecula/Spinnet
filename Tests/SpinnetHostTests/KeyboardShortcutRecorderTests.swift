@@ -50,6 +50,28 @@ final class KeyboardShortcutRecorderTests: XCTestCase {
         XCTAssertEqual(view.shortcut?.displayValue, "⌥D")
     }
 
+    func testHeldModifierIsShownBeforeThePrimaryKeyIsPressed() throws {
+        let view = KeyboardShortcutCaptureView(frame: NSRect(x: 0, y: 0, width: 164, height: 30))
+        view.mouseDown(with: try XCTUnwrap(mouseDownEvent()))
+        let optionDown = try XCTUnwrap(NSEvent.keyEvent(
+            with: .flagsChanged,
+            location: .zero,
+            modifierFlags: [.option],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: 0
+        ))
+
+        view.flagsChanged(with: optionDown)
+
+        XCTAssertEqual(view.recordingDisplayValue, "⌥…")
+        XCTAssertNil(view.shortcut)
+    }
+
     func testKeysPressedAfterRecordingDoNotChangeTheCapturedShortcut() throws {
         let view = KeyboardShortcutCaptureView(frame: NSRect(x: 0, y: 0, width: 164, height: 30))
         let shortcut = MenuKeyboardShortcut(

@@ -22,12 +22,16 @@ struct KeyboardShortcutRecorder: NSViewRepresentable {
 final class KeyboardShortcutCaptureView: NSView {
     var shortcut: MenuKeyboardShortcut? {
         didSet {
-            setAccessibilityValue(shortcut?.displayValue ?? "Not set")
-            needsDisplay = true
+            updateRecordingPresentation()
         }
     }
     var onChange: ((MenuKeyboardShortcut?) -> Void)?
-    private var isRecording = false
+    private var isRecording = false {
+        didSet { updateRecordingPresentation() }
+    }
+    private var recordingModifiers: NSEvent.ModifierFlags = [] {
+        didSet { updateRecordingPresentation() }
+    }
     private var keyboardEventTap: CFMachPort?
     private var keyboardEventTapSource: CFRunLoopSource?
 
@@ -50,9 +54,9 @@ final class KeyboardShortcutCaptureView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        recordingModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         isRecording = true
         installKeyboardEventTap()
-        needsDisplay = true
     }
 
     override func keyDown(with event: NSEvent) {
@@ -67,6 +71,13 @@ final class KeyboardShortcutCaptureView: NSView {
         _ = record(event)
     }
 
+    override func flagsChanged(with event: NSEvent) {
+        if isRecording {
+            updateRecordingModifiers(event.modifierFlags)
+        }
+        super.flagsChanged(with: event)
+    }
+
     /// A local responder sees only events that survive another application's
     /// global shortcut handling. While recording, use a short-lived session
     /// event tap to consume key events before global utilities can act on
@@ -76,6 +87,7 @@ final class KeyboardShortcutCaptureView: NSView {
         removeKeyboardEventTap()
         let eventMask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
             | (CGEventMask(1) << CGEventType.keyUp.rawValue)
+            | (CGEventMask(1) << CGEventType.flagsChanged.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -117,6 +129,14 @@ final class KeyboardShortcutCaptureView: NSView {
             }
             return Unmanaged.passUnretained(event)
         }
+        if type == .flagsChanged {
+            if let appKitEvent = NSEvent(cgEvent: event) {
+                updateRecordingModifiers(appKitEvent.modifierFlags)
+            }
+            // Let the system receive modifier transitions so a modifier does
+            // not remain logically pressed after the recorder is dismissed.
+            return Unmanaged.passUnretained(event)
+        }
         guard type == .keyDown || type == .keyUp else {
             return Unmanaged.passUnretained(event)
         }
@@ -142,6 +162,7 @@ final class KeyboardShortcutCaptureView: NSView {
 
     @discardableResult
     private func record(_ event: NSEvent) -> Bool {
+        updateRecordingModifiers(event.modifierFlags)
         if event.keyCode == 53 {
             cancelRecording()
             return true
@@ -173,14 +194,41 @@ final class KeyboardShortcutCaptureView: NSView {
 
     private func cancelRecording() {
         isRecording = false
+        recordingModifiers = []
         removeKeyboardEventTap()
-        needsDisplay = true
     }
 
     private func finishRecording() {
         isRecording = false
+        recordingModifiers = []
         removeKeyboardEventTap()
+    }
+
+    /// The value shown in the recorder while a shortcut is being composed.
+    /// Modifier symbols appear as soon as their flags change, before the
+    /// primary key is pressed.
+    var recordingDisplayValue: String {
+        guard isRecording else { return shortcut?.displayValue ?? "Not Set" }
+        let symbols = Self.modifierSymbols(for: recordingModifiers)
+        return symbols.isEmpty ? "Press shortcut…" : "\(symbols)…"
+    }
+
+    private func updateRecordingModifiers(_ flags: NSEvent.ModifierFlags) {
+        recordingModifiers = flags.intersection(.deviceIndependentFlagsMask)
+    }
+
+    private func updateRecordingPresentation() {
+        setAccessibilityValue(recordingDisplayValue)
         needsDisplay = true
+    }
+
+    private static func modifierSymbols(for flags: NSEvent.ModifierFlags) -> String {
+        var symbols = ""
+        if flags.contains(.control) { symbols += "⌃" }
+        if flags.contains(.option) { symbols += "⌥" }
+        if flags.contains(.shift) { symbols += "⇧" }
+        if flags.contains(.command) { symbols += "⌘" }
+        return symbols
     }
 
     private func removeKeyboardEventTap() {
@@ -213,7 +261,7 @@ final class KeyboardShortcutCaptureView: NSView {
         path.lineWidth = isRecording ? 2 : 1
         path.stroke()
 
-        let title = isRecording ? "Press shortcut…" : (shortcut?.displayValue ?? "Not Set")
+        let title = recordingDisplayValue
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
             .foregroundColor: shortcut == nil && !isRecording ? NSColor.secondaryLabelColor : NSColor.labelColor
