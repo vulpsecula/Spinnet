@@ -1076,8 +1076,8 @@ struct SettingsRootView: View {
             HStack {
                 Text("Keyboard")
                     .frame(width: 68, alignment: .leading)
-                KeyboardShortcutRecorder(shortcut: $model.triggerKeyboardShortcut)
-                    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30)
+                KeyboardShortcutEditor(shortcut: $model.triggerKeyboardShortcut)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Button {
                     model.triggerKeyboardShortcut = nil
                 } label: {
@@ -1509,7 +1509,7 @@ private struct SlotConfigurationSheet: View {
             )
             .accessibilityLabel("\(command.title) configuration input")
         case .keyboardShortcut:
-            KeyboardShortcutRecorder(
+            KeyboardShortcutEditor(
                 shortcut: keyboardShortcutBinding(for: command.id)
             )
             .accessibilityLabel("\(command.title) configuration input")

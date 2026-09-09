@@ -532,7 +532,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return UInt64(CGEventFlags.maskCommand.rawValue)
         case "shift", "⇧":
             return UInt64(CGEventFlags.maskShift.rawValue)
-        case "option", "alt", "⌥":
+        case "option", "opt", "alt", "⌥":
             return UInt64(CGEventFlags.maskAlternate.rawValue)
         case "control", "ctrl", "⌃":
             return UInt64(CGEventFlags.maskControl.rawValue)

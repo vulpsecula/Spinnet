@@ -83,6 +83,31 @@ final class KeyboardShortcutRecorderTests: XCTestCase {
         XCTAssertEqual(view.shortcut?.keyCode, UInt32(kVK_F1))
     }
 
+    func testManualShortcutNotationParsesOptionDWithoutDependingOnAWindowEvent() throws {
+        let shortcut = try XCTUnwrap(MenuKeyboardShortcut(manualText: "Opt + D"))
+
+        XCTAssertEqual(shortcut.keyCode, UInt32(kVK_ANSI_D))
+        XCTAssertEqual(shortcut.modifiers, UInt32(optionKey))
+        XCTAssertEqual(shortcut.displayValue, "⌥D")
+    }
+
+    func testManualShortcutNotationParsesSymbolsAndSpecialKeys() throws {
+        let shortcut = try XCTUnwrap(MenuKeyboardShortcut(manualText: "⌘⇧F1"))
+
+        XCTAssertEqual(shortcut.keyCode, UInt32(kVK_F1))
+        XCTAssertEqual(shortcut.modifiers, UInt32(cmdKey | shiftKey))
+        XCTAssertEqual(shortcut.displayValue, "⇧⌘F1")
+
+        let laterFunctionKey = try XCTUnwrap(MenuKeyboardShortcut(manualText: "Option+F12"))
+        XCTAssertEqual(laterFunctionKey.keyCode, UInt32(kVK_F12))
+        XCTAssertEqual(laterFunctionKey.displayValue, "⌥F12")
+    }
+
+    func testManualShortcutNotationRequiresAModifierAndKnownKey() {
+        XCTAssertNil(MenuKeyboardShortcut(manualText: "D"))
+        XCTAssertNil(MenuKeyboardShortcut(manualText: "Option + NotAKey"))
+    }
+
     private func mouseDownEvent() -> NSEvent? {
         NSEvent.mouseEvent(
             with: .leftMouseDown,

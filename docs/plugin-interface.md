@@ -74,8 +74,10 @@ declare a `configuration_field` (or the legacy `configuration` key) to select
 the Host-rendered field kind: `text`, `multiline_text`, `toggle`, `choice`,
 `application`, `file`, `folder`, `shortcut`, `keyboard_shortcut`, or `url`.
 `choice` fields provide a non-empty `choices` array. The Host supplies native
-application/file/folder pickers and keyboard shortcut recording controls;
-plain text and URL fields use the standard macOS editing commands. Manifests without `preset`
+application/file/folder pickers and keyboard shortcut recording controls. The
+shortcut editor also accepts manual notation such as `⌥D` or `Option+D` when
+another utility intercepts the recorded event. Plain text and URL fields use
+the standard macOS editing commands. Manifests without `preset`
 remain compatible and appear as configurable, Setup-Required Plugin Presets
 whose Primary Command is the first declared Command.
 
@@ -111,9 +113,11 @@ The supported Host Command catalogue is:
 | `feedback.present` | message string, or `{ "message": "…" }` | Host-rendered feedback | none |
 
 For `service.invoke`, use the exact item title shown in the active application's
-Services menu. A selected text object must be present when the service expects
-text input; nested service paths use `/` separators. The Settings sheet explains
-this beside the service name field.
+Services menu. Services are context-sensitive actions supplied by installed apps
+or extensions, commonly used to transform, look up, or share selected text. A
+selected text object must be present when the service expects text input; nested
+service paths use `/` separators. The Settings sheet explains this beside the
+service name field.
 
 The Host also registers standalone Built-in Presets for Open URL, Open
 Application, Open File, Open Folder, Run Shortcut, Run Keyboard Shortcut, Run

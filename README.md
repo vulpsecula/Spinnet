@@ -40,8 +40,8 @@ as standalone Built-in Presets. The Host opens the radial Menu with Mouse Side
 Button 1 by default. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
 Host-backed Actions do not launch a helper.
-An optional keyboard shortcut can be recorded under Settings → Menu. The
-fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
+An optional keyboard shortcut can be recorded or entered manually under
+Settings → Menu. The fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
 Menu bindings, appearance, and triggers are saved automatically.
 
 ## Manual acceptance checks
@@ -61,18 +61,22 @@ Menu bindings, appearance, and triggers are saved automatically.
    still present. Right-click the Menu Item to expose the Alternate Action.
 7. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
    Shortcut`, or `Run Keyboard Shortcut`. The Configuration Sheet offers native
-   pickers or a shortcut recorder. Text and URL fields use the standard macOS
-   editing menu and keyboard shortcuts. Cancel leaves the Slot unchanged; Save
-   commits all fields at once.
+   pickers or a shortcut recorder. If another utility intercepts a shortcut
+   while recording, choose `Enter Manually…` and enter notation such as `⌥D`
+   or `Option+D`. Text and URL fields use the standard macOS editing menu and
+   keyboard shortcuts. Cancel leaves the Slot unchanged; Save commits all
+   fields at once.
 8. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
    Clipboard` capabilities in Privacy & Permissions, select text in another
    app, and run the Menu Item. The copied value comes from the current
    selection rather than a configured text parameter.
 9. Add `Paste` or `Cut`, grant Spinnet Accessibility permission in Privacy &
    Permissions, focus a text field in another app, and run the Menu Item.
-10. To test `Run macOS Service`, select text in the target app and copy the exact
-    title from that app's Services menu into the Configuration Sheet. Use the
-    full menu path with `/` separators when the service is nested.
+10. `Run macOS Service` is useful for installed Services that transform,
+    look up, or share selected text. To test it, select text in the target app
+    and copy the exact title from that app's Services menu into the
+    Configuration Sheet. Use the full menu path with `/` separators when the
+    service is nested.
 
 ## Scripted Action lifecycle checks
 

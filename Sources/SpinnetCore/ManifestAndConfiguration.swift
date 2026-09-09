@@ -240,7 +240,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
 
     private func validKeyboardModifier(_ value: String) -> Bool {
         switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "command", "cmd", "⌘", "shift", "⇧", "option", "alt", "⌥",
+        case "command", "cmd", "⌘", "shift", "⇧", "option", "opt", "alt", "⌥",
              "control", "ctrl", "⌃", "function", "fn", "caps_lock", "caps lock":
             return true
         default:
