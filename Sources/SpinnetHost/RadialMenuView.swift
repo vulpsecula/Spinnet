@@ -50,6 +50,7 @@ final class RadialMenuView: NSView {
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
     private let previewScale: CGFloat
+    private let previewCanvasDiameter: CGFloat?
     private let showsPreviewBackground: Bool
     private var appearanceConfiguration = MenuAppearanceConfiguration()
     private var trackingArea: NSTrackingArea?
@@ -85,12 +86,14 @@ final class RadialMenuView: NSView {
         mode: RadialMenuPresentationMode = .runtime,
         allowsEditing: Bool = true,
         previewScale: CGFloat = 1,
+        previewCanvasDiameter: CGFloat? = nil,
         showsPreviewBackground: Bool = false
     ) {
         self.slots = slots
         self.presentationMode = mode
         self.allowsEditing = allowsEditing
         self.previewScale = max(previewScale, 0.1)
+        self.previewCanvasDiameter = previewCanvasDiameter.map { max($0, 1) }
         self.showsPreviewBackground = showsPreviewBackground
         let layout = RadialMenuLayout(
             itemCount: max(slots.count, 1),
@@ -103,8 +106,8 @@ final class RadialMenuView: NSView {
             frame: CGRect(
                 x: 0,
                 y: 0,
-                width: layout.contentDiameter,
-                height: layout.contentDiameter
+                width: self.previewCanvasDiameter ?? layout.contentDiameter,
+                height: self.previewCanvasDiameter ?? layout.contentDiameter
             )
         )
         switch mode {
@@ -146,6 +149,7 @@ final class RadialMenuView: NSView {
         mode: RadialMenuPresentationMode = .runtime,
         allowsEditing: Bool = true,
         previewScale: CGFloat = 1,
+        previewCanvasDiameter: CGFloat? = nil,
         showsPreviewBackground: Bool = false
     ) {
         self.init(
@@ -153,6 +157,7 @@ final class RadialMenuView: NSView {
             mode: mode,
             allowsEditing: allowsEditing,
             previewScale: previewScale,
+            previewCanvasDiameter: previewCanvasDiameter,
             showsPreviewBackground: showsPreviewBackground
         )
     }
@@ -179,7 +184,7 @@ final class RadialMenuView: NSView {
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
         layout = previewLayout(for: appearanceConfiguration)
-        setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
+        setFrameSize(previewFrameSize(for: layout))
         clearSelection()
         rebuildEditButtons()
         needsDisplay = true
@@ -194,7 +199,7 @@ final class RadialMenuView: NSView {
         editorAccentColor = appearance.accentColor
         self.appearance = appearance.appearance
         layout = previewLayout(for: appearance)
-        setFrameSize(NSSize(width: layout.contentDiameter, height: layout.contentDiameter))
+        setFrameSize(previewFrameSize(for: layout))
         layoutEditButtons()
         needsDisplay = true
     }
@@ -208,13 +213,42 @@ final class RadialMenuView: NSView {
 
     private func previewLayout(for appearance: MenuAppearanceConfiguration) -> RadialMenuLayout {
         let baseLayout = appearance.layout(slotCount: slots.count)
-        guard previewScale != 1 else { return baseLayout }
+        let fittingScale = previewFittingScale(for: appearance, baseLayout: baseLayout)
+        guard fittingScale != 1 else { return baseLayout }
         return RadialMenuLayout(
             itemCount: baseLayout.itemCount,
-            innerRadius: baseLayout.innerRadius * previewScale,
-            outerRadius: baseLayout.outerRadius * previewScale,
-            itemCenterRadius: baseLayout.itemCenterRadius * previewScale
+            innerRadius: baseLayout.innerRadius * fittingScale,
+            outerRadius: baseLayout.outerRadius * fittingScale,
+            itemCenterRadius: baseLayout.itemCenterRadius * fittingScale
         )
+    }
+
+    private func previewFittingScale(
+        for appearance: MenuAppearanceConfiguration,
+        baseLayout: RadialMenuLayout
+    ) -> CGFloat {
+        guard let previewCanvasDiameter else { return previewScale }
+
+        let minimumScale = MenuAppearanceConfiguration.menuSizeMinimumPercentage / 100
+        let maximumScale = MenuAppearanceConfiguration.menuSizeMaximumPercentage / 100
+        let normalizedScale = min(
+            max((appearance.scale - minimumScale) / (maximumScale - minimumScale), 0),
+            1
+        )
+        // Keep the complete Menu visible while retaining a monotonic visual
+        // difference between ordinary and very large sizes.
+        let previewFillRatio = 0.82 + 0.18 * sqrt(normalizedScale)
+        let targetDiameter = previewCanvasDiameter * previewFillRatio
+        let targetOuterRadius = max(
+            (targetDiameter - 2 * RadialMenuLayout.defaultOverlayPadding) / 2,
+            1
+        )
+        return min(previewScale, targetOuterRadius / baseLayout.outerRadius)
+    }
+
+    private func previewFrameSize(for layout: RadialMenuLayout) -> NSSize {
+        let diameter = previewCanvasDiameter ?? layout.contentDiameter
+        return NSSize(width: diameter, height: diameter)
     }
 
     func selectEditorItem(at index: Int) {
@@ -681,6 +715,10 @@ final class RadialMenuView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        NSGraphicsContext.current?.saveGraphicsState()
+        NSBezierPath(rect: bounds).addClip()
+        defer { NSGraphicsContext.current?.restoreGraphicsState() }
+
         NSColor.clear.setFill()
         dirtyRect.fill()
         if showsPreviewBackground {

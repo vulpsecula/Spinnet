@@ -29,6 +29,10 @@ struct MenuAppearanceConfiguration: Equatable {
             case .large: return 1.08
             }
         }
+
+        var percentage: Double {
+            Double((scale * 100).rounded())
+        }
     }
 
     struct MenuFont: RawRepresentable, Equatable, Hashable {
@@ -88,6 +92,10 @@ struct MenuAppearanceConfiguration: Equatable {
     static let themeOptions = Theme.allCases.map(\.rawValue)
     static let accentOptions = Accent.allCases.map(\.rawValue)
     static let menuSizeOptions = Size.allCases.map(\.rawValue)
+    static let menuSizeMinimumPercentage = 70.0
+    static let menuSizeMaximumPercentage = 240.0
+    static let menuSizeSnapDistance = 5.0
+    static let menuSizeSnapPoints = Size.allCases.map(\.percentage)
     static let fontOptions: [String] = {
         let families = NSFontManager.shared.availableFontFamilies
             .filter { $0 != MenuFont.system.rawValue }
@@ -117,9 +125,56 @@ struct MenuAppearanceConfiguration: Equatable {
     ) {
         self.theme = Theme(rawValue: theme)?.rawValue ?? Theme.system.rawValue
         self.accent = Accent(rawValue: accent)?.rawValue ?? Accent.system.rawValue
-        self.menuSize = Size(rawValue: menuSize)?.rawValue ?? Size.medium.rawValue
+        self.menuSize = Self.normalizedMenuSize(menuSize)
         self.font = Self.normalizedFontFamily(font)
         self.fontWeight = MenuFontWeight(rawValue: fontWeight)?.rawValue ?? MenuFontWeight.semibold.rawValue
+    }
+
+    static func menuSizePercentage(from value: String) -> Double {
+        if let legacySize = Size(rawValue: value) {
+            return legacySize.percentage
+        }
+        guard let numericValue = Double(value), numericValue.isFinite else {
+            return Size.medium.percentage
+        }
+        return clampedMenuSizePercentage(numericValue)
+    }
+
+    static func menuSizeValue(forPercentage percentage: Double) -> String {
+        let clampedPercentage = clampedMenuSizePercentage(percentage)
+        if let snapPoint = Size.allCases.first(where: {
+            abs($0.percentage - clampedPercentage) < 0.5
+        }) {
+            return snapPoint.rawValue
+        }
+        return String(Int(clampedPercentage.rounded()))
+    }
+
+    static func snappedMenuSizePercentage(_ percentage: Double) -> Double {
+        let clampedPercentage = clampedMenuSizePercentage(percentage)
+        guard let nearestSnapPoint = menuSizeSnapPoints.min(by: {
+            abs($0 - clampedPercentage) < abs($1 - clampedPercentage)
+        }) else {
+            return clampedPercentage
+        }
+        return abs(nearestSnapPoint - clampedPercentage) <= menuSizeSnapDistance
+            ? nearestSnapPoint
+            : clampedPercentage
+    }
+
+    private static func clampedMenuSizePercentage(_ percentage: Double) -> Double {
+        guard percentage.isFinite else { return Size.medium.percentage }
+        return min(
+            max(percentage, menuSizeMinimumPercentage),
+            menuSizeMaximumPercentage
+        )
+    }
+
+    static func normalizedMenuSize(_ value: String) -> String {
+        if Size(rawValue: value) != nil {
+            return value
+        }
+        return menuSizeValue(forPercentage: menuSizePercentage(from: value))
     }
 
     private static func normalizedFontFamily(_ font: String) -> String {
@@ -170,7 +225,7 @@ struct MenuAppearanceConfiguration: Equatable {
     }
 
     var scale: CGFloat {
-        (Size(rawValue: menuSize) ?? .medium).scale
+        CGFloat(Self.menuSizePercentage(from: menuSize) / 100)
     }
 
     var menuFont: MenuFont {

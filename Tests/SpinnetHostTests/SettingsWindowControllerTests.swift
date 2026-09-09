@@ -300,6 +300,22 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         XCTAssertGreaterThan(view.geometryLayout.outerRadius, 142)
         XCTAssertGreaterThan(colorDistance(try XCTUnwrap(light), try XCTUnwrap(dark)), 0.2)
+
+        let largePreview = RadialMenuView(
+            slots: [],
+            mode: .editor,
+            allowsEditing: false,
+            previewScale: 1.16,
+            previewCanvasDiameter: 376,
+            showsPreviewBackground: true
+        )
+        largePreview.applyAppearance(MenuAppearanceConfiguration(menuSize: "240"))
+        let largeOuterRadius = largePreview.geometryLayout.outerRadius
+        XCTAssertEqual(largePreview.bounds.width, 376, accuracy: 0.1)
+        XCTAssertLessThanOrEqual(largePreview.geometryLayout.contentDiameter, 376)
+
+        largePreview.applyAppearance(MenuAppearanceConfiguration(menuSize: "Medium"))
+        XCTAssertLessThan(largePreview.geometryLayout.outerRadius, largeOuterRadius)
     }
 
     func testEditorMenuSelectsSlotsWithoutExecutingActions() throws {
@@ -888,7 +904,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             CGPoint(x: visibleFrame.midX, y: visibleFrame.maxY - 1)
         ]
 
-        for size in MenuAppearanceConfiguration.menuSizeOptions {
+        let menuSizes = MenuAppearanceConfiguration.menuSizeOptions + ["150", "240"]
+        for size in menuSizes {
             let appearance = MenuAppearanceConfiguration(menuSize: size)
             for slotCount in [1, 4, 8, 12] {
                 let slots = Array(repeating: MenuSlotPresentation.empty, count: slotCount)
@@ -992,6 +1009,63 @@ final class SettingsWindowControllerTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testMenuSizeSupportsContinuousPercentagesAndThreeSnapPoints() {
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.small.percentage, 86)
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.medium.percentage, 100)
+        XCTAssertEqual(MenuAppearanceConfiguration.Size.large.percentage, 108)
+        XCTAssertEqual(MenuAppearanceConfiguration.menuSizeSnapPoints, [86, 100, 108])
+
+        let custom = MenuAppearanceConfiguration(menuSize: "150")
+        XCTAssertEqual(custom.menuSize, "150")
+        XCTAssertEqual(custom.scale, 1.5, accuracy: 0.001)
+
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "20").menuSize, "70")
+        XCTAssertEqual(MenuAppearanceConfiguration(menuSize: "999").menuSize, "240")
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.snappedMenuSizePercentage(83),
+            86,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.snappedMenuSizePercentage(106),
+            108,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MenuAppearanceConfiguration.snappedMenuSizePercentage(160),
+            160,
+            accuracy: 0.001
+        )
+    }
+
+    func testMenuSizeSliderAdjustmentCreatesOneUndoEntry() throws {
+        let suiteName = "SpinnetHostTests.MenuSizeUndo.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(
+            editor: try makeEditor(),
+            metadata: .current,
+            defaults: defaults,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+
+        model.beginAppearanceMenuSizeAdjustment()
+        model.appearanceMenuSize = "112"
+        model.appearanceMenuSize = "148"
+        model.appearanceMenuSize = "150"
+        model.endAppearanceMenuSizeAdjustment()
+
+        XCTAssertEqual(model.appearanceMenuSize, "150")
+        XCTAssertTrue(model.canUndoAppearance)
+
+        model.undoAppearance()
+
+        XCTAssertEqual(model.appearanceMenuSize, "Medium")
+        XCTAssertFalse(model.canUndoAppearance)
+        XCTAssertTrue(model.canRedoAppearance)
     }
 
     func testAppearanceUndoRedoAndClipboardPrivacyStatePersistAtTheSettingsSeam() throws {

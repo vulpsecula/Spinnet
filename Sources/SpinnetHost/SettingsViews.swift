@@ -325,6 +325,7 @@ final class SettingsWindowModel: ObservableObject {
     private var applyingAppearanceHistory = false
     private var suppressAppearanceNotifications = false
     private var lastAppearanceBeforeMutation: MenuAppearanceConfiguration?
+    private var appearanceMenuSizeAdjustmentBefore: MenuAppearanceConfiguration?
 
     private enum Keys {
         static let clipboardCollectionEnabled = "privacy.clipboard-collection-enabled"
@@ -411,23 +412,43 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     private func recordAppearanceWillChange() {
-        guard !applyingAppearanceHistory else { return }
+        guard !applyingAppearanceHistory,
+              appearanceMenuSizeAdjustmentBefore == nil else { return }
         lastAppearanceBeforeMutation = appearanceConfiguration
     }
 
     private func recordAppearanceDidChange() {
         guard !applyingAppearanceHistory,
+              appearanceMenuSizeAdjustmentBefore == nil,
               let before = lastAppearanceBeforeMutation,
               before != appearanceConfiguration else {
             lastAppearanceBeforeMutation = nil
             return
         }
-        appearanceUndoHistory.append(AppearanceHistoryEntry(
-            before: before,
-            after: appearanceConfiguration
-        ))
-        appearanceRedoHistory.removeAll()
         lastAppearanceBeforeMutation = nil
+        appendAppearanceHistory(before: before, after: appearanceConfiguration)
+    }
+
+    func beginAppearanceMenuSizeAdjustment() {
+        guard !applyingAppearanceHistory,
+              appearanceMenuSizeAdjustmentBefore == nil else { return }
+        appearanceMenuSizeAdjustmentBefore = appearanceConfiguration
+        lastAppearanceBeforeMutation = nil
+    }
+
+    func endAppearanceMenuSizeAdjustment() {
+        guard let before = appearanceMenuSizeAdjustmentBefore else { return }
+        appearanceMenuSizeAdjustmentBefore = nil
+        appendAppearanceHistory(before: before, after: appearanceConfiguration)
+    }
+
+    private func appendAppearanceHistory(
+        before: MenuAppearanceConfiguration,
+        after: MenuAppearanceConfiguration
+    ) {
+        guard before != after else { return }
+        appearanceUndoHistory.append(AppearanceHistoryEntry(before: before, after: after))
+        appearanceRedoHistory.removeAll()
         refreshAppearanceUndoState()
     }
 
@@ -456,9 +477,7 @@ final class SettingsWindowModel: ObservableObject {
         guard before != after else { return }
 
         applyAppearance(after)
-        appearanceUndoHistory.append(AppearanceHistoryEntry(before: before, after: after))
-        appearanceRedoHistory.removeAll()
-        refreshAppearanceUndoState()
+        appendAppearanceHistory(before: before, after: after)
     }
 
     private func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
@@ -935,6 +954,7 @@ struct SettingsRootView: View {
     let openURL: (URL) -> Bool
     @FocusState private var focusedPage: SettingsPage?
     private let menuPreviewScale: CGFloat = 1.16
+    private let menuPreviewCanvasDiameter: CGFloat = 376
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1058,6 +1078,7 @@ struct SettingsRootView: View {
                     mode: .editor,
                     allowsEditing: model.page == .menu,
                     previewScale: menuPreviewScale,
+                    previewCanvasDiameter: menuPreviewCanvasDiameter,
                     onSelection: model.selectMenuItem,
                     onEdit: model.requestEdit,
                     onSlotDelete: { _ = model.deleteSlot(at: $0) },
@@ -1065,10 +1086,11 @@ struct SettingsRootView: View {
                     onMenuItemDrop: model.moveMenuItem
                 )
                 .id(model.page)
-                .frame(width: menuEditorDiameter, height: menuEditorDiameter)
+                .frame(width: menuPreviewCanvasDiameter, height: menuPreviewCanvasDiameter)
             }
             .frame(width: 400, height: 400)
             .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Editor Mode")
 
@@ -1191,13 +1213,6 @@ struct SettingsRootView: View {
         .accessibilityLabel("Menu Trigger")
     }
 
-    private var menuEditorDiameter: CGFloat {
-        model.appearanceConfiguration
-            .layout(slotCount: model.menuSlots.count)
-            .contentDiameter
-            * menuPreviewScale
-    }
-
     private var menuPreviewTheme: MenuAppearanceConfiguration.Theme {
         MenuAppearanceConfiguration.Theme(rawValue: model.appearanceTheme) ?? .system
     }
@@ -1249,6 +1264,8 @@ struct SettingsRootView: View {
                     menuSize: $model.appearanceMenuSize,
                     font: $model.appearanceFont,
                     fontWeight: $model.appearanceFontWeight,
+                    beginMenuSizeAdjustment: model.beginAppearanceMenuSizeAdjustment,
+                    endMenuSizeAdjustment: model.endAppearanceMenuSizeAdjustment,
                     canUndo: model.canUndoAppearance,
                     canRedo: model.canRedoAppearance,
                     undo: model.undoAppearance,
@@ -1333,6 +1350,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let mode: RadialMenuPresentationMode
     let allowsEditing: Bool
     let previewScale: CGFloat
+    let previewCanvasDiameter: CGFloat
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
@@ -1345,6 +1363,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             mode: mode,
             allowsEditing: allowsEditing,
             previewScale: previewScale,
+            previewCanvasDiameter: previewCanvasDiameter,
             showsPreviewBackground: true
         )
         applyCallbacks(to: view)
@@ -2300,6 +2319,8 @@ private struct AppearanceSettingsView: View {
     @Binding var menuSize: String
     @Binding var font: String
     @Binding var fontWeight: String
+    let beginMenuSizeAdjustment: () -> Void
+    let endMenuSizeAdjustment: () -> Void
     let canUndo: Bool
     let canRedo: Bool
     let undo: () -> Void
@@ -2344,16 +2365,12 @@ private struct AppearanceSettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                settingsSection(title: "Menu Size", description: "Uses one geometry in Editor and Runtime modes.") {
-                    Picker("Menu Size", selection: $menuSize) {
-                        ForEach(MenuAppearanceConfiguration.menuSizeOptions, id: \.self) { value in
-                            Text(value).tag(value)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 320)
-                    .accessibilityLabel("Menu Size")
+                settingsSection(title: "Menu Size", description: "Adjust continuously, snap to three recommended sizes, or enter an exact percentage.") {
+                    MenuSizeControl(
+                        menuSize: $menuSize,
+                        beginAdjustment: beginMenuSizeAdjustment,
+                        endAdjustment: endMenuSizeAdjustment
+                    )
                 }
 
                 settingsSection(title: "Menu Font", description: "Choose the typeface and weight used by Menu Item names in Editor and Runtime modes.") {
@@ -2435,6 +2452,98 @@ private struct AppearanceSettingsView: View {
         }
     }
 
+}
+
+private struct MenuSizeControl: View {
+    @Binding var menuSize: String
+    let beginAdjustment: () -> Void
+    let endAdjustment: () -> Void
+    @State private var inputValue = ""
+    @State private var isEditingInput = false
+
+    private var currentPercentage: Double {
+        MenuAppearanceConfiguration.menuSizePercentage(from: menuSize)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 12) {
+                Slider(
+                    value: sizeBinding,
+                    in: MenuAppearanceConfiguration.menuSizeMinimumPercentage...MenuAppearanceConfiguration.menuSizeMaximumPercentage,
+                    onEditingChanged: { isEditing in
+                        if isEditing {
+                            beginAdjustment()
+                        } else {
+                            let snapped = MenuAppearanceConfiguration.snappedMenuSizePercentage(currentPercentage)
+                            menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: snapped)
+                            endAdjustment()
+                        }
+                    }
+                )
+                .accessibilityLabel("Menu Size")
+                .accessibilityValue("\(Int(currentPercentage.rounded())) percent")
+
+                HStack(spacing: 4) {
+                    TextField("100", text: $inputValue, onEditingChanged: { isEditing in
+                        isEditingInput = isEditing
+                        if !isEditing {
+                            commitInput()
+                        }
+                    }, onCommit: commitInput)
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
+                    .accessibilityLabel("Menu Size Percentage")
+                    Text("%")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 12) {
+                ForEach(MenuAppearanceConfiguration.Size.allCases, id: \.self) { size in
+                    Text("\(size.rawValue) \(Int(size.percentage.rounded()))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Text("Max \(Int(MenuAppearanceConfiguration.menuSizeMaximumPercentage.rounded()))%")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: 520, alignment: .leading)
+        .onAppear(perform: syncInput)
+        .onChange(of: menuSize) { _ in
+            if !isEditingInput {
+                syncInput()
+            }
+        }
+        .onDisappear(perform: endAdjustment)
+    }
+
+    private var sizeBinding: Binding<Double> {
+        Binding(
+            get: { currentPercentage },
+            set: { percentage in
+                menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: percentage)
+            }
+        )
+    }
+
+    private func syncInput() {
+        inputValue = String(Int(currentPercentage.rounded()))
+    }
+
+    private func commitInput() {
+        guard let percentage = Double(inputValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+              percentage.isFinite else {
+            syncInput()
+            return
+        }
+        menuSize = MenuAppearanceConfiguration.menuSizeValue(forPercentage: percentage)
+        syncInput()
+    }
 }
 
 private struct PrivacySettingsView: View {
