@@ -986,10 +986,7 @@ final class RadialMenuView: NSView {
                 titleFontSize = 13
             }
             let point = menuLayout.itemCenter(index: index, center: center)
-            let titleWidth = max(
-                36,
-                2 * menuLayout.itemCenterRadius * sin(.pi / CGFloat(menuLayout.itemCount)) - 8
-            )
+            let titleWidth = Self.menuTitleWidth(for: menuLayout)
             let titleLayout = titleLayout(
                 for: slot.title,
                 maxWidth: titleWidth,
@@ -1043,6 +1040,20 @@ final class RadialMenuView: NSView {
         centerLabel.draw(
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
+        )
+    }
+
+    /// Returns the tangential text width available inside a Menu Slot. A
+    /// one-slot Menu spans a full ring, so its half-sector angle is 90° for
+    /// chord-width purposes rather than π radians (whose sine is zero).
+    static func menuTitleWidth(for menuLayout: RadialMenuLayout) -> CGFloat {
+        let halfSectorAngle = min(
+            .pi / CGFloat(menuLayout.itemCount),
+            .pi / 2
+        )
+        return max(
+            36,
+            2 * menuLayout.itemCenterRadius * sin(halfSectorAngle) - 8
         )
     }
 

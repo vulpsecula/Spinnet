@@ -841,6 +841,24 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         XCTAssertEqual(wrapped.font.fontDescriptor, short.font.fontDescriptor)
 
+        let oneSlotLayout = RadialMenuLayout(
+            itemCount: 1,
+            innerRadius: 38,
+            outerRadius: 142,
+            itemCenterRadius: 90
+        )
+        let oneSlotTitle = MenuTitleLayoutEngine.layout(
+            title: "Fixture",
+            maxWidth: RadialMenuView.menuTitleWidth(for: oneSlotLayout),
+            baseSize: 13,
+            font: .system
+        )
+        XCTAssertEqual(
+            oneSlotTitle.lineCount,
+            1,
+            "A one-slot Menu should not split an ordinary title into a vertical stack"
+        )
+
         let singleWord = MenuTitleLayoutEngine.layout(
             title: "Fixture",
             maxWidth: 36,
