@@ -283,6 +283,16 @@ final class SettingsWindowModel: ObservableObject {
             }
         }
     }
+    @Published var appearanceFont: String {
+        willSet { recordAppearanceWillChange() }
+        didSet {
+            defaults.set(appearanceFont, forKey: MenuAppearanceConfiguration.fontDefaultsKey)
+            recordAppearanceDidChange()
+            if !suppressAppearanceNotifications {
+                onAppearanceChanged?(appearanceConfiguration)
+            }
+        }
+    }
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
@@ -342,6 +352,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = savedAppearance.theme
         appearanceAccent = savedAppearance.accent
         appearanceMenuSize = savedAppearance.menuSize
+        appearanceFont = savedAppearance.font
         clipboardCollectionEnabled = defaults.bool(forKey: Keys.clipboardCollectionEnabled)
         clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
@@ -382,7 +393,8 @@ final class SettingsWindowModel: ObservableObject {
         MenuAppearanceConfiguration(
             theme: appearanceTheme,
             accent: appearanceAccent,
-            menuSize: appearanceMenuSize
+            menuSize: appearanceMenuSize,
+            font: appearanceFont
         )
     }
 
@@ -443,6 +455,7 @@ final class SettingsWindowModel: ObservableObject {
         appearanceTheme = appearance.theme
         appearanceAccent = appearance.accent
         appearanceMenuSize = appearance.menuSize
+        appearanceFont = appearance.font
         applyingAppearanceHistory = false
         suppressAppearanceNotifications = false
         lastAppearanceBeforeMutation = nil
@@ -1192,6 +1205,7 @@ struct SettingsRootView: View {
                     theme: $model.appearanceTheme,
                     accent: $model.appearanceAccent,
                     menuSize: $model.appearanceMenuSize,
+                    font: $model.appearanceFont,
                     canUndo: model.canUndoAppearance,
                     canRedo: model.canRedoAppearance,
                     undo: model.undoAppearance,
@@ -2237,6 +2251,7 @@ private struct AppearanceSettingsView: View {
     @Binding var theme: String
     @Binding var accent: String
     @Binding var menuSize: String
+    @Binding var font: String
     let canUndo: Bool
     let canRedo: Bool
     let undo: () -> Void
@@ -2248,8 +2263,8 @@ private struct AppearanceSettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.appearance.title, description: "Shape the shared look of the Menu in Editor and Runtime modes.")
 
-                settingsSection(title: "Theme", description: "Follow macOS or choose a fixed appearance.") {
-                    Picker("Theme", selection: $theme) {
+                settingsSection(title: "Menu Theme", description: "Follow macOS or choose a fixed appearance for the Menu only.") {
+                    Picker("Menu Theme", selection: $theme) {
                         ForEach(MenuAppearanceConfiguration.themeOptions, id: \.self) { value in
                             Text(value).tag(value)
                         }
@@ -2257,7 +2272,7 @@ private struct AppearanceSettingsView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(maxWidth: 320)
-                    .accessibilityLabel("Theme")
+                    .accessibilityLabel("Menu Theme")
                 }
 
                 settingsSection(title: "Accent Colour", description: "Used for the selected Menu Slot and focus states.") {
@@ -2291,6 +2306,18 @@ private struct AppearanceSettingsView: View {
                     .labelsHidden()
                     .frame(maxWidth: 320)
                     .accessibilityLabel("Menu Size")
+                }
+
+                settingsSection(title: "Menu Font", description: "Sets the typeface used by Menu Item names in Editor and Runtime modes.") {
+                    Picker("Menu Font", selection: $font) {
+                        ForEach(MenuAppearanceConfiguration.fontOptions, id: \.self) { value in
+                            Text(value).tag(value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 420)
+                    .accessibilityLabel("Menu Font")
                 }
 
                 Divider()

@@ -93,7 +93,7 @@ extension SettingsPage {
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.appearance"),
                 contentAccessibilityNames: { _ in
                     [
-                        "Appearance", "Theme", "Accent Colour", "Menu Size",
+                        "Appearance", "Menu Theme", "Accent Colour", "Menu Size", "Menu Font",
                         "Undo Appearance change", "Redo Appearance change", "Reset Appearance"
                     ]
                 }

@@ -31,34 +31,61 @@ struct MenuAppearanceConfiguration: Equatable {
         }
     }
 
+    enum MenuFont: String, CaseIterable, Hashable {
+        case system = "System"
+        case rounded = "Rounded"
+        case serif = "Serif"
+        case monospaced = "Monospaced"
+
+        func makeFont(ofSize size: CGFloat, weight: NSFont.Weight = .semibold) -> NSFont {
+            let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
+            switch self {
+            case .system:
+                return systemFont
+            case .rounded:
+                return NSFont(name: "Avenir Next Demi Bold", size: size) ?? systemFont
+            case .serif:
+                return NSFont(name: "Georgia-Bold", size: size) ?? systemFont
+            case .monospaced:
+                return NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+            }
+        }
+    }
+
     static let defaultConfiguration = MenuAppearanceConfiguration()
     static let themeOptions = Theme.allCases.map(\.rawValue)
     static let accentOptions = Accent.allCases.map(\.rawValue)
     static let menuSizeOptions = Size.allCases.map(\.rawValue)
+    static let fontOptions = MenuFont.allCases.map(\.rawValue)
 
     static let themeDefaultsKey = "appearance.theme"
     static let accentDefaultsKey = "appearance.accent"
     static let menuSizeDefaultsKey = "appearance.menu-size"
+    static let fontDefaultsKey = "appearance.font"
 
     let theme: String
     let accent: String
     let menuSize: String
+    let font: String
 
     init(
         theme: String = Theme.system.rawValue,
         accent: String = Accent.system.rawValue,
-        menuSize: String = Size.medium.rawValue
+        menuSize: String = Size.medium.rawValue,
+        font: String = MenuFont.system.rawValue
     ) {
         self.theme = Theme(rawValue: theme)?.rawValue ?? Theme.system.rawValue
         self.accent = Accent(rawValue: accent)?.rawValue ?? Accent.system.rawValue
         self.menuSize = Size(rawValue: menuSize)?.rawValue ?? Size.medium.rawValue
+        self.font = MenuFont(rawValue: font)?.rawValue ?? MenuFont.system.rawValue
     }
 
     init(defaults: UserDefaults) {
         self.init(
             theme: defaults.string(forKey: Self.themeDefaultsKey) ?? Theme.system.rawValue,
             accent: defaults.string(forKey: Self.accentDefaultsKey) ?? Accent.system.rawValue,
-            menuSize: defaults.string(forKey: Self.menuSizeDefaultsKey) ?? Size.medium.rawValue
+            menuSize: defaults.string(forKey: Self.menuSizeDefaultsKey) ?? Size.medium.rawValue,
+            font: defaults.string(forKey: Self.fontDefaultsKey) ?? MenuFont.system.rawValue
         )
     }
 
@@ -66,6 +93,7 @@ struct MenuAppearanceConfiguration: Equatable {
         defaults.set(theme, forKey: Self.themeDefaultsKey)
         defaults.set(accent, forKey: Self.accentDefaultsKey)
         defaults.set(menuSize, forKey: Self.menuSizeDefaultsKey)
+        defaults.set(font, forKey: Self.fontDefaultsKey)
     }
 
     var appearance: NSAppearance? {
@@ -89,6 +117,14 @@ struct MenuAppearanceConfiguration: Equatable {
 
     var scale: CGFloat {
         (Size(rawValue: menuSize) ?? .medium).scale
+    }
+
+    var menuFont: MenuFont {
+        MenuFont(rawValue: font) ?? .system
+    }
+
+    func titleFont(ofSize size: CGFloat, weight: NSFont.Weight = .semibold) -> NSFont {
+        menuFont.makeFont(ofSize: size, weight: weight)
     }
 
     func layout(slotCount: Int) -> RadialMenuLayout {

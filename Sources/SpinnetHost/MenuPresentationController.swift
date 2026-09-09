@@ -81,12 +81,14 @@ final class MenuPresentationController {
         theme: String,
         accent: String,
         menuSize: String,
+        font: String,
         outerRadius: CGFloat
     ) {
         (
             appearanceConfiguration.theme,
             appearanceConfiguration.accent,
             appearanceConfiguration.menuSize,
+            appearanceConfiguration.font,
             layout.outerRadius
         )
     }

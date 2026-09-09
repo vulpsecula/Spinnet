@@ -55,7 +55,7 @@ final class RadialMenuView: NSView {
     private var editorMouseDownIsEdit = false
     private var editorDragStarted = false
     private var contextMenuIndex: Int?
-    private var hoveredIndex: Int?
+    private(set) var hoveredIndex: Int?
     private var editButtons: [Int: NSButton] = [:]
     private(set) var selectedIndex: Int? {
         didSet {
@@ -146,7 +146,9 @@ final class RadialMenuView: NSView {
         fatalError("RadialMenuView is not decoded from a nib")
     }
 
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool {
+        presentationMode == .runtime || allowsEditing
+    }
 
     override func cancelOperation(_ sender: Any?) {
         guard presentationMode == .runtime else { return }
@@ -720,30 +722,33 @@ final class RadialMenuView: NSView {
                 36,
                 2 * layout.itemCenterRadius * sin(.pi / CGFloat(layout.itemCount)) - 8
             )
-            let titleFont = fittedTitleFont(
-                for: title,
+            let titleLayout = MenuTitleLayoutEngine.layout(
+                title: title,
                 maxWidth: titleWidth,
-                baseSize: titleFontSize
+                baseSize: titleFontSize,
+                font: appearanceConfiguration.menuFont
             )
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
-            // The font and drawing rect are sized to the complete string. Do
-            // not let AppKit replace a long Slot name with an ellipsis.
-            paragraphStyle.lineBreakMode = .byClipping
+            paragraphStyle.lineBreakMode = .byWordWrapping
+            paragraphStyle.lineSpacing = 1
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: titleFont,
+                .font: titleLayout.font,
                 .paragraphStyle: paragraphStyle,
                 .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
                     ? NSColor.white
                     : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
             ]
-            let renderedTitleSize = (title as NSString).size(withAttributes: attributes)
-            title.draw(
+            let fontLineHeight = titleLayout.font.ascender
+                - titleLayout.font.descender
+                + titleLayout.font.leading
+            let titleHeight = max(titleLayout.size.height, fontLineHeight)
+            titleLayout.text.draw(
                 in: NSRect(
-                    x: point.x - renderedTitleSize.width / 2,
-                    y: point.y - renderedTitleSize.height / 2 + (layout.itemCount >= 10 ? 4 : 0),
-                    width: renderedTitleSize.width,
-                    height: renderedTitleSize.height
+                    x: point.x - titleWidth / 2,
+                    y: point.y - titleHeight / 2 + (layout.itemCount >= 10 ? 4 : 0),
+                    width: titleWidth,
+                    height: titleHeight
                 ),
                 withAttributes: attributes
             )
@@ -751,7 +756,7 @@ final class RadialMenuView: NSView {
             if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
                 let hint = "DROP HERE" as NSString
                 let hintAttributes: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+                    .font: appearanceConfiguration.titleFont(ofSize: 9, weight: .bold),
                     .foregroundColor: editorAccentColor
                 ]
                 let hintSize = hint.size(withAttributes: hintAttributes)
@@ -777,7 +782,7 @@ final class RadialMenuView: NSView {
 
         let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+            .font: appearanceConfiguration.titleFont(ofSize: 10, weight: .semibold),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
         let size = centerLabel.size(withAttributes: centerAttributes)
@@ -787,20 +792,6 @@ final class RadialMenuView: NSView {
         )
     }
 
-    private func fittedTitleFont(
-        for title: String,
-        maxWidth: CGFloat,
-        baseSize: CGFloat
-    ) -> NSFont {
-        let baseFont = NSFont.systemFont(ofSize: baseSize, weight: .semibold)
-        let measuredWidth = (title as NSString).size(withAttributes: [.font: baseFont]).width
-        guard measuredWidth > maxWidth, measuredWidth > 0 else { return baseFont }
-
-        // Font metrics scale linearly enough for this calculation, and the
-        // tiny safety factor handles rounding at the edge of a narrow sector.
-        let fittedSize = max(0.1, baseSize * maxWidth / measuredWidth * 0.98)
-        return NSFont.systemFont(ofSize: fittedSize, weight: .semibold)
-    }
 }
 
 extension RadialMenuView: NSDraggingSource {
