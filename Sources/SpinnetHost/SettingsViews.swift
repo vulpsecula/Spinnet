@@ -341,9 +341,15 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     var menuSlots: [MenuSlotPresentation] {
-        MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        MenuPresentationFactory.makeSlots(
+            configuration: editor.configuration,
+            availability: {
+                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+            },
+            presetName: { pluginID in
+                editor.pluginManifests.first { $0.id == pluginID }?.name
+            }
+        )
     }
 
     func librarySections(matching query: String) -> [MenuItemPresetSection] {

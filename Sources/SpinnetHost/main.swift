@@ -334,9 +334,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeMenuSlots(from configuration: HostConfiguration) -> [MenuSlotPresentation] {
-        MenuPresentationFactory.makeSlots(configuration: configuration) {
-            actionAvailability(for: $0)
-        }
+        MenuPresentationFactory.makeSlots(
+            configuration: configuration,
+            availability: { actionAvailability(for: $0) },
+            presetName: { [weak self] pluginID in
+                self?.registry.package(for: pluginID)?.manifest.name
+            }
+        )
     }
 
     private func actionAvailability(for action: ActionConfiguration) -> ActionAvailability {

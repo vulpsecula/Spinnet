@@ -228,7 +228,7 @@ public final class HostConfigurationEditor {
     }
 
     /// Sets or clears the user override for a Slot's displayed name. A nil
-    /// name returns the Slot to automatic naming from its Primary Action.
+    /// name returns the Slot to automatic naming from its Menu Item Preset.
     public func renameSlot(at index: Int, name: String?) throws {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")

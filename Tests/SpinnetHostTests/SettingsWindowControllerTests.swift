@@ -474,12 +474,19 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(deletedIndex, 0)
     }
 
-    func testMenuSlotTitleFollowsPrimaryActionUntilItIsRenamed() throws {
+    func testMenuSlotTitleFollowsPresetUntilItIsRenamed() throws {
         let editor = try makeEditor()
-        var slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        let presetName: (PluginID) -> String? = { pluginID in
+            editor.pluginManifests.first { $0.id == pluginID }?.name
         }
-        XCTAssertEqual(slots[0].title, "Open URL")
+        var slots = MenuPresentationFactory.makeSlots(
+            configuration: editor.configuration,
+            availability: {
+                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+            },
+            presetName: presetName
+        )
+        XCTAssertEqual(slots[0].title, "Fixture")
 
         try editor.configureMenuItem(
             at: 0,
@@ -488,22 +495,54 @@ final class SettingsWindowControllerTests: XCTestCase {
             alternateCommandIDs: [CommandID("fixture.open")],
             inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")]
         )
-        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
-        XCTAssertEqual(slots[0].title, "Transform Text")
+        slots = MenuPresentationFactory.makeSlots(
+            configuration: editor.configuration,
+            availability: {
+                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+            },
+            presetName: presetName
+        )
+        XCTAssertEqual(slots[0].title, "Fixture")
 
         try editor.renameSlot(at: 0, name: "Research")
-        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        slots = MenuPresentationFactory.makeSlots(
+            configuration: editor.configuration,
+            availability: {
+                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+            },
+            presetName: presetName
+        )
         XCTAssertEqual(slots[0].title, "Research")
 
         try editor.renameSlot(at: 0, name: nil)
-        slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
-        XCTAssertEqual(slots[0].title, "Transform Text")
+        slots = MenuPresentationFactory.makeSlots(
+            configuration: editor.configuration,
+            availability: {
+                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+            },
+            presetName: presetName
+        )
+        XCTAssertEqual(slots[0].title, "Fixture")
+    }
+
+    func testUnavailableResourceKeepsPresetTitleAndAnnotatesTheAction() throws {
+        let actionID = ActionID("missing-resource")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: "Open File",
+                availability: .unavailable(.resourceMissing)
+            ),
+            alternateActions: [],
+            defaultTitle: "Open File"
+        )
+
+        XCTAssertEqual(MenuSlotPresentation.occupied(item).title, "Open File")
+        XCTAssertEqual(
+            item.primaryAction.displayTitle,
+            "Open File (Unavailable: Referenced resource is missing)"
+        )
     }
 
     func testRuntimeActionMenuListsPrimaryAndAlternateActions() throws {

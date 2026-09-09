@@ -874,9 +874,10 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
     public let item: MenuItemConfiguration?
     /// Legacy storage for a user-provided Menu Item Alias. When nil, the Host
-    /// derives the displayed name from the bound Primary Action (or uses
-    /// "Empty Slot"). The `alias` spelling is exposed for new callers while
-    /// `name` remains decodable for configurations written by earlier builds.
+    /// derives the displayed name from the bound Menu Item Preset (or falls
+    /// back to its Primary Action when that Preset is unavailable). The `alias`
+    /// spelling is exposed for new callers while `name` remains decodable for
+    /// configurations written by earlier builds.
     public let name: String?
 
     public var alias: String? { name }

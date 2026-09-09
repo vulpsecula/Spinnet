@@ -321,8 +321,9 @@ to Menu Items:
 
 `MenuConfiguration` contains between one and twelve Slots. Each Slot may carry
 an optional user-provided Menu Item Alias in the `name` field; when it
-is omitted, the Host displays the bound Primary Action's title (or `Empty Slot`
-when the Slot has no Menu Item). Each Menu Item has one Primary Action and may
+is omitted, the Host displays the bound Menu Item Preset's name (or falls back
+to the Primary Action's title when that Preset is unavailable, and uses
+`Empty Slot` when the Slot has no Menu Item). Each Menu Item has one Primary Action and may
 have multiple Alternate Actions. A Menu Item may also retain
 `disabled_alternate_action_ids` and an `alternate_action_order` so the
 Settings editor can hide an Alternate without discarding its parameters; older

@@ -81,8 +81,10 @@ Menu bindings, appearance, and triggers are saved automatically.
     Configuration Sheet. Use the full menu path with `/` separators when the
     service is nested.
 11. If an application, file, or folder used by a Menu Item is later removed,
-    the Menu Item remains in its Slot and only that Action is disabled. Open its
-    Configuration Sheet and use `Choose Again…` to repair the path.
+    the Menu Item remains in its Slot and only that Action is disabled. Its
+    Slot keeps the Preset name (or your Alias), while the unavailable reason
+    appears on the Action. Open its Configuration Sheet and use `Choose Again…`
+    to repair the path.
 
 ## Scripted Action lifecycle checks
 
