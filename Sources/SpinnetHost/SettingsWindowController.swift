@@ -117,6 +117,7 @@ final class SettingsWindowController: NSWindowController {
             workspaceObservers.append(
                 workspaceNotifications.addObserver(forName: name, object: nil, queue: .main) { [weak model] _ in
                     model?.refreshMouseInputConflicts()
+                    model?.refreshMenuSlots()
                 }
             )
         }
@@ -135,6 +136,7 @@ final class SettingsWindowController: NSWindowController {
     func present() {
         model.refreshSystemPermissionStatus()
         model.refreshMouseInputConflicts()
+        model.refreshMenuSlots()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         if let hostingView {

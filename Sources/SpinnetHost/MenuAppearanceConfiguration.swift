@@ -209,13 +209,14 @@ struct MenuAppearanceConfiguration: Equatable {
         guard let numericValue = Double(value), numericValue.isFinite else {
             return Size.medium.rawValue
         }
-        let percentage = menuSizePercentage(from: value)
         if numericValue < menuSizeMinimumPercentage
-            || numericValue > menuSizeMaximumPercentage
-            || Size.allCases.contains(where: { abs($0.percentage - percentage) < 0.0000001 }) {
-            return menuSizeValue(forPercentage: percentage)
+            || numericValue > menuSizeMaximumPercentage {
+            return menuSizeValue(forPercentage: numericValue)
         }
-        return exactMenuSizeValue(forPercentage: percentage)
+        // Numeric input is a user-authored value. Keep it numeric even when
+        // it equals a named preset; only the Slider's release path chooses
+        // Small/Medium/Large through `menuSizeValue(forPercentage:)`.
+        return exactMenuSizeValue(forPercentage: numericValue)
     }
 
     private static func normalizedFontFamily(_ font: String) -> String {

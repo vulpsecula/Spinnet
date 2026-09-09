@@ -167,7 +167,7 @@ final class MenuSizeSliderView: NSView {
             width: max(0, bounds.width - 2 * Self.horizontalInset),
             height: max(Self.sliderHeight, bounds.height - Self.labelHeight)
         )
-        _ = nativeThumbTravel
+        cacheNativeThumbTravel()
         needsDisplay = true
     }
 
@@ -237,11 +237,15 @@ final class MenuSizeSliderView: NSView {
         if let cachedNativeThumbTravel {
             return cachedNativeThumbTravel
         }
+        return slider.frame.minX...slider.frame.maxX
+    }
+
+    private func cacheNativeThumbTravel() {
         guard let cell = slider.cell as? NSSliderCell,
               slider.bounds.width > 0 else {
-            return slider.frame.minX...slider.frame.maxX
+            cachedNativeThumbTravel = nil
+            return
         }
-
         let originalValue = slider.doubleValue
         defer { slider.doubleValue = originalValue }
 
@@ -253,7 +257,6 @@ final class MenuSizeSliderView: NSView {
             + cell.knobRect(flipped: slider.isFlipped).midX
         let travel = min(minimumX, maximumX)...max(minimumX, maximumX)
         cachedNativeThumbTravel = travel
-        return travel
     }
 
     var snapPointXPositions: [CGFloat] {
