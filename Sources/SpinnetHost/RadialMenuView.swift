@@ -55,14 +55,14 @@ final class RadialMenuView: NSView {
         let point: CGPoint
         let layout: MenuTitleLayout
         let rect: NSRect
-        let buttonAnchorMinY: CGFloat
+        let editButtonRect: NSRect
     }
 
     static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
         "com.spinnet.library-preset"
     )
-    static let menuItemPasteboardType = NSPasteboard.PasteboardType(
-        "com.spinnet.menu-item"
+    static let slotPasteboardType = NSPasteboard.PasteboardType(
+        "com.spinnet.menu-slot"
     )
     private static let textPasteboardType = NSPasteboard.PasteboardType.string
 
@@ -70,8 +70,9 @@ final class RadialMenuView: NSView {
     private var slots: [MenuSlotPresentation]
     private var menuFontCache: [MenuFontCacheKey: NSFont] = [:]
     private var menuTitleLayoutCache: [MenuTitleLayoutCacheKey: MenuTitleLayout] = [:]
-    private var cachedPreviewImage: NSImage?
-    private var lastPreviewBounds: NSRect?
+    private var cachedSlotPaths: [Int: NSBezierPath] = [:]
+    private var cachedPathLayout: RadialMenuLayout?
+    private var cachedPathCanvas: NSRect?
     private let presentationMode: RadialMenuPresentationMode
     private let allowsEditing: Bool
     private let previewScale: CGFloat
@@ -87,9 +88,9 @@ final class RadialMenuView: NSView {
     private var editButtons: [Int: NSButton] = [:]
     private(set) var selectedIndex: Int? {
         didSet {
-            needsDisplay = true
             if oldValue != selectedIndex {
-                invalidatePreviewImage()
+                invalidateSlot(at: oldValue)
+                invalidateSlot(at: selectedIndex)
                 NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
             }
         }
@@ -102,7 +103,53 @@ final class RadialMenuView: NSView {
     var onEditorEditRequested: ((Int) -> Void)?
     var onEditorSlotDeleteRequested: ((Int) -> Void)?
     var onPresetDrop: ((String, Int) -> Bool)?
-    var onMenuItemDrop: ((Int, Int) -> Bool)?
+    var onSlotDrop: ((UUID, Int) -> Bool)?
+    private(set) var editorSlots: [EditorMenuSlot] = []
+    private var dragOriginalSlots: [EditorMenuSlot]?
+    private var draggedSlotID: UUID?
+
+    func updateEditorSlots(_ slots: [EditorMenuSlot], appearance: MenuAppearanceConfiguration) {
+        if let original = dragOriginalSlots {
+            if slots == original, appearance == appearanceConfiguration { return }
+            cancelSlotMovePreview()
+        }
+        editorSlots = slots
+        update(slots: slots.map(\.presentation), appearance: appearance)
+        // The initial configuration can compare equal before the view has
+        // applied its fitted geometry or effective appearance.
+        if self.appearance == nil { applyAppearance(appearance) }
+    }
+
+    /// Transient ordering is view state; only the drop commits to the model.
+    @discardableResult
+    func previewSlotMove(id: UUID, to target: Int) -> Bool {
+        guard presentationMode == .editor, allowsEditing,
+              editorSlots.indices.contains(target),
+              let source = editorSlots.firstIndex(where: { $0.id == id }) else { return false }
+        if dragOriginalSlots == nil { dragOriginalSlots = editorSlots }
+        draggedSlotID = id
+        guard source != target else { return true }
+        let slot = editorSlots.remove(at: source)
+        editorSlots.insert(slot, at: target)
+        slots = editorSlots.map(\.presentation)
+        selectedIndex = target
+        invalidateSlotPaths()
+        rebuildEditButtons()
+        needsDisplay = true
+        return true
+    }
+
+    func cancelSlotMovePreview() {
+        guard let original = dragOriginalSlots else { return }
+        editorSlots = original
+        slots = original.map(\.presentation)
+        selectedIndex = original.firstIndex(where: { $0.id == draggedSlotID })
+        dragOriginalSlots = nil
+        draggedSlotID = nil
+        invalidateSlotPaths()
+        rebuildEditButtons()
+        needsDisplay = true
+    }
     var editorAccentColor: NSColor = .controlAccentColor {
         didSet { needsDisplay = true }
     }
@@ -157,7 +204,7 @@ final class RadialMenuView: NSView {
                 registerForDraggedTypes([
                     Self.libraryPresetPasteboardType,
                     Self.textPasteboardType,
-                    Self.menuItemPasteboardType
+                    Self.slotPasteboardType
                 ])
                 rebuildEditButtons()
             } else {
@@ -205,7 +252,7 @@ final class RadialMenuView: NSView {
         selectedIndex = nil
         if hoveredIndex != nil {
             hoveredIndex = nil
-            invalidatePreviewImage()
+            invalidateSlotPaths()
         }
         updateAccessibilityValue()
     }
@@ -228,12 +275,12 @@ final class RadialMenuView: NSView {
 
         if slotsChanged {
             self.slots = slots
-            invalidatePreviewImage()
+            invalidateSlotPaths()
             clearSelection()
         }
         if appearanceChanged {
             if renderingAppearanceChanged {
-                invalidatePreviewImage()
+                invalidateSlotPaths()
             }
             appearanceConfiguration = appearance
             if appearance.accent != oldAppearance.accent {
@@ -256,7 +303,7 @@ final class RadialMenuView: NSView {
 
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
-        invalidatePreviewImage()
+        invalidateSlotPaths()
         layout = previewLayout(for: appearanceConfiguration)
         updateFrameSize(for: layout)
         clearSelection()
@@ -270,7 +317,7 @@ final class RadialMenuView: NSView {
 
     func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
         if appearanceAffectsRendering(from: appearanceConfiguration, to: appearance) {
-            invalidatePreviewImage()
+            invalidateSlotPaths()
         }
         appearanceConfiguration = appearance
         editorAccentColor = appearance.accentColor
@@ -291,8 +338,8 @@ final class RadialMenuView: NSView {
             || oldAppearance.fontWeight != newAppearance.fontWeight
     }
 
-    private func invalidatePreviewImage() {
-        cachedPreviewImage = nil
+    private func invalidateSlotPaths() {
+        cachedSlotPaths.removeAll(keepingCapacity: true)
     }
 
     /// The complete drawing and hit-testing geometry currently used by this
@@ -350,6 +397,7 @@ final class RadialMenuView: NSView {
     func selectEditorItem(at index: Int) {
         guard presentationMode == .editor,
               allowsEditing,
+              dragOriginalSlots == nil,
               slots.indices.contains(index),
               selectedIndex != index else { return }
         selectedIndex = index
@@ -538,6 +586,8 @@ final class RadialMenuView: NSView {
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         guard presentationMode == .editor, allowsEditing else { return }
+        if let sender, bounds.contains(convert(sender.draggingLocation, from: nil)) { return }
+        cancelSlotMovePreview()
         updateHover(at: nil)
     }
 
@@ -552,10 +602,12 @@ final class RadialMenuView: NSView {
         if let pluginID = Self.libraryPresetID(from: sender.draggingPasteboard) {
             return onPresetDrop?(pluginID, index) ?? false
         }
-        if let source = sender.draggingPasteboard.string(
-            forType: Self.menuItemPasteboardType
-        ).flatMap(Int.init) {
-            return onMenuItemDrop?(source, index) ?? false
+        if sender.draggingSource as? RadialMenuView === self,
+           let source = sender.draggingPasteboard.string(
+            forType: Self.slotPasteboardType
+        ).flatMap(UUID.init(uuidString:)) {
+            cancelSlotMovePreview()
+            return onSlotDrop?(source, index) ?? false
         }
         return false
     }
@@ -565,11 +617,13 @@ final class RadialMenuView: NSView {
         if Self.libraryPresetID(from: sender.draggingPasteboard) != nil {
             return .copy
         }
-        if let source = sender.draggingPasteboard.string(
-            forType: Self.menuItemPasteboardType
-        ).flatMap(Int.init),
-           source != target,
-           slots[target].item == nil {
+        if sender.draggingSource as? RadialMenuView === self,
+           let id = sender.draggingPasteboard.string(
+            forType: Self.slotPasteboardType
+        ).flatMap(UUID.init(uuidString:)),
+           let source = editorSlots.firstIndex(where: { $0.id == id }),
+           editorSlots.indices.contains(source) {
+            _ = previewSlotMove(id: id, to: target)
             return .move
         }
         return []
@@ -580,23 +634,27 @@ final class RadialMenuView: NSView {
               !editorDragStarted,
               let sourceIndex = editorMouseDownIndex,
               slots.indices.contains(sourceIndex),
-              slots[sourceIndex].item != nil else { return }
+              editorSlots.indices.contains(sourceIndex) else { return }
         editorDragStarted = true
+        dragOriginalSlots = editorSlots
+        draggedSlotID = editorSlots[sourceIndex].id
         let pasteboardItem = NSPasteboardItem()
         pasteboardItem.setString(
-            String(sourceIndex),
-            forType: Self.menuItemPasteboardType
+            editorSlots[sourceIndex].id.uuidString,
+            forType: Self.slotPasteboardType
         )
         let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-        let image = NSImage(
-            systemSymbolName: "circle.grid.cross",
-            accessibilityDescription: "Move Menu Item"
-        ) ?? NSImage(size: NSSize(width: 28, height: 28))
-        let origin = convert(event.locationInWindow, from: nil)
-        draggingItem.setDraggingFrame(
-            NSRect(x: origin.x - 14, y: origin.y - 14, width: 28, height: 28),
-            contents: image
-        )
+        let slotRect = slotPath(at: sourceIndex, using: layout, in: bounds).bounds
+            .union(menuTitleRect(at: sourceIndex)).insetBy(dx: -4, dy: -4)
+        let image = NSImage(size: slotRect.size)
+        image.lockFocusFlipped(false)
+        let transform = AffineTransform(translationByX: -slotRect.minX, byY: -slotRect.minY)
+        (transform as NSAffineTransform).concat()
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            drawSlot(at: sourceIndex, using: layout, in: bounds)
+        }
+        image.unlockFocus()
+        draggingItem.setDraggingFrame(slotRect, contents: image)
         beginDraggingSession(with: [draggingItem], event: event, source: self)
     }
 
@@ -661,29 +719,26 @@ final class RadialMenuView: NSView {
         }
 
         let slotAction = NSMenuItem(
-            title: slot.isEmpty ? "Delete Slot" : "Clear Slot",
+            title: "Delete Slot",
             action: #selector(deleteContextMenuSlot(_:)),
             keyEquivalent: ""
         )
         slotAction.target = self
-        slotAction.isEnabled = slot.isEmpty ? slots.count > 1 : true
-        slotAction.toolTip = slot.isEmpty
-            ? (slotAction.isEnabled
-                ? "Delete this empty Slot from the Menu"
-                : "A Menu must contain at least one Slot")
-            : "Clear the Menu Item from this Slot"
+        slotAction.isEnabled = slots.count > 1
+        slotAction.toolTip = slotAction.isEnabled
+            ? "Delete this Slot after confirmation"
+            : "A Menu must contain at least one Slot"
         menu.addItem(slotAction)
         return menu
     }
 
     private func rebuildEditButtons() {
         guard presentationMode == .editor, allowsEditing else { return }
-        for button in editButtons.values {
-            button.removeFromSuperview()
+        for index in Array(editButtons.keys) where !slots.indices.contains(index) {
+            editButtons.removeValue(forKey: index)?.removeFromSuperview()
         }
-        editButtons.removeAll(keepingCapacity: true)
 
-        for index in slots.indices where slots[index].item != nil {
+        for index in slots.indices where editButtons[index] == nil {
             let button = RadialMenuEditButton(
                 title: "Edit",
                 target: self,
@@ -700,7 +755,7 @@ final class RadialMenuView: NSView {
             button.registerForDraggedTypes([
                 Self.libraryPresetPasteboardType,
                 Self.textPasteboardType,
-                Self.menuItemPasteboardType
+                Self.slotPasteboardType
             ])
             button.contextMenuProvider = { [weak self] in
                 guard let self else { return nil }
@@ -718,7 +773,10 @@ final class RadialMenuView: NSView {
                 self?.performDragOperation(sender) ?? false
             }
             button.draggingExitedProvider = { [weak self] in
-                self?.updateHover(at: nil)
+                guard let self, let window = self.window,
+                      !self.bounds.contains(self.convert(window.mouseLocationOutsideOfEventStream, from: nil)) else { return }
+                self.cancelSlotMovePreview()
+                self.updateHover(at: nil)
             }
             addSubview(button)
             editButtons[index] = button
@@ -729,6 +787,7 @@ final class RadialMenuView: NSView {
     private func layoutEditButtons() {
         guard presentationMode == .editor, allowsEditing else { return }
         for (index, button) in editButtons {
+            button.isHidden = slots[index].item == nil
             button.frame = editorEditButtonRect(at: index)
         }
     }
@@ -742,25 +801,7 @@ final class RadialMenuView: NSView {
               slots[index].item != nil else {
             return .zero
         }
-        let titleMetrics = titleDrawingMetrics(at: index, using: layout, in: bounds)
-        let point = titleMetrics.point
-        let sectorWidth = Self.menuTitleWidth(for: layout)
-        let width = min(48, max(38, sectorWidth))
-        let height: CGFloat = 20
-        let titleToButtonGap: CGFloat = 8
-        // Keep the button on the inner anchor when the title moves away from
-        // it, but follow the title when radial movement would reduce the gap
-        // (for example, in the bottom Slot).
-        let buttonTitleMinY = min(
-            titleMetrics.rect.minY,
-            titleMetrics.buttonAnchorMinY
-        )
-        return NSRect(
-            x: point.x - width / 2,
-            y: buttonTitleMinY - titleToButtonGap - height,
-            width: width,
-            height: height
-        )
+        return titleDrawingMetrics(at: index, using: layout, in: bounds).editButtonRect
     }
 
     private func isEditButtonHit(at point: NSPoint, index: Int) -> Bool {
@@ -792,12 +833,26 @@ final class RadialMenuView: NSView {
         updateAccessibilityValue()
     }
 
+    private func slotDrawingBounds(at index: Int) -> NSRect {
+        var rect = slotPath(at: index, using: layout, in: bounds).bounds
+            .union(menuTitleRect(at: index))
+        let button = editorEditButtonRect(at: index)
+        if !button.isEmpty { rect = rect.union(button) }
+        return rect.insetBy(dx: -4, dy: -4)
+    }
+
+    private func invalidateSlot(at index: Int?) {
+        guard let index, slots.indices.contains(index) else { return }
+        setNeedsDisplay(slotDrawingBounds(at: index))
+    }
+
     private func updateHover(at point: CGPoint?) {
         let nextIndex = point.flatMap(slotIndex(at:))
         guard hoveredIndex != nextIndex else { return }
+        let previous = hoveredIndex
         hoveredIndex = nextIndex
-        invalidatePreviewImage()
-        needsDisplay = true
+        invalidateSlot(at: previous)
+        invalidateSlot(at: nextIndex)
     }
 
     private func moveSelection(by offset: Int) {
@@ -822,7 +877,7 @@ final class RadialMenuView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSGraphicsContext.current?.saveGraphicsState()
-        NSBezierPath(rect: bounds).addClip()
+        NSBezierPath(rect: dirtyRect.intersection(bounds)).addClip()
         defer { NSGraphicsContext.current?.restoreGraphicsState() }
 
         NSColor.clear.setFill()
@@ -830,147 +885,23 @@ final class RadialMenuView: NSView {
         if showsPreviewBackground {
             drawPreviewBackground()
         }
-        if previewCanvasDiameter != nil {
-            drawCachedPreviewMenu()
-            drawMenuLabels(using: layout, in: bounds)
-        } else {
-            drawMenuContents(using: layout, in: bounds)
-        }
+        drawMenuContents(using: layout, in: bounds, dirtyRect: dirtyRect)
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        invalidatePreviewImage()
+        invalidateSlotPaths()
         needsDisplay = true
-    }
-
-    private func drawCachedPreviewMenu() {
-        if lastPreviewBounds != bounds {
-            lastPreviewBounds = bounds
-            invalidatePreviewImage()
-        }
-        let previewAppearance = MenuAppearanceConfiguration(
-            theme: appearanceConfiguration.theme,
-            accent: appearanceConfiguration.accent,
-            menuSize: MenuAppearanceConfiguration.Size.medium.rawValue,
-            font: appearanceConfiguration.font,
-            fontWeight: appearanceConfiguration.fontWeight
-        )
-        let previewLayout = previewLayout(for: previewAppearance)
-        let image = cachedPreviewImage(for: previewLayout)
-        let scale = layout.outerRadius / previewLayout.outerRadius
-        let imageSize = NSSize(
-            width: image.size.width * scale,
-            height: image.size.height * scale
-        )
-        image.draw(
-            in: NSRect(
-                x: bounds.midX - imageSize.width / 2,
-                y: bounds.midY - imageSize.height / 2,
-                width: imageSize.width,
-                height: imageSize.height
-            ),
-            from: .zero,
-            operation: .sourceOver,
-            fraction: 1
-        )
-    }
-
-    private func cachedPreviewImage(for menuLayout: RadialMenuLayout) -> NSImage {
-        if let cachedPreviewImage {
-            return cachedPreviewImage
-        }
-
-        let imageSize = NSSize(
-            width: menuLayout.contentDiameter,
-            height: menuLayout.contentDiameter
-        )
-        let image = NSImage(size: imageSize)
-        let drawImage = {
-            // The cached geometry is composited into this ordinary, unflipped
-            // NSView together with live labels and controls. Drawing it in a
-            // flipped image would mirror the slot wedges vertically while
-            // leaving the labels in their original positions.
-            image.lockFocusFlipped(false)
-            NSGraphicsContext.current?.saveGraphicsState()
-            NSBezierPath(
-                rect: NSRect(origin: .zero, size: imageSize)
-            ).addClip()
-            self.drawMenuContents(
-                using: menuLayout,
-                in: NSRect(origin: .zero, size: imageSize),
-                includesLabels: false
-            )
-            NSGraphicsContext.current?.restoreGraphicsState()
-            image.unlockFocus()
-        }
-
-        if let appearance {
-            appearance.performAsCurrentDrawingAppearance(drawImage)
-        } else {
-            drawImage()
-        }
-        cachedPreviewImage = image
-        return image
     }
 
     private func drawMenuContents(
         using menuLayout: RadialMenuLayout,
         in canvas: NSRect,
-        includesLabels: Bool = true
+        dirtyRect: NSRect
     ) {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        let step = 360 / CGFloat(menuLayout.itemCount)
-
-        for index in 0..<menuLayout.itemCount where slots.indices.contains(index) {
-            let slot = slots[index]
-            let isFocused = selectedIndex == index
-            let isHovered = presentationMode == .editor && hoveredIndex == index
-            let path = NSBezierPath()
-            path.appendArc(
-                withCenter: center,
-                radius: menuLayout.outerRadius,
-                startAngle: 90 - CGFloat(index + 1) * step + 2,
-                endAngle: 90 - CGFloat(index) * step - 2
-            )
-            path.appendArc(
-                withCenter: center,
-                radius: menuLayout.innerRadius,
-                startAngle: 90 - CGFloat(index) * step - 2,
-                endAngle: 90 - CGFloat(index + 1) * step + 2,
-                clockwise: true
-            )
-            path.close()
-            let fillColor: NSColor
-            if slot.isEmpty {
-                fillColor = isFocused
-                    ? editorAccentColor.withAlphaComponent(0.16)
-                    : isHovered
-                    ? editorAccentColor.withAlphaComponent(0.08)
-                    : NSColor.controlBackgroundColor.withAlphaComponent(0.6)
-            } else if slot.item?.primaryAction.isAvailable == false {
-                fillColor = NSColor.systemGray.withAlphaComponent(0.55)
-            } else if isFocused {
-                fillColor = editorAccentColor.withAlphaComponent(0.88)
-            } else if isHovered {
-                fillColor = editorAccentColor.withAlphaComponent(0.1)
-            } else {
-                fillColor = NSColor.controlBackgroundColor
-            }
-            fillColor.setFill()
-            path.fill()
-            (isFocused
-                ? editorAccentColor
-                : isHovered
-                ? editorAccentColor.withAlphaComponent(0.72)
-                : NSColor.separatorColor.withAlphaComponent(0.85)).setStroke()
-            path.lineWidth = isFocused ? 2.5 : (isHovered ? 1.5 : 1)
-            if slot.isEmpty {
-                let pattern: [CGFloat] = [6, 5]
-                path.setLineDash(pattern, count: pattern.count, phase: 0)
-            }
-            path.stroke()
-
+        for index in slots.indices where slotDrawingBounds(at: index).intersects(dirtyRect) {
+            drawSlot(at: index, using: menuLayout, in: canvas)
         }
 
         let hubRect = NSRect(
@@ -986,55 +917,120 @@ final class RadialMenuView: NSView {
         hubPath.lineWidth = 1
         hubPath.stroke()
 
-        if includesLabels {
-            drawMenuLabels(using: menuLayout, in: canvas)
+        drawHubLabel(in: canvas)
+    }
+
+    /// One Slot owns its wedge and text in the same canvas and drawing pass.
+    private func drawSlot(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let slot = slots[index]
+        let isFocused = selectedIndex == index
+        let isHovered = presentationMode == .editor && hoveredIndex == index
+        let path = slotPath(at: index, using: menuLayout, in: canvas)
+        let fillColor: NSColor
+        if slot.isEmpty {
+            fillColor = isFocused
+                ? editorAccentColor.withAlphaComponent(0.16)
+                : isHovered
+                ? editorAccentColor.withAlphaComponent(0.08)
+                : NSColor.controlBackgroundColor.withAlphaComponent(0.6)
+        } else if slot.item?.primaryAction.isAvailable == false {
+            fillColor = NSColor.systemGray.withAlphaComponent(0.55)
+        } else if isFocused {
+            fillColor = editorAccentColor.withAlphaComponent(0.88)
+        } else if isHovered {
+            fillColor = editorAccentColor.withAlphaComponent(0.1)
+        } else {
+            fillColor = NSColor.controlBackgroundColor
+        }
+        fillColor.setFill()
+        path.fill()
+        (isFocused
+            ? editorAccentColor
+            : isHovered
+            ? editorAccentColor.withAlphaComponent(0.72)
+            : NSColor.separatorColor.withAlphaComponent(0.85)).setStroke()
+        path.lineWidth = isFocused ? 2.5 : (isHovered ? 1.5 : 1)
+        if slot.isEmpty {
+            let pattern: [CGFloat] = [6, 5]
+            path.setLineDash(pattern, count: pattern.count, phase: 0)
+        }
+        path.stroke()
+
+        drawSlotLabel(at: index, using: menuLayout, in: canvas)
+    }
+
+    private func slotPath(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSBezierPath {
+        if cachedPathLayout != menuLayout || cachedPathCanvas != canvas {
+            cachedSlotPaths.removeAll(keepingCapacity: true)
+            cachedPathLayout = menuLayout
+            cachedPathCanvas = canvas
+        }
+        if let path = cachedSlotPaths[index] { return path }
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let step = 360 / CGFloat(menuLayout.itemCount)
+        let path = NSBezierPath()
+        path.appendArc(
+            withCenter: center,
+            radius: menuLayout.outerRadius,
+            startAngle: 90 - CGFloat(index + 1) * step + 2,
+            endAngle: 90 - CGFloat(index) * step - 2
+        )
+        path.appendArc(
+            withCenter: center,
+            radius: menuLayout.innerRadius,
+            startAngle: 90 - CGFloat(index) * step - 2,
+            endAngle: 90 - CGFloat(index + 1) * step + 2,
+            clockwise: true
+        )
+        path.close()
+        cachedSlotPaths[index] = path
+        return path
+    }
+
+    private func drawSlotLabel(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let slot = slots[index]
+        let isFocused = selectedIndex == index
+        let metrics = titleDrawingMetrics(
+            at: index,
+            using: menuLayout,
+            in: canvas
+        )
+        let titleLayout = metrics.layout
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = 1
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: titleLayout.font,
+            .paragraphStyle: paragraphStyle,
+            .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
+                ? NSColor.white
+                : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
+        ]
+        titleLayout.text.draw(
+            in: metrics.rect,
+            withAttributes: attributes
+        )
+
+        if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
+            let hint = "DROP HERE" as NSString
+            let hintAttributes: [NSAttributedString.Key: Any] = [
+                .font: appearanceConfiguration.titleFont(ofSize: 9, weight: .bold),
+                .foregroundColor: editorAccentColor
+            ]
+            let hintSize = hint.size(withAttributes: hintAttributes)
+            hint.draw(
+                at: CGPoint(
+                    x: metrics.point.x - hintSize.width / 2,
+                    y: metrics.point.y - hintSize.height / 2 - 20
+                ),
+                withAttributes: hintAttributes
+            )
         }
     }
 
-    private func drawMenuLabels(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+    private func drawHubLabel(in canvas: NSRect) {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        for index in 0..<menuLayout.itemCount where slots.indices.contains(index) {
-            let slot = slots[index]
-            let isFocused = selectedIndex == index
-            let metrics = titleDrawingMetrics(
-                at: index,
-                using: menuLayout,
-                in: canvas
-            )
-            let titleLayout = metrics.layout
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = .center
-            paragraphStyle.lineBreakMode = .byWordWrapping
-            paragraphStyle.lineSpacing = 1
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: titleLayout.font,
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
-                    ? NSColor.white
-                    : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
-            ]
-            titleLayout.text.draw(
-                in: metrics.rect,
-                withAttributes: attributes
-            )
-
-            if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
-                let hint = "DROP HERE" as NSString
-                let hintAttributes: [NSAttributedString.Key: Any] = [
-                    .font: appearanceConfiguration.titleFont(ofSize: 9, weight: .bold),
-                    .foregroundColor: editorAccentColor
-                ]
-                let hintSize = hint.size(withAttributes: hintAttributes)
-                hint.draw(
-                    at: CGPoint(
-                        x: metrics.point.x - hintSize.width / 2,
-                        y: metrics.point.y - hintSize.height / 2 - 20
-                    ),
-                    withAttributes: hintAttributes
-                )
-            }
-        }
-
         let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
             .font: appearanceConfiguration.titleFont(ofSize: 10, weight: .semibold),
@@ -1087,27 +1083,52 @@ final class RadialMenuView: NSView {
             width: titleWidth,
             height: titleHeight
         )
-        let titleRect: NSRect
+        var titleRect = baseTitleRect
+        var editButtonRect = NSRect.zero
         if presentationMode == .editor, allowsEditing, slots[index].item != nil {
             let radialX = point.x - center.x
             let radialY = point.y - center.y
             let radialDistance = max(hypot(radialX, radialY), 1)
-            let offset = min(
-                18,
-                max(10, (menuLayout.outerRadius - menuLayout.itemCenterRadius) * 0.24)
-            )
-            titleRect = baseTitleRect.offsetBy(
-                dx: radialX / radialDistance * offset,
-                dy: radialY / radialDistance * offset
-            )
-        } else {
-            titleRect = baseTitleRect
+            let buttonHeight: CGFloat = 20
+            let gap: CGFloat = 8
+            let buttonWidth = min(48, max(38, titleWidth))
+            let path = slotPath(at: index, using: menuLayout, in: canvas)
+            var bestOutsideCount = Int.max
+            // Lay out title and control as one block within this Slot.
+            // Prefer the outer band and test both boxes against its wedge.
+            for fraction: CGFloat in [0.74, 0.76, 0.72, 0.78, 0.70, 0.80, 0.68, 0.82] {
+                let radius = menuLayout.outerRadius * fraction
+                let anchor = CGPoint(
+                    x: center.x + radialX / radialDistance * radius,
+                    y: center.y + radialY / radialDistance * radius
+                )
+                let candidateTitle = NSRect(
+                    x: anchor.x - titleWidth / 2,
+                    y: anchor.y + (buttonHeight + gap - titleHeight) / 2,
+                    width: titleWidth, height: titleHeight
+                )
+                let candidateButton = NSRect(
+                    x: anchor.x - buttonWidth / 2,
+                    y: candidateTitle.minY - gap - buttonHeight,
+                    width: buttonWidth, height: buttonHeight
+                )
+                let outside = [candidateTitle, candidateButton].flatMap { rect in
+                    [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY),
+                     CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY)]
+                }.filter { !path.contains($0) }.count
+                if outside < bestOutsideCount {
+                    bestOutsideCount = outside
+                    titleRect = candidateTitle
+                    editButtonRect = candidateButton
+                }
+                if outside == 0 { break }
+            }
         }
         return MenuTitleDrawingMetrics(
             point: point,
             layout: layout,
             rect: titleRect,
-            buttonAnchorMinY: baseTitleRect.minY
+            editButtonRect: editButtonRect
         )
     }
 
@@ -1218,6 +1239,7 @@ extension RadialMenuView: NSDraggingSource {
         endedAt screenPoint: NSPoint,
         operation: NSDragOperation
     ) {
+        cancelSlotMovePreview()
         editorMouseDownIndex = nil
         editorMouseDownIsEdit = false
         editorDragStarted = false

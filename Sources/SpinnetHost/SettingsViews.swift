@@ -209,6 +209,7 @@ final class SettingsWindowModel: ObservableObject {
     private enum MenuHistoryEntry {
         case slot(SlotHistoryEntry)
         case composition(CompositionHistoryEntry)
+        case reorder(before: [UUID], after: [UUID], source: Int, target: Int)
     }
 
     let editor: HostConfigurationEditor
@@ -314,7 +315,17 @@ final class SettingsWindowModel: ObservableObject {
     private let capabilityGrantStore: PluginCapabilityGrantStore
     private let accessibilityPermissionCheck: () -> Bool
     private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
-    private var slotIDs: [UUID]
+    var editorSlots: [EditorMenuSlot] {
+        zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
+    }
+
+    private(set) var slotIDs: [UUID]
+    @Published private(set) var slotPendingDeletion: UUID?
+
+    var deletionTitle: String {
+        guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id) else { return "Delete Slot?" }
+        return "Delete Slot \(index + 1) — \(menuSlots[index].title)?"
+    }
     private var undoHistory: [MenuHistoryEntry] = []
     private var redoHistory: [MenuHistoryEntry] = []
     private struct AppearanceHistoryEntry {
@@ -591,7 +602,7 @@ final class SettingsWindowModel: ObservableObject {
                 names.append("Edit Menu Item in Slot \(index + 1)")
             }
             names.append(contentsOf: [
-                deleteSelectedContentLabel,
+                deleteSlotLabel,
                 "Undo Slot edit",
                 "Redo Slot edit"
             ])
@@ -685,44 +696,44 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
-    var deleteSelectedContentLabel: String {
-        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else {
-            return "Delete selected Slot content"
-        }
-        return editor.configuration.menu.slots[selectedMenuIndex].item == nil
-            ? "Delete empty Slot \(selectedMenuIndex + 1)"
-            : "Clear Menu Item from Slot \(selectedMenuIndex + 1)"
-    }
+    var deleteSlotLabel: String { "Delete selected Slot…" }
 
+    /// Every UI deletion first captures an identity, never a mutable index.
     @discardableResult
-    func deleteSlot(at index: Int) -> Bool {
-        guard editor.configuration.menu.slots.indices.contains(index) else {
-            placementMessage = "Menu Slot index is out of range."
-            return false
-        }
-
-        if editor.configuration.menu.slots[index].item != nil {
-            let before = editor.configuration
-            deleteMenuItem(at: index)
-            return editor.configuration != before
-        }
-
-        guard editor.configuration.menu.slots.count > 1 else {
+    func requestSlotDeletion(at index: Int) -> Bool {
+        guard page == .menu, editingMenuIndex == nil,
+              slotIDs.indices.contains(index) else { return false }
+        guard slotIDs.count > 1 else {
             placementMessage = "A Menu must contain at least one Slot."
             return false
         }
-        return removeSlot(at: index, recordHistory: true)
+        slotPendingDeletion = slotIDs[index]
+        return true
     }
 
-    func deleteSelectedContent() {
-        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return }
-        if editor.configuration.menu.slots[selectedMenuIndex].item != nil {
-            deleteMenuItem(at: selectedMenuIndex)
-        } else if editor.configuration.menu.slots.count > 1 {
-            _ = removeSlot(at: selectedMenuIndex, recordHistory: true)
-        } else {
-            placementMessage = "A Menu must contain at least one Slot."
-        }
+    func requestSelectedSlotDeletion() {
+        _ = requestSlotDeletion(at: selectedMenuIndex)
+    }
+
+    func cancelSlotDeletion() {
+        slotPendingDeletion = nil
+    }
+
+    func confirmSlotDeletion() {
+        guard let id = slotPendingDeletion else { return }
+        slotPendingDeletion = nil
+        guard let index = slotIDs.firstIndex(of: id) else { return }
+        _ = removeSlot(at: index, recordHistory: true)
+    }
+
+    func requestSlotDeletion(id: UUID) -> Bool {
+        guard let index = slotIDs.firstIndex(of: id) else { return false }
+        return requestSlotDeletion(at: index)
+    }
+
+    func moveSlot(id: UUID, to target: Int) -> Bool {
+        guard let source = slotIDs.firstIndex(of: id) else { return false }
+        return moveSlot(from: source, to: target)
     }
 
     @discardableResult
@@ -767,6 +778,20 @@ final class SettingsWindowModel: ObservableObject {
         direction: SlotHistoryDirection
     ) -> Bool {
         switch entry {
+        case .reorder(let before, let after, let source, let target):
+            do {
+                try editor.moveSlot(
+                    from: direction == .undo ? target : source,
+                    to: direction == .undo ? source : target
+                )
+                slotIDs = direction == .undo ? before : after
+                selectedMenuIndex = direction == .undo ? source : target
+                configurationDidChange(editor.configuration)
+                return true
+            } catch {
+                placementMessage = error.localizedDescription
+                return false
+            }
         case .slot(let entry):
             return applySlot(entry, direction: direction)
         case .composition(let entry):
@@ -892,35 +917,22 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     @discardableResult
-    func moveMenuItem(from sourceIndex: Int, to targetIndex: Int) -> Bool {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
+    func moveSlot(from sourceIndex: Int, to targetIndex: Int) -> Bool {
+        guard page == .menu, editingMenuIndex == nil else { return false }
+        let previousIDs = slotIDs
         do {
-            try editor.moveMenuItem(from: sourceIndex, to: targetIndex)
-            guard editor.configuration != before else { return true }
+            try editor.moveSlot(from: sourceIndex, to: targetIndex)
+            guard sourceIndex != targetIndex else { return true }
+            let id = slotIDs.remove(at: sourceIndex)
+            slotIDs.insert(id, at: targetIndex)
             selectedMenuIndex = targetIndex
-            placementMessage = "Menu Item moved to Slot \(targetIndex + 1)."
+            placementMessage = "Slot moved."
             configurationDidChange(editor.configuration)
-            recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
+            record(.reorder(before: previousIDs, after: slotIDs, source: sourceIndex, target: targetIndex))
             return true
         } catch {
             placementMessage = error.localizedDescription
             return false
-        }
-    }
-
-    func deleteMenuItem(at index: Int) {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
-        do {
-            try editor.deleteMenuItem(at: index)
-            guard editor.configuration != before else { return }
-            selectedMenuIndex = index
-            placementMessage = "Menu Item cleared from Slot \(index + 1)."
-            configurationDidChange(editor.configuration)
-            recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
-        } catch {
-            placementMessage = error.localizedDescription
         }
     }
 
@@ -992,9 +1004,14 @@ struct SettingsRootView: View {
             model.refreshMenuSlots()
         }
         .onChange(of: model.page) { focusedPage = $0 }
-        .onDeleteCommand {
-            guard model.page == .menu else { return }
-            model.deleteSelectedContent()
+        .alert(model.deletionTitle, isPresented: Binding(
+            get: { model.slotPendingDeletion != nil },
+            set: { if !$0 { model.cancelSlotDeletion() } }
+        )) {
+            Button("Cancel", role: .cancel, action: model.cancelSlotDeletion)
+            Button("Delete Slot", role: .destructive, action: model.confirmSlotDeletion)
+        } message: {
+            Text("This removes the whole Slot from the Menu. You can undo the deletion.")
         }
         .alert(
             "Replace Menu Item in Slot \((model.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
@@ -1073,7 +1090,7 @@ struct SettingsRootView: View {
                 Text("Editor Mode")
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
-                    ? "Left-click a Slot to focus it; use its Edit button, double-click, or Command-E to configure an item. Right-click for details. Actions never run here."
+                    ? "Drag any Slot to reorder it. Drop it in the delete area or right-click to delete with confirmation. Use Edit to configure its Menu Item."
                     : "Appearance changes are shown here. Actions and Menu edits are disabled.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -1094,7 +1111,7 @@ struct SettingsRootView: View {
                     .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
 
                 MenuEditorModeRepresentable(
-                    slots: menuSlots,
+                    slots: model.editorSlots,
                     selectedIndex: model.selectedMenuIndex,
                     appearance: model.appearanceConfiguration,
                     mode: .editor,
@@ -1103,9 +1120,9 @@ struct SettingsRootView: View {
                     previewCanvasDiameter: menuPreviewCanvasDiameter,
                     onSelection: model.selectMenuItem,
                     onEdit: model.requestEdit,
-                    onSlotDelete: { _ = model.deleteSlot(at: $0) },
+                    onSlotDelete: { _ = model.requestSlotDeletion(at: $0) },
                     onPresetDrop: model.placePreset,
-                    onMenuItemDrop: model.moveMenuItem
+                    onSlotDrop: { model.moveSlot(id: $0, to: $1) }
                 )
                 .id(model.page)
                 .frame(width: menuPreviewCanvasDiameter, height: menuPreviewCanvasDiameter)
@@ -1141,7 +1158,8 @@ struct SettingsRootView: View {
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .help("Redo Slot edit")
                     .accessibilityLabel("Redo Slot edit")
-                    Spacer()
+                    SlotDeletionDropZone(onDrop: model.requestSlotDeletion)
+                        .frame(maxWidth: .infinity)
                     Text("\(menuSlots.count) / 12")
                         .monospacedDigit()
                         .accessibilityLabel("\(menuSlots.count) of 12 Slots")
@@ -1369,7 +1387,7 @@ private struct SettingsNavigationButtonStyle: ButtonStyle {
 }
 
 private struct MenuEditorModeRepresentable: NSViewRepresentable {
-    let slots: [MenuSlotPresentation]
+    let slots: [EditorMenuSlot]
     let selectedIndex: Int
     let appearance: MenuAppearanceConfiguration
     let mode: RadialMenuPresentationMode
@@ -1380,11 +1398,11 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
-    let onMenuItemDrop: (Int, Int) -> Bool
+    let onSlotDrop: (UUID, Int) -> Bool
 
     func makeNSView(context: Context) -> RadialMenuView {
         let view = RadialMenuView(
-            slots: slots,
+            slots: slots.map(\.presentation),
             mode: mode,
             allowsEditing: allowsEditing,
             previewScale: previewScale,
@@ -1392,14 +1410,14 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             showsPreviewBackground: true
         )
         applyCallbacks(to: view)
-        view.applyAppearance(appearance)
+        view.updateEditorSlots(slots, appearance: appearance)
         view.selectEditorItem(at: selectedIndex)
         return view
     }
 
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         applyCallbacks(to: nsView)
-        nsView.update(slots: slots, appearance: appearance)
+        nsView.updateEditorSlots(slots, appearance: appearance)
         nsView.selectEditorItem(at: selectedIndex)
     }
 
@@ -1409,14 +1427,14 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             view.onEditorEditRequested = nil
             view.onEditorSlotDeleteRequested = nil
             view.onPresetDrop = nil
-            view.onMenuItemDrop = nil
+            view.onSlotDrop = nil
             return
         }
         view.onEditorSelection = onSelection
         view.onEditorEditRequested = onEdit
         view.onEditorSlotDeleteRequested = onSlotDelete
         view.onPresetDrop = onPresetDrop
-        view.onMenuItemDrop = onMenuItemDrop
+        view.onSlotDrop = onSlotDrop
     }
 }
 

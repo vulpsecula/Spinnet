@@ -5,23 +5,6 @@ public protocol ConfigurationStore {
     func save(_ configuration: HostConfiguration) throws
 }
 
-public enum MenuItemMoveError: Error, Equatable, LocalizedError {
-    case slotIndexOutOfRange
-    case sourceSlotEmpty(Int)
-    case targetSlotOccupied(Int)
-
-    public var errorDescription: String? {
-        switch self {
-        case .slotIndexOutOfRange:
-            return "Menu Slot index is out of range."
-        case .sourceSlotEmpty(let index):
-            return "Slot \(index + 1) is empty."
-        case .targetSlotOccupied(let index):
-            return "Slot \(index + 1) is occupied. Free it before moving a Menu Item there."
-        }
-    }
-}
-
 public final class HostConfigurationStore: ConfigurationStore {
     public let fileURL: URL
 
@@ -640,36 +623,17 @@ public final class HostConfigurationEditor {
         return item
     }
 
-    public func moveMenuItem(from sourceIndex: Int, to targetIndex: Int) throws {
+    /// Reorders a complete Slot, including an empty Slot, by insertion.
+    public func moveSlot(from sourceIndex: Int, to targetIndex: Int) throws {
         guard configuration.menu.slots.indices.contains(sourceIndex),
               configuration.menu.slots.indices.contains(targetIndex) else {
-            throw MenuItemMoveError.slotIndexOutOfRange
-        }
-        guard sourceIndex != targetIndex else { return }
-        guard let item = configuration.menu.slots[sourceIndex].item else {
-            throw MenuItemMoveError.sourceSlotEmpty(sourceIndex)
-        }
-        guard configuration.menu.slots[targetIndex].item == nil else {
-            throw MenuItemMoveError.targetSlotOccupied(targetIndex)
-        }
-        var slots = configuration.menu.slots
-        slots[sourceIndex] = .empty
-        slots[targetIndex] = .occupied(item)
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
-    }
-
-    public func deleteMenuItem(at index: Int) throws {
-        guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
-        guard let item = configuration.menu.slots[index].item else { return }
-        let actionIDs = Set(item.boundActionIDs)
+        guard sourceIndex != targetIndex else { return }
         var slots = configuration.menu.slots
-        slots[index] = .empty
-        try replaceConfiguration(
-            actions: configuration.actions.filter { !actionIDs.contains($0.id) },
-            slots: slots
-        )
+        let slot = slots.remove(at: sourceIndex)
+        slots.insert(slot, at: targetIndex)
+        try replaceConfiguration(actions: configuration.actions, slots: slots)
     }
 
     private func action(with id: ActionID) -> ActionConfiguration? {

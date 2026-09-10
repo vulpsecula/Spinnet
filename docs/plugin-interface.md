@@ -339,8 +339,13 @@ unavailable Presets. Commands are shown inside that entry rather than
 duplicated as top-level Library entries. A compatibility package can remain
 registered for persisted Actions while opting out of the Library. The
 settings window supports adding a Ready-to-Use Preset, a Configuration Sheet
-for Setup-Required Presets, explicit replacement, moving a Menu Item only to an
-empty Slot, and deletion. Sheet edits use Save/Cancel atomically; page-level
+for Setup-Required Presets, explicit replacement, and insertion-based reordering
+of complete Slots, whether empty or occupied. Right-click Delete Slot and the
+dedicated drop-to-delete area both require confirmation and remove the entire
+Slot; there is no clear-content operation. A Menu retains at least one Slot.
+Slot identity follows reordering and undo within the editor session, so a pending
+deletion cannot silently target another Slot after its index changes.
+Sheet edits use Save/Cancel atomically; page-level
 edits and Appearance changes are saved immediately and expose Undo/Redo.
 Changes are restored on the next Host launch.
 

@@ -1,4 +1,11 @@
+import Foundation
 import SpinnetCore
+
+/// Session-stable identity travels with the complete editor Slot presentation.
+struct EditorMenuSlot: Identifiable, Equatable {
+    let id: UUID
+    let presentation: MenuSlotPresentation
+}
 
 struct MenuActionPresentation: Equatable {
     let actionID: ActionID
