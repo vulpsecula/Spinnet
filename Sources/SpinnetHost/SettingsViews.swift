@@ -780,11 +780,10 @@ final class SettingsWindowModel: ObservableObject {
         switch entry {
         case .reorder(let before, let after, let source, let target):
             do {
-                try editor.moveSlot(
-                    from: direction == .undo ? target : source,
-                    to: direction == .undo ? source : target
-                )
-                slotIDs = direction == .undo ? before : after
+                let restoredIDs = direction == .undo ? before : after
+                let order = restoredIDs.compactMap { slotIDs.firstIndex(of: $0) }
+                try editor.reorderSlots(order: order)
+                slotIDs = restoredIDs
                 selectedMenuIndex = direction == .undo ? source : target
                 configurationDidChange(editor.configuration)
                 return true
@@ -918,13 +917,23 @@ final class SettingsWindowModel: ObservableObject {
 
     @discardableResult
     func moveSlot(from sourceIndex: Int, to targetIndex: Int) -> Bool {
+        guard slotIDs.indices.contains(sourceIndex), slotIDs.indices.contains(targetIndex) else { return false }
+        let plan = CircularSlotReorder(count: slotIDs.count, source: sourceIndex, target: targetIndex)
+        return reorderSlots(ids: plan.order.map { slotIDs[$0] }, selectedID: slotIDs[sourceIndex])
+    }
+
+    func reorderSlots(ids: [UUID], selectedID: UUID? = nil) -> Bool {
         guard page == .menu, editingMenuIndex == nil else { return false }
+        guard ids.count == slotIDs.count, Set(ids) == Set(slotIDs) else { return false }
+        if let selectedID, !slotIDs.contains(selectedID) { return false }
         let previousIDs = slotIDs
+        let sourceIndex = selectedID.flatMap { slotIDs.firstIndex(of: $0) } ?? selectedMenuIndex
+        guard slotIDs.indices.contains(sourceIndex) else { return false }
+        let targetIndex = ids.firstIndex(of: slotIDs[sourceIndex]) ?? sourceIndex
         do {
-            try editor.moveSlot(from: sourceIndex, to: targetIndex)
-            guard sourceIndex != targetIndex else { return true }
-            let id = slotIDs.remove(at: sourceIndex)
-            slotIDs.insert(id, at: targetIndex)
+            guard ids != slotIDs else { return true }
+            try editor.reorderSlots(order: ids.compactMap { slotIDs.firstIndex(of: $0) })
+            slotIDs = ids
             selectedMenuIndex = targetIndex
             placementMessage = "Slot moved."
             configurationDidChange(editor.configuration)
@@ -1122,7 +1131,7 @@ struct SettingsRootView: View {
                     onEdit: model.requestEdit,
                     onSlotDelete: { _ = model.requestSlotDeletion(at: $0) },
                     onPresetDrop: model.placePreset,
-                    onSlotDrop: { model.moveSlot(id: $0, to: $1) }
+                    onSlotDrop: { model.reorderSlots(ids: $0, selectedID: $1) }
                 )
                 .id(model.page)
                 .frame(width: menuPreviewCanvasDiameter, height: menuPreviewCanvasDiameter)
@@ -1398,7 +1407,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
-    let onSlotDrop: (UUID, Int) -> Bool
+    let onSlotDrop: ([UUID], UUID) -> Bool
 
     func makeNSView(context: Context) -> RadialMenuView {
         let view = RadialMenuView(

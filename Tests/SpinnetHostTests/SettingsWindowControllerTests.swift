@@ -572,8 +572,18 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(view.previewSlotMove(id: slots[7].id, to: 2))
         XCTAssertEqual(view.subviews.compactMap { $0 as? NSButton }.map(ObjectIdentifier.init), buttonIdentities)
         XCTAssertEqual(view.editorSlots[2], slots[7])
-        XCTAssertEqual(view.editorSlots[3], slots[2])
+        XCTAssertEqual(view.editorSlots[1], slots[2])
         XCTAssertFalse(committed)
+        XCTAssertEqual(view.slotDragPlaceholderIndex, 2)
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            XCTAssertEqual(view.displayedSlotPosition(at: 1), 2, accuracy: 0.01)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.06))
+            XCTAssertGreaterThan(view.displayedSlotPosition(at: 1), 1)
+            XCTAssertLessThan(view.displayedSlotPosition(at: 1), 2)
+            try capture("slots-mid-displacement.png")
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.22))
+        XCTAssertEqual(view.displayedSlotPosition(at: 1), 1, accuracy: 0.01)
         try capture("slots-during-drag.png")
         view.cancelSlotMovePreview()
         XCTAssertEqual(view.editorSlots, slots)
@@ -594,6 +604,127 @@ final class SettingsWindowControllerTests: XCTestCase {
         view.cancelSlotMovePreview()
         XCTAssertEqual(view.editorSlots, refreshed, "Cancellation must not restore stale authoritative state")
         XCTAssertFalse(committed)
+    }
+
+    func testNativeSlotDragDisplacesEmptySlotAndReservesGapWithoutReplacement() throws {
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: ActionID("drag"), alias: "Moving"),
+            primaryAction: MenuActionPresentation(actionID: ActionID("drag"), title: "Moving", availability: .available),
+            alternateActions: []
+        )
+        let slots = [EditorMenuSlot(id: UUID(), presentation: .occupied(item)),
+                     EditorMenuSlot(id: UUID(), presentation: .empty),
+                     EditorMenuSlot(id: UUID(), presentation: .empty)]
+        let view = RadialMenuView(slots: slots.map(\.presentation), mode: .editor)
+        view.updateEditorSlots(slots, appearance: MenuAppearanceConfiguration())
+        let window = NSWindow(contentRect: view.bounds, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = view
+        let pasteboard = NSPasteboard(name: .init(UUID().uuidString))
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.setString(slots[0].id.uuidString, forType: RadialMenuView.slotPasteboardType)
+        let targetRect = view.menuTitleRect(at: 1)
+        let sender = SlotDraggingInfo(source: view, pasteboard: pasteboard,
+                                      location: view.convert(NSPoint(x: targetRect.midX, y: targetRect.midY), to: nil))
+        var committedTarget: Int?
+        var replacementRequested = false
+        view.onSlotDrop = { order, id in
+            XCTAssertEqual(id, slots[0].id)
+            XCTAssertEqual(order, [slots[1].id, slots[0].id, slots[2].id])
+            committedTarget = order.firstIndex(of: id)
+            return true
+        }
+        view.onPresetDrop = { _, _ in replacementRequested = true; return true }
+        XCTAssertEqual(view.draggingEntered(sender), .move)
+        XCTAssertEqual(view.editorSlots.map(\.id), [slots[1].id, slots[0].id, slots[2].id])
+        XCTAssertNil(committedTarget)
+        XCTAssertFalse(view.subviews.compactMap { $0 as? NSButton }.contains { $0.tag == 1 && !$0.isHidden },
+                       "The lifted Slot must leave a gap, not another rendered item under the drag image")
+        // Extra text representations must never turn an internal move into a Library copy.
+        pasteboard.setString("not-a-library-preset", forType: .string)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        for _ in 0..<5 {
+            XCTAssertEqual(view.draggingUpdated(sender), .move)
+            XCTAssertEqual(view.editorSlots.map(\.id), [slots[1].id, slots[0].id, slots[2].id])
+        }
+        XCTAssertTrue(view.performDragOperation(sender))
+        XCTAssertEqual(committedTarget, 1)
+        XCTAssertFalse(replacementRequested)
+
+        pasteboard.clearContents()
+        pasteboard.setString(slots[1].id.uuidString, forType: RadialMenuView.slotPasteboardType)
+        let firstRect = view.menuTitleRect(at: 0)
+        sender.draggingLocation = view.convert(NSPoint(x: firstRect.midX, y: firstRect.midY), to: nil)
+        XCTAssertEqual(view.draggingEntered(sender), .move)
+        XCTAssertEqual(view.editorSlots.map(\.id), [slots[1].id, slots[0].id, slots[2].id],
+                       "Dragging an Empty Slot must displace the occupied Slot too")
+        view.draggingExited(sender)
+        XCTAssertEqual(view.slotDragPlaceholderIndex, 0, "Crossing a child view must not cancel the drag")
+        sender.draggingLocation = NSPoint(x: -100, y: -100)
+        view.draggingExited(sender)
+        XCTAssertNil(view.slotDragPlaceholderIndex)
+        XCTAssertEqual(view.editorSlots, slots)
+    }
+
+    func testCircularDragLocksOppositeDirectionBuffersBoundaryAndCommitsPreview() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        for _ in 0..<7 { model.addEmptySlot() }
+        let original = model.editorSlots
+        let configuration = model.editor.configuration
+        let view = RadialMenuView(slots: original.map(\.presentation), mode: .editor)
+        view.updateEditorSlots(original, appearance: MenuAppearanceConfiguration())
+        let window = NSWindow(contentRect: view.bounds, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = view
+        let board = NSPasteboard(name: .init(UUID().uuidString))
+        defer { board.releaseGlobally() }
+        board.setString(original[0].id.uuidString, forType: RadialMenuView.slotPasteboardType)
+        func point(_ position: CGFloat) -> NSPoint {
+            let angle = CGFloat.pi / 2 - position * 2 * .pi / 8
+            let radius = view.bounds.width * 0.38
+            return view.convert(NSPoint(x: view.bounds.midX + cos(angle) * radius,
+                                        y: view.bounds.midY + sin(angle) * radius), to: nil)
+        }
+        let sender = SlotDraggingInfo(source: view, pasteboard: board, location: point(0.5))
+        XCTAssertEqual(view.draggingEntered(sender), .move)
+        sender.draggingLocation = point(7.5)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        XCTAssertEqual(view.editorSlots.map(\.id), [7, 1, 2, 3, 4, 5, 6, 0].map { original[$0].id })
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            XCTAssertEqual(view.displayedSlotPosition(at: 0), -1, accuracy: 0.01)
+        }
+        sender.draggingLocation = point(4.5)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        let oppositeOrder = [7, 1, 2, 3, 0, 4, 5, 6].map { original[$0].id }
+        XCTAssertEqual(view.editorSlots.map(\.id), oppositeOrder)
+        sender.draggingLocation = point(3.95)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        XCTAssertEqual(view.editorSlots.map(\.id), oppositeOrder, "Small boundary motion must not reverse the arc")
+        view.onSlotDrop = { ids, selectedID in model.reorderSlots(ids: ids, selectedID: selectedID) }
+        XCTAssertTrue(view.performDragOperation(sender))
+        XCTAssertEqual(model.slotIDs, oppositeOrder)
+        XCTAssertEqual(model.editor.configuration.menu.slots,
+                       [7, 1, 2, 3, 0, 4, 5, 6].map { configuration.menu.slots[$0] })
+        model.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration, configuration)
+        XCTAssertEqual(model.slotIDs, original.map(\.id))
+        model.redoSlotEdit()
+        XCTAssertEqual(model.slotIDs, oppositeOrder)
+
+        view.updateEditorSlots(original, appearance: MenuAppearanceConfiguration())
+        sender.draggingLocation = point(0.5)
+        XCTAssertEqual(view.draggingEntered(sender), .move)
+        sender.draggingLocation = point(3.5)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        sender.draggingLocation = point(4.5)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        XCTAssertEqual(view.editorSlots.map(\.id), [1, 2, 3, 4, 0, 5, 6, 7].map { original[$0].id })
+        sender.draggingLocation = point(5.05)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        XCTAssertEqual(view.slotDragPlaceholderIndex, 4)
+        sender.draggingLocation = point(5.2)
+        XCTAssertEqual(view.draggingUpdated(sender), .move)
+        XCTAssertEqual(view.slotDragPlaceholderIndex, 5)
+        XCTAssertEqual(view.editorSlots.map(\.id), [7, 1, 2, 3, 4, 0, 5, 6].map { original[$0].id })
+        view.cancelSlotMovePreview()
     }
 
     func testAppearanceEditorModeDoesNotExecuteOrEditSlots() throws {
@@ -1805,23 +1936,23 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, originalConfiguration)
     }
 
-    func testOccupiedAndEmptySlotsReorderByInsertionAndUndoRestoresIdentity() throws {
+    func testOccupiedAndEmptySlotsReorderAlongShortestArcAndUndoRestoresIdentity() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.addEmptySlot()
         model.addEmptySlot()
         let original = model.editor.configuration
         let ids = model.slotIDs
         XCTAssertTrue(model.moveSlot(from: 0, to: 2))
-        XCTAssertEqual(model.slotIDs, [ids[1], ids[2], ids[0]])
+        XCTAssertEqual(model.slotIDs, [ids[2], ids[1], ids[0]])
         XCTAssertEqual(model.editor.configuration.menu.slots[2], original.menu.slots[0])
         XCTAssertTrue(model.moveSlot(from: 0, to: 1))
-        XCTAssertEqual(model.slotIDs, [ids[2], ids[1], ids[0]])
+        XCTAssertEqual(model.slotIDs, [ids[1], ids[2], ids[0]])
         model.undoSlotEdit()
         model.undoSlotEdit()
         XCTAssertEqual(model.slotIDs, ids)
         XCTAssertEqual(model.editor.configuration, original)
         model.redoSlotEdit()
-        XCTAssertEqual(model.slotIDs, [ids[1], ids[2], ids[0]])
+        XCTAssertEqual(model.slotIDs, [ids[2], ids[1], ids[0]])
     }
 
 

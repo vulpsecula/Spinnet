@@ -339,8 +339,11 @@ unavailable Presets. Commands are shown inside that entry rather than
 duplicated as top-level Library entries. A compatibility package can remain
 registered for persisted Actions while opting out of the Library. The
 settings window supports adding a Ready-to-Use Preset, a Configuration Sheet
-for Setup-Required Presets, explicit replacement, and insertion-based reordering
-of complete Slots, whether empty or occupied. Right-click Delete Slot and the
+for Setup-Required Presets, explicit replacement, and shortest-arc circular reordering
+of complete Slots, whether empty or occupied. Dragging displaces only the Slots
+along the chosen arc, retains the established direction for opposite targets,
+and uses a sector-boundary buffer to avoid jitter. The exact preview order is
+committed on drop and restored by Undo/Redo. Right-click Delete Slot and the
 dedicated drop-to-delete area both require confirmation and remove the entire
 Slot; there is no clear-content operation. A Menu retains at least one Slot.
 Slot identity follows reordering and undo within the editor session, so a pending

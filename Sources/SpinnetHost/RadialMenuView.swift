@@ -103,10 +103,64 @@ final class RadialMenuView: NSView {
     var onEditorEditRequested: ((Int) -> Void)?
     var onEditorSlotDeleteRequested: ((Int) -> Void)?
     var onPresetDrop: ((String, Int) -> Bool)?
-    var onSlotDrop: ((UUID, Int) -> Bool)?
+    var onSlotDrop: (([UUID], UUID) -> Bool)?
     private(set) var editorSlots: [EditorMenuSlot] = []
     private var dragOriginalSlots: [EditorMenuSlot]?
     private var draggedSlotID: UUID?
+    private var dragDirection: CircularSlotReorder.Direction?
+    private var previousDragAngle: CGFloat?
+    private var slotMotionOrigins: [UUID: CGFloat] = [:]
+    private var slotMotionStarted: TimeInterval = 0
+    private var slotMotionProgress: CGFloat = 0
+    private var slotMotionTimer: Timer?
+    private let slotMotionDuration: TimeInterval = 0.18
+
+    var slotDragPlaceholderIndex: Int? {
+        guard let draggedSlotID else { return nil }
+        return editorSlots.firstIndex { $0.id == draggedSlotID }
+    }
+
+    /// Fractional positions animate complete Slots along the ring, not their labels separately.
+    func displayedSlotPosition(at index: Int) -> CGFloat {
+        guard editorSlots.indices.contains(index),
+              let origin = slotMotionOrigins[editorSlots[index].id] else { return CGFloat(index) }
+        let eased = 1 - pow(1 - slotMotionProgress, 3)
+        return origin + (CGFloat(index) - origin) * eased
+    }
+
+    private func animateSlotDisplacement(from positions: [UUID: CGFloat]) {
+        stopSlotMotion()
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let count = CGFloat(editorSlots.count)
+        slotMotionOrigins = Dictionary(uniqueKeysWithValues: editorSlots.indices.map { index in
+            let id = editorSlots[index].id
+            var origin = positions[id] ?? CGFloat(index)
+            while origin - CGFloat(index) > count / 2 { origin -= count }
+            while origin - CGFloat(index) < -count / 2 { origin += count }
+            return (id, origin)
+        })
+        slotMotionStarted = ProcessInfo.processInfo.systemUptime
+        slotMotionProgress = 0
+        let timer = Timer(timeInterval: 1 / 60, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.slotMotionProgress = min(1, max(0,
+                (ProcessInfo.processInfo.systemUptime - self.slotMotionStarted) / self.slotMotionDuration))
+            if self.slotMotionProgress >= 1 { self.stopSlotMotion() }
+            self.invalidateSlotPaths()
+            self.layoutEditButtons()
+            self.needsDisplay = true
+        }
+        slotMotionTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+    }
+
+    private func stopSlotMotion() {
+        slotMotionTimer?.invalidate()
+        slotMotionTimer = nil
+        slotMotionOrigins.removeAll(keepingCapacity: true)
+        invalidateSlotPaths()
+    }
 
     func updateEditorSlots(_ slots: [EditorMenuSlot], appearance: MenuAppearanceConfiguration) {
         if let original = dragOriginalSlots {
@@ -125,14 +179,27 @@ final class RadialMenuView: NSView {
     func previewSlotMove(id: UUID, to target: Int) -> Bool {
         guard presentationMode == .editor, allowsEditing,
               editorSlots.indices.contains(target),
-              let source = editorSlots.firstIndex(where: { $0.id == id }) else { return false }
+              editorSlots.contains(where: { $0.id == id }) else { return false }
         if dragOriginalSlots == nil { dragOriginalSlots = editorSlots }
         draggedSlotID = id
-        guard source != target else { return true }
-        let slot = editorSlots.remove(at: source)
-        editorSlots.insert(slot, at: target)
+        guard let original = dragOriginalSlots,
+              let source = original.firstIndex(where: { $0.id == id }) else { return false }
+        let plan = CircularSlotReorder(count: original.count, source: source, target: target,
+                                       preferredDirection: dragDirection ?? .clockwise)
+        if source != target { dragDirection = plan.direction }
+        let reordered = plan.order.map { original[$0] }
+        guard editorSlots != reordered else {
+            layoutEditButtons()
+            needsDisplay = true
+            return true
+        }
+        let positions = Dictionary(uniqueKeysWithValues: editorSlots.indices.map {
+            (editorSlots[$0].id, displayedSlotPosition(at: $0))
+        })
+        editorSlots = reordered
         slots = editorSlots.map(\.presentation)
         selectedIndex = target
+        animateSlotDisplacement(from: positions)
         invalidateSlotPaths()
         rebuildEditButtons()
         needsDisplay = true
@@ -141,11 +208,14 @@ final class RadialMenuView: NSView {
 
     func cancelSlotMovePreview() {
         guard let original = dragOriginalSlots else { return }
+        stopSlotMotion()
         editorSlots = original
         slots = original.map(\.presentation)
         selectedIndex = original.firstIndex(where: { $0.id == draggedSlotID })
         dragOriginalSlots = nil
         draggedSlotID = nil
+        dragDirection = nil
+        previousDragAngle = nil
         invalidateSlotPaths()
         rebuildEditButtons()
         needsDisplay = true
@@ -417,7 +487,8 @@ final class RadialMenuView: NSView {
     /// Resolves the payload emitted by both native AppKit drags and SwiftUI's
     /// `onDrag`, which uses the standard text pasteboard type for NSString data.
     static func libraryPresetID(from pasteboard: NSPasteboard) -> String? {
-        pasteboard.string(forType: Self.libraryPresetPasteboardType)
+        guard pasteboard.data(forType: Self.slotPasteboardType) == nil else { return nil }
+        return pasteboard.string(forType: Self.libraryPresetPasteboardType)
             ?? pasteboard.string(forType: Self.textPasteboardType)
     }
 
@@ -606,8 +677,10 @@ final class RadialMenuView: NSView {
            let source = sender.draggingPasteboard.string(
             forType: Self.slotPasteboardType
         ).flatMap(UUID.init(uuidString:)) {
+            _ = previewSlotMove(id: source, to: index)
+            let finalIDs = editorSlots.map(\.id)
             cancelSlotMovePreview()
-            return onSlotDrop?(source, index) ?? false
+            return onSlotDrop?(finalIDs, source) ?? false
         }
         return false
     }
@@ -638,6 +711,8 @@ final class RadialMenuView: NSView {
         editorDragStarted = true
         dragOriginalSlots = editorSlots
         draggedSlotID = editorSlots[sourceIndex].id
+        let point = convert(event.locationInWindow, from: nil)
+        previousDragAngle = atan2(bounds.midY - point.y, point.x - bounds.midX)
         let pasteboardItem = NSPasteboardItem()
         pasteboardItem.setString(
             editorSlots[sourceIndex].id.uuidString,
@@ -655,14 +730,34 @@ final class RadialMenuView: NSView {
         }
         image.unlockFocus()
         draggingItem.setDraggingFrame(slotRect, contents: image)
+        layoutEditButtons()
+        needsDisplay = true
         beginDraggingSession(with: [draggingItem], event: event, source: self)
     }
 
     private func updateDropTarget(_ sender: NSDraggingInfo) -> Int? {
         let point = convert(sender.draggingLocation, from: nil)
+        let isSlotDrag = sender.draggingSource as? RadialMenuView === self
+            && sender.draggingPasteboard.data(forType: Self.slotPasteboardType) != nil
+        if isSlotDrag {
+            let angle = atan2(bounds.midY - point.y, point.x - bounds.midX)
+            if let previousDragAngle, dragDirection == nil {
+                let delta = atan2(sin(angle - previousDragAngle), cos(angle - previousDragAngle))
+                if abs(delta) > 0.02 { dragDirection = delta > 0 ? .clockwise : .counterclockwise }
+            }
+            previousDragAngle = angle
+        }
         guard let index = slotIndex(at: point) else {
             updateHover(at: nil)
             return nil
+        }
+        if isSlotDrag, let current = slotDragPlaceholderIndex, index != current {
+            let step = 2 * CGFloat.pi / CGFloat(slots.count)
+            let angle = CGFloat.pi / 2 - atan2(point.y - bounds.midY, point.x - bounds.midX)
+            let centerAngle = (CGFloat(current) + 0.5) * step
+            let distance = abs(atan2(sin(angle - centerAngle), cos(angle - centerAngle)))
+            // Require entering 12% of the next sector before moving the vacancy.
+            if distance < step * 0.62 { return current }
         }
         updateHover(at: point)
         return index
@@ -787,7 +882,7 @@ final class RadialMenuView: NSView {
     private func layoutEditButtons() {
         guard presentationMode == .editor, allowsEditing else { return }
         for (index, button) in editButtons {
-            button.isHidden = slots[index].item == nil
+            button.isHidden = slots[index].item == nil || slotDragPlaceholderIndex == index
             button.frame = editorEditButtonRect(at: index)
         }
     }
@@ -901,6 +996,17 @@ final class RadialMenuView: NSView {
     ) {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
         for index in slots.indices where slotDrawingBounds(at: index).intersects(dirtyRect) {
+            if slotDragPlaceholderIndex == index {
+                // This is an insertion gap, not an Empty Slot or a copy of the lifted Slot.
+                let path = slotPath(at: index, using: menuLayout, in: canvas)
+                editorAccentColor.withAlphaComponent(0.05).setFill()
+                path.fill()
+                editorAccentColor.withAlphaComponent(0.45).setStroke()
+                path.lineWidth = 1
+                path.setLineDash([3, 5], count: 2, phase: 0)
+                path.stroke()
+                continue
+            }
             drawSlot(at: index, using: menuLayout, in: canvas)
         }
 
@@ -968,18 +1074,19 @@ final class RadialMenuView: NSView {
         if let path = cachedSlotPaths[index] { return path }
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
         let step = 360 / CGFloat(menuLayout.itemCount)
+        let position = slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index)
         let path = NSBezierPath()
         path.appendArc(
             withCenter: center,
             radius: menuLayout.outerRadius,
-            startAngle: 90 - CGFloat(index + 1) * step + 2,
-            endAngle: 90 - CGFloat(index) * step - 2
+            startAngle: 90 - (position + 1) * step + 2,
+            endAngle: 90 - position * step - 2
         )
         path.appendArc(
             withCenter: center,
             radius: menuLayout.innerRadius,
-            startAngle: 90 - CGFloat(index) * step - 2,
-            endAngle: 90 - CGFloat(index + 1) * step + 2,
+            startAngle: 90 - position * step - 2,
+            endAngle: 90 - (position + 1) * step + 2,
             clockwise: true
         )
         path.close()
@@ -1057,7 +1164,10 @@ final class RadialMenuView: NSView {
         in canvas: NSRect
     ) -> MenuTitleDrawingMetrics {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        let point = menuLayout.itemCenter(index: index, center: center)
+        let position = slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index)
+        let angle = CGFloat.pi / 2 - (position + 0.5) * 2 * .pi / CGFloat(menuLayout.itemCount)
+        let point = CGPoint(x: center.x + cos(angle) * menuLayout.itemCenterRadius,
+                            y: center.y + sin(angle) * menuLayout.itemCenterRadius)
         let titleFontSize: CGFloat
         if menuLayout.itemCount >= 10 {
             titleFontSize = 10

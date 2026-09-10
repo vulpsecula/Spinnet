@@ -623,17 +623,23 @@ public final class HostConfigurationEditor {
         return item
     }
 
-    /// Reorders a complete Slot, including an empty Slot, by insertion.
+    /// Reorders complete Slots along the shorter circular arc.
     public func moveSlot(from sourceIndex: Int, to targetIndex: Int) throws {
         guard configuration.menu.slots.indices.contains(sourceIndex),
               configuration.menu.slots.indices.contains(targetIndex) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
         guard sourceIndex != targetIndex else { return }
-        var slots = configuration.menu.slots
-        let slot = slots.remove(at: sourceIndex)
-        slots.insert(slot, at: targetIndex)
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
+        let plan = CircularSlotReorder(count: configuration.menu.slots.count, source: sourceIndex, target: targetIndex)
+        try reorderSlots(order: plan.order)
+    }
+
+    public func reorderSlots(order: [Int]) throws {
+        let slots = configuration.menu.slots
+        guard order.count == slots.count, Set(order) == Set(slots.indices) else {
+            throw ConfigurationError.invalidMenu("Slot order must contain each existing Slot exactly once")
+        }
+        try replaceConfiguration(actions: configuration.actions, slots: order.map { slots[$0] })
     }
 
     private func action(with id: ActionID) -> ActionConfiguration? {
