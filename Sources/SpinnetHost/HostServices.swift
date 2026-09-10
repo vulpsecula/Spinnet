@@ -241,7 +241,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             }
         }
 
-        try authorize(command, package: package, input: action.input)
+        try authorize(action, package: package)
         guard command.isValidInput(action.input) else {
             throw HostCommandExecutionError.invalidInput(
                 "Input is invalid for \(command.rawValue)"
@@ -356,41 +356,23 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
         }
     }
 
-    private func authorize(
-        _ command: HostCommand,
-        package: PluginPackage?,
-        input: JSONValue
-    ) throws {
-        var requiredCapabilities: [PluginCapability] = []
-        if let capability = command.requiredCapability {
-            requiredCapabilities.append(capability)
-        }
-        if command == .copyText, input == .null {
-            requiredCapabilities.append(.readSelectedText)
-        }
-        var checkedCapabilities = Set<PluginCapability>()
-        for capability in requiredCapabilities where checkedCapabilities.insert(capability).inserted {
-            guard let package,
-                  package.manifest.capabilities.contains(capability),
-                  let grantStore else {
+    private func authorize(_ action: ActionConfiguration, package: PluginPackage?) throws {
+        let required = package?.manifest.requiredCapabilities(for: action.declaredCommand, input: action.input)
+            ?? action.hostCommand?.requiredCapability.map { [$0] } ?? []
+        for capability in required {
+            guard let package, package.manifest.declares(capability, for: action.commandID),
+                  let grantStore,
+                  grantStore.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+                                      capability: capability, scope: package.manifest.scope(for: capability)) == .granted else {
                 throw HostCommandExecutionError.capabilityDenied(capability)
             }
-            grantStore.register(
-                pluginID: package.manifest.id,
-                pluginVersion: package.manifest.version,
-                capabilities: package.manifest.capabilities
-            )
-            guard grantStore.decision(
-                for: package.manifest.id,
-                pluginVersion: package.manifest.version,
-                capability: capability
-            ) == .granted else {
-                throw HostCommandExecutionError.capabilityDenied(capability)
+            guard capability.isSupportedByHostServices else {
+                throw HostCommandExecutionError.unavailable("Required Host Service is not available in this version")
             }
         }
-
-        if let permission = command.requiredSystemPermission,
-           !systemPermissionCheck(permission) {
+        let permissions = package?.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
+            ?? action.hostCommand?.requiredSystemPermission.map { [$0] } ?? []
+        for permission in permissions where !systemPermissionCheck(permission) {
             throw HostCommandExecutionError.systemPermissionDenied(permission)
         }
     }

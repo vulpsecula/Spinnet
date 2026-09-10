@@ -5,6 +5,15 @@ import Foundation
 public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable {
     case readSelectedText = "read_selected_text"
     case writeClipboard = "write_clipboard"
+    case readCurrentClipboard = "read_current_clipboard"
+    case readClipboardHistory = "read_clipboard_history"
+    case monitorClipboard = "monitor_clipboard"
+    case contactHTTPS = "contact_https"
+    case controlExternalApp = "control_external_app"
+
+    public var isSupportedByHostServices: Bool {
+        self == .readSelectedText || self == .writeClipboard
+    }
 
     public var title: String {
         switch self {
@@ -12,6 +21,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
             return "Read Selected Text"
         case .writeClipboard:
             return "Write Clipboard"
+        case .readCurrentClipboard: return "Read Current Clipboard"
+        case .readClipboardHistory: return "Read Clipboard History"
+        case .monitorClipboard: return "Monitor Clipboard"
+        case .contactHTTPS: return "Contact HTTPS Hosts"
+        case .controlExternalApp: return "Control External Apps"
         }
     }
 
@@ -21,6 +35,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
             return "Lets the Plugin ask the Host for the current selected text."
         case .writeClipboard:
             return "Lets the Plugin ask the Host to replace the current clipboard text."
+        case .readCurrentClipboard: return "Read the declared data types from the current clipboard."
+        case .readClipboardHistory: return "Read declared data types, including retained entries collected before this grant."
+        case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
+        case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
+        case .controlExternalApp: return "Request only the named External Apps and operation families."
         }
     }
 }
@@ -50,17 +69,20 @@ public struct PluginCapabilityGrant: Codable, Equatable, Hashable {
     public let pluginVersion: String
     public let capability: PluginCapability
     public let decision: PluginCapabilityGrantDecision
+    public let scope: PluginCapabilityScope?
 
     public init(
         pluginID: PluginID,
         pluginVersion: String,
         capability: PluginCapability,
-        decision: PluginCapabilityGrantDecision
+        decision: PluginCapabilityGrantDecision,
+        scope: PluginCapabilityScope? = nil
     ) {
         self.pluginID = pluginID
         self.pluginVersion = pluginVersion
         self.capability = capability
         self.decision = decision
+        self.scope = scope
     }
 }
 
@@ -70,8 +92,24 @@ public struct PluginCapabilityGrant: Codable, Equatable, Hashable {
 public final class PluginCapabilityGrantStore {
     private let lock = NSLock()
     private var decisions: [PluginID: [String: [PluginCapability: PluginCapabilityGrantDecision]]] = [:]
+    private var scopes: [PluginID: [String: [PluginCapability: PluginCapabilityScope]]] = [:]
 
     private var revocationObservers: [UUID: (PluginID) -> Void] = [:]
+    private var changeObservers: [UUID: () -> Void] = [:]
+
+    public func observeChanges(_ observer: @escaping () -> Void) -> UUID {
+        lock.lock()
+        defer { lock.unlock() }
+        let token = UUID()
+        changeObservers[token] = observer
+        return token
+    }
+
+    public func removeChangeObserver(_ token: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        changeObservers.removeValue(forKey: token)
+    }
 
     /// Observers retire helpers synchronously and must not reenter this store.
     public func observeRevocation(_ observer: @escaping (PluginID) -> Void) -> UUID {
@@ -91,16 +129,19 @@ public final class PluginCapabilityGrantStore {
     public init(grants: [PluginCapabilityGrant] = []) {
         for grant in grants {
             decisions[grant.pluginID, default: [:]][grant.pluginVersion, default: [:]][grant.capability] = grant.decision
+            scopes[grant.pluginID, default: [:]][grant.pluginVersion, default: [:]][grant.capability] = grant.scope
         }
     }
 
     public func decision(
         for pluginID: PluginID,
         pluginVersion: String,
-        capability: PluginCapability
+        capability: PluginCapability,
+        scope: PluginCapabilityScope? = nil
     ) -> PluginCapabilityGrantDecision {
         lock.lock()
         defer { lock.unlock() }
+        guard scopes[pluginID]?[pluginVersion]?[capability] == scope else { return .notDetermined }
         return decisions[pluginID]?[pluginVersion]?[capability] ?? .notDetermined
     }
 
@@ -108,15 +149,20 @@ public final class PluginCapabilityGrantStore {
         _ decision: PluginCapabilityGrantDecision,
         for pluginID: PluginID,
         pluginVersion: String,
-        capability: PluginCapability
+        capability: PluginCapability,
+        scope: PluginCapabilityScope? = nil
     ) {
         lock.lock()
         let previous = decisions[pluginID]?[pluginVersion]?[capability]
+        let previousScope = scopes[pluginID]?[pluginVersion]?[capability]
         decisions[pluginID, default: [:]][pluginVersion, default: [:]][capability] = decision
-        if previous == .granted && decision != .granted {
+        scopes[pluginID, default: [:]][pluginVersion, default: [:]][capability] = scope
+        if previous == .granted && (decision != .granted || previousScope != scope) {
             for observer in revocationObservers.values { observer(pluginID) }
         }
+        let observers = Array(changeObservers.values)
         lock.unlock()
+        observers.forEach { $0() }
     }
 
     /// Registers every declared Capability without changing an existing user
@@ -178,7 +224,8 @@ public final class PluginCapabilityGrantStore {
                             pluginID: pluginID,
                             pluginVersion: pluginVersion,
                             capability: capability,
-                            decision: decision
+                            decision: decision,
+                            scope: scopes[pluginID]?[pluginVersion]?[capability]
                         )
                     }
                 }
@@ -329,11 +376,15 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         )
         let service = request.service
         let capability = service.requiredCapability
-        guard package.manifest.capabilities.contains(capability),
+        guard package.manifest.id == action.pluginID,
+              package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) }),
+              package.manifest.requiredCapabilities(for: action.declaredCommand, input: action.input).contains(capability),
+              package.manifest.declares(capability, for: action.commandID),
               grantStore.decision(
                   for: package.manifest.id,
                   pluginVersion: package.manifest.version,
-                  capability: capability
+                  capability: capability,
+                  scope: package.manifest.scope(for: capability)
               ) == .granted else {
             throw PluginHostServiceError.capabilityDenied(capability)
         }

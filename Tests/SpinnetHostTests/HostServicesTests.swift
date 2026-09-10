@@ -4,6 +4,213 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostServicesTests: XCTestCase {
+    func testExternalAppScopeNamesOperationsAndRechecksDependency() throws {
+        let command = CommandDeclaration(id: CommandID("capture"), title: "Capture", hostCommand: .presentFeedback)
+        let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [
+            .init(bundleID: "com.example.capture", operationFamilies: ["capture-region"])
+        ])
+        let manifest = try PluginManifest(id: PluginID("example.adapter"), name: "Adapter", version: "1",
+            capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: "1", capability: .controlExternalApp, scope: scope)
+        var installed = false
+        let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in installed })
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/adapter.spinnetplugin"), manifest: manifest))
+        let action = try ActionConfiguration(id: ActionID("capture"), pluginID: manifest.id, command: command, input: .string("capture"))
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.resourceMissing))
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(grantStore: grants))
+        guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Missing dependency must fail") }
+        installed = true
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.hostServiceUnavailable))
+        let disclosure = PluginPermissionDisclosure(manifest: manifest).details(for: .controls)
+        XCTAssertTrue(disclosure.contains("com.example.capture"))
+        XCTAssertTrue(disclosure.contains("capture-region"))
+    }
+
+    func testLiteralCopyDisclosesOnlyItsActualInputRequirements() throws {
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let manifest = try PluginManifest(id: PluginID("example.literal"), name: "Literal", version: "1",
+            capabilities: [.readSelectedText, .writeClipboard], commands: [command])
+        let disclosure = PluginPermissionDisclosure(manifest: manifest, commandIDs: [command.id], inputs: [command.id: .string("literal")])
+        XCTAssertEqual(disclosure.details(for: .reads), "None")
+        XCTAssertEqual(disclosure.details(for: .systemAccess), "None")
+        XCTAssertTrue(disclosure.details(for: .changes).contains("Copy"))
+    }
+
+    func testScopedClipboardGrantCannotAuthorizeAnExcludedCommand() throws {
+        let first = CommandDeclaration(id: CommandID("first"), title: "First", hostCommand: .copyText)
+        let second = CommandDeclaration(id: CommandID("second"), title: "Second", hostCommand: .copyText)
+        let scope = PluginCapabilityScope(capability: .writeClipboard, commandIDs: [first.id], dataTypes: ["text"])
+        let manifest = try PluginManifest(id: PluginID("example.exclusion"), name: "Exclusion", version: "1",
+            capabilities: [.writeClipboard], capabilityScopes: [scope], commands: [first, second])
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: "1", capability: .writeClipboard, scope: scope)
+        let registry = PluginRegistry(grantStore: grants)
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/exclusion.spinnetplugin"), manifest: manifest))
+        let action = try ActionConfiguration(id: ActionID("second"), pluginID: manifest.id, command: second, input: .string("secret"))
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants))
+        guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Excluded Command must be denied") }
+        XCTAssertTrue(adapter.copiedTexts.isEmpty)
+    }
+
+    func testConsentDisclosesBothScopedHistoryAndImplicitSelectedText() throws {
+        let command = CommandDeclaration(id: CommandID("read"), title: "Read Text", scriptPath: "read.js")
+        let scope = PluginCapabilityScope(capability: .readClipboardHistory, commandIDs: [command.id],
+                                         dataTypes: ["text"], includesExistingHostData: true)
+        let manifest = try PluginManifest(id: PluginID("example.mixed"), name: "Mixed", version: "1",
+            capabilities: [.readSelectedText, .readClipboardHistory], capabilityScopes: [scope], commands: [command])
+        let details = PluginPermissionDisclosure(manifest: manifest).details(for: .reads)
+        XCTAssertTrue(details.contains("Selected text"))
+        XCTAssertTrue(details.contains("Read Clipboard History"))
+        XCTAssertTrue(details.contains("retained before this grant"))
+        XCTAssertTrue(details.contains("Read Text"))
+    }
+
+    func testScopedHostAndAppExpansionRequiresFreshConsentAndUnsupportedServicesStayUnavailable() throws {
+        let command = CommandDeclaration(id: CommandID("translate"), title: "Translate", hostCommand: .presentFeedback)
+        let scope = PluginCapabilityScope(capability: .contactHTTPS, commandIDs: [command.id],
+                                          dataTypes: ["text"], httpsHosts: ["api.example.com"])
+        let expandedScope = PluginCapabilityScope(capability: .contactHTTPS, commandIDs: [command.id],
+                                                  dataTypes: ["text", "image"], httpsHosts: ["api.example.com", "images.example.com"])
+        let original = try PluginManifest(id: PluginID("example.scoped"), name: "Scoped", version: "1",
+            capabilities: [.contactHTTPS], capabilityScopes: [scope], commands: [command])
+        let expanded = try PluginManifest(id: original.id, name: original.name, version: original.version,
+            capabilities: [.contactHTTPS], capabilityScopes: [expandedScope], commands: [command])
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .contactHTTPS, scope: scope)
+        let persisted = try JSONEncoder().encode(grants.allGrants)
+        let restored = PluginCapabilityGrantStore(grants: try JSONDecoder().decode([PluginCapabilityGrant].self, from: persisted))
+        let registry = PluginRegistry(grantStore: restored)
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/scoped.spinnetplugin"), manifest: expanded))
+        let action = try ActionConfiguration(id: ActionID("translate"), pluginID: original.id, command: command, input: .string("text"))
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(grantStore: restored))
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.capabilityDenied))
+        guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Old scope must not authorize expansion") }
+        restored.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .contactHTTPS, scope: expandedScope)
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.hostServiceUnavailable))
+        let disclosure = PluginPermissionDisclosure(manifest: expanded).details(for: .contacts)
+        XCTAssertTrue(disclosure.contains("images.example.com"))
+        XCTAssertTrue(disclosure.contains("image"))
+        XCTAssertTrue(disclosure.contains("Translate"))
+    }
+
+    func testInstalledPluginDenialSurvivesRestartAndRepairPreservesMenuItem() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.spinnetplugin")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let manifest = try PluginManifest(id: PluginID("example.installed"), name: "Installed", version: "1",
+                                         capabilities: [.writeClipboard], commands: [command])
+        try JSONEncoder().encode(manifest).write(to: source.appendingPathComponent("manifest.json"))
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants)
+        var savedGrants = Data()
+        let installer = PluginInstallationStore(directory: directory.appendingPathComponent("installed"),
+                                                registry: registry, grants: grants,
+                                                persistGrants: { savedGrants = try JSONEncoder().encode(grants.allGrants) })
+        try installer.install(from: source)
+        let restoredGrants = PluginCapabilityGrantStore(grants: try JSONDecoder().decode([PluginCapabilityGrant].self, from: savedGrants))
+        let restoredRegistry = PluginRegistry(grantStore: restoredGrants)
+        try PluginInstallationStore(directory: directory.appendingPathComponent("installed"), registry: restoredRegistry,
+                                    grants: restoredGrants, persistGrants: {}).restore()
+        let action = try ActionConfiguration(id: ActionID("copy"), pluginID: manifest.id, command: command, input: .string("hello"))
+        let configuration = try HostConfiguration(actions: [action], menu: MenuConfiguration(items: [
+            MenuItemConfiguration(primaryActionID: action.id)
+        ]))
+        let editor = HostConfigurationEditor(registry: restoredRegistry, configuration: configuration)
+        let suite = "Spinnet.permissions.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = SettingsWindowModel(editor: editor, metadata: .current, capabilityGrantStore: restoredGrants,
+                                        defaults: defaults, accessibilityPermissionCheck: { true })
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: restoredGrants))
+        for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied] {
+            model.setCapabilityDecision(decision, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
+            XCTAssertEqual(model.menuSlots.first?.item?.primaryAction.availability.isAvailable, decision == .granted)
+            XCTAssertEqual(editor.configuration, configuration)
+            if decision == .granted {
+                guard case .succeeded = runner.invoke(action, using: restoredRegistry).terminal else { return XCTFail("Repair must execute") }
+            } else {
+                guard case .failed = runner.invoke(action, using: restoredRegistry).terminal else { return XCTFail("Denial must persist") }
+            }
+        }
+        XCTAssertEqual(adapter.copiedTexts, ["hello"])
+        XCTAssertNotEqual(restoredRegistry.package(for: manifest.id)?.rootURL, source)
+    }
+
+    func testRuntimeRechecksSystemPermissionAfterMenuWasAvailable() throws {
+        var trusted = true
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in trusted })
+        let command = CommandDeclaration(id: CommandID("paste"), title: "Paste", hostCommand: .pasteText)
+        let manifest = try PluginManifest(id: PluginID("example.system"), name: "System", version: "1", commands: [command])
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/system.spinnetplugin"), manifest: manifest))
+        let action = try ActionConfiguration(id: ActionID("paste"), pluginID: manifest.id, command: command, input: .null)
+        XCTAssertTrue(registry.availability(for: action).isAvailable)
+        trusted = false
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants,
+                                                                         systemPermissionCheck: { _ in trusted }))
+        guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("System revocation must be live") }
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.systemPermissionDenied))
+        XCTAssertEqual(adapter.pasteCount, 0)
+    }
+
+    func testExpandedUpdateCannotReuseEvenSameVersionGrant() throws {
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let original = try PluginManifest(id: PluginID("example.update"), name: "Update", version: "1",
+                                         capabilities: [.writeClipboard], commands: [command])
+        let root = URL(fileURLWithPath: "/tmp/update.spinnetplugin")
+        try registry.register(PluginPackage(rootURL: root, manifest: original))
+        grants.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .writeClipboard)
+        let action = try ActionConfiguration(id: ActionID("copy"), pluginID: original.id, command: command, input: .string("hello"))
+        XCTAssertTrue(registry.availability(for: action).isAvailable)
+        let expanded = try PluginManifest(id: original.id, name: "Update", version: "1",
+                                         capabilities: [.writeClipboard, .readSelectedText], commands: [command])
+        try registry.replace(PluginPackage(rootURL: root, manifest: expanded))
+        XCTAssertFalse(registry.availability(for: action).isAvailable)
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants))
+        guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Update needs consent") }
+        XCTAssertTrue(adapter.copiedTexts.isEmpty)
+        grants.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .writeClipboard)
+        XCTAssertFalse(registry.availability(for: action).isAvailable, "All expanded requests need a decision before activation")
+        grants.setDecision(.denied, for: original.id, pluginVersion: "1", capability: .readSelectedText)
+        XCTAssertTrue(registry.availability(for: action).isAvailable)
+    }
+
+    func testPermissionRepairAndRevocationUpdateVisibleAvailabilityAndBoundHostAction() throws {
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in true })
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let manifest = try PluginManifest(id: PluginID("example.permissions"), name: "Permissions",
+                                          version: "1", capabilities: [.writeClipboard], commands: [command])
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/permissions.spinnetplugin"), manifest: manifest))
+        let action = try ActionConfiguration(id: ActionID("copy"), pluginID: manifest.id,
+                                             command: command, input: .string("hello"))
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(
+            adapter: adapter, grantStore: grants, systemPermissionCheck: { _ in true }))
+        for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied, .granted] {
+            grants.setDecision(decision, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
+            XCTAssertEqual(registry.availability(for: action).isAvailable, decision == .granted)
+            let outcome = runner.invoke(action, using: registry)
+            if decision == .granted {
+                guard case .succeeded = outcome.terminal else { return XCTFail("Grant Access must repair execution") }
+            } else {
+                XCTAssertEqual(registry.availability(for: action).reason?.description, "Grant Access in Plugin Settings")
+                guard case .failed = outcome.terminal else { return XCTFail("Denied access must not execute") }
+            }
+            XCTAssertNotNil(registry.package(for: manifest.id))
+        }
+        XCTAssertEqual(adapter.copiedTexts, ["hello", "hello"])
+    }
+
     func testHostExecutorRoutesTheCommonFixtureCommandsThroughAdapters() throws {
         let commands = HostCommand.allCases.map { hostCommand in
             CommandDeclaration(

@@ -224,6 +224,10 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var refreshToken = 0
     @Published private(set) var menuSlots: [MenuSlotPresentation]
     @Published private(set) var capabilityGrants: [PluginCapabilityGrant]
+    @Published var pluginSettingsManifest: PluginManifest?
+    @Published var installationConsentPresented = false
+    var installPlugin: ((URL) throws -> PluginManifest)?
+    private var grantObserver: UUID?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
     @Published private(set) var canUndoAppearance = false
@@ -384,6 +388,54 @@ final class SettingsWindowModel: ObservableObject {
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         menuSlots = makeMenuSlots()
         refreshCapabilityGrants()
+        grantObserver = capabilityGrantStore.observeChanges { [weak self] in
+            let refresh = { [weak self] in
+                self?.refreshCapabilityGrants()
+                self?.refreshMenuSlots()
+            }
+            if Thread.isMainThread { refresh() } else { DispatchQueue.main.async(execute: refresh) }
+        }
+    }
+
+    deinit {
+        if let grantObserver { capabilityGrantStore.removeChangeObserver(grantObserver) }
+    }
+
+    func choosePluginPackage() {
+        let panel = NSOpenPanel()
+        panel.title = "Install or Update Plugin"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.treatsFilePackagesAsDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            guard let installPlugin else { return }
+            let manifest = try installPlugin(url)
+            refreshCapabilityGrants()
+            refreshMenuSlots()
+            refreshToken += 1
+            installationConsentPresented = true
+            pluginSettingsManifest = manifest
+        } catch {
+            placementMessage = "Installation failed: \(error.localizedDescription)"
+        }
+    }
+
+    func showPluginSettings(_ pluginID: PluginID) {
+        installationConsentPresented = false
+        refreshCapabilityGrants()
+        pluginSettingsManifest = editor.pluginManifests.first { $0.id == pluginID }
+    }
+
+    func finishPluginConsent(grant: Bool) {
+        guard let manifest = pluginSettingsManifest else { return }
+        for capability in manifest.capabilities {
+            setCapabilityDecision(grant ? .granted : .denied, for: manifest.id,
+                                  pluginVersion: manifest.version, capability: capability)
+        }
+        pluginSettingsManifest = nil
+        installationConsentPresented = false
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {
@@ -551,15 +603,16 @@ final class SettingsWindowModel: ObservableObject {
 
     func refreshSystemPermissionStatus() {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
+        refreshMenuSlots()
     }
 
     func refreshCapabilityGrants() {
         capabilityGrants = editor.pluginManifests.flatMap { manifest in
-            capabilityGrantStore.grants(
-                for: manifest.id,
-                pluginVersion: manifest.version,
-                capabilities: manifest.capabilities
-            )
+            manifest.capabilities.map { capability in
+                PluginCapabilityGrant(pluginID: manifest.id, pluginVersion: manifest.version, capability: capability,
+                    decision: capabilityGrantStore.decision(for: manifest.id, pluginVersion: manifest.version,
+                        capability: capability, scope: manifest.scope(for: capability)), scope: manifest.scope(for: capability))
+            }
         }
     }
 
@@ -573,9 +626,11 @@ final class SettingsWindowModel: ObservableObject {
             decision,
             for: pluginID,
             pluginVersion: pluginVersion,
-            capability: capability
+            capability: capability,
+            scope: editor.pluginManifests.first { $0.id == pluginID && $0.version == pluginVersion }?.scope(for: capability)
         )
         refreshCapabilityGrants()
+        refreshMenuSlots()
         onCapabilityGrantChanged?(capabilityGrantStore.allGrants)
     }
 
@@ -1013,6 +1068,14 @@ struct SettingsRootView: View {
             model.refreshMenuSlots()
         }
         .onChange(of: model.page) { focusedPage = $0 }
+        .sheet(isPresented: Binding(
+            get: { model.pluginSettingsManifest != nil },
+            set: { if !$0 { model.pluginSettingsManifest = nil } }
+        )) {
+            if let manifest = model.pluginSettingsManifest {
+                PluginConsentSheet(model: model, manifest: manifest)
+            }
+        }
         .alert(model.deletionTitle, isPresented: Binding(
             get: { model.slotPendingDeletion != nil },
             set: { if !$0 { model.cancelSlotDeletion() } }
@@ -1305,7 +1368,9 @@ struct SettingsRootView: View {
                     selectedMenuIndex: $model.selectedMenuIndex,
                     placementMessage: model.placementMessage,
                     librarySectionsForQuery: model.librarySections,
-                    onPresetPlacement: model.placePreset
+                    onPresetPlacement: model.placePreset,
+                    onInstallPlugin: model.choosePluginPackage,
+                    onPluginSettings: model.showPluginSettings
                 )
                 .id(model.refreshToken)
                 .onAppear { model.refreshSystemPermissionStatus() }
@@ -1352,6 +1417,7 @@ struct SettingsRootView: View {
                     editor: model.editor,
                     slotIndex: index,
                     presetPluginID: model.pendingPresetSetup.map { PluginID($0.pluginID) },
+                    permissionModel: model,
                     onSaved: { configuration in
                         if let setup = model.pendingPresetSetup {
                             model.savePresetSetup(configuration, for: setup)
@@ -1465,6 +1531,7 @@ private struct SlotConfigurationSheet: View {
     let slotIndex: Int
     let presetPluginID: PluginID?
     let onSaved: (HostConfiguration) -> Void
+    private let permissionModel: SettingsWindowModel?
     private let pluginManifest: PluginManifest?
     private let pluginID: PluginID?
 
@@ -1481,12 +1548,14 @@ private struct SlotConfigurationSheet: View {
         editor: HostConfigurationEditor,
         slotIndex: Int,
         presetPluginID: PluginID? = nil,
+        permissionModel: SettingsWindowModel? = nil,
         onSaved: @escaping (HostConfiguration) -> Void
     ) {
         self.editor = editor
         self.slotIndex = slotIndex
         self.presetPluginID = presetPluginID
         self.onSaved = onSaved
+        self.permissionModel = permissionModel
         let initialState = Self.initialState(
             in: editor,
             slotIndex: slotIndex,
@@ -1520,6 +1589,13 @@ private struct SlotConfigurationSheet: View {
                         actionSelection(for: pluginManifest)
                         Divider()
                         actionParameters()
+                        if let permissionModel {
+                            MenuItemAccessSummary(model: permissionModel, manifest: pluginManifest,
+                                                  commandIDs: Set(selectedCommands.map(\.id)),
+                                                  inputs: Dictionary(uniqueKeysWithValues: selectedCommands.map {
+                                                      ($0.id, inputValue(for: $0.id))
+                                                  }))
+                        }
                     } else {
                         Label(
                             "The Plugin for this Slot is unavailable, so its Actions cannot be changed.",
@@ -2162,7 +2238,7 @@ private struct PermissionGuideBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Spinnet Permissions", systemImage: "hand.raised")
                 .font(.headline)
-            Text("Enable Accessibility for mouse triggers, keyboard shortcuts, Paste, and Cut, or continue and grant it later in Privacy & Permissions.")
+            Text("Accessibility is recommended for mouse triggers, selected text, Paste, and Cut. You can skip and use permission-free Commands. Input Monitoring is not requested. Screen Recording and app-specific Automation are deferred until an explicit feature action.")
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
@@ -2618,6 +2694,7 @@ private struct PrivacySettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
                 VStack(spacing: 0) {
+                    Text("System Permissions").font(.headline).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 16)
                     ForEach(PluginSystemPermission.allCases, id: \.self) { permission in
                         privacyRow(
                             icon: systemPermissionIconName(permission),
@@ -2634,6 +2711,8 @@ private struct PrivacySettingsView: View {
                         }
                     }
                     Divider().padding(.leading, 52)
+                    Text("Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action.")
+                        .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                     VStack(alignment: .leading, spacing: 12) {
                         privacyRow(
                             icon: "lock.shield",
@@ -2701,68 +2780,12 @@ private struct PrivacySettingsView: View {
                     .foregroundStyle(.secondary)
 
                 ForEach(pluginManifests.filter { !$0.capabilities.isEmpty }, id: \.id) { manifest in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(manifest.name)
-                            .font(.subheadline.weight(.semibold))
-                        ForEach(manifest.capabilities, id: \.self) { capability in
-                            capabilityControl(for: manifest, capability: capability)
-                        }
-                    }
-                    .padding(14)
-                    .background {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                            }
-                    }
+                    PluginAccessView(manifest: manifest, grants: capabilityGrants,
+                                     setDecision: setCapabilityDecision)
                 }
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Plugin Capability Grants")
-        }
-    }
-
-    private func capabilityControl(
-        for manifest: PluginManifest,
-        capability: PluginCapability
-    ) -> some View {
-        let decision = capabilityGrants.first {
-            $0.pluginID == manifest.id
-                && $0.pluginVersion == manifest.version
-                && $0.capability == capability
-        }?.decision ?? .notDetermined
-        return HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(capability.title)
-                    .font(.subheadline)
-                Text(capability.explanation)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Picker(
-                "\(capability.title) access",
-                selection: Binding(
-                    get: { decision },
-                    set: {
-                        setCapabilityDecision($0, manifest.id, manifest.version, capability)
-                    }
-                )
-            ) {
-                ForEach(PluginCapabilityGrantDecision.allCases, id: \.self) { option in
-                    Text(option.title).tag(option)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(width: 180, alignment: .leading)
-            .fixedSize(horizontal: true, vertical: false)
-            .layoutPriority(1)
-            .accessibilityLabel("\(manifest.name) \(capability.title)")
-            .accessibilityValue(decision.title)
         }
     }
 

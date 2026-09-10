@@ -25,6 +25,10 @@ final class SettingsWindowController: NSWindowController {
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
+    var installPlugin: ((URL) throws -> PluginManifest)? {
+        get { model.installPlugin }
+        set { model.installPlugin = newValue }
+    }
 
     var currentPage: SettingsPage {
         model.page

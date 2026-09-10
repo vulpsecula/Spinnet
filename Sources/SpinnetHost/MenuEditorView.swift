@@ -7,6 +7,8 @@ struct MenuEditorView: View {
     let placementMessage: String?
     let librarySectionsForQuery: (String) -> [MenuItemPresetSection]
     let onPresetPlacement: (String, Int) -> Bool
+    var onInstallPlugin: () -> Void = {}
+    var onPluginSettings: (PluginID) -> Void = { _ in }
 
     @State private var searchText = ""
 
@@ -41,6 +43,7 @@ struct MenuEditorView: View {
                 TextField("Search Presets and Commands", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Search Library")
+                Button("Install or Update Plugin…", action: onInstallPlugin)
 
                 if librarySections.allSatisfy({ $0.presets.isEmpty }) {
                     VStack(spacing: 8) {
@@ -151,6 +154,13 @@ struct MenuEditorView: View {
             }
 
             Spacer()
+
+            Button { onPluginSettings(preset.pluginID) } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .buttonStyle(.borderless)
+            .help("Plugin Settings — Grant Access")
+            .accessibilityLabel("Plugin Settings: \(preset.name)")
 
             if !selectedSlotIsOccupied {
                 Button {

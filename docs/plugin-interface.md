@@ -53,12 +53,29 @@ no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
 
 `capabilities` is optional and declares which protected Host Services the
-Plugin may request. The supported declarations are `read_selected_text` and
+Plugin may request. Executable Host Services currently support `read_selected_text` and
 `write_clipboard`. A declaration is not a grant: the Host stores an explicit
 per-Plugin-version, per-Capability decision (`not_determined`, `denied`, or
 `granted`) and treats every decision other than `granted` as denied. A new
 manifest version starts with `not_determined` decisions, so expanding a
 Plugin's declared Capability scope requires fresh consent.
+
+The optional `capability_scopes` array adds concrete disclosure. Each entry has
+`capability`, `command_ids`, `data_types`, `includes_existing_host_data`,
+`https_hosts`, and `external_apps` (use empty arrays for unused fields).
+Each External App entry contains `bundle_id` and `operation_families`.
+Command IDs must belong to the manifest; HTTPS hosts are exact hostnames without
+schemes, paths, ports, credentials, or wildcards. A scope is persisted with its
+grant: any change requires a new decision, even if the version string is reused.
+
+Declarations for `read_current_clipboard`, `read_clipboard_history`,
+`monitor_clipboard`, `contact_https`, and `control_external_app` require scopes.
+They can be installed and inspected, but their Host Services are not implemented
+yet: affected Commands remain unavailable even after consent. History declarations
+must name data types and disclose access to existing retained Host data.
+Contact and External App declarations must name hosts and app operation families,
+respectively. None of these declarations enables background collection, network
+access, Automation, or general app control by itself.
 
 Every Plugin appears once in the Library through its single `preset` declaration.
 The Host assigns the trusted Built-in or Plugin Library group when it registers
@@ -370,7 +387,15 @@ their Configuration Sheet offers a native Choose Again picker.
 
 Capability-checked Host Services are available through the public helper
 protocol described above. The Host's Privacy & Permissions page presents and
-persists the current per-Plugin-version decisions; a later settings ticket can add
-installation-time consent and update-scope disclosure. The Host owns helper
+persists the same decisions used by Plugin Settings and installation consent.
+Install or Update Plugin in the Library copies the package into Host-owned
+application support storage. Consent groups Reads, Monitors, Contacts, Controls,
+Changes, and System Access and names the affected Commands. Updates reset grants
+before publishing the replacement; every new request needs an explicit grant or
+denial before that revision can activate. Denial preserves installed Plugins and
+Menu Items while disabling affected Commands with a Grant Access repair route.
+Menu Item access disclosure is limited to its selected Commands and inputs.
+Revocation immediately retires a running helper and refreshes availability.
+The Host owns helper
 reuse/retirement and user-visible progress/cancellation. The helper exchange does
 not grant a Plugin direct access to protected operating-system facilities.

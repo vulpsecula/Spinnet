@@ -5,7 +5,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     #if DEBUG
     private var lifecycleTestWindow: LifecycleTestWindow?
     #endif
-    private let registry = PluginRegistry()
+    private lazy var registry = PluginRegistry(
+        grantStore: capabilityGrants,
+        systemPermissionCheck: { [pluginHostServiceProvider] in pluginHostServiceProvider.isGranted($0) },
+        externalAppExists: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }
+    )
+    private lazy var pluginInstallation = PluginInstallationStore(
+        directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
+        registry: registry, grants: capabilityGrants,
+        persistGrants: { [unowned self] in try self.saveCapabilityGrants() }
+    )
     private var actionRunner: HostActionRunner!
     private var pluginRuntime: PluginRuntimeSupervisor?
     private var menu: MenuPresentationController!
@@ -46,6 +55,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             ))
             let manifest = fixturePackage.manifest
             try loadCapabilityGrants()
+            try pluginInstallation.restore()
             for registeredManifest in registry.manifests() {
                 capabilityGrants.register(
                     pluginID: registeredManifest.id,
@@ -121,9 +131,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
             }
+            settings.installPlugin = { [unowned self] url in
+                let manifest = try self.pluginInstallation.install(from: url)
+                if let configuration = self.currentConfiguration {
+                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                }
+                return manifest
+            }
             settings.onCapabilityGrantChanged = { [weak self] _ in
                 do {
                     try self?.saveCapabilityGrants()
+                    if let self, let configuration = self.currentConfiguration {
+                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    }
                 } catch {
                     self?.showConfigurationError(error)
                 }
@@ -142,6 +162,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             installStatusItem()
             try installTriggers()
+            if settings.permissionGuidePresented { settings.present() }
             #if DEBUG
             if CommandLine.arguments.contains("--lifecycle-check") {
                 lifecycleTestWindow = try LifecycleTestWindow(registry: registry) { [weak self] action in
@@ -163,6 +184,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         triggers?.retryMouseInterceptionIfAuthorized()
         settings?.refreshSystemPermissionStatus()
+        if let configuration = currentConfiguration { menu?.reload(items: makeMenuSlots(from: configuration)) }
     }
 
     private func loadConfiguration(for manifest: PluginManifest) throws -> HostConfiguration {
@@ -540,7 +562,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     grant.decision,
                     for: grant.pluginID,
                     pluginVersion: grant.pluginVersion,
-                    capability: grant.capability
+                    capability: grant.capability,
+                    scope: grant.scope
                 )
             }
         } catch {

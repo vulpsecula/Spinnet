@@ -1541,7 +1541,7 @@ final class PluginRuntimeTests: XCTestCase {
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id == CommandID("fixture.transform_text") })
         let action = try ActionConfiguration(id: ActionID("revocation"), pluginID: package.manifest.id,
             command: command, input: .null)
-        for capability in PluginCapability.allCases {
+        for capability in package.manifest.capabilities {
             let registry = PluginRegistry()
             try registry.register(package)
             let grants = PluginCapabilityGrantStore()

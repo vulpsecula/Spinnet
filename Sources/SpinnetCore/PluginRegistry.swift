@@ -6,6 +6,9 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     case commandMissing = "command_missing"
     case commandChanged = "command_changed"
     case resourceMissing = "resource_missing"
+    case capabilityDenied = "capability_denied"
+    case systemPermissionDenied = "system_permission_denied"
+    case hostServiceUnavailable = "host_service_unavailable"
 
     public var description: String {
         switch self {
@@ -14,6 +17,9 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .commandMissing: return "Command is no longer registered"
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
+        case .capabilityDenied: return "Grant Access in Plugin Settings"
+        case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
+        case .hostServiceUnavailable: return "Required Host Service is not available in this version"
         }
     }
 }
@@ -208,7 +214,19 @@ public final class PluginRegistry {
         for observer in invalidationObservers.values { observer(pluginID) }
     }
 
-    public init() {}
+    private let grantStore: PluginCapabilityGrantStore?
+    private let systemPermissionCheck: (PluginSystemPermission) -> Bool
+    private let externalAppExists: (String) -> Bool
+
+    public init(
+        grantStore: PluginCapabilityGrantStore? = nil,
+        systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { _ in true },
+        externalAppExists: @escaping (String) -> Bool = { _ in false }
+    ) {
+        self.grantStore = grantStore
+        self.systemPermissionCheck = systemPermissionCheck
+        self.externalAppExists = externalAppExists
+    }
 
     @discardableResult
     public func register(packageAt rootURL: URL) throws -> PluginManifest {
@@ -234,6 +252,13 @@ public final class PluginRegistry {
 
     public func replace(_ package: PluginPackage) throws {
         try package.manifest.validate()
+
+        // Every replacement asks again, including repackaged same-version
+        // updates. A grant for an older scope can never activate new code.
+        for capability in package.manifest.capabilities {
+            grantStore?.setDecision(.notDetermined, for: package.manifest.id,
+                                    pluginVersion: package.manifest.version, capability: capability)
+        }
 
         lock.lock()
         defer { lock.unlock() }
@@ -330,6 +355,32 @@ public final class PluginRegistry {
     }
 
     public func availability(for action: ActionConfiguration) -> ActionAvailability {
+        let identity = identityAvailability(for: action)
+        guard identity.isAvailable, let grantStore, let package = package(for: action.pluginID) else { return identity }
+        // Resolve every new scope before activating this revision. Explicit
+        // denial completes review while keeping only affected Commands off.
+        if package.manifest.capabilities.contains(where: {
+            grantStore.decision(for: action.pluginID, pluginVersion: package.manifest.version,
+                capability: $0, scope: package.manifest.scope(for: $0)) == .notDetermined
+        }) { return .unavailable(.capabilityDenied) }
+        let capabilities = package.manifest.requiredCapabilities(for: action.declaredCommand, input: action.input)
+        if capabilities.contains(where: {
+            !package.manifest.declares($0, for: action.commandID) || grantStore.decision(
+                for: action.pluginID, pluginVersion: package.manifest.version, capability: $0, scope: package.manifest.scope(for: $0)
+            ) != .granted
+        }) { return .unavailable(.capabilityDenied) }
+        let targets = package.manifest.capabilityScopes.filter { $0.commandIDs.contains(action.commandID) }
+            .flatMap(\.externalApps)
+        if targets.contains(where: { !externalAppExists($0.bundleID) }) { return .unavailable(.resourceMissing) }
+        if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }
+        let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
+        if permissions.contains(where: { !systemPermissionCheck($0) }) {
+            return .unavailable(.systemPermissionDenied)
+        }
+        return .available
+    }
+
+    private func identityAvailability(for action: ActionConfiguration) -> ActionAvailability {
         lock.lock()
         defer { lock.unlock() }
 

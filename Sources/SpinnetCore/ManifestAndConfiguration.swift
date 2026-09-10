@@ -426,6 +426,7 @@ public struct PluginManifest: Codable, Equatable {
     public let name: String
     public let version: String
     public let capabilities: [PluginCapability]
+    public let capabilityScopes: [PluginCapabilityScope]
     public let commands: [CommandDeclaration]
     public let preset: MenuItemPresetDeclaration
 
@@ -435,6 +436,7 @@ public struct PluginManifest: Codable, Equatable {
         name: String,
         version: String,
         capabilities: [PluginCapability] = [],
+        capabilityScopes: [PluginCapabilityScope] = [],
         commands: [CommandDeclaration],
         preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration()
     ) throws {
@@ -443,6 +445,7 @@ public struct PluginManifest: Codable, Equatable {
         self.name = name
         self.version = version
         self.capabilities = capabilities
+        self.capabilityScopes = capabilityScopes
         self.commands = commands
         self.preset = preset
         try validate()
@@ -454,6 +457,7 @@ public struct PluginManifest: Codable, Equatable {
         case name
         case version
         case capabilities
+        case capabilityScopes = "capability_scopes"
         case commands
         case preset
     }
@@ -468,6 +472,7 @@ public struct PluginManifest: Codable, Equatable {
             [PluginCapability].self,
             forKey: .capabilities
         ) ?? []
+        self.capabilityScopes = try container.decodeIfPresent([PluginCapabilityScope].self, forKey: .capabilityScopes) ?? []
         self.commands = try container.decode([CommandDeclaration].self, forKey: .commands)
         self.preset = try container.decodeIfPresent(
             MenuItemPresetDeclaration.self,
@@ -490,6 +495,38 @@ public struct PluginManifest: Codable, Equatable {
         }
         guard !commands.isEmpty else {
             throw ConfigurationError.invalidManifest("Plugin declares no Commands")
+        }
+        guard Set(capabilityScopes.map(\.capability)).count == capabilityScopes.count else {
+            throw ConfigurationError.invalidManifest("Duplicate Capability scope")
+        }
+        for scope in capabilityScopes {
+            guard capabilities.contains(scope.capability), !scope.commandIDs.isEmpty,
+                  Set(scope.commandIDs).count == scope.commandIDs.count,
+                  scope.commandIDs.allSatisfy({ id in commands.contains { $0.id == id } }),
+                  scope.httpsHosts.allSatisfy({ host in
+                      guard let url = URL(string: "https://" + host) else { return false }
+                      return !host.contains("*") && url.host == host && url.path.isEmpty && url.port == nil
+                          && url.user == nil && url.query == nil && url.fragment == nil
+                  }),
+                  scope.externalApps.allSatisfy({ !$0.bundleID.isEmpty && !$0.operationFamilies.isEmpty }) else {
+                throw ConfigurationError.invalidManifest("Invalid Capability scope")
+            }
+            if (scope.capability == .contactHTTPS && scope.httpsHosts.isEmpty)
+                || (scope.capability == .controlExternalApp && scope.externalApps.isEmpty)
+                || ([PluginCapability.readCurrentClipboard, .readClipboardHistory, .monitorClipboard].contains(scope.capability) && scope.dataTypes.isEmpty)
+                || (scope.capability == .readClipboardHistory && !scope.includesExistingHostData) {
+                throw ConfigurationError.invalidManifest("Capability scope must name all affected data and targets")
+            }
+            if scope.capability.isSupportedByHostServices &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 scope.dataTypes.contains(where: { $0 != "text" })) {
+                throw ConfigurationError.invalidManifest("This Capability only supports current text data")
+            }
+        }
+        for capability in capabilities where !capability.isSupportedByHostServices {
+            guard scope(for: capability) != nil else {
+                throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
+            }
         }
 
         var commandIDs = Set<CommandID>()
