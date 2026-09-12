@@ -415,8 +415,11 @@ final class SettingsWindowModel: ObservableObject {
             refreshCapabilityGrants()
             refreshMenuSlots()
             refreshToken += 1
-            installationConsentPresented = true
-            pluginSettingsManifest = manifest
+            installationConsentPresented = !pendingCapabilityRequests(for: manifest).isEmpty
+            pluginSettingsManifest = installationConsentPresented ? manifest : nil
+            if !installationConsentPresented {
+                placementMessage = "\(manifest.name) installed. Existing access decisions retained."
+            }
         } catch {
             placementMessage = "Installation failed: \(error.localizedDescription)"
         }
@@ -430,12 +433,19 @@ final class SettingsWindowModel: ObservableObject {
 
     func finishPluginConsent(grant: Bool) {
         guard let manifest = pluginSettingsManifest else { return }
-        for capability in manifest.capabilities {
+        for capability in pendingCapabilityRequests(for: manifest) {
             setCapabilityDecision(grant ? .granted : .denied, for: manifest.id,
                                   pluginVersion: manifest.version, capability: capability)
         }
         pluginSettingsManifest = nil
         installationConsentPresented = false
+    }
+
+    func pendingCapabilityRequests(for manifest: PluginManifest) -> [PluginCapability] {
+        manifest.capabilities.filter {
+            capabilityGrantStore.decision(for: manifest.id, pluginVersion: manifest.version,
+                capability: $0, scope: manifest.scope(for: $0)) == .notDetermined
+        }
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {

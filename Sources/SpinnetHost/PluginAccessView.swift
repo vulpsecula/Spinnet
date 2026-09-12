@@ -50,23 +50,29 @@ struct PluginAccessView: View {
 struct PluginConsentSheet: View {
     @ObservedObject var model: SettingsWindowModel
     let manifest: PluginManifest
+    var reviewInstallation: Bool? = nil
+    var onDone: (() -> Void)? = nil
+
+    private var isInstallation: Bool { reviewInstallation ?? model.installationConsentPresented }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(model.installationConsentPresented ? "Plugin Installed — Review Access" : "Plugin Settings")
+            Text(isInstallation ? "Plugin Installed — Review Access" : "Plugin Settings")
                 .font(.title2.weight(.semibold))
             ScrollView {
                 PluginAccessView(manifest: manifest, grants: model.capabilityGrants,
                                  setDecision: model.setCapabilityDecision)
             }
             HStack {
-                if model.installationConsentPresented {
-                    Button("Deny Access") { model.finishPluginConsent(grant: false) }
+                if isInstallation {
+                    Button("Deny New Requests") { model.finishPluginConsent(grant: false) }
                     Spacer()
-                    Button("Grant Declared Access") { model.finishPluginConsent(grant: true) }
+                    Button("Grant New Requests") { model.finishPluginConsent(grant: true) }
                 } else {
                     Spacer()
-                    Button("Done") { model.pluginSettingsManifest = nil }
+                    Button("Done") {
+                        if let onDone { onDone() } else { model.pluginSettingsManifest = nil }
+                    }
                         .keyboardShortcut(.defaultAction)
                 }
             }
@@ -81,11 +87,42 @@ struct MenuItemAccessSummary: View {
     let manifest: PluginManifest
     let commandIDs: Set<CommandID>
     let inputs: [CommandID: JSONValue]
+    @State private var showingPluginSettings = false
+
+    private var capabilities: [PluginCapability] {
+        manifest.capabilities.filter { capability in
+            manifest.commands.contains { command in
+                commandIDs.contains(command.id)
+                    && manifest.requiredCapabilities(for: command, input: inputs[command.id]).contains(capability)
+            }
+        }
+    }
+
+    private func granted(_ capability: PluginCapability) -> Bool {
+        model.capabilityGrants.contains {
+            $0.pluginID == manifest.id && $0.pluginVersion == manifest.version
+                && $0.capability == capability && $0.decision == .granted
+        }
+    }
 
     var body: some View {
         DisclosureGroup("Selected Commands — Access") {
-            PluginAccessView(manifest: manifest, grants: model.capabilityGrants,
-                             commandIDs: commandIDs, inputs: inputs, setDecision: model.setCapabilityDecision)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(capabilities, id: \.self) { capability in
+                    Label("\(capability.title): \(granted(capability) ? "Granted" : "Not granted")",
+                          systemImage: granted(capability) ? "checkmark.circle" : "lock")
+                }
+                if capabilities.isEmpty { Text("No Plugin access required for these Commands.") }
+                Text("Manage Plugin-wide access in Library’s Plugin Settings. Your Slot edits will be kept while you open settings.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Open Plugin Settings") { showingPluginSettings = true }
+                    .accessibilityLabel("Open Plugin Settings for \(manifest.name)")
+            }
+            .padding(.top, 8)
+        }
+        .sheet(isPresented: $showingPluginSettings) {
+            PluginConsentSheet(model: model, manifest: manifest, reviewInstallation: false,
+                               onDone: { showingPluginSettings = false })
         }
     }
 }

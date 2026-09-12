@@ -133,6 +133,28 @@ public final class PluginCapabilityGrantStore {
         }
     }
 
+    /// Inherit decisions only for the same Plugin and identical Capability
+    /// scope. Snapshot first because an update may reuse its version string.
+    public func prepareInstallation(of manifest: PluginManifest, replacing previous: PluginManifest?) {
+        let inherited = manifest.capabilities.map { capability -> PluginCapabilityGrant in
+            let scope = manifest.scope(for: capability)
+            let decision: PluginCapabilityGrantDecision
+            if let previous, previous.id == manifest.id,
+               previous.capabilities.contains(capability), previous.scope(for: capability) == scope {
+                decision = self.decision(for: previous.id, pluginVersion: previous.version,
+                                         capability: capability, scope: scope)
+            } else {
+                decision = .notDetermined
+            }
+            return PluginCapabilityGrant(pluginID: manifest.id, pluginVersion: manifest.version,
+                                         capability: capability, decision: decision, scope: scope)
+        }
+        for grant in inherited {
+            setDecision(grant.decision, for: grant.pluginID, pluginVersion: grant.pluginVersion,
+                        capability: grant.capability, scope: grant.scope)
+        }
+    }
+
     public func decision(
         for pluginID: PluginID,
         pluginVersion: String,

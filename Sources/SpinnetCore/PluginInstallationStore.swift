@@ -52,12 +52,10 @@ public final class PluginInstallationStore {
             guard package.manifest == candidate.manifest else {
                 throw ConfigurationError.invalidManifest("Plugin changed during installation")
             }
-            for capability in package.manifest.capabilities {
-                grants.setDecision(.notDetermined, for: package.manifest.id,
-                                   pluginVersion: package.manifest.version, capability: capability)
-            }
-            // Persist revocation before publishing the package, including
-            // across a Host restart during installation.
+            grants.prepareInstallation(of: package.manifest,
+                replacing: registry.package(for: package.manifest.id)?.manifest)
+            // Persist inherited and newly requested scope decisions before
+            // publishing the package, including across a Host restart.
             try persistGrants()
             var index = try readIndex()
             let oldName = index.updateValue(name, forKey: package.manifest.id.rawValue)

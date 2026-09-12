@@ -4,6 +4,63 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostServicesTests: XCTestCase {
+    func testUpgradeInheritsUnchangedGrantAndCanExecuteAfterRestart() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.spinnetplugin")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let original = try PluginManifest(id: PluginID("example.inherit"), name: "Inherit", version: "1",
+            capabilities: [.writeClipboard], commands: [command])
+        let updated = try PluginManifest(id: original.id, name: original.name, version: "2",
+            capabilities: original.capabilities, commands: [command])
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants)
+        var saved = Data()
+        let installer = PluginInstallationStore(directory: directory.appendingPathComponent("installed"),
+            registry: registry, grants: grants, persistGrants: { saved = try JSONEncoder().encode(grants.allGrants) })
+        try JSONEncoder().encode(original).write(to: source.appendingPathComponent("manifest.json"))
+        try installer.install(from: source)
+        grants.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .writeClipboard)
+        try JSONEncoder().encode(updated).write(to: source.appendingPathComponent("manifest.json"))
+        try installer.install(from: source)
+        let restored = PluginCapabilityGrantStore(grants: try JSONDecoder().decode([PluginCapabilityGrant].self, from: saved))
+        let restoredRegistry = PluginRegistry(grantStore: restored)
+        try PluginInstallationStore(directory: directory.appendingPathComponent("installed"), registry: restoredRegistry,
+            grants: restored, persistGrants: {}).restore()
+        let adapter = RecordingHostCommandAdapter()
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: restored))
+        let action = try ActionConfiguration(id: ActionID("copy"), pluginID: original.id, command: command, input: .string("retained"))
+        guard case .succeeded = runner.invoke(action, using: restoredRegistry).terminal else {
+            return XCTFail("An unchanged grant should survive upgrade and restart")
+        }
+        XCTAssertEqual(adapter.copiedTexts, ["retained"])
+
+        let expanded = try PluginManifest(id: original.id, name: original.name, version: "3",
+            capabilities: [.writeClipboard, .readSelectedText], commands: [command])
+        try JSONEncoder().encode(expanded).write(to: source.appendingPathComponent("manifest.json"))
+        try installer.install(from: source)
+        XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .writeClipboard), .granted)
+        let configuration = try HostConfiguration(actions: [action], menu: MenuConfiguration(items: [
+            MenuItemConfiguration(primaryActionID: action.id)
+        ]))
+        let suite = "Spinnet.upgrade.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = SettingsWindowModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration),
+            metadata: .current, capabilityGrantStore: grants, defaults: defaults, accessibilityPermissionCheck: { true })
+        XCTAssertEqual(model.pendingCapabilityRequests(for: expanded), [.readSelectedText])
+        model.pluginSettingsManifest = expanded
+        model.installationConsentPresented = true
+        model.finishPluginConsent(grant: false)
+        XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .writeClipboard), .granted)
+        XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .readSelectedText), .denied)
+        let updatedRunner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants))
+        guard case .succeeded = updatedRunner.invoke(action, using: registry).terminal else {
+            return XCTFail("Denying only the new request must not revoke inherited Clipboard access")
+        }
+    }
+
     func testExternalAppScopeNamesOperationsAndRechecksDependency() throws {
         let command = CommandDeclaration(id: CommandID("capture"), title: "Capture", hostCommand: .presentFeedback)
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [

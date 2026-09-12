@@ -253,12 +253,9 @@ public final class PluginRegistry {
     public func replace(_ package: PluginPackage) throws {
         try package.manifest.validate()
 
-        // Every replacement asks again, including repackaged same-version
-        // updates. A grant for an older scope can never activate new code.
-        for capability in package.manifest.capabilities {
-            grantStore?.setDecision(.notDetermined, for: package.manifest.id,
-                                    pluginVersion: package.manifest.version, capability: capability)
-        }
+        // Installation owns migration and persistence. Scope-bound decisions
+        // prevent a replacement from broadening a grant, including when its
+        // version string is reused. Registry replacement still retires helpers.
 
         lock.lock()
         defer { lock.unlock() }
