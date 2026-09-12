@@ -12,7 +12,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case controlExternalApp = "control_external_app"
 
     public var isSupportedByHostServices: Bool {
-        self == .readSelectedText || self == .writeClipboard
+        [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory].contains(self)
     }
 
     public var title: String {
@@ -288,11 +288,15 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
 public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashable {
     case readSelectedText = "read_selected_text"
     case writeClipboard = "write_clipboard"
+    case readCurrentClipboard = "read_current_clipboard"
+    case readClipboardHistory = "read_clipboard_history"
 
     public var requiredCapability: PluginCapability {
         switch self {
         case .readSelectedText:
             return .readSelectedText
+        case .readCurrentClipboard: return .readCurrentClipboard
+        case .readClipboardHistory: return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
         }
@@ -302,7 +306,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         switch self {
         case .readSelectedText:
             return .accessibility
-        case .writeClipboard:
+        case .writeClipboard, .readCurrentClipboard, .readClipboardHistory:
             return nil
         }
     }
@@ -365,7 +369,7 @@ public protocol PluginHostServiceBroker {
     ) throws -> JSONValue
 }
 
-/// Default broker for the two MVP Host Services. Every request checks the
+/// Broker for public Host Services. Every request checks the
 /// current manifest declaration, current user grant, and current System
 /// Permission before touching a protected Host provider.
 public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
@@ -373,17 +377,28 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let selectedTextProvider: () throws -> String
     private let clipboardWriter: (String) throws -> Void
+    private let currentClipboardProvider: () throws -> ClipboardContent?
+    private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
+    private let clipboardHistoryPresenter: (PluginPackage, ActionConfiguration) -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool,
         selectedTextProvider: @escaping () throws -> String,
-        clipboardWriter: @escaping (String) throws -> Void
+        clipboardWriter: @escaping (String) throws -> Void,
+        currentClipboardProvider: @escaping () throws -> ClipboardContent? = { nil },
+        clipboardHistoryProvider: @escaping ([String], Int) throws -> ClipboardHistorySnapshot = { _, _ in
+            throw PluginHostServiceError.unavailable("Clipboard History")
+        },
+        clipboardHistoryPresenter: @escaping (PluginPackage, ActionConfiguration) -> Void = { _, _ in }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.selectedTextProvider = selectedTextProvider
         self.clipboardWriter = clipboardWriter
+        self.currentClipboardProvider = currentClipboardProvider
+        self.clipboardHistoryProvider = clipboardHistoryProvider
+        self.clipboardHistoryPresenter = clipboardHistoryPresenter
     }
 
     public func execute(
@@ -417,6 +432,25 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
 
         switch service {
+        case .readCurrentClipboard:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("read_current_clipboard expects null")
+            }
+            guard let content = try currentClipboardProvider(),
+                  package.manifest.scope(for: capability)?.dataTypes.contains(content.type.rawValue) == true else { return .null }
+            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(content))
+        case .readClipboardHistory:
+            let present = request.input == .object(["present": .bool(true)])
+            var offset = 0
+            if case .object(let fields) = request.input, fields.count == 1,
+               case .number(let value) = fields["offset"], value >= 0, value <= Double(Int.max / 2), value.rounded() == value {
+                offset = Int(value)
+            } else if request.input != .null && !present {
+                throw PluginHostServiceError.invalidInput("Expected null, {present: true}, or a nonnegative integer offset")
+            }
+            let snapshot = try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
+            if present { clipboardHistoryPresenter(package, action) }
+            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:
             guard request.input == .null else {
                 throw PluginHostServiceError.invalidInput("read_selected_text expects null")

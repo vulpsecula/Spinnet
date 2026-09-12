@@ -30,6 +30,20 @@ final class SettingsWindowController: NSWindowController {
         set { model.installPlugin = newValue }
     }
 
+    var onClipboardHistoryChanged: (() -> Void)? {
+        get { model.onClipboardHistoryChanged }
+        set { model.onClipboardHistoryChanged = newValue }
+    }
+    var onClipboardSettingsWillChange: (() throws -> Void)? {
+        get { model.onClipboardSettingsWillChange }
+        set { model.onClipboardSettingsWillChange = newValue }
+    }
+    func showPluginSettings(_ pluginID: PluginID) {
+        model.selectPage(.menu)
+        model.showPluginSettings(pluginID)
+        present()
+    }
+
     var currentPage: SettingsPage {
         model.page
     }
@@ -59,13 +73,15 @@ final class SettingsWindowController: NSWindowController {
         metadata: ApplicationMetadata = .current,
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
+        clipboardHistoryStore: ClipboardHistoryStore? = nil,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
     ) {
         model = SettingsWindowModel(
             editor: editor,
             metadata: metadata,
             capabilityGrantStore: capabilityGrantStore,
-            defaults: defaults
+            defaults: defaults,
+            clipboardHistoryStore: clipboardHistoryStore
         )
 
         let window = SettingsWindow(

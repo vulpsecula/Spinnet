@@ -1492,6 +1492,32 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(model.canRedoAppearance)
     }
 
+
+    func testClipboardPrivacyControlsTheHostStoreAndKeepsGrantIndependent() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        let suite = "ClipboardSettings." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: PluginID("history"), pluginVersion: "1", capability: .readClipboardHistory)
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, capabilityGrantStore: grants,
+            defaults: defaults, clipboardHistoryStore: store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
+        XCTAssertFalse(model.clipboardCollectionEnabled)
+        model.clipboardCollectionEnabled = true
+        try store.observe(changeCount: 1, content: .init(text: "retained", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        model.clipboardCollectionPaused = true
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).state, .paused)
+        model.clipboardRetention = .oneWeek
+        XCTAssertEqual(store.settings.retentionDays, 7)
+        model.turnOffClipboardHistory(deleteEntries: false)
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.count, 1)
+        model.clearClipboardHistory()
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).entries, [])
+        XCTAssertEqual(grants.decision(for: PluginID("history"), pluginVersion: "1", capability: .readClipboardHistory), .granted)
+    }
+
     func testAppearanceUndoRedoAndClipboardPrivacyStatePersistAtTheSettingsSeam() throws {
         let suiteName = "SpinnetHostTests.SettingsState.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

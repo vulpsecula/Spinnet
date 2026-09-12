@@ -234,14 +234,19 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var canRedoAppearance = false
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
+    private let clipboardHistoryStore: ClipboardHistoryStore?
+    var onClipboardSettingsWillChange: (() throws -> Void)?
+    var onClipboardHistoryChanged: (() -> Void)?
+    private var restoringClipboardSettings = false
+    @Published var clipboardError: String?
     @Published var clipboardCollectionEnabled: Bool {
-        didSet { defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled) }
+        didSet { updateClipboardSettings() }
     }
     @Published var clipboardCollectionPaused: Bool {
-        didSet { defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused) }
+        didSet { updateClipboardSettings() }
     }
     @Published var clipboardRetention: ClipboardRetention {
-        didSet { defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention) }
+        didSet { updateClipboardSettings() }
     }
     @Published var permissionGuidePresented: Bool {
         didSet {
@@ -355,6 +360,7 @@ final class SettingsWindowModel: ObservableObject {
         metadata: ApplicationMetadata,
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
+        clipboardHistoryStore: ClipboardHistoryStore? = nil,
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
@@ -364,6 +370,7 @@ final class SettingsWindowModel: ObservableObject {
         self.metadata = metadata
         self.capabilityGrantStore = capabilityGrantStore
         self.defaults = defaults
+        self.clipboardHistoryStore = clipboardHistoryStore
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.mouseInputConflictCheck = mouseInputConflictCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
@@ -382,9 +389,12 @@ final class SettingsWindowModel: ObservableObject {
         appearanceMenuSize = savedAppearance.menuSize
         appearanceFont = savedAppearance.font
         appearanceFontWeight = savedAppearance.fontWeight
-        clipboardCollectionEnabled = defaults.bool(forKey: Keys.clipboardCollectionEnabled)
-        clipboardCollectionPaused = defaults.bool(forKey: Keys.clipboardCollectionPaused)
+        clipboardCollectionEnabled = clipboardHistoryStore?.settings.enabled ?? defaults.bool(forKey: Keys.clipboardCollectionEnabled)
+        clipboardCollectionPaused = clipboardHistoryStore?.settings.paused ?? defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
+        if let store = clipboardHistoryStore {
+            clipboardRetention = ClipboardRetention.allCases.first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
+        }
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         menuSlots = makeMenuSlots()
         refreshCapabilityGrants()
@@ -576,11 +586,49 @@ final class SettingsWindowModel: ObservableObject {
         onAppearanceChanged?(appearance)
     }
 
+    private func updateClipboardSettings() {
+        guard !restoringClipboardSettings else { return }
+        do {
+            if clipboardHistoryStore?.settings.enabled != clipboardCollectionEnabled || clipboardHistoryStore?.settings.paused != clipboardCollectionPaused {
+                try onClipboardSettingsWillChange?()
+            }
+            try clipboardHistoryStore?.configure(enabled: clipboardCollectionEnabled, paused: clipboardCollectionPaused, retentionDays: clipboardRetention.hours / 24)
+            defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled)
+            defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused)
+            defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention)
+            clipboardError = nil
+            onClipboardHistoryChanged?()
+        } catch {
+            clipboardError = error.localizedDescription
+            if let store = clipboardHistoryStore {
+                restoringClipboardSettings = true
+                clipboardCollectionEnabled = store.settings.enabled
+                clipboardCollectionPaused = store.settings.paused
+                clipboardRetention = ClipboardRetention.allCases.first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
+                restoringClipboardSettings = false
+            }
+        }
+    }
+
+    func clearClipboardHistory() {
+        do { try clipboardHistoryStore?.clear(); clipboardError = nil; onClipboardHistoryChanged?() }
+        catch { clipboardError = error.localizedDescription }
+    }
+
+    func turnOffClipboardHistory(deleteEntries: Bool) {
+        do {
+            try clipboardHistoryStore?.turnOff(deleteEntries: deleteEntries)
+            clipboardCollectionEnabled = false
+            clipboardCollectionPaused = false
+        } catch { clipboardError = error.localizedDescription }
+    }
+
     var clipboardCollectionStatus: String {
+        if let clipboardError { return "Clipboard History error: " + clipboardError }
         guard clipboardCollectionEnabled else { return "Off — no new entries are collected" }
         return clipboardCollectionPaused
             ? "Paused — existing entries are retained"
-            : "On — collection enabled; Clipboard History is not installed yet"
+            : "On — collecting text and URLs locally"
     }
 
     func dismissPermissionGuide() {
@@ -1408,6 +1456,8 @@ struct SettingsRootView: View {
                     clipboardCollectionPaused: $model.clipboardCollectionPaused,
                     clipboardRetention: $model.clipboardRetention,
                     clipboardCollectionStatus: model.clipboardCollectionStatus,
+                    clearHistory: model.clearClipboardHistory,
+                    turnOffHistory: model.turnOffClipboardHistory,
                     setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )
@@ -2691,6 +2741,11 @@ private struct PrivacySettingsView: View {
     @Binding var clipboardCollectionPaused: Bool
     @Binding var clipboardRetention: ClipboardRetention
     let clipboardCollectionStatus: String
+    let clearHistory: () -> Void
+    let turnOffHistory: (Bool) -> Void
+    @State private var confirmEnable = false
+    @State private var confirmDisable = false
+    @State private var confirmClear = false
     let setCapabilityDecision: (
         PluginCapabilityGrantDecision,
         PluginID,
@@ -2730,7 +2785,22 @@ private struct PrivacySettingsView: View {
                             body: "Host-owned data such as Clipboard History always requires a separate opt-in.",
                             status: clipboardCollectionStatus
                         )
-                        Toggle("Collect Clipboard History", isOn: $clipboardCollectionEnabled)
+                        Toggle("Collect Clipboard History", isOn: Binding(get: { clipboardCollectionEnabled }, set: { value in
+                            if value { confirmEnable = true } else { confirmDisable = true }
+                        }))
+                            .alert("Collect Clipboard History?", isPresented: $confirmEnable) {
+                                Button("Enable Collection") { clipboardCollectionPaused = false; clipboardCollectionEnabled = true }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("Spinnet will store copied text and URLs on this Mac, including source application and copy time. Default retention is 24 hours. Plugins need separate access, which includes retained entries from before their grant. Text over 64 KB and clipboard items marked concealed or transient are skipped.")
+                            }
+                            .alert("Turn off Clipboard History?", isPresented: $confirmDisable) {
+                                Button("Turn Off and Retain") { turnOffHistory(false) }
+                                Button("Turn Off and Delete", role: .destructive) { turnOffHistory(true) }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("Collection stops. Retained entries still expire on schedule and remain available to authorized Plugins. Plugin grants do not change.")
+                            }
                             .toggleStyle(.switch)
                             .accessibilityLabel("Collect Clipboard History")
                             .accessibilityValue(clipboardCollectionEnabled ? "On" : "Off")
@@ -2752,6 +2822,11 @@ private struct PrivacySettingsView: View {
                             Spacer()
                         }
                         .disabled(!clipboardCollectionEnabled)
+                        Button("Clear History…") { confirmClear = true }
+                            .alert("Delete all retained clipboard entries?", isPresented: $confirmClear) {
+                                Button("Clear History", role: .destructive, action: clearHistory)
+                                Button("Cancel", role: .cancel) {}
+                            } message: { Text("This cannot be undone. Collection and Plugin grants do not change.") }
                     }
                     Divider().padding(.leading, 52)
                     privacyRow(

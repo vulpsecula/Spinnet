@@ -15,6 +15,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         registry: registry, grants: capabilityGrants,
         persistGrants: { [unowned self] in try self.saveCapabilityGrants() }
     )
+    private var clipboardStore: ClipboardHistoryStore!
+    private var clipboardCollector: ClipboardCollector?
+    private var clipboardWindow: ClipboardHistoryWindow?
+    private var clipboardBroker: CapabilityCheckedHostServiceBroker!
     private var actionRunner: HostActionRunner!
     private var pluginRuntime: PluginRuntimeSupervisor?
     private var menu: MenuPresentationController!
@@ -46,6 +50,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             for package in try BuiltInPresetCatalog.makePackages() {
                 try registry.register(package)
             }
+            clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
+            guard let historyURL = Bundle.module.url(forResource: "ClipboardHistory", withExtension: "spinnetplugin") else {
+                throw HostCommandError.failed("Bundled Clipboard History Plugin is missing")
+            }
+            let historyPackage = try PluginManifestLoader.load(packageAt: historyURL)
+            try registry.register(PluginPackage(rootURL: historyURL, manifest: historyPackage.manifest, isBundled: true))
             let fixturePackage = try PluginManifestLoader.load(packageAt: fixtureURL())
             try registry.register(PluginPackage(
                 rootURL: fixturePackage.rootURL,
@@ -78,8 +88,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 clipboardWriter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.writeClipboard(text)
+                },
+                currentClipboardProvider: {
+                    if Thread.isMainThread { return ClipboardCollector.readCurrent() }
+                    return DispatchQueue.main.sync { ClipboardCollector.readCurrent() }
+                },
+                clipboardHistoryProvider: { [clipboardStore] types, offset in
+                    try clipboardStore!.query(dataTypes: types, offset: offset)
+                },
+                clipboardHistoryPresenter: { [weak self] package, action in
+                    DispatchQueue.main.async { [weak self] in self?.presentClipboardHistory(package: package, action: action) }
                 }
             )
+            clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(
                 executor: AppKitHostCommandExecutor(
                     grantStore: capabilityGrants,
@@ -126,8 +147,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             feedback = HostFeedbackPresenter()
             settings = SettingsWindowController(
                 editor: editor,
-                capabilityGrantStore: capabilityGrants
+                capabilityGrantStore: capabilityGrants,
+                clipboardHistoryStore: clipboardStore
             )
+            let collector = ClipboardCollector(store: clipboardStore)
+            collector.onError = { [weak self] error in self?.showConfigurationError(error) }
+            settings.onClipboardSettingsWillChange = { [weak collector] in try collector?.resetBaseline() }
+            settings.onClipboardHistoryChanged = { [weak self] in self?.clipboardWindow?.refreshIfVisible() }
+            try collector.start()
+            clipboardCollector = collector
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
             }
@@ -484,6 +512,25 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         } catch {
             feedback.showMessage("Action configuration is unavailable")
         }
+    }
+
+    private func presentClipboardHistory(package: PluginPackage, action: ActionConfiguration) {
+        clipboardWindow?.close()
+        clipboardWindow = ClipboardHistoryWindow(grants: capabilityGrants, query: { [weak self] offset in
+            guard let self else { throw PluginHostServiceError.unavailable("Host closed") }
+            guard self.registry.availability(for: action).isAvailable,
+                  let currentPackage = self.registry.package(for: action.pluginID) else {
+                throw PluginHostServiceError.capabilityDenied(.readClipboardHistory)
+            }
+            let request = PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString, actionID: action.id,
+                requestID: UUID().uuidString, service: .readClipboardHistory, input: .object(["offset": .number(Double(offset))]))
+            let value = try self.clipboardBroker.execute(request: request, for: currentPackage, action: action)
+            return try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(value))
+        }, openPrivacy: { [weak self] in
+            self?.settings.select(page: .privacyAndPermissions)
+            self?.settings.present()
+        }, openPluginSettings: { [weak self] in self?.settings.showPluginSettings(package.manifest.id) })
+        clipboardWindow?.present()
     }
 
     private func fixtureURL() throws -> URL {

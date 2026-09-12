@@ -19,7 +19,8 @@ let package = Package(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore"],
             resources: [
-                .copy("Resources/SpinnetFixture.spinnetplugin")
+                .copy("Resources/SpinnetFixture.spinnetplugin"),
+                .copy("Resources/ClipboardHistory.spinnetplugin")
             ],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))

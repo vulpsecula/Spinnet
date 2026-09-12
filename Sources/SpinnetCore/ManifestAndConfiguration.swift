@@ -517,13 +517,13 @@ public struct PluginManifest: Codable, Equatable {
                 || (scope.capability == .readClipboardHistory && !scope.includesExistingHostData) {
                 throw ConfigurationError.invalidManifest("Capability scope must name all affected data and targets")
             }
-            if scope.capability.isSupportedByHostServices &&
+            if [.readSelectedText, .writeClipboard].contains(scope.capability) &&
                 (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
                  scope.dataTypes.contains(where: { $0 != "text" })) {
                 throw ConfigurationError.invalidManifest("This Capability only supports current text data")
             }
         }
-        for capability in capabilities where !capability.isSupportedByHostServices {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }
@@ -673,17 +673,22 @@ public struct PluginPackage {
     /// Compatibility packages can remain registered for persisted Actions
     /// without adding another user-facing Library entry.
     public let isVisibleInLibrary: Bool
+    /// Set only by the Host when loading its shipped packages, never by a manifest.
+    public let isBundled: Bool
+    public var isHostProvided: Bool { isBundled || presetSource == .builtIn || !isVisibleInLibrary }
 
     public init(
         rootURL: URL,
         manifest: PluginManifest,
         presetSource: MenuItemPresetSource = .plugin,
-        isVisibleInLibrary: Bool = true
+        isVisibleInLibrary: Bool = true,
+        isBundled: Bool = false
     ) {
         self.rootURL = rootURL
         self.manifest = manifest
         self.presetSource = presetSource
         self.isVisibleInLibrary = isVisibleInLibrary
+        self.isBundled = isBundled
     }
 }
 

@@ -1,0 +1,27 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.clipboard-history",
+  "name": "Clipboard History",
+  "version": "1.0.0",
+  "capabilities": ["read_clipboard_history"],
+  "capability_scopes": [{
+    "capability": "read_clipboard_history",
+    "command_ids": ["history.browse"],
+    "data_types": ["text", "url"],
+    "includes_existing_host_data": true,
+    "https_hosts": [],
+    "external_apps": []
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "history.browse"
+  },
+  "commands": [{
+    "id": "history.browse",
+    "title": "Browse Clipboard History",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "browse.js"
+  }]
+}

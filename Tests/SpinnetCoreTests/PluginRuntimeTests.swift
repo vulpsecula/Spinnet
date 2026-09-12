@@ -4,6 +4,44 @@ import AppKit
 @testable import SpinnetCore
 
 final class PluginRuntimeTests: XCTestCase {
+
+    func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let package = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Sources/SpinnetHost/Resources/ClipboardHistory.spinnetplugin"))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants)
+        try registry.register(package)
+        var launches = 0
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()), registry: registry, grantStore: grants,
+            processFactory: { launches += 1; return Process() })
+        defer { supervisor.shutdown() }
+        try store.configure(enabled: true, paused: false, retentionDays: 1)
+        try store.observe(changeCount: 1, content: .init(text: "collected without a helper", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        XCTAssertEqual(launches, 0)
+        let action = try ActionConfiguration(id: ActionID("history"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .readClipboardHistory, scope: package.manifest.scope(for: .readClipboardHistory))
+        var queries = 0
+        var presentations = 0
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            clipboardHistoryProvider: { types, offset in queries += 1; return try store.query(dataTypes: types, offset: offset) },
+            clipboardHistoryPresenter: { shownPackage, shownAction in
+                XCTAssertEqual(shownPackage.manifest.id, package.manifest.id)
+                XCTAssertEqual(shownAction.id, action.id)
+                presentations += 1
+            })
+        XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+        XCTAssertEqual(queries, 1)
+        XCTAssertEqual(presentations, 1)
+        supervisor.shutdown()
+        try store.observe(changeCount: 2, content: .init(text: "helper retired", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        XCTAssertEqual(launches, 1)
+        XCTAssertEqual(queries, 1)
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.count, 2)
+    }
+
     func testInvocationSchemaDeclaresItsMessageVariant() throws {
         let invocation = PluginRuntimeInvocation(
             pluginID: PluginID("com.example.fixture"),
