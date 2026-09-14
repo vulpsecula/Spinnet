@@ -109,7 +109,7 @@ final class ClipboardHistoryTests: XCTestCase {
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { now })
         try store.configure(enabled: true, paused: false, retentionDays: 7)
         for count in 1...51 {
-            try store.observe(changeCount: count, content: .init(text: String(repeating: "x", count: 65_536), type: .text), sourceName: "Notes", sourceBundleID: "notes")
+            try store.observe(changeCount: count, content: .init(text: String(repeating: "x", count: 65_536) + String(count), type: .text), sourceName: "Notes", sourceBundleID: "notes")
         }
         let first = try store.query(dataTypes: ["text"])
         XCTAssertLessThan(try JSONEncoder().encode(first).count, 1_048_576)

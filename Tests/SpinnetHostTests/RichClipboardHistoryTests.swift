@@ -8,15 +8,22 @@ final class RichClipboardHistoryTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let board = NSPasteboard.withUniqueName()
         var grants = PluginCapabilityGrantStore()
-        final class Clock { var now = Date() }
-        let clock = Clock()
+        final class Clock {
+            var now = Date()
+            var readStep: TimeInterval = 0
+            func read() -> Date {
+                defer { now = now.addingTimeInterval(readStep) }
+                return now
+            }
+        }
+        let clock: Clock
         var store: ClipboardHistoryStore
         var collector: ClipboardCollector!
         var source = (name: "Preview", bundleID: "com.apple.Preview")
         let command = CommandDeclaration(id: CommandID("browse"), title: "Browse", execution: .javascript, script: "browse.js")
-        init(writeFile: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) throws {
-            let clock = self.clock
-            store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { clock.now }, writeFile: writeFile)
+        init(clock: Clock = Clock(), writeFile: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) throws {
+            self.clock = clock
+            store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { clock.read() }, writeFile: writeFile)
             try store.configure(enabled: true, paused: false, retentionDays: 1)
             collector = ClipboardCollector(store: store, changeCount: { [unowned self] in self.board.changeCount },
                 readContents: { [unowned self] in ClipboardCollector.readAll(from: self.board) },
@@ -40,8 +47,8 @@ final class RichClipboardHistoryTests: XCTestCase {
             let action = try ActionConfiguration(id: ActionID("browse"), pluginID: package.manifest.id, command: command, input: .null)
             return try broker.execute(request: .init(invocationID: "i", actionID: action.id, requestID: "r", service: service, input: input), for: package, action: action)
         }
-        func query(_ package: PluginPackage) throws -> ClipboardHistorySnapshot {
-            try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(request(package)))
+        func query(_ package: PluginPackage, offset: Int = 0) throws -> ClipboardHistorySnapshot {
+            try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(request(package, input: .object(["offset": .number(Double(offset))]))))
         }
         func chunk(_ package: PluginPackage, id: UUID, offset: Int = 0, length: Int = 196_608) throws -> ClipboardHistoryContentChunk {
             try JSONDecoder().decode(ClipboardHistoryContentChunk.self, from: JSONEncoder().encode(request(package, service: .readClipboardHistoryContent,
@@ -49,8 +56,300 @@ final class RichClipboardHistoryTests: XCTestCase {
         }
         func restart() throws {
             let clock = self.clock
-            store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { clock.now })
+            store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { clock.read() })
+            collector = ClipboardCollector(store: store, changeCount: { [unowned self] in self.board.changeCount },
+                readContents: { [unowned self] in ClipboardCollector.readAll(from: self.board) },
+                sourceApplication: { [unowned self] in self.source })
+            try collector.resetBaseline()
         }
+    }
+
+    func testSlowCopyExpiresAtomicallyAndRecopyRestoresEveryRepresentation() throws {
+        let clock = Harness.Clock()
+        let h = try Harness(clock: clock, writeFile: { data, url in
+            try data.write(to: url, options: .atomic)
+            // Deterministic elapsed I/O time, not a wall-clock sleep.
+            clock.now = clock.now.addingTimeInterval(10)
+        })
+        let package = try h.package(types: ["text", "rich_text", "binary"]); h.grant(package)
+        func copy() throws {
+            let item = NSPasteboardItem()
+            item.setString("message", forType: .string)
+            item.setData(Data(#"{\rtf1\ansi message}"#.utf8), forType: .rtf)
+            item.setData(Data([0, 255, 42]), forType: .init("org.telegram.message"))
+            h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        }
+        clock.readStep = 1
+        try copy()
+        clock.readStep = 0
+        let original = try h.query(package)
+        XCTAssertEqual(Set(original.entries.map(\.copiedAt)).count, 1, "A copy samples its timestamp once, despite slow representation writes")
+        let formats = original.entries.compactMap(\.format).sorted()
+        let deadline = try XCTUnwrap(original.entries.map(\.copiedAt).min()).addingTimeInterval(86_400)
+        clock.now = deadline.addingTimeInterval(-0.5)
+        XCTAssertEqual(try h.query(package).entries.compactMap(\.format).sorted(), formats)
+        clock.now = deadline
+        XCTAssertEqual(try h.query(package).entries, [], "No representation may outlive its copy")
+        try copy()
+        let recopied = try h.query(package)
+        XCTAssertEqual(recopied.copies.count, 1)
+        XCTAssertEqual(recopied.entries.compactMap(\.format).sorted(), formats, "Recopy must not deduplicate against a partially expired copy")
+        for entry in recopied.entries {
+            XCTAssertFalse(try h.chunk(package, id: entry.id).data.isEmpty)
+        }
+        let binary = try XCTUnwrap(recopied.entries.first { $0.contentType == .binary })
+        XCTAssertEqual(try h.chunk(package, id: binary.id).data, Data([0, 255, 42]))
+    }
+
+    func testLegacyUnevenCopyTimesUseEarliestExpiryAndRecopyKeepsAllFormats() throws {
+        let h = try Harness()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        h.clock.now = base
+        func copy() throws {
+            let item = NSPasteboardItem()
+            item.setString("legacy grouped text", forType: .string)
+            item.setData(Data([7, 8, 9]), forType: .init("org.telegram.message"))
+            h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        }
+        try copy()
+        let all = try h.package(types: ["text", "binary"]); h.grant(all)
+        let original = try h.query(all)
+        // Synthetic archive in the previously written shape: a slow copy gave
+        // its binary representation a later timestamp, retaining the full hash.
+        let archiveURL = h.directory.appendingPathComponent("history.json")
+        var fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: archiveURL)) as? [String: Any])
+        var entries = try XCTUnwrap(fixture["entries"] as? [[String: Any]])
+        for index in entries.indices {
+            entries[index]["copiedAt"] = base.addingTimeInterval(entries[index]["contentType"] as? String == "binary" ? 10 : 0).timeIntervalSinceReferenceDate
+        }
+        entries.append(["id": UUID().uuidString, "text": "ungrouped legacy entry", "contentType": "text",
+            "sourceApplicationName": "Notes", "sourceBundleIdentifier": "notes",
+            "copiedAt": base.addingTimeInterval(5).timeIntervalSinceReferenceDate])
+        fixture["entries"] = entries
+        try JSONSerialization.data(withJSONObject: fixture).write(to: archiveURL)
+        let deadline = base.addingTimeInterval(86_400)
+        h.clock.now = deadline.addingTimeInterval(-0.5)
+        try h.restart()
+        let binary = try h.package(types: ["binary"]); h.grant(binary)
+        let binaryPage = try h.query(binary)
+        XCTAssertEqual(binaryPage.expiresAt, deadline, "Type filtering must not extend a legacy copy's visible lifetime")
+        XCTAssertEqual(binaryPage.entries.first?.copiedAt, base)
+        h.clock.now = deadline
+        XCTAssertThrowsError(try h.chunk(binary, id: XCTUnwrap(binaryPage.entries.first).id))
+        h.grant(all)
+        XCTAssertEqual(try h.query(all).entries.map(\.text), ["ungrouped legacy entry"], "Whole grouped copy expires; unrelated old singleton keeps its own deadline")
+        try copy()
+        let recopied = try h.query(all).entries.filter { $0.copyID != nil }
+        XCTAssertEqual(recopied.compactMap(\.format).sorted(), original.entries.compactMap(\.format).sorted())
+        XCTAssertEqual(try h.chunk(all, id: XCTUnwrap(recopied.first { $0.contentType == .text }).id).data, Data("legacy grouped text".utf8))
+        XCTAssertEqual(try h.chunk(all, id: XCTUnwrap(recopied.first { $0.contentType == .binary }).id).data, Data([7, 8, 9]))
+        try h.restart()
+        XCTAssertEqual(try h.query(all).entries.count, 3)
+    }
+
+    func testRecopyRepairsAnAlreadyPartiallyExpiredLegacyGroup() throws {
+        let h = try Harness()
+        func copy() throws {
+            let item = NSPasteboardItem()
+            item.setString("restore this format", forType: .string)
+            item.setData(Data([4, 5, 6]), forType: .init("org.telegram.message"))
+            h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        }
+        try copy()
+        let package = try h.package(types: ["text", "binary"]); h.grant(package)
+        let original = try h.query(package)
+        // Previous versions could already have committed a partial group while
+        // retaining its original complete-copy fingerprint. Lost bytes cannot be
+        // recovered on load, but a fresh copy supplies them again.
+        let archiveURL = h.directory.appendingPathComponent("history.json")
+        var fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: archiveURL)) as? [String: Any])
+        let entries = try XCTUnwrap(fixture["entries"] as? [[String: Any]])
+        fixture["entries"] = entries.filter { $0["contentType"] as? String == "binary" }
+        try JSONSerialization.data(withJSONObject: fixture).write(to: archiveURL)
+        try h.restart()
+        XCTAssertEqual(try h.query(package).entries.count, 1)
+        try copy()
+        let restored = try h.query(package)
+        XCTAssertEqual(restored.copies.count, 1, "Replace the incomplete match, not append another visible copy")
+        XCTAssertEqual(restored.entries.compactMap(\.format).sorted(), original.entries.compactMap(\.format).sorted())
+        let text = try XCTUnwrap(restored.entries.first { $0.contentType == .text })
+        XCTAssertEqual(try h.chunk(package, id: text.id).data, Data("restore this format".utf8))
+        try h.restart()
+        XCTAssertEqual(try h.query(package).entries.count, 2)
+    }
+
+    func testVSCodeAuxiliaryMetadataIsFilteredButTelegramOpaquePayloadSurvives() throws {
+        let h = try Harness()
+        h.source = ("Visual Studio Code", "com.microsoft.VSCode")
+        let item = NSPasteboardItem()
+        item.setString("let answer = 42", forType: .string)
+        item.setString("https://private.example/document", forType: .init("org.chromium.source-url"))
+        item.setData(Data([1, 2, 3]), forType: .init("org.chromium.source-rfh-token"))
+        h.board.clearContents(); h.board.writeObjects([item])
+        try h.collector.poll(); try h.restart()
+        let package = try h.package(types: ["text", "binary"]); h.grant(package)
+        XCTAssertEqual(try h.query(package).entries.map(\.text), ["let answer = 42"])
+        let opaque = NSPasteboardItem()
+        opaque.setData(Data([0, 255, 42]), forType: .init("org.telegram.message"))
+        h.board.clearContents(); h.board.writeObjects([opaque])
+        h.source = ("Telegram", "ru.keepcoder.Telegram")
+        try h.collector.poll()
+        let entry = try XCTUnwrap(h.query(package).entries.first)
+        XCTAssertEqual(try h.chunk(package, id: entry.id).data, Data([0, 255, 42]))
+    }
+
+    func testTelegramCopyGroupsRepresentationsAndDeduplicatesOnlyTheCompletePayload() throws {
+        let h = try Harness()
+        h.source = ("Telegram", "ru.keepcoder.Telegram")
+        func copy(_ byte: UInt8) throws {
+            let item = NSPasteboardItem()
+            item.setString("A bold word", forType: .string)
+            item.setData(Data("{\\rtf1\\ansi A \\b bold\\b0 word}".utf8), forType: .rtf)
+            item.setData(Data([byte]), forType: .init("org.telegram.message"))
+            h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        }
+        let all = try h.package(types: ["text", "rich_text", "binary"]); h.grant(all)
+        try copy(1)
+        let first = try h.query(all)
+        XCTAssertEqual(first.copies.count, 1)
+        XCTAssertEqual(Set(first.copies.first?.representations.map(\.contentType.rawValue) ?? []), ["text", "rich_text", "binary"])
+        try copy(2)
+        XCTAssertEqual(try h.query(all).copies.count, 2, "Same text with different opaque bytes is a different copy")
+        h.clock.now = h.clock.now.addingTimeInterval(10)
+        h.source = ("Telegram Beta", "ru.keepcoder.TelegramBeta")
+        try copy(1)
+        let repeated = try h.query(all)
+        XCTAssertEqual(repeated.copies.count, 2)
+        XCTAssertEqual(repeated.copies.first?.id, first.copies.first?.id)
+        XCTAssertEqual(repeated.entries.first?.copiedAt, h.clock.now)
+        XCTAssertEqual(repeated.entries.first?.sourceBundleIdentifier, "ru.keepcoder.TelegramBeta")
+        try h.restart()
+        XCTAssertEqual(try h.query(all).copies.count, 2)
+        h.clock.now = h.clock.now.addingTimeInterval(10)
+        try copy(1)
+        XCTAssertEqual(try h.query(all).copies.count, 2, "Persisted fingerprints still deduplicate after restart")
+        XCTAssertEqual(try h.query(all).copies.first?.id, first.copies.first?.id)
+        let text = try h.package(types: ["text"]); h.grant(text)
+        XCTAssertEqual(try h.query(text).copies.count, 2)
+        XCTAssertTrue(try h.query(text).entries.allSatisfy { $0.contentType == .text })
+        let richID = try XCTUnwrap(repeated.entries.first { $0.contentType == .richText }?.id)
+        XCTAssertThrowsError(try h.chunk(text, id: richID))
+    }
+
+    func testOfflineRichPreviewsShowContentWithoutPromotingMarkdownOrExposingResources() throws {
+        let h = try Harness()
+        let item = NSPasteboardItem()
+        item.setData(Data(#"{\rtf1\ansi Hello \b world\b0\par {\*\objdata private-object}Done}"#.utf8), forType: .rtf)
+        h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        XCTAssertEqual(try h.query(rich).entries.first { $0.format == "public.rtf" }?.text, "Hello world\nDone")
+        h.board.clearContents()
+        h.board.setData(Data(#"<html><head><style>secret-style</style></head><body><p>Hello <b>world</b> &amp; friends</p><img src="https://remote.invalid/pixel"><script>secret-script</script></body></html>"#.utf8), forType: .html)
+        try h.collector.poll()
+        XCTAssertEqual(try h.query(rich).entries.first?.text, "Hello world & friends")
+        let markdown = "# Title\n\n**bold** ![alt](https://remote.invalid/image)"
+        h.board.clearContents(); h.board.setString(markdown, forType: .string); try h.collector.poll()
+        XCTAssertEqual(try h.query(rich).copies.count, 2, "Markdown remains text, not rich_text")
+        let text = try h.package(types: ["text"]); h.grant(text)
+        let entry = try XCTUnwrap(h.query(text).entries.first)
+        XCTAssertEqual(entry.contentType, .text)
+        XCTAssertEqual(try h.chunk(text, id: entry.id).data, Data(markdown.utf8))
+    }
+
+    func testFinderMultiFileCopyIsOneGroupWithControlledRasterThumbnailAndNoSourcePayload() throws {
+        let h = try Harness()
+        h.source = ("Finder", "com.apple.finder")
+        let image = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")!
+        let png = h.directory.appendingPathComponent("sample.png")
+        let note = h.directory.appendingPathComponent("note.txt")
+        try image.write(to: png); try Data("never clone this source".utf8).write(to: note)
+        h.board.clearContents(); h.board.writeObjects([png as NSURL, note as NSURL]); try h.collector.poll()
+        let files = try h.package(types: ["file_reference"]); h.grant(files)
+        let snapshot = try h.query(files)
+        XCTAssertEqual(snapshot.copies.count, 1)
+        XCTAssertEqual(Set(snapshot.entries.compactMap(\.itemIndex)), [0, 1])
+        let entry = try XCTUnwrap(snapshot.entries.first { $0.fileReference?.name == "sample.png" })
+        XCTAssertNotNil(entry.imagePreview?.thumbnail)
+        XCTAssertThrowsError(try h.chunk(files, id: entry.id))
+        let imageReader = try h.package(types: ["image", "text", "binary"]); h.grant(imageReader)
+        XCTAssertEqual(try h.query(imageReader).entries, [])
+        h.grant(files)
+        try h.restart()
+        XCTAssertEqual(try h.query(files).copies.count, 1)
+        try FileManager.default.removeItem(at: png)
+        let missing = try XCTUnwrap(h.query(files).entries.first { $0.id == entry.id })
+        XCTAssertNil(missing.imagePreview, "Do not show a thumbnail for an unavailable reference")
+        XCTAssertNotNil(missing.fileReference?.unavailableReason)
+        XCTAssertEqual(try Data(contentsOf: note), Data("never clone this source".utf8))
+        let payloadDirectory = h.directory.appendingPathComponent("clipboard-payloads")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: payloadDirectory.path))
+    }
+
+    func testMultiItemCopyDoesNotSplitAtTheLegacyFiftyRepresentationPageBoundary() throws {
+        let h = try Harness()
+        let items = (0..<51).map { index -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            item.setString("item \(index)", forType: .string)
+            return item
+        }
+        h.board.clearContents(); h.board.writeObjects(items); try h.collector.poll()
+        let package = try h.package(types: ["text"]); h.grant(package)
+        let snapshot = try h.query(package)
+        XCTAssertEqual(snapshot.copies.count, 1)
+        XCTAssertEqual(snapshot.entries.count, 51)
+        XCTAssertNil(snapshot.nextOffset)
+        XCTAssertLessThan(try JSONEncoder().encode(snapshot).count, 1_048_576)
+    }
+
+    func testOversizedCopyContinuesWithOneStableIdentityWithinTheProtocolBudget() throws {
+        let h = try Harness()
+        let items = (0..<300).map { index -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            item.setString("\(index):" + String(repeating: "x", count: 2_048), forType: .string)
+            return item
+        }
+        h.board.clearContents(); h.board.writeObjects(items); try h.collector.poll()
+        h.board.clearContents(); h.board.setString("newer copy", forType: .string); try h.collector.poll()
+        let package = try h.package(types: ["text"]); h.grant(package)
+        let newest = try h.query(package)
+        XCTAssertEqual(newest.entries.map(\.text), ["newer copy"], "Do not split the next copy merely to fill a page")
+        var offset = try XCTUnwrap(newest.nextOffset)
+        var ids = Set<UUID>(), copyIDs = Set<UUID>()
+        repeat {
+            let page = try h.query(package, offset: offset)
+            XCTAssertEqual(page.copies.count, 1)
+            XCTAssertLessThan(try JSONEncoder().encode(page).count, 1_048_576)
+            XCTAssertFalse(page.entries.isEmpty)
+            for entry in page.entries { XCTAssertTrue(ids.insert(entry.id).inserted) }
+            copyIDs.insert(try XCTUnwrap(page.copies.first?.id))
+            guard let next = page.nextOffset else { break }
+            XCTAssertEqual(page.continuingCopyID, page.copies.first?.id)
+            XCTAssertGreaterThan(next, offset)
+            offset = next
+        } while true
+        XCTAssertEqual(ids.count, 300)
+        XCTAssertEqual(copyIDs.count, 1)
+    }
+
+    func testFullTextBeyondPreviewAndOpaqueFormatIdentityAreNotCollapsed() throws {
+        let h = try Harness()
+        let prefix = String(repeating: "x", count: 4_000)
+        for suffix in ["A", "B", "A"] {
+            h.board.clearContents(); h.board.setString(prefix + suffix, forType: .string); try h.collector.poll()
+        }
+        let text = try h.package(types: ["text"]); h.grant(text)
+        let snapshot = try h.query(text)
+        XCTAssertEqual(snapshot.copies.count, 2)
+        XCTAssertEqual(Set(snapshot.entries.map(\.text)).count, 1, "The previews are deliberately identical")
+        XCTAssertEqual(try h.chunk(text, id: XCTUnwrap(snapshot.entries.first).id).data, Data((prefix + "A").utf8))
+        for format in ["org.telegram.message", "org.telegram.other-message"] {
+            let item = NSPasteboardItem()
+            item.setString("identical", forType: .string)
+            item.setData(Data([1, 2, 3]), forType: .init(format))
+            h.board.clearContents(); h.board.writeObjects([item]); try h.collector.poll()
+        }
+        let all = try h.package(types: ["text", "binary"]); h.grant(all)
+        XCTAssertEqual(try h.query(all).copies.count, 4, "Same bytes in different opaque formats are not the same payload")
     }
 
     func testRestartReclaimsAnInterruptedStagedIndexWithoutLosingCommittedHistory() throws {

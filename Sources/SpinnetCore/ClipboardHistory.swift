@@ -1,5 +1,7 @@
 import Foundation
 import Darwin
+import CryptoKit
+import ImageIO
 import UniformTypeIdentifiers
 
 public struct ClipboardContent: Codable, Equatable {
@@ -40,8 +42,10 @@ public struct ClipboardContent: Codable, Equatable {
     public let format: String?
     public let fileURL: URL?
     public let imagePreview: ClipboardImagePreview?
-    public init(text: String, type: ContentType, data: Data? = nil, format: String? = nil, fileURL: URL? = nil, imagePreview: ClipboardImagePreview? = nil) {
+    public let itemIndex: Int?
+    public init(text: String, type: ContentType, data: Data? = nil, format: String? = nil, fileURL: URL? = nil, imagePreview: ClipboardImagePreview? = nil, itemIndex: Int? = nil) {
         self.text = text; self.type = type; self.data = data; self.format = format; self.fileURL = fileURL; self.imagePreview = imagePreview
+        self.itemIndex = itemIndex
     }
 }
 
@@ -49,9 +53,12 @@ public struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     public let id: UUID
     public var text: String
     public let contentType: ClipboardContent.ContentType
-    public let sourceApplicationName: String
-    public let sourceBundleIdentifier: String
-    public let copiedAt: Date
+    public var sourceApplicationName: String
+    public var sourceBundleIdentifier: String
+    public var copiedAt: Date
+    /// Optional for compatibility with archives created before copy grouping.
+    public var copyID: UUID? = nil
+    public var itemIndex: Int? = nil
     public var byteCount: Int? = nil
     public var format: String? = nil
     public var fileReference: ClipboardFileReferenceMetadata? = nil
@@ -83,12 +90,31 @@ public struct ClipboardHistoryContentChunk: Codable, Equatable {
     public let totalBytes: Int
 }
 
+/// A user-visible copy; only authorized representations are included.
+public struct ClipboardHistoryCopy: Identifiable, Equatable {
+    public let id: UUID
+    public var representations: [ClipboardHistoryEntry]
+}
+
 public struct ClipboardHistorySnapshot: Codable, Equatable {
+    public var copies: [ClipboardHistoryCopy] {
+        var result: [ClipboardHistoryCopy] = []
+        var indices: [UUID: Int] = [:]
+        for entry in entries {
+            let id = entry.copyID ?? entry.id
+            if let index = indices[id] { result[index].representations.append(entry) }
+            else { indices[id] = result.count; result.append(.init(id: id, representations: [entry])) }
+        }
+        return result
+    }
     public enum State: String, Codable { case off, paused, collecting }
     public let state: State
     public let entries: [ClipboardHistoryEntry]
     public let nextOffset: Int?
     public let expiresAt: Date?
+    /// Only an exceptionally large single copy can exceed the metadata budget.
+    /// Its stable copy ID continues on the next bounded representation page.
+    public var continuingCopyID: UUID? = nil
 }
 
 public struct ClipboardHistorySettings {
@@ -175,6 +201,7 @@ public final class ClipboardHistoryStore {
         let fileNumber: UInt64?
         let volumeNumber: UInt64?
         let createdAt: Date?
+        let modifiedAt: Date?
 
         init(url: URL) {
             self.url = url
@@ -182,6 +209,36 @@ public final class ClipboardHistoryStore {
             fileNumber = (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value
             volumeNumber = (attributes?[.systemNumber] as? NSNumber)?.uint64Value
             createdAt = attributes?[.creationDate] as? Date
+            modifiedAt = attributes?[.modificationDate] as? Date
+        }
+
+        /// Only small, regular, local raster files are eligible. No Quick Look
+        /// generators, file promises, cloud downloads or source-file cloning.
+        var thumbnail: ClipboardImagePreview? {
+            guard unavailableReason == nil,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isUbiquitousItemKey, .volumeIsLocalKey, .fileSizeKey, .contentTypeKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  values.isUbiquitousItem != true, values.volumeIsLocal == true,
+                  let size = values.fileSize, size <= 20 * 1_024 * 1_024,
+                  let type = values.contentType,
+                  [UTType.png, .jpeg, .tiff, .gif, .heic].contains(where: { type.conforms(to: $0) }),
+                  let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let width = properties[kCGImagePropertyPixelWidth] as? Int,
+                  let height = properties[kCGImagePropertyPixelHeight] as? Int,
+                  width > 0, height > 0, width <= 20_000, height <= 20_000,
+                  height <= 40_000_000 / width,
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 128
+                  ] as CFDictionary) else { return nil }
+            let output = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+            CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.65] as CFDictionary)
+            guard CGImageDestinationFinalize(destination), output.length <= 32_768,
+                  unavailableReason == nil, FileReference(url: url).modifiedAt == modifiedAt else { return nil }
+            return ClipboardImagePreview(pixelWidth: width, pixelHeight: height, thumbnail: output as Data)
         }
 
         var unavailableReason: String? {
@@ -201,6 +258,7 @@ public final class ClipboardHistoryStore {
         var retentionDays = 1
         var entries: [ClipboardHistoryEntry] = []
         var references: [String: FileReference]? = nil
+        var copyFingerprints: [String: String]? = nil
         var excludedApplications: [String]? = nil
     }
     public static let defaultExcludedApplications = ["com.apple.Passwords", "com.apple.keychainaccess"]
@@ -295,7 +353,31 @@ public final class ClipboardHistoryStore {
             return
         }
         try contents.forEach { try $0.validate() }
+        // Copy time belongs to the observation, never to individual payload writes.
+        let copiedAt = now()
         var next = archive
+        let fingerprint = try copyFingerprint(contents)
+        if let existing = next.copyFingerprints?.first(where: { $0.value == fingerprint })?.key,
+           let copyID = UUID(uuidString: existing), next.entries.contains(where: { $0.copyID == copyID }) {
+            var repeated = next.entries.filter { $0.copyID == copyID }
+            next.entries.removeAll { $0.copyID == copyID }
+            if repeated.count == contents.filter({ $0.data != nil || !$0.text.isEmpty }).count {
+                for index in repeated.indices {
+                    repeated[index].copiedAt = copiedAt
+                    repeated[index].sourceApplicationName = sourceName
+                    repeated[index].sourceBundleIdentifier = sourceBundleID
+                }
+                next.entries.insert(contentsOf: repeated, at: 0)
+                if try persist(next, session: session) { lastChangeCount = changeCount }
+                return
+            }
+            // A prior version may already have expired only part of this group
+            // while retaining the complete fingerprint. Rebuild from this copy's
+            // supplied payloads instead of permanently reusing the incomplete set.
+        }
+        let copyID = UUID()
+        if next.copyFingerprints == nil { next.copyFingerprints = [:] }
+        next.copyFingerprints?[copyID.uuidString] = fingerprint
         var createdPayloads: [URL] = []
         var committed = false
         defer {
@@ -308,7 +390,7 @@ public final class ClipboardHistoryStore {
             guard content.data != nil || !content.text.isEmpty else { continue }
             let preview = String(decoding: content.text.utf8.prefix(2_048), as: UTF8.self)
             var entry = ClipboardHistoryEntry(id: UUID(), text: preview, contentType: content.type,
-                sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: now())
+                sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: copiedAt)
             if content.type == .fileReference, let url = content.fileURL, url.isFileURL {
                 let reference = FileReference(url: url)
                 let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey, .isDirectoryKey])
@@ -317,6 +399,7 @@ public final class ClipboardHistoryStore {
                     byteCount: values?.fileSize, previewIcon: values?.isDirectory == true ? "folder" : "doc", unavailableReason: reference.unavailableReason)
                 if next.references == nil { next.references = [:] }
                 next.references?[entry.id.uuidString] = reference
+                entry.imagePreview = reference.thumbnail
             } else {
                 let data = content.data ?? Data(content.text.utf8)
                 try FileManager.default.createDirectory(at: payloadDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -327,12 +410,37 @@ public final class ClipboardHistoryStore {
                 entry.byteCount = data.count
                 entry.format = content.format ?? "public.utf8-plain-text"
             }
-            entry.imagePreview = content.imagePreview
+            entry.copyID = copyID
+            entry.itemIndex = content.itemIndex
+            if content.type != .fileReference { entry.imagePreview = content.imagePreview }
             next.entries.insert(entry, at: 0)
         }
         guard try persist(next, session: session) else { return }
         committed = true
         lastChangeCount = changeCount
+    }
+
+    /// Hash full bytes with length-delimited fields, not truncated display text.
+    /// Sorting representations ignores pasteboard format enumeration order while
+    /// retaining item boundaries, multiplicity, types, formats and file identity.
+    private func copyFingerprint(_ contents: [ClipboardContent]) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let digests = try contents.map { content -> String in
+            var hash = SHA256()
+            func field(_ data: Data) {
+                var length = UInt64(data.count).bigEndian
+                withUnsafeBytes(of: &length) { hash.update(data: Data($0)) }
+                hash.update(data: data)
+            }
+            field(Data(String(content.itemIndex ?? 0).utf8))
+            field(Data(content.type.rawValue.utf8))
+            field(Data((content.format ?? "").utf8))
+            field(content.data ?? Data(content.text.utf8))
+            if let url = content.fileURL { field(try encoder.encode(FileReference(url: url))) }
+            return hash.finalize().map { String(format: "%02x", $0) }.joined()
+        }.sorted()
+        return SHA256.hash(data: Data(digests.joined(separator: ":").utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     private var payloadDirectory: URL { fileURL.deletingLastPathComponent().appendingPathComponent("clipboard-payloads", isDirectory: true) }
@@ -381,7 +489,17 @@ public final class ClipboardHistoryStore {
         let filtered = archive.entries.filter { dataTypes.contains($0.contentType.rawValue) }
         var entries: [ClipboardHistoryEntry] = []
         var bytes = 0
-        for var entry in filtered.dropFirst(max(0, offset)).prefix(50) {
+        var copyCount = 0
+        var currentCopyID: UUID?
+        var groupStart = 0
+        for var entry in filtered.dropFirst(max(0, offset)) {
+            let copyID = entry.copyID ?? entry.id
+            if copyID != currentCopyID {
+                guard copyCount < 50 else { break }
+                copyCount += 1
+                currentCopyID = copyID
+                groupStart = entries.count
+            }
             if entry.byteCount == nil, entry.contentType != .fileReference {
                 entry.byteCount = entry.text.utf8.count
                 entry.format = "public.utf8-plain-text"
@@ -390,18 +508,29 @@ public final class ClipboardHistoryStore {
             if var metadata = entry.fileReference {
                 if let reference = archive.references?[entry.id.uuidString] {
                     metadata.unavailableReason = reference.unavailableReason
-                } else { metadata.unavailableReason = "Reference metadata is unavailable. Copy the file again." }
+                    if metadata.unavailableReason != nil || FileReference(url: reference.url).modifiedAt != reference.modifiedAt {
+                        entry.imagePreview = nil
+                    }
+                } else {
+                    metadata.unavailableReason = "Reference metadata is unavailable. Copy the file again."
+                    entry.imagePreview = nil
+                }
                 entry.fileReference = metadata
             }
             let size = try JSONEncoder().encode(entry).count
-            if bytes + size > 524_288 { break }
+            if bytes + size > 524_288 {
+                // Defer the whole group unless it alone exceeds the wire budget.
+                if groupStart > 0 { entries.removeSubrange(groupStart...) }
+                break
+            }
             entries.append(entry)
             bytes += size
         }
         let end = max(0, offset) + entries.count
         return ClipboardHistorySnapshot(state: !archive.enabled ? .off : archive.paused ? .paused : .collecting,
             entries: entries, nextOffset: end < filtered.count ? end : nil,
-            expiresAt: entries.map { $0.copiedAt.addingTimeInterval(Double(archive.retentionDays) * 86_400) }.min())
+            expiresAt: entries.map { $0.copiedAt.addingTimeInterval(Double(archive.retentionDays) * 86_400) }.min(),
+            continuingCopyID: end < filtered.count && entries.last?.copyID != nil && entries.last?.copyID == filtered[end].copyID ? entries.last?.copyID : nil)
     }
 
     private func performTurnOff(deleteEntries: Bool) throws {
@@ -422,15 +551,34 @@ public final class ClipboardHistoryStore {
 
     private func expire() throws {
         let cutoff = now().addingTimeInterval(-Double(archive.retentionDays) * 86_400)
-        guard archive.entries.contains(where: { $0.copiedAt <= cutoff }) else {
-            // The index can commit before filesystem deletion fails. Cleanup is
-            // independent of whether this pass has newly expired index entries.
-            try removeUnreferencedPayloads()
-            return
+        // Older grouped archives could timestamp each representation separately.
+        // Use the earliest member: never extend retention, even for a query whose
+        // type scope hides that member. Persist normalization before publication.
+        var copyTimes: [UUID: Date] = [:]
+        for entry in archive.entries {
+            if let id = entry.copyID {
+                copyTimes[id] = min(copyTimes[id] ?? entry.copiedAt, entry.copiedAt)
+            }
         }
         var next = archive
-        next.entries.removeAll { $0.copiedAt <= cutoff }
-        if next.entries.count != archive.entries.count { try persist(next) }
+        var changed = false
+        next.entries = archive.entries.compactMap { entry in
+            let copiedAt = entry.copyID.flatMap { copyTimes[$0] } ?? entry.copiedAt
+            guard copiedAt > cutoff else { changed = true; return nil }
+            var entry = entry
+            if entry.copiedAt != copiedAt {
+                entry.copiedAt = copiedAt
+                changed = true
+            }
+            return entry
+        }
+        if changed {
+            // Removing the entire group also reclaims its fingerprint/references.
+            try persist(next)
+        } else {
+            // Retry filesystem cleanup even when an earlier index already committed.
+            try removeUnreferencedPayloads()
+        }
     }
 
     @discardableResult
@@ -440,6 +588,8 @@ public final class ClipboardHistoryStore {
         var next = next
         let retainedIDs = Set(next.entries.map { $0.id.uuidString })
         next.references = next.references?.filter { retainedIDs.contains($0.key) }
+        let retainedCopies = Set(next.entries.compactMap { $0.copyID?.uuidString })
+        next.copyFingerprints = next.copyFingerprints?.filter { retainedCopies.contains($0.key) }
         let stagedURL = fileURL.appendingPathExtension("pending-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: stagedURL) }
         try writeFile(JSONEncoder().encode(next), stagedURL)

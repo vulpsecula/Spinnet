@@ -1735,6 +1735,35 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(model.clipboardExcludedApplications.contains("com.apple.keychainaccess"))
     }
 
+    func testHistoryManagementShortcutsReuseSettingsWithoutChangingCollectionOrGrants() throws {
+        let h = try RichClipboardHistoryTests.Harness()
+        h.board.clearContents(); h.board.setString("to clear", forType: .string); try h.collector.poll()
+        let package = try h.package(types: ["text"]); h.grant(package)
+        let suite = "SpinnetHostTests.HistoryManagement.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = SettingsWindowController(editor: try makeEditor(), capabilityGrantStore: h.grants,
+            defaults: defaults, clipboardHistoryStore: h.store)
+        controller.onClipboardSettingsWillChange = { try h.collector.resetBaseline() }
+        controller.showClipboardIgnoredApplications()
+        XCTAssertEqual(controller.currentPage, .privacyAndPermissions)
+        XCTAssertNotNil(controller.clipboardExclusionsFocus)
+        XCTAssertEqual(try h.query(package).entries.count, 1, "Opening management does not clear or enable collection")
+        let cleared = expectation(description: "Host management clear completed")
+        controller.clearClipboardHistory { error in
+            XCTAssertNil(error)
+            cleared.fulfill()
+        }
+        wait(for: [cleared], timeout: 2)
+        XCTAssertEqual(try h.query(package).entries, [])
+        XCTAssertTrue(h.store.settings.enabled)
+        XCTAssertFalse(h.store.settings.paused)
+        XCTAssertTrue(h.store.isApplicationExcluded("com.apple.Passwords"))
+        h.board.clearContents(); h.board.setString("after clear", forType: .string); try h.collector.poll()
+        XCTAssertEqual(try h.query(package).entries.map(\.text), ["after clear"], "Existing Plugin authorization survives Clear")
+        controller.close()
+    }
+
     func testClipboardPrivacyControlsTheHostStoreAndKeepsGrantIndependent() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

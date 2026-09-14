@@ -81,6 +81,10 @@ struct ClipboardHistoryView: View {
     @ObservedObject var model: ClipboardHistoryWindowModel
     let openPrivacy: () -> Void
     let openPluginSettings: () -> Void
+    let openIgnoredApplications: () -> Void
+    let clearHistory: (@escaping (String?) -> Void) -> Void
+    @State private var clearing = false
+    @State private var managementError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -90,6 +94,21 @@ struct ClipboardHistoryView: View {
                 Button("Refresh") { model.refresh() }.keyboardShortcut("r", modifiers: .command)
                 Button("Plugin Settings…", action: openPluginSettings)
             }
+            HStack {
+                ClipboardHistoryClearButton {
+                    clearing = true
+                    managementError = nil
+                    clearHistory { error in
+                        clearing = false
+                        managementError = error
+                        model.refresh()
+                    }
+                }.disabled(clearing)
+                Button("Ignored Applications…", action: openIgnoredApplications)
+                if clearing { ProgressView().controlSize(.small) }
+                Spacer()
+            }
+            if let managementError { Text(managementError).foregroundStyle(.red) }
             if model.isLoading {
                 ProgressView("Loading Clipboard History…")
             } else if let error = model.error {
@@ -110,55 +129,14 @@ struct ClipboardHistoryView: View {
                          : "No retained entries. Enable or resume collection in Privacy Settings to collect new copies.")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(snapshot.entries) { entry in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .top, spacing: 12) {
-                                if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
-                                    Image(nsImage: image).resizable().scaledToFit().frame(width: 96, height: 72)
-                                        .accessibilityLabel("Copied image preview")
-                                } else if let reference = entry.fileReference {
-                                    Image(systemName: reference.previewIcon).font(.title).accessibilityHidden(true)
-                                }
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(entry.text).textSelection(.enabled).lineLimit(6)
-                                    if let reference = entry.fileReference {
-                                        Text(reference.typeIdentifier).font(.caption).foregroundStyle(.secondary)
-                                        if let size = reference.byteCount { Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)).font(.caption) }
-                                        if let reason = reference.unavailableReason {
-                                            Label("Unavailable — " + reason, systemImage: "exclamationmark.triangle")
-                                                .font(.caption).foregroundStyle(.secondary)
-                                        } else {
-                                            Text("File reference only — source contents are not stored.").font(.caption).foregroundStyle(.secondary)
-                                        }
-                                    } else {
-                                        if let size = entry.byteCount {
-                                            Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) + " · " + (entry.format ?? ""))
-                                                .font(.caption).foregroundStyle(.secondary)
-                                        }
-                                        if let preview = entry.imagePreview {
-                                            Text("\(preview.pixelWidth) × \(preview.pixelHeight) pixels").font(.caption).foregroundStyle(.secondary)
-                                        }
-                                        if [.text, .url].contains(entry.contentType), (entry.byteCount ?? 0) > entry.text.utf8.count {
-                                            Text("Text preview — full content is retained locally.").font(.caption).foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                            }
-                            HStack {
-                                Text(entry.contentType.rawValue.uppercased())
-                                Text(entry.sourceApplicationName)
-                                Text(entry.sourceBundleIdentifier)
-                                Spacer()
-                                Text(entry.copiedAt, style: .date)
-                                Text(entry.copiedAt, style: .time)
-                            }.font(.caption).foregroundStyle(.secondary)
-                        }.padding(.vertical, 6)
+                    List(snapshot.copies) { copy in
+                        ClipboardHistoryCopyRow(copy: copy)
                     }
                     HStack {
                         Button("Newest") { model.refresh() }.disabled(model.offset == 0)
                         Spacer()
                         if let next = snapshot.nextOffset {
-                            Button("Older Entries") { model.refresh(offset: next) }
+                            Button(snapshot.continuingCopyID == nil ? "Older Entries" : "More Representations") { model.refresh(offset: next) }
                         }
                     }
                 }
@@ -174,7 +152,9 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     private var observer: UUID?
 
     init(grants: PluginCapabilityGrantStore, query: @escaping (Int) throws -> ClipboardHistorySnapshot,
-         openPrivacy: @escaping () -> Void, openPluginSettings: @escaping () -> Void) {
+         openPrivacy: @escaping () -> Void, openPluginSettings: @escaping () -> Void,
+         openIgnoredApplications: @escaping () -> Void,
+         clearHistory: @escaping (@escaping (String?) -> Void) -> Void) {
         self.grants = grants
         model = ClipboardHistoryWindowModel(query: query)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
@@ -183,7 +163,8 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
         window.title = "Clipboard History"
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = NSHostingView(rootView: ClipboardHistoryView(model: model, openPrivacy: openPrivacy, openPluginSettings: openPluginSettings))
+        window.contentView = NSHostingView(rootView: ClipboardHistoryView(model: model, openPrivacy: openPrivacy,
+            openPluginSettings: openPluginSettings, openIgnoredApplications: openIgnoredApplications, clearHistory: clearHistory))
         window.center()
         observer = grants.observeChanges { [weak self] in
             if Thread.isMainThread { self?.refreshIfVisible() }

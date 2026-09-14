@@ -532,7 +532,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }, openPrivacy: { [weak self] in
             self?.settings.select(page: .privacyAndPermissions)
             self?.settings.present()
-        }, openPluginSettings: { [weak self] in self?.settings.showPluginSettings(package.manifest.id) })
+        }, openPluginSettings: { [weak self] in self?.settings.showPluginSettings(package.manifest.id) },
+        openIgnoredApplications: { [weak self] in self?.settings.showClipboardIgnoredApplications() },
+        clearHistory: { [weak self] completion in
+            guard let self else { completion("Host closed"); return }
+            self.settings.clearClipboardHistory(completion: completion)
+        })
         clipboardWindow?.present()
     }
 

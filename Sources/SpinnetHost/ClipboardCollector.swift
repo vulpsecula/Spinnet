@@ -115,19 +115,20 @@ final class ClipboardCollector {
     static func readAll(from board: NSPasteboard = .general) -> [ClipboardContent] {
         guard !isPrivate(board) else { return [] }
         var contents: [ClipboardContent] = []
-        for item in board.pasteboardItems ?? [] {
+        for (itemIndex, item) in (board.pasteboardItems ?? []).enumerated() {
             let referenceURL = fileReferenceURL(in: item)
             if let url = referenceURL, url.isFileURL {
-                contents.append(ClipboardContent(text: url.lastPathComponent, type: .fileReference, fileURL: url))
+                contents.append(ClipboardContent(text: url.lastPathComponent, type: .fileReference, fileURL: url, itemIndex: itemIndex))
                 // Finder's other representations can contain paths and promises,
                 // not embedded file contents. Never fulfill a file promise.
                 continue
             }
             guard !item.types.contains(.fileURL) else { continue }
             for format in item.types {
+                guard !["org.chromium.source-url", "org.chromium.source-rfh-token"].contains(format.rawValue) else { continue }
                 let type = ClipboardContent.contentType(forFormat: format.rawValue)
                 if type == .text || type == .url {
-                    if let content = textContent(item, format: format) { contents.append(content) }
+                    if let content = textContent(item, format: format, itemIndex: itemIndex) { contents.append(content) }
                     continue
                 }
                 guard format != .fileURL,
@@ -135,8 +136,8 @@ final class ClipboardCollector {
                       !format.rawValue.hasPrefix("org.nspasteboard."),
                       !format.rawValue.hasPrefix("com.apple.pasteboard."),
                       let data = item.data(forType: format), !data.isEmpty else { continue }
-                contents.append(ClipboardContent(text: type == .image ? "Image" : type == .richText ? "Rich text" : "Binary content", type: type, data: data, format: format.rawValue,
-                    imagePreview: type == .image ? imagePreview(data) : nil))
+                contents.append(ClipboardContent(text: type == .image ? "Image" : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
+                    imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex))
             }
         }
         return contents
@@ -175,7 +176,7 @@ final class ClipboardCollector {
         return nil
     }
 
-    private static func textContent(_ item: NSPasteboardItem, format: NSPasteboard.PasteboardType) -> ClipboardContent? {
+    private static func textContent(_ item: NSPasteboardItem, format: NSPasteboard.PasteboardType, itemIndex: Int? = nil) -> ClipboardContent? {
         let type = ClipboardContent.contentType(forFormat: format.rawValue)
         guard type == .text || type == .url else { return nil }
         let text: String?
@@ -187,7 +188,7 @@ final class ClipboardCollector {
         let url = URL(string: trimmed)
         guard !(type == .url && url?.isFileURL == true) else { return nil }
         let isWebURL = url.map { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host != nil && !trimmed.contains(where: \.isWhitespace) } ?? false
-        return ClipboardContent(text: text, type: type == .url || isWebURL ? .url : .text)
+        return ClipboardContent(text: text, type: type == .url || isWebURL ? .url : .text, itemIndex: itemIndex)
     }
 
     static func readCurrent(from board: NSPasteboard = .general) -> ClipboardContent? {

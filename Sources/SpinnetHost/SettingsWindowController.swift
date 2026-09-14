@@ -44,6 +44,16 @@ final class SettingsWindowController: NSWindowController {
         present()
     }
 
+    var clipboardExclusionsFocus: UUID? { model.clipboardExclusionsFocus }
+    func showClipboardIgnoredApplications() {
+        model.clipboardExclusionsFocus = UUID()
+        model.selectPage(.privacyAndPermissions)
+        present()
+    }
+    func clearClipboardHistory(completion: @escaping (String?) -> Void) {
+        model.clearClipboardHistory(completion: completion)
+    }
+
     var currentPage: SettingsPage {
         model.page
     }

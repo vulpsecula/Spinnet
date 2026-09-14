@@ -239,6 +239,7 @@ final class SettingsWindowModel: ObservableObject {
     var onClipboardHistoryChanged: (() -> Void)?
     private var restoringClipboardSettings = false
     @Published var clipboardError: String?
+    @Published var clipboardExclusionsFocus: UUID?
     @Published private(set) var clipboardSettingsPending = false
     private var clipboardControlID = 0
     @Published private(set) var clipboardExcludedApplications: [String] = ClipboardHistoryStore.defaultExcludedApplications
@@ -607,20 +608,22 @@ final class SettingsWindowModel: ObservableObject {
         defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention)
     }
 
-    private func submitClipboardControl(_ control: ClipboardHistoryControl) {
+    private func submitClipboardControl(_ control: ClipboardHistoryControl, completion: ((String?) -> Void)? = nil) {
         do { try onClipboardSettingsWillChange?() }
-        catch { clipboardError = error.localizedDescription; return }
+        catch { clipboardError = error.localizedDescription; completion?(clipboardError); return }
         clipboardControlID += 1
         let requestID = clipboardControlID
         clipboardError = nil
         guard let store = clipboardHistoryStore else {
             saveClipboardDefaults()
             onClipboardHistoryChanged?()
+            completion?(nil)
             return
         }
         clipboardSettingsPending = true
         store.submitControl(control) { [weak self] settings, error in
             DispatchQueue.main.async { [weak self] in
+                defer { completion?(error?.localizedDescription) }
                 guard let self, requestID == self.clipboardControlID else { return }
                 self.restoringClipboardSettings = true
                 self.clipboardCollectionEnabled = settings.enabled
@@ -650,6 +653,9 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func clearClipboardHistory() { submitClipboardControl(.clear) }
+    func clearClipboardHistory(completion: @escaping (String?) -> Void) {
+        submitClipboardControl(.clear, completion: completion)
+    }
 
     func turnOffClipboardHistory(deleteEntries: Bool) {
         restoringClipboardSettings = true
@@ -1498,6 +1504,7 @@ struct SettingsRootView: View {
                     excludedApplications: model.clipboardExcludedApplications,
                     addExcludedApplication: model.addClipboardExcludedApplication,
                     removeExcludedApplication: model.removeClipboardExcludedApplication,
+                    exclusionsFocus: model.clipboardExclusionsFocus,
                     setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )
@@ -2789,7 +2796,7 @@ private struct PrivacySettingsView: View {
     @State private var excludedBundleID = ""
     @State private var confirmEnable = false
     @State private var confirmDisable = false
-    @State private var confirmClear = false
+    let exclusionsFocus: UUID?
     let setCapabilityDecision: (
         PluginCapabilityGrantDecision,
         PluginID,
@@ -2799,6 +2806,7 @@ private struct PrivacySettingsView: View {
     let openURL: (URL) -> Bool
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
@@ -2868,7 +2876,7 @@ private struct PrivacySettingsView: View {
                         .disabled(!clipboardCollectionEnabled)
                         Text("Stored only on this Mac. Spinnet does not sync history through iCloud or Plugins. Large content is saved locally; Plugins read it in authorized chunks.")
                             .font(.caption).foregroundStyle(.secondary)
-                        Text("Excluded Applications").font(.headline)
+                        Text("Excluded Applications").font(.headline).id("clipboard-exclusions")
                         Text("Exclusions apply to new copies, using the foreground application at sampling time. Clear History to remove older entries. Passwords and Keychain Access always remain excluded.")
                             .font(.caption).foregroundStyle(.secondary)
                         ForEach(excludedApplications, id: \.self) { bundleID in
@@ -2890,11 +2898,7 @@ private struct PrivacySettingsView: View {
                             }.disabled(excludedBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             Button("Choose Application…") { chooseExcludedApplication() }
                         }
-                        Button("Clear History…") { confirmClear = true }
-                            .alert("Delete all retained clipboard entries?", isPresented: $confirmClear) {
-                                Button("Clear History", role: .destructive, action: clearHistory)
-                                Button("Cancel", role: .cancel) {}
-                            } message: { Text("This cannot be undone. Collection and Plugin grants do not change.") }
+                        ClipboardHistoryClearButton(action: clearHistory)
                     }
                     Divider().padding(.leading, 52)
                     privacyRow(
@@ -2919,6 +2923,9 @@ private struct PrivacySettingsView: View {
                 pluginCapabilityControls
             }
             .frame(maxWidth: 760, alignment: .leading)
+        }
+        .onAppear { if exclusionsFocus != nil { proxy.scrollTo("clipboard-exclusions", anchor: .top) } }
+        .onChange(of: exclusionsFocus) { _ in proxy.scrollTo("clipboard-exclusions", anchor: .top) }
         }
     }
 
