@@ -7,17 +7,13 @@ import SpinnetCore
 struct ClipboardHistoryCopyRow: View {
     let copy: ClipboardHistoryCopy
 
-    private var primary: ClipboardHistoryEntry? {
-        let preference: [ClipboardContent.ContentType] = [.image, .fileReference, .text, .url, .richText, .binary]
-        return copy.representations.min {
-            (preference.firstIndex(of: $0.contentType) ?? 6) < (preference.firstIndex(of: $1.contentType) ?? 6)
-        }
-    }
+    private var presentation: ClipboardHistoryCopyPresentation { .init(copy: copy) }
 
     var body: some View {
-        if let entry = primary {
+        if let entry = presentation.primary {
             VStack(alignment: .leading, spacing: 8) {
-                ClipboardHistoryRepresentationView(entry: entry)
+                ClipboardHistoryRepresentationView(entry: entry, stackedFileCount: presentation.fileCount,
+                    stackedFileIcon: presentation.fileCount > 1 ? presentation.fileIcon : nil)
                 if copy.representations.count > 1 {
                     DisclosureGroup("\(Set(copy.representations.map { $0.itemIndex ?? 0 }).count) items · \(copy.representations.count) representations") {
                         ForEach(copy.representations.filter { $0.id != entry.id }) { representation in
@@ -40,30 +36,36 @@ struct ClipboardHistoryCopyRow: View {
 
 private struct ClipboardHistoryRepresentationView: View {
     let entry: ClipboardHistoryEntry
-    @State private var renderMarkdown = false
+    let stackedFileCount: Int
+    let stackedFileIcon: String?
+    @State private var mode: ClipboardHistoryPreviewMode
+    private var presentation: ClipboardHistoryTextPresentation { .init(entry: entry) }
+
+    init(entry: ClipboardHistoryEntry, stackedFileCount: Int = 0, stackedFileIcon: String? = nil) {
+        self.entry = entry; self.stackedFileCount = stackedFileCount; self.stackedFileIcon = stackedFileIcon
+        _mode = State(initialValue: ClipboardHistoryTextPresentation(entry: entry).defaultMode)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
+            if let stackedFileIcon {
+                Image(systemName: stackedFileIcon).font(.title).accessibilityLabel("\(stackedFileCount) copied files")
+            } else if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
                 Image(nsImage: image).resizable().scaledToFit().frame(width: 96, height: 72)
                     .accessibilityLabel("Copied image preview")
             } else if let reference = entry.fileReference {
                 Image(systemName: reference.previewIcon).font(.title).accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 4) {
-                if entry.contentType == .text {
-                    Picker("Text preview", selection: $renderMarkdown) {
-                        Text("Source").tag(false)
-                        Text("Rendered").tag(true)
+                if entry.contentType == .richText {
+                    Picker("Rich text preview", selection: $mode) {
+                        Text("Rendered").tag(ClipboardHistoryPreviewMode.rendered)
+                        Text("Source").tag(ClipboardHistoryPreviewMode.source)
                     }.pickerStyle(.segmented).frame(width: 190)
-                    if renderMarkdown {
-                        // Text renders attributed characters only: no WebView or
-                        // remote images. Links are inert, including file: URLs.
-                        Text((try? AttributedString(markdown: entry.text,
-                            options: .init(interpretedSyntax: .full))) ?? AttributedString(entry.text))
-                            .textSelection(.enabled).lineLimit(8)
+                    if mode == .rendered {
+                        Text(presentation.rendered).textSelection(.enabled).lineLimit(8)
                             .environment(\.openURL, OpenURLAction { _ in .handled })
-                    } else { Text(entry.text).textSelection(.enabled).lineLimit(8) }
+                    } else { Text(presentation.source).textSelection(.enabled).lineLimit(8) }
                 } else { Text(entry.text).textSelection(.enabled).lineLimit(6) }
                 if let reference = entry.fileReference {
                     Text(reference.typeIdentifier).font(.caption).foregroundStyle(.secondary)
@@ -77,7 +79,7 @@ private struct ClipboardHistoryRepresentationView: View {
                         Text("File reference only — source contents are not stored.").font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    Text(entry.contentType.rawValue.uppercased() + " · " + (entry.format ?? ""))
+                    Text(presentation.typeLabel + " · " + (entry.format ?? ""))
                         .font(.caption).foregroundStyle(.secondary)
                     if let size = entry.byteCount {
                         Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)).font(.caption).foregroundStyle(.secondary)

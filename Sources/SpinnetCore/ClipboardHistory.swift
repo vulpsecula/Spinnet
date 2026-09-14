@@ -8,6 +8,7 @@ public struct ClipboardContent: Codable, Equatable {
     public enum ContentType: String, Codable { case text, url, image, binary, richText = "rich_text", fileReference = "file_reference" }
     /// Known UTI families cannot be downgraded to the unrestricted binary category.
     public static func contentType(forFormat format: String) -> ContentType {
+        if format == ClipboardMarkdown.format || format == "public.markdown" { return .richText }
         guard let uti = UTType(format) else { return .binary }
         if uti.conforms(to: .fileURL) { return .fileReference }
         if uti.conforms(to: .url) { return .url }
@@ -29,6 +30,11 @@ public struct ClipboardContent: Codable, Equatable {
                 && (type == .image || imagePreview == nil)
         }
         guard valid else { throw PluginHostServiceError.invalidInput("Clipboard content type does not match its payload") }
+        if let preview = richTextPreview {
+            guard type == .richText, preview.isBounded else {
+                throw PluginHostServiceError.invalidInput("Clipboard rich text preview is invalid")
+            }
+        }
         if let preview = imagePreview {
             guard preview.pixelWidth > 0, preview.pixelHeight > 0, (preview.thumbnail?.count ?? 0) <= 32_768 else {
                 throw PluginHostServiceError.invalidInput("Clipboard image preview is invalid")
@@ -43,16 +49,18 @@ public struct ClipboardContent: Codable, Equatable {
     public let fileURL: URL?
     public let imagePreview: ClipboardImagePreview?
     public let itemIndex: Int?
-    public init(text: String, type: ContentType, data: Data? = nil, format: String? = nil, fileURL: URL? = nil, imagePreview: ClipboardImagePreview? = nil, itemIndex: Int? = nil) {
+    public let richTextPreview: ClipboardRichTextPreview?
+    public init(text: String, type: ContentType, data: Data? = nil, format: String? = nil, fileURL: URL? = nil, imagePreview: ClipboardImagePreview? = nil, itemIndex: Int? = nil, richTextPreview: ClipboardRichTextPreview? = nil) {
         self.text = text; self.type = type; self.data = data; self.format = format; self.fileURL = fileURL; self.imagePreview = imagePreview
         self.itemIndex = itemIndex
+        self.richTextPreview = richTextPreview
     }
 }
 
 public struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     public let id: UUID
     public var text: String
-    public let contentType: ClipboardContent.ContentType
+    public var contentType: ClipboardContent.ContentType
     public var sourceApplicationName: String
     public var sourceBundleIdentifier: String
     public var copiedAt: Date
@@ -63,6 +71,7 @@ public struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     public var format: String? = nil
     public var fileReference: ClipboardFileReferenceMetadata? = nil
     public var imagePreview: ClipboardImagePreview? = nil
+    public var richTextPreview: ClipboardRichTextPreview? = nil
 }
 
 public struct ClipboardImagePreview: Codable, Equatable {
@@ -139,6 +148,17 @@ public final class ClipboardHistoryStore {
     }
     private let lifecycleLock = NSLock()
     private var collectionGeneration = UUID()
+    private var historyReady = true
+    private var historyPreparationFailed = false
+
+    private func requirePreparedHistory() throws {
+        lifecycleLock.lock(); defer { lifecycleLock.unlock() }
+        guard historyReady else {
+            throw PluginHostServiceError.unavailable(historyPreparationFailed
+                ? "Clipboard History could not prepare retained entries. Restart to retry, or clear history in Settings."
+                : "Clipboard History is preparing retained entries. Try again shortly.")
+        }
+    }
     private var committedSettings = ClipboardHistorySettings(enabled: false, paused: false, retentionDays: 1,
                                                              excludedApplications: defaultExcludedApplications)
 
@@ -260,6 +280,7 @@ public final class ClipboardHistoryStore {
         var references: [String: FileReference]? = nil
         var copyFingerprints: [String: String]? = nil
         var excludedApplications: [String]? = nil
+        var markdownClassificationVersion: Int? = nil
     }
     public static let defaultExcludedApplications = ["com.apple.Passwords", "com.apple.keychainaccess"]
 
@@ -299,10 +320,65 @@ public final class ClipboardHistoryStore {
         self.now = now
         self.writeFile = writeFile
         archive = FileManager.default.fileExists(atPath: fileURL.path)
-            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL)) : Archive()
+            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL)) : Archive(markdownClassificationVersion: 1)
         committedSettings = settingsSnapshot(archive)
         try expire()
         try removeUnreferencedPayloads()
+        if archive.markdownClassificationVersion != 1 {
+            historyReady = false
+            transactions.async { [self] in
+                do {
+                    try migrateMarkdown()
+                    lifecycleLock.lock(); historyReady = true; lifecycleLock.unlock()
+                } catch {
+                    // Fail closed, including content chunks. Restart retries the
+                    // atomic migration; never publish an unclassified text alias.
+                    lifecycleLock.lock(); historyPreparationFailed = true; lifecycleLock.unlock()
+                }
+            }
+        }
+    }
+
+    private func migrateMarkdown() throws {
+        lock.lock(); defer { lock.unlock() }
+        var next = archive
+        var reclassifiedCopies = Set<String>()
+        for index in next.entries.indices {
+            let entry = next.entries[index]
+            let markdown = [ClipboardMarkdown.format, "public.markdown"].contains(entry.format ?? "")
+            let rich = entry.contentType == .richText && ["public.rtf", "public.html"].contains(entry.format ?? "")
+            guard entry.contentType == .text || rich || markdown else { continue }
+            let prefix: Data
+            if entry.byteCount != nil {
+                let handle = try FileHandle(forReadingFrom: payloadURL(entry.id))
+                defer { try? handle.close() }
+                prefix = try handle.read(upToCount: rich ? 196_608 : ClipboardMarkdown.prefixBytes) ?? Data()
+            } else {
+                prefix = Data(entry.text.utf8.prefix(ClipboardMarkdown.prefixBytes))
+            }
+            if markdown {
+                // Explicit Markdown UTIs may have been unknown (binary) on an
+                // older OS. Known rich formats cannot retain that old alias.
+                next.entries[index].contentType = .richText
+                if entry.byteCount != nil {
+                    next.entries[index].text = String(decoding: prefix.prefix(2_048), as: UTF8.self)
+                }
+            } else if rich {
+                next.entries[index].richTextPreview = OfflineClipboardPreview.styled(prefix, format: entry.format ?? "")
+            } else if ClipboardMarkdown.recognizes(prefix) {
+                next.entries[index].contentType = .richText
+                next.entries[index].format = ClipboardMarkdown.format
+            }
+            if next.entries[index].contentType != entry.contentType, let copyID = entry.copyID {
+                reclassifiedCopies.insert(copyID.uuidString)
+            }
+        }
+        // Only reclassified copies have stale type fingerprints. Keep unrelated
+        // deduplication intact; do not reread full payloads merely to rehash.
+        // A reclassified legacy copy can appear again on its first fresh recopy.
+        next.copyFingerprints = next.copyFingerprints?.filter { !reclassifiedCopies.contains($0.key) }
+        next.markdownClassificationVersion = 1
+        try persist(next)
     }
 
     /// A small committed snapshot, independent of the archive's bulk-I/O lock.
@@ -336,6 +412,7 @@ public final class ClipboardHistoryStore {
 
     public func observe(changeCount: Int, contents: [ClipboardContent], sourceName: String, sourceBundleID: String,
                         session: ObservationSession? = nil) throws {
+        try requirePreparedHistory()
         let session = session ?? observationSession
         try transactions.sync {
             try performObservation(changeCount: changeCount, contents: contents, sourceName: sourceName, sourceBundleID: sourceBundleID, session: session)
@@ -353,6 +430,7 @@ public final class ClipboardHistoryStore {
             return
         }
         try contents.forEach { try $0.validate() }
+        let contents = contents.map(ClipboardMarkdown.classify)
         // Copy time belongs to the observation, never to individual payload writes.
         let copiedAt = now()
         var next = archive
@@ -410,6 +488,7 @@ public final class ClipboardHistoryStore {
                 entry.byteCount = data.count
                 entry.format = content.format ?? "public.utf8-plain-text"
             }
+            entry.richTextPreview = content.richTextPreview
             entry.copyID = copyID
             entry.itemIndex = content.itemIndex
             if content.type != .fileReference { entry.imagePreview = content.imagePreview }
@@ -447,7 +526,8 @@ public final class ClipboardHistoryStore {
     private func payloadURL(_ id: UUID) -> URL { payloadDirectory.appendingPathComponent(id.uuidString) }
 
     public func readContent(entryID: UUID, dataTypes: [String], offset: Int, length: Int) throws -> ClipboardHistoryContentChunk {
-        try transactions.sync { try performReadContent(entryID: entryID, dataTypes: dataTypes, offset: offset, length: length) }
+        try requirePreparedHistory()
+        return try transactions.sync { try performReadContent(entryID: entryID, dataTypes: dataTypes, offset: offset, length: length) }
     }
 
     private func performReadContent(entryID: UUID, dataTypes: [String], offset: Int, length: Int) throws -> ClipboardHistoryContentChunk {
@@ -480,7 +560,8 @@ public final class ClipboardHistoryStore {
     }
 
     public func query(dataTypes: [String], offset: Int = 0) throws -> ClipboardHistorySnapshot {
-        try transactions.sync { try performQuery(dataTypes: dataTypes, offset: offset) }
+        try requirePreparedHistory()
+        return try transactions.sync { try performQuery(dataTypes: dataTypes, offset: offset) }
     }
 
     private func performQuery(dataTypes: [String], offset: Int) throws -> ClipboardHistorySnapshot {
@@ -502,7 +583,7 @@ public final class ClipboardHistoryStore {
             }
             if entry.byteCount == nil, entry.contentType != .fileReference {
                 entry.byteCount = entry.text.utf8.count
-                entry.format = "public.utf8-plain-text"
+                entry.format = entry.format ?? "public.utf8-plain-text"
             }
             entry.text = String(decoding: entry.text.utf8.prefix(2_048), as: UTF8.self)
             if var metadata = entry.fileReference {
@@ -586,6 +667,7 @@ public final class ClipboardHistoryStore {
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fileURL.deletingLastPathComponent().path)
         var next = next
+        if next.entries.isEmpty { next.markdownClassificationVersion = 1 }
         let retainedIDs = Set(next.entries.map { $0.id.uuidString })
         next.references = next.references?.filter { retainedIDs.contains($0.key) }
         let retainedCopies = Set(next.entries.compactMap { $0.copyID?.uuidString })
@@ -608,6 +690,7 @@ public final class ClipboardHistoryStore {
             throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
         }
         archive = next
+        if next.entries.isEmpty { historyReady = true; historyPreparationFailed = false }
         committedSettings = settingsSnapshot(next)
         lifecycleLock.unlock()
         try removeUnreferencedPayloads()

@@ -1764,6 +1764,52 @@ final class SettingsWindowControllerTests: XCTestCase {
         controller.close()
     }
 
+    func testSettingsClearDuringBackgroundClassificationNeverPublishesLegacyTextOrResurrectsPayloads() throws {
+        let h = try RichClipboardHistoryTests.Harness()
+        h.board.clearContents(); h.board.setString("# Restricted heading", forType: .string); try h.collector.poll()
+        let archiveURL = h.directory.appendingPathComponent("history.json")
+        var archive = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: archiveURL)) as? [String: Any])
+        var entries = try XCTUnwrap(archive["entries"] as? [[String: Any]])
+        for index in entries.indices { entries[index]["contentType"] = "text"; entries[index]["format"] = "public.utf8-plain-text" }
+        let id = try XCTUnwrap(UUID(uuidString: try XCTUnwrap(entries.first?["id"] as? String)))
+        archive["entries"] = entries; archive.removeValue(forKey: "markdownClassificationVersion")
+        try JSONSerialization.data(withJSONObject: archive).write(to: archiveURL)
+        let writing = expectation(description: "background migration reached durable write")
+        let gate = DispatchSemaphore(value: 0)
+        var writes = 0
+        h.store = try ClipboardHistoryStore(fileURL: archiveURL, writeFile: { data, url in
+            writes += 1
+            if writes == 1 {
+                XCTAssertFalse(Thread.isMainThread)
+                writing.fulfill()
+                XCTAssertEqual(gate.wait(timeout: .now() + 3), .success)
+            }
+            try data.write(to: url, options: .atomic)
+        })
+        defer { gate.signal() }
+        wait(for: [writing], timeout: 2)
+        // These calls must fail promptly, not queue behind the blocked disk write.
+        XCTAssertThrowsError(try h.store.query(dataTypes: ["text"]))
+        XCTAssertThrowsError(try h.store.readContent(entryID: id, dataTypes: ["text"], offset: 0, length: 100))
+        let suite = "ClipboardMigration." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, capabilityGrantStore: h.grants,
+            defaults: defaults, clipboardHistoryStore: h.store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
+        let cleared = expectation(description: "Settings clear completed after migration")
+        model.onClipboardHistoryChanged = { cleared.fulfill() }
+        model.clearClipboardHistory()
+        XCTAssertTrue(h.store.settings.enabled, "Settings reads do not wait for migration I/O")
+        gate.signal(); wait(for: [cleared], timeout: 3)
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        XCTAssertEqual(try h.query(rich).entries, [])
+        XCTAssertThrowsError(try h.chunk(rich, id: id))
+        try h.restart()
+        XCTAssertEqual(try h.query(rich).entries, [])
+        let payloads = h.directory.appendingPathComponent("clipboard-payloads")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: payloads.path), [])
+    }
+
     func testClipboardPrivacyControlsTheHostStoreAndKeepsGrantIndependent() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -137,7 +137,8 @@ final class ClipboardCollector {
                       !format.rawValue.hasPrefix("com.apple.pasteboard."),
                       let data = item.data(forType: format), !data.isEmpty else { continue }
                 contents.append(ClipboardContent(text: type == .image ? "Image" : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
-                    imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex))
+                    imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex,
+                    richTextPreview: type == .richText ? OfflineClipboardPreview.styled(data, format: format.rawValue) : nil))
             }
         }
         return contents
@@ -177,7 +178,10 @@ final class ClipboardCollector {
     }
 
     private static func textContent(_ item: NSPasteboardItem, format: NSPasteboard.PasteboardType, itemIndex: Int? = nil) -> ClipboardContent? {
-        let type = ClipboardContent.contentType(forFormat: format.rawValue)
+        // Current Clipboard continues to expose textual Markdown as plain text;
+        // history classification is performed independently by the Store.
+        let type: ClipboardContent.ContentType = [ClipboardMarkdown.format, "public.markdown"].contains(format.rawValue)
+            ? .text : ClipboardContent.contentType(forFormat: format.rawValue)
         guard type == .text || type == .url else { return nil }
         let text: String?
         if format.rawValue == "public.utf16-plain-text" || format.rawValue == "public.utf16-external-plain-text" {
