@@ -281,6 +281,7 @@ public final class ClipboardHistoryStore {
         var copyFingerprints: [String: String]? = nil
         var excludedApplications: [String]? = nil
         var markdownClassificationVersion: Int? = nil
+        var plainPreviewVersion: Int? = nil
     }
     public static let defaultExcludedApplications = ["com.apple.Passwords", "com.apple.keychainaccess"]
 
@@ -320,15 +321,16 @@ public final class ClipboardHistoryStore {
         self.now = now
         self.writeFile = writeFile
         archive = FileManager.default.fileExists(atPath: fileURL.path)
-            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL)) : Archive(markdownClassificationVersion: 1)
+            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL)) : Archive(markdownClassificationVersion: 1, plainPreviewVersion: 1)
         committedSettings = settingsSnapshot(archive)
         try expire()
         try removeUnreferencedPayloads()
-        if archive.markdownClassificationVersion != 1 {
+        if archive.markdownClassificationVersion != 1 || archive.plainPreviewVersion != 1 {
             historyReady = false
             transactions.async { [self] in
                 do {
-                    try migrateMarkdown()
+                    if archive.markdownClassificationVersion != 1 { try migrateMarkdown() }
+                    try refreshPlainPreviews()
                     lifecycleLock.lock(); historyReady = true; lifecycleLock.unlock()
                 } catch {
                     // Fail closed, including content chunks. Restart retries the
@@ -337,6 +339,28 @@ public final class ClipboardHistoryStore {
                 }
             }
         }
+    }
+
+    /// Runs on the transaction queue; queries never synchronously read rich payloads.
+    private func refreshPlainPreviews() throws {
+        lock.lock(); defer { lock.unlock() }
+        guard archive.plainPreviewVersion != 1 else { return }
+        var next = archive
+        for index in next.entries.indices {
+            let entry = next.entries[index]
+            // Legacy inline text is also the original chunk payload. Do not rewrite it.
+            guard entry.contentType == .richText, entry.byteCount != nil else { continue }
+            let data: Data?
+            if let handle = try? FileHandle(forReadingFrom: payloadURL(entry.id)) {
+                // One lookahead byte distinguishes a capped prefix from a corrupt original tail.
+                data = try? handle.read(upToCount: 196_609)
+                try? handle.close()
+            } else { data = nil }
+            next.entries[index].text = data.flatMap { OfflineClipboardPreview.text($0, format: entry.format ?? "") } ?? "Rich text"
+            next.entries[index].richTextPreview = nil
+        }
+        next.plainPreviewVersion = 1
+        try persist(next)
     }
 
     private func migrateMarkdown() throws {
@@ -352,7 +376,7 @@ public final class ClipboardHistoryStore {
             if entry.byteCount != nil {
                 let handle = try FileHandle(forReadingFrom: payloadURL(entry.id))
                 defer { try? handle.close() }
-                prefix = try handle.read(upToCount: rich ? 196_608 : ClipboardMarkdown.prefixBytes) ?? Data()
+                prefix = try handle.read(upToCount: rich ? 196_609 : ClipboardMarkdown.prefixBytes) ?? Data()
             } else {
                 prefix = Data(entry.text.utf8.prefix(ClipboardMarkdown.prefixBytes))
             }
@@ -364,7 +388,10 @@ public final class ClipboardHistoryStore {
                     next.entries[index].text = String(decoding: prefix.prefix(2_048), as: UTF8.self)
                 }
             } else if rich {
-                next.entries[index].richTextPreview = OfflineClipboardPreview.styled(prefix, format: entry.format ?? "")
+                if entry.byteCount != nil {
+                    next.entries[index].text = OfflineClipboardPreview.text(prefix, format: entry.format ?? "") ?? "Rich text"
+                    next.entries[index].richTextPreview = nil
+                }
             } else if ClipboardMarkdown.recognizes(prefix) {
                 next.entries[index].contentType = .richText
                 next.entries[index].format = ClipboardMarkdown.format
@@ -466,7 +493,7 @@ public final class ClipboardHistoryStore {
         }
         for content in contents {
             guard content.data != nil || !content.text.isEmpty else { continue }
-            let preview = String(decoding: content.text.utf8.prefix(2_048), as: UTF8.self)
+            let preview = OfflineClipboardPreview.boundedPrefix(content.text, bytes: content.type == .richText ? 8_192 : 2_048)
             var entry = ClipboardHistoryEntry(id: UUID(), text: preview, contentType: content.type,
                 sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: copiedAt)
             if content.type == .fileReference, let url = content.fileURL, url.isFileURL {
@@ -584,8 +611,11 @@ public final class ClipboardHistoryStore {
             if entry.byteCount == nil, entry.contentType != .fileReference {
                 entry.byteCount = entry.text.utf8.count
                 entry.format = entry.format ?? "public.utf8-plain-text"
+                if entry.contentType == .richText {
+                    entry.text = OfflineClipboardPreview.text(Data(entry.text.utf8.prefix(196_609)), format: entry.format ?? "") ?? "Rich text"
+                }
             }
-            entry.text = String(decoding: entry.text.utf8.prefix(2_048), as: UTF8.self)
+            entry.text = OfflineClipboardPreview.boundedPrefix(entry.text, bytes: entry.contentType == .richText ? 8_192 : 2_048)
             if var metadata = entry.fileReference {
                 if let reference = archive.references?[entry.id.uuidString] {
                     metadata.unavailableReason = reference.unavailableReason
@@ -667,7 +697,7 @@ public final class ClipboardHistoryStore {
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fileURL.deletingLastPathComponent().path)
         var next = next
-        if next.entries.isEmpty { next.markdownClassificationVersion = 1 }
+        if next.entries.isEmpty { next.markdownClassificationVersion = 1; next.plainPreviewVersion = 1 }
         let retainedIDs = Set(next.entries.map { $0.id.uuidString })
         next.references = next.references?.filter { retainedIDs.contains($0.key) }
         let retainedCopies = Set(next.entries.compactMap { $0.copyID?.uuidString })

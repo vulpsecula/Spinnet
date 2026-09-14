@@ -1,7 +1,7 @@
-import SwiftUI
+import Foundation
 import SpinnetCore
 
-/// Presentation accepts only an already-authorized copy, never the Store.
+/// Accepts only already-authorized representations, never the Store or payloads.
 struct ClipboardHistoryCopyPresentation {
     let copy: ClipboardHistoryCopy
     var primary: ClipboardHistoryEntry? {
@@ -10,7 +10,7 @@ struct ClipboardHistoryCopyPresentation {
             let type = preference.firstIndex(of: entry.contentType) ?? 6
             let format: Int
             switch entry.format {
-            case "public.rtf" where entry.richTextPreview != nil: format = 0
+            case "public.rtf": format = 0
             case ClipboardMarkdown.format, "public.markdown": format = 1
             case "public.html": format = 2
             default: format = 3
@@ -19,15 +19,43 @@ struct ClipboardHistoryCopyPresentation {
         }
         return copy.representations.min { rank($0) < rank($1) }
     }
-    var fileCount: Int { copy.representations.filter { $0.contentType == .fileReference }.count }
+    var files: [ClipboardHistoryEntry] {
+        copy.representations.filter { $0.contentType == .fileReference }
+            .sorted { ($0.itemIndex ?? 0) < ($1.itemIndex ?? 0) }
+    }
+    var expandedRepresentations: [ClipboardHistoryEntry] {
+        copy.representations.sorted { ($0.itemIndex ?? 0) < ($1.itemIndex ?? 0) }
+    }
+    /// Counts only this authorized page, not representations elsewhere in the copy.
+    var shownSummary: String {
+        "Shown: \(Set(copy.representations.map { $0.itemIndex ?? 0 }).count) items · \(copy.representations.count) representations"
+    }
+    var fileCount: Int { files.count }
+    var fileTitle: String { "\(fileCount) files" }
+    var fileOverview: String { files.map(\.text).joined(separator: "\n") }
     var fileIcon: String? { fileCount > 1 ? "doc.on.doc" : primary?.fileReference?.previewIcon }
-}
 
-enum ClipboardHistoryPreviewMode { case source, rendered }
+    func text(for entry: ClipboardHistoryEntry) -> String {
+        // Markdown is source text even when a producer also supplies a plain alias.
+        if entry.contentType == .richText,
+           ![ClipboardMarkdown.format, "public.markdown"].contains(entry.format ?? ""),
+           let item = entry.itemIndex,
+           let plain = copy.representations.first(where: { $0.itemIndex == item && $0.contentType == .text }) {
+            return plain.text
+        }
+        return ClipboardHistoryTextPresentation(entry: entry).text
+    }
+}
 
 struct ClipboardHistoryTextPresentation {
     let entry: ClipboardHistoryEntry
-    var defaultMode: ClipboardHistoryPreviewMode { entry.contentType == .richText ? .rendered : .source }
+    var text: String {
+        // Old source fields contain RTF control words, not display text.
+        if entry.contentType == .richText, entry.format == "public.rtf", entry.text.hasPrefix("{\\rtf") {
+            return OfflineClipboardPreview.text(Data(entry.text.utf8), format: "public.rtf") ?? "Rich text"
+        }
+        return entry.text
+    }
     var typeLabel: String {
         switch entry.contentType {
         case .text: return "Text"
@@ -36,26 +64,6 @@ struct ClipboardHistoryTextPresentation {
         case .fileReference: return "File"
         case .url: return "URL"
         case .binary: return "Binary"
-        }
-    }
-    var source: String { entry.richTextPreview?.source ?? entry.text }
-    var rendered: AttributedString {
-        if entry.contentType == .richText, [ClipboardMarkdown.format, "public.markdown"].contains(entry.format ?? "") {
-            // Native attributed characters only. Strip link targets as well as
-            // suppressing openURL in the view; no remote resources are resolved.
-            var text = (try? AttributedString(markdown: entry.text, options: .init(interpretedSyntax: .full))) ?? AttributedString(entry.text)
-            for run in text.runs where run.link != nil { text[run.range].link = nil }
-            return text
-        }
-        guard let preview = entry.richTextPreview else { return AttributedString(entry.text) }
-        return preview.runs.reduce(into: AttributedString()) { result, run in
-            var text = AttributedString(run.text)
-            var font = Font.body
-            if run.bold { font = font.bold() }
-            if run.italic { font = font.italic() }
-            text.font = font
-            if run.underline { text.underlineStyle = .single }
-            result.append(text)
         }
     }
 }

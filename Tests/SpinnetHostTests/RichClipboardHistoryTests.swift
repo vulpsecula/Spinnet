@@ -248,7 +248,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         h.board.clearContents()
         h.board.setData(Data(#"<html><head><style>secret-style</style></head><body><p>Hello <b>world</b> &amp; friends</p><img src="https://remote.invalid/pixel"><script>secret-script</script></body></html>"#.utf8), forType: .html)
         try h.collector.poll()
-        XCTAssertEqual(try h.query(rich).entries.first?.text, "Hello world & friends")
+        XCTAssertEqual(try h.query(rich).entries.first?.text, "Hello world & friends\n")
         let markdown = "# Title\n\n**bold** ![alt](https://remote.invalid/image)"
         h.board.clearContents(); h.board.setString(markdown, forType: .string); try h.collector.poll()
         let entry = try XCTUnwrap(h.query(rich).entries.first)
@@ -286,7 +286,129 @@ final class RichClipboardHistoryTests: XCTestCase {
         }
     }
 
-    func testAuthorizedCopyPresentationDefaultsToRenderedRichTextAndStackedFiles() throws {
+    func testAuthorizedPlainPreferenceNeverCrossesItemsOrTypeGrants() throws {
+        let h = try Harness()
+        let first = NSPasteboardItem(), second = NSPasteboardItem()
+        first.setData(Data("<p>Decoded first</p>".utf8), forType: .html)
+        second.setData(Data("<p>Decoded second</p>".utf8), forType: .html)
+        second.setString("Authorized second\nnext\n", forType: .string)
+        h.board.clearContents(); h.board.writeObjects([first, second]); try h.collector.poll()
+        let all = try h.package(types: ["text", "rich_text"]); h.grant(all)
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        let text = try h.package(types: ["text"]); h.grant(text)
+        h.grant(all)
+        let copy = try XCTUnwrap(h.query(all).copies.first)
+        let presentation = ClipboardHistoryCopyPresentation(copy: copy)
+        let firstEntry = try XCTUnwrap(copy.representations.first { $0.itemIndex == 0 })
+        let secondEntry = try XCTUnwrap(copy.representations.first { $0.itemIndex == 1 && $0.contentType == .richText })
+        XCTAssertEqual(presentation.text(for: firstEntry), "Decoded first\n")
+        XCTAssertEqual(presentation.text(for: secondEntry), "Authorized second\nnext\n")
+        h.grant(rich)
+        let richCopy = try XCTUnwrap(h.query(rich).copies.first)
+        let richPresentation = ClipboardHistoryCopyPresentation(copy: richCopy)
+        XCTAssertEqual(richPresentation.text(for: secondEntry), "Decoded second\n")
+        h.grant(text)
+        XCTAssertTrue(try h.query(text).entries.allSatisfy { $0.contentType == .text })
+        XCTAssertThrowsError(try h.chunk(text, id: firstEntry.id))
+        let plain = try XCTUnwrap(copy.representations.first { $0.contentType == .text })
+        h.grant(rich)
+        XCTAssertThrowsError(try h.chunk(rich, id: plain.id))
+    }
+
+    func testBudgetTruncationPreservesValidEncodingPrefixesInNewAndLegacyPreviews() throws {
+        let h = try Harness()
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        let expected = String(repeating: "a", count: 2_048)
+        let htmlUTF8 = Data(("<p>" + String(repeating: "a", count: 196_604) + "你</p>").utf8)
+        let gbkHeader = Data("<meta charset=gbk><p>".utf8)
+        let gbk = gbkHeader + Data(repeating: 97, count: 196_607 - gbkHeader.count) + Data([0xc4, 0xe3]) + Data("</p>".utf8)
+        let utf16Source = "<p>" + String(repeating: "a", count: 98_299) + "😀</p>"
+        let rtfHeader = #"{\rtf1\ansi\ansicpg936{\*\comment "#
+        let rtfTailPrefix = #"}abc\'c4\'"#
+        let rtfInputBoundary = Data((rtfHeader + String(repeating: " ", count: 196_608 - rtfHeader.utf8.count - rtfTailPrefix.utf8.count) + rtfTailPrefix + "e3}").utf8)
+        let fixtures: [(NSPasteboard.PasteboardType, Data, String)] = [
+            (.html, htmlUTF8, expected),
+            (.rtf, rtfInputBoundary, "abc"),
+            (.rtf, Data((#"{\rtf1 "# + String(repeating: "a", count: 8_191) + #"\u-10179?\u-8704?}"#).utf8), expected),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg936 abc\'c4}"#.utf8), "Rich text"),
+            (.rtf, Data(#"{\rtf1 abc\u-10179?}"#.utf8), "Rich text"),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg65001 "#.utf8) + Data([0xff]) + Data(repeating: 97, count: 8_190) + Data("你}".utf8), "Rich text"),
+            (.html, Data([0xef, 0xbb, 0xbf]) + Data(("<p>" + String(repeating: "a", count: 196_601) + "你</p>").utf8), expected),
+            (.html, Data([0xff, 0xfe]) + utf16Source.data(using: .utf16LittleEndian)!, expected),
+            (.html, Data([0xfe, 0xff]) + utf16Source.data(using: .utf16BigEndian)!, expected),
+            (.html, gbk, expected),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg65001 "#.utf8) + Data(repeating: 97, count: 8_191) + Data("你}".utf8), expected),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg936 "#.utf8) + Data(repeating: 97, count: 8_191) + Data([0xc4, 0xe3, 125]), expected),
+            (.rtf, Data((#"{\rtf1\ansi\ansicpg936 "# + String(repeating: "a", count: 8_191) + #"\'c4\'e3}"#).utf8), expected),
+            // An internal malformed byte must not become acceptable merely because the input is capped.
+            (.html, Data("<p>".utf8) + Data([0xff]) + Data(repeating: 97, count: 196_603) + Data("你</p>".utf8), "Rich text"),
+            (.html, gbkHeader + Data([0xc4, 0x20]) + Data(repeating: 97, count: 196_605 - gbkHeader.count) + Data([0xc4, 0xe3]), "Rich text"),
+            (.html, Data([0xff, 0xfe, 0x00, 0xdc]) + Data(repeating: 0x61, count: 196_602) + Data([0x3d, 0xd8, 0x00, 0xde]), "Rich text"),
+            // Incomplete *original* inputs are corrupt, not budget truncations.
+            (.html, Data("<p>valid".utf8) + Data([0xe4]), "Rich text"),
+            (.html, Data([0xff, 0xfe, 0x61, 0x00, 0x3d, 0xd8]), "Rich text"),
+            (.html, gbkHeader + Data([0xc4]), "Rich text")
+        ]
+        var expectations: [UUID: String] = [:]
+        for (format, payload, text) in fixtures {
+            h.board.clearContents(); h.board.setData(payload, forType: format); try h.collector.poll()
+            let entry = try XCTUnwrap(h.query(rich).entries.first)
+            XCTAssertEqual(entry.text, text, "format: \(format.rawValue), bytes: \(payload.count)")
+            XCTAssertEqual(try h.chunk(rich, id: entry.id).data, Data(payload.prefix(196_608)))
+            expectations[entry.id] = text
+        }
+        let url = h.directory.appendingPathComponent("history.json")
+        var archive = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        var entries = try XCTUnwrap(archive["entries"] as? [[String: Any]])
+        for index in entries.indices { entries[index]["text"] = "Old preview" }
+        archive["entries"] = entries
+        archive.removeValue(forKey: "plainPreviewVersion")
+        archive.removeValue(forKey: "markdownClassificationVersion")
+        try JSONSerialization.data(withJSONObject: archive).write(to: url)
+        try h.restart()
+        var snapshot: ClipboardHistorySnapshot?
+        for _ in 0..<200 {
+            snapshot = try? h.query(rich)
+            if snapshot != nil { break }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        let refreshed = try XCTUnwrap(snapshot)
+        XCTAssertEqual(refreshed.entries.count, expectations.count)
+        for entry in refreshed.entries { XCTAssertEqual(entry.text, expectations[entry.id]) }
+    }
+
+    func testRichOnlyDeterministicEncodingsAndLineBreaksRetainPayloads() throws {
+        let h = try Harness()
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        let html = "<p>你好😀<br>second</p><p>third</p>"
+        let attributed = NSAttributedString(string: "你好😀\nsecond\n", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
+        let exportedRTF = try attributed.data(from: NSRange(location: 0, length: attributed.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        let fixtures: [(NSPasteboard.PasteboardType, Data, String)] = [
+            (.rtf, exportedRTF, "你好😀\nsecond\n"),
+            (.rtf, Data(#"{\rtf1\ansi\uc1\u20320\~\u22909\~\par}"#.utf8), "你好\n"),
+            (.rtf, Data(#"{\rtf1\ansi{\fonttbl{\f0\fcharset134 SimSun;}}\f0 \'c4\'e3\'ba\'c3}"#.utf8), "Rich text"),
+            (.html, Data([0xef, 0xbb, 0xbf]) + Data(html.utf8), "你好😀\nsecond\nthird\n"),
+            (.html, Data([0xfe, 0xff]) + html.data(using: .utf16BigEndian)!, "你好😀\nsecond\nthird\n"),
+            (.html, Data("<meta charset=gbk><p>".utf8) + Data([0xc4, 0xe3, 0xba, 0xc3]) + Data("</p>".utf8), "你好\n"),
+            (.html, Data("<p>&#20320;&#x597d;&#x1F600;&amp;lt;</p><script src='https://remote.invalid'>hidden</script>".utf8), "你好😀&lt;\n"),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg65001 "#.utf8) + Data("你好😀".utf8) + Data(#"\par}"#.utf8), "你好😀\n"),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg99999 \'c4\'e3}"#.utf8), "Rich text"),
+            (.html, Data(html.utf8), "你好😀\nsecond\nthird\n"),
+            (.html, Data([0xff, 0xfe]) + html.data(using: .utf16LittleEndian)!, "你好😀\nsecond\nthird\n"),
+            (.rtf, Data(#"{\rtf1\ansi\ansicpg936 \'c4\'e3\'ba\'c3\par second\line third\par}"#.utf8), "你好\nsecond\nthird\n"),
+            (.rtf, Data(#"{\rtf1\ansi\uc2\u20320\'c4\'e3\u22909\'ba\'c3\uc1\u-10179?\u-8704?\par}"#.utf8), "你好😀\n"),
+            (.html, Data([0xff, 0xfe, 0xff]), "Rich text")
+        ]
+        for (format, data, expected) in fixtures {
+            h.board.clearContents(); h.board.setData(data, forType: format); try h.collector.poll()
+            let copy = try XCTUnwrap(h.query(rich).copies.first)
+            let entry = try XCTUnwrap(copy.representations.first)
+            XCTAssertEqual(ClipboardHistoryCopyPresentation(copy: copy).text(for: entry), expected)
+            XCTAssertEqual(try h.chunk(rich, id: entry.id).data, data)
+        }
+    }
+
+    func testAuthorizedCopyPresentationUsesPlainTextAndStackedFiles() throws {
         let h = try Harness()
         let item = NSPasteboardItem()
         item.setString("A bold word", forType: .string)
@@ -298,26 +420,28 @@ final class RichClipboardHistoryTests: XCTestCase {
         let copy = try XCTUnwrap(h.query(all).copies.first)
         let primary = try XCTUnwrap(ClipboardHistoryCopyPresentation(copy: copy).primary)
         XCTAssertEqual(primary.contentType, .richText)
-        XCTAssertEqual(primary.format, "public.rtf", "Prefer the supported styled representation over HTML or an opaque RTFD package")
+        XCTAssertEqual(primary.format, "public.rtf")
         let rich = ClipboardHistoryTextPresentation(entry: primary)
-        XCTAssertEqual(rich.defaultMode, .rendered)
         XCTAssertEqual(rich.typeLabel, "Rich text")
-        XCTAssertTrue(rich.source.contains(#"\b bold"#))
-        XCTAssertEqual(String(rich.rendered.characters), "A bold word")
-        XCTAssertTrue(rich.rendered.runs.contains { $0.font == Font.body.bold() })
+        XCTAssertEqual(rich.text, "A bold word")
+        XCTAssertNil(primary.richTextPreview)
         let plain = try XCTUnwrap(copy.representations.first { $0.contentType == .text })
         XCTAssertEqual(ClipboardHistoryTextPresentation(entry: plain).typeLabel, "Text")
         h.board.clearContents(); h.board.setString("**Markdown bold**", forType: .string); try h.collector.poll()
         let markdown = ClipboardHistoryTextPresentation(entry: try XCTUnwrap(h.query(all).entries.first))
-        XCTAssertEqual(markdown.defaultMode, .rendered)
-        XCTAssertEqual(String(markdown.rendered.characters), "Markdown bold")
-        XCTAssertEqual(markdown.source, "**Markdown bold**")
-        let files = [h.directory.appendingPathComponent("a.txt"), h.directory.appendingPathComponent("b.txt")]
+        XCTAssertEqual(markdown.text, "**Markdown bold**")
+        let files = [h.directory.appendingPathComponent("a.txt"), h.directory.appendingPathComponent("b.txt"), h.directory.appendingPathComponent("c.txt")]
         for file in files { try Data("fixture".utf8).write(to: file) }
         h.board.clearContents(); h.board.writeObjects(files.map { $0 as NSURL }); try h.collector.poll()
         let presentation = ClipboardHistoryCopyPresentation(copy: try XCTUnwrap(h.query(all).copies.first))
-        XCTAssertEqual(presentation.fileCount, 2)
+        XCTAssertEqual(presentation.fileCount, 3)
+        XCTAssertEqual(presentation.fileTitle, "3 files")
+        XCTAssertEqual(presentation.fileOverview, "a.txt\nb.txt\nc.txt")
         XCTAssertEqual(presentation.fileIcon, "doc.on.doc")
+        XCTAssertEqual(presentation.expandedRepresentations.filter { $0.contentType == .fileReference }.map(\.text), ["a.txt", "b.txt", "c.txt"])
+        XCTAssertTrue(presentation.shownSummary.hasPrefix("Shown:"))
+        let textOnly = try h.package(types: ["text"]); h.grant(textOnly)
+        XCTAssertFalse(try h.query(textOnly).copies.contains { ClipboardHistoryCopyPresentation(copy: $0).fileCount > 0 })
     }
 
     func testLegacyMarkdownUsesOriginalBoundedPayloadAndMigratesPermissionsIdempotently() throws {
@@ -394,7 +518,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         let rtf = Data((#"{\rtf1\ansi\uc1\b "# + rtfUnicode + "}").utf8)
         let package = try h.package(types: ["text", "rich_text"]); h.grant(package)
         for (format, payload, expected) in [(NSPasteboard.PasteboardType.html, html, String(repeating: "🇨🇳", count: 1_024)),
-                                           (.rtf, rtf, String(repeating: "🇨🇳", count: 512))] {
+                                           (.rtf, rtf, String(repeating: "🇨🇳", count: 1_024))] {
             let item = NSPasteboardItem()
             item.setString(flags, forType: .string)
             item.setData(payload, forType: format)
@@ -403,15 +527,12 @@ final class RichClipboardHistoryTests: XCTestCase {
             let copy = try XCTUnwrap(h.query(package).copies.first)
             let rich = try XCTUnwrap(copy.representations.first { $0.format == format.rawValue })
             let plain = try XCTUnwrap(copy.representations.first { $0.contentType == .text })
-            let preview = try XCTUnwrap(rich.richTextPreview)
-            let rendered = preview.runs.map(\.text).joined()
+            XCTAssertNil(rich.richTextPreview)
+            let rendered = rich.text
             XCTAssertEqual(rendered, expected)
             XCTAssertLessThanOrEqual(rendered.utf8.count, 8_192)
             XCTAssertLessThanOrEqual(rendered.count, 2_048)
-            XCTAssertLessThanOrEqual(preview.source.utf8.count, 2_048)
-            XCTAssertLessThanOrEqual(preview.source.count, 2_048)
-            XCTAssertFalse(preview.source.contains("�"), "Do not cut a source emoji inside its UTF-8 encoding")
-            if format == .rtf { XCTAssertTrue(preview.runs.allSatisfy(\.bold)) }
+            XCTAssertFalse(rendered.contains("�"), "Do not cut an emoji inside its encoding")
             XCTAssertEqual(try h.chunk(package, id: rich.id).data, payload)
             XCTAssertEqual(try h.chunk(package, id: plain.id).data, Data(flags.utf8))
         }
@@ -434,15 +555,14 @@ final class RichClipboardHistoryTests: XCTestCase {
             XCTAssertFalse(page.entries.isEmpty)
             XCTAssertLessThan(try JSONEncoder().encode(page).count, 1_048_576)
             for entry in page.entries {
-                let preview = try XCTUnwrap(entry.richTextPreview)
-                XCTAssertLessThanOrEqual(preview.runs.count, 256)
-                let text = preview.runs.map(\.text).joined()
-                XCTAssertLessThanOrEqual(text.utf16.count, 2_048)
+                XCTAssertNil(entry.richTextPreview)
+                let text = entry.text
+                XCTAssertLessThanOrEqual(text.count, 2_048)
                 XCTAssertTrue(text.contains("你好"))
                 XCTAssertFalse(text.contains("hidden-object"))
                 XCTAssertFalse(text.contains("https://"))
-                XCTAssertTrue(preview.runs.contains { $0.italic && $0.bold && $0.text == "italic" })
-                XCTAssertLessThanOrEqual(preview.source.utf8.count, 8_192)
+                XCTAssertTrue(text.contains("bold italic"))
+                XCTAssertLessThanOrEqual(text.utf8.count, 8_192)
                 let chunk = try h.chunk(rich, id: entry.id)
                 XCTAssertEqual(chunk.data, Data(rtf.prefix(196_608)))
                 XCTAssertLessThan(try JSONEncoder().encode(chunk).count, 524_288)
@@ -483,15 +603,41 @@ final class RichClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: h.directory.appendingPathComponent("clipboard-payloads").path), [])
     }
 
+    func testLegacyInlineRichPayloadRemainsReadableWithoutRewritingOriginalBytes() throws {
+        let h = try Harness()
+        let source = #"{\rtf1 old\par text}"#
+        let id = UUID()
+        let url = h.directory.appendingPathComponent("history.json")
+        var archive = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        archive["entries"] = [["id": id.uuidString, "text": source, "contentType": "rich_text", "format": "public.rtf",
+            "sourceApplicationName": "Fixture", "sourceBundleIdentifier": "fixture", "copiedAt": h.clock.now.timeIntervalSinceReferenceDate]]
+        archive.removeValue(forKey: "plainPreviewVersion")
+        try JSONSerialization.data(withJSONObject: archive).write(to: url)
+        try h.restart()
+        let rich = try h.package(types: ["rich_text"]); h.grant(rich)
+        var snapshot: ClipboardHistorySnapshot?
+        for _ in 0..<100 {
+            snapshot = try? h.query(rich)
+            if snapshot != nil { break }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        let entry = try XCTUnwrap(snapshot?.entries.first)
+        XCTAssertEqual(ClipboardHistoryTextPresentation(entry: entry).text, "old\ntext")
+        XCTAssertEqual(try h.chunk(rich, id: id).data, Data(source.utf8))
+    }
+
     func testLegacyRTFPreviewIsBackfilledFromBoundedRetainedBytes() throws {
         let h = try Harness()
-        h.board.clearContents(); h.board.setData(Data(#"{\rtf1 A \b bold\b0  word}"#.utf8), forType: .rtf)
+        h.board.clearContents(); h.board.setData(Data(#"{\rtf1\ansi\ansicpg936 \'c4\'e3\'ba\'c3\par A \b bold\b0  word\par}"#.utf8), forType: .rtf)
         try h.collector.poll()
         let url = h.directory.appendingPathComponent("history.json")
         var archive = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         var entries = try XCTUnwrap(archive["entries"] as? [[String: Any]])
-        for index in entries.indices { entries[index].removeValue(forKey: "richTextPreview") }
-        archive["entries"] = entries; archive.removeValue(forKey: "markdownClassificationVersion")
+        for index in entries.indices {
+            entries[index]["text"] = "Old wrong preview"
+            entries[index]["richTextPreview"] = ["runs": [["text": "Old styled preview", "bold": true, "italic": false, "underline": false]], "source": #"{\rtf1 old raw}"#]
+        }
+        archive["entries"] = entries; archive.removeValue(forKey: "plainPreviewVersion")
         try JSONSerialization.data(withJSONObject: archive).write(to: url)
         try h.restart()
         let package = try h.package(types: ["rich_text"]); h.grant(package)
@@ -501,9 +647,9 @@ final class RichClipboardHistoryTests: XCTestCase {
             if snapshot != nil { break }
             Thread.sleep(forTimeInterval: 0.01)
         }
-        let preview = try XCTUnwrap(snapshot?.entries.first?.richTextPreview)
-        XCTAssertEqual(preview.runs.filter(\.bold).map(\.text), ["bold"])
-        h.board.clearContents(); h.board.setData(Data(#"{\rtf1 A \b bold\b0  word}"#.utf8), forType: .rtf)
+        XCTAssertEqual(snapshot?.entries.first?.text, "你好\nA bold word\n")
+        XCTAssertNil(snapshot?.entries.first?.richTextPreview)
+        h.board.clearContents(); h.board.setData(Data(#"{\rtf1\ansi\ansicpg936 \'c4\'e3\'ba\'c3\par A \b bold\b0  word\par}"#.utf8), forType: .rtf)
         try h.collector.poll()
         XCTAssertEqual(try h.query(package).copies.count, 1, "Preview backfill must preserve unchanged copy deduplication")
     }
@@ -1097,10 +1243,8 @@ final class RichClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(Set(entries.map { $0.contentType.rawValue }), ["rich_text", "text"])
         let rich = try XCTUnwrap(entries.first { $0.contentType.rawValue == "rich_text" })
         XCTAssertEqual(try h.chunk(package, id: rich.id).data, rtf)
-        let preview = try XCTUnwrap(rich.richTextPreview)
-        XCTAssertEqual(preview.runs.map(\.text).joined(), "A bold word")
-        XCTAssertEqual(preview.runs.filter(\.bold).map(\.text), ["bold"])
-        XCTAssertEqual(preview.source, String(decoding: rtf, as: UTF8.self))
+        XCTAssertNil(rich.richTextPreview)
+        XCTAssertEqual(rich.text, "A bold word")
         XCTAssertEqual(entries.first { $0.contentType == .text }?.text, "A bold word")
     }
 

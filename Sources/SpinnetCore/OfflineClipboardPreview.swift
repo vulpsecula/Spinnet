@@ -1,73 +1,171 @@
 import Foundation
+import CoreFoundation
 
-/// Bounded, inert preview extraction with allowlisted font decorations. No WebView, document
-/// importer, URL resolver, file access, or attachment decoding is involved.
-/// Original rich payloads remain available through authorized content chunks.
+/// Bounded inert text extraction. Never imports documents, resolves URLs or reads attachments.
 public enum OfflineClipboardPreview {
     public static func text(_ data: Data, format: String) -> String? {
         let prefix = Data(data.prefix(196_608))
-        let result: String
+        let truncated = data.count > prefix.count
+        let result: String?
         switch format {
-        case "public.rtf": result = rtf(prefix).map(\.text).joined()
-        case ClipboardMarkdown.format, "public.markdown": return String(decoding: prefix.prefix(2_048), as: UTF8.self)
-        case "public.html": result = html(String(decoding: prefix, as: UTF8.self))
-        default: return nil // RTFD/package formats are retained, not imported.
-        }
-        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : boundedPrefix(trimmed, bytes: 8_192, characters: 2_048)
-    }
-
-    public static func styled(_ data: Data, format: String) -> ClipboardRichTextPreview? {
-        let runs: [ClipboardRichTextPreview.Run]
-        switch format {
-        case "public.rtf": runs = rtf(Data(data.prefix(196_608)))
-        case "public.html": runs = text(data, format: format).map { [.init(text: $0)] } ?? []
+        case "public.rtf": result = rtf(prefix, truncated: truncated)
+        case ClipboardMarkdown.format, "public.markdown": result = decode(prefix, truncated: truncated)
+        case "public.html": result = decodeHTML(prefix, truncated: truncated).map(html)
         default: return nil
         }
-        guard !runs.isEmpty else { return nil }
-        var boundedRuns: [ClipboardRichTextPreview.Run] = []
-        var bytes = 8_192, characters = 2_048
-        for var run in runs {
-            let originalBytes = run.text.utf8.count
-            run.text = boundedPrefix(run.text, bytes: bytes, characters: characters)
-            bytes -= run.text.utf8.count
-            characters -= run.text.count
-            if !run.text.isEmpty { boundedRuns.append(run) }
-            if run.text.utf8.count != originalBytes || bytes == 0 || characters == 0 { break }
-        }
-        let source = boundedPrefix(String(decoding: data.prefix(196_608), as: UTF8.self), bytes: 2_048, characters: 2_048)
-        return ClipboardRichTextPreview(runs: boundedRuns, source: source)
+        guard let result, !result.isEmpty else { return nil }
+        return boundedPrefix(result, bytes: 8_192, characters: 2_048)
     }
 
-    /// A Character can contain arbitrarily many UTF-8 bytes (flags, ZWJ emoji,
-    /// combining marks). Enforce both budgets without splitting a grapheme or
-    /// repairing a UTF-8 sequence cut at the preview boundary. Payloads stay intact.
-    private static func boundedPrefix(_ source: String, bytes: Int, characters: Int) -> String {
+    static func boundedPrefix(_ source: String, bytes: Int = 8_192, characters: Int = 2_048) -> String {
         var end = source.startIndex
         var remainingBytes = bytes, remainingCharacters = characters
         while end < source.endIndex && remainingCharacters > 0 {
             let next = source.index(after: end)
             let size = source[end..<next].utf8.count
             guard size <= remainingBytes else { break }
-            remainingBytes -= size
-            remainingCharacters -= 1
-            end = next
+            remainingBytes -= size; remainingCharacters -= 1; end = next
         }
         return String(source[..<end])
     }
 
+    // Only explicit BOMs, UTF-8, or a declared allowlisted Windows code page.
+    // No statistical encoding detection or lossy byte-to-character substitution.
+    private static func decode(_ data: Data, truncated: Bool) -> String? {
+        if data.starts(with: [0xff, 0xfe]) {
+            return decodeUTF16(Data(data.dropFirst(2)), littleEndian: true, truncated: truncated)
+        }
+        if data.starts(with: [0xfe, 0xff]) {
+            return decodeUTF16(Data(data.dropFirst(2)), littleEndian: false, truncated: truncated)
+        }
+        return decodeBytes(Data(data.starts(with: [0xef, 0xbb, 0xbf]) ? data.dropFirst(3) : data), page: 65001, truncated: truncated)
+    }
+
+    /// Validate units from the start: only a syntactically valid but unfinished final
+    /// unit may be dropped, and only when the caller actually exhausted a budget.
+    /// Retrying arbitrary shorter prefixes would conceal genuine malformed input.
+    private static func decodeBytes(_ data: Data, page: Int, truncated: Bool) -> String? {
+        guard let encoding = codePage(page) else { return nil }
+        let bytes = Array(data)
+        var index = 0
+        while index < bytes.count {
+            let lead = bytes[index]
+            var length = 1
+            if page == 65001 {
+                switch lead {
+                case 0...0x7f: break
+                case 0xc2...0xdf: length = 2
+                case 0xe0...0xef: length = 3
+                case 0xf0...0xf4: length = 4
+                default: return nil
+                }
+                for position in 1..<length where index + position < bytes.count {
+                    let byte = bytes[index + position]
+                    guard (0x80...0xbf).contains(byte) else { return nil }
+                    if position == 1 {
+                        if lead == 0xe0 && byte < 0xa0 || lead == 0xed && byte > 0x9f ||
+                           lead == 0xf0 && byte < 0x90 || lead == 0xf4 && byte > 0x8f { return nil }
+                    }
+                }
+            } else if [936, 950, 932, 949].contains(page) {
+                let isLead = page == 932
+                    ? (0x81...0x9f).contains(lead) || (0xe0...0xfc).contains(lead)
+                    : (0x81...0xfe).contains(lead)
+                if isLead {
+                    length = 2
+                    if index + 1 < bytes.count {
+                        let trail = bytes[index + 1]
+                        let valid: Bool
+                        switch page {
+                        case 936: valid = (0x40...0xfe).contains(trail) && trail != 0x7f
+                        case 950: valid = (0x40...0x7e).contains(trail) || (0xa1...0xfe).contains(trail)
+                        case 932: valid = (0x40...0xfc).contains(trail) && trail != 0x7f
+                        default: valid = (0x41...0x5a).contains(trail) || (0x61...0x7a).contains(trail) || (0x81...0xfe).contains(trail)
+                        }
+                        guard valid else { return nil }
+                    }
+                }
+            }
+            if index + length > bytes.count {
+                guard truncated else { return nil }
+                return String(data: data.prefix(index), encoding: encoding)
+            }
+            index += length
+        }
+        return String(data: data, encoding: encoding)
+    }
+
+    private static func decodeUTF16(_ data: Data, littleEndian: Bool, truncated: Bool) -> String? {
+        let bytes = Array(data)
+        func unit(_ index: Int) -> UInt16 {
+            let a = UInt16(bytes[index]), b = UInt16(bytes[index + 1])
+            return littleEndian ? a | b << 8 : a << 8 | b
+        }
+        var index = 0
+        while index < bytes.count {
+            let start = index
+            if index + 1 == bytes.count {
+                guard truncated else { return nil }
+                break
+            }
+            let first = unit(index)
+            guard !(0xdc00...0xdfff).contains(first) else { return nil }
+            index += 2
+            if (0xd800...0xdbff).contains(first) {
+                if index + 1 >= bytes.count {
+                    // An available first byte must still be compatible with a low surrogate.
+                    if !littleEndian, index < bytes.count, !(0xdc...0xdf).contains(bytes[index]) { return nil }
+                    guard truncated else { return nil }
+                    index = start; break
+                }
+                guard (0xdc00...0xdfff).contains(unit(index)) else { return nil }
+                index += 2
+            }
+        }
+        return String(data: data.prefix(index), encoding: littleEndian ? .utf16LittleEndian : .utf16BigEndian)
+    }
+
+    private static func codePage(_ number: Int) -> String.Encoding? {
+        guard [1252, 936, 950, 932, 949, 65001].contains(number) else { return nil }
+        if number == 65001 { return .utf8 }
+        let encoding = CFStringConvertWindowsCodepageToEncoding(UInt32(number))
+        guard encoding != kCFStringEncodingInvalidId else { return nil }
+        return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
+    }
+
+    private static func decodeHTML(_ data: Data, truncated: Bool) -> String? {
+        if data.starts(with: [0xff, 0xfe]) || data.starts(with: [0xfe, 0xff]) || data.starts(with: [0xef, 0xbb, 0xbf]) { return decode(data, truncated: truncated) }
+        let header = String(decoding: data.prefix(4_096), as: UTF8.self)
+        if let range = header.range(of: #"(?i)charset\s*=\s*["']?([a-z0-9_-]+)"#, options: .regularExpression) {
+            let declaration = String(header[range]).lowercased()
+            let label = declaration.components(separatedBy: "=").last!.trimmingCharacters(in: CharacterSet(charactersIn: " \t\r\n\"'"))
+            let pages = ["utf-8": 65001, "utf8": 65001, "windows-1252": 1252, "gbk": 936, "gb2312": 936, "big5": 950, "shift_jis": 932, "windows-949": 949]
+            guard let page = pages[label] else { return nil }
+            return decodeBytes(data, page: page, truncated: truncated)
+        }
+        return decode(data, truncated: truncated)
+    }
+
     private static func html(_ source: String) -> String {
-        // Strip non-content regions before tags. Even malformed markup is only
-        // inert text; neither markup nor attributes ever reach an HTML renderer.
         var text = source
         for tag in ["head", "script", "style", "template", "object", "iframe"] {
             text = text.replacingOccurrences(of: "(?is)<" + tag + "\\b[^>]*>.*?(?:</" + tag + "\\s*>|$)", with: "", options: .regularExpression)
         }
         text = text.replacingOccurrences(of: "(?s)<!--.*?(?:-->|$)", with: "", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?i)<(?:br\\b[^>]*|/(?:p|div|li|h[1-6]))\\s*>", with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?i)<(?:br\\b[^>]*|/(?:p|div|li|h[1-6]|tr))\\s*>", with: "\n", options: .regularExpression)
         text = text.replacingOccurrences(of: "<[^>]*(?:>|$)", with: "", options: .regularExpression)
-        for (entity, replacement) in [("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&apos;", "'"), ("&nbsp;", " "), ("&amp;", "&")] {
-            text = text.replacingOccurrences(of: entity, with: replacement)
+        // One pass avoids double-decoding escaped entity syntax.
+        let expression = try! NSRegularExpression(pattern: "&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|quot|apos|nbsp|amp);")
+        let original = text as NSString
+        for match in expression.matches(in: text, range: NSRange(location: 0, length: original.length)).reversed() {
+            let token = original.substring(with: match.range(at: 1))
+            let named = ["lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " ", "amp": "&"]
+            var replacement = named[token]
+            if token.hasPrefix("#") {
+                let hex = token.hasPrefix("#x")
+                if let value = UInt32(token.dropFirst(hex ? 2 : 1), radix: hex ? 16 : 10), let scalar = UnicodeScalar(value), value != 0 { replacement = String(scalar) }
+            }
+            if let replacement, let range = Range(match.range, in: text) { text.replaceSubrange(range, with: replacement) }
         }
         return text
     }
@@ -75,44 +173,73 @@ public enum OfflineClipboardPreview {
     private struct RTFState {
         var hidden = false
         var unicodeFallback = 1
-        var bold = false
-        var italic = false
-        var underline = false
+        var page = 1252
     }
 
-    private static func rtf(_ data: Data) -> [ClipboardRichTextPreview.Run] {
+    private static func rtf(_ data: Data, truncated: Bool) -> String? {
         let bytes = Array(data)
-        guard bytes.starts(with: Array("{\\rtf".utf8)) else { return [] }
+        guard bytes.starts(with: Array("{\\rtf".utf8)) else { return nil }
         var state = RTFState(), stack: [RTFState] = []
-        var output: [UInt16] = []
-        var styles: [RTFState] = []
-        func emit(_ value: UInt16) { output.append(value); styles.append(state) }
+        var output: [UInt16] = [], pending: [UInt8] = []
+        var invalid = false
+        var fontPages = Set<Int>()
+        func flush(truncated: Bool = false) {
+            guard !pending.isEmpty else { return }
+            // Font-specific legacy encodings require a font-selection parser. Do not
+            // misread those bytes using the document page; Unicode remains supported.
+            if pending.contains(where: { $0 >= 128 }), fontPages.contains(where: { $0 != state.page }) {
+                invalid = true; pending.removeAll(keepingCapacity: true); return
+            }
+            if let string = decodeBytes(Data(pending), page: state.page, truncated: truncated) {
+                output.append(contentsOf: string.utf16)
+            } else if pending.allSatisfy({ $0 < 128 }) { output.append(contentsOf: pending.map(UInt16.init)) }
+            else { invalid = true }
+            pending.removeAll(keepingCapacity: true)
+        }
         var index = 0, fallback = 0
         let ignored: Set<String> = ["fonttbl", "colortbl", "stylesheet", "info", "pict", "object", "objdata", "filetbl", "listtable", "listoverridetable", "generator", "datastore", "xmlnstbl", "fldinst"]
-        func append(_ value: UInt16) {
+        func append(_ byte: UInt8) {
             if fallback > 0 { fallback -= 1 }
-            else if !state.hidden { emit(value) }
+            else if !state.hidden { pending.append(byte) }
         }
-        while index < bytes.count && output.count < 2_048 {
+        func emit(_ value: UInt16) {
+            flush()
+            if !state.hidden { output.append(value) }
+        }
+        func symbol(_ value: UInt16) {
+            if fallback > 0 { fallback -= 1 } else { emit(value) }
+        }
+        parse: while index < bytes.count && output.count + pending.count < 8_192 {
             let byte = bytes[index]; index += 1
             switch byte {
-            case 123: stack.append(state)
-            case 125: if let previous = stack.popLast() { state = previous }; fallback = 0
-            case 10, 13: break
+            case 123:
+                flush(); guard stack.count < 256 else { return nil }; stack.append(state)
+            case 125:
+                flush(); if let previous = stack.popLast() { state = previous }; fallback = 0
+            case 10, 13: break // Physical RTF source wrapping is not a paragraph.
             case 92:
                 guard index < bytes.count else { break }
                 let escaped = bytes[index]; index += 1
-                if [92, 123, 125].contains(escaped) { append(UInt16(escaped)); continue }
-                if escaped == 42 { state.hidden = true; continue }
-                if escaped == 39, index + 1 < bytes.count {
-                    let hex = String(decoding: bytes[index..<(index + 2)], as: UTF8.self)
-                    if let value = UInt8(hex, radix: 16) {
-                        let string = String(data: Data([value]), encoding: .windowsCP1252) ?? "�"
-                        for unit in string.utf16 { append(unit) }
+                if [92, 123, 125].contains(escaped) { append(escaped); continue }
+                if escaped == 39 {
+                    if index + 1 >= bytes.count {
+                        guard truncated, bytes[index...].allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }) else { return nil }
+                        index = bytes.count
+                        break parse // Leave the pending byte run for the budget-aware final flush.
                     }
-                    index += 2; continue
+                    let hex = String(decoding: bytes[index..<(index + 2)], as: UTF8.self)
+                    guard let value = UInt8(hex, radix: 16) else { return nil }
+                    append(value); index += 2; continue
                 }
-                if escaped == 126 { append(160); continue }
+                flush()
+                if escaped == 10 || escaped == 13 {
+                    if escaped == 13, index < bytes.count, bytes[index] == 10 { index += 1 }
+                    symbol(10); continue
+                }
+                if escaped == 42 { state.hidden = true; continue }
+                if escaped == 126 { symbol(160); continue }
+                if escaped == 95 { symbol(0x2011); continue }
+                if escaped == 45 { symbol(0x00AD); continue }
                 guard (65...90).contains(escaped) || (97...122).contains(escaped) else { continue }
                 let start = index - 1
                 while index < bytes.count && ((65...90).contains(bytes[index]) || (97...122).contains(bytes[index])) { index += 1 }
@@ -124,41 +251,30 @@ public enum OfflineClipboardPreview {
                 if index < bytes.count && bytes[index] == 32 { index += 1 }
                 if ignored.contains(word) { state.hidden = true }
                 switch word {
+                case "ansicpg": state.page = number ?? -1
+                case "fcharset":
+                    if let number, ![0, 1].contains(number) {
+                        fontPages.insert([128: 932, 129: 949, 134: 936, 136: 950][number] ?? -1)
+                    }
+                case "mac", "pc", "pca": state.page = -1
                 case "bin": index += min(max(0, number ?? 0), bytes.count - index)
-                case "b": state.bold = number != 0
-                case "i": state.italic = number != 0
-                case "ul": state.underline = number != 0
-                case "ulnone": state.underline = false
-                case "plain": state.bold = false; state.italic = false; state.underline = false
                 case "uc": state.unicodeFallback = min(16, max(0, number ?? 1))
                 case "u":
-                    if let number, !state.hidden { emit(UInt16(truncatingIfNeeded: number)) }
+                    if let number { emit(UInt16(truncatingIfNeeded: number)) }
                     fallback = state.unicodeFallback
-                case "par", "line": append(10)
-                case "tab": append(9)
-                case "emdash": append(0x2014)
-                case "endash": append(0x2013)
-                case "bullet": append(0x2022)
+                case "par", "line": symbol(10)
+                case "tab": symbol(9)
+                case "emdash": symbol(0x2014)
+                case "endash": symbol(0x2013)
+                case "bullet": symbol(0x2022)
                 default: break
                 }
-            default: append(UInt16(byte))
+            default: append(byte)
             }
         }
-        var runs: [ClipboardRichTextPreview.Run] = []
-        var start = 0
-        while start < output.count {
-            // Reserve the final run for plain overflow; malicious style toggles
-            // cannot amplify metadata beyond 256 runs / 2048 UTF-16 units.
-            if runs.count == 255 {
-                runs.append(.init(text: String(decoding: output[start...], as: UTF16.self)))
-                break
-            }
-            let style = styles[start]
-            var end = start + 1
-            while end < output.count && styles[end].bold == style.bold && styles[end].italic == style.italic && styles[end].underline == style.underline { end += 1 }
-            runs.append(.init(text: String(decoding: output[start..<end], as: UTF16.self), bold: style.bold, italic: style.italic, underline: style.underline))
-            start = end
-        }
-        return runs
+        let budgetEnded = index < bytes.count || truncated
+        flush(truncated: budgetEnded)
+        guard !invalid else { return nil }
+        return decodeUTF16(output.withUnsafeBytes { Data($0) }, littleEndian: true, truncated: budgetEnded)
     }
 }

@@ -12,13 +12,23 @@ struct ClipboardHistoryCopyRow: View {
     var body: some View {
         if let entry = presentation.primary {
             VStack(alignment: .leading, spacing: 8) {
-                ClipboardHistoryRepresentationView(entry: entry, stackedFileCount: presentation.fileCount,
-                    stackedFileIcon: presentation.fileCount > 1 ? presentation.fileIcon : nil)
+                if presentation.fileCount > 1 {
+                    HStack(alignment: .top) {
+                        Image(systemName: "doc.on.doc").font(.title)
+                        VStack(alignment: .leading) {
+                            Text(presentation.fileTitle)
+                            Text("Shown on this page").font(.caption).foregroundStyle(.secondary)
+                            Text(presentation.fileOverview).font(.caption).lineLimit(6)
+                        }
+                    }
+                } else {
+                    ClipboardHistoryRepresentationView(entry: entry, text: presentation.text(for: entry))
+                }
                 if copy.representations.count > 1 {
-                    DisclosureGroup("\(Set(copy.representations.map { $0.itemIndex ?? 0 }).count) items · \(copy.representations.count) representations") {
-                        ForEach(copy.representations.filter { $0.id != entry.id }) { representation in
+                    DisclosureGroup(presentation.shownSummary) {
+                        ForEach(presentation.expandedRepresentations) { representation in
                             Divider()
-                            ClipboardHistoryRepresentationView(entry: representation)
+                            ClipboardHistoryRepresentationView(entry: representation, text: presentation.text(for: representation))
                         }
                     }.font(.caption)
                 }
@@ -36,37 +46,19 @@ struct ClipboardHistoryCopyRow: View {
 
 private struct ClipboardHistoryRepresentationView: View {
     let entry: ClipboardHistoryEntry
-    let stackedFileCount: Int
-    let stackedFileIcon: String?
-    @State private var mode: ClipboardHistoryPreviewMode
+    let text: String
     private var presentation: ClipboardHistoryTextPresentation { .init(entry: entry) }
-
-    init(entry: ClipboardHistoryEntry, stackedFileCount: Int = 0, stackedFileIcon: String? = nil) {
-        self.entry = entry; self.stackedFileCount = stackedFileCount; self.stackedFileIcon = stackedFileIcon
-        _mode = State(initialValue: ClipboardHistoryTextPresentation(entry: entry).defaultMode)
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let stackedFileIcon {
-                Image(systemName: stackedFileIcon).font(.title).accessibilityLabel("\(stackedFileCount) copied files")
-            } else if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
+            if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
                 Image(nsImage: image).resizable().scaledToFit().frame(width: 96, height: 72)
                     .accessibilityLabel("Copied image preview")
             } else if let reference = entry.fileReference {
                 Image(systemName: reference.previewIcon).font(.title).accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 4) {
-                if entry.contentType == .richText {
-                    Picker("Rich text preview", selection: $mode) {
-                        Text("Rendered").tag(ClipboardHistoryPreviewMode.rendered)
-                        Text("Source").tag(ClipboardHistoryPreviewMode.source)
-                    }.pickerStyle(.segmented).frame(width: 190)
-                    if mode == .rendered {
-                        Text(presentation.rendered).textSelection(.enabled).lineLimit(8)
-                            .environment(\.openURL, OpenURLAction { _ in .handled })
-                    } else { Text(presentation.source).textSelection(.enabled).lineLimit(8) }
-                } else { Text(entry.text).textSelection(.enabled).lineLimit(6) }
+                Text(text).textSelection(.enabled).lineLimit(8)
                 if let reference = entry.fileReference {
                     Text(reference.typeIdentifier).font(.caption).foregroundStyle(.secondary)
                     if let size = reference.byteCount {

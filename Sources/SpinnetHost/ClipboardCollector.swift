@@ -137,8 +137,7 @@ final class ClipboardCollector {
                       !format.rawValue.hasPrefix("com.apple.pasteboard."),
                       let data = item.data(forType: format), !data.isEmpty else { continue }
                 contents.append(ClipboardContent(text: type == .image ? "Image" : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
-                    imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex,
-                    richTextPreview: type == .richText ? OfflineClipboardPreview.styled(data, format: format.rawValue) : nil))
+                    imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex))
             }
         }
         return contents
