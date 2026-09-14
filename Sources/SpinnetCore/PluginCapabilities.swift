@@ -286,6 +286,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
 
 /// A narrow operation exposed by the Host to a Plugin helper.
 public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashable {
+    case readClipboardHistoryContent = "read_clipboard_history_content"
     case readSelectedText = "read_selected_text"
     case writeClipboard = "write_clipboard"
     case readCurrentClipboard = "read_current_clipboard"
@@ -296,7 +297,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         case .readSelectedText:
             return .readSelectedText
         case .readCurrentClipboard: return .readCurrentClipboard
-        case .readClipboardHistory: return .readClipboardHistory
+        case .readClipboardHistory, .readClipboardHistoryContent: return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
         }
@@ -306,7 +307,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         switch self {
         case .readSelectedText:
             return .accessibility
-        case .writeClipboard, .readCurrentClipboard, .readClipboardHistory:
+        case .writeClipboard, .readCurrentClipboard, .readClipboardHistory, .readClipboardHistoryContent:
             return nil
         }
     }
@@ -380,6 +381,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let currentClipboardProvider: () throws -> ClipboardContent?
     private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
     private let clipboardHistoryPresenter: (PluginPackage, ActionConfiguration) -> Void
+    private let clipboardHistoryContentProvider: (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -390,6 +392,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         clipboardHistoryProvider: @escaping ([String], Int) throws -> ClipboardHistorySnapshot = { _, _ in
             throw PluginHostServiceError.unavailable("Clipboard History")
         },
+        clipboardHistoryContentProvider: @escaping (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk = { _, _, _, _ in
+            throw PluginHostServiceError.unavailable("Clipboard History content")
+        },
         clipboardHistoryPresenter: @escaping (PluginPackage, ActionConfiguration) -> Void = { _, _ in }
     ) {
         self.grantStore = grantStore
@@ -399,6 +404,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.currentClipboardProvider = currentClipboardProvider
         self.clipboardHistoryProvider = clipboardHistoryProvider
         self.clipboardHistoryPresenter = clipboardHistoryPresenter
+        self.clipboardHistoryContentProvider = clipboardHistoryContentProvider
     }
 
     public func execute(
@@ -432,6 +438,17 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
 
         switch service {
+        case .readClipboardHistoryContent:
+            guard case .object(let fields) = request.input, fields.count == 3,
+                  case .string(let id) = fields["entry_id"], let entryID = UUID(uuidString: id),
+                  case .number(let offset) = fields["offset"], offset.isFinite, offset >= 0, offset <= Double(Int.max / 2), offset.rounded() == offset,
+                  case .number(let length) = fields["length"], length >= 1, length <= 196_608, length.rounded() == length else {
+                throw PluginHostServiceError.invalidInput("Expected entry_id, nonnegative integer offset, and length 1…196608")
+            }
+            let chunk = try readHistory {
+                try clipboardHistoryContentProvider(entryID, package.manifest.scope(for: capability)?.dataTypes ?? [], Int(offset), Int(length))
+            }
+            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(chunk))
         case .readCurrentClipboard:
             guard request.input == .null else {
                 throw PluginHostServiceError.invalidInput("read_current_clipboard expects null")
@@ -448,7 +465,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             } else if request.input != .null && !present {
                 throw PluginHostServiceError.invalidInput("Expected null, {present: true}, or a nonnegative integer offset")
             }
-            let snapshot = try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
+            let snapshot = try readHistory {
+                try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
+            }
             if present { clipboardHistoryPresenter(package, action) }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:
@@ -465,5 +484,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try clipboardWriter(text)
             return .null
         }
+    }
+
+    /// Filesystem errors can contain the private archive or payload URL.
+    private func readHistory<T>(_ read: () throws -> T) throws -> T {
+        do { return try read() }
+        catch let error as PluginHostServiceError { throw error }
+        catch { throw PluginHostServiceError.failed("Clipboard History could not be read") }
     }
 }

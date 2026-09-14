@@ -108,13 +108,13 @@ final class ClipboardHistoryTests: XCTestCase {
         var now = Date(timeIntervalSince1970: 1_000_000)
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { now })
         try store.configure(enabled: true, paused: false, retentionDays: 7)
-        for count in 1...8 {
+        for count in 1...51 {
             try store.observe(changeCount: count, content: .init(text: String(repeating: "x", count: 65_536), type: .text), sourceName: "Notes", sourceBundleID: "notes")
         }
         let first = try store.query(dataTypes: ["text"])
         XCTAssertLessThan(try JSONEncoder().encode(first).count, 1_048_576)
         let next = try XCTUnwrap(first.nextOffset)
-        XCTAssertEqual(first.entries.count + (try store.query(dataTypes: ["text"], offset: next)).entries.count, 8)
+        XCTAssertEqual(first.entries.count + (try store.query(dataTypes: ["text"], offset: next)).entries.count, 51)
         now = now.addingTimeInterval(2 * 86_400)
         XCTAssertFalse(try store.query(dataTypes: ["text"]).entries.isEmpty)
         try store.configure(enabled: true, paused: false, retentionDays: 1)

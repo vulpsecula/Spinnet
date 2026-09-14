@@ -96,6 +96,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 clipboardHistoryProvider: { [clipboardStore] types, offset in
                     try clipboardStore!.query(dataTypes: types, offset: offset)
                 },
+                clipboardHistoryContentProvider: { [clipboardStore] id, types, offset, length in
+                    try clipboardStore!.readContent(entryID: id, dataTypes: types, offset: offset, length: length)
+                },
                 clipboardHistoryPresenter: { [weak self] package, action in
                     DispatchQueue.main.async { [weak self] in self?.presentClipboardHistory(package: package, action: action) }
                 }

@@ -8,6 +8,11 @@ final class ClipboardHistoryWindowModel: ObservableObject {
     @Published private(set) var snapshot: ClipboardHistorySnapshot?
     @Published private(set) var error: String?
     @Published private(set) var accessDenied = false
+    @Published private(set) var isLoading = false
+    private let queryQueue = DispatchQueue(label: "com.spinnet.clipboard-history-query", qos: .userInitiated)
+    private var queryRevision = UUID()
+    private var queuedQuery: (id: UUID, offset: Int)?
+    private var querying = false
     private(set) var offset = 0
     private var expiration: DispatchWorkItem?
     private let query: (Int) throws -> ClipboardHistorySnapshot
@@ -19,8 +24,31 @@ final class ClipboardHistoryWindowModel: ObservableObject {
         error = nil
         accessDenied = false
         self.offset = offset
+        isLoading = true
+        queuedQuery = (queryRevision, offset)
+        runNextQuery()
+    }
+
+    /// The broker can wait behind disk writes. Never do that on the main thread;
+    /// coalesce refreshes and reject responses invalidated by close/revocation.
+    private func runNextQuery() {
+        guard !querying, let request = queuedQuery else { return }
+        queuedQuery = nil
+        querying = true
+        queryQueue.async { [self] in
+            let result = Result { try query(request.offset) }
+            DispatchQueue.main.async { [self] in
+                querying = false
+                if queryRevision == request.id { apply(result) }
+                runNextQuery()
+            }
+        }
+    }
+
+    private func apply(_ response: Result<ClipboardHistorySnapshot, Error>) {
+        isLoading = false
         do {
-            let result = try query(offset)
+            let result = try response.get()
             if let expiry = result.expiresAt {
                 guard expiry > Date() else { error = "Entries expired. Refresh to see retained history."; return }
                 let task = DispatchWorkItem { [weak self] in
@@ -39,6 +67,9 @@ final class ClipboardHistoryWindowModel: ObservableObject {
     }
 
     func discardSnapshot() {
+        queryRevision = UUID()
+        queuedQuery = nil
+        isLoading = false
         expiration?.cancel()
         expiration = nil
         snapshot = nil
@@ -46,7 +77,7 @@ final class ClipboardHistoryWindowModel: ObservableObject {
     deinit { expiration?.cancel() }
 }
 
-private struct ClipboardHistoryView: View {
+struct ClipboardHistoryView: View {
     @ObservedObject var model: ClipboardHistoryWindowModel
     let openPrivacy: () -> Void
     let openPluginSettings: () -> Void
@@ -59,7 +90,9 @@ private struct ClipboardHistoryView: View {
                 Button("Refresh") { model.refresh() }.keyboardShortcut("r", modifiers: .command)
                 Button("Plugin Settings…", action: openPluginSettings)
             }
-            if let error = model.error {
+            if model.isLoading {
+                ProgressView("Loading Clipboard History…")
+            } else if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
                 if model.accessDenied { Button("Manage Access in Library…", action: openPluginSettings) }
             } else if let snapshot = model.snapshot {
@@ -73,13 +106,44 @@ private struct ClipboardHistoryView: View {
                 }
                 if snapshot.entries.isEmpty {
                     Text(snapshot.state == .collecting
-                         ? "No retained entries. Copy text or a URL, then refresh."
+                         ? "No retained entries. Copy text, an image, rich text, a file, or other content, then refresh."
                          : "No retained entries. Enable or resume collection in Privacy Settings to collect new copies.")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(snapshot.entries) { entry in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(entry.text).textSelection(.enabled)
+                            HStack(alignment: .top, spacing: 12) {
+                                if let data = entry.imagePreview?.thumbnail, let image = NSImage(data: data) {
+                                    Image(nsImage: image).resizable().scaledToFit().frame(width: 96, height: 72)
+                                        .accessibilityLabel("Copied image preview")
+                                } else if let reference = entry.fileReference {
+                                    Image(systemName: reference.previewIcon).font(.title).accessibilityHidden(true)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(entry.text).textSelection(.enabled).lineLimit(6)
+                                    if let reference = entry.fileReference {
+                                        Text(reference.typeIdentifier).font(.caption).foregroundStyle(.secondary)
+                                        if let size = reference.byteCount { Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)).font(.caption) }
+                                        if let reason = reference.unavailableReason {
+                                            Label("Unavailable — " + reason, systemImage: "exclamationmark.triangle")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        } else {
+                                            Text("File reference only — source contents are not stored.").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    } else {
+                                        if let size = entry.byteCount {
+                                            Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) + " · " + (entry.format ?? ""))
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        if let preview = entry.imagePreview {
+                                            Text("\(preview.pixelWidth) × \(preview.pixelHeight) pixels").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        if [.text, .url].contains(entry.contentType), (entry.byteCount ?? 0) > entry.text.utf8.count {
+                                            Text("Text preview — full content is retained locally.").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
                             HStack {
                                 Text(entry.contentType.rawValue.uppercased())
                                 Text(entry.sourceApplicationName)

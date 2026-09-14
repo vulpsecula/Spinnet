@@ -239,6 +239,9 @@ final class SettingsWindowModel: ObservableObject {
     var onClipboardHistoryChanged: (() -> Void)?
     private var restoringClipboardSettings = false
     @Published var clipboardError: String?
+    @Published private(set) var clipboardSettingsPending = false
+    private var clipboardControlID = 0
+    @Published private(set) var clipboardExcludedApplications: [String] = ClipboardHistoryStore.defaultExcludedApplications
     @Published var clipboardCollectionEnabled: Bool {
         didSet { updateClipboardSettings() }
     }
@@ -393,6 +396,7 @@ final class SettingsWindowModel: ObservableObject {
         clipboardCollectionPaused = clipboardHistoryStore?.settings.paused ?? defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
         if let store = clipboardHistoryStore {
+            clipboardExcludedApplications = store.excludedApplications
             clipboardRetention = ClipboardRetention.allCases.first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
         }
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
@@ -419,6 +423,11 @@ final class SettingsWindowModel: ObservableObject {
         panel.treatsFilePackagesAsDirectories = false
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        installPluginPackage(at: url)
+    }
+
+    /// The native picker and automated Settings workflow enter the same install intent.
+    func installPluginPackage(at url: URL) {
         do {
             guard let installPlugin else { return }
             let manifest = try installPlugin(url)
@@ -588,47 +597,75 @@ final class SettingsWindowModel: ObservableObject {
 
     private func updateClipboardSettings() {
         guard !restoringClipboardSettings else { return }
-        do {
-            if clipboardHistoryStore?.settings.enabled != clipboardCollectionEnabled || clipboardHistoryStore?.settings.paused != clipboardCollectionPaused {
-                try onClipboardSettingsWillChange?()
-            }
-            try clipboardHistoryStore?.configure(enabled: clipboardCollectionEnabled, paused: clipboardCollectionPaused, retentionDays: clipboardRetention.hours / 24)
-            defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled)
-            defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused)
-            defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention)
-            clipboardError = nil
+        submitClipboardControl(.configure(enabled: clipboardCollectionEnabled, paused: clipboardCollectionPaused,
+                                           retentionDays: clipboardRetention.hours / 24))
+    }
+
+    private func saveClipboardDefaults() {
+        defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled)
+        defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused)
+        defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention)
+    }
+
+    private func submitClipboardControl(_ control: ClipboardHistoryControl) {
+        do { try onClipboardSettingsWillChange?() }
+        catch { clipboardError = error.localizedDescription; return }
+        clipboardControlID += 1
+        let requestID = clipboardControlID
+        clipboardError = nil
+        guard let store = clipboardHistoryStore else {
+            saveClipboardDefaults()
             onClipboardHistoryChanged?()
-        } catch {
-            clipboardError = error.localizedDescription
-            if let store = clipboardHistoryStore {
-                restoringClipboardSettings = true
-                clipboardCollectionEnabled = store.settings.enabled
-                clipboardCollectionPaused = store.settings.paused
-                clipboardRetention = ClipboardRetention.allCases.first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
-                restoringClipboardSettings = false
+            return
+        }
+        clipboardSettingsPending = true
+        store.submitControl(control) { [weak self] settings, error in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, requestID == self.clipboardControlID else { return }
+                self.restoringClipboardSettings = true
+                self.clipboardCollectionEnabled = settings.enabled
+                self.clipboardCollectionPaused = settings.paused
+                self.clipboardRetention = ClipboardRetention.allCases.first { $0.hours == settings.retentionDays * 24 } ?? .oneDay
+                self.clipboardExcludedApplications = settings.excludedApplications
+                self.restoringClipboardSettings = false
+                self.clipboardSettingsPending = false
+                self.clipboardError = error?.localizedDescription
+                self.saveClipboardDefaults()
+                self.onClipboardHistoryChanged?()
             }
         }
     }
 
-    func clearClipboardHistory() {
-        do { try clipboardHistoryStore?.clear(); clipboardError = nil; onClipboardHistoryChanged?() }
-        catch { clipboardError = error.localizedDescription }
+    func addClipboardExcludedApplication(bundleID: String) {
+        setClipboardExcludedApplications(clipboardExcludedApplications + [bundleID.trimmingCharacters(in: .whitespacesAndNewlines)])
     }
 
+    func removeClipboardExcludedApplication(bundleID: String) {
+        setClipboardExcludedApplications(clipboardExcludedApplications.filter { $0 != bundleID })
+    }
+
+    private func setClipboardExcludedApplications(_ bundleIDs: [String]) {
+        clipboardExcludedApplications = Array(Set(ClipboardHistoryStore.defaultExcludedApplications + bundleIDs)).sorted()
+        submitClipboardControl(.excludeApplications(bundleIDs))
+    }
+
+    func clearClipboardHistory() { submitClipboardControl(.clear) }
+
     func turnOffClipboardHistory(deleteEntries: Bool) {
-        do {
-            try clipboardHistoryStore?.turnOff(deleteEntries: deleteEntries)
-            clipboardCollectionEnabled = false
-            clipboardCollectionPaused = false
-        } catch { clipboardError = error.localizedDescription }
+        restoringClipboardSettings = true
+        clipboardCollectionEnabled = false
+        clipboardCollectionPaused = false
+        restoringClipboardSettings = false
+        submitClipboardControl(.turnOff(deleteEntries: deleteEntries))
     }
 
     var clipboardCollectionStatus: String {
         if let clipboardError { return "Clipboard History error: " + clipboardError }
+        if clipboardSettingsPending { return "Saving Clipboard History settings…" }
         guard clipboardCollectionEnabled else { return "Off — no new entries are collected" }
         return clipboardCollectionPaused
             ? "Paused — existing entries are retained"
-            : "On — collecting text and URLs locally"
+            : "On — collecting clipboard content on this Mac"
     }
 
     func dismissPermissionGuide() {
@@ -1458,6 +1495,9 @@ struct SettingsRootView: View {
                     clipboardCollectionStatus: model.clipboardCollectionStatus,
                     clearHistory: model.clearClipboardHistory,
                     turnOffHistory: model.turnOffClipboardHistory,
+                    excludedApplications: model.clipboardExcludedApplications,
+                    addExcludedApplication: model.addClipboardExcludedApplication,
+                    removeExcludedApplication: model.removeClipboardExcludedApplication,
                     setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )
@@ -2743,6 +2783,10 @@ private struct PrivacySettingsView: View {
     let clipboardCollectionStatus: String
     let clearHistory: () -> Void
     let turnOffHistory: (Bool) -> Void
+    let excludedApplications: [String]
+    let addExcludedApplication: (String) -> Void
+    let removeExcludedApplication: (String) -> Void
+    @State private var excludedBundleID = ""
     @State private var confirmEnable = false
     @State private var confirmDisable = false
     @State private var confirmClear = false
@@ -2792,7 +2836,7 @@ private struct PrivacySettingsView: View {
                                 Button("Enable Collection") { clipboardCollectionPaused = false; clipboardCollectionEnabled = true }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("Spinnet will store copied text and URLs on this Mac, including source application and copy time. Default retention is 24 hours. Plugins need separate access, which includes retained entries from before their grant. Text over 64 KB and clipboard items marked concealed or transient are skipped.")
+                                Text("Spinnet will retain text, URLs, images, rich text, file references, and embedded binary content on this Mac. Source application and copy time are recorded, but not window or document titles. Finder files are not cloned. Default retention is 24 hours. Passwords, Keychain Access, excluded applications, and concealed or transient items are skipped. Plugins need separate type-scoped access, including to entries retained before their grant.")
                             }
                             .alert("Turn off Clipboard History?", isPresented: $confirmDisable) {
                                 Button("Turn Off and Retain") { turnOffHistory(false) }
@@ -2822,6 +2866,30 @@ private struct PrivacySettingsView: View {
                             Spacer()
                         }
                         .disabled(!clipboardCollectionEnabled)
+                        Text("Stored only on this Mac. Spinnet does not sync history through iCloud or Plugins. Large content is saved locally; Plugins read it in authorized chunks.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("Excluded Applications").font(.headline)
+                        Text("Exclusions apply to new copies, using the foreground application at sampling time. Clear History to remove older entries. Passwords and Keychain Access always remain excluded.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        ForEach(excludedApplications, id: \.self) { bundleID in
+                            HStack {
+                                Text(bundleID).textSelection(.enabled)
+                                Spacer()
+                                if !ClipboardHistoryStore.defaultExcludedApplications.contains(bundleID) {
+                                    Button("Remove") { removeExcludedApplication(bundleID) }
+                                        .accessibilityLabel("Remove exclusion for \(bundleID)")
+                                } else { Text("Default").foregroundStyle(.secondary) }
+                            }
+                        }
+                        HStack {
+                            TextField("Application bundle identifier", text: $excludedBundleID)
+                                .accessibilityLabel("Excluded application bundle identifier")
+                            Button("Add") {
+                                addExcludedApplication(excludedBundleID)
+                                excludedBundleID = ""
+                            }.disabled(excludedBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Button("Choose Application…") { chooseExcludedApplication() }
+                        }
                         Button("Clear History…") { confirmClear = true }
                             .alert("Delete all retained clipboard entries?", isPresented: $confirmClear) {
                                 Button("Clear History", role: .destructive, action: clearHistory)
@@ -2851,6 +2919,17 @@ private struct PrivacySettingsView: View {
                 pluginCapabilityControls
             }
             .frame(maxWidth: 760, alignment: .leading)
+        }
+    }
+
+    private func chooseExcludedApplication() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Exclude Application"
+        if panel.runModal() == .OK, let url = panel.url, let bundleID = Bundle(url: url)?.bundleIdentifier {
+            addExcludedApplication(bundleID)
         }
     }
 
