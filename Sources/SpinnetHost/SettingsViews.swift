@@ -16,20 +16,6 @@ struct PendingPresetSetup: Equatable {
     let replacing: Bool
 }
 
-enum ClipboardRetention: String, CaseIterable, Equatable {
-    case oneDay = "1 day"
-    case oneWeek = "1 week"
-    case oneMonth = "1 month"
-
-    var hours: Int {
-        switch self {
-        case .oneDay: return 24
-        case .oneWeek: return 24 * 7
-        case .oneMonth: return 24 * 30
-        }
-    }
-}
-
 /// Keeps the editor's friendly field presentation separate from the JSON
 /// shape accepted by a Command. Existing Actions may use an object input with
 /// extra members (for example, a Shortcut payload); a field edit should only
@@ -231,24 +217,9 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
     @Published private(set) var accessibilityPermissionGranted: Bool
-    private let clipboardHistoryStore: ClipboardHistoryStore?
-    var onClipboardSettingsWillChange: (() throws -> Void)?
-    var onClipboardHistoryChanged: (() -> Void)?
-    private var restoringClipboardSettings = false
-    @Published var clipboardError: String?
-    @Published var clipboardExclusionsFocus: UUID?
-    @Published private(set) var clipboardSettingsPending = false
-    private var clipboardControlID = 0
-    @Published private(set) var clipboardExcludedApplications: [String] = ClipboardHistoryStore.defaultExcludedApplications
-    @Published var clipboardCollectionEnabled: Bool {
-        didSet { updateClipboardSettings() }
-    }
-    @Published var clipboardCollectionPaused: Bool {
-        didSet { updateClipboardSettings() }
-    }
-    @Published var clipboardRetention: ClipboardRetention {
-        didSet { updateClipboardSettings() }
-    }
+    /// Clipboard History settings own their own state, persistence and
+    /// submission to the Store.
+    let clipboardHistory: ClipboardHistorySettingsModel
     @Published var permissionGuidePresented: Bool {
         didSet {
             if !permissionGuidePresented {
@@ -282,9 +253,6 @@ final class SettingsWindowModel: ObservableObject {
     private var redoHistory: [MenuHistoryEntry] = []
 
     private enum Keys {
-        static let clipboardCollectionEnabled = "privacy.clipboard-collection-enabled"
-        static let clipboardCollectionPaused = "privacy.clipboard-collection-paused"
-        static let clipboardRetention = "privacy.clipboard-retention"
         static let permissionGuideShown = "privacy.permission-guide-shown"
     }
 
@@ -303,7 +271,6 @@ final class SettingsWindowModel: ObservableObject {
         self.metadata = metadata
         self.capabilityGrantStore = capabilityGrantStore
         self.defaults = defaults
-        self.clipboardHistoryStore = clipboardHistoryStore
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         menuSlots = []
@@ -311,13 +278,7 @@ final class SettingsWindowModel: ObservableObject {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
-        clipboardCollectionEnabled = clipboardHistoryStore?.settings.enabled ?? defaults.bool(forKey: Keys.clipboardCollectionEnabled)
-        clipboardCollectionPaused = clipboardHistoryStore?.settings.paused ?? defaults.bool(forKey: Keys.clipboardCollectionPaused)
-        clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
-        if let store = clipboardHistoryStore {
-            clipboardExcludedApplications = store.excludedApplications
-            clipboardRetention = ClipboardRetention.allCases.first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
-        }
+        clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         menuSlots = makeMenuSlots()
         refreshCapabilityGrants()
@@ -419,84 +380,6 @@ final class SettingsWindowModel: ObservableObject {
                 presets: presets.filter { $0.source == source }
             )
         }
-    }
-
-    private func updateClipboardSettings() {
-        guard !restoringClipboardSettings else { return }
-        submitClipboardControl(.configure(enabled: clipboardCollectionEnabled, paused: clipboardCollectionPaused,
-                                           retentionDays: clipboardRetention.hours / 24))
-    }
-
-    private func saveClipboardDefaults() {
-        defaults.set(clipboardCollectionEnabled, forKey: Keys.clipboardCollectionEnabled)
-        defaults.set(clipboardCollectionPaused, forKey: Keys.clipboardCollectionPaused)
-        defaults.set(clipboardRetention.rawValue, forKey: Keys.clipboardRetention)
-    }
-
-    private func submitClipboardControl(_ control: ClipboardHistoryControl, completion: ((String?) -> Void)? = nil) {
-        do { try onClipboardSettingsWillChange?() }
-        catch { clipboardError = error.localizedDescription; completion?(clipboardError); return }
-        clipboardControlID += 1
-        let requestID = clipboardControlID
-        clipboardError = nil
-        guard let store = clipboardHistoryStore else {
-            saveClipboardDefaults()
-            onClipboardHistoryChanged?()
-            completion?(nil)
-            return
-        }
-        clipboardSettingsPending = true
-        store.submitControl(control) { [weak self] settings, error in
-            DispatchQueue.main.async { [weak self] in
-                defer { completion?(error?.localizedDescription) }
-                guard let self, requestID == self.clipboardControlID else { return }
-                self.restoringClipboardSettings = true
-                self.clipboardCollectionEnabled = settings.enabled
-                self.clipboardCollectionPaused = settings.paused
-                self.clipboardRetention = ClipboardRetention.allCases.first { $0.hours == settings.retentionDays * 24 } ?? .oneDay
-                self.clipboardExcludedApplications = settings.excludedApplications
-                self.restoringClipboardSettings = false
-                self.clipboardSettingsPending = false
-                self.clipboardError = error?.localizedDescription
-                self.saveClipboardDefaults()
-                self.onClipboardHistoryChanged?()
-            }
-        }
-    }
-
-    func addClipboardExcludedApplication(bundleID: String) {
-        setClipboardExcludedApplications(clipboardExcludedApplications + [bundleID.trimmingCharacters(in: .whitespacesAndNewlines)])
-    }
-
-    func removeClipboardExcludedApplication(bundleID: String) {
-        setClipboardExcludedApplications(clipboardExcludedApplications.filter { $0 != bundleID })
-    }
-
-    private func setClipboardExcludedApplications(_ bundleIDs: [String]) {
-        clipboardExcludedApplications = Array(Set(ClipboardHistoryStore.defaultExcludedApplications + bundleIDs)).sorted()
-        submitClipboardControl(.excludeApplications(bundleIDs))
-    }
-
-    func clearClipboardHistory() { submitClipboardControl(.clear) }
-    func clearClipboardHistory(completion: @escaping (String?) -> Void) {
-        submitClipboardControl(.clear, completion: completion)
-    }
-
-    func turnOffClipboardHistory(deleteEntries: Bool) {
-        restoringClipboardSettings = true
-        clipboardCollectionEnabled = false
-        clipboardCollectionPaused = false
-        restoringClipboardSettings = false
-        submitClipboardControl(.turnOff(deleteEntries: deleteEntries))
-    }
-
-    var clipboardCollectionStatus: String {
-        if let clipboardError { return "Clipboard History error: " + clipboardError }
-        if clipboardSettingsPending { return "Saving Clipboard History settings…" }
-        guard clipboardCollectionEnabled else { return "Off — no new entries are collected" }
-        return clipboardCollectionPaused
-            ? "Paused — existing entries are retained"
-            : "On — collecting clipboard content on this Mac"
     }
 
     func dismissPermissionGuide() {
@@ -951,12 +834,14 @@ struct SettingsRootView: View {
     /// through its owner.
     @ObservedObject var appearance: MenuAppearanceModel
     @ObservedObject var trigger: MenuTriggerModel
+    @ObservedObject var clipboardHistory: ClipboardHistorySettingsModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
         self.model = model
         self.appearance = model.appearance
         self.trigger = model.trigger
+        self.clipboardHistory = model.clipboardHistory
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -1312,16 +1197,16 @@ struct SettingsRootView: View {
                     accessibilityPermissionGranted: model.accessibilityPermissionGranted,
                     pluginManifests: model.editor.pluginManifests,
                     capabilityGrants: model.capabilityGrants,
-                    clipboardCollectionEnabled: $model.clipboardCollectionEnabled,
-                    clipboardCollectionPaused: $model.clipboardCollectionPaused,
-                    clipboardRetention: $model.clipboardRetention,
-                    clipboardCollectionStatus: model.clipboardCollectionStatus,
-                    clearHistory: model.clearClipboardHistory,
-                    turnOffHistory: model.turnOffClipboardHistory,
-                    excludedApplications: model.clipboardExcludedApplications,
-                    addExcludedApplication: model.addClipboardExcludedApplication,
-                    removeExcludedApplication: model.removeClipboardExcludedApplication,
-                    exclusionsFocus: model.clipboardExclusionsFocus,
+                    clipboardCollectionEnabled: $clipboardHistory.collectionEnabled,
+                    clipboardCollectionPaused: $clipboardHistory.collectionPaused,
+                    clipboardRetention: $clipboardHistory.retention,
+                    clipboardCollectionStatus: clipboardHistory.status,
+                    clearHistory: { clipboardHistory.clear() },
+                    turnOffHistory: clipboardHistory.turnOff,
+                    excludedApplications: clipboardHistory.excludedApplications,
+                    addExcludedApplication: clipboardHistory.addExcludedApplication,
+                    removeExcludedApplication: clipboardHistory.removeExcludedApplication,
+                    exclusionsFocus: clipboardHistory.exclusionsFocus,
                     setCapabilityDecision: model.setCapabilityDecision,
                     openURL: openURL
                 )

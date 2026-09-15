@@ -1495,20 +1495,20 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testSettingsPauseResumeDuringIndexWriteInvalidatesTheOldCopy() throws {
         try assertLifecycleTransitionDuringIndexWrite { model in
-            model.clipboardCollectionPaused = true
-            model.clipboardCollectionPaused = false
+            model.clipboardHistory.collectionPaused = true
+            model.clipboardHistory.collectionPaused = false
         }
     }
 
     func testSettingsTurnOffReenableDuringIndexWriteInvalidatesTheOldCopy() throws {
         try assertLifecycleTransitionDuringIndexWrite { model in
-            model.turnOffClipboardHistory(deleteEntries: false)
-            model.clipboardCollectionEnabled = true
+            model.clipboardHistory.turnOff(deleteEntries: false)
+            model.clipboardHistory.collectionEnabled = true
         }
     }
 
     func testSettingsClearDuringIndexWriteCannotPublishAStaleIndex() throws {
-        try assertLifecycleTransitionDuringIndexWrite { $0.clearClipboardHistory() }
+        try assertLifecycleTransitionDuringIndexWrite { $0.clipboardHistory.clear() }
     }
 
     private func assertLifecycleTransitionDuringIndexWrite(_ transition: (SettingsWindowModel) -> Void) throws {
@@ -1535,8 +1535,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults,
             clipboardHistoryStore: h.store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-        model.onClipboardSettingsWillChange = { try h.collector.resetBaseline() }
-        model.onClipboardHistoryChanged = { controlsCompleted.fulfill() }
+        model.clipboardHistory.onWillChange = { try h.collector.resetBaseline() }
+        model.clipboardHistory.onChange = { controlsCompleted.fulfill() }
         ioLock.lock(); writesUntilPause = 2; ioLock.unlock() // payload, then staged index
         let bytes = Data(repeating: 0x6A, count: 1_100_000)
         h.board.clearContents(); h.board.setData(bytes, forType: .init("com.example.binary"))
@@ -1545,10 +1545,10 @@ final class SettingsWindowControllerTests: XCTestCase {
         let start = Date()
         transition(model)
         XCTAssertLessThan(Date().timeIntervalSince(start), 0.3)
-        XCTAssertTrue(model.clipboardSettingsPending)
+        XCTAssertTrue(model.clipboardHistory.isSaving)
         gate.signal()
         wait(for: [sampleCompleted, controlsCompleted], timeout: 4)
-        XCTAssertFalse(model.clipboardSettingsPending)
+        XCTAssertFalse(model.clipboardHistory.isSaving)
         let package = try h.package(types: ["binary"]); h.grant(package)
         XCTAssertEqual(try h.query(package).entries, [])
         XCTAssertEqual(try h.query(package).state, .collecting)
@@ -1585,15 +1585,15 @@ final class SettingsWindowControllerTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults,
             clipboardHistoryStore: h.store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-        model.onClipboardSettingsWillChange = { try h.collector.resetBaseline() }
-        model.onClipboardHistoryChanged = { controlCompleted.fulfill() }
+        model.clipboardHistory.onWillChange = { try h.collector.resetBaseline() }
+        model.clipboardHistory.onChange = { controlCompleted.fulfill() }
         h.board.clearContents(); h.board.setData(payload, forType: .init("com.example.binary"))
         h.collector.schedulePoll { _ in sampleCompleted.fulfill() }
         wait(for: [writing], timeout: 2)
         let start = Date()
         XCTAssertTrue(h.store.settings.enabled)
         XCTAssertTrue(h.store.excludedApplications.contains("com.apple.Passwords"))
-        model.clearClipboardHistory()
+        model.clipboardHistory.clear()
         XCTAssertLessThan(Date().timeIntervalSince(start), 0.3, "Settings snapshots and controls must not wait for a blocked filesystem writer")
         gate.signal()
         wait(for: [sampleCompleted, controlCompleted], timeout: 4)
@@ -1622,11 +1622,11 @@ final class SettingsWindowControllerTests: XCTestCase {
             }
             return content
         }, sourceApplication: { h.source })
-        model.onClipboardSettingsWillChange = { try collector.resetBaseline() }
+        model.clipboardHistory.onWillChange = { try collector.resetBaseline() }
         h.board.clearContents(); h.board.setString("before Clear", forType: .string)
         collector.schedulePoll { _ in completed.fulfill() }
         wait(for: [reading], timeout: 2)
-        model.clearClipboardHistory()
+        model.clipboardHistory.clear()
         gate.signal()
         wait(for: [completed], timeout: 3)
         let package = try h.package(types: ["text"]); h.grant(package)
@@ -1715,8 +1715,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults,
             clipboardHistoryStore: h.store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-        XCTAssertTrue(model.clipboardExcludedApplications.contains("com.apple.Passwords"))
-        model.addClipboardExcludedApplication(bundleID: "com.apple.Preview")
+        XCTAssertTrue(model.clipboardHistory.excludedApplications.contains("com.apple.Passwords"))
+        model.clipboardHistory.addExcludedApplication(bundleID: "com.apple.Preview")
         h.board.clearContents(); h.board.setString("excluded", forType: .string)
         try h.collector.poll()
         let package = try h.package(types: ["text"])
@@ -1725,14 +1725,14 @@ final class SettingsWindowControllerTests: XCTestCase {
         let restoredStore = try ClipboardHistoryStore(fileURL: h.directory.appendingPathComponent("history.json"))
         let restored = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults,
             clipboardHistoryStore: restoredStore, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-        XCTAssertTrue(restored.clipboardExcludedApplications.contains("com.apple.Preview"))
-        model.removeClipboardExcludedApplication(bundleID: "com.apple.Preview")
+        XCTAssertTrue(restored.clipboardHistory.excludedApplications.contains("com.apple.Preview"))
+        model.clipboardHistory.removeExcludedApplication(bundleID: "com.apple.Preview")
         try h.collector.poll()
         XCTAssertEqual(try h.query(package).entries, [])
         h.board.clearContents(); h.board.setString("allowed", forType: .string)
         try h.collector.poll()
         XCTAssertEqual(try h.query(package).entries.map(\.text), ["allowed"])
-        XCTAssertTrue(model.clipboardExcludedApplications.contains("com.apple.keychainaccess"))
+        XCTAssertTrue(model.clipboardHistory.excludedApplications.contains("com.apple.keychainaccess"))
     }
 
     func testHistoryManagementShortcutsReuseSettingsWithoutChangingCollectionOrGrants() throws {
@@ -1797,8 +1797,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, capabilityGrantStore: h.grants,
             defaults: defaults, clipboardHistoryStore: h.store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
         let cleared = expectation(description: "Settings clear completed after migration")
-        model.onClipboardHistoryChanged = { cleared.fulfill() }
-        model.clearClipboardHistory()
+        model.clipboardHistory.onChange = { cleared.fulfill() }
+        model.clipboardHistory.clear()
         XCTAssertTrue(h.store.settings.enabled, "Settings reads do not wait for migration I/O")
         gate.signal(); wait(for: [cleared], timeout: 3)
         let rich = try h.package(types: ["rich_text"]); h.grant(rich)
@@ -1821,20 +1821,20 @@ final class SettingsWindowControllerTests: XCTestCase {
         grants.setDecision(.granted, for: PluginID("history"), pluginVersion: "1", capability: .readClipboardHistory)
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, capabilityGrantStore: grants,
             defaults: defaults, clipboardHistoryStore: store, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-        XCTAssertFalse(model.clipboardCollectionEnabled)
-        model.clipboardCollectionEnabled = true
+        XCTAssertFalse(model.clipboardHistory.collectionEnabled)
+        model.clipboardHistory.collectionEnabled = true
         try store.observe(changeCount: 1, content: .init(text: "retained", type: .text), sourceName: "Notes", sourceBundleID: "notes")
-        model.clipboardCollectionPaused = true
+        model.clipboardHistory.collectionPaused = true
         XCTAssertEqual(try store.query(dataTypes: ["text"]).state, .paused)
         let retentionSaved = expectation(description: "retention is durable")
-        model.onClipboardHistoryChanged = { retentionSaved.fulfill() }
-        model.clipboardRetention = .oneWeek
+        model.clipboardHistory.onChange = { retentionSaved.fulfill() }
+        model.clipboardHistory.retention = .oneWeek
         wait(for: [retentionSaved], timeout: 2)
-        model.onClipboardHistoryChanged = nil
+        model.clipboardHistory.onChange = nil
         XCTAssertEqual(store.settings.retentionDays, 7)
-        model.turnOffClipboardHistory(deleteEntries: false)
+        model.clipboardHistory.turnOff(deleteEntries: false)
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.count, 1)
-        model.clearClipboardHistory()
+        model.clipboardHistory.clear()
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries, [])
         XCTAssertEqual(grants.decision(for: PluginID("history"), pluginVersion: "1", capability: .readClipboardHistory), .granted)
     }
@@ -1880,10 +1880,10 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(model.appearance.configuration.font, testMenuFontFamily)
         XCTAssertEqual(model.appearance.configuration.fontWeight, "Bold")
 
-        model.clipboardCollectionEnabled = true
-        model.clipboardCollectionPaused = true
-        model.clipboardRetention = .oneWeek
-        XCTAssertEqual(model.clipboardCollectionStatus, "Paused — existing entries are retained")
+        model.clipboardHistory.collectionEnabled = true
+        model.clipboardHistory.collectionPaused = true
+        model.clipboardHistory.retention = .oneWeek
+        XCTAssertEqual(model.clipboardHistory.status, "Paused — existing entries are retained")
         XCTAssertTrue(defaults.bool(forKey: "privacy.clipboard-collection-enabled"))
         XCTAssertTrue(defaults.bool(forKey: "privacy.clipboard-collection-paused"))
         XCTAssertEqual(defaults.string(forKey: "privacy.clipboard-retention"), "1 week")
@@ -1896,9 +1896,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             mouseInputConflictCheck: { _ in [] }
         )
         XCTAssertFalse(restored.permissionGuidePresented)
-        XCTAssertTrue(restored.clipboardCollectionEnabled)
-        XCTAssertTrue(restored.clipboardCollectionPaused)
-        XCTAssertEqual(restored.clipboardRetention, .oneWeek)
+        XCTAssertTrue(restored.clipboardHistory.collectionEnabled)
+        XCTAssertTrue(restored.clipboardHistory.collectionPaused)
+        XCTAssertEqual(restored.clipboardHistory.retention, .oneWeek)
     }
 
     func testResetAppearanceIsOneUndoableChange() throws {

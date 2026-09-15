@@ -31,12 +31,12 @@ final class SettingsWindowController: NSWindowController {
     }
 
     var onClipboardHistoryChanged: (() -> Void)? {
-        get { model.onClipboardHistoryChanged }
-        set { model.onClipboardHistoryChanged = newValue }
+        get { model.clipboardHistory.onChange }
+        set { model.clipboardHistory.onChange = newValue }
     }
     var onClipboardSettingsWillChange: (() throws -> Void)? {
-        get { model.onClipboardSettingsWillChange }
-        set { model.onClipboardSettingsWillChange = newValue }
+        get { model.clipboardHistory.onWillChange }
+        set { model.clipboardHistory.onWillChange = newValue }
     }
     func showPluginSettings(_ pluginID: PluginID) {
         model.selectPage(.menu)
@@ -44,14 +44,14 @@ final class SettingsWindowController: NSWindowController {
         present()
     }
 
-    var clipboardExclusionsFocus: UUID? { model.clipboardExclusionsFocus }
+    var clipboardExclusionsFocus: UUID? { model.clipboardHistory.exclusionsFocus }
     func showClipboardIgnoredApplications() {
-        model.clipboardExclusionsFocus = UUID()
+        model.clipboardHistory.exclusionsFocus = UUID()
         model.selectPage(.privacyAndPermissions)
         present()
     }
     func clearClipboardHistory(completion: @escaping (String?) -> Void) {
-        model.clearClipboardHistory(completion: completion)
+        model.clipboardHistory.clear(completion: completion)
     }
 
     var currentPage: SettingsPage {
@@ -60,16 +60,16 @@ final class SettingsWindowController: NSWindowController {
 
     var permissionGuidePresented: Bool { model.permissionGuidePresented }
     var clipboardCollectionEnabled: Bool {
-        get { model.clipboardCollectionEnabled }
-        set { model.clipboardCollectionEnabled = newValue }
+        get { model.clipboardHistory.collectionEnabled }
+        set { model.clipboardHistory.collectionEnabled = newValue }
     }
     var clipboardCollectionPaused: Bool {
-        get { model.clipboardCollectionPaused }
-        set { model.clipboardCollectionPaused = newValue }
+        get { model.clipboardHistory.collectionPaused }
+        set { model.clipboardHistory.collectionPaused = newValue }
     }
     var clipboardRetention: ClipboardRetention {
-        get { model.clipboardRetention }
-        set { model.clipboardRetention = newValue }
+        get { model.clipboardHistory.retention }
+        set { model.clipboardHistory.retention = newValue }
     }
     var canUndoAppearance: Bool { model.appearance.canUndo }
     var canRedoAppearance: Bool { model.appearance.canRedo }
