@@ -1,13 +1,6 @@
 import Foundation
 import Darwin
 
-/// The resource budget enforced for every Plugin helper process.
-public enum PluginHelperResourceLimits {
-    public static let physFootprintBytes: UInt64 = 64 * 1024 * 1024
-    public static let sampleInterval: TimeInterval = 0.1
-    public static let consecutiveSamplesRequired = 2
-}
-
 public typealias PluginHelperResourceSamplerClosure = (Int32) -> UInt64?
 public typealias PluginHelperResourceScheduler =
     (TimeInterval, @escaping () -> Void) -> Void
@@ -102,7 +95,7 @@ final class PluginHelperResourceMonitor {
         }
         if let footprint, footprint >= limitBytes {
             consecutiveHighSamples += 1
-            if consecutiveHighSamples >= PluginHelperResourceLimits.consecutiveSamplesRequired {
+            if consecutiveHighSamples >= ScriptedActionBudgets.consecutiveFootprintSamples {
                 stopped = true
                 limitExceeded = true
                 exceededBytes = footprint
@@ -115,7 +108,7 @@ final class PluginHelperResourceMonitor {
         if limitExceeded {
             onLimitExceeded(exceededBytes)
         } else {
-            scheduleNext(after: PluginHelperResourceLimits.sampleInterval)
+            scheduleNext(after: ScriptedActionBudgets.footprintSampleInterval)
         }
     }
 }

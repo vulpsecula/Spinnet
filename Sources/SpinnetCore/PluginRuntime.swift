@@ -14,7 +14,9 @@ public enum PluginRuntimeProtocol {
     }
 
     public static let version = "1.0"
-    public static let maximumMessageBytes = 1_048_576
+    /// Declared by `ScriptedActionBudgets`; exposed here because the codec is
+    /// where callers and tests already look for the wire limit.
+    public static let maximumMessageBytes = ScriptedActionBudgets.maximumMessageBytes
 
     public static func encodeInvocation(_ invocation: PluginRuntimeInvocation) throws -> Data {
         try validate(invocation)
@@ -988,7 +990,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         resourceSchedule: @escaping PluginHelperResourceScheduler = { delay, operation in
             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
         },
-        resourceLimitBytes: UInt64 = PluginHelperResourceLimits.physFootprintBytes
+        resourceLimitBytes: UInt64 = ScriptedActionBudgets.helperPhysFootprintBytes
     ) {
         self.registry = registry
         self.grantStore = grantStore

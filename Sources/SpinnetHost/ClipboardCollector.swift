@@ -36,7 +36,7 @@ final class ClipboardCollector {
 
     func start() throws {
         try resetBaseline()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: ClipboardHistoryBudgets.samplingInterval, repeats: true) { [weak self] _ in
             self?.schedulePoll()
         }
     }
@@ -157,7 +157,8 @@ final class ClipboardCollector {
             let output = NSMutableData()
             if let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) {
                 CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.65] as CFDictionary)
-                if CGImageDestinationFinalize(destination), output.length <= 32_768 { thumbnail = output as Data }
+                if CGImageDestinationFinalize(destination),
+                   output.length <= ClipboardHistoryBudgets.maximumThumbnailBytes { thumbnail = output as Data }
             }
         }
         return ClipboardImagePreview(pixelWidth: width, pixelHeight: height, thumbnail: thumbnail)

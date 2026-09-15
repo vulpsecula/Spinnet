@@ -209,7 +209,7 @@ final class PluginHelperPool {
         condition.broadcast()
         condition.unlock()
         guard shouldSchedule else { return }
-        schedule(30) { [weak self, weak lease] in
+        schedule(ScriptedActionBudgets.helperIdleExit) { [weak self, weak lease] in
             guard let self, let lease else { return }
             self.retireIdle(lease, token: token)
         }
@@ -224,7 +224,7 @@ final class PluginHelperPool {
         retiring[token] = (lease.pluginID, helper)
         helper.requestExit()
         condition.unlock()
-        schedule(0.25) { [weak self] in
+        schedule(ScriptedActionBudgets.helperGracefulExit) { [weak self] in
             guard let self else { return }
             self.condition.lock()
             self.retiring.removeValue(forKey: token)?.helper.terminate()

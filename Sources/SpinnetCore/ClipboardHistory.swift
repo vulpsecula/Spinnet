@@ -36,7 +36,8 @@ public struct ClipboardContent: Codable, Equatable {
             }
         }
         if let preview = imagePreview {
-            guard preview.pixelWidth > 0, preview.pixelHeight > 0, (preview.thumbnail?.count ?? 0) <= 32_768 else {
+            guard preview.pixelWidth > 0, preview.pixelHeight > 0,
+                  (preview.thumbnail?.count ?? 0) <= ClipboardHistoryBudgets.maximumThumbnailBytes else {
                 throw PluginHostServiceError.invalidInput("Clipboard image preview is invalid")
             }
         }
@@ -239,24 +240,27 @@ public final class ClipboardHistoryStore {
                   let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isUbiquitousItemKey, .volumeIsLocalKey, .fileSizeKey, .contentTypeKey]),
                   values.isRegularFile == true, values.isSymbolicLink != true,
                   values.isUbiquitousItem != true, values.volumeIsLocal == true,
-                  let size = values.fileSize, size <= 20 * 1_024 * 1_024,
+                  let size = values.fileSize, size <= ClipboardHistoryBudgets.maximumThumbnailSourceBytes,
                   let type = values.contentType,
                   [UTType.png, .jpeg, .tiff, .gif, .heic].contains(where: { type.conforms(to: $0) }),
                   let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
                   let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
                   let width = properties[kCGImagePropertyPixelWidth] as? Int,
                   let height = properties[kCGImagePropertyPixelHeight] as? Int,
-                  width > 0, height > 0, width <= 20_000, height <= 20_000,
-                  height <= 40_000_000 / width,
+                  width > 0, height > 0,
+                  width <= ClipboardHistoryBudgets.maximumThumbnailSourceEdge,
+                  height <= ClipboardHistoryBudgets.maximumThumbnailSourceEdge,
+                  height <= ClipboardHistoryBudgets.maximumThumbnailSourcePixels / width,
                   let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                     kCGImageSourceCreateThumbnailFromImageAlways: true,
                     kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: 128
+                    kCGImageSourceThumbnailMaxPixelSize: ClipboardHistoryBudgets.thumbnailMaxPixelSize
                   ] as CFDictionary) else { return nil }
             let output = NSMutableData()
             guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
             CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.65] as CFDictionary)
-            guard CGImageDestinationFinalize(destination), output.length <= 32_768,
+            guard CGImageDestinationFinalize(destination),
+                  output.length <= ClipboardHistoryBudgets.maximumThumbnailBytes,
                   unavailableReason == nil, FileReference(url: url).modifiedAt == modifiedAt else { return nil }
             return ClipboardImagePreview(pixelWidth: width, pixelHeight: height, thumbnail: output as Data)
         }
@@ -353,7 +357,7 @@ public final class ClipboardHistoryStore {
             let data: Data?
             if let handle = try? FileHandle(forReadingFrom: payloadURL(entry.id)) {
                 // One lookahead byte distinguishes a capped prefix from a corrupt original tail.
-                data = try? handle.read(upToCount: 196_609)
+                data = try? handle.read(upToCount: ClipboardHistoryBudgets.contentChunkLookaheadBytes)
                 try? handle.close()
             } else { data = nil }
             next.entries[index].text = data.flatMap { OfflineClipboardPreview.text($0, format: entry.format ?? "") } ?? "Rich text"
@@ -376,7 +380,8 @@ public final class ClipboardHistoryStore {
             if entry.byteCount != nil {
                 let handle = try FileHandle(forReadingFrom: payloadURL(entry.id))
                 defer { try? handle.close() }
-                prefix = try handle.read(upToCount: rich ? 196_609 : ClipboardMarkdown.prefixBytes) ?? Data()
+                prefix = try handle.read(upToCount: rich ? ClipboardHistoryBudgets.contentChunkLookaheadBytes
+                                                         : ClipboardMarkdown.prefixBytes) ?? Data()
             } else {
                 prefix = Data(entry.text.utf8.prefix(ClipboardMarkdown.prefixBytes))
             }
@@ -385,7 +390,7 @@ public final class ClipboardHistoryStore {
                 // older OS. Known rich formats cannot retain that old alias.
                 next.entries[index].contentType = .richText
                 if entry.byteCount != nil {
-                    next.entries[index].text = String(decoding: prefix.prefix(2_048), as: UTF8.self)
+                    next.entries[index].text = String(decoding: prefix.prefix(ClipboardHistoryBudgets.plainTextPreviewBytes), as: UTF8.self)
                 }
             } else if rich {
                 if entry.byteCount != nil {
@@ -421,7 +426,7 @@ public final class ClipboardHistoryStore {
 
     private func performConfigure(enabled: Bool, paused: Bool, retentionDays: Int) throws {
         lock.lock(); defer { lock.unlock() }
-        guard [1, 7, 30].contains(retentionDays) else {
+        guard ClipboardHistoryBudgets.retentionDayOptions.contains(retentionDays) else {
             throw PluginHostServiceError.invalidInput("Retention must be 1, 7, or 30 days")
         }
         var next = archive
@@ -493,7 +498,7 @@ public final class ClipboardHistoryStore {
         }
         for content in contents {
             guard content.data != nil || !content.text.isEmpty else { continue }
-            let preview = OfflineClipboardPreview.boundedPrefix(content.text, bytes: content.type == .richText ? 8_192 : 2_048)
+            let preview = OfflineClipboardPreview.boundedPrefix(content.text, bytes: ClipboardHistoryBudgets.previewBytes(for: content.type))
             var entry = ClipboardHistoryEntry(id: UUID(), text: preview, contentType: content.type,
                 sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: copiedAt)
             if content.type == .fileReference, let url = content.fileURL, url.isFileURL {
@@ -560,7 +565,7 @@ public final class ClipboardHistoryStore {
     private func performReadContent(entryID: UUID, dataTypes: [String], offset: Int, length: Int) throws -> ClipboardHistoryContentChunk {
         lock.lock(); defer { lock.unlock() }
         try expire()
-        guard offset >= 0, length > 0, length <= 196_608 else {
+        guard offset >= 0, length > 0, length <= ClipboardHistoryBudgets.maximumContentChunkBytes else {
             throw PluginHostServiceError.invalidInput("Chunk length must be 1…196608 bytes and offset nonnegative")
         }
         guard let entry = archive.entries.first(where: { $0.id == entryID && dataTypes.contains($0.contentType.rawValue) }) else {
@@ -603,7 +608,7 @@ public final class ClipboardHistoryStore {
         for var entry in filtered.dropFirst(max(0, offset)) {
             let copyID = entry.copyID ?? entry.id
             if copyID != currentCopyID {
-                guard copyCount < 50 else { break }
+                guard copyCount < ClipboardHistoryBudgets.maximumCopiesPerPage else { break }
                 copyCount += 1
                 currentCopyID = copyID
                 groupStart = entries.count
@@ -612,10 +617,10 @@ public final class ClipboardHistoryStore {
                 entry.byteCount = entry.text.utf8.count
                 entry.format = entry.format ?? "public.utf8-plain-text"
                 if entry.contentType == .richText {
-                    entry.text = OfflineClipboardPreview.text(Data(entry.text.utf8.prefix(196_609)), format: entry.format ?? "") ?? "Rich text"
+                    entry.text = OfflineClipboardPreview.text(Data(entry.text.utf8.prefix(ClipboardHistoryBudgets.contentChunkLookaheadBytes)), format: entry.format ?? "") ?? "Rich text"
                 }
             }
-            entry.text = OfflineClipboardPreview.boundedPrefix(entry.text, bytes: entry.contentType == .richText ? 8_192 : 2_048)
+            entry.text = OfflineClipboardPreview.boundedPrefix(entry.text, bytes: ClipboardHistoryBudgets.previewBytes(for: entry.contentType))
             if var metadata = entry.fileReference {
                 if let reference = archive.references?[entry.id.uuidString] {
                     metadata.unavailableReason = reference.unavailableReason
@@ -629,7 +634,7 @@ public final class ClipboardHistoryStore {
                 entry.fileReference = metadata
             }
             let size = try JSONEncoder().encode(entry).count
-            if bytes + size > 524_288 {
+            if bytes + size > ClipboardHistoryBudgets.maximumPageBytes {
                 // Defer the whole group unless it alone exceeds the wire budget.
                 if groupStart > 0 { entries.removeSubrange(groupStart...) }
                 break

@@ -4,7 +4,7 @@ import CoreFoundation
 /// Bounded inert text extraction. Never imports documents, resolves URLs or reads attachments.
 public enum OfflineClipboardPreview {
     public static func text(_ data: Data, format: String) -> String? {
-        let prefix = Data(data.prefix(196_608))
+        let prefix = Data(data.prefix(ClipboardHistoryBudgets.maximumContentChunkBytes))
         let truncated = data.count > prefix.count
         let result: String?
         switch format {
@@ -14,10 +14,12 @@ public enum OfflineClipboardPreview {
         default: return nil
         }
         guard let result, !result.isEmpty else { return nil }
-        return boundedPrefix(result, bytes: 8_192, characters: 2_048)
+        return boundedPrefix(result)
     }
 
-    static func boundedPrefix(_ source: String, bytes: Int = 8_192, characters: Int = 2_048) -> String {
+    static func boundedPrefix(_ source: String,
+                              bytes: Int = ClipboardHistoryBudgets.richTextPreviewBytes,
+                              characters: Int = ClipboardHistoryBudgets.maximumPreviewCharacters) -> String {
         var end = source.startIndex
         var remainingBytes = bytes, remainingCharacters = characters
         while end < source.endIndex && remainingCharacters > 0 {

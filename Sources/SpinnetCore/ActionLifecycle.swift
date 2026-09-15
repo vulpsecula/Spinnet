@@ -43,12 +43,12 @@ public final class ActionLifecycle {
         self.control = control
         startedAt = now()
         onChange(state)
-        schedule(0.5) { [weak self] in
+        schedule(ScriptedActionBudgets.progressDelay) { [weak self] in
             guard let self, case .running = self.state else { return }
             self.state = .running(progressVisible: true)
             self.onChange(self.state)
         }
-        schedule(4) { [weak self] in self?.stop(.timedOut) }
+        schedule(ScriptedActionBudgets.actionDeadline) { [weak self] in self?.stop(.timedOut) }
         execute(action, control) { [weak self] outcome in self?.finish(outcome) }
     }
 
@@ -64,7 +64,7 @@ public final class ActionLifecycle {
 
     private func finish(_ outcome: ActionOutcome) {
         guard case .running = state else { return }
-        if let startedAt, now() - startedAt >= 4 {
+        if let startedAt, now() - startedAt >= ScriptedActionBudgets.actionDeadline {
             stop(.timedOut)
         } else {
             publish(outcome)
@@ -86,7 +86,7 @@ public final class ActionExecutionControl {
     public let deadline: TimeInterval
 
     public init() {
-        deadline = ProcessInfo.processInfo.systemUptime + 4
+        deadline = ProcessInfo.processInfo.systemUptime + ScriptedActionBudgets.actionDeadline
     }
 
     public func check() throws {

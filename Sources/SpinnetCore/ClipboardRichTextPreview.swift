@@ -17,6 +17,7 @@ public struct ClipboardRichTextPreview: Codable, Equatable {
     public init(runs: [Run], source: String) { self.runs = runs; self.source = source }
 
     var isBounded: Bool {
-        runs.count <= 256 && runs.reduce(0) { $0 + $1.text.utf8.count } <= 8_192 && source.utf8.count <= 8_192
+        let limit = ClipboardHistoryBudgets.richTextPreviewBytes
+        return runs.count <= 256 && runs.reduce(0) { $0 + $1.text.utf8.count } <= limit && source.utf8.count <= limit
     }
 }

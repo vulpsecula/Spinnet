@@ -442,7 +442,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             guard case .object(let fields) = request.input, fields.count == 3,
                   case .string(let id) = fields["entry_id"], let entryID = UUID(uuidString: id),
                   case .number(let offset) = fields["offset"], offset.isFinite, offset >= 0, offset <= Double(Int.max / 2), offset.rounded() == offset,
-                  case .number(let length) = fields["length"], length >= 1, length <= 196_608, length.rounded() == length else {
+                  case .number(let length) = fields["length"], length >= 1,
+                  length <= Double(ClipboardHistoryBudgets.maximumContentChunkBytes),
+                  length.rounded() == length else {
                 throw PluginHostServiceError.invalidInput("Expected entry_id, nonnegative integer offset, and length 1…196608")
             }
             let chunk = try readHistory {
