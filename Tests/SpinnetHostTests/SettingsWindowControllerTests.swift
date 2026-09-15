@@ -2750,9 +2750,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             displayValue: "⌃⌥Space"
         )
         var appliedConfiguration: MenuTriggerConfiguration?
-        model.onTriggerChanged = { appliedConfiguration = $0 }
+        model.trigger.onChange = { appliedConfiguration = $0 }
 
-        model.triggerKeyboardShortcut = shortcut
+        model.trigger.keyboardShortcut = shortcut
 
         XCTAssertEqual(appliedConfiguration?.keyboardShortcut, shortcut)
         XCTAssertEqual(
@@ -2760,7 +2760,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             shortcut
         )
 
-        model.triggerKeyboardShortcut = nil
+        model.trigger.keyboardShortcut = nil
 
         XCTAssertNil(appliedConfiguration?.keyboardShortcut)
         XCTAssertNil(MenuTriggerConfiguration(defaults: defaults).keyboardShortcut)
@@ -3087,15 +3087,15 @@ final class SettingsWindowControllerTests: XCTestCase {
                 )
             }
         )
-        XCTAssertTrue(model.mouseInputConflicts.isEmpty)
+        XCTAssertTrue(model.trigger.mouseInputConflicts.isEmpty)
 
         runningApplications = [RunningApplicationIdentity(
             bundleIdentifier: "com.nuebling.mac-mouse-fix.helper",
             localizedName: nil
         )]
-        model.refreshMouseInputConflicts()
+        model.trigger.refreshConflicts()
 
-        XCTAssertEqual(model.mouseInputConflicts.map(\.applicationName), ["Mac Mouse Fix"])
+        XCTAssertEqual(model.trigger.mouseInputConflicts.map(\.applicationName), ["Mac Mouse Fix"])
     }
 
     func testMacMouseFixParserFindsOnlyCurrentRemapsForTheSelectedButton() throws {

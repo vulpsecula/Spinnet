@@ -231,7 +231,6 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
     @Published private(set) var accessibilityPermissionGranted: Bool
-    @Published private(set) var mouseInputConflicts: [MouseInputConflict]
     private let clipboardHistoryStore: ClipboardHistoryStore?
     var onClipboardSettingsWillChange: (() throws -> Void)?
     var onClipboardHistoryChanged: (() -> Void)?
@@ -257,26 +256,17 @@ final class SettingsWindowModel: ObservableObject {
             }
         }
     }
-    @Published var triggerMouseButton: Int {
-        didSet { triggerConfigurationDidChange() }
-    }
-    @Published var triggerClickDragEnabled: Bool {
-        didSet { triggerConfigurationDidChange() }
-    }
-    @Published var triggerKeyboardShortcut: MenuKeyboardShortcut? {
-        didSet { triggerConfigurationDidChange() }
-    }
+    /// The Menu Trigger owns its own values, persistence and conflict detection.
+    let trigger: MenuTriggerModel
     /// Appearance owns its own values, persistence and undo history.
     let appearance: MenuAppearanceModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
-    var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
     private let defaults: UserDefaults
     private let capabilityGrantStore: PluginCapabilityGrantStore
     private let accessibilityPermissionCheck: () -> Bool
-    private let mouseInputConflictCheck: (Int) -> [MouseInputConflict]
     var editorSlots: [EditorMenuSlot] {
         zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
     }
@@ -315,16 +305,11 @@ final class SettingsWindowModel: ObservableObject {
         self.defaults = defaults
         self.clipboardHistoryStore = clipboardHistoryStore
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
-        self.mouseInputConflictCheck = mouseInputConflictCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         menuSlots = []
         capabilityGrants = []
         accessibilityPermissionGranted = accessibilityPermissionCheck()
-        let triggerConfiguration = MenuTriggerConfiguration(defaults: defaults)
-        triggerMouseButton = triggerConfiguration.mouseButton
-        triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
-        triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
-        mouseInputConflicts = mouseInputConflictCheck(triggerConfiguration.mouseButton)
+        trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardCollectionEnabled = clipboardHistoryStore?.settings.enabled ?? defaults.bool(forKey: Keys.clipboardCollectionEnabled)
         clipboardCollectionPaused = clipboardHistoryStore?.settings.paused ?? defaults.bool(forKey: Keys.clipboardCollectionPaused)
@@ -527,21 +512,6 @@ final class SettingsWindowModel: ObservableObject {
         self.page = page
     }
 
-    var triggerConfiguration: MenuTriggerConfiguration {
-        MenuTriggerConfiguration(
-            mouseButton: triggerMouseButton,
-            clickDragEnabled: triggerClickDragEnabled,
-            keyboardShortcut: triggerKeyboardShortcut
-        )
-    }
-
-    private func triggerConfigurationDidChange() {
-        let configuration = triggerConfiguration
-        configuration.save(to: defaults)
-        onTriggerChanged?(configuration)
-        refreshMouseInputConflicts()
-    }
-
     func refreshSystemPermissionStatus() {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         refreshMenuSlots()
@@ -573,10 +543,6 @@ final class SettingsWindowModel: ObservableObject {
         refreshCapabilityGrants()
         refreshMenuSlots()
         onCapabilityGrantChanged?(capabilityGrantStore.allGrants)
-    }
-
-    func refreshMouseInputConflicts() {
-        mouseInputConflicts = mouseInputConflictCheck(triggerMouseButton)
     }
 
     var accessibleNames: [String] {
@@ -984,11 +950,13 @@ struct SettingsRootView: View {
     /// Observed separately: a nested ObservableObject does not republish
     /// through its owner.
     @ObservedObject var appearance: MenuAppearanceModel
+    @ObservedObject var trigger: MenuTriggerModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
         self.model = model
         self.appearance = model.appearance
+        self.trigger = model.trigger
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -1211,27 +1179,27 @@ struct SettingsRootView: View {
             }
 
             MouseButtonRecorder(
-                buttonNumber: $model.triggerMouseButton,
+                buttonNumber: $trigger.mouseButton,
                 onRecordingChanged: { model.onMouseCaptureChanged?($0, $1) }
             )
             .frame(maxWidth: .infinity, minHeight: 68, maxHeight: 68)
 
-            Toggle("Click & Drag to select on release", isOn: $model.triggerClickDragEnabled)
+            Toggle("Click & Drag to select on release", isOn: $trigger.clickDragEnabled)
                 .toggleStyle(.switch)
                 .accessibilityHint("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it.")
 
             HStack {
                 Text("Keyboard")
                     .frame(width: 68, alignment: .leading)
-                KeyboardShortcutEditor(shortcut: $model.triggerKeyboardShortcut)
+                KeyboardShortcutEditor(shortcut: $trigger.keyboardShortcut)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button {
-                    model.triggerKeyboardShortcut = nil
+                    trigger.keyboardShortcut = nil
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                 }
                 .buttonStyle(.borderless)
-                .disabled(model.triggerKeyboardShortcut == nil)
+                .disabled(trigger.keyboardShortcut == nil)
                 .help("Clear optional keyboard shortcut")
                 .accessibilityLabel("Clear keyboard shortcut")
             }
@@ -1252,12 +1220,12 @@ struct SettingsRootView: View {
                 }
             }
 
-            if !model.mouseInputConflicts.isEmpty {
+            if !trigger.mouseInputConflicts.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Potential mouse input conflict", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
-                    Text("\(model.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: model.triggerMouseButton)). Remove that button's click, drag, and scroll assignments in the other utility.")
+                    Text("\(trigger.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: trigger.mouseButton)). Remove that button's click, drag, and scroll assignments in the other utility.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

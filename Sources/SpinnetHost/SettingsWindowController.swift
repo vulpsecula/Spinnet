@@ -129,7 +129,7 @@ final class SettingsWindowController: NSWindowController {
         model.appearance.onChange = { [weak self] appearance in
             self?.onAppearanceChanged?(appearance)
         }
-        model.onTriggerChanged = { [weak self] configuration in
+        model.trigger.onChange = { [weak self] configuration in
             self?.onTriggerChanged?(configuration)
         }
         model.onMouseCaptureChanged = { [weak self] isCapturing, capture in
@@ -146,7 +146,7 @@ final class SettingsWindowController: NSWindowController {
         ] {
             workspaceObservers.append(
                 workspaceNotifications.addObserver(forName: name, object: nil, queue: .main) { [weak model] _ in
-                    model?.refreshMouseInputConflicts()
+                    model?.trigger.refreshConflicts()
                     model?.refreshMenuSlots()
                 }
             )
@@ -165,7 +165,7 @@ final class SettingsWindowController: NSWindowController {
 
     func present() {
         model.refreshSystemPermissionStatus()
-        model.refreshMouseInputConflicts()
+        model.trigger.refreshConflicts()
         model.refreshMenuSlots()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
