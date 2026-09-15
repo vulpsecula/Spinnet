@@ -1,9 +1,10 @@
 # Spinnet
 
-Spinnet is a native macOS Host for mouse-first radial Menus. This slice
-implements the Menu-first Settings workflow from #18 on top of the common
-Host Command and Plugin runtime seams: Host-owned Built-in Presets are the
-user-facing entry points, and configuration stays in the Settings window.
+Spinnet is a native macOS Host for mouse-first radial Menus. Host-owned
+Built-in Presets are the user-facing entry points, configuration stays in the
+Settings window, and Plugins extend the Host through the Documented Plugin
+Interface. The current slice covers the Menu-first Settings workflow, scripted
+Actions in per-Plugin helpers, and local Clipboard History collection.
 
 ## Run
 
@@ -30,9 +31,9 @@ SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
 Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
 permission again after rebuilding them.
 
-The Host registers standalone Built-in Presets for Open URL, Open Application,
-Open File, Open Folder, Shortcuts, Services, Copy Selected Text, Paste, and Cut, then
-loads `Plugins/SpinnetFixture.spinnetplugin` through the public manifest
+The Host registers a standalone Built-in Preset for each entry in the Host
+Command catalogue in [`docs/plugin-interface.md`](docs/plugin-interface.md),
+then loads `Plugins/SpinnetFixture.spinnetplugin` through the public manifest
 loader for its deterministic JavaScript compatibility Actions. The fixture
 retains the common Host Command declarations for existing persisted
 configurations, but is hidden from the Library so those operations appear only
@@ -92,8 +93,8 @@ Run `./script/build_and_run.sh --lifecycle-check` to open the Debug-only
 lifecycle test window. It creates temporary scripted Actions without changing
 saved Menu configuration or requesting Capabilities:
 
-- **Slow success (3 seconds)** shows Progress after 500 ms, then completes.
-- **Hang until timeout** loops until the four-second deadline. Press Escape
+- **Slow success (3 seconds)** runs long enough to show Progress, then completes.
+- **Hang until timeout** loops until the scripted Action deadline. Press Escape
   while Progress is visible to cancel, or wait for `timed_out`.
 - Click **Retry** (or press Return) on a failure to start a new execution.
 
@@ -105,18 +106,25 @@ release builds.
 ## Scope
 
 `SpinnetCore` owns manifest/configuration validation, Plugin registration,
-Action editing, configuration persistence, Menu geometry, and the Host-level
-`HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, global
-shortcuts, settings window, common Host Command adapters, and user-visible
-feedback.
+Action editing, configuration persistence, Menu geometry, the Clipboard History
+Store, and the Host-level `HostActionRunner` seam. `SpinnetHost` owns the
+AppKit overlay, global shortcuts, settings window, common Host Command
+adapters, clipboard collection, and user-visible feedback.
 
 Capability-checked Host Services are available through the documented helper
 protocol. The Host stores per-Plugin-version Capability decisions and exposes the
 current fixture grants in Privacy & Permissions. The Host owns scripted Action
 progress, cancellation, deadlines, and terminal feedback. Scripted Actions
-reuse one serialized helper per Plugin. After 30 seconds idle the Host requests
-exit, then force-terminates any survivor 250 ms later. Plugin disable, uninstall,
-update, Capability revocation, and Host shutdown retire helpers immediately.
+reuse one serialized helper per Plugin, and Plugin disable, uninstall, update,
+Capability revocation, and Host shutdown retire helpers immediately.
 
-The current manifest shape is documented in
-[`docs/plugin-interface.md`](docs/plugin-interface.md).
+Clipboard History collection defaults off. While enabled, the Host retains
+copies locally in owner-only storage and exposes them to a Plugin only through
+a granted, type-scoped `read_clipboard_history` Capability.
+
+The manifest shape, helper protocol, Host Command catalogue, and Clipboard
+History contract are documented in
+[`docs/plugin-interface.md`](docs/plugin-interface.md). The timing, size, and
+resource budgets those contracts promise are declared once in
+`ScriptedActionBudgets` and `ClipboardHistoryBudgets`, and pinned against the
+documents by `DocumentedBudgetsTests`.

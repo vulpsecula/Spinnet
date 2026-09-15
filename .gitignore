@@ -4,3 +4,4 @@ DerivedData/
 dist/
 /docs/
 /.codex/
+.DS_Store
