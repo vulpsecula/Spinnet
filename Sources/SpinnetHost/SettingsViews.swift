@@ -230,8 +230,6 @@ final class SettingsWindowModel: ObservableObject {
     private var grantObserver: UUID?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
-    @Published private(set) var canUndoAppearance = false
-    @Published private(set) var canRedoAppearance = false
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
     private let clipboardHistoryStore: ClipboardHistoryStore?
@@ -268,59 +266,10 @@ final class SettingsWindowModel: ObservableObject {
     @Published var triggerKeyboardShortcut: MenuKeyboardShortcut? {
         didSet { triggerConfigurationDidChange() }
     }
-    @Published var appearanceTheme: String {
-        willSet { recordAppearanceWillChange() }
-        didSet {
-            defaults.set(appearanceTheme, forKey: MenuAppearanceConfiguration.themeDefaultsKey)
-            recordAppearanceDidChange()
-            if !suppressAppearanceNotifications {
-                onAppearanceChanged?(appearanceConfiguration)
-            }
-        }
-    }
-    @Published var appearanceAccent: String {
-        willSet { recordAppearanceWillChange() }
-        didSet {
-            defaults.set(appearanceAccent, forKey: MenuAppearanceConfiguration.accentDefaultsKey)
-            recordAppearanceDidChange()
-            if !suppressAppearanceNotifications {
-                onAppearanceChanged?(appearanceConfiguration)
-            }
-        }
-    }
-    @Published var appearanceMenuSize: String {
-        willSet { recordAppearanceWillChange() }
-        didSet {
-            defaults.set(appearanceMenuSize, forKey: MenuAppearanceConfiguration.menuSizeDefaultsKey)
-            recordAppearanceDidChange()
-            if !suppressAppearanceNotifications {
-                onAppearanceChanged?(appearanceConfiguration)
-            }
-        }
-    }
-    @Published var appearanceFont: String {
-        willSet { recordAppearanceWillChange() }
-        didSet {
-            defaults.set(appearanceFont, forKey: MenuAppearanceConfiguration.fontDefaultsKey)
-            recordAppearanceDidChange()
-            if !suppressAppearanceNotifications {
-                onAppearanceChanged?(appearanceConfiguration)
-            }
-        }
-    }
-    @Published var appearanceFontWeight: String {
-        willSet { recordAppearanceWillChange() }
-        didSet {
-            defaults.set(appearanceFontWeight, forKey: MenuAppearanceConfiguration.fontWeightDefaultsKey)
-            recordAppearanceDidChange()
-            if !suppressAppearanceNotifications {
-                onAppearanceChanged?(appearanceConfiguration)
-            }
-        }
-    }
+    /// Appearance owns its own values, persistence and undo history.
+    let appearance: MenuAppearanceModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
-    var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
@@ -341,16 +290,6 @@ final class SettingsWindowModel: ObservableObject {
     }
     private var undoHistory: [MenuHistoryEntry] = []
     private var redoHistory: [MenuHistoryEntry] = []
-    private struct AppearanceHistoryEntry {
-        let before: MenuAppearanceConfiguration
-        let after: MenuAppearanceConfiguration
-    }
-    private var appearanceUndoHistory: [AppearanceHistoryEntry] = []
-    private var appearanceRedoHistory: [AppearanceHistoryEntry] = []
-    private var applyingAppearanceHistory = false
-    private var suppressAppearanceNotifications = false
-    private var lastAppearanceBeforeMutation: MenuAppearanceConfiguration?
-    private var appearanceMenuSizeAdjustmentBefore: MenuAppearanceConfiguration?
 
     private enum Keys {
         static let clipboardCollectionEnabled = "privacy.clipboard-collection-enabled"
@@ -386,13 +325,7 @@ final class SettingsWindowModel: ObservableObject {
         triggerClickDragEnabled = triggerConfiguration.clickDragEnabled
         triggerKeyboardShortcut = triggerConfiguration.keyboardShortcut
         mouseInputConflicts = mouseInputConflictCheck(triggerConfiguration.mouseButton)
-        let savedAppearance = MenuAppearanceConfiguration(defaults: defaults)
-        savedAppearance.save(to: defaults)
-        appearanceTheme = savedAppearance.theme
-        appearanceAccent = savedAppearance.accent
-        appearanceMenuSize = savedAppearance.menuSize
-        appearanceFont = savedAppearance.font
-        appearanceFontWeight = savedAppearance.fontWeight
+        appearance = MenuAppearanceModel(defaults: defaults)
         clipboardCollectionEnabled = clipboardHistoryStore?.settings.enabled ?? defaults.bool(forKey: Keys.clipboardCollectionEnabled)
         clipboardCollectionPaused = clipboardHistoryStore?.settings.paused ?? defaults.bool(forKey: Keys.clipboardCollectionPaused)
         clipboardRetention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.clipboardRetention) ?? "1 day") ?? .oneDay
@@ -501,99 +434,6 @@ final class SettingsWindowModel: ObservableObject {
                 presets: presets.filter { $0.source == source }
             )
         }
-    }
-
-    var appearanceConfiguration: MenuAppearanceConfiguration {
-        MenuAppearanceConfiguration(
-            theme: appearanceTheme,
-            accent: appearanceAccent,
-            menuSize: appearanceMenuSize,
-            font: appearanceFont,
-            fontWeight: appearanceFontWeight
-        )
-    }
-
-    private func recordAppearanceWillChange() {
-        guard !applyingAppearanceHistory,
-              appearanceMenuSizeAdjustmentBefore == nil else { return }
-        lastAppearanceBeforeMutation = appearanceConfiguration
-    }
-
-    private func recordAppearanceDidChange() {
-        guard !applyingAppearanceHistory,
-              appearanceMenuSizeAdjustmentBefore == nil,
-              let before = lastAppearanceBeforeMutation,
-              before != appearanceConfiguration else {
-            lastAppearanceBeforeMutation = nil
-            return
-        }
-        lastAppearanceBeforeMutation = nil
-        appendAppearanceHistory(before: before, after: appearanceConfiguration)
-    }
-
-    func beginAppearanceMenuSizeAdjustment() {
-        guard !applyingAppearanceHistory,
-              appearanceMenuSizeAdjustmentBefore == nil else { return }
-        appearanceMenuSizeAdjustmentBefore = appearanceConfiguration
-        lastAppearanceBeforeMutation = nil
-    }
-
-    func endAppearanceMenuSizeAdjustment() {
-        guard let before = appearanceMenuSizeAdjustmentBefore else { return }
-        appearanceMenuSizeAdjustmentBefore = nil
-        appendAppearanceHistory(before: before, after: appearanceConfiguration)
-    }
-
-    private func appendAppearanceHistory(
-        before: MenuAppearanceConfiguration,
-        after: MenuAppearanceConfiguration
-    ) {
-        guard before != after else { return }
-        appearanceUndoHistory.append(AppearanceHistoryEntry(before: before, after: after))
-        appearanceRedoHistory.removeAll()
-        refreshAppearanceUndoState()
-    }
-
-    private func refreshAppearanceUndoState() {
-        canUndoAppearance = !appearanceUndoHistory.isEmpty
-        canRedoAppearance = !appearanceRedoHistory.isEmpty
-    }
-
-    func undoAppearance() {
-        guard let entry = appearanceUndoHistory.popLast() else { return }
-        appearanceRedoHistory.append(entry)
-        applyAppearance(entry.before)
-        refreshAppearanceUndoState()
-    }
-
-    func redoAppearance() {
-        guard let entry = appearanceRedoHistory.popLast() else { return }
-        appearanceUndoHistory.append(entry)
-        applyAppearance(entry.after)
-        refreshAppearanceUndoState()
-    }
-
-    func resetAppearance() {
-        let before = appearanceConfiguration
-        let after = MenuAppearanceConfiguration.defaultConfiguration
-        guard before != after else { return }
-
-        applyAppearance(after)
-        appendAppearanceHistory(before: before, after: after)
-    }
-
-    private func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
-        suppressAppearanceNotifications = true
-        applyingAppearanceHistory = true
-        appearanceTheme = appearance.theme
-        appearanceAccent = appearance.accent
-        appearanceMenuSize = appearance.menuSize
-        appearanceFont = appearance.font
-        appearanceFontWeight = appearance.fontWeight
-        applyingAppearanceHistory = false
-        suppressAppearanceNotifications = false
-        lastAppearanceBeforeMutation = nil
-        onAppearanceChanged?(appearance)
     }
 
     private func updateClipboardSettings() {
@@ -1141,7 +981,16 @@ final class SettingsWindowModel: ObservableObject {
 
 struct SettingsRootView: View {
     @ObservedObject var model: SettingsWindowModel
+    /// Observed separately: a nested ObservableObject does not republish
+    /// through its owner.
+    @ObservedObject var appearance: MenuAppearanceModel
     let openURL: (URL) -> Bool
+
+    init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
+        self.model = model
+        self.appearance = model.appearance
+        self.openURL = openURL
+    }
     @FocusState private var focusedPage: SettingsPage?
     // The Editor Mode column owns enough width for the radial Menu to remain
     // legible while the page content keeps a usable control width beside it.
@@ -1162,7 +1011,7 @@ struct SettingsRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .tint(spinnetAccentColor(named: model.appearanceAccent))
+        .tint(spinnetAccentColor(named: appearance.accent))
         .frame(minWidth: 1_280, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             focusedPage = model.page
@@ -1286,7 +1135,7 @@ struct SettingsRootView: View {
                 MenuEditorModeRepresentable(
                     slots: model.editorSlots,
                     selectedIndex: model.selectedMenuIndex,
-                    appearance: model.appearanceConfiguration,
+                    appearance: appearance.configuration,
                     mode: .editor,
                     allowsEditing: model.page == .menu,
                     previewScale: menuPreviewScale,
@@ -1430,7 +1279,7 @@ struct SettingsRootView: View {
     }
 
     private var menuPreviewTheme: MenuAppearanceConfiguration.Theme {
-        MenuAppearanceConfiguration.Theme(rawValue: model.appearanceTheme) ?? .system
+        MenuAppearanceConfiguration.Theme(rawValue: appearance.theme) ?? .system
     }
 
     private var menuPreviewContainerColor: Color {
@@ -1477,18 +1326,18 @@ struct SettingsRootView: View {
                 .onAppear { model.refreshSystemPermissionStatus() }
             case .appearance:
                 AppearanceSettingsView(
-                    theme: $model.appearanceTheme,
-                    accent: $model.appearanceAccent,
-                    menuSize: $model.appearanceMenuSize,
-                    font: $model.appearanceFont,
-                    fontWeight: $model.appearanceFontWeight,
-                    beginMenuSizeAdjustment: model.beginAppearanceMenuSizeAdjustment,
-                    endMenuSizeAdjustment: model.endAppearanceMenuSizeAdjustment,
-                    canUndo: model.canUndoAppearance,
-                    canRedo: model.canRedoAppearance,
-                    undo: model.undoAppearance,
-                    redo: model.redoAppearance,
-                    reset: model.resetAppearance
+                    theme: $appearance.theme,
+                    accent: $appearance.accent,
+                    menuSize: $appearance.menuSize,
+                    font: $appearance.font,
+                    fontWeight: $appearance.fontWeight,
+                    beginMenuSizeAdjustment: appearance.beginMenuSizeAdjustment,
+                    endMenuSizeAdjustment: appearance.endMenuSizeAdjustment,
+                    canUndo: appearance.canUndo,
+                    canRedo: appearance.canRedo,
+                    undo: appearance.undo,
+                    redo: appearance.redo,
+                    reset: appearance.reset
                 )
             case .privacyAndPermissions:
                 PrivacySettingsView(

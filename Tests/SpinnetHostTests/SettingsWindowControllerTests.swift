@@ -1086,13 +1086,13 @@ final class SettingsWindowControllerTests: XCTestCase {
             editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
         }
         let runtimeMenu = MenuPresentationController(items: items)
-        model.onAppearanceChanged = runtimeMenu.applyAppearance
+        model.appearance.onChange = runtimeMenu.applyAppearance
 
-        model.appearanceTheme = "Dark"
-        model.appearanceAccent = "Purple"
-        model.appearanceMenuSize = "Large"
-        model.appearanceFont = testMenuFontFamily
-        model.appearanceFontWeight = "Bold"
+        model.appearance.theme = "Dark"
+        model.appearance.accent = "Purple"
+        model.appearance.menuSize = "Large"
+        model.appearance.font = testMenuFontFamily
+        model.appearance.fontWeight = "Bold"
 
         XCTAssertEqual(runtimeMenu.presentationSnapshot.theme, "Dark")
         XCTAssertEqual(runtimeMenu.presentationSnapshot.accent, "Purple")
@@ -1476,20 +1476,20 @@ final class SettingsWindowControllerTests: XCTestCase {
             mouseInputConflictCheck: { _ in [] }
         )
 
-        model.beginAppearanceMenuSizeAdjustment()
-        model.appearanceMenuSize = "112"
-        model.appearanceMenuSize = "148"
-        model.appearanceMenuSize = "125"
-        model.endAppearanceMenuSizeAdjustment()
+        model.appearance.beginMenuSizeAdjustment()
+        model.appearance.menuSize = "112"
+        model.appearance.menuSize = "148"
+        model.appearance.menuSize = "125"
+        model.appearance.endMenuSizeAdjustment()
 
-        XCTAssertEqual(model.appearanceMenuSize, "125")
-        XCTAssertTrue(model.canUndoAppearance)
+        XCTAssertEqual(model.appearance.menuSize, "125")
+        XCTAssertTrue(model.appearance.canUndo)
 
-        model.undoAppearance()
+        model.appearance.undo()
 
-        XCTAssertEqual(model.appearanceMenuSize, "Medium")
-        XCTAssertFalse(model.canUndoAppearance)
-        XCTAssertTrue(model.canRedoAppearance)
+        XCTAssertEqual(model.appearance.menuSize, "Medium")
+        XCTAssertFalse(model.appearance.canUndo)
+        XCTAssertTrue(model.appearance.canRedo)
     }
 
 
@@ -1856,29 +1856,29 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertFalse(model.permissionGuidePresented)
         XCTAssertTrue(defaults.bool(forKey: "privacy.permission-guide-shown"))
 
-        model.appearanceTheme = "Dark"
-        model.appearanceAccent = "Purple"
-        model.appearanceMenuSize = "Large"
-        model.appearanceFont = testMenuFontFamily
-        model.appearanceFontWeight = "Bold"
-        XCTAssertTrue(model.canUndoAppearance)
-        model.undoAppearance()
-        model.undoAppearance()
-        model.undoAppearance()
-        model.undoAppearance()
-        model.undoAppearance()
-        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
-        XCTAssertTrue(model.canRedoAppearance)
-        model.redoAppearance()
-        model.redoAppearance()
-        model.redoAppearance()
-        model.redoAppearance()
-        model.redoAppearance()
-        XCTAssertEqual(model.appearanceConfiguration.theme, "Dark")
-        XCTAssertEqual(model.appearanceConfiguration.accent, "Purple")
-        XCTAssertEqual(model.appearanceConfiguration.menuSize, "Large")
-        XCTAssertEqual(model.appearanceConfiguration.font, testMenuFontFamily)
-        XCTAssertEqual(model.appearanceConfiguration.fontWeight, "Bold")
+        model.appearance.theme = "Dark"
+        model.appearance.accent = "Purple"
+        model.appearance.menuSize = "Large"
+        model.appearance.font = testMenuFontFamily
+        model.appearance.fontWeight = "Bold"
+        XCTAssertTrue(model.appearance.canUndo)
+        model.appearance.undo()
+        model.appearance.undo()
+        model.appearance.undo()
+        model.appearance.undo()
+        model.appearance.undo()
+        XCTAssertEqual(model.appearance.configuration, MenuAppearanceConfiguration())
+        XCTAssertTrue(model.appearance.canRedo)
+        model.appearance.redo()
+        model.appearance.redo()
+        model.appearance.redo()
+        model.appearance.redo()
+        model.appearance.redo()
+        XCTAssertEqual(model.appearance.configuration.theme, "Dark")
+        XCTAssertEqual(model.appearance.configuration.accent, "Purple")
+        XCTAssertEqual(model.appearance.configuration.menuSize, "Large")
+        XCTAssertEqual(model.appearance.configuration.font, testMenuFontFamily)
+        XCTAssertEqual(model.appearance.configuration.fontWeight, "Bold")
 
         model.clipboardCollectionEnabled = true
         model.clipboardCollectionPaused = true
@@ -1913,29 +1913,29 @@ final class SettingsWindowControllerTests: XCTestCase {
             mouseInputConflictCheck: { _ in [] }
         )
 
-        model.appearanceTheme = "Dark"
-        model.appearanceAccent = "Purple"
-        model.appearanceMenuSize = "Large"
-        model.appearanceFont = testMenuFontFamily
-        model.appearanceFontWeight = "Bold"
-        let customized = model.appearanceConfiguration
+        model.appearance.theme = "Dark"
+        model.appearance.accent = "Purple"
+        model.appearance.menuSize = "Large"
+        model.appearance.font = testMenuFontFamily
+        model.appearance.fontWeight = "Bold"
+        let customized = model.appearance.configuration
 
-        model.resetAppearance()
+        model.appearance.reset()
 
-        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
+        XCTAssertEqual(model.appearance.configuration, MenuAppearanceConfiguration())
         XCTAssertEqual(defaults.string(forKey: "appearance.theme"), "System")
         XCTAssertEqual(defaults.string(forKey: "appearance.accent"), "System")
         XCTAssertEqual(defaults.string(forKey: "appearance.menu-size"), "Medium")
         XCTAssertEqual(defaults.string(forKey: "appearance.font"), "System")
         XCTAssertEqual(defaults.string(forKey: "appearance.font-weight"), "Semibold")
 
-        model.undoAppearance()
+        model.appearance.undo()
 
-        XCTAssertEqual(model.appearanceConfiguration, customized)
-        XCTAssertTrue(model.canRedoAppearance)
+        XCTAssertEqual(model.appearance.configuration, customized)
+        XCTAssertTrue(model.appearance.canRedo)
 
-        model.redoAppearance()
-        XCTAssertEqual(model.appearanceConfiguration, MenuAppearanceConfiguration())
+        model.appearance.redo()
+        XCTAssertEqual(model.appearance.configuration, MenuAppearanceConfiguration())
     }
 
     func testSetupRequiredPresetStaysEmptyUntilValidConfigurationIsSaved() throws {
@@ -2693,13 +2693,13 @@ final class SettingsWindowControllerTests: XCTestCase {
             defaults: defaults
         )
         var appliedAppearance: MenuAppearanceConfiguration?
-        model.onAppearanceChanged = { appliedAppearance = $0 }
+        model.appearance.onChange = { appliedAppearance = $0 }
 
-        model.appearanceTheme = "Dark"
-        model.appearanceAccent = "Purple"
-        model.appearanceMenuSize = "Large"
-        model.appearanceFont = testMenuFontFamily
-        model.appearanceFontWeight = "Bold"
+        model.appearance.theme = "Dark"
+        model.appearance.accent = "Purple"
+        model.appearance.menuSize = "Large"
+        model.appearance.font = testMenuFontFamily
+        model.appearance.fontWeight = "Bold"
 
         XCTAssertEqual(appliedAppearance?.theme, "Dark")
         XCTAssertEqual(appliedAppearance?.accent, "Purple")
@@ -2717,11 +2717,11 @@ final class SettingsWindowControllerTests: XCTestCase {
             metadata: .current,
             defaults: defaults
         )
-        XCTAssertEqual(restored.appearanceTheme, "Dark")
-        XCTAssertEqual(restored.appearanceAccent, "Purple")
-        XCTAssertEqual(restored.appearanceMenuSize, "Large")
-        XCTAssertEqual(restored.appearanceFont, testMenuFontFamily)
-        XCTAssertEqual(restored.appearanceFontWeight, "Bold")
+        XCTAssertEqual(restored.appearance.theme, "Dark")
+        XCTAssertEqual(restored.appearance.accent, "Purple")
+        XCTAssertEqual(restored.appearance.menuSize, "Large")
+        XCTAssertEqual(restored.appearance.font, testMenuFontFamily)
+        XCTAssertEqual(restored.appearance.fontWeight, "Bold")
     }
 
     func testMenuTriggerDefaultsToMouseSideButtonWithoutAKeyboardShortcut() throws {

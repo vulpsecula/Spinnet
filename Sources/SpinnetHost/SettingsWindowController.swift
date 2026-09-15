@@ -71,8 +71,8 @@ final class SettingsWindowController: NSWindowController {
         get { model.clipboardRetention }
         set { model.clipboardRetention = newValue }
     }
-    var canUndoAppearance: Bool { model.canUndoAppearance }
-    var canRedoAppearance: Bool { model.canRedoAppearance }
+    var canUndoAppearance: Bool { model.appearance.canUndo }
+    var canRedoAppearance: Bool { model.appearance.canRedo }
     var pendingPresetSetup: PendingPresetSetup? { model.pendingPresetSetup }
     var editingMenuIndex: Int? { model.editingMenuIndex }
     var selectedMenuIndex: Int { model.selectedMenuIndex }
@@ -126,7 +126,7 @@ final class SettingsWindowController: NSWindowController {
         model.onConfigurationChanged = { [weak self] configuration in
             self?.onConfigurationChanged?(configuration)
         }
-        model.onAppearanceChanged = { [weak self] appearance in
+        model.appearance.onChange = { [weak self] appearance in
             self?.onAppearanceChanged?(appearance)
         }
         model.onTriggerChanged = { [weak self] configuration in
@@ -184,15 +184,15 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func undoAppearance() {
-        model.undoAppearance()
+        model.appearance.undo()
     }
 
     func redoAppearance() {
-        model.redoAppearance()
+        model.appearance.redo()
     }
 
     func resetAppearance() {
-        model.resetAppearance()
+        model.appearance.reset()
     }
 
     func cancelPresetSetup() {
