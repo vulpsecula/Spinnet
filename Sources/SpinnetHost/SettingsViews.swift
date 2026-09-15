@@ -168,50 +168,14 @@ struct ConfigurationInputValueResolver {
 }
 
 final class SettingsWindowModel: ObservableObject {
-    private struct SlotHistoryEntry {
-        enum Kind: Equatable {
-            case addition
-            case removal
-        }
-
-        let kind: Kind
-        let slotID: UUID
-        let slot: MenuSlotConfiguration
-        let index: Int
-    }
-
-    private enum SlotHistoryDirection {
-        case undo
-        case redo
-    }
-
-    private struct CompositionHistoryEntry {
-        let before: HostConfiguration
-        let after: HostConfiguration
-        let selectedIndexBefore: Int
-        let selectedIndexAfter: Int
-    }
-
-    private enum MenuHistoryEntry {
-        case slot(SlotHistoryEntry)
-        case composition(CompositionHistoryEntry)
-        case reorder(before: [UUID], after: [UUID], source: Int, target: Int)
-    }
 
     let editor: HostConfigurationEditor
     let metadata: ApplicationMetadata
 
     @Published var page: SettingsPage = .menu
-    @Published var selectedMenuIndex = 0
-    @Published var placementMessage: String?
-    @Published var editingMenuIndex: Int?
-    @Published private(set) var presetPendingReplacement: PendingPresetReplacement?
-    @Published private(set) var pendingPresetSetup: PendingPresetSetup?
-    @Published private(set) var refreshToken = 0
-    @Published private(set) var menuSlots: [MenuSlotPresentation]
-    var installPlugin: ((URL) throws -> PluginManifest)?
-    @Published private(set) var canUndoSlotEdit = false
-    @Published private(set) var canRedoSlotEdit = false
+    /// The Menu Editor owns Slot selection, composition edits and their undo
+    /// history.
+    let menuEditor: MenuEditorModel
     /// Clipboard History settings own their own state, persistence and
     /// submission to the Store.
     let clipboardHistory: ClipboardHistorySettingsModel
@@ -226,22 +190,6 @@ final class SettingsWindowModel: ObservableObject {
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     private let defaults: UserDefaults
-    var editorSlots: [EditorMenuSlot] {
-        zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
-    }
-
-    private(set) var slotIDs: [UUID]
-    @Published private(set) var slotPendingDeletion: UUID?
-
-    var deletionTitle: String {
-        guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id) else { return "Delete Slot?" }
-        return "Delete Slot \(index + 1) — \(menuSlots[index].title)?"
-    }
-    private var undoHistory: [MenuHistoryEntry] = []
-    private var redoHistory: [MenuHistoryEntry] = []
-
-    private enum Keys {
-    }
 
     init(
         editor: HostConfigurationEditor,
@@ -257,8 +205,7 @@ final class SettingsWindowModel: ObservableObject {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
-        slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
-        menuSlots = []
+        menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
             grantStore: capabilityGrantStore,
             manifests: { [editor] in editor.pluginManifests },
@@ -268,79 +215,24 @@ final class SettingsWindowModel: ObservableObject {
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
-        menuSlots = makeMenuSlots()
         // Authority decides Menu Item availability, so a grant or permission
         // change has to recompute the Slots.
-        privacy.onAuthorityChanged = { [weak self] in self?.refreshMenuSlots() }
-    }
-
-    func choosePluginPackage() {
-        let panel = NSOpenPanel()
-        panel.title = "Install or Update Plugin"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.treatsFilePackagesAsDirectories = false
-        panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        installPluginPackage(at: url)
-    }
-
-    /// The native picker and automated Settings workflow enter the same install intent.
-    func installPluginPackage(at url: URL) {
-        do {
-            guard let installPlugin else { return }
-            let manifest = try installPlugin(url)
-            refreshMenuSlots()
-            refreshToken += 1
-            if !privacy.beginInstallationConsent(for: manifest) {
-                placementMessage = "\(manifest.name) installed. Existing access decisions retained."
-            }
-        } catch {
-            placementMessage = "Installation failed: \(error.localizedDescription)"
-        }
-    }
-
-    private func makeMenuSlots() -> [MenuSlotPresentation] {
-        MenuPresentationFactory.makeSlots(
-            configuration: editor.configuration,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: { pluginID in
-                editor.pluginManifests.first { $0.id == pluginID }?.name
-            }
-        )
-    }
-
-    /// Refreshes availability-sensitive Menu Slot presentation without tying
-    /// it to every Appearance sample from the size Slider.
-    func refreshMenuSlots() {
-        menuSlots = makeMenuSlots()
-    }
-
-    func librarySections(matching query: String) -> [MenuItemPresetSection] {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let presets = editor.menuItemPresets.filter { preset in
-            trimmedQuery.isEmpty
-                || preset.name.localizedCaseInsensitiveContains(trimmedQuery)
-                || preset.commands.contains {
-                    $0.title.localizedCaseInsensitiveContains(trimmedQuery)
-                }
-        }
-        return MenuItemPresetSource.allCases.map { source in
-            MenuItemPresetSection(
-                source: source,
-                presets: presets.filter { $0.source == source }
-            )
+        privacy.onAuthorityChanged = { [weak menuEditor] in menuEditor?.refreshMenuSlots() }
+        // A newly installed Plugin may declare Capabilities nobody has decided
+        // on yet; the consent sheet takes over from the install message.
+        menuEditor.onPluginInstalled = { [weak privacy] manifest in
+            privacy?.beginInstallationConsent(for: manifest) ?? false
         }
     }
 
     func selectPage(_ page: SettingsPage) {
-        guard editingMenuIndex == nil else { return }
+        guard menuEditor.editingMenuIndex == nil else { return }
         if page.showsEditorMode {
-            refreshMenuSlots()
+            menuEditor.refreshMenuSlots()
         }
         self.page = page
+        // Composition edits belong to the Menu page only.
+        menuEditor.acceptsEdits = page == .menu
     }
 
     var accessibleNames: [String] {
@@ -350,8 +242,8 @@ final class SettingsWindowModel: ObservableObject {
         if page == .menu {
             names.append(contentsOf: ["Built-in Presets", "Plugin Presets"])
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
-            let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(selectedMenuIndex)
-                && editor.configuration.menu.slots[selectedMenuIndex].item == nil
+            let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(menuEditor.selectedMenuIndex)
+                && editor.configuration.menu.slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
                 for preset in editor.menuItemPresets {
                     names.append("Add \(preset.name) to selected Slot")
@@ -362,7 +254,7 @@ final class SettingsWindowModel: ObservableObject {
                 names.append("Edit Menu Item in Slot \(index + 1)")
             }
             names.append(contentsOf: [
-                deleteSlotLabel,
+                menuEditor.deleteSlotLabel,
                 "Undo Slot edit",
                 "Redo Slot edit"
             ])
@@ -384,363 +276,6 @@ final class SettingsWindowModel: ObservableObject {
         return names
     }
 
-    func configurationDidChange(_ configuration: HostConfiguration) {
-        selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))
-        refreshMenuSlots()
-        refreshToken += 1
-        onConfigurationChanged?(configuration)
-    }
-
-    func selectMenuItem(at index: Int) {
-        guard editor.configuration.menu.slots.indices.contains(index) else { return }
-        selectedMenuIndex = index
-        placementMessage = nil
-    }
-
-    func requestEdit(at index: Int) {
-        guard editor.configuration.menu.slots.indices.contains(index),
-              editor.configuration.menu.slots[index].item != nil else { return }
-        selectedMenuIndex = index
-        editingMenuIndex = index
-    }
-
-    func addEmptySlot() {
-        let index = editor.configuration.menu.slots.endIndex
-        let slotID = UUID()
-        if insertSlot(.empty, at: index, slotID: slotID) {
-            record(.slot(SlotHistoryEntry(
-                kind: .addition,
-                slotID: slotID,
-                slot: .empty,
-                index: index
-            )))
-        }
-    }
-
-    func undoSlotEdit() {
-        guard let entry = undoHistory.popLast(), apply(entry, direction: .undo) else {
-            refreshUndoState()
-            return
-        }
-        redoHistory.append(entry)
-        refreshUndoState()
-    }
-
-    func redoSlotEdit() {
-        guard let entry = redoHistory.popLast(), apply(entry, direction: .redo) else {
-            refreshUndoState()
-            return
-        }
-        undoHistory.append(entry)
-        refreshUndoState()
-    }
-
-    @discardableResult
-    private func insertSlot(
-        _ slot: MenuSlotConfiguration,
-        at index: Int,
-        slotID: UUID
-    ) -> Bool {
-        do {
-            try editor.insertSlot(slot, at: index)
-            slotIDs.insert(slotID, at: index)
-            selectedMenuIndex = index
-            placementMessage = slot.item == nil
-                ? "Empty Slot \(index + 1) added. Drag a Menu Item Preset onto it."
-                : "Slot \(index + 1) restored."
-            configurationDidChange(editor.configuration)
-            return true
-        } catch {
-            placementMessage = error.localizedDescription
-            return false
-        }
-    }
-
-    var deleteSlotLabel: String { "Delete selected Slot…" }
-
-    /// Every UI deletion first captures an identity, never a mutable index.
-    @discardableResult
-    func requestSlotDeletion(at index: Int) -> Bool {
-        guard page == .menu, editingMenuIndex == nil,
-              slotIDs.indices.contains(index) else { return false }
-        guard slotIDs.count > 1 else {
-            placementMessage = "A Menu must contain at least one Slot."
-            return false
-        }
-        slotPendingDeletion = slotIDs[index]
-        return true
-    }
-
-    func requestSelectedSlotDeletion() {
-        _ = requestSlotDeletion(at: selectedMenuIndex)
-    }
-
-    func cancelSlotDeletion() {
-        slotPendingDeletion = nil
-    }
-
-    func confirmSlotDeletion() {
-        guard let id = slotPendingDeletion else { return }
-        slotPendingDeletion = nil
-        guard let index = slotIDs.firstIndex(of: id) else { return }
-        _ = removeSlot(at: index, recordHistory: true)
-    }
-
-    func requestSlotDeletion(id: UUID) -> Bool {
-        guard let index = slotIDs.firstIndex(of: id) else { return false }
-        return requestSlotDeletion(at: index)
-    }
-
-    func moveSlot(id: UUID, to target: Int) -> Bool {
-        guard let source = slotIDs.firstIndex(of: id) else { return false }
-        return moveSlot(from: source, to: target)
-    }
-
-    @discardableResult
-    private func removeSlot(at index: Int, recordHistory: Bool) -> Bool {
-        guard editor.configuration.menu.slots.indices.contains(index) else { return false }
-        let removedSlot = editor.configuration.menu.slots[index]
-        let removedSlotID = slotIDs[index]
-        do {
-            try editor.removeSlot(at: index)
-            slotIDs.remove(at: index)
-            selectedMenuIndex = min(index, editor.configuration.menu.slots.count - 1)
-            placementMessage = "Slot \(index + 1) removed."
-            configurationDidChange(editor.configuration)
-            if recordHistory {
-                record(.slot(SlotHistoryEntry(
-                    kind: .removal,
-                    slotID: removedSlotID,
-                    slot: removedSlot,
-                    index: index
-                )))
-            }
-            return true
-        } catch {
-            placementMessage = error.localizedDescription
-            return false
-        }
-    }
-
-    private func refreshUndoState() {
-        canUndoSlotEdit = !undoHistory.isEmpty
-        canRedoSlotEdit = !redoHistory.isEmpty
-    }
-
-    private func record(_ entry: MenuHistoryEntry) {
-        undoHistory.append(entry)
-        redoHistory.removeAll()
-        refreshUndoState()
-    }
-
-    private func apply(
-        _ entry: MenuHistoryEntry,
-        direction: SlotHistoryDirection
-    ) -> Bool {
-        switch entry {
-        case .reorder(let before, let after, let source, let target):
-            do {
-                let restoredIDs = direction == .undo ? before : after
-                let order = restoredIDs.compactMap { slotIDs.firstIndex(of: $0) }
-                try editor.reorderSlots(order: order)
-                slotIDs = restoredIDs
-                selectedMenuIndex = direction == .undo ? source : target
-                configurationDidChange(editor.configuration)
-                return true
-            } catch {
-                placementMessage = error.localizedDescription
-                return false
-            }
-        case .slot(let entry):
-            return applySlot(entry, direction: direction)
-        case .composition(let entry):
-            let configuration = direction == .undo ? entry.before : entry.after
-            editor.restore(configuration)
-            selectedMenuIndex = direction == .undo
-                ? entry.selectedIndexBefore
-                : entry.selectedIndexAfter
-            placementMessage = direction == .undo ? "Menu edit undone." : "Menu edit redone."
-            configurationDidChange(configuration)
-            return true
-        }
-    }
-
-    private func applySlot(
-        _ entry: SlotHistoryEntry,
-        direction: SlotHistoryDirection
-    ) -> Bool {
-        switch (entry.kind, direction) {
-        case (.addition, .undo):
-            guard let index = slotIDs.firstIndex(of: entry.slotID),
-                  editor.configuration.menu.slots[index].item == entry.slot.item else { return false }
-            return removeSlot(at: index, recordHistory: false)
-        case (.removal, .undo), (.addition, .redo):
-            let index = min(entry.index, editor.configuration.menu.slots.endIndex)
-            return insertSlot(
-                entry.slot,
-                at: index,
-                slotID: entry.slotID
-            )
-        case (.removal, .redo):
-            guard let index = slotIDs.firstIndex(of: entry.slotID) else { return false }
-            return removeSlot(at: index, recordHistory: false)
-        }
-    }
-
-    func placePreset(pluginID: String, at index: Int) -> Bool {
-        guard editor.configuration.menu.slots.indices.contains(index) else { return false }
-        selectedMenuIndex = index
-        guard editor.configuration.menu.slots[index].item == nil else {
-            presetPendingReplacement = PendingPresetReplacement(
-                pluginID: pluginID,
-                slotIndex: index
-            )
-            placementMessage = "Replace the Menu Item in Slot \(index + 1)?"
-            return false
-        }
-        guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
-            placementMessage = "The selected Preset is unavailable."
-            return false
-        }
-        guard preset.isAvailable else {
-            placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
-            return false
-        }
-        if preset.readiness == .setupRequired {
-            pendingPresetSetup = PendingPresetSetup(
-                pluginID: pluginID,
-                slotIndex: index,
-                replacing: false
-            )
-            editingMenuIndex = index
-            placementMessage = "Invalid Action: Preset requires setup"
-            return false
-        }
-        return applyPreset(pluginID: pluginID, at: index, replacing: false)
-    }
-
-    func confirmPresetReplacement() {
-        guard let pending = presetPendingReplacement else { return }
-        presetPendingReplacement = nil
-        guard let preset = editor.menuItemPresets.first(where: { $0.id == pending.pluginID }) else {
-            placementMessage = "The selected Preset is unavailable."
-            return
-        }
-        if preset.readiness == .setupRequired {
-            pendingPresetSetup = PendingPresetSetup(
-                pluginID: pending.pluginID,
-                slotIndex: pending.slotIndex,
-                replacing: true
-            )
-            editingMenuIndex = pending.slotIndex
-            return
-        }
-        _ = applyPreset(pluginID: pending.pluginID, at: pending.slotIndex, replacing: true)
-    }
-
-    func cancelPresetReplacement() {
-        presetPendingReplacement = nil
-    }
-
-    func cancelPresetSetup() {
-        pendingPresetSetup = nil
-        editingMenuIndex = nil
-    }
-
-    func savePresetSetup(_ configuration: HostConfiguration, for setup: PendingPresetSetup) {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
-        editor.restore(configuration)
-        pendingPresetSetup = nil
-        editingMenuIndex = nil
-        selectedMenuIndex = setup.slotIndex
-        placementMessage = setup.replacing
-            ? "Menu Item in Slot \(setup.slotIndex + 1) replaced."
-            : "Menu Item added to Slot \(setup.slotIndex + 1)."
-        configurationDidChange(configuration)
-        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
-    }
-
-    func saveMenuItemConfiguration(_ configuration: HostConfiguration) {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
-        guard configuration != before else {
-            editingMenuIndex = nil
-            return
-        }
-        editor.restore(configuration)
-        editingMenuIndex = nil
-        placementMessage = "Menu Item in Slot \(selectedMenuIndex + 1) updated."
-        configurationDidChange(configuration)
-        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
-    }
-
-    @discardableResult
-    func moveSlot(from sourceIndex: Int, to targetIndex: Int) -> Bool {
-        guard slotIDs.indices.contains(sourceIndex), slotIDs.indices.contains(targetIndex) else { return false }
-        let plan = CircularSlotReorder(count: slotIDs.count, source: sourceIndex, target: targetIndex)
-        return reorderSlots(ids: plan.order.map { slotIDs[$0] }, selectedID: slotIDs[sourceIndex])
-    }
-
-    func reorderSlots(ids: [UUID], selectedID: UUID? = nil) -> Bool {
-        guard page == .menu, editingMenuIndex == nil else { return false }
-        guard ids.count == slotIDs.count, Set(ids) == Set(slotIDs) else { return false }
-        if let selectedID, !slotIDs.contains(selectedID) { return false }
-        let previousIDs = slotIDs
-        let sourceIndex = selectedID.flatMap { slotIDs.firstIndex(of: $0) } ?? selectedMenuIndex
-        guard slotIDs.indices.contains(sourceIndex) else { return false }
-        let targetIndex = ids.firstIndex(of: slotIDs[sourceIndex]) ?? sourceIndex
-        do {
-            guard ids != slotIDs else { return true }
-            try editor.reorderSlots(order: ids.compactMap { slotIDs.firstIndex(of: $0) })
-            slotIDs = ids
-            selectedMenuIndex = targetIndex
-            placementMessage = "Slot moved."
-            configurationDidChange(editor.configuration)
-            record(.reorder(before: previousIDs, after: slotIDs, source: sourceIndex, target: targetIndex))
-            return true
-        } catch {
-            placementMessage = error.localizedDescription
-            return false
-        }
-    }
-
-    private func recordComposition(
-        before: HostConfiguration,
-        selectedIndexBefore: Int
-    ) {
-        record(.composition(CompositionHistoryEntry(
-            before: before,
-            after: editor.configuration,
-            selectedIndexBefore: selectedIndexBefore,
-            selectedIndexAfter: selectedMenuIndex
-        )))
-    }
-
-    private func applyPreset(pluginID: String, at index: Int, replacing: Bool) -> Bool {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
-        do {
-            _ = try editor.placePreset(
-                pluginID: PluginID(pluginID),
-                inSlotAt: index,
-                replacing: replacing
-            )
-            selectedMenuIndex = index
-            placementMessage = replacing
-                ? "Menu Item in Slot \(index + 1) replaced."
-                : "Menu Item added to Slot \(index + 1)."
-            configurationDidChange(editor.configuration)
-            recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
-            if editor.menuItemPresets.first(where: { $0.id == pluginID })?.isConfigurable == true {
-                editingMenuIndex = index
-            }
-            return true
-        } catch {
-            placementMessage = error.localizedDescription
-            return false
-        }
-    }
 }
 
 struct SettingsRootView: View {
@@ -751,10 +286,12 @@ struct SettingsRootView: View {
     @ObservedObject var trigger: MenuTriggerModel
     @ObservedObject var clipboardHistory: ClipboardHistorySettingsModel
     @ObservedObject var privacy: PrivacyPermissionsModel
+    @ObservedObject var menuEditor: MenuEditorModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
         self.model = model
+        self.menuEditor = model.menuEditor
         self.appearance = model.appearance
         self.trigger = model.trigger
         self.clipboardHistory = model.clipboardHistory
@@ -785,7 +322,7 @@ struct SettingsRootView: View {
         .frame(minWidth: 1_280, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             focusedPage = model.page
-            model.refreshMenuSlots()
+            menuEditor.refreshMenuSlots()
         }
         .onChange(of: model.page) { focusedPage = $0 }
         .sheet(isPresented: Binding(
@@ -796,21 +333,21 @@ struct SettingsRootView: View {
                 PluginConsentSheet(privacy: privacy, manifest: manifest)
             }
         }
-        .alert(model.deletionTitle, isPresented: Binding(
-            get: { model.slotPendingDeletion != nil },
-            set: { if !$0 { model.cancelSlotDeletion() } }
+        .alert(menuEditor.deletionTitle, isPresented: Binding(
+            get: { menuEditor.slotPendingDeletion != nil },
+            set: { if !$0 { menuEditor.cancelSlotDeletion() } }
         )) {
-            Button("Cancel", role: .cancel, action: model.cancelSlotDeletion)
-            Button("Delete Slot", role: .destructive, action: model.confirmSlotDeletion)
+            Button("Cancel", role: .cancel, action: menuEditor.cancelSlotDeletion)
+            Button("Delete Slot", role: .destructive, action: menuEditor.confirmSlotDeletion)
         } message: {
             Text("This removes the whole Slot from the Menu. You can undo the deletion.")
         }
         .alert(
-            "Replace Menu Item in Slot \((model.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
+            "Replace Menu Item in Slot \((menuEditor.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
             isPresented: presetReplacementAlertBinding
         ) {
-            Button("Cancel", role: .cancel, action: model.cancelPresetReplacement)
-            Button("Replace", role: .destructive, action: model.confirmPresetReplacement)
+            Button("Cancel", role: .cancel, action: menuEditor.cancelPresetReplacement)
+            Button("Replace", role: .destructive, action: menuEditor.confirmPresetReplacement)
                 .keyboardShortcut(.defaultAction)
         } message: {
             Text("The current Menu Item and its Actions will be replaced by the selected Preset.")
@@ -828,8 +365,8 @@ struct SettingsRootView: View {
 
     private var presetReplacementAlertBinding: Binding<Bool> {
         Binding(
-            get: { model.presetPendingReplacement != nil },
-            set: { if !$0 { model.cancelPresetReplacement() } }
+            get: { menuEditor.presetPendingReplacement != nil },
+            set: { if !$0 { menuEditor.cancelPresetReplacement() } }
         )
     }
 
@@ -875,7 +412,7 @@ struct SettingsRootView: View {
     }
 
     private var editorMode: some View {
-        let menuSlots = model.menuSlots
+        let menuSlots = menuEditor.menuSlots
 
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
@@ -903,18 +440,18 @@ struct SettingsRootView: View {
                     .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
 
                 MenuEditorModeRepresentable(
-                    slots: model.editorSlots,
-                    selectedIndex: model.selectedMenuIndex,
+                    slots: menuEditor.editorSlots,
+                    selectedIndex: menuEditor.selectedMenuIndex,
                     appearance: appearance.configuration,
                     mode: .editor,
                     allowsEditing: model.page == .menu,
                     previewScale: menuPreviewScale,
                     previewCanvasDiameter: menuPreviewCanvasDiameter,
-                    onSelection: model.selectMenuItem,
-                    onEdit: model.requestEdit,
-                    onSlotDelete: { _ = model.requestSlotDeletion(at: $0) },
-                    onPresetDrop: model.placePreset,
-                    onSlotDrop: { model.reorderSlots(ids: $0, selectedID: $1) }
+                    onSelection: menuEditor.selectMenuItem,
+                    onEdit: menuEditor.requestEdit,
+                    onSlotDelete: { _ = menuEditor.requestSlotDeletion(at: $0) },
+                    onPresetDrop: menuEditor.placePreset,
+                    onSlotDrop: { menuEditor.reorderSlots(ids: $0, selectedID: $1) }
                 )
                 .id(model.page)
                 .frame(width: menuPreviewCanvasDiameter, height: menuPreviewCanvasDiameter)
@@ -930,27 +467,27 @@ struct SettingsRootView: View {
 
             if model.page == .menu {
                 HStack(spacing: 8) {
-                    Button(action: model.addEmptySlot) {
+                    Button(action: menuEditor.addEmptySlot) {
                         Image(systemName: "plus")
                     }
                     .disabled(menuSlots.count >= 12)
                     .accessibilityLabel("Add empty Slot")
                     .help("Add empty Slot")
-                    Button(action: model.undoSlotEdit) {
+                    Button(action: menuEditor.undoSlotEdit) {
                         Image(systemName: "arrow.uturn.backward")
                     }
-                    .disabled(!model.canUndoSlotEdit)
+                    .disabled(!menuEditor.canUndoSlotEdit)
                     .keyboardShortcut("z", modifiers: .command)
                     .help("Undo Slot edit")
                     .accessibilityLabel("Undo Slot edit")
-                    Button(action: model.redoSlotEdit) {
+                    Button(action: menuEditor.redoSlotEdit) {
                         Image(systemName: "arrow.uturn.forward")
                     }
-                    .disabled(!model.canRedoSlotEdit)
+                    .disabled(!menuEditor.canRedoSlotEdit)
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .help("Redo Slot edit")
                     .accessibilityLabel("Redo Slot edit")
-                    SlotDeletionDropZone(onDrop: model.requestSlotDeletion)
+                    SlotDeletionDropZone(onDrop: menuEditor.requestSlotDeletion)
                         .frame(maxWidth: .infinity)
                     Text("\(menuSlots.count) / 12")
                         .monospacedDigit()
@@ -1085,14 +622,14 @@ struct SettingsRootView: View {
             case .menu:
                 MenuEditorView(
                     editor: model.editor,
-                    selectedMenuIndex: $model.selectedMenuIndex,
-                    placementMessage: model.placementMessage,
-                    librarySectionsForQuery: model.librarySections,
-                    onPresetPlacement: model.placePreset,
-                    onInstallPlugin: model.choosePluginPackage,
+                    selectedMenuIndex: $menuEditor.selectedMenuIndex,
+                    placementMessage: menuEditor.placementMessage,
+                    librarySectionsForQuery: menuEditor.librarySections,
+                    onPresetPlacement: menuEditor.placePreset,
+                    onInstallPlugin: menuEditor.choosePluginPackage,
                     onPluginSettings: privacy.showPluginSettings
                 )
-                .id(model.refreshToken)
+                .id(menuEditor.refreshToken)
                 .onAppear { privacy.refreshSystemPermissionStatus() }
             case .appearance:
                 AppearanceSettingsView(
@@ -1138,17 +675,17 @@ struct SettingsRootView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(model.page.title) Page Content")
         .sheet(isPresented: editingSheetBinding) {
-            if let index = model.editingMenuIndex {
+            if let index = menuEditor.editingMenuIndex {
                 SlotConfigurationSheet(
                     editor: model.editor,
                     slotIndex: index,
-                    presetPluginID: model.pendingPresetSetup.map { PluginID($0.pluginID) },
+                    presetPluginID: menuEditor.pendingPresetSetup.map { PluginID($0.pluginID) },
                     permissionModel: privacy,
                     onSaved: { configuration in
-                        if let setup = model.pendingPresetSetup {
-                            model.savePresetSetup(configuration, for: setup)
+                        if let setup = menuEditor.pendingPresetSetup {
+                            menuEditor.savePresetSetup(configuration, for: setup)
                         } else {
-                            model.saveMenuItemConfiguration(configuration)
+                            menuEditor.saveMenuItemConfiguration(configuration)
                         }
                     }
                 )
@@ -1158,13 +695,13 @@ struct SettingsRootView: View {
 
     private var editingSheetBinding: Binding<Bool> {
         Binding(
-            get: { model.editingMenuIndex != nil },
+            get: { menuEditor.editingMenuIndex != nil },
             set: {
                 guard !$0 else { return }
-                if model.pendingPresetSetup != nil {
-                    model.cancelPresetSetup()
+                if menuEditor.pendingPresetSetup != nil {
+                    menuEditor.cancelPresetSetup()
                 } else {
-                    model.editingMenuIndex = nil
+                    menuEditor.editingMenuIndex = nil
                 }
             }
         )

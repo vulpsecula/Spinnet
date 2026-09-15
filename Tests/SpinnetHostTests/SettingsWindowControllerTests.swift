@@ -667,8 +667,8 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testCircularDragLocksOppositeDirectionBuffersBoundaryAndCommitsPreview() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        for _ in 0..<7 { model.addEmptySlot() }
-        let original = model.editorSlots
+        for _ in 0..<7 { model.menuEditor.addEmptySlot() }
+        let original = model.menuEditor.editorSlots
         let configuration = model.editor.configuration
         let view = RadialMenuView(slots: original.map(\.presentation), mode: .editor)
         view.updateEditorSlots(original, appearance: MenuAppearanceConfiguration())
@@ -698,16 +698,16 @@ final class SettingsWindowControllerTests: XCTestCase {
         sender.draggingLocation = point(3.95)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.editorSlots.map(\.id), oppositeOrder, "Small boundary motion must not reverse the arc")
-        view.onSlotDrop = { ids, selectedID in model.reorderSlots(ids: ids, selectedID: selectedID) }
+        view.onSlotDrop = { ids, selectedID in model.menuEditor.reorderSlots(ids: ids, selectedID: selectedID) }
         XCTAssertTrue(view.performDragOperation(sender))
-        XCTAssertEqual(model.slotIDs, oppositeOrder)
+        XCTAssertEqual(model.menuEditor.slotIDs, oppositeOrder)
         XCTAssertEqual(model.editor.configuration.menu.slots,
                        [7, 1, 2, 3, 0, 4, 5, 6].map { configuration.menu.slots[$0] })
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration, configuration)
-        XCTAssertEqual(model.slotIDs, original.map(\.id))
-        model.redoSlotEdit()
-        XCTAssertEqual(model.slotIDs, oppositeOrder)
+        XCTAssertEqual(model.menuEditor.slotIDs, original.map(\.id))
+        model.menuEditor.redoSlotEdit()
+        XCTAssertEqual(model.menuEditor.slotIDs, oppositeOrder)
 
         view.updateEditorSlots(original, appearance: MenuAppearanceConfiguration())
         sender.draggingLocation = point(0.5)
@@ -1659,7 +1659,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             let model = SettingsWindowModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration),
                 metadata: .current, capabilityGrantStore: grants, defaults: defaults, clipboardHistoryStore: h.store,
                 accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
-            model.installPlugin = { try installer.install(from: $0) }
+            model.menuEditor.installPlugin = { try installer.install(from: $0) }
             model.privacy.onGrantsChanged = { values in
                 do { try JSONEncoder().encode(values).write(to: grantsURL, options: .atomic) }
                 catch { XCTFail("Grant persistence failed: \(error)") }
@@ -1681,11 +1681,11 @@ final class SettingsWindowControllerTests: XCTestCase {
         h.board.setData(Data([1, 2, 3]), forType: .png)
         try h.collector.poll()
         let (settings, registry) = try session()
-        settings.installPluginPackage(at: try source(types: ["text"], version: "1"))
+        settings.menuEditor.installPluginPackage(at: try source(types: ["text"], version: "1"))
         XCTAssertTrue(settings.privacy.installationConsentPresented)
         settings.privacy.finishPluginConsent(grant: true)
         XCTAssertEqual(try h.query(XCTUnwrap(registry.package(for: PluginID("reader")))) .entries.map(\.text), ["pre-grant text"])
-        settings.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
+        settings.menuEditor.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
         let updated = try XCTUnwrap(registry.package(for: PluginID("reader")))
         XCTAssertTrue(settings.privacy.installationConsentPresented)
         XCTAssertEqual(settings.privacy.pendingCapabilityRequests(for: updated.manifest), [.readClipboardHistory])
@@ -1956,9 +1956,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             packages.first { $0.manifest.name == "Open Application" }
         )
 
-        XCTAssertFalse(model.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
+        XCTAssertFalse(model.menuEditor.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
         XCTAssertEqual(
-            model.pendingPresetSetup,
+            model.menuEditor.pendingPresetSetup,
             PendingPresetSetup(
                 pluginID: applicationPreset.manifest.id.rawValue,
                 slotIndex: 0,
@@ -1984,15 +1984,15 @@ final class SettingsWindowControllerTests: XCTestCase {
             replacingEmptySlot: true,
             validateInputs: true
         )
-        model.savePresetSetup(
+        model.menuEditor.savePresetSetup(
             candidate,
-            for: try XCTUnwrap(model.pendingPresetSetup)
+            for: try XCTUnwrap(model.menuEditor.pendingPresetSetup)
         )
 
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
-        XCTAssertNil(model.pendingPresetSetup)
-        XCTAssertNil(model.editingMenuIndex)
-        XCTAssertTrue(model.canUndoSlotEdit)
+        XCTAssertNil(model.menuEditor.pendingPresetSetup)
+        XCTAssertNil(model.menuEditor.editingMenuIndex)
+        XCTAssertTrue(model.menuEditor.canUndoSlotEdit)
     }
 
     func testCancellingSetupRequiredPresetLeavesItsSlotEmpty() throws {
@@ -2015,23 +2015,23 @@ final class SettingsWindowControllerTests: XCTestCase {
             packages.first { $0.manifest.name == "Open Application" }
         )
 
-        XCTAssertFalse(model.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
-        XCTAssertNotNil(model.pendingPresetSetup)
+        XCTAssertFalse(model.menuEditor.placePreset(pluginID: applicationPreset.manifest.id.rawValue, at: 0))
+        XCTAssertNotNil(model.menuEditor.pendingPresetSetup)
 
-        model.cancelPresetSetup()
+        model.menuEditor.cancelPresetSetup()
 
-        XCTAssertNil(model.pendingPresetSetup)
-        XCTAssertNil(model.editingMenuIndex)
+        XCTAssertNil(model.menuEditor.pendingPresetSetup)
+        XCTAssertNil(model.menuEditor.editingMenuIndex)
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertTrue(model.editor.configuration.actions.isEmpty)
     }
 
     func testAddingTheSamePresetTwiceKeepsMenuItemActionsIndependent() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.addEmptySlot()
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 1))
         let firstItem = try XCTUnwrap(model.editor.configuration.menu.slots[1].item)
         let firstPrimaryID = firstItem.primaryActionID
 
@@ -2050,9 +2050,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             actions: firstCandidate.actions,
             menu: MenuConfiguration(slots: firstNamedSlots)
         )
-        model.saveMenuItemConfiguration(firstNamedCandidate)
+        model.menuEditor.saveMenuItemConfiguration(firstNamedCandidate)
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 2))
         let secondItem = try XCTUnwrap(model.editor.configuration.menu.slots[2].item)
         let secondPrimaryID = secondItem.primaryActionID
         XCTAssertNotEqual(firstPrimaryID, secondPrimaryID)
@@ -2076,11 +2076,11 @@ final class SettingsWindowControllerTests: XCTestCase {
             accessibilityPermissionCheck: { true },
             mouseInputConflictCheck: { _ in [] }
         )
-        model.requestEdit(at: 0)
-        XCTAssertEqual(model.editingMenuIndex, 0)
+        model.menuEditor.requestEdit(at: 0)
+        XCTAssertEqual(model.menuEditor.editingMenuIndex, 0)
         model.selectPage(.privacyAndPermissions)
         XCTAssertEqual(model.page, .menu)
-        model.editingMenuIndex = nil
+        model.menuEditor.editingMenuIndex = nil
         model.selectPage(.privacyAndPermissions)
         XCTAssertEqual(model.page, .privacyAndPermissions)
     }
@@ -2110,14 +2110,14 @@ final class SettingsWindowControllerTests: XCTestCase {
             inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")],
             validateInputs: true
         )
-        model.saveMenuItemConfiguration(candidate)
+        model.menuEditor.saveMenuItemConfiguration(candidate)
         XCTAssertEqual(
             model.editor.configuration.actions.first?.input,
             .string("https://spinnet.dev")
         )
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration, original)
-        model.redoSlotEdit()
+        model.menuEditor.redoSlotEdit()
         XCTAssertEqual(
             model.editor.configuration.actions.first?.input,
             .string("https://spinnet.dev")
@@ -2134,25 +2134,25 @@ final class SettingsWindowControllerTests: XCTestCase {
             defaults: defaults
         )
         var savedConfiguration: HostConfiguration?
-        model.onConfigurationChanged = { savedConfiguration = $0 }
+        model.menuEditor.onConfigurationChanged = { savedConfiguration = $0 }
 
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
-        XCTAssertEqual(model.selectedMenuIndex, 1)
+        XCTAssertEqual(model.menuEditor.selectedMenuIndex, 1)
         XCTAssertNil(model.editor.configuration.menu.slots[1].item)
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 1))
         XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
-        XCTAssertEqual(model.editingMenuIndex, 1)
+        XCTAssertEqual(model.menuEditor.editingMenuIndex, 1)
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
     }
 
     func testPlacingAPluginPresetBindsItsDefaultAlternateActionToTheSlot() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 1))
 
         let item = try XCTUnwrap(model.editor.configuration.menu.slots[1].item)
         XCTAssertEqual(item.alternateActionIDs.count, 1)
@@ -2227,7 +2227,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             metadata: .current
         )
 
-        let sections = model.librarySections(matching: "")
+        let sections = model.menuEditor.librarySections(matching: "")
 
         XCTAssertEqual(sections.map(\.source), [.builtIn, .plugin])
         XCTAssertEqual(sections.map { $0.presets.count }, [1, 1])
@@ -2237,13 +2237,13 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(sections[1].presets[0].stateLabel, "Setup Required")
         XCTAssertEqual(sections[1].presets[0].configurationLabel, "Configurable")
         XCTAssertEqual(
-            model.librarySections(matching: "documentation").flatMap(\.presets).map(\.name),
+            model.menuEditor.librarySections(matching: "documentation").flatMap(\.presets).map(\.name),
             ["Search Tools"]
         )
         let emptyConfiguration = model.editor.configuration
-        XCTAssertFalse(model.placePreset(pluginID: plugin.id.rawValue, at: 0))
+        XCTAssertFalse(model.menuEditor.placePreset(pluginID: plugin.id.rawValue, at: 0))
         XCTAssertEqual(model.editor.configuration, emptyConfiguration)
-        XCTAssertEqual(model.placementMessage, "Invalid Action: Preset requires setup")
+        XCTAssertEqual(model.menuEditor.placementMessage, "Invalid Action: Preset requires setup")
         for accessibleName in [
             "Built-in Presets",
             "Plugin Presets",
@@ -2255,7 +2255,7 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         try registry.setEnabled(false, for: plugin.id)
         let unavailablePreset = try XCTUnwrap(
-            model.librarySections(matching: "Search Tools").flatMap(\.presets).first
+            model.menuEditor.librarySections(matching: "Search Tools").flatMap(\.presets).first
         )
         XCTAssertEqual(unavailablePreset.stateLabel, "Unavailable")
         XCTAssertTrue(unavailablePreset.accessibilityLabel.contains("Plugin is disabled"))
@@ -2265,70 +2265,70 @@ final class SettingsWindowControllerTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         let originalConfiguration = model.editor.configuration
 
-        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 0))
+        XCTAssertFalse(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 0))
         XCTAssertEqual(model.editor.configuration, originalConfiguration)
         XCTAssertEqual(
-            model.presetPendingReplacement,
+            model.menuEditor.presetPendingReplacement,
             PendingPresetReplacement(pluginID: "com.spinnet.fixture", slotIndex: 0)
         )
 
-        model.confirmPresetReplacement()
+        model.menuEditor.confirmPresetReplacement()
 
         XCTAssertNotEqual(model.editor.configuration, originalConfiguration)
-        XCTAssertNil(model.presetPendingReplacement)
-        XCTAssertTrue(model.canUndoSlotEdit)
+        XCTAssertNil(model.menuEditor.presetPendingReplacement)
+        XCTAssertTrue(model.menuEditor.canUndoSlotEdit)
 
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
 
         XCTAssertEqual(model.editor.configuration, originalConfiguration)
     }
 
     func testOccupiedAndEmptySlotsReorderAlongShortestArcAndUndoRestoresIdentity() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.addEmptySlot()
         let original = model.editor.configuration
-        let ids = model.slotIDs
-        XCTAssertTrue(model.moveSlot(from: 0, to: 2))
-        XCTAssertEqual(model.slotIDs, [ids[2], ids[1], ids[0]])
+        let ids = model.menuEditor.slotIDs
+        XCTAssertTrue(model.menuEditor.moveSlot(from: 0, to: 2))
+        XCTAssertEqual(model.menuEditor.slotIDs, [ids[2], ids[1], ids[0]])
         XCTAssertEqual(model.editor.configuration.menu.slots[2], original.menu.slots[0])
-        XCTAssertTrue(model.moveSlot(from: 0, to: 1))
-        XCTAssertEqual(model.slotIDs, [ids[1], ids[2], ids[0]])
-        model.undoSlotEdit()
-        model.undoSlotEdit()
-        XCTAssertEqual(model.slotIDs, ids)
+        XCTAssertTrue(model.menuEditor.moveSlot(from: 0, to: 1))
+        XCTAssertEqual(model.menuEditor.slotIDs, [ids[1], ids[2], ids[0]])
+        model.menuEditor.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
+        XCTAssertEqual(model.menuEditor.slotIDs, ids)
         XCTAssertEqual(model.editor.configuration, original)
-        model.redoSlotEdit()
-        XCTAssertEqual(model.slotIDs, [ids[2], ids[1], ids[0]])
+        model.menuEditor.redoSlotEdit()
+        XCTAssertEqual(model.menuEditor.slotIDs, [ids[2], ids[1], ids[0]])
     }
 
 
     func testMenuItemAliasMovesWithTheMenuItem() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
         try model.editor.renameMenuItem(at: 0, name: "Pinned")
 
-        XCTAssertTrue(model.moveSlot(from: 0, to: 1))
+        XCTAssertTrue(model.menuEditor.moveSlot(from: 0, to: 1))
         XCTAssertNil(model.editor.configuration.menu.slots[0].item?.alias)
         XCTAssertEqual(model.editor.configuration.menu.slots[1].item?.alias, "Pinned")
-        XCTAssertEqual(model.menuSlots[1].title, "Pinned")
+        XCTAssertEqual(model.menuEditor.menuSlots[1].title, "Pinned")
     }
 
     func testDeletionRequiresConfirmationAndRemovesTheWholeOccupiedSlot() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.selectMenuItem(at: 0)
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.selectMenuItem(at: 0)
         let original = model.editor.configuration
-        model.requestSelectedSlotDeletion()
+        model.menuEditor.requestSelectedSlotDeletion()
         XCTAssertEqual(model.editor.configuration, original)
-        XCTAssertNotNil(model.slotPendingDeletion)
-        model.cancelSlotDeletion()
+        XCTAssertNotNil(model.menuEditor.slotPendingDeletion)
+        model.menuEditor.cancelSlotDeletion()
         XCTAssertEqual(model.editor.configuration, original)
-        model.requestSelectedSlotDeletion()
-        model.confirmSlotDeletion()
+        model.menuEditor.requestSelectedSlotDeletion()
+        model.menuEditor.confirmSlotDeletion()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration, original)
     }
 
@@ -2400,9 +2400,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             editor: HostConfigurationEditor(registry: registry, configuration: configuration),
             metadata: .current
         )
-        model.onConfigurationChanged = { try? store.save($0) }
+        model.menuEditor.onConfigurationChanged = { try? store.save($0) }
 
-        XCTAssertTrue(model.placePreset(pluginID: manifest.id.rawValue, at: 0))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: manifest.id.rawValue, at: 0))
 
         let restartedConfiguration = try XCTUnwrap(store.load())
         let item = try XCTUnwrap(restartedConfiguration.menu.slots[0].item)
@@ -2420,7 +2420,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         XCTAssertEqual(runtimeSlots[0].item?.primaryAction.title, "Primary")
         XCTAssertEqual(runtimeSlots[0].item?.alternateActions.map(\.title), ["Alternate"])
-        XCTAssertNil(model.editingMenuIndex)
+        XCTAssertNil(model.menuEditor.editingMenuIndex)
     }
 
     func testReadyPresetRejectsADefaultThatCannotRunImmediately() {
@@ -2491,12 +2491,12 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testPluginPresetOnlyExposesAddForAnEmptyFocusedSlot() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
 
         XCTAssertTrue(model.accessibleNames.contains("Add Fixture to selected Slot"))
         XCTAssertFalse(model.accessibleNames.contains("Replace selected Slot with Fixture"))
 
-        model.selectMenuItem(at: 0)
+        model.menuEditor.selectMenuItem(at: 0)
 
         XCTAssertFalse(model.accessibleNames.contains("Add Fixture to selected Slot"))
         XCTAssertFalse(model.accessibleNames.contains("Replace selected Slot with Fixture"))
@@ -2504,14 +2504,14 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testDeleteSelectedContentRemovesAnEmptySlotAtTheSettingsWorkflowSeam() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.selectMenuItem(at: 1)
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.selectMenuItem(at: 1)
         var savedConfiguration: HostConfiguration?
-        model.onConfigurationChanged = { savedConfiguration = $0 }
+        model.menuEditor.onConfigurationChanged = { savedConfiguration = $0 }
 
-        model.requestSelectedSlotDeletion()
+        model.menuEditor.requestSelectedSlotDeletion()
         XCTAssertNil(savedConfiguration)
-        model.confirmSlotDeletion()
+        model.menuEditor.confirmSlotDeletion()
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertEqual(savedConfiguration, model.editor.configuration)
@@ -2519,21 +2519,21 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testPendingDeletionTracksSlotIdentityAcrossReorderAndRejectsStaleDrags() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        let occupiedID = model.slotIDs[0]
-        XCTAssertTrue(model.requestSlotDeletion(at: 0))
-        XCTAssertTrue(model.moveSlot(from: 0, to: 1))
-        model.confirmSlotDeletion()
+        model.menuEditor.addEmptySlot()
+        let occupiedID = model.menuEditor.slotIDs[0]
+        XCTAssertTrue(model.menuEditor.requestSlotDeletion(at: 0))
+        XCTAssertTrue(model.menuEditor.moveSlot(from: 0, to: 1))
+        model.menuEditor.confirmSlotDeletion()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
-        XCTAssertFalse(model.moveSlot(id: occupiedID, to: 0))
-        XCTAssertFalse(model.requestSlotDeletion(id: occupiedID))
-        XCTAssertFalse(model.requestSlotDeletion(at: 0))
-        XCTAssertNil(model.slotPendingDeletion)
-        model.undoSlotEdit()
-        XCTAssertEqual(model.slotIDs[1], occupiedID)
-        model.undoSlotEdit()
-        XCTAssertEqual(model.slotIDs[0], occupiedID)
+        XCTAssertFalse(model.menuEditor.moveSlot(id: occupiedID, to: 0))
+        XCTAssertFalse(model.menuEditor.requestSlotDeletion(id: occupiedID))
+        XCTAssertFalse(model.menuEditor.requestSlotDeletion(at: 0))
+        XCTAssertNil(model.menuEditor.slotPendingDeletion)
+        model.menuEditor.undoSlotEdit()
+        XCTAssertEqual(model.menuEditor.slotIDs[1], occupiedID)
+        model.menuEditor.undoSlotEdit()
+        XCTAssertEqual(model.menuEditor.slotIDs[0], occupiedID)
     }
 
 
@@ -2545,18 +2545,18 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.onConfigurationChanged = { try? store.save($0) }
+        model.menuEditor.onConfigurationChanged = { try? store.save($0) }
 
-        model.addEmptySlot()
-        XCTAssertTrue(model.canUndoSlotEdit)
+        model.menuEditor.addEmptySlot()
+        XCTAssertTrue(model.menuEditor.canUndoSlotEdit)
         XCTAssertEqual(try store.load()?.menu.slots.count, 2)
 
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertEqual(try store.load()?.menu.slots.count, 1)
-        XCTAssertTrue(model.canRedoSlotEdit)
+        XCTAssertTrue(model.menuEditor.canRedoSlotEdit)
 
-        model.redoSlotEdit()
+        model.menuEditor.redoSlotEdit()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
         XCTAssertNil(model.editor.configuration.menu.slots[1].item)
         XCTAssertEqual(try store.load(), model.editor.configuration)
@@ -2564,15 +2564,15 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testUndoRestoresTheExactOccupiedSlotAfterConfirmedDeletion() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.selectMenuItem(at: 0)
-        model.requestSelectedSlotDeletion()
-        model.confirmSlotDeletion()
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.selectMenuItem(at: 0)
+        model.menuEditor.requestSelectedSlotDeletion()
+        model.menuEditor.confirmSlotDeletion()
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 1)
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
 
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
         XCTAssertEqual(
@@ -2586,7 +2586,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
 
         for _ in 1..<13 {
-            model.addEmptySlot()
+            model.menuEditor.addEmptySlot()
         }
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 12)
@@ -2595,20 +2595,20 @@ final class SettingsWindowControllerTests: XCTestCase {
 
     func testPlacementAndSlotAdditionUndoAsSeparateCompositionEdits() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.addEmptySlot()
-        model.addEmptySlot()
-        XCTAssertTrue(model.canUndoSlotEdit)
+        model.menuEditor.addEmptySlot()
+        model.menuEditor.addEmptySlot()
+        XCTAssertTrue(model.menuEditor.canUndoSlotEdit)
 
-        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
+        XCTAssertTrue(model.menuEditor.placePreset(pluginID: "com.spinnet.fixture", at: 2))
 
-        XCTAssertTrue(model.canUndoSlotEdit)
-        model.undoSlotEdit()
+        XCTAssertTrue(model.menuEditor.canUndoSlotEdit)
+        model.menuEditor.undoSlotEdit()
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 3)
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertNil(model.editor.configuration.menu.slots[1].item)
         XCTAssertNil(model.editor.configuration.menu.slots[2].item)
 
-        model.undoSlotEdit()
+        model.menuEditor.undoSlotEdit()
 
         XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
@@ -3200,9 +3200,9 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        model.onConfigurationChanged = { try? store.save($0) }
+        model.menuEditor.onConfigurationChanged = { try? store.save($0) }
 
-        model.addEmptySlot()
+        model.menuEditor.addEmptySlot()
 
         let restartedConfiguration = try XCTUnwrap(store.load())
         let runtimeSlots = MenuPresentationFactory.makeSlots(

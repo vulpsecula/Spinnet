@@ -26,8 +26,8 @@ final class SettingsWindowController: NSWindowController {
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
     var installPlugin: ((URL) throws -> PluginManifest)? {
-        get { model.installPlugin }
-        set { model.installPlugin = newValue }
+        get { model.menuEditor.installPlugin }
+        set { model.menuEditor.installPlugin = newValue }
     }
 
     var onClipboardHistoryChanged: (() -> Void)? {
@@ -73,10 +73,10 @@ final class SettingsWindowController: NSWindowController {
     }
     var canUndoAppearance: Bool { model.appearance.canUndo }
     var canRedoAppearance: Bool { model.appearance.canRedo }
-    var pendingPresetSetup: PendingPresetSetup? { model.pendingPresetSetup }
-    var editingMenuIndex: Int? { model.editingMenuIndex }
-    var selectedMenuIndex: Int { model.selectedMenuIndex }
-    var placementMessage: String? { model.placementMessage }
+    var pendingPresetSetup: PendingPresetSetup? { model.menuEditor.pendingPresetSetup }
+    var editingMenuIndex: Int? { model.menuEditor.editingMenuIndex }
+    var selectedMenuIndex: Int { model.menuEditor.selectedMenuIndex }
+    var placementMessage: String? { model.menuEditor.placementMessage }
 
     init(
         editor: HostConfigurationEditor,
@@ -123,7 +123,7 @@ final class SettingsWindowController: NSWindowController {
             hostingView.topAnchor.constraint(equalTo: contentView.topAnchor),
             hostingView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
-        model.onConfigurationChanged = { [weak self] configuration in
+        model.menuEditor.onConfigurationChanged = { [weak self] configuration in
             self?.onConfigurationChanged?(configuration)
         }
         model.appearance.onChange = { [weak self] appearance in
@@ -147,7 +147,7 @@ final class SettingsWindowController: NSWindowController {
             workspaceObservers.append(
                 workspaceNotifications.addObserver(forName: name, object: nil, queue: .main) { [weak model] _ in
                     model?.trigger.refreshConflicts()
-                    model?.refreshMenuSlots()
+                    model?.menuEditor.refreshMenuSlots()
                 }
             )
         }
@@ -166,7 +166,7 @@ final class SettingsWindowController: NSWindowController {
     func present() {
         model.privacy.refreshSystemPermissionStatus()
         model.trigger.refreshConflicts()
-        model.refreshMenuSlots()
+        model.menuEditor.refreshMenuSlots()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         if let hostingView {
@@ -196,7 +196,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func cancelPresetSetup() {
-        model.cancelPresetSetup()
+        model.menuEditor.cancelPresetSetup()
     }
 
     /// The observable Settings window seam used by host-level UI tests.

@@ -186,7 +186,7 @@ final class HostServicesTests: XCTestCase {
         let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: restoredGrants))
         for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied] {
             model.privacy.setCapabilityDecision(decision, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
-            XCTAssertEqual(model.menuSlots.first?.item?.primaryAction.availability.isAvailable, decision == .granted)
+            XCTAssertEqual(model.menuEditor.menuSlots.first?.item?.primaryAction.availability.isAvailable, decision == .granted)
             XCTAssertEqual(editor.configuration, configuration)
             if decision == .granted {
                 guard case .succeeded = runner.invoke(action, using: restoredRegistry).terminal else { return XCTFail("Repair must execute") }
