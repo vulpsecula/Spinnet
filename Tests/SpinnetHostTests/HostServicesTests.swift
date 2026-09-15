@@ -49,10 +49,10 @@ final class HostServicesTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = SettingsWindowModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration),
             metadata: .current, capabilityGrantStore: grants, defaults: defaults, accessibilityPermissionCheck: { true })
-        XCTAssertEqual(model.pendingCapabilityRequests(for: expanded), [.readSelectedText])
-        model.pluginSettingsManifest = expanded
-        model.installationConsentPresented = true
-        model.finishPluginConsent(grant: false)
+        XCTAssertEqual(model.privacy.pendingCapabilityRequests(for: expanded), [.readSelectedText])
+        model.privacy.pluginSettingsManifest = expanded
+        model.privacy.installationConsentPresented = true
+        model.privacy.finishPluginConsent(grant: false)
         XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .writeClipboard), .granted)
         XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .readSelectedText), .denied)
         let updatedRunner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants))
@@ -185,7 +185,7 @@ final class HostServicesTests: XCTestCase {
         let adapter = RecordingHostCommandAdapter()
         let runner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: restoredGrants))
         for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied] {
-            model.setCapabilityDecision(decision, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
+            model.privacy.setCapabilityDecision(decision, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
             XCTAssertEqual(model.menuSlots.first?.item?.primaryAction.availability.isAvailable, decision == .granted)
             XCTAssertEqual(editor.configuration, configuration)
             if decision == .granted {

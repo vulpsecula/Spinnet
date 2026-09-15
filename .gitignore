@@ -4,5 +4,7 @@ DerivedData/
 dist/
 /docs/
 /.codex/
+/.agents/
+/.claude/skills/
 .DS_Store
 *.swp

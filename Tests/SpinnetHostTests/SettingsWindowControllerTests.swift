@@ -1660,7 +1660,7 @@ final class SettingsWindowControllerTests: XCTestCase {
                 metadata: .current, capabilityGrantStore: grants, defaults: defaults, clipboardHistoryStore: h.store,
                 accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
             model.installPlugin = { try installer.install(from: $0) }
-            model.onCapabilityGrantChanged = { values in
+            model.privacy.onGrantsChanged = { values in
                 do { try JSONEncoder().encode(values).write(to: grantsURL, options: .atomic) }
                 catch { XCTFail("Grant persistence failed: \(error)") }
             }
@@ -1682,28 +1682,28 @@ final class SettingsWindowControllerTests: XCTestCase {
         try h.collector.poll()
         let (settings, registry) = try session()
         settings.installPluginPackage(at: try source(types: ["text"], version: "1"))
-        XCTAssertTrue(settings.installationConsentPresented)
-        settings.finishPluginConsent(grant: true)
+        XCTAssertTrue(settings.privacy.installationConsentPresented)
+        settings.privacy.finishPluginConsent(grant: true)
         XCTAssertEqual(try h.query(XCTUnwrap(registry.package(for: PluginID("reader")))) .entries.map(\.text), ["pre-grant text"])
         settings.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
         let updated = try XCTUnwrap(registry.package(for: PluginID("reader")))
-        XCTAssertTrue(settings.installationConsentPresented)
-        XCTAssertEqual(settings.pendingCapabilityRequests(for: updated.manifest), [.readClipboardHistory])
+        XCTAssertTrue(settings.privacy.installationConsentPresented)
+        XCTAssertEqual(settings.privacy.pendingCapabilityRequests(for: updated.manifest), [.readClipboardHistory])
         XCTAssertThrowsError(try h.query(updated))
-        settings.finishPluginConsent(grant: false)
+        settings.privacy.finishPluginConsent(grant: false)
         XCTAssertThrowsError(try h.query(updated))
         try restart()
         let (deniedSettings, deniedRegistry) = try session()
         let denied = try XCTUnwrap(deniedRegistry.package(for: PluginID("reader")))
         XCTAssertEqual(denied.manifest.version, "2")
         XCTAssertThrowsError(try h.query(denied))
-        deniedSettings.showPluginSettings(denied.manifest.id)
-        deniedSettings.setCapabilityDecision(.granted, for: denied.manifest.id, pluginVersion: "2", capability: .readClipboardHistory)
+        deniedSettings.privacy.showPluginSettings(denied.manifest.id)
+        deniedSettings.privacy.setCapabilityDecision(.granted, for: denied.manifest.id, pluginVersion: "2", capability: .readClipboardHistory)
         XCTAssertEqual(Set(try h.query(denied).entries.map(\.contentType)), [.text, .image])
         try restart()
         let (restoredSettings, restoredRegistry) = try session()
         let restored = try XCTUnwrap(restoredRegistry.package(for: PluginID("reader")))
-        XCTAssertEqual(restoredSettings.pendingCapabilityRequests(for: restored.manifest), [])
+        XCTAssertEqual(restoredSettings.privacy.pendingCapabilityRequests(for: restored.manifest), [])
         let image = try XCTUnwrap(h.query(restored).entries.first { $0.contentType == .image })
         XCTAssertEqual(try h.chunk(restored, id: image.id).data, Data([1, 2, 3]))
     }
@@ -1851,9 +1851,9 @@ final class SettingsWindowControllerTests: XCTestCase {
             mouseInputConflictCheck: { _ in [] }
         )
 
-        XCTAssertTrue(model.permissionGuidePresented)
-        model.dismissPermissionGuide()
-        XCTAssertFalse(model.permissionGuidePresented)
+        XCTAssertTrue(model.privacy.permissionGuidePresented)
+        model.privacy.dismissPermissionGuide()
+        XCTAssertFalse(model.privacy.permissionGuidePresented)
         XCTAssertTrue(defaults.bool(forKey: "privacy.permission-guide-shown"))
 
         model.appearance.theme = "Dark"
@@ -1895,7 +1895,7 @@ final class SettingsWindowControllerTests: XCTestCase {
             accessibilityPermissionCheck: { true },
             mouseInputConflictCheck: { _ in [] }
         )
-        XCTAssertFalse(restored.permissionGuidePresented)
+        XCTAssertFalse(restored.privacy.permissionGuidePresented)
         XCTAssertTrue(restored.clipboardHistory.collectionEnabled)
         XCTAssertTrue(restored.clipboardHistory.collectionPaused)
         XCTAssertEqual(restored.clipboardHistory.retention, .oneWeek)
@@ -3272,12 +3272,12 @@ final class SettingsWindowControllerTests: XCTestCase {
             metadata: .current,
             accessibilityPermissionCheck: { isTrusted }
         )
-        XCTAssertFalse(model.accessibilityPermissionGranted)
+        XCTAssertFalse(model.privacy.accessibilityPermissionGranted)
 
         isTrusted = true
-        model.refreshSystemPermissionStatus()
+        model.privacy.refreshSystemPermissionStatus()
 
-        XCTAssertTrue(model.accessibilityPermissionGranted)
+        XCTAssertTrue(model.privacy.accessibilityPermissionGranted)
     }
 
     private func makeController(emptySlotCount: Int = 0) throws -> SettingsWindowController {

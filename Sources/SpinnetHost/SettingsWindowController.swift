@@ -40,7 +40,7 @@ final class SettingsWindowController: NSWindowController {
     }
     func showPluginSettings(_ pluginID: PluginID) {
         model.selectPage(.menu)
-        model.showPluginSettings(pluginID)
+        model.privacy.showPluginSettings(pluginID)
         present()
     }
 
@@ -58,7 +58,7 @@ final class SettingsWindowController: NSWindowController {
         model.page
     }
 
-    var permissionGuidePresented: Bool { model.permissionGuidePresented }
+    var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
     var clipboardCollectionEnabled: Bool {
         get { model.clipboardHistory.collectionEnabled }
         set { model.clipboardHistory.collectionEnabled = newValue }
@@ -135,7 +135,7 @@ final class SettingsWindowController: NSWindowController {
         model.onMouseCaptureChanged = { [weak self] isCapturing, capture in
             self?.onMouseCaptureChanged?(isCapturing, capture)
         }
-        model.onCapabilityGrantChanged = { [weak self] grants in
+        model.privacy.onGrantsChanged = { [weak self] grants in
             self?.onCapabilityGrantChanged?(grants)
         }
         let workspaceNotifications = NSWorkspace.shared.notificationCenter
@@ -164,7 +164,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func present() {
-        model.refreshSystemPermissionStatus()
+        model.privacy.refreshSystemPermissionStatus()
         model.trigger.refreshConflicts()
         model.refreshMenuSlots()
         showWindow(nil)
@@ -176,11 +176,11 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func refreshSystemPermissionStatus() {
-        model.refreshSystemPermissionStatus()
+        model.privacy.refreshSystemPermissionStatus()
     }
 
     func dismissPermissionGuide() {
-        model.dismissPermissionGuide()
+        model.privacy.dismissPermissionGuide()
     }
 
     func undoAppearance() {
@@ -226,7 +226,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     var capabilityGrants: [PluginCapabilityGrant] {
-        model.capabilityGrants
+        model.privacy.capabilityGrants
     }
 
     func setCapabilityDecision(
@@ -235,7 +235,7 @@ final class SettingsWindowController: NSWindowController {
         pluginVersion: String,
         capability: PluginCapability
     ) {
-        model.setCapabilityDecision(
+        model.privacy.setCapabilityDecision(
             decision,
             for: pluginID,
             pluginVersion: pluginVersion,

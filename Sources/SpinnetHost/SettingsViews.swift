@@ -209,24 +209,15 @@ final class SettingsWindowModel: ObservableObject {
     @Published private(set) var pendingPresetSetup: PendingPresetSetup?
     @Published private(set) var refreshToken = 0
     @Published private(set) var menuSlots: [MenuSlotPresentation]
-    @Published private(set) var capabilityGrants: [PluginCapabilityGrant]
-    @Published var pluginSettingsManifest: PluginManifest?
-    @Published var installationConsentPresented = false
     var installPlugin: ((URL) throws -> PluginManifest)?
-    private var grantObserver: UUID?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
-    @Published private(set) var accessibilityPermissionGranted: Bool
     /// Clipboard History settings own their own state, persistence and
     /// submission to the Store.
     let clipboardHistory: ClipboardHistorySettingsModel
-    @Published var permissionGuidePresented: Bool {
-        didSet {
-            if !permissionGuidePresented {
-                defaults.set(true, forKey: Keys.permissionGuideShown)
-            }
-        }
-    }
+    /// Privacy & Permissions owns System Permission status, Capability
+    /// decisions, and the consent sheet.
+    let privacy: PrivacyPermissionsModel
     /// The Menu Trigger owns its own values, persistence and conflict detection.
     let trigger: MenuTriggerModel
     /// Appearance owns its own values, persistence and undo history.
@@ -234,10 +225,7 @@ final class SettingsWindowModel: ObservableObject {
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
-    var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
     private let defaults: UserDefaults
-    private let capabilityGrantStore: PluginCapabilityGrantStore
-    private let accessibilityPermissionCheck: () -> Bool
     var editorSlots: [EditorMenuSlot] {
         zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
     }
@@ -253,7 +241,6 @@ final class SettingsWindowModel: ObservableObject {
     private var redoHistory: [MenuHistoryEntry] = []
 
     private enum Keys {
-        static let permissionGuideShown = "privacy.permission-guide-shown"
     }
 
     init(
@@ -269,30 +256,22 @@ final class SettingsWindowModel: ObservableObject {
     ) {
         self.editor = editor
         self.metadata = metadata
-        self.capabilityGrantStore = capabilityGrantStore
         self.defaults = defaults
-        self.accessibilityPermissionCheck = accessibilityPermissionCheck
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         menuSlots = []
-        capabilityGrants = []
-        accessibilityPermissionGranted = accessibilityPermissionCheck()
+        privacy = PrivacyPermissionsModel(
+            grantStore: capabilityGrantStore,
+            manifests: { [editor] in editor.pluginManifests },
+            accessibilityPermissionCheck: accessibilityPermissionCheck,
+            defaults: defaults
+        )
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
-        permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         menuSlots = makeMenuSlots()
-        refreshCapabilityGrants()
-        grantObserver = capabilityGrantStore.observeChanges { [weak self] in
-            let refresh = { [weak self] in
-                self?.refreshCapabilityGrants()
-                self?.refreshMenuSlots()
-            }
-            if Thread.isMainThread { refresh() } else { DispatchQueue.main.async(execute: refresh) }
-        }
-    }
-
-    deinit {
-        if let grantObserver { capabilityGrantStore.removeChangeObserver(grantObserver) }
+        // Authority decides Menu Item availability, so a grant or permission
+        // change has to recompute the Slots.
+        privacy.onAuthorityChanged = { [weak self] in self?.refreshMenuSlots() }
     }
 
     func choosePluginPackage() {
@@ -311,39 +290,13 @@ final class SettingsWindowModel: ObservableObject {
         do {
             guard let installPlugin else { return }
             let manifest = try installPlugin(url)
-            refreshCapabilityGrants()
             refreshMenuSlots()
             refreshToken += 1
-            installationConsentPresented = !pendingCapabilityRequests(for: manifest).isEmpty
-            pluginSettingsManifest = installationConsentPresented ? manifest : nil
-            if !installationConsentPresented {
+            if !privacy.beginInstallationConsent(for: manifest) {
                 placementMessage = "\(manifest.name) installed. Existing access decisions retained."
             }
         } catch {
             placementMessage = "Installation failed: \(error.localizedDescription)"
-        }
-    }
-
-    func showPluginSettings(_ pluginID: PluginID) {
-        installationConsentPresented = false
-        refreshCapabilityGrants()
-        pluginSettingsManifest = editor.pluginManifests.first { $0.id == pluginID }
-    }
-
-    func finishPluginConsent(grant: Bool) {
-        guard let manifest = pluginSettingsManifest else { return }
-        for capability in pendingCapabilityRequests(for: manifest) {
-            setCapabilityDecision(grant ? .granted : .denied, for: manifest.id,
-                                  pluginVersion: manifest.version, capability: capability)
-        }
-        pluginSettingsManifest = nil
-        installationConsentPresented = false
-    }
-
-    func pendingCapabilityRequests(for manifest: PluginManifest) -> [PluginCapability] {
-        manifest.capabilities.filter {
-            capabilityGrantStore.decision(for: manifest.id, pluginVersion: manifest.version,
-                capability: $0, scope: manifest.scope(for: $0)) == .notDetermined
         }
     }
 
@@ -382,50 +335,12 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
-    func dismissPermissionGuide() {
-        permissionGuidePresented = false
-        defaults.set(true, forKey: Keys.permissionGuideShown)
-    }
-
     func selectPage(_ page: SettingsPage) {
         guard editingMenuIndex == nil else { return }
         if page.showsEditorMode {
             refreshMenuSlots()
         }
         self.page = page
-    }
-
-    func refreshSystemPermissionStatus() {
-        accessibilityPermissionGranted = accessibilityPermissionCheck()
-        refreshMenuSlots()
-    }
-
-    func refreshCapabilityGrants() {
-        capabilityGrants = editor.pluginManifests.flatMap { manifest in
-            manifest.capabilities.map { capability in
-                PluginCapabilityGrant(pluginID: manifest.id, pluginVersion: manifest.version, capability: capability,
-                    decision: capabilityGrantStore.decision(for: manifest.id, pluginVersion: manifest.version,
-                        capability: capability, scope: manifest.scope(for: capability)), scope: manifest.scope(for: capability))
-            }
-        }
-    }
-
-    func setCapabilityDecision(
-        _ decision: PluginCapabilityGrantDecision,
-        for pluginID: PluginID,
-        pluginVersion: String,
-        capability: PluginCapability
-    ) {
-        capabilityGrantStore.setDecision(
-            decision,
-            for: pluginID,
-            pluginVersion: pluginVersion,
-            capability: capability,
-            scope: editor.pluginManifests.first { $0.id == pluginID && $0.version == pluginVersion }?.scope(for: capability)
-        )
-        refreshCapabilityGrants()
-        refreshMenuSlots()
-        onCapabilityGrantChanged?(capabilityGrantStore.allGrants)
     }
 
     var accessibleNames: [String] {
@@ -457,11 +372,11 @@ final class SettingsWindowModel: ObservableObject {
                 "Pause Clipboard History collection",
                 "Clipboard retention"
             ])
-            names.append(contentsOf: capabilityGrants.map { grant in
+            names.append(contentsOf: privacy.capabilityGrants.map { grant in
                 "\(grant.capability.title): \(grant.decision.title)"
             })
         }
-        if permissionGuidePresented {
+        if privacy.permissionGuidePresented {
             names.append("Spinnet Permissions")
             names.append("Open Accessibility Settings")
             names.append("Skip for now")
@@ -835,6 +750,7 @@ struct SettingsRootView: View {
     @ObservedObject var appearance: MenuAppearanceModel
     @ObservedObject var trigger: MenuTriggerModel
     @ObservedObject var clipboardHistory: ClipboardHistorySettingsModel
+    @ObservedObject var privacy: PrivacyPermissionsModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
@@ -842,6 +758,7 @@ struct SettingsRootView: View {
         self.appearance = model.appearance
         self.trigger = model.trigger
         self.clipboardHistory = model.clipboardHistory
+        self.privacy = model.privacy
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -872,11 +789,11 @@ struct SettingsRootView: View {
         }
         .onChange(of: model.page) { focusedPage = $0 }
         .sheet(isPresented: Binding(
-            get: { model.pluginSettingsManifest != nil },
-            set: { if !$0 { model.pluginSettingsManifest = nil } }
+            get: { privacy.pluginSettingsManifest != nil },
+            set: { if !$0 { privacy.pluginSettingsManifest = nil } }
         )) {
-            if let manifest = model.pluginSettingsManifest {
-                PluginConsentSheet(model: model, manifest: manifest)
+            if let manifest = privacy.pluginSettingsManifest {
+                PluginConsentSheet(privacy: privacy, manifest: manifest)
             }
         }
         .alert(model.deletionTitle, isPresented: Binding(
@@ -899,10 +816,10 @@ struct SettingsRootView: View {
             Text("The current Menu Item and its Actions will be replaced by the selected Preset.")
         }
         .overlay(alignment: .topTrailing) {
-            if model.permissionGuidePresented {
+            if privacy.permissionGuidePresented {
                 PermissionGuideBanner(
                     openSettings: openAccessibilitySettings,
-                    dismiss: model.dismissPermissionGuide
+                    dismiss: privacy.dismissPermissionGuide
                 )
                 .padding(16)
             }
@@ -1089,7 +1006,7 @@ struct SettingsRootView: View {
                 .accessibilityLabel("Clear keyboard shortcut")
             }
 
-            if model.accessibilityPermissionGranted {
+            if privacy.accessibilityPermissionGranted {
                 Label("Accessibility granted", systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1173,10 +1090,10 @@ struct SettingsRootView: View {
                     librarySectionsForQuery: model.librarySections,
                     onPresetPlacement: model.placePreset,
                     onInstallPlugin: model.choosePluginPackage,
-                    onPluginSettings: model.showPluginSettings
+                    onPluginSettings: privacy.showPluginSettings
                 )
                 .id(model.refreshToken)
-                .onAppear { model.refreshSystemPermissionStatus() }
+                .onAppear { privacy.refreshSystemPermissionStatus() }
             case .appearance:
                 AppearanceSettingsView(
                     theme: $appearance.theme,
@@ -1194,9 +1111,9 @@ struct SettingsRootView: View {
                 )
             case .privacyAndPermissions:
                 PrivacySettingsView(
-                    accessibilityPermissionGranted: model.accessibilityPermissionGranted,
+                    accessibilityPermissionGranted: privacy.accessibilityPermissionGranted,
                     pluginManifests: model.editor.pluginManifests,
-                    capabilityGrants: model.capabilityGrants,
+                    capabilityGrants: privacy.capabilityGrants,
                     clipboardCollectionEnabled: $clipboardHistory.collectionEnabled,
                     clipboardCollectionPaused: $clipboardHistory.collectionPaused,
                     clipboardRetention: $clipboardHistory.retention,
@@ -1207,10 +1124,10 @@ struct SettingsRootView: View {
                     addExcludedApplication: clipboardHistory.addExcludedApplication,
                     removeExcludedApplication: clipboardHistory.removeExcludedApplication,
                     exclusionsFocus: clipboardHistory.exclusionsFocus,
-                    setCapabilityDecision: model.setCapabilityDecision,
+                    setCapabilityDecision: privacy.setCapabilityDecision,
                     openURL: openURL
                 )
-                .onAppear { model.refreshSystemPermissionStatus() }
+                .onAppear { privacy.refreshSystemPermissionStatus() }
             case .about:
                 AboutSettingsView(metadata: model.metadata)
             }
@@ -1226,7 +1143,7 @@ struct SettingsRootView: View {
                     editor: model.editor,
                     slotIndex: index,
                     presetPluginID: model.pendingPresetSetup.map { PluginID($0.pluginID) },
-                    permissionModel: model,
+                    permissionModel: privacy,
                     onSaved: { configuration in
                         if let setup = model.pendingPresetSetup {
                             model.savePresetSetup(configuration, for: setup)
@@ -1340,7 +1257,7 @@ private struct SlotConfigurationSheet: View {
     let slotIndex: Int
     let presetPluginID: PluginID?
     let onSaved: (HostConfiguration) -> Void
-    private let permissionModel: SettingsWindowModel?
+    private let permissionModel: PrivacyPermissionsModel?
     private let pluginManifest: PluginManifest?
     private let pluginID: PluginID?
 
@@ -1357,7 +1274,7 @@ private struct SlotConfigurationSheet: View {
         editor: HostConfigurationEditor,
         slotIndex: Int,
         presetPluginID: PluginID? = nil,
-        permissionModel: SettingsWindowModel? = nil,
+        permissionModel: PrivacyPermissionsModel? = nil,
         onSaved: @escaping (HostConfiguration) -> Void
     ) {
         self.editor = editor
@@ -1399,7 +1316,7 @@ private struct SlotConfigurationSheet: View {
                         Divider()
                         actionParameters()
                         if let permissionModel {
-                            MenuItemAccessSummary(model: permissionModel, manifest: pluginManifest,
+                            MenuItemAccessSummary(privacy: permissionModel, manifest: pluginManifest,
                                                   commandIDs: Set(selectedCommands.map(\.id)),
                                                   inputs: Dictionary(uniqueKeysWithValues: selectedCommands.map {
                                                       ($0.id, inputValue(for: $0.id))

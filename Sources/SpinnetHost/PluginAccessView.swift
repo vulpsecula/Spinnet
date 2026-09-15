@@ -48,30 +48,30 @@ struct PluginAccessView: View {
 }
 
 struct PluginConsentSheet: View {
-    @ObservedObject var model: SettingsWindowModel
+    @ObservedObject var privacy: PrivacyPermissionsModel
     let manifest: PluginManifest
     var reviewInstallation: Bool? = nil
     var onDone: (() -> Void)? = nil
 
-    private var isInstallation: Bool { reviewInstallation ?? model.installationConsentPresented }
+    private var isInstallation: Bool { reviewInstallation ?? privacy.installationConsentPresented }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(isInstallation ? "Plugin Installed — Review Access" : "Plugin Settings")
                 .font(.title2.weight(.semibold))
             ScrollView {
-                PluginAccessView(manifest: manifest, grants: model.capabilityGrants,
-                                 setDecision: model.setCapabilityDecision)
+                PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
+                                 setDecision: privacy.setCapabilityDecision)
             }
             HStack {
                 if isInstallation {
-                    Button("Deny New Requests") { model.finishPluginConsent(grant: false) }
+                    Button("Deny New Requests") { privacy.finishPluginConsent(grant: false) }
                     Spacer()
-                    Button("Grant New Requests") { model.finishPluginConsent(grant: true) }
+                    Button("Grant New Requests") { privacy.finishPluginConsent(grant: true) }
                 } else {
                     Spacer()
                     Button("Done") {
-                        if let onDone { onDone() } else { model.pluginSettingsManifest = nil }
+                        if let onDone { onDone() } else { privacy.pluginSettingsManifest = nil }
                     }
                         .keyboardShortcut(.defaultAction)
                 }
@@ -83,7 +83,7 @@ struct PluginConsentSheet: View {
 }
 
 struct MenuItemAccessSummary: View {
-    @ObservedObject var model: SettingsWindowModel
+    @ObservedObject var privacy: PrivacyPermissionsModel
     let manifest: PluginManifest
     let commandIDs: Set<CommandID>
     let inputs: [CommandID: JSONValue]
@@ -99,7 +99,7 @@ struct MenuItemAccessSummary: View {
     }
 
     private func granted(_ capability: PluginCapability) -> Bool {
-        model.capabilityGrants.contains {
+        privacy.capabilityGrants.contains {
             $0.pluginID == manifest.id && $0.pluginVersion == manifest.version
                 && $0.capability == capability && $0.decision == .granted
         }
@@ -121,7 +121,7 @@ struct MenuItemAccessSummary: View {
             .padding(.top, 8)
         }
         .sheet(isPresented: $showingPluginSettings) {
-            PluginConsentSheet(model: model, manifest: manifest, reviewInstallation: false,
+            PluginConsentSheet(privacy: privacy, manifest: manifest, reviewInstallation: false,
                                onDone: { showingPluginSettings = false })
         }
     }
