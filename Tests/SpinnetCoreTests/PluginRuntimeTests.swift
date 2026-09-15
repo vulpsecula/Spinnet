@@ -18,7 +18,7 @@ final class PluginRuntimeTests: XCTestCase {
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()), registry: registry, grantStore: grants,
             processFactory: { launches += 1; return Process() })
         defer { supervisor.shutdown() }
-        try store.configure(enabled: true, paused: false, retentionDays: 1)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
         try store.observe(changeCount: 1, content: .init(text: "collected without a helper", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         XCTAssertEqual(launches, 0)
         let action = try ActionConfiguration(id: ActionID("history"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)

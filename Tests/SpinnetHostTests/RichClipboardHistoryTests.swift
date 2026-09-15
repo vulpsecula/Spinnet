@@ -26,7 +26,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         init(clock: Clock = Clock(), writeFile: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) throws {
             self.clock = clock
             store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { clock.read() }, writeFile: writeFile)
-            try store.configure(enabled: true, paused: false, retentionDays: 1)
+            try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
             collector = ClipboardCollector(store: store, changeCount: { [unowned self] in self.board.changeCount },
                 readContents: { [unowned self] in ClipboardCollector.readAll(from: self.board) },
                 sourceApplication: { [unowned self] in self.source })
@@ -596,7 +596,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         let text = try h.package(types: ["text"]); h.grant(text)
         XCTAssertThrowsError(try h.query(text))
         XCTAssertThrowsError(try h.chunk(text, id: id))
-        try h.store.clear()
+        try h.store.applyControl(.clear)
         XCTAssertEqual(try h.query(text).entries, [])
         try h.restart()
         XCTAssertEqual(try h.query(text).entries, [])
@@ -956,12 +956,12 @@ final class RichClipboardHistoryTests: XCTestCase {
         try h.collector.poll()
         let package = try h.package(types: ["binary"]); h.grant(package)
         let entry = try XCTUnwrap(h.query(package).entries.first)
-        try h.store.configure(enabled: true, paused: true, retentionDays: 1)
+        try h.store.applyControl(.configure(enabled: true, paused: true, retentionDays: 1))
         h.board.clearContents(); h.board.setData(Data([7]), forType: NSPasteboard.PasteboardType("com.example.binary"))
         try h.collector.poll()
         XCTAssertEqual(try h.query(package).state, .paused)
         XCTAssertEqual(try h.query(package).entries.map(\.id), [entry.id])
-        try h.store.turnOff(deleteEntries: false); try h.restart()
+        try h.store.applyControl(.turnOff(deleteEntries: false)); try h.restart()
         XCTAssertEqual(try h.query(package).state, .off)
         XCTAssertEqual(try h.chunk(package, id: entry.id, offset: 196_608).data.count, 103_392)
         h.clock.now = h.clock.now.addingTimeInterval(86_400)
@@ -1225,7 +1225,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         h.grant(package, decision: .denied)
         XCTAssertThrowsError(try h.chunk(package, id: entry.id, offset: offset))
         h.grant(package)
-        try h.store.clear()
+        try h.store.applyControl(.clear)
         XCTAssertThrowsError(try h.chunk(package, id: entry.id))
     }
 

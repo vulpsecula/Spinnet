@@ -194,22 +194,18 @@ public final class ClipboardHistoryStore {
         lifecycleLock.unlock()
     }
 
-    /// Synchronous adapters are for non-UI callers. Settings uses submitControl.
-    private func waitForControl(_ control: ClipboardHistoryControl) throws {
+    /// Blocks the caller until the control is durable, then rethrows its failure.
+    ///
+    /// Never call this on the main thread. It waits on the persistence queue,
+    /// and encoding a large archive takes as long as it takes. Anything driving
+    /// the UI wants `submitControl` instead, which reports the committed
+    /// settings through its completion.
+    public func applyControl(_ control: ClipboardHistoryControl) throws {
         let finished = DispatchSemaphore(value: 0)
         var failure: Error?
         submitControl(control) { _, error in failure = error; finished.signal() }
         finished.wait()
         if let failure { throw failure }
-    }
-
-    public func configure(enabled: Bool, paused: Bool, retentionDays: Int) throws {
-        try waitForControl(.configure(enabled: enabled, paused: paused, retentionDays: retentionDays))
-    }
-    public func clear() throws { try waitForControl(.clear) }
-    public func turnOff(deleteEntries: Bool) throws { try waitForControl(.turnOff(deleteEntries: deleteEntries)) }
-    public func setAdditionalExcludedApplications(_ bundleIDs: [String]) throws {
-        try waitForControl(.excludeApplications(bundleIDs))
     }
 
     private func isCurrent(_ session: ObservationSession) -> Bool {

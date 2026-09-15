@@ -10,7 +10,7 @@ final class ClipboardHistoryTests: XCTestCase {
         let store = try ClipboardHistoryStore(fileURL: url, now: { now })
         try store.observe(changeCount: 1, content: .init(text: "before", type: .text), sourceName: "Notes", sourceBundleID: "com.apple.Notes")
         XCTAssertEqual(try store.query(dataTypes: ["text", "url"]).entries, [])
-        try store.configure(enabled: true, paused: false, retentionDays: 1)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
         try store.observe(changeCount: 1, content: .init(text: "before", type: .text), sourceName: "Notes", sourceBundleID: "com.apple.Notes")
         try store.observe(changeCount: 2, content: .init(text: "https://example.com", type: .url), sourceName: "Safari", sourceBundleID: "com.apple.Safari")
         let restored = try ClipboardHistoryStore(fileURL: url, now: { now })
@@ -39,13 +39,13 @@ final class ClipboardHistoryTests: XCTestCase {
             try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(broker.execute(request: request, for: package, action: action)))
         }
         XCTAssertThrowsError(try query())
-        try store.configure(enabled: true, paused: false, retentionDays: 1)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
         try store.observe(changeCount: 1, content: .init(text: "retained before grant", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         try store.observe(changeCount: 2, content: .init(text: "https://example.com", type: .url), sourceName: "Safari", sourceBundleID: "safari")
         XCTAssertThrowsError(try query())
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .readClipboardHistory, scope: scope)
         XCTAssertEqual(try query().entries.map(\.text), ["retained before grant"])
-        try store.configure(enabled: false, paused: false, retentionDays: 1)
+        try store.applyControl(.configure(enabled: false, paused: false, retentionDays: 1))
         XCTAssertEqual(try query().state, .off)
         XCTAssertEqual(try query().entries.count, 1)
         grants.setDecision(.denied, for: manifest.id, pluginVersion: manifest.version, capability: .readClipboardHistory, scope: scope)
@@ -62,19 +62,19 @@ final class ClipboardHistoryTests: XCTestCase {
         func copy(_ count: Int) throws {
             try store.observe(changeCount: count, content: .init(text: "entry \(count)", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         }
-        try store.configure(enabled: true, paused: false, retentionDays: 7)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 7))
         try copy(1)
-        try store.configure(enabled: true, paused: true, retentionDays: 7)
+        try store.applyControl(.configure(enabled: true, paused: true, retentionDays: 7))
         try copy(2)
         XCTAssertEqual(try store.query(dataTypes: ["text"]).state, .paused)
-        try store.configure(enabled: true, paused: false, retentionDays: 7)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 7))
         try copy(2)
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.map(\.text), ["entry 1"])
-        try store.clear()
+        try store.applyControl(.clear)
         try copy(2)
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries, [])
         try copy(3)
-        try store.turnOff(deleteEntries: true)
+        try store.applyControl(.turnOff(deleteEntries: true))
         let restarted = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
         XCTAssertEqual(try restarted.query(dataTypes: ["text"]).state, .off)
         XCTAssertEqual(try restarted.query(dataTypes: ["text"]).entries, [])
@@ -107,7 +107,7 @@ final class ClipboardHistoryTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         var now = Date(timeIntervalSince1970: 1_000_000)
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { now })
-        try store.configure(enabled: true, paused: false, retentionDays: 7)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 7))
         for count in 1...51 {
             try store.observe(changeCount: count, content: .init(text: String(repeating: "x", count: 65_536) + String(count), type: .text), sourceName: "Notes", sourceBundleID: "notes")
         }
@@ -117,7 +117,7 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(first.entries.count + (try store.query(dataTypes: ["text"], offset: next)).entries.count, 51)
         now = now.addingTimeInterval(2 * 86_400)
         XCTAssertFalse(try store.query(dataTypes: ["text"]).entries.isEmpty)
-        try store.configure(enabled: true, paused: false, retentionDays: 1)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries, [])
     }
 
