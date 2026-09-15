@@ -141,3 +141,15 @@ extension XCTestCase {
         )
     }
 }
+
+extension XCTestCase {
+    /// Finds the Editor Mode Menu inside a rendered view tree, so a test can
+    /// place probes from its real frame instead of hard-coded coordinates.
+    func findRadialMenu(in view: NSView) -> RadialMenuView? {
+        if let menu = view as? RadialMenuView { return menu }
+        for subview in view.subviews {
+            if let menu = findRadialMenu(in: subview) { return menu }
+        }
+        return nil
+    }
+}

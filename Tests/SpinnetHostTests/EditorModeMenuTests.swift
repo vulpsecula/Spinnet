@@ -23,8 +23,26 @@ final class EditorModeMenuTests: XCTestCase {
         controller.window?.appearance = NSAppearance(named: .aqua)
         contentView.layoutSubtreeIfNeeded()
         let image = try render(contentView)
-        let background = try XCTUnwrap(image.colorAt(x: 420, y: 420))
-        let menuSurface = try XCTUnwrap(image.colorAt(x: 370, y: 515))
+
+        // Both probes are placed from the Menu's own frame. Fixed coordinates
+        // drift as the page is laid out again, and they did: the pair this test
+        // used to carry had ended up on two shades of the same page background.
+        //
+        // colorAt also takes pixels while the frame is in view coordinates, so
+        // a Retina backing needs the scale applied or every probe lands at half
+        // the intended point.
+        let menu = try XCTUnwrap(findRadialMenu(in: contentView), "No Editor Mode Menu in the window")
+        let menuFrame = menu.convert(menu.bounds, to: contentView)
+        let scale = CGFloat(image.pixelsWide) / contentView.bounds.width
+        func sample(x: CGFloat, y: CGFloat) throws -> NSColor {
+            try XCTUnwrap(image.colorAt(x: Int(x * scale), y: Int(y * scale)),
+                          "No pixel at view point (\(x), \(y))")
+        }
+
+        // Just inside the Menu's disc, clear of the ring of Slots at its centre.
+        let menuSurface = try sample(x: menuFrame.midX + menuFrame.width * 0.45, y: menuFrame.midY)
+        // Well clear of the Menu, on the Settings page itself.
+        let background = try sample(x: menuFrame.minX / 2, y: menuFrame.midY)
 
         XCTAssertGreaterThan(
             colorDistance(background, menuSurface),

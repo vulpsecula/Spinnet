@@ -351,16 +351,21 @@ final class MenuAppearanceRenderingTests: XCTestCase {
             "A manually entered value that is merely close to a preset must not appear selected"
         )
 
+        // The thumb travels between the two positions where the knob still sits
+        // fully inside the track, so it is the slider's width less half a knob
+        // at each end.
+        //
+        // The knob's *position* cannot be re-derived here: NSSliderCell.knobRect
+        // only tracks doubleValue while a layout pass is in flight, which is why
+        // MenuSizeSliderView caches the travel from inside layout(). Asking for
+        // it afterwards returns the same rect for every value. Its *width* stays
+        // correct, so the expectation is built from that and the track frame.
         let nativeSlider = slider.nativeSlider
         let cell = try XCTUnwrap(nativeSlider.cell as? NSSliderCell)
-        let originalValue = nativeSlider.doubleValue
-        nativeSlider.doubleValue = MenuAppearanceConfiguration.menuSizeMinimumPercentage
-        let expectedMinimum = nativeSlider.frame.minX
-            + cell.knobRect(flipped: nativeSlider.isFlipped).midX
-        nativeSlider.doubleValue = MenuAppearanceConfiguration.menuSizeMaximumPercentage
-        let expectedMaximum = nativeSlider.frame.minX
-            + cell.knobRect(flipped: nativeSlider.isFlipped).midX
-        nativeSlider.doubleValue = originalValue
+        let knobWidth = cell.knobRect(flipped: nativeSlider.isFlipped).width
+        XCTAssertGreaterThan(knobWidth, 0, "A sized slider reports a real knob")
+        let expectedMinimum = nativeSlider.frame.minX + knobWidth / 2
+        let expectedMaximum = nativeSlider.frame.maxX - knobWidth / 2
 
         XCTAssertEqual(slider.nativeThumbTravel.lowerBound, expectedMinimum, accuracy: 0.001)
         XCTAssertEqual(slider.nativeThumbTravel.upperBound, expectedMaximum, accuracy: 0.001)
