@@ -49,9 +49,9 @@ struct ApplicationMetadata {
         build: "Development",
         description: "A mouse-first macOS action environment centered on a radial Menu.",
         sourceURL: URL(string: "https://github.com/vulpsecula/Spinnet")!,
-        licence: "GPL with a Plugin Exception",
+        licence: "GPL-3.0-only",
         acknowledgements: "Built with Swift and AppKit.",
-        copyright: "© 2026 Spinnet contributors"
+        copyright: "© 2026 vulpsecula"
     )
 }
 

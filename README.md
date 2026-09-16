@@ -128,3 +128,61 @@ History contract are documented in
 resource budgets those contracts promise are declared once in
 `ScriptedActionBudgets` and `ClipboardHistoryBudgets`, and pinned against the
 documents by `DocumentedBudgetsTests`.
+
+## Licence
+
+Copyright © 2026 vulpsecula and the Spinnet contributors.
+
+Spinnet is free software: you can redistribute it and/or modify it under the
+terms of the **GNU General Public License, version 3 only**
+(`GPL-3.0-only`), as published by the Free Software Foundation. The full text
+is in [`LICENSE`](LICENSE).
+
+Spinnet is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+`Sources/SpinnetCore`, `Sources/SpinnetHost`, `Sources/SpinnetPluginHelper`,
+the remaining first-party application source, and the first-party Plugins
+maintained in this repository are covered by that licence unless a file states
+otherwise.
+
+### Source and binaries
+
+The complete source is on GitHub, and building Spinnet yourself is free. The
+GPL rights — to read, modify, build, and redistribute the source, and to
+publish GPL-compliant forks — always apply, including to the licensing and
+trial code itself.
+
+Official signed and notarized builds are distributed separately through the
+Spinnet website and Homebrew, and may be sold: a free trial followed by a paid
+lifetime licence. Paying is for the convenience of a ready-to-run notarized
+build and for supporting development. It does not change, extend, or restrict
+anyone's rights under the GPL, and using an official binary does not take any
+of those rights away.
+
+### Plugins
+
+A Plugin that is not based on Spinnet-Owned Code and reaches Spinnet only
+through the Documented Plugin Interface in
+[`docs/plugin-interface.md`](docs/plugin-interface.md) keeps its own licence;
+running inside Spinnet does not place it under the GPL. Community Plugins may
+use any OSI-approved open-source licence, and their authors keep their
+copyright. Plugins bundled with Spinnet and maintained here are
+`GPL-3.0-only`, and the official Plugin registry is for open-source Plugins.
+
+### Third-party material
+
+Third-party dependencies, converted Plugins, and separately licensed assets
+stay under their own licences. Spinnet claims no copyright over them.
+
+### Contributions
+
+Contributions are accepted under this repository's `GPL-3.0-only` licence.
+There is no contributor licence agreement.
+
+### Name and branding
+
+The licence covers the code. It does not grant rights to the Spinnet name,
+logo, or branding beyond accurate references to the project. Forks must not
+present themselves as official Spinnet releases.
