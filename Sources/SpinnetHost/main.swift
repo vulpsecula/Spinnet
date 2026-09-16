@@ -55,13 +55,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
-            for registeredManifest in registry.manifests() {
+            let registeredManifests = registry.manifests()
+            for registeredManifest in registeredManifests {
                 capabilityGrants.register(
                     pluginID: registeredManifest.id,
                     pluginVersion: registeredManifest.version,
                     capabilities: registeredManifest.capabilities
                 )
             }
+            // Discovery has finished and would have failed the launch rather
+            // than registering fewer Plugins, so anything still holding a
+            // decision here is a Plugin that is gone.
+            capabilityGrants.discardGrants(outside: Set(registeredManifests.map(\.id)))
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)

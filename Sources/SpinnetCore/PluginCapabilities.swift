@@ -202,6 +202,21 @@ public final class PluginCapabilityGrantStore {
         observers.forEach { $0() }
     }
 
+    /// Drops decisions for Plugins outside the supplied set. A Plugin that was
+    /// removed, or whose package stopped being discovered, leaves its decisions
+    /// behind otherwise, and they would be waiting to be inherited by anything
+    /// that later claims the same identity.
+    ///
+    /// The caller must pass the complete set of registered Plugins. Discovery
+    /// fails the launch rather than registering fewer, so "not registered" here
+    /// means gone rather than not loaded yet.
+    public func discardGrants(outside registeredPluginIDs: Set<PluginID>) {
+        lock.lock()
+        let orphans = Set(decisions.keys).subtracting(registeredPluginIDs)
+        lock.unlock()
+        for pluginID in orphans { removeGrants(for: pluginID) }
+    }
+
     /// Registers every declared Capability without changing an existing user
     /// decision. New entries remain explicitly `notDetermined` so a settings
     /// surface can present the complete scope requested by a Plugin.

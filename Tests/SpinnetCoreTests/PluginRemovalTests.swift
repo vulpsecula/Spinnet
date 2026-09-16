@@ -81,6 +81,24 @@ final class PluginRemovalTests: XCTestCase {
         XCTAssertFalse(try store.removedPluginIDs().contains(loaded.manifest.id))
     }
 
+    func testStartupForgetsDecisionsLeftBehindByPluginsThatAreGone() throws {
+        let grants = PluginCapabilityGrantStore()
+        let present = PluginID("com.example.present")
+        let gone = PluginID("com.example.gone")
+        for pluginID in [present, gone] {
+            grants.setDecision(.granted, for: pluginID, pluginVersion: "1.0.0",
+                               capability: .readSelectedText)
+        }
+
+        grants.discardGrants(outside: [present])
+
+        XCTAssertEqual(grants.decision(for: present, pluginVersion: "1.0.0",
+                                       capability: .readSelectedText), .granted)
+        XCTAssertEqual(grants.decision(for: gone, pluginVersion: "1.0.0",
+                                       capability: .readSelectedText), .notDetermined)
+        XCTAssertTrue(grants.allGrants.allSatisfy { $0.pluginID != gone })
+    }
+
     func testAHostCommandCannotBeRemoved() throws {
         let (_, registry, _, store) = try makeStore()
         let command = CommandDeclaration(
