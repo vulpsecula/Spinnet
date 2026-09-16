@@ -321,13 +321,18 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     case writeClipboard = "write_clipboard"
     case readCurrentClipboard = "read_current_clipboard"
     case readClipboardHistory = "read_clipboard_history"
+    /// Opening the Host's own Clipboard History window. It returns nothing to
+    /// the Plugin, and only a shipped Plugin may ask (ADR 0002), so it is named
+    /// rather than hidden in another service's input.
+    case presentClipboardHistory = "present_clipboard_history"
 
     public var requiredCapability: PluginCapability {
         switch self {
         case .readSelectedText:
             return .readSelectedText
         case .readCurrentClipboard: return .readCurrentClipboard
-        case .readClipboardHistory, .readClipboardHistoryContent: return .readClipboardHistory
+        case .readClipboardHistory, .readClipboardHistoryContent, .presentClipboardHistory:
+            return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
         }
@@ -337,7 +342,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         switch self {
         case .readSelectedText:
             return .accessibility
-        case .writeClipboard, .readCurrentClipboard, .readClipboardHistory, .readClipboardHistoryContent:
+        case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
+             .readClipboardHistoryContent, .presentClipboardHistory:
             return nil
         }
     }
@@ -488,23 +494,27 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             guard let content = try currentClipboardProvider(),
                   package.manifest.scope(for: capability)?.dataTypes.contains(content.type.rawValue) == true else { return .null }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(content))
+        case .presentClipboardHistory:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("present_clipboard_history expects null")
+            }
+            // A granted Capability buys the history, not the Host's window.
+            guard package.mayPresentHostWindows else {
+                throw PluginHostServiceError.capabilityDenied(capability)
+            }
+            clipboardHistoryPresenter(package, action)
+            // The Plugin learns nothing from presenting; the user reads the window.
+            return .null
         case .readClipboardHistory:
-            let present = request.input == .object(["present": .bool(true)])
             var offset = 0
             if case .object(let fields) = request.input, fields.count == 1,
                case .number(let value) = fields["offset"], value >= 0, value <= Double(Int.max / 2), value.rounded() == value {
                 offset = Int(value)
-            } else if request.input != .null && !present {
-                throw PluginHostServiceError.invalidInput("Expected null, {present: true}, or a nonnegative integer offset")
+            } else if request.input != .null {
+                throw PluginHostServiceError.invalidInput("Expected null or a nonnegative integer offset")
             }
             let snapshot = try readHistory {
                 try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
-            }
-            if present {
-                guard package.mayPresentHostWindows else {
-                    throw PluginHostServiceError.capabilityDenied(capability)
-                }
-                clipboardHistoryPresenter(package, action)
             }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:

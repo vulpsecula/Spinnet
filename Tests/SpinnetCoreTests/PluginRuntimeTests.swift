@@ -44,12 +44,14 @@ final class PluginRuntimeTests: XCTestCase {
                 presentations += 1
             })
         XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
-        XCTAssertEqual(queries, 1)
+        // Browsing presents the Host window and reads nothing: the snapshot the
+        // reading service returns was never what opened it.
+        XCTAssertEqual(queries, 0)
         XCTAssertEqual(presentations, 1)
         supervisor.shutdown()
         try store.observe(changeCount: 2, content: .init(text: "helper retired", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         XCTAssertEqual(launches, 1)
-        XCTAssertEqual(queries, 1)
+        XCTAssertEqual(queries, 0)
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.count, 2)
     }
 

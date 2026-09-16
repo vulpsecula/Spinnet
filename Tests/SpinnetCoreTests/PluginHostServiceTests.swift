@@ -57,14 +57,31 @@ final class PluginHostServiceTests: XCTestCase {
             clipboardHistoryProvider: { types, offset in try store.query(dataTypes: types, offset: offset) },
             clipboardHistoryPresenter: { _, _ in presentations += 1 }
         )
-        let request = PluginRuntimeHostServiceRequest(
-            invocationID: UUID().uuidString, actionID: action.id,
-            requestID: UUID().uuidString, service: .readClipboardHistory,
-            input: .object(["present": .bool(true)])
-        )
+        func request(_ service: PluginHostService, _ input: JSONValue) -> PluginRuntimeHostServiceRequest {
+            PluginRuntimeHostServiceRequest(
+                invocationID: UUID().uuidString, actionID: action.id,
+                requestID: UUID().uuidString, service: service, input: input
+            )
+        }
 
-        XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
+        XCTAssertThrowsError(
+            try broker.execute(request: request(.presentClipboardHistory, .null),
+                               for: package, action: action)
+        )
         XCTAssertEqual(presentations, 0, "A third-party Plugin opened a Host-owned window")
+
+        // Reading is what the Capability bought, and it still works.
+        XCTAssertNoThrow(
+            try broker.execute(request: request(.readClipboardHistory, .null),
+                               for: package, action: action)
+        )
+        // The privilege is no longer reachable through the reading service.
+        XCTAssertThrowsError(
+            try broker.execute(request: request(.readClipboardHistory,
+                                                .object(["present": .bool(true)])),
+                               for: package, action: action)
+        )
+        XCTAssertEqual(presentations, 0)
     }
     func testCapabilityGrantStoreKeepsAnExplicitDecisionForEachDeclaredCapability() throws {
         let pluginID = PluginID("com.example.fixture")
