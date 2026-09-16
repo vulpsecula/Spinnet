@@ -13,8 +13,20 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services.
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin: it can be removed and reinstated, although its files ship with the app and cannot be deleted.
 _Avoid_: Built-in Command, trusted Host code
+
+**Host Command**:
+An operation the Host implements itself and exposes as its own Library entry. It has no Plugin package and cannot be removed, because it is part of the Host rather than something added to it.
+_Avoid_: Built-in Plugin, Bundled Plugin, native Action
+
+**Plugin Origin**:
+Where a Plugin's package came from — shipped with the app, or installed by the user — which is what decides whether an install may replace it and whether the user may remove it.
+_Avoid_: Plugin type, plugin kind, trust level
+
+**Plugin Removal**:
+Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable, exactly as a disabled Plugin's are.
+_Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Command**:
 A callable operation declared by the Host or a Plugin, before user-specific configuration is applied.

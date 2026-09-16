@@ -41,31 +41,35 @@ and reads every Plugin package it finds in `Plugins` through the public
 manifest loader — Clipboard History today, anything added to that directory
 later. A Bundled Plugin is delivered into
 `SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
-Application Support, and the Host discovers both by reading a directory. A first launch opens an empty Menu; every Slot stays unbound
-until the user fills it. The Host opens the radial Menu with Mouse Side
-Button 1 by default. Scripted Actions launch
+Application Support, and the Host discovers both by reading a directory.
+
+A first launch opens an empty Menu: eight Slots, none of them bound, and nothing
+is written until the user configures something. The Host opens the radial Menu
+with Mouse Side Button 1 by default, and an optional keyboard shortcut can be
+recorded or entered manually under Settings → Menu. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
-Host-backed Actions do not launch a helper.
-An optional keyboard shortcut can be recorded or entered manually under
-Settings → Menu. The fixture's Menu Item opens the Spinnet issue in the default browser. Actions,
-Menu bindings, appearance, and triggers are saved automatically.
+Host-backed Actions do not launch a helper. Actions, Menu bindings, appearance,
+and triggers are saved automatically.
 
 ## Manual acceptance checks
 
-1. Press Mouse Side Button 1 while the pointer is near the middle of a
+1. Open Settings from the status item and add `Open URL` from the Library to a
+   Slot. A first launch has an empty Menu, so every check below needs at least
+   one Menu Item to exist first.
+2. Press Mouse Side Button 1 while the pointer is near the middle of a
    display. The overlay appears at the pointer without activating the Host.
-2. Move clockwise around the ring. At most one Menu Item is highlighted; the
+3. Move clockwise around the ring. At most one Menu Item is highlighted; the
    center remains a dead zone.
-3. Release on `Open URL` and confirm the URL opens and a completion message is
+4. Release on `Open URL` and confirm the URL opens and a completion message is
    visible.
-4. Open the Menu again and dismiss it with Escape, a click outside the ring, or
+5. Open the Menu again and dismiss it with Escape, a click outside the ring, or
    Mouse Side Button 1. None of these dismissal paths runs the Action.
-5. Repeat near each display edge and corner. The complete ring remains inside
+6. Repeat near each display edge and corner. The complete ring remains inside
    the display's visible frame.
-6. Open Settings from the status item. Create a second Action, select it as an
+7. Open Settings from the status item. Create a second Action, select it as an
    Alternate Action, close and relaunch the Host, and confirm the binding is
    still present. Right-click the Menu Item to expose the Alternate Action.
-7. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
+8. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
    Shortcut`, or `Run Keyboard Shortcut`. The Configuration Sheet offers native
    pickers or a shortcut recorder. Recording temporarily blocks keyboard
    events from reaching other apps when Accessibility is available. If a
@@ -75,18 +79,18 @@ Menu bindings, appearance, and triggers are saved automatically.
    Save commits all fields at once. Rename the Menu Item with its optional
    alias, and use the visible Edit button, double-click, `Command-E`, or
    `Return`/`Space` after focusing a Slot to reopen the sheet.
-8. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
+9. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
    Clipboard` capabilities in Privacy & Permissions, select text in another
    app, and run the Menu Item. The copied value comes from the current
    selection rather than a configured text parameter.
-9. Add `Paste` or `Cut`, grant Spinnet Accessibility permission in Privacy &
+10. Add `Paste` or `Cut`, grant Spinnet Accessibility permission in Privacy &
    Permissions, focus a text field in another app, and run the Menu Item.
-10. `Run macOS Service` is useful for installed Services that transform,
+11. `Run macOS Service` is useful for installed Services that transform,
     look up, or share selected text. To test it, select text in the target app
     and copy the exact title from that app's Services menu into the
     Configuration Sheet. Use the full menu path with `/` separators when the
     service is nested.
-11. If an application, file, or folder used by a Menu Item is later removed,
+12. If an application, file, or folder used by a Menu Item is later removed,
     the Menu Item remains in its Slot and only that Action is disabled. Its
     Slot keeps the Preset name (or your Alias), while the unavailable reason
     appears on the Action. Open its Configuration Sheet and use `Choose Again…`
@@ -117,15 +121,20 @@ AppKit overlay, global shortcuts, settings window, common Host Command
 adapters, clipboard collection, and user-visible feedback.
 
 Capability-checked Host Services are available through the documented helper
-protocol. The Host stores per-Plugin-version Capability decisions and exposes the
-current fixture grants in Privacy & Permissions. The Host owns scripted Action
+protocol. The Host stores per-Plugin-version Capability decisions and exposes
+each registered Plugin's grants in Privacy & Permissions. Removing a Plugin
+forgets its decisions, and the Host drops decisions left behind by Plugins it no
+longer finds. The Host owns scripted Action
 progress, cancellation, deadlines, and terminal feedback. Scripted Actions
 reuse one serialized helper per Plugin, and Plugin disable, uninstall, update,
 Capability revocation, and Host shutdown retire helpers immediately.
 
 Clipboard History collection defaults off. While enabled, the Host retains
 copies locally in owner-only storage and exposes them to a Plugin only through
-a granted, type-scoped `read_clipboard_history` Capability.
+a granted, type-scoped `read_clipboard_history` Capability. Opening the
+Host-rendered history window is a separate Host Service reserved for a Bundled
+Plugin, because it is a Host privilege rather than something the Capability
+grants.
 
 The manifest shape, helper protocol, Host Command catalogue, and Clipboard
 History contract are documented in
