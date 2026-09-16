@@ -289,7 +289,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
             manifest: builtIn,
-            presetSource: .builtIn
+            origin: .hostCommand
         ))
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/search.spinnetplugin"),

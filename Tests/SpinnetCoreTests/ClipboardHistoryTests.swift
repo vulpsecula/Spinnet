@@ -125,7 +125,7 @@ final class ClipboardHistoryTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = root.appendingPathComponent("Plugins/ClipboardHistory.spinnetplugin")
         let loaded = try PluginManifestLoader.load(packageAt: source)
-        let bundled = PluginPackage(rootURL: source, manifest: loaded.manifest, isBundled: true)
+        let bundled = PluginPackage(rootURL: source, manifest: loaded.manifest, origin: .bundled)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let grants = PluginCapabilityGrantStore()

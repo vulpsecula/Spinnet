@@ -470,7 +470,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             let snapshot = try readHistory {
                 try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
             }
-            if present { clipboardHistoryPresenter(package, action) }
+            if present {
+                guard package.mayPresentHostWindows else {
+                    throw PluginHostServiceError.capabilityDenied(capability)
+                }
+                clipboardHistoryPresenter(package, action)
+            }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:
             guard request.input == .null else {

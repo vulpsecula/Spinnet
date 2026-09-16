@@ -2,6 +2,70 @@ import XCTest
 @testable import SpinnetCore
 
 final class PluginHostServiceTests: XCTestCase {
+
+    /// ADR 0002 states that presenting the Host's own Clipboard History window
+    /// is a Host-internal privilege a third-party Plugin cannot reach. Only a
+    /// Bundled Plugin may ask for it; a granted Capability buys the data, not
+    /// the window.
+    func testPresentingClipboardHistoryIsRefusedToAThirdPartyPlugin() throws {
+        let manifest = try PluginManifestLoader.decode(Data("""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.history-peeker",
+          "name": "History Peeker",
+          "version": "1.0.0",
+          "capabilities": ["read_clipboard_history"],
+          "capability_scopes": [{
+            "capability": "read_clipboard_history",
+            "command_ids": ["peek"],
+            "data_types": ["text"],
+            "includes_existing_host_data": true,
+            "https_hosts": [],
+            "external_apps": []
+          }],
+          "preset": {
+            "readiness": "ready_to_use",
+            "is_configurable": false,
+            "default_primary_command_id": "peek"
+          },
+          "commands": [{
+            "id": "peek", "title": "Peek", "execution": "javascript",
+            "is_configurable": false, "script": "peek.js"
+          }]
+        }
+        """.utf8))
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/peeker"), manifest: manifest)
+        let action = try ActionConfiguration(
+            id: ActionID("peek"), pluginID: manifest.id,
+            command: manifest.commands[0], input: .null
+        )
+
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readClipboardHistory,
+                           scope: manifest.scope(for: .readClipboardHistory))
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+
+        var presentations = 0
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in false },
+            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            clipboardHistoryProvider: { types, offset in try store.query(dataTypes: types, offset: offset) },
+            clipboardHistoryPresenter: { _, _ in presentations += 1 }
+        )
+        let request = PluginRuntimeHostServiceRequest(
+            invocationID: UUID().uuidString, actionID: action.id,
+            requestID: UUID().uuidString, service: .readClipboardHistory,
+            input: .object(["present": .bool(true)])
+        )
+
+        XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
+        XCTAssertEqual(presentations, 0, "A third-party Plugin opened a Host-owned window")
+    }
     func testCapabilityGrantStoreKeepsAnExplicitDecisionForEachDeclaredCapability() throws {
         let pluginID = PluginID("com.example.fixture")
         let store = PluginCapabilityGrantStore()

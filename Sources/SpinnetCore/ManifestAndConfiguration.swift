@@ -666,29 +666,56 @@ public struct PluginManifest: Codable, Equatable {
     }
 }
 
+/// Where a package came from, which is what decides who may act on it. This
+/// used to be spread across three independent flags, so combinations with no
+/// meaning were representable, and questions with different answers — may an
+/// install overwrite this, may the user remove it — collapsed into one.
+public enum PluginOrigin: String, Equatable, Hashable, CaseIterable {
+    /// A Host Command surfaced as its own Library entry. It has no package on
+    /// disk, so there is nothing to replace or remove.
+    case hostCommand
+    /// A first-party Plugin package delivered inside the app bundle.
+    case bundled
+    /// A Plugin package the user installed into Application Support.
+    case installed
+}
+
 public struct PluginPackage {
     public let rootURL: URL
     public let manifest: PluginManifest
-    public let presetSource: MenuItemPresetSource
+    /// Set only by the Host when it loads a package, never by a manifest.
+    /// Defaults to the least privileged origin, so a caller that forgets to
+    /// say where a package came from cannot accidentally widen what it may do.
+    public let origin: PluginOrigin
     /// Compatibility packages can remain registered for persisted Actions
     /// without adding another user-facing Library entry.
     public let isVisibleInLibrary: Bool
-    /// Set only by the Host when loading its shipped packages, never by a manifest.
-    public let isBundled: Bool
-    public var isHostProvided: Bool { isBundled || presetSource == .builtIn || !isVisibleInLibrary }
+
+    /// Only the user's own copies may be overwritten by an install.
+    public var canBeReplacedByInstall: Bool { origin == .installed }
+
+    /// A Host Command is part of the Host. Every Plugin, shipped or installed,
+    /// is something the user may remove.
+    public var canBeRemovedByUser: Bool { origin != .hostCommand }
+
+    /// Asking the Host to present a window it owns outright is a Host-internal
+    /// privilege (ADR 0002), not something a granted Capability buys.
+    public var mayPresentHostWindows: Bool { origin != .installed }
+
+    public var presetSource: MenuItemPresetSource {
+        origin == .hostCommand ? .builtIn : .plugin
+    }
 
     public init(
         rootURL: URL,
         manifest: PluginManifest,
-        presetSource: MenuItemPresetSource = .plugin,
-        isVisibleInLibrary: Bool = true,
-        isBundled: Bool = false
+        origin: PluginOrigin = .installed,
+        isVisibleInLibrary: Bool = true
     ) {
         self.rootURL = rootURL
         self.manifest = manifest
-        self.presetSource = presetSource
+        self.origin = origin
         self.isVisibleInLibrary = isVisibleInLibrary
-        self.isBundled = isBundled
     }
 }
 

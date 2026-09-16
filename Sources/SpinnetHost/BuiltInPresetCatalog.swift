@@ -145,7 +145,7 @@ enum BuiltInPresetCatalog {
         return PluginPackage(
             rootURL: URL(fileURLWithPath: "/System/Library/CoreServices/SpinnetBuiltInPresets"),
             manifest: manifest,
-            presetSource: .builtIn
+            origin: .hostCommand
         )
     }
 }

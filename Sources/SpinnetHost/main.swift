@@ -410,7 +410,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             try registry.register(PluginPackage(
                 rootURL: packageURL,
                 manifest: package.manifest,
-                isBundled: true
+                origin: .bundled
             ))
         }
     }

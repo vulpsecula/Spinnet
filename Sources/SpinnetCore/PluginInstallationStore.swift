@@ -27,7 +27,7 @@ public final class PluginInstallationStore {
         for (pluginID, name) in try readIndex() {
             // Shipped packages own their identities even if an older Host
             // installed a package with that ID before it became bundled.
-            if registry.package(for: PluginID(pluginID))?.isHostProvided == true { continue }
+            if registry.package(for: PluginID(pluginID))?.canBeReplacedByInstall == false { continue }
             guard name == URL(fileURLWithPath: name).lastPathComponent else {
                 throw ConfigurationError.invalidManifest("Invalid installed package location")
             }
@@ -43,7 +43,7 @@ public final class PluginInstallationStore {
     public func install(from source: URL) throws -> PluginManifest {
         let candidate = try PluginManifestLoader.load(packageAt: source)
         if let existing = registry.package(for: candidate.manifest.id),
-           existing.isHostProvided {
+           !existing.canBeReplacedByInstall {
             throw ConfigurationError.invalidManifest("Cannot replace a Host-provided Plugin")
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

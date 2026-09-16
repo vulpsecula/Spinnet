@@ -407,7 +407,7 @@ final class HostServicesTests: XCTestCase {
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/System/Library/CoreServices/SpinnetBuiltInPresets"),
             manifest: manifest,
-            presetSource: .builtIn
+            origin: .hostCommand
         )
         let registry = PluginRegistry()
         try registry.register(package)
@@ -459,7 +459,7 @@ final class HostServicesTests: XCTestCase {
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
             manifest: manifest,
-            presetSource: .builtIn
+            origin: .hostCommand
         )
         let registry = PluginRegistry()
         try registry.register(package)
