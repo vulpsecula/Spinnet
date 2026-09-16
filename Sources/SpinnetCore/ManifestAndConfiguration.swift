@@ -681,7 +681,10 @@ public enum PluginOrigin: String, Equatable, Hashable, CaseIterable {
 }
 
 public struct PluginPackage {
-    public let rootURL: URL
+    /// The package directory on disk. A Host Command has none — it is Swift in
+    /// the Host, not a package — and says so rather than naming a path that
+    /// does not exist.
+    public let rootURL: URL?
     public let manifest: PluginManifest
     /// Set only by the Host when it loads a package, never by a manifest.
     /// Defaults to the least privileged origin, so a caller that forgets to
@@ -707,7 +710,7 @@ public struct PluginPackage {
     }
 
     public init(
-        rootURL: URL,
+        rootURL: URL?,
         manifest: PluginManifest,
         origin: PluginOrigin = .installed,
         isVisibleInLibrary: Bool = true

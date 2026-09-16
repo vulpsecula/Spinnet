@@ -152,8 +152,10 @@ final class PluginRemovalTests: XCTestCase {
             preset: MenuItemPresetDeclaration(readiness: .setupRequired, defaultPrimaryCommandID: command.id)
         )
         try registry.register(PluginPackage(
-            rootURL: URL(fileURLWithPath: "/nowhere"), manifest: manifest, origin: .hostCommand
+            rootURL: nil, manifest: manifest, origin: .hostCommand
         ))
+        XCTAssertNil(registry.package(for: manifest.id)?.rootURL,
+                     "A Host Command has no package directory to name")
 
         XCTAssertThrowsError(try store.uninstall(manifest.id))
         XCTAssertNotNil(registry.package(for: manifest.id))

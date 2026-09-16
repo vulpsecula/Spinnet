@@ -3,6 +3,14 @@ import XCTest
 import AppKit
 @testable import SpinnetCore
 
+
+/// A test package always has a directory to clean up, but `rootURL` is optional
+/// because a Host Command has none.
+private func removePackageDirectory(_ package: PluginPackage) {
+    guard let rootURL = package.rootURL else { return }
+    try? FileManager.default.removeItem(at: rootURL)
+}
+
 final class PluginRuntimeTests: XCTestCase {
 
     func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
@@ -384,8 +392,8 @@ final class PluginRuntimeTests: XCTestCase {
             script: "input"
         )
         defer {
-            try? FileManager.default.removeItem(at: first.rootURL)
-            try? FileManager.default.removeItem(at: second.rootURL)
+            removePackageDirectory(first)
+            removePackageDirectory(second)
         }
 
         let firstAction = try ActionConfiguration(
@@ -447,8 +455,8 @@ final class PluginRuntimeTests: XCTestCase {
             script: "input"
         )
         defer {
-            try? FileManager.default.removeItem(at: first.rootURL)
-            try? FileManager.default.removeItem(at: second.rootURL)
+            removePackageDirectory(first)
+            removePackageDirectory(second)
         }
         let firstAction = try ActionConfiguration(
             id: ActionID("oversized-action"),
@@ -502,7 +510,7 @@ final class PluginRuntimeTests: XCTestCase {
             pluginID: PluginID("com.example.duplicate"),
             script: "input"
         )
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let action = try ActionConfiguration(
             id: ActionID("duplicate-action"),
             pluginID: package.manifest.id,
@@ -531,7 +539,7 @@ final class PluginRuntimeTests: XCTestCase {
     func testCancellationTerminatesOnlyTheAffectedHelperWithin250Milliseconds() throws {
         let helper = try XCTUnwrap(helperURLIfBuilt())
         let package = try makeScriptedPackage(pluginID: PluginID("test.cancel"), script: "while (true) {}")
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let action = try ActionConfiguration(id: ActionID("cancel"), pluginID: package.manifest.id,
             command: package.manifest.commands[0], input: .null)
         let process = Process()
@@ -559,7 +567,7 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - cancelledAt, 0.25)
 
         let healthy = try makeScriptedPackage(pluginID: PluginID("test.healthy"), script: "42")
-        defer { try? FileManager.default.removeItem(at: healthy.rootURL) }
+        defer { removePackageDirectory(healthy) }
         let healthyAction = try ActionConfiguration(id: ActionID("healthy"), pluginID: healthy.manifest.id,
             command: healthy.manifest.commands[0], input: .null)
         XCTAssertEqual(try PluginRuntimeSupervisor(helperURL: helper).execute(healthyAction, in: healthy), .number(42))
@@ -611,7 +619,7 @@ final class PluginRuntimeTests: XCTestCase {
         let helper = try makeShellHelper("#!/bin/sh\nkill -TERM $$\n")
         defer { try? FileManager.default.removeItem(at: helper) }
         let package = try makeScriptedPackage(pluginID: PluginID("test.terminated"), script: "input")
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let action = try ActionConfiguration(id: ActionID("terminated"), pluginID: package.manifest.id,
                                             command: package.manifest.commands[0], input: .null)
         XCTAssertThrowsError(try PluginRuntimeSupervisor(helperURL: helper).execute(action, in: package)) {
@@ -1177,8 +1185,8 @@ final class PluginRuntimeTests: XCTestCase {
             script: "input"
         )
         defer {
-            try? FileManager.default.removeItem(at: crashingPackage.rootURL)
-            try? FileManager.default.removeItem(at: healthyPackage.rootURL)
+            removePackageDirectory(crashingPackage)
+            removePackageDirectory(healthyPackage)
         }
         let crashingAction = try ActionConfiguration(
             id: ActionID("crash-action"),
@@ -1273,7 +1281,7 @@ final class PluginRuntimeTests: XCTestCase {
             pluginID: PluginID("com.spinnet.memory"),
             script: "input"
         )
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let action = try ActionConfiguration(
             id: ActionID("memory-action"),
             pluginID: package.manifest.id,
@@ -1323,7 +1331,7 @@ final class PluginRuntimeTests: XCTestCase {
             pluginID: PluginID("com.spinnet.faulted-lease"),
             script: "input"
         )
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let firstAction = try ActionConfiguration(
             id: ActionID("finished"),
             pluginID: package.manifest.id,
@@ -1385,7 +1393,7 @@ final class PluginRuntimeTests: XCTestCase {
             pluginID: PluginID("com.spinnet.queued"),
             script: "input"
         )
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let firstAction = try ActionConfiguration(
             id: ActionID("current"),
             pluginID: package.manifest.id,
@@ -1471,7 +1479,7 @@ final class PluginRuntimeTests: XCTestCase {
 
     func testConsecutiveActionsReuseTheLazyPluginHelper() throws {
         let package = try makeScriptedPackage(pluginID: PluginID("com.example.reuse"), script: "input")
-        defer { try? FileManager.default.removeItem(at: package.rootURL) }
+        defer { removePackageDirectory(package) }
         let registry = PluginRegistry()
         let process = Process()
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
@@ -1565,7 +1573,7 @@ final class PluginRuntimeTests: XCTestCase {
                 try registry.register(package)
             default:
                 currentPackage = try makeScriptedPackage(pluginID: package.manifest.id, script: "99")
-                addTeardownBlock { try? FileManager.default.removeItem(at: currentPackage.rootURL) }
+                addTeardownBlock { removePackageDirectory(currentPackage) }
                 try registry.replace(currentPackage)
                 XCTAssertFalse(processes[0].isRunning)
                 XCTAssertThrowsError(try supervisor.execute(action, in: package), "Reject stale package snapshot")
@@ -1688,7 +1696,7 @@ final class PluginRuntimeTests: XCTestCase {
         let (idlePackage, idleAction) = try lifecycleAction()
         let activePackage = try makeScriptedPackage(pluginID: PluginID("test.shutdown.active"),
             script: "while (true) {}")
-        defer { try? FileManager.default.removeItem(at: activePackage.rootURL) }
+        defer { removePackageDirectory(activePackage) }
         let activeAction = try ActionConfiguration(id: ActionID("active"), pluginID: activePackage.manifest.id,
             command: activePackage.manifest.commands[0], input: .null)
         let processes = [Process(), Process()]
@@ -1739,7 +1747,7 @@ final class PluginRuntimeTests: XCTestCase {
 
     private func lifecycleAction(script: String = "42") throws -> (PluginPackage, ActionConfiguration) {
         let package = try makeScriptedPackage(pluginID: PluginID("test.lifecycle"), script: script)
-        addTeardownBlock { try? FileManager.default.removeItem(at: package.rootURL) }
+        addTeardownBlock { removePackageDirectory(package) }
         let action = try ActionConfiguration(id: ActionID("lifecycle"), pluginID: package.manifest.id,
             command: package.manifest.commands[0], input: .null)
         return (package, action)

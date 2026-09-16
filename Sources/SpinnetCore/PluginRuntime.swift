@@ -1058,7 +1058,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         guard let scriptPath = action.scriptPath else {
             throw PluginRuntimeError.invalidAction("Action does not declare a script")
         }
-        guard let scriptURL = safeScriptURL(path: scriptPath, packageRoot: package.rootURL),
+        guard let packageRoot = package.rootURL,
+              let scriptURL = safeScriptURL(path: scriptPath, packageRoot: packageRoot),
               fileManager.isReadableFile(atPath: scriptURL.path) else {
             throw PluginRuntimeError.invalidAction("Script \(scriptPath) is not available")
         }
