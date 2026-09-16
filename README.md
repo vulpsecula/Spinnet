@@ -33,11 +33,9 @@ permission again after rebuilding them.
 
 The Host registers a standalone Built-in Preset for each entry in the Host
 Command catalogue in [`docs/plugin-interface.md`](docs/plugin-interface.md),
-then loads `Plugins/SpinnetFixture.spinnetplugin` through the public manifest
-loader for its deterministic JavaScript compatibility Actions. The fixture
-retains the common Host Command declarations for existing persisted
-configurations, but is hidden from the Library so those operations appear only
-as standalone Built-in Presets. The Host opens the radial Menu with Mouse Side
+and ships Clipboard History as a Bundled Plugin loaded through the public
+manifest loader. A first launch opens an empty Menu; every Slot stays unbound
+until the user fills it. The Host opens the radial Menu with Mouse Side
 Button 1 by default. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
 Host-backed Actions do not launch a helper.

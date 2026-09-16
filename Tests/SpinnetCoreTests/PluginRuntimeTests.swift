@@ -1750,11 +1750,7 @@ final class PluginRuntimeTests: XCTestCase {
     }
 
     private func loadFixturePackage() throws -> PluginPackage {
-        var root = URL(fileURLWithPath: #filePath)
-        for _ in 0..<3 { root.deleteLastPathComponent() }
-        return try PluginManifestLoader.load(
-            packageAt: root.appendingPathComponent("Plugins/SpinnetFixture.spinnetplugin")
-        )
+        try ScriptedPackageFixture.load()
     }
 
     private func makeInvocation(scriptSource: String) -> PluginRuntimeInvocation {

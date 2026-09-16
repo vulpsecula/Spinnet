@@ -288,11 +288,7 @@ final class RegistryAndStoreTests: XCTestCase {
     }
 
     private func fixturePackageURL() throws -> URL {
-        var root = URL(fileURLWithPath: #filePath)
-        for _ in 0..<3 {
-            root.deleteLastPathComponent()
-        }
-        let packageURL = root.appendingPathComponent("Plugins/SpinnetFixture.spinnetplugin")
+        let packageURL = try ScriptedPackageFixture.write()
         XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.path))
         return packageURL
     }

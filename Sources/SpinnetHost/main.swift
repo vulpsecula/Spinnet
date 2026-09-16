@@ -38,6 +38,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         label: "com.vulpsecula.Spinnet.action-invocation",
         qos: .userInitiated
     )
+    private static let defaultSlotCount = 8
 
     func applicationWillTerminate(_ notification: Notification) {
         pluginRuntime?.shutdown()
@@ -56,14 +57,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             let historyPackage = try PluginManifestLoader.load(packageAt: historyURL)
             try registry.register(PluginPackage(rootURL: historyURL, manifest: historyPackage.manifest, isBundled: true))
-            let fixturePackage = try PluginManifestLoader.load(packageAt: fixtureURL())
-            try registry.register(PluginPackage(
-                rootURL: fixturePackage.rootURL,
-                manifest: fixturePackage.manifest,
-                presetSource: fixturePackage.presetSource,
-                isVisibleInLibrary: false
-            ))
-            let manifest = fixturePackage.manifest
             try loadCapabilityGrants()
             try pluginInstallation.restore()
             for registeredManifest in registry.manifests() {
@@ -124,7 +117,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 resourceAvailability: HostResourceAvailability.missingReason
             )
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
-            let configuration = try loadConfiguration(for: manifest)
+            let configuration = try loadConfiguration()
             let editor = HostConfigurationEditor(
                 registry: registry,
                 configuration: configuration,
@@ -218,157 +211,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if let configuration = currentConfiguration { menu?.reload(items: makeMenuSlots(from: configuration)) }
     }
 
-    private func loadConfiguration(for manifest: PluginManifest) throws -> HostConfiguration {
+    /// A first launch opens an empty Menu. Every Slot is left unbound so the
+    /// Tour can walk the user through filling them, rather than starting them
+    /// with Actions they did not choose. Nothing is written until the user
+    /// configures something, so an absent configuration file still means
+    /// "never configured".
+    private func loadConfiguration() throws -> HostConfiguration {
         if let storedConfiguration = try configurationStore.load() {
-            let migratedConfiguration = try migrateFixtureConfiguration(
-                storedConfiguration,
-                manifest: manifest
-            )
-            if migratedConfiguration != storedConfiguration {
-                try configurationStore.save(migratedConfiguration)
-            }
-            return migratedConfiguration
+            return storedConfiguration
         }
-
-        let defaultURLPluginID = BuiltInPresetCatalog.openURLPluginID
-        guard let defaultURLPackage = registry.package(for: defaultURLPluginID),
-              let command = defaultURLPackage.manifest.commands.first else {
-            throw ConfigurationError.invalidManifest("Built-in Open URL Command is missing")
-        }
-        let urlAction = try ActionConfiguration(
-            id: ActionID("fixture-open-url"),
-            pluginID: defaultURLPluginID,
-            command: command,
-            input: defaultURLPackage.manifest.preset.defaultInputs[command.id]
-                ?? .string("https://github.com/vulpsecula/Spinnet")
-        )
-        let textAction = try makeFixtureScriptAction(
-            manifest: manifest,
-            commandID: "fixture.transform_text",
-            actionID: "fixture-transform-text",
-            input: .null
-        )
-        let structuredAction = try makeFixtureScriptAction(
-            manifest: manifest,
-            commandID: "fixture.transform_data",
-            actionID: "fixture-transform-data",
-            input: .string(#"{"items":[{"id":2,"name":"beta","enabled":true},{"id":1,"name":"alpha","enabled":true},{"id":3,"name":"disabled","enabled":false}]}"#)
-        )
-        let configuration = try HostConfiguration(
-            actions: [urlAction, textAction, structuredAction],
-            menu: MenuConfiguration(items: [
-                try MenuItemConfiguration(
-                    primaryActionID: urlAction.id,
-                    alternateActionIDs: [textAction.id]
-                )
-            ])
-        )
-        try? configurationStore.save(configuration)
-        return configuration
-    }
-
-    private func migrateFixtureConfiguration(
-        _ configuration: HostConfiguration,
-        manifest: PluginManifest
-    ) throws -> HostConfiguration {
-        guard manifest.id == PluginID("com.spinnet.fixture"),
-              let defaultPrimaryCommandID = manifest.preset.defaultPrimaryCommandID,
-              !manifest.preset.defaultAlternateCommandIDs.isEmpty else {
-            return configuration
-        }
-
-        var actions = configuration.actions
-        var slots = configuration.menu.slots
-        var changed = false
-
-        for index in slots.indices {
-            guard let item = slots[index].item,
-                  item.alternateActionIDs.isEmpty,
-                  let primaryAction = actions.first(where: { $0.id == item.primaryActionID }),
-                  primaryAction.pluginID == manifest.id,
-                  primaryAction.commandID == defaultPrimaryCommandID else {
-                continue
-            }
-
-            var alternateActionIDs: [ActionID] = []
-            for commandID in manifest.preset.defaultAlternateCommandIDs {
-                if let existingAction = actions.first(where: {
-                    $0.pluginID == manifest.id && $0.commandID == commandID
-                }) {
-                    alternateActionIDs.append(existingAction.id)
-                    continue
-                }
-
-                guard let command = manifest.commands.first(where: { $0.id == commandID }),
-                      manifest.preset.defaultInputs[commandID] != nil || !command.isConfigurable else {
-                    continue
-                }
-                let input = manifest.preset.defaultInputs[commandID] ?? .null
-                let normalizedCommandID = commandID.rawValue
-                    .replacingOccurrences(of: "fixture.", with: "")
-                    .replacingOccurrences(of: "_", with: "-")
-                let actionID = ActionID("fixture-\(normalizedCommandID)")
-                let action = try ActionConfiguration(
-                    id: actionID,
-                    pluginID: manifest.id,
-                    command: command,
-                    input: input
-                )
-                actions.append(action)
-                alternateActionIDs.append(action.id)
-            }
-
-            guard !alternateActionIDs.isEmpty else { continue }
-            slots[index] = .occupied(try MenuItemConfiguration(
-                primaryActionID: item.primaryActionID,
-                alternateActionIDs: alternateActionIDs,
-                alias: item.alias
-            ))
-            changed = true
-        }
-
-        // The common Host Commands used to live in the fixture manifest. Keep
-        // those persisted Actions executable while moving them to the
-        // standalone Built-in Presets shown in the Library.
-        for index in actions.indices {
-            let action = actions[index]
-            guard action.pluginID == manifest.id,
-                  let hostCommand = action.hostCommand,
-                  let builtInPluginID = BuiltInPresetCatalog.pluginID(for: hostCommand),
-                  let builtInPackage = registry.package(for: builtInPluginID),
-                  let builtInCommand = builtInPackage.manifest.commands.first else {
-                continue
-            }
-            actions[index] = try ActionConfiguration(
-                id: action.id,
-                pluginID: builtInPluginID,
-                command: builtInCommand,
-                input: action.input
-            )
-            changed = true
-        }
-
-        guard changed else { return configuration }
         return try HostConfiguration(
-            actions: actions,
-            menu: MenuConfiguration(slots: slots)
-        )
-    }
-
-    private func makeFixtureScriptAction(
-        manifest: PluginManifest,
-        commandID: String,
-        actionID: String,
-        input: JSONValue
-    ) throws -> ActionConfiguration {
-        guard let command = manifest.commands.first(where: { $0.id.rawValue == commandID }) else {
-            throw ConfigurationError.invalidManifest("Fixture JavaScript Command \(commandID) is missing")
-        }
-        return try ActionConfiguration(
-            id: ActionID(actionID),
-            pluginID: manifest.id,
-            command: command,
-            input: input
+            actions: [],
+            menu: MenuConfiguration(
+                slots: Array(repeating: .empty, count: Self.defaultSlotCount)
+            )
         )
     }
 
@@ -541,26 +397,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         clipboardWindow?.present()
     }
 
-    private func fixtureURL() throws -> URL {
-        guard let packageURL = Bundle.module.url(
-            forResource: "SpinnetFixture",
-            withExtension: "spinnetplugin"
-        ) else {
-            throw HostCommandError.failed("The bundled fixture Plugin could not be found")
-        }
-        return packageURL
-    }
-
     private func pluginHelperURL() -> URL? {
+        // The app bundle first, then the build directory the Host itself was
+        // launched from. Both are relative to this executable, so neither
+        // depends on the working directory or on a build system's layout.
         let candidates = [
             Bundle.main.bundleURL
                 .appendingPathComponent("Contents/Helpers/SpinnetPluginHelper"),
             Bundle.main.executableURL?.deletingLastPathComponent()
-                .appendingPathComponent("SpinnetPluginHelper"),
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent(".build/arm64-apple-macosx/debug/SpinnetPluginHelper"),
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent(".build/arm64-apple-macosx/release/SpinnetPluginHelper")
+                .appendingPathComponent("SpinnetPluginHelper")
         ].compactMap { $0 }
         return candidates.first {
             FileManager.default.isExecutableFile(atPath: $0.path)
