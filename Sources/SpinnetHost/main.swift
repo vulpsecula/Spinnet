@@ -542,16 +542,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func fixtureURL() throws -> URL {
-        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let candidates = [
-            Bundle.main.resourceURL?
-                .appendingPathComponent("Spinnet_SpinnetHost.bundle", isDirectory: true)
-                .appendingPathComponent("SpinnetFixture.spinnetplugin", isDirectory: true),
-            root.appendingPathComponent("Plugins/SpinnetFixture.spinnetplugin")
-        ].compactMap { $0 }
-        guard let packageURL = candidates.first(where: {
-            FileManager.default.fileExists(atPath: $0.path)
-        }) else {
+        guard let packageURL = Bundle.module.url(
+            forResource: "SpinnetFixture",
+            withExtension: "spinnetplugin"
+        ) else {
             throw HostCommandError.failed("The bundled fixture Plugin could not be found")
         }
         return packageURL
