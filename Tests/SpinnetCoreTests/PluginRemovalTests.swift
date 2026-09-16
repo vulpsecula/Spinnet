@@ -1,0 +1,120 @@
+import Foundation
+import XCTest
+@testable import SpinnetCore
+
+final class PluginRemovalTests: XCTestCase {
+    private func makeStore() throws -> (URL, PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let registry = PluginRegistry()
+        let grants = PluginCapabilityGrantStore()
+        return (directory, registry, grants, PluginInstallationStore(
+            directory: directory, registry: registry, grants: grants, persistGrants: {}
+        ))
+    }
+
+    func testRemovingAnInstalledPluginDeletesItsCopyAndDoesNotComeBack() throws {
+        let (directory, registry, grants, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readSelectedText)
+        XCTAssertNotNil(registry.package(for: manifest.id))
+
+        try store.uninstall(manifest.id)
+
+        XCTAssertNil(registry.package(for: manifest.id))
+        // A restore reads the index from disk, so this proves the index was
+        // rewritten and not only the in-memory registry.
+        try store.restore()
+        XCTAssertNil(registry.package(for: manifest.id))
+        let remaining = try FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil
+        )
+        XCTAssertFalse(remaining.contains { $0.pathExtension == "spinnetplugin" })
+    }
+
+    func testRemovingAPluginForgetsTheAccessTheUserGrantedIt() throws {
+        let (_, _, grants, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readSelectedText)
+
+        try store.uninstall(manifest.id)
+
+        XCTAssertEqual(
+            grants.decision(for: manifest.id, pluginVersion: manifest.version,
+                            capability: .readSelectedText),
+            .notDetermined,
+            "A reinstalled Plugin must ask again rather than inherit a decision"
+        )
+        XCTAssertTrue(grants.allGrants.allSatisfy { $0.pluginID != manifest.id })
+    }
+
+    func testRemovingABundledPluginIsRecordedSoItStaysRemovedAcrossLaunches() throws {
+        let (directory, registry, grants, store) = try makeStore()
+        let loaded = try ScriptedPackageFixture.load()
+        try registry.register(PluginPackage(
+            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
+        ))
+
+        try store.uninstall(loaded.manifest.id)
+
+        XCTAssertNil(registry.package(for: loaded.manifest.id))
+        // A second Host launch reads the record back rather than the registry.
+        let relaunched = PluginInstallationStore(
+            directory: directory, registry: PluginRegistry(), grants: grants, persistGrants: {}
+        )
+        XCTAssertTrue(try relaunched.removedPluginIDs().contains(loaded.manifest.id))
+    }
+
+    func testABundledPluginCanBeReinstatedAfterRemoval() throws {
+        let (_, registry, _, store) = try makeStore()
+        let loaded = try ScriptedPackageFixture.load()
+        try registry.register(PluginPackage(
+            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
+        ))
+        try store.uninstall(loaded.manifest.id)
+
+        try store.reinstate(loaded.manifest.id)
+
+        XCTAssertFalse(try store.removedPluginIDs().contains(loaded.manifest.id))
+    }
+
+    func testAHostCommandCannotBeRemoved() throws {
+        let (_, registry, _, store) = try makeStore()
+        let command = CommandDeclaration(
+            id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.spinnet.builtin.open-url"), name: "Open URL", version: "1.0.0",
+            commands: [command],
+            preset: MenuItemPresetDeclaration(readiness: .setupRequired, defaultPrimaryCommandID: command.id)
+        )
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/nowhere"), manifest: manifest, origin: .hostCommand
+        ))
+
+        XCTAssertThrowsError(try store.uninstall(manifest.id))
+        XCTAssertNotNil(registry.package(for: manifest.id))
+    }
+
+    func testRemovingAPluginLeavesTheMenuItemsThatUsedItInPlace() throws {
+        let (_, registry, _, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
+        let command = try XCTUnwrap(manifest.commands.first { $0.execution == .host })
+        let action = try ActionConfiguration(
+            id: ActionID("kept"), pluginID: manifest.id, command: command,
+            input: .string("https://example.com")
+        )
+        let configuration = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(items: [MenuItemConfiguration(primaryActionID: action.id)])
+        )
+
+        try store.uninstall(manifest.id)
+
+        XCTAssertEqual(configuration.menu.items.first?.primaryActionID, action.id)
+        XCTAssertFalse(registry.availability(for: action).isAvailable)
+    }
+}

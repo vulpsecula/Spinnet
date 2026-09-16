@@ -187,6 +187,21 @@ public final class PluginCapabilityGrantStore {
         observers.forEach { $0() }
     }
 
+    /// Drops every decision recorded for a Plugin. A removed Plugin that is
+    /// installed again asks for access from scratch, because the decision the
+    /// user made applied to a package that is no longer there. Observers see
+    /// this as a revocation, so a request already in flight stops.
+    public func removeGrants(for pluginID: PluginID) {
+        lock.lock()
+        let hadGrants = decisions.removeValue(forKey: pluginID) != nil
+        scopes.removeValue(forKey: pluginID)
+        let revocations = hadGrants ? Array(revocationObservers.values) : []
+        let observers = hadGrants ? Array(changeObservers.values) : []
+        lock.unlock()
+        revocations.forEach { $0(pluginID) }
+        observers.forEach { $0() }
+    }
+
     /// Registers every declared Capability without changing an existing user
     /// decision. New entries remain explicitly `notDetermined` so a settings
     /// surface can present the complete scope requested by a Plugin.

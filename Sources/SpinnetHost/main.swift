@@ -403,10 +403,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             at: directory,
             includingPropertiesForKeys: nil
         )
+        let removed = try pluginInstallation.removedPluginIDs()
         // Sorted so registration order does not depend on the file system.
         for packageURL in contents.filter({ $0.pathExtension == "spinnetplugin" })
             .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             let package = try PluginManifestLoader.load(packageAt: packageURL)
+            // A shipped Plugin the user removed stays removed across launches,
+            // and across the app updates that replace these files.
+            guard !removed.contains(package.manifest.id),
+                  registry.package(for: package.manifest.id) == nil else { continue }
             try registry.register(PluginPackage(
                 rootURL: packageURL,
                 manifest: package.manifest,

@@ -1,7 +1,8 @@
 import Foundation
 
-/// Owns installed package copies and an atomic index. Importing never starts
-/// a helper or grants access. Old copies remain available if writing fails.
+/// Owns installed package copies and an atomic index, plus the record of which
+/// shipped Plugins the user removed. Importing never starts a helper or grants
+/// access. Old copies remain available if writing fails.
 public final class PluginInstallationStore {
     private let directory: URL
     private let registry: PluginRegistry
@@ -17,10 +18,66 @@ public final class PluginInstallationStore {
     }
 
     private var indexURL: URL { directory.appendingPathComponent("installed.json") }
+    /// A Bundled Plugin ships with the app, so removing its files is not an
+    /// option and deleting it would only last until the next launch. The user's
+    /// decision is recorded here instead, and discovery skips what it names.
+    private var removedIndexURL: URL { directory.appendingPathComponent("removed.json") }
 
     private func readIndex() throws -> [String: String] {
         guard FileManager.default.fileExists(atPath: indexURL.path) else { return [:] }
         return try JSONDecoder().decode([String: String].self, from: Data(contentsOf: indexURL))
+    }
+
+    public func removedPluginIDs() throws -> Set<PluginID> {
+        guard FileManager.default.fileExists(atPath: removedIndexURL.path) else { return [] }
+        let raw = try JSONDecoder().decode([String].self, from: Data(contentsOf: removedIndexURL))
+        return Set(raw.map { PluginID($0) })
+    }
+
+    private func writeRemoved(_ pluginIDs: Set<PluginID>) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let raw = pluginIDs.map(\.rawValue).sorted()
+        try JSONEncoder().encode(raw).write(to: removedIndexURL, options: .atomic)
+    }
+
+    /// Removes a Plugin the user no longer wants. Menu Items that referenced it
+    /// are left alone: they report the same unavailability as a disabled
+    /// Plugin, so nothing the user arranged is discarded by a removal.
+    ///
+    /// The durable record is written before the Plugin leaves the registry, so
+    /// a crash in between leaves the removal done rather than half done.
+    public func uninstall(_ pluginID: PluginID) throws {
+        guard let package = registry.package(for: pluginID) else { return }
+        guard package.canBeRemovedByUser else {
+            throw ConfigurationError.invalidManifest("A Host Command cannot be removed")
+        }
+        switch package.origin {
+        case .hostCommand:
+            return
+        case .bundled:
+            try writeRemoved(try removedPluginIDs().union([pluginID]))
+        case .installed:
+            var index = try readIndex()
+            let name = index.removeValue(forKey: pluginID.rawValue)
+            try JSONEncoder().encode(index).write(to: indexURL, options: .atomic)
+            if let name, name == URL(fileURLWithPath: name).lastPathComponent {
+                try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+            }
+        }
+        registry.unregister(pluginID)
+        grants.removeGrants(for: pluginID)
+        try persistGrants()
+    }
+
+    /// Forgets that a Bundled Plugin was removed. The caller rediscovers the
+    /// shipped packages afterwards, which is where the Plugin comes back.
+    public func reinstate(_ pluginID: PluginID) throws {
+        guard registry.package(for: pluginID) == nil else {
+            throw ConfigurationError.invalidManifest(
+                "A Plugin with that identity is already registered"
+            )
+        }
+        try writeRemoved(try removedPluginIDs().subtracting([pluginID]))
     }
 
     public func restore() throws {
