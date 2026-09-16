@@ -7,7 +7,7 @@ final class PluginRuntimeTests: XCTestCase {
 
     func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let package = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Sources/SpinnetHost/Resources/ClipboardHistory.spinnetplugin"))
+        let package = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/ClipboardHistory.spinnetplugin"))
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))

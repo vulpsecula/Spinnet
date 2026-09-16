@@ -52,11 +52,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 try registry.register(package)
             }
             clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
-            guard let historyURL = Bundle.module.url(forResource: "ClipboardHistory", withExtension: "spinnetplugin") else {
-                throw HostCommandError.failed("Bundled Clipboard History Plugin is missing")
-            }
-            let historyPackage = try PluginManifestLoader.load(packageAt: historyURL)
-            try registry.register(PluginPackage(rootURL: historyURL, manifest: historyPackage.manifest, isBundled: true))
+            try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
             for registeredManifest in registry.manifests() {
@@ -395,6 +391,45 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             self.settings.clearClipboardHistory(completion: completion)
         })
         clipboardWindow?.present()
+    }
+
+    /// Bundled Plugins ship inside the app bundle, in the same shape an
+    /// installed Plugin has on disk. The Host discovers them by reading a
+    /// directory rather than by naming each one, so shipping another Plugin is
+    /// a packaging change and not a code change.
+    private func registerBundledPlugins() throws {
+        guard let directory = try bundledPluginsDirectory() else { return }
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )
+        // Sorted so registration order does not depend on the file system.
+        for packageURL in contents.filter({ $0.pathExtension == "spinnetplugin" })
+            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let package = try PluginManifestLoader.load(packageAt: packageURL)
+            try registry.register(PluginPackage(
+                rootURL: packageURL,
+                manifest: package.manifest,
+                isBundled: true
+            ))
+        }
+    }
+
+    private func bundledPluginsDirectory() throws -> URL? {
+        // A development run outside an app bundle has nowhere to ship Plugins
+        // to, so it reads the repository's Plugins directory when asked to.
+        if let override = ProcessInfo.processInfo.environment["SPINNET_BUNDLED_PLUGINS_DIR"] {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return nil }
+        guard let directory = Bundle.main.resourceURL?
+                .appendingPathComponent("Plugins", isDirectory: true),
+              FileManager.default.fileExists(atPath: directory.path) else {
+            // Packaged but missing its Plugins: a broken build, not a Host that
+            // should start and quietly offer fewer Commands.
+            throw HostCommandError.failed("The app bundle is missing its Bundled Plugins")
+        }
+        return directory
     }
 
     private func pluginHelperURL() -> URL? {

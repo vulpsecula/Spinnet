@@ -18,9 +18,6 @@ let package = Package(
         .executableTarget(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore"],
-            resources: [
-                .copy("Resources/ClipboardHistory.spinnetplugin")
-            ],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]

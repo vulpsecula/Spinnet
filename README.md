@@ -15,8 +15,12 @@ the repository root:
 swift build
 swift build --product SpinnetPluginHelper
 swift test
-swift run SpinnetHost
+SPINNET_BUNDLED_PLUGINS_DIR=Plugins swift run SpinnetHost
 ```
+
+Bundled Plugins ship inside the app bundle, so a `swift run` has none unless
+`SPINNET_BUNDLED_PLUGINS_DIR` points at the repository's `Plugins` directory.
+Without it the Host still starts, with the Built-in Presets only.
 
 For the bundled app workflow, use `./script/build_and_run.sh`. It selects an
 Apple Development identity and refuses ad-hoc signing by default because macOS
@@ -33,8 +37,11 @@ permission again after rebuilding them.
 
 The Host registers a standalone Built-in Preset for each entry in the Host
 Command catalogue in [`docs/plugin-interface.md`](docs/plugin-interface.md),
-and ships Clipboard History as a Bundled Plugin loaded through the public
-manifest loader. A first launch opens an empty Menu; every Slot stays unbound
+and reads every Plugin package it finds in `Plugins` through the public
+manifest loader — Clipboard History today, anything added to that directory
+later. A Bundled Plugin is delivered into
+`SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
+Application Support, and the Host discovers both by reading a directory. A first launch opens an empty Menu; every Slot stays unbound
 until the user fills it. The Host opens the radial Menu with Mouse Side
 Button 1 by default. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and

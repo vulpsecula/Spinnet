@@ -12,6 +12,7 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
+APP_PLUGINS="$APP_RESOURCES/Plugins"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ALLOW_ADHOC_SIGNING="${SPINNET_ALLOW_ADHOC_SIGNING:-0}"
@@ -41,7 +42,6 @@ swift build --product SpinnetPluginHelper
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
-RESOURCE_BUNDLE="$BUILD_DIR/Spinnet_SpinnetHost.bundle"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
@@ -50,9 +50,22 @@ chmod +x "$APP_BINARY"
 mkdir -p "$APP_CONTENTS/Helpers"
 cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-if [[ -d "$RESOURCE_BUNDLE" ]]; then
-    ditto "$RESOURCE_BUNDLE" "$APP_RESOURCES/Spinnet_SpinnetHost.bundle"
+
+# Bundled Plugins ship as Plugin packages so the Host reads them the same way
+# it reads an installed Plugin. They live under Resources rather than PlugIns
+# because they carry no loadable code; codesign seals them as resources.
+mkdir -p "$APP_PLUGINS"
+bundled_count=0
+for package in "$ROOT_DIR"/Plugins/*.spinnetplugin; do
+    [[ -d "$package" ]] || continue
+    ditto "$package" "$APP_PLUGINS/$(basename "$package")"
+    bundled_count=$((bundled_count + 1))
+done
+if [[ "$bundled_count" -eq 0 ]]; then
+    echo "error: no Plugin packages found in $ROOT_DIR/Plugins" >&2
+    exit 1
 fi
+echo "Bundled $bundled_count Plugin package(s)"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
