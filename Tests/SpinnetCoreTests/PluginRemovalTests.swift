@@ -99,6 +99,48 @@ final class PluginRemovalTests: XCTestCase {
         XCTAssertTrue(grants.allGrants.allSatisfy { $0.pluginID != gone })
     }
 
+    func testInstallingThroughASymlinkStoresTheRealPackage() throws {
+        let (directory, registry, _, store) = try makeStore()
+        let real = try ScriptedPackageFixture.write()
+        let link = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).spinnetplugin")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        addTeardownBlock { try? FileManager.default.removeItem(at: link) }
+
+        let manifest = try store.install(from: link)
+
+        XCTAssertNotNil(registry.package(for: manifest.id))
+        let installed = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+                .first { $0.pathExtension == "spinnetplugin" }
+        )
+        XCTAssertNotEqual(
+            try installed.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink, true,
+            "The installed copy must be the package, not a link to it"
+        )
+        // Readable after the original is gone, which a copied link would not be.
+        try FileManager.default.removeItem(at: real)
+        XCTAssertNoThrow(try PluginManifestLoader.load(packageAt: installed))
+    }
+
+    func testAPackageContainingASymbolicLinkIsRefused() throws {
+        let (directory, registry, _, store) = try makeStore()
+        let source = try ScriptedPackageFixture.write()
+        try FileManager.default.createSymbolicLink(
+            at: source.appendingPathComponent("escape.js"),
+            withDestinationURL: URL(fileURLWithPath: "/etc/passwd")
+        )
+
+        XCTAssertThrowsError(try store.install(from: source))
+
+        XCTAssertNil(registry.package(for: ScriptedPackageFixture.pluginID))
+        let leftovers = (try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil
+        )) ?? []
+        XCTAssertFalse(leftovers.contains { $0.pathExtension == "spinnetplugin" },
+                       "A refused package must not be left in the install directory")
+    }
+
     func testAHostCommandCannotBeRemoved() throws {
         let (_, registry, _, store) = try makeStore()
         let command = CommandDeclaration(

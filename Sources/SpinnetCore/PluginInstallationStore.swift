@@ -96,8 +96,33 @@ public final class PluginInstallationStore {
         }
     }
 
+    /// A package must be a plain tree. A symbolic link inside it would let a
+    /// script reach outside the package, which the manifest's own rejection of
+    /// escaping script paths cannot see, and a link copied into the install
+    /// directory would dangle the moment whatever it points at moves.
+    private func rejectSymbolicLinks(in root: URL) throws {
+        var pending = [root]
+        while let directory = pending.popLast() {
+            let keys: Set<URLResourceKey> = [.isSymbolicLinkKey, .isDirectoryKey]
+            for entry in try FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: Array(keys)
+            ) {
+                let values = try entry.resourceValues(forKeys: keys)
+                guard values.isSymbolicLink != true else {
+                    throw ConfigurationError.invalidManifest(
+                        "Plugin package contains a symbolic link: \(entry.lastPathComponent)"
+                    )
+                }
+                if values.isDirectory == true { pending.append(entry) }
+            }
+        }
+    }
+
     @discardableResult
     public func install(from source: URL) throws -> PluginManifest {
+        // Copying follows no links, so a symlinked package would be installed
+        // as the link itself and break as soon as it is read from elsewhere.
+        let source = source.resolvingSymlinksInPath()
         let candidate = try PluginManifestLoader.load(packageAt: source)
         if let existing = registry.package(for: candidate.manifest.id),
            !existing.canBeReplacedByInstall {
@@ -108,6 +133,7 @@ public final class PluginInstallationStore {
         let destination = directory.appendingPathComponent(name)
         try FileManager.default.copyItem(at: source, to: destination)
         do {
+            try rejectSymbolicLinks(in: destination)
             let package = try PluginManifestLoader.load(packageAt: destination)
             guard package.manifest == candidate.manifest else {
                 throw ConfigurationError.invalidManifest("Plugin changed during installation")
