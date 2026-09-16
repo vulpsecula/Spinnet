@@ -26,6 +26,8 @@ final class MenuEditorModel: ObservableObject {
     @Published private(set) var refreshToken = 0
     @Published private(set) var menuSlots: [MenuSlotPresentation]
     var installPlugin: ((URL) throws -> PluginManifest)?
+    var removePlugin: ((PluginID) throws -> Void)?
+    @Published private(set) var presetPendingRemoval: MenuItemPreset?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
 
@@ -102,6 +104,33 @@ final class MenuEditorModel: ObservableObject {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         installPluginPackage(at: url)
+    }
+
+    var removalTitle: String {
+        guard let preset = presetPendingRemoval else { return "Remove Plugin?" }
+        return "Remove \(preset.name)?"
+    }
+
+    func requestPluginRemoval(_ preset: MenuItemPreset) {
+        guard preset.canBeRemoved else { return }
+        presetPendingRemoval = preset
+    }
+
+    func cancelPluginRemoval() {
+        presetPendingRemoval = nil
+    }
+
+    func confirmPluginRemoval() {
+        guard let preset = presetPendingRemoval, let removePlugin else { return }
+        presetPendingRemoval = nil
+        do {
+            try removePlugin(preset.pluginID)
+            refreshMenuSlots()
+            refreshToken += 1
+            placementMessage = "\(preset.name) removed. Menu Items that used it are kept and marked unavailable."
+        } catch {
+            placementMessage = "Removal failed: \(error.localizedDescription)"
+        }
     }
 
     /// The native picker and automated Settings workflow enter the same install intent.

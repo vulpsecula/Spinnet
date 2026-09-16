@@ -158,6 +158,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 }
                 return manifest
             }
+            settings.removePlugin = { [unowned self] pluginID in
+                try self.pluginInstallation.uninstall(pluginID)
+                if let configuration = self.currentConfiguration {
+                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                }
+            }
             settings.onCapabilityGrantChanged = { [weak self] _ in
                 do {
                     try self?.saveCapabilityGrants()

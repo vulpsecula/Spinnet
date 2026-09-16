@@ -342,6 +342,15 @@ struct SettingsRootView: View {
         } message: {
             Text("This removes the whole Slot from the Menu. You can undo the deletion.")
         }
+        .alert(menuEditor.removalTitle, isPresented: Binding(
+            get: { menuEditor.presetPendingRemoval != nil },
+            set: { if !$0 { menuEditor.cancelPluginRemoval() } }
+        )) {
+            Button("Cancel", role: .cancel, action: menuEditor.cancelPluginRemoval)
+            Button("Remove Plugin", role: .destructive, action: menuEditor.confirmPluginRemoval)
+        } message: {
+            Text("Its access is forgotten and it leaves the Library. Menu Items that used it are kept and marked unavailable.")
+        }
         .alert(
             "Replace Menu Item in Slot \((menuEditor.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
             isPresented: presetReplacementAlertBinding
@@ -627,7 +636,8 @@ struct SettingsRootView: View {
                     librarySectionsForQuery: menuEditor.librarySections,
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
-                    onPluginSettings: privacy.showPluginSettings
+                    onPluginSettings: privacy.showPluginSettings,
+                    onRemovePlugin: menuEditor.requestPluginRemoval
                 )
                 .id(menuEditor.refreshToken)
                 .onAppear { privacy.refreshSystemPermissionStatus() }

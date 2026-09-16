@@ -330,7 +330,8 @@ public final class PluginRegistry {
                     declaration: package.manifest.preset,
                     unavailableReason: disabledPluginIDs.contains(package.manifest.id)
                         ? .pluginDisabled
-                        : nil
+                        : nil,
+                    canBeRemoved: package.canBeRemovedByUser
                 )
             }
             .sorted { lhs, rhs in

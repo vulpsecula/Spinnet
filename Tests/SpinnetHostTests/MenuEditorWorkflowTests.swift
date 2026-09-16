@@ -103,6 +103,58 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertTrue(model.editor.configuration.actions.isEmpty)
     }
 
+    func testRemovingAPluginFromTheLibraryConfirmsFirstAndKeepsTheMenuIntact() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        var removed: [PluginID] = []
+        model.menuEditor.removePlugin = { removed.append($0) }
+        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        XCTAssertTrue(preset.canBeRemoved)
+        let menuBefore = model.editor.configuration.menu
+
+        model.menuEditor.requestPluginRemoval(preset)
+        XCTAssertEqual(model.menuEditor.presetPendingRemoval?.pluginID, preset.pluginID)
+        XCTAssertTrue(removed.isEmpty, "Removal must wait for the confirmation")
+
+        model.menuEditor.confirmPluginRemoval()
+
+        XCTAssertEqual(removed, [preset.pluginID])
+        XCTAssertNil(model.menuEditor.presetPendingRemoval)
+        XCTAssertEqual(model.editor.configuration.menu, menuBefore)
+    }
+
+    func testCancellingAPluginRemovalRemovesNothing() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        var removed: [PluginID] = []
+        model.menuEditor.removePlugin = { removed.append($0) }
+        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+
+        model.menuEditor.requestPluginRemoval(preset)
+        model.menuEditor.cancelPluginRemoval()
+        model.menuEditor.confirmPluginRemoval()
+
+        XCTAssertTrue(removed.isEmpty)
+        XCTAssertNil(model.menuEditor.presetPendingRemoval)
+    }
+
+    func testTheLibraryOffersNoRemovalForAHostCommand() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        var removed: [PluginID] = []
+        model.menuEditor.removePlugin = { removed.append($0) }
+        let hostCommand = MenuItemPreset(
+            pluginID: PluginID("com.spinnet.builtin.open-url"),
+            name: "Open URL",
+            commands: [],
+            source: .builtIn,
+            declaration: MenuItemPresetDeclaration(readiness: .readyToUse),
+            canBeRemoved: false
+        )
+
+        model.menuEditor.requestPluginRemoval(hostCommand)
+
+        XCTAssertNil(model.menuEditor.presetPendingRemoval)
+        XCTAssertTrue(removed.isEmpty)
+    }
+
     func testAddingTheSamePresetTwiceKeepsMenuItemActionsIndependent() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         model.menuEditor.addEmptySlot()

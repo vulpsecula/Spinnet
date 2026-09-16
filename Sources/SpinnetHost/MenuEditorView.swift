@@ -9,6 +9,7 @@ struct MenuEditorView: View {
     let onPresetPlacement: (String, Int) -> Bool
     var onInstallPlugin: () -> Void = {}
     var onPluginSettings: (PluginID) -> Void = { _ in }
+    var onRemovePlugin: (MenuItemPreset) -> Void = { _ in }
 
     @State private var searchText = ""
 
@@ -161,6 +162,15 @@ struct MenuEditorView: View {
             .buttonStyle(.borderless)
             .help("Plugin Settings — Grant Access")
             .accessibilityLabel("Plugin Settings: \(preset.name)")
+
+            if preset.canBeRemoved {
+                Button { onRemovePlugin(preset) } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Remove this Plugin from the Library")
+                .accessibilityLabel("Remove Plugin: \(preset.name)")
+            }
 
             if !selectedSlotIsOccupied {
                 Button {

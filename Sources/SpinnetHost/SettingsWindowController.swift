@@ -29,6 +29,10 @@ final class SettingsWindowController: NSWindowController {
         get { model.menuEditor.installPlugin }
         set { model.menuEditor.installPlugin = newValue }
     }
+    var removePlugin: ((PluginID) throws -> Void)? {
+        get { model.menuEditor.removePlugin }
+        set { model.menuEditor.removePlugin = newValue }
+    }
 
     var onClipboardHistoryChanged: (() -> Void)? {
         get { model.clipboardHistory.onChange }
