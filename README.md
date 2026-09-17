@@ -20,7 +20,12 @@ SPINNET_BUNDLED_PLUGINS_DIR=Plugins swift run SpinnetHost
 
 Bundled Plugins ship inside the app bundle, so a `swift run` has none unless
 `SPINNET_BUNDLED_PLUGINS_DIR` points at the repository's `Plugins` directory.
-Without it the Host still starts, with the Built-in Presets only.
+Without it the Host still starts, with the Built-in Presets only, and it leaves
+the access decisions alone rather than reading a launch that saw no Bundled
+Plugin as a sign that they are gone. A Host running from an app bundle reads
+the Plugins that bundle carries and ignores the variable: Bundled authority is
+for the Plugins a signed build ships, not for a directory the environment
+names.
 
 For the bundled app workflow, use `./script/build_and_run.sh`. It selects an
 Apple Development identity and refuses ad-hoc signing by default because macOS

@@ -81,7 +81,12 @@ public final class PluginInstallationStore {
     }
 
     public func restore() throws {
+        let removed = try removedPluginIDs()
         for (pluginID, name) in try readIndex() {
+            // A removal is of the Plugin, not of whichever copy of it is on
+            // top, so a user copy left underneath a shipped one must not bring
+            // a removed Plugin back.
+            if removed.contains(PluginID(pluginID)) { continue }
             // Shipped packages own their identities even if an older Host
             // installed a package with that ID before it became bundled.
             if registry.package(for: PluginID(pluginID))?.canBeReplacedByInstall == false { continue }

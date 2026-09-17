@@ -52,7 +52,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 try registry.register(package)
             }
             clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
-            try registerBundledPlugins()
+            let bundledPlugins = try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
             let registeredManifests = registry.manifests()
@@ -63,10 +63,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     capabilities: registeredManifest.capabilities
                 )
             }
-            // Discovery has finished and would have failed the launch rather
-            // than registering fewer Plugins, so anything still holding a
-            // decision here is a Plugin that is gone.
-            capabilityGrants.discardGrants(outside: Set(registeredManifests.map(\.id)))
+            // Discovery has finished, so anything still holding a decision is
+            // a Plugin that is gone. A launch that read no Bundled Plugin
+            // cannot tell those apart from the ones it never read, and its
+            // decisions belong to the packaged Host that does read them.
+            if bundledPlugins.accountsForBundledPlugins {
+                capabilityGrants.discardGrants(outside: Set(registeredManifests.map(\.id)))
+            }
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)
@@ -408,8 +411,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// installed Plugin has on disk. The Host discovers them by reading a
     /// directory rather than by naming each one, so shipping another Plugin is
     /// a packaging change and not a code change.
-    private func registerBundledPlugins() throws {
-        guard let directory = try bundledPluginsDirectory() else { return }
+    private func registerBundledPlugins() throws -> BundledPluginSource {
+        let source = try bundledPluginSource()
+        guard let directory = source.directory else { return source }
         let contents = try FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil
@@ -429,23 +433,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 origin: .bundled
             ))
         }
+        return source
     }
 
-    private func bundledPluginsDirectory() throws -> URL? {
-        // A development run outside an app bundle has nowhere to ship Plugins
-        // to, so it reads the repository's Plugins directory when asked to.
-        if let override = ProcessInfo.processInfo.environment["SPINNET_BUNDLED_PLUGINS_DIR"] {
-            return URL(fileURLWithPath: override, isDirectory: true)
-        }
-        guard Bundle.main.bundleURL.pathExtension == "app" else { return nil }
-        guard let directory = Bundle.main.resourceURL?
-                .appendingPathComponent("Plugins", isDirectory: true),
-              FileManager.default.fileExists(atPath: directory.path) else {
-            // Packaged but missing its Plugins: a broken build, not a Host that
-            // should start and quietly offer fewer Commands.
-            throw HostCommandError.failed("The app bundle is missing its Bundled Plugins")
-        }
-        return directory
+    private func bundledPluginSource() throws -> BundledPluginSource {
+        try BundledPluginSource.resolve(
+            bundleURL: Bundle.main.bundleURL,
+            resourceURL: Bundle.main.resourceURL,
+            environmentOverride: ProcessInfo.processInfo
+                .environment["SPINNET_BUNDLED_PLUGINS_DIR"],
+            directoryExists: { FileManager.default.fileExists(atPath: $0.path) }
+        )
     }
 
     private func pluginHelperURL() -> URL? {

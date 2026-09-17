@@ -13,7 +13,7 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin: it can be removed and reinstated, although its files ship with the app and cannot be deleted.
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. Removal is permanent for that installation: a user who wants the Plugin back installs it again from the Plugin market, exactly as they would any other Plugin.
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:

@@ -81,6 +81,32 @@ final class PluginRemovalTests: XCTestCase {
         XCTAssertFalse(try store.removedPluginIDs().contains(loaded.manifest.id))
     }
 
+    func testRemovingABundledPluginKeepsAShadowedInstalledCopyFromBringingItBack() throws {
+        // A Plugin that shipped after an earlier version of it was installed
+        // leaves the user's own copy indexed underneath the shipped one. The
+        // removal is of the Plugin, not of whichever copy is on top.
+        let (directory, registry, grants, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
+        registry.unregister(manifest.id)
+        let loaded = try ScriptedPackageFixture.load()
+        try registry.register(PluginPackage(
+            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
+        ))
+
+        try store.uninstall(manifest.id)
+
+        let relaunchedRegistry = PluginRegistry()
+        let relaunched = PluginInstallationStore(
+            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
+        )
+        try relaunched.restore()
+
+        XCTAssertNil(
+            relaunchedRegistry.package(for: manifest.id),
+            "A removed Plugin stays removed, whichever copy of it is on disk"
+        )
+    }
+
     func testStartupForgetsDecisionsLeftBehindByPluginsThatAreGone() throws {
         let grants = PluginCapabilityGrantStore()
         let present = PluginID("com.example.present")
