@@ -10,6 +10,9 @@ struct MenuEditorView: View {
     var onInstallPlugin: () -> Void = {}
     var onPluginSettings: (PluginID) -> Void = { _ in }
     var onRemovePlugin: (MenuItemPreset) -> Void = { _ in }
+    var restorablePluginsForQuery: (String) -> [RestorablePlugin] = { _ in [] }
+    var restorableFailure: String?
+    var onRestorePlugin: (PluginID) -> Void = { _ in }
 
     @State private var searchText = ""
 
@@ -27,7 +30,8 @@ struct MenuEditorView: View {
     }
 
     var body: some View {
-        ScrollView {
+        let restorablePlugins = restorablePluginsForQuery(searchText)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 pageHeader(
                     title: "Menu",
@@ -46,7 +50,7 @@ struct MenuEditorView: View {
                     .accessibilityLabel("Search Library")
                 Button("Install or Update Plugin…", action: onInstallPlugin)
 
-                if librarySections.allSatisfy({ $0.presets.isEmpty }) {
+                if librarySections.allSatisfy({ $0.presets.isEmpty }), restorablePlugins.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
@@ -77,6 +81,28 @@ struct MenuEditorView: View {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                if let restorableFailure {
+                    Label(restorableFailure, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !restorablePlugins.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Removed Plugins")
+                            .font(.headline)
+                            .accessibilityAddTraits(.isHeader)
+                        Text("These Plugins ship with Spinnet. Restoring one brings back the copy the app carries, and it asks for access again.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(restorablePlugins) { plugin in
+                            restorableCard(plugin)
                         }
                     }
                 }
@@ -201,6 +227,44 @@ struct MenuEditorView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(preset.accessibilityLabel)
         .accessibilityHint(presetActionHelp(preset))
+    }
+
+    private func restorableCard(_ plugin: RestorablePlugin) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Image(systemName: "arrow.uturn.backward")
+                        .foregroundStyle(.secondary)
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(plugin.name).font(.headline)
+                Text(plugin.commandTitles.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button("Restore") { onRestorePlugin(plugin.pluginID) }
+                .help("Bring back the copy of this Plugin that ships with Spinnet")
+                .accessibilityLabel("Restore Plugin: \(plugin.name)")
+        }
+        .padding(10)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(plugin.name), removed, ships with Spinnet")
     }
 
     private func presetStateImageName(_ preset: MenuItemPreset) -> String {

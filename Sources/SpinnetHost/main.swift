@@ -13,7 +13,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var pluginInstallation = PluginInstallationStore(
         directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
         registry: registry, grants: capabilityGrants,
-        persistGrants: { [unowned self] in try self.saveCapabilityGrants() }
+        persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
+        shippedPackages: { [unowned self] in try self.shippedPackages() }
     )
     private var clipboardStore: ClipboardHistoryStore!
     private var clipboardCollector: ClipboardCollector?
@@ -160,7 +161,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 self?.configurationDidChange(configuration)
             }
             settings.installPlugin = { [unowned self] url in
-                let manifest = try self.pluginInstallation.install(from: url)
+                let outcome = try self.pluginInstallation.install(from: url)
+                if let configuration = self.currentConfiguration {
+                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                }
+                return outcome
+            }
+            settings.restorablePlugins = { [unowned self] in
+                try self.pluginInstallation.restorablePlugins()
+            }
+            settings.restorePlugin = { [unowned self] pluginID in
+                let manifest = try self.pluginInstallation.reinstate(pluginID)
                 if let configuration = self.currentConfiguration {
                     self.menu.reload(items: self.makeMenuSlots(from: configuration))
                 }
@@ -413,27 +424,38 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// a packaging change and not a code change.
     private func registerBundledPlugins() throws -> BundledPluginSource {
         let source = try bundledPluginSource()
-        guard let directory = source.directory else { return source }
-        let contents = try FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil
-        )
         let removed = try pluginInstallation.removedPluginIDs()
-        // Sorted so registration order does not depend on the file system.
-        for packageURL in contents.filter({ $0.pathExtension == "spinnetplugin" })
-            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            let package = try PluginManifestLoader.load(packageAt: packageURL)
+        for package in try shippedPackages(in: source) {
             // A shipped Plugin the user removed stays removed across launches,
             // and across the app updates that replace these files.
             guard !removed.contains(package.manifest.id),
                   registry.package(for: package.manifest.id) == nil else { continue }
-            try registry.register(PluginPackage(
-                rootURL: packageURL,
-                manifest: package.manifest,
-                origin: .bundled
-            ))
+            try registry.register(package)
         }
         return source
+    }
+
+    /// Every Plugin this launch ships, removed ones included: a removal is
+    /// undone by registering the shipped copy, so it has to stay findable.
+    private func shippedPackages(
+        in source: BundledPluginSource? = nil
+    ) throws -> [PluginPackage] {
+        guard let directory = try (source ?? bundledPluginSource()).directory else { return [] }
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )
+        // Sorted so registration order does not depend on the file system.
+        return try contents.filter { $0.pathExtension == "spinnetplugin" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .map { packageURL in
+                let package = try PluginManifestLoader.load(packageAt: packageURL)
+                return PluginPackage(
+                    rootURL: packageURL,
+                    manifest: package.manifest,
+                    origin: .bundled
+                )
+            }
     }
 
     private func bundledPluginSource() throws -> BundledPluginSource {

@@ -162,6 +162,95 @@ final class MenuEditorModelTests: XCTestCase {
         XCTAssertGreaterThan(model.refreshToken, token)
     }
 
+    func testTheLibraryOffersARemovedShippedPluginBackAndRestoresIt() throws {
+        let model = try makeModel()
+        let shipped = try PluginManifest(
+            id: PluginID("com.spinnet.clipboard-history"),
+            name: "Clipboard History",
+            version: "1.1.0",
+            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
+                                          hostCommand: .openURL)]
+        )
+        var removed: [PluginManifest] = [shipped]
+        model.restorablePlugins = { removed }
+        var restored: [PluginID] = []
+        model.restorePlugin = { pluginID in
+            restored.append(pluginID)
+            removed.removeAll { $0.id == pluginID }
+            return shipped
+        }
+
+        XCTAssertEqual(model.restorablePluginList.map(\.name), ["Clipboard History"])
+
+        model.restoreRemovedPlugin(shipped.id)
+
+        XCTAssertEqual(restored, [shipped.id])
+        XCTAssertTrue(model.restorablePluginList.isEmpty, "A restored Plugin is no longer on offer")
+        XCTAssertEqual(
+            model.placementMessage,
+            "Clipboard History restored from the copy that ships with Spinnet. It asks for access again."
+        )
+    }
+
+    func testInstallingACopyOfAShippedPluginReportsItAsRestored() throws {
+        let model = try makeModel()
+        let shipped = try PluginManifest(
+            id: PluginID("com.spinnet.clipboard-history"),
+            name: "Clipboard History",
+            version: "1.1.0",
+            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
+                                          hostCommand: .openURL)]
+        )
+        model.installPlugin = { _ in .restored(shipped) }
+
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"))
+
+        XCTAssertEqual(
+            model.placementMessage,
+            "Clipboard History restored from the copy that ships with Spinnet. It asks for access again.",
+            "A Plugin the app carries comes back rather than being installed as a user copy"
+        )
+    }
+
+    func testAnUnreadableRemovedPluginRecordIsReportedWhereTheOfferWouldBe() throws {
+        let model = try makeModel()
+        struct ReadFailure: LocalizedError {
+            var errorDescription: String? { "the record is unreadable" }
+        }
+        model.restorablePlugins = { throw ReadFailure() }
+        model.placementMessage = "Menu Item added to Slot 3."
+
+        model.refreshMenuSlots()
+
+        XCTAssertEqual(
+            model.placementMessage,
+            "Menu Item added to Slot 3.",
+            "A refresh riding along with an edit must not overwrite what that edit reported"
+        )
+        XCTAssertEqual(
+            model.restorableFailure,
+            "Removed Plugins could not be read: the record is unreadable"
+        )
+        XCTAssertTrue(model.restorablePluginList.isEmpty)
+    }
+
+    func testTheRestoreOfferIsSearchedAlongsideTheLibrary() throws {
+        let model = try makeModel()
+        let shipped = try PluginManifest(
+            id: PluginID("com.spinnet.clipboard-history"),
+            name: "Clipboard History",
+            version: "1.1.0",
+            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
+                                          hostCommand: .openURL)]
+        )
+        model.restorablePlugins = { [shipped] }
+
+        XCTAssertEqual(model.restorablePlugins(matching: "clipboard").map(\.name), ["Clipboard History"])
+        XCTAssertEqual(model.restorablePlugins(matching: "browse").map(\.name), ["Clipboard History"],
+                       "A Command title matches, as it does for a Preset")
+        XCTAssertTrue(model.restorablePlugins(matching: "no such plugin").isEmpty)
+    }
+
     func testLibrarySearchMatchesPresetAndCommandTitles() throws {
         let model = try makeModel()
         XCTAssertFalse(model.librarySections(matching: "").isEmpty)

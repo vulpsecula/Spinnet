@@ -1,5 +1,18 @@
 import Foundation
 
+/// What an install did. A Plugin that ships with the app is brought back
+/// rather than copied, so the two outcomes read differently to the user.
+public enum PluginInstallationOutcome: Equatable {
+    case installed(PluginManifest)
+    case restored(PluginManifest)
+
+    public var manifest: PluginManifest {
+        switch self {
+        case let .installed(manifest), let .restored(manifest): return manifest
+        }
+    }
+}
+
 /// Owns installed package copies and an atomic index, plus the record of which
 /// shipped Plugins the user removed. Importing never starts a helper or grants
 /// access. Old copies remain available if writing fails.
@@ -8,13 +21,20 @@ public final class PluginInstallationStore {
     private let registry: PluginRegistry
     private let grants: PluginCapabilityGrantStore
     private let persistGrants: () throws -> Void
+    private let shippedPackages: () throws -> [PluginPackage]
 
     public init(directory: URL, registry: PluginRegistry, grants: PluginCapabilityGrantStore,
-                persistGrants: @escaping () throws -> Void) {
+                persistGrants: @escaping () throws -> Void,
+                shippedPackages: @escaping () throws -> [PluginPackage] = { [] }) {
         self.directory = directory
         self.registry = registry
         self.grants = grants
         self.persistGrants = persistGrants
+        self.shippedPackages = shippedPackages
+    }
+
+    private func shippedPackage(_ pluginID: PluginID) throws -> PluginPackage? {
+        try shippedPackages().first { $0.manifest.id == pluginID }
     }
 
     private var indexURL: URL { directory.appendingPathComponent("installed.json") }
@@ -57,27 +77,72 @@ public final class PluginInstallationStore {
         case .bundled:
             try writeRemoved(try removedPluginIDs().union([pluginID]))
         case .installed:
-            var index = try readIndex()
-            let name = index.removeValue(forKey: pluginID.rawValue)
-            try JSONEncoder().encode(index).write(to: indexURL, options: .atomic)
-            if let name, name == URL(fileURLWithPath: name).lastPathComponent {
-                try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
-            }
+            try discardInstalledCopy(of: pluginID)
         }
         registry.unregister(pluginID)
         grants.removeGrants(for: pluginID)
         try persistGrants()
     }
 
-    /// Forgets that a Bundled Plugin was removed. The caller rediscovers the
-    /// shipped packages afterwards, which is where the Plugin comes back.
-    public func reinstate(_ pluginID: PluginID) throws {
+    /// Drops the user's own copy of a Plugin: its index entry first, so a
+    /// crash leaves an unreferenced file rather than an index naming one that
+    /// is gone.
+    private func discardInstalledCopy(of pluginID: PluginID) throws {
+        var index = try readIndex()
+        guard let name = index.removeValue(forKey: pluginID.rawValue) else { return }
+        try JSONEncoder().encode(index).write(to: indexURL, options: .atomic)
+        if name == URL(fileURLWithPath: name).lastPathComponent {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+        }
+    }
+
+    /// The shipped Plugins the user removed. They are the ones an install
+    /// brings back rather than copies, and the only ones a Library can offer
+    /// to restore.
+    public func restorablePlugins() throws -> [PluginManifest] {
+        let removed = try removedPluginIDs()
+        return try shippedPackages()
+            .map(\.manifest)
+            .filter { removed.contains($0.id) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Brings a removed Bundled Plugin back by forgetting the removal and
+    /// registering the copy that ships with the app. The Plugin keeps the
+    /// origin it shipped with, which is what a copy of the same package
+    /// installed into Application Support could never have.
+    ///
+    /// Access is not inherited: the removal forgot the user's decisions, and a
+    /// Plugin returning to the Library asks for them again.
+    @discardableResult
+    public func reinstate(_ pluginID: PluginID) throws -> PluginManifest {
         guard registry.package(for: pluginID) == nil else {
             throw ConfigurationError.invalidManifest(
                 "A Plugin with that identity is already registered"
             )
         }
-        try writeRemoved(try removedPluginIDs().subtracting([pluginID]))
+        guard let shipped = try shippedPackage(pluginID) else {
+            throw ConfigurationError.invalidManifest(
+                "No Plugin ships with that identity"
+            )
+        }
+        grants.prepareInstallation(of: shipped.manifest, replacing: nil)
+        try persistGrants()
+        // The Plugin is back once it registers, so the durable record is
+        // cleared after that and put back if clearing it fails. A removal
+        // writes its record first for the same reason: whichever state a
+        // crash lands in has to be one of the two the user asked for.
+        try registry.register(shipped)
+        do {
+            try writeRemoved(try removedPluginIDs().subtracting([pluginID]))
+            // The shipped copy owns the identity again, so a user copy left
+            // underneath it from an older Host is no longer anybody's Plugin.
+            try discardInstalledCopy(of: pluginID)
+        } catch {
+            registry.unregister(pluginID)
+            throw error
+        }
+        return shipped.manifest
     }
 
     public func restore() throws {
@@ -124,11 +189,20 @@ public final class PluginInstallationStore {
     }
 
     @discardableResult
-    public func install(from source: URL) throws -> PluginManifest {
+    public func install(from source: URL) throws -> PluginInstallationOutcome {
         // Copying follows no links, so a symlinked package would be installed
         // as the link itself and break as soon as it is read from elsewhere.
         let source = source.resolvingSymlinksInPath()
         let candidate = try PluginManifestLoader.load(packageAt: source)
+        // A Plugin that ships with the app keeps its identity wherever a copy
+        // of it is pointed at from. Installing that copy would put it back as
+        // a user Plugin, which is a weaker origin than the one it shipped
+        // with, so the Plugin would return to the Library unable to do what it
+        // did before. Bringing back the shipped copy is what was asked for.
+        if try removedPluginIDs().contains(candidate.manifest.id),
+           try shippedPackage(candidate.manifest.id) != nil {
+            return .restored(try reinstate(candidate.manifest.id))
+        }
         if let existing = registry.package(for: candidate.manifest.id),
            !existing.canBeReplacedByInstall {
             throw ConfigurationError.invalidManifest("Cannot replace a Host-provided Plugin")
@@ -159,7 +233,15 @@ public final class PluginInstallationStore {
             if let oldName, oldName == URL(fileURLWithPath: oldName).lastPathComponent {
                 try? FileManager.default.removeItem(at: directory.appendingPathComponent(oldName))
             }
-            return package.manifest
+            // The record suppresses a shipped Plugin the user dropped. They
+            // have just installed this identity themselves, so it no longer
+            // names something they refused — and left in place it would make
+            // the next launch drop the copy they just installed.
+            let removed = try removedPluginIDs()
+            if removed.contains(package.manifest.id) {
+                try writeRemoved(removed.subtracting([package.manifest.id]))
+            }
+            return .installed(package.manifest)
         } catch {
             // An indexed copy must survive a later activation failure.
             if (try? readIndex().values.contains(name)) != true {

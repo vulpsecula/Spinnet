@@ -242,6 +242,9 @@ final class SettingsWindowModel: ObservableObject {
         if page == .menu {
             names.append(contentsOf: ["Built-in Presets", "Plugin Presets"])
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
+            for plugin in menuEditor.restorablePluginList {
+                names.append("Restore Plugin: \(plugin.name)")
+            }
             let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(menuEditor.selectedMenuIndex)
                 && editor.configuration.menu.slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
@@ -637,7 +640,10 @@ struct SettingsRootView: View {
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
                     onPluginSettings: privacy.showPluginSettings,
-                    onRemovePlugin: menuEditor.requestPluginRemoval
+                    onRemovePlugin: menuEditor.requestPluginRemoval,
+                    restorablePluginsForQuery: menuEditor.restorablePlugins(matching:),
+                    restorableFailure: menuEditor.restorableFailure,
+                    onRestorePlugin: menuEditor.restoreRemovedPlugin
                 )
                 .id(menuEditor.refreshToken)
                 .onAppear { privacy.refreshSystemPermissionStatus() }

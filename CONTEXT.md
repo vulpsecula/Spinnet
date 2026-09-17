@@ -13,7 +13,7 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. Removal is permanent for that installation: a user who wants the Plugin back installs it again from the Plugin market, exactly as they would any other Plugin.
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. What it may do follows from shipping inside the app bundle, so a copy of its package installed from anywhere else would come back weaker than the Plugin it copies; a removed one is brought back by Plugin Restoration instead.
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:
@@ -25,8 +25,12 @@ Where a Plugin's package came from — shipped with the app, or installed by the
 _Avoid_: Plugin type, plugin kind, trust level
 
 **Plugin Removal**:
-Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable, exactly as a disabled Plugin's are.
+Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable, exactly as a disabled Plugin's are. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
+
+**Plugin Restoration**:
+Bringing a removed Bundled Plugin back from the copy the app carries, which is the only copy that holds the origin it shipped with. The Library offers every removed Bundled Plugin back, and pointing an install at a copy of one restores the shipped Plugin rather than adding a second, weaker copy of it. Access is not inherited: the removal forgot the user's decisions and the Plugin asks again.
+_Avoid_: Reinstall, re-enable, undo removal
 
 **Command**:
 A callable operation declared by the Host or a Plugin, before user-specific configuration is applied.
