@@ -775,6 +775,122 @@ final class EditorModeMenuTests: XCTestCase {
         XCTAssertEqual(slots[0].title, "Fixture")
     }
 
+    func testEditButtonsFindTheirSlotsAgainWhenTheCanvasIsSizedAfterAnUpdate() throws {
+        // SwiftUI updates a hosted view before it has given the view its size,
+        // so the in-slot Edit controls can be placed against an empty canvas.
+        // Nothing updates them again afterwards, so they have to follow the
+        // Menu themselves once the real canvas arrives.
+        let slots = try (0..<6).map { index in
+            EditorMenuSlot(id: UUID(), presentation: try occupiedSlot(named: "Slot \(index)"))
+        }
+        let view = RadialMenuView(
+            slots: slots.map(\.presentation),
+            mode: .editor,
+            allowsEditing: true,
+            previewScale: 1.24,
+            previewCanvasDiameter: 432,
+            showsPreviewBackground: true
+        )
+
+        view.setFrameSize(.zero)
+        view.updateEditorSlots(slots, appearance: MenuAppearanceConfiguration())
+        view.setFrameSize(NSSize(width: 432, height: 432))
+
+        for button in view.subviews.compactMap({ $0 as? NSButton }) {
+            XCTAssertEqual(
+                button.frame,
+                view.editorEditButtonRect(at: button.tag),
+                "The Edit control of Slot \(button.tag + 1) should sit in its Slot"
+            )
+            XCTAssertTrue(
+                view.bounds.contains(button.frame),
+                "The Edit control of Slot \(button.tag + 1) should stay on the Menu"
+            )
+        }
+    }
+
+    func testEditButtonsStayInTheirSlotsWhileSettingsPagesAreSwitched() throws {
+        // Every switch to the Menu page builds the Editor Mode Menu again, and
+        // SwiftUI sizes it after it has first updated it. The Edit controls of
+        // the Slots the Menu draws have to end up on those Slots every time.
+        let editor = try makeEditor()
+        for index in 0..<5 {
+            let action = try editor.createAction(
+                id: ActionID("page-switch-\(index)"),
+                pluginID: PluginID("com.spinnet.fixture"),
+                commandID: CommandID("fixture.open"),
+                input: .string("https://example.com/\(index)")
+            )
+            try editor.addMenuItem(primaryActionID: action.id)
+        }
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "editor-mode-page-switch"))
+        defaults.removePersistentDomain(forName: "editor-mode-page-switch")
+        let controller = SettingsWindowController(editor: editor, defaults: defaults)
+        controller.showWindow(nil)
+        let contentView = try XCTUnwrap(controller.window?.contentView)
+
+        for round in 0..<4 {
+            controller.select(page: .appearance)
+            settleSettingsLayout(of: contentView)
+            controller.select(page: .menu)
+            settleSettingsLayout(of: contentView)
+
+            let menu = try XCTUnwrap(findRadialMenu(in: contentView))
+            let buttons = menu.subviews.compactMap { $0 as? NSButton }
+            XCTAssertEqual(buttons.count, 6, "Every occupied Slot carries an Edit control")
+            for button in buttons {
+                XCTAssertEqual(
+                    button.frame,
+                    menu.editorEditButtonRect(at: button.tag),
+                    "Slot \(button.tag + 1) lost its Edit control on page switch \(round + 1)"
+                )
+            }
+        }
+    }
+
+    func testEditButtonsSurviveACanvasChangeThatArrivesWithFewerSlots() throws {
+        // update(slots:appearance:) resizes the Menu before it rebuilds the
+        // Edit controls, so the controls of the Slots that just went away are
+        // still around while the canvas changes.
+        let slots = try (0..<6).map { try occupiedSlot(named: "Slot \($0)") }
+        let view = RadialMenuView(slots: slots, mode: .editor)
+
+        view.update(
+            slots: Array(slots.prefix(3)),
+            appearance: MenuAppearanceConfiguration(menuSize: "100")
+        )
+
+        let buttons = view.subviews.compactMap { $0 as? NSButton }
+        XCTAssertEqual(buttons.count, 3, "A Slot that is gone keeps no Edit control")
+        for button in buttons {
+            XCTAssertEqual(
+                button.frame,
+                view.editorEditButtonRect(at: button.tag),
+                "The Edit control of Slot \(button.tag + 1) should sit in its Slot"
+            )
+        }
+    }
+
+    private func occupiedSlot(named title: String) throws -> MenuSlotPresentation {
+        let actionID = ActionID("canvas-\(title)")
+        return .occupied(MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: actionID),
+            primaryAction: MenuActionPresentation(
+                actionID: actionID,
+                title: title,
+                availability: .available
+            ),
+            alternateActions: []
+        ))
+    }
+
+    /// Lets SwiftUI finish the layout pass that follows a page switch.
+    private func settleSettingsLayout(of contentView: NSView) {
+        contentView.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        contentView.layoutSubtreeIfNeeded()
+    }
+
     func testUnavailableResourceKeepsPresetTitleAndAnnotatesTheAction() throws {
         let actionID = ActionID("missing-resource")
         let item = MenuItemPresentation(

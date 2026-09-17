@@ -253,6 +253,11 @@ final class RadialMenuView: NSView {
                 height: self.previewCanvasDiameter ?? layout.contentDiameter
             )
         )
+        // The Menu is drawn with the layout fitted to its canvas, so the Edit
+        // controls have to start from that same layout rather than the
+        // unfitted one the stored property needs before initialisation.
+        self.layout = previewLayout(for: appearanceConfiguration)
+        updateFrameSize(for: self.layout)
         switch mode {
         case .runtime:
             setAccessibilityRole(.menu)
@@ -879,9 +884,22 @@ final class RadialMenuView: NSView {
         layoutEditButtons()
     }
 
+    /// The Edit controls are placed from the canvas, so a canvas that arrives
+    /// after them leaves every control off its Slot. SwiftUI updates a hosted
+    /// view before it sizes it, which is exactly that order.
+    override func setFrameSize(_ newSize: NSSize) {
+        let canvasChanged = newSize != frame.size
+        super.setFrameSize(newSize)
+        if canvasChanged { layoutEditButtons() }
+    }
+
     private func layoutEditButtons() {
-        guard presentationMode == .editor, allowsEditing else { return }
-        for (index, button) in editButtons {
+        // An empty canvas has no Slots to place anything in, and the frames it
+        // would produce are kept until something lays the controls out again.
+        guard presentationMode == .editor, allowsEditing, !bounds.isEmpty else { return }
+        // A canvas change can arrive between losing a Slot and rebuilding the
+        // controls, so only the Slots that are still there are placed here.
+        for (index, button) in editButtons where slots.indices.contains(index) {
             button.isHidden = slots[index].item == nil || slotDragPlaceholderIndex == index
             button.frame = editorEditButtonRect(at: index)
         }
