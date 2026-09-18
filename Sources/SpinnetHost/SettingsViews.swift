@@ -683,7 +683,9 @@ struct SettingsRootView: View {
                     removeExcludedApplication: clipboardHistory.removeExcludedApplication,
                     exclusionsFocus: clipboardHistory.exclusionsFocus,
                     setCapabilityDecision: privacy.setCapabilityDecision,
-                    openURL: openURL
+                    openURL: openURL,
+                    screenRecordingPermissionGranted: privacy.screenRecordingPermissionGranted,
+                    enableScreenRecording: { privacy.requestScreenRecordingPermission() }
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
             case .about:
@@ -1058,6 +1060,76 @@ private struct SlotConfigurationSheet: View {
 
     @ViewBuilder
     private func commandConfigurationField(for command: CommandDeclaration) -> some View {
+        if command.configurationFields.isEmpty {
+            singleConfigurationField(for: command)
+        } else {
+            configurationFieldSet(for: command)
+        }
+    }
+
+    /// One row per keyed field. The values travel together as the Action's
+    /// object input, kept in `inputTexts` as JSON text like any other input.
+    private func configurationFieldSet(for command: CommandDeclaration) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(command.configurationFields, id: \.key) { field in
+                let binding = fieldBinding(for: command.id, key: field.key ?? "")
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(field.displayTitle)
+                        .frame(width: 118, alignment: .leading)
+                    switch field.kind {
+                    case .folder, .file:
+                        ResourcePathField(kind: field.kind, value: binding)
+                    case .choice:
+                        Picker(field.displayTitle, selection: binding) {
+                            ForEach(field.choices, id: \.self) { choice in
+                                Text(choice).tag(choice)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    case .toggle:
+                        Toggle("Enabled", isOn: fieldBoolBinding(for: command.id, key: field.key ?? ""))
+                            .toggleStyle(.switch)
+                    default:
+                        ConfigurationTextField(text: binding, placeholder: field.placeholder ?? "")
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("\(command.title) \(field.displayTitle)")
+            }
+        }
+    }
+
+    private func fieldValues(for commandID: CommandID) -> [String: JSONValue] {
+        guard case .object(let values) = inputValue(for: commandID) else { return [:] }
+        return values
+    }
+
+    private func setField(_ value: JSONValue, for commandID: CommandID, key: String) {
+        var values = fieldValues(for: commandID)
+        values[key] = value
+        inputTexts[commandID] = Self.displayValue(for: .object(values))
+    }
+
+    private func fieldBinding(for commandID: CommandID, key: String) -> Binding<String> {
+        Binding(
+            get: {
+                guard case .string(let value) = fieldValues(for: commandID)[key] else { return "" }
+                return value
+            },
+            set: { setField(.string($0), for: commandID, key: key) }
+        )
+    }
+
+    private func fieldBoolBinding(for commandID: CommandID, key: String) -> Binding<Bool> {
+        Binding(
+            get: { fieldValues(for: commandID)[key] == .bool(true) },
+            set: { setField(.bool($0), for: commandID, key: key) }
+        )
+    }
+
+    @ViewBuilder
+    private func singleConfigurationField(for command: CommandDeclaration) -> some View {
         let metadata = command.configurationField ?? command.hostCommand?.configurationField
         switch metadata?.kind ?? .text {
         case .application, .file, .folder:
@@ -2001,6 +2073,10 @@ private struct PrivacySettingsView: View {
         PluginCapability
     ) -> Void
     let openURL: (URL) -> Bool
+    var screenRecordingPermissionGranted = false
+    /// Asks macOS for Screen Recording, returning false when it will not ask
+    /// again and System Settings is the way forward.
+    var enableScreenRecording: () -> Bool = { false }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -2017,8 +2093,8 @@ private struct PrivacySettingsView: View {
                             status: systemPermissionGranted(permission)
                                 ? "\(permission.title) granted"
                                 : "\(permission.title) required",
-                            actionTitle: "Open \(permission.title) Settings…",
-                            action: { openSystemSettings(for: permission) }
+                            actionTitle: systemPermissionActionTitle(permission),
+                            action: { systemPermissionAction(permission) }
                         )
                         if permission != PluginSystemPermission.allCases.last {
                             Divider().padding(.leading, 52)
@@ -2161,6 +2237,8 @@ private struct PrivacySettingsView: View {
         switch permission {
         case .accessibility:
             return accessibilityPermissionGranted
+        case .screenRecording:
+            return screenRecordingPermissionGranted
         }
     }
 
@@ -2168,7 +2246,22 @@ private struct PrivacySettingsView: View {
         switch permission {
         case .accessibility:
             return "hand.raised"
+        case .screenRecording:
+            return "camera.viewfinder"
         }
+    }
+
+    /// Screen Recording is requested only here, from the user's click; every
+    /// other permission row opens System Settings.
+    private func systemPermissionActionTitle(_ permission: PluginSystemPermission) -> String {
+        permission == .screenRecording && !screenRecordingPermissionGranted
+            ? "Enable Screen Recording…"
+            : "Open \(permission.title) Settings…"
+    }
+
+    private func systemPermissionAction(_ permission: PluginSystemPermission) {
+        if permission == .screenRecording, !screenRecordingPermissionGranted, enableScreenRecording() { return }
+        openSystemSettings(for: permission)
     }
 
     private func openSystemSettings(for permission: PluginSystemPermission) {
@@ -2176,6 +2269,8 @@ private struct PrivacySettingsView: View {
         switch permission {
         case .accessibility:
             url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        case .screenRecording:
+            url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         }
         guard let url else { return }
         _ = openURL(url)

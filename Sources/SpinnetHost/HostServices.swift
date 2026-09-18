@@ -204,6 +204,8 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             switch permission {
             case .accessibility:
                 return AXIsProcessTrusted()
+            case .screenRecording:
+                return CGPreflightScreenCaptureAccess()
             }
         },
         selectedTextProvider: (() throws -> String)? = nil,

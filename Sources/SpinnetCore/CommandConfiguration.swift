@@ -47,17 +47,22 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     public let title: String?
     public let placeholder: String?
     public let choices: [String]
+    /// Names the field's member in the Action input when a Command declares
+    /// several `configuration_fields`. A lone `configuration_field` has none.
+    public let key: String?
 
     public init(
         kind: CommandConfigurationFieldKind,
         title: String? = nil,
         placeholder: String? = nil,
-        choices: [String] = []
+        choices: [String] = [],
+        key: String? = nil
     ) {
         self.kind = kind
         self.title = title
         self.placeholder = placeholder
         self.choices = choices
+        self.key = key
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -65,6 +70,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case title
         case placeholder
         case choices
+        case key
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,7 +79,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             kind: container.decode(CommandConfigurationFieldKind.self, forKey: .kind),
             title: container.decodeIfPresent(String.self, forKey: .title),
             placeholder: container.decodeIfPresent(String.self, forKey: .placeholder),
-            choices: container.decodeIfPresent([String].self, forKey: .choices) ?? []
+            choices: container.decodeIfPresent([String].self, forKey: .choices) ?? [],
+            key: container.decodeIfPresent(String.self, forKey: .key)
         )
     }
 
@@ -85,6 +92,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         if !choices.isEmpty {
             try container.encode(choices, forKey: .choices)
         }
+        try container.encodeIfPresent(key, forKey: .key)
     }
 
     public var displayTitle: String { title ?? kind.title }
@@ -138,5 +146,33 @@ private enum WindowAxisGrammar {
               let value = Double(text), value.isFinite,
               allowsZero || value > 0 else { return false }
         return value <= (isPercent ? 100 : WindowRect.coordinateLimit)
+    }
+}
+
+/// Several Host-rendered fields for one Command, declared as
+/// `configuration_fields`. The Action input is then an object holding one
+/// member per field key: a boolean for a `toggle`, one of the declared choices
+/// for a `choice`, and a string for every other kind.
+public extension CommandDeclaration {
+    /// Kinds whose value is a single string or boolean, which is what a
+    /// member of a field set holds.
+    static let fieldSetKinds: Set<CommandConfigurationFieldKind> = [.text, .toggle, .choice, .file, .folder, .url]
+
+    /// Whether the input has exactly the declared members, each of its field's
+    /// shape. A Command without `configuration_fields` accepts any input here.
+    func acceptsConfigurationFieldsInput(_ input: JSONValue) -> Bool {
+        guard !configurationFields.isEmpty else { return true }
+        guard case .object(let values) = input,
+              Set(values.keys) == Set(configurationFields.compactMap(\.key)) else { return false }
+        return configurationFields.allSatisfy { field in
+            guard let key = field.key, let value = values[key] else { return false }
+            switch (field.kind, value) {
+            case (.toggle, .bool): return true
+            case (.choice, .string(let choice)): return field.choices.contains(choice)
+            case (.toggle, _), (.choice, _): return false
+            case (_, .string): return true
+            default: return false
+            }
+        }
     }
 }

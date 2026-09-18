@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Foundation
 import SpinnetCore
 
@@ -13,6 +14,7 @@ import SpinnetCore
 final class PrivacyPermissionsModel: ObservableObject {
     @Published private(set) var capabilityGrants: [PluginCapabilityGrant] = []
     @Published private(set) var accessibilityPermissionGranted: Bool
+    @Published private(set) var screenRecordingPermissionGranted: Bool
 
     /// The Plugin whose access sheet is open, for review or for consent.
     @Published var pluginSettingsManifest: PluginManifest?
@@ -34,6 +36,7 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     private enum Keys {
         static let permissionGuideShown = "privacy.permission-guide-shown"
+        static let screenRecordingRequested = "privacy.screen-recording-requested"
     }
 
     private let grantStore: PluginCapabilityGrantStore
@@ -41,13 +44,20 @@ final class PrivacyPermissionsModel: ObservableObject {
     private let accessibilityPermissionCheck: () -> Bool
     private let defaults: UserDefaults
     private var grantObserver: UUID?
+    private let screenRecordingPermissionCheck: () -> Bool
+    private let screenRecordingPermissionRequest: () -> Bool
 
     init(
         grantStore: PluginCapabilityGrantStore,
         manifests: @escaping () -> [PluginManifest],
         accessibilityPermissionCheck: @escaping () -> Bool,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        screenRecordingPermissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+        screenRecordingPermissionRequest: @escaping () -> Bool = { CGRequestScreenCaptureAccess() }
     ) {
+        self.screenRecordingPermissionCheck = screenRecordingPermissionCheck
+        self.screenRecordingPermissionRequest = screenRecordingPermissionRequest
+        screenRecordingPermissionGranted = screenRecordingPermissionCheck()
         self.grantStore = grantStore
         self.manifests = manifests
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
@@ -76,7 +86,34 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     func refreshSystemPermissionStatus() {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
+        screenRecordingPermissionGranted = screenRecordingPermissionCheck()
         onAuthorityChanged?()
+    }
+
+    func isGranted(_ permission: PluginSystemPermission) -> Bool {
+        switch permission {
+        case .accessibility: return accessibilityPermissionGranted
+        case .screenRecording: return screenRecordingPermissionGranted
+        }
+    }
+
+    /// Shows the macOS Screen Recording prompt. This is the only place Spinnet
+    /// asks, and only a button the user presses calls it; launching,
+    /// installing a Plugin, or refreshing status only preflights.
+    ///
+    /// macOS shows the prompt once and then expects the user to use System
+    /// Settings, so a second request does not ask again: it returns false and
+    /// the caller opens System Settings instead. A new grant may take effect
+    /// only after Spinnet relaunches.
+    @discardableResult
+    func requestScreenRecordingPermission() -> Bool {
+        let prompted = !defaults.bool(forKey: Keys.screenRecordingRequested)
+        if prompted {
+            defaults.set(true, forKey: Keys.screenRecordingRequested)
+            _ = screenRecordingPermissionRequest()
+        }
+        refreshSystemPermissionStatus()
+        return prompted
     }
 
     func dismissPermissionGuide() {

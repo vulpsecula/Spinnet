@@ -487,6 +487,11 @@ public final class HostConfigurationEditor {
                         "\(command.title): \(field.inputRequirement ?? "The value is invalid.")"
                     )
                 }
+                if validateInputs, !command.acceptsConfigurationFieldsInput(input) {
+                    throw ConfigurationError.invalidAction(
+                        "\(command.title): Fill in every setting with one of its offered values."
+                    )
+                }
             }
             return try makeAvailableAction(
                 id: existingAction?.id ?? ActionID(UUID().uuidString),

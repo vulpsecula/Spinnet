@@ -18,6 +18,10 @@ final class AppKitPluginHostServiceProvider {
         switch permission {
         case .accessibility:
             return AXIsProcessTrusted()
+        case .screenRecording:
+            // Preflight only: this never shows the system prompt. The prompt
+            // comes from an explicit Enable Screen Recording action.
+            return CGPreflightScreenCaptureAccess()
         }
     }
 

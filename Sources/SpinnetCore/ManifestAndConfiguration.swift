@@ -323,6 +323,10 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     /// One sentence saying what the Command does, shown wherever the user
     /// chooses between Commands. It is written as `description` in a manifest.
     public let explanation: String?
+    /// Several keyed Host-rendered fields, written as `configuration_fields`,
+    /// for a Command whose input is an object of named values. A Command
+    /// declares these or a single `configurationField`, not both.
+    public let configurationFields: [CommandConfigurationField]
 
     public init(
         id: CommandID,
@@ -332,7 +336,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         hostCommand: HostCommand? = nil,
         script: String? = nil,
         configurationField: CommandConfigurationField? = nil,
-        explanation: String? = nil
+        explanation: String? = nil,
+        configurationFields: [CommandConfigurationField] = []
     ) {
         self.id = id
         self.title = title
@@ -342,6 +347,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         self.script = script
         self.configurationField = configurationField
         self.explanation = explanation
+        self.configurationFields = configurationFields
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -376,6 +382,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case configurationField = "configuration_field"
         case configuration
         case explanation = "description"
+        case configurationFields = "configuration_fields"
     }
 
     public init(from decoder: Decoder) throws {
@@ -398,7 +405,11 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
             script: script,
             configurationField: configurationField,
-            explanation: try container.decodeIfPresent(String.self, forKey: .explanation)
+            explanation: try container.decodeIfPresent(String.self, forKey: .explanation),
+            configurationFields: try container.decodeIfPresent(
+                [CommandConfigurationField].self,
+                forKey: .configurationFields
+            ) ?? []
         )
     }
 
@@ -412,6 +423,9 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encodeIfPresent(script, forKey: .script)
         try container.encodeIfPresent(configurationField, forKey: .configurationField)
         try container.encodeIfPresent(explanation, forKey: .explanation)
+        if !configurationFields.isEmpty {
+            try container.encode(configurationFields, forKey: .configurationFields)
+        }
     }
 
     /// Configuration metadata may change without invalidating an existing
@@ -540,8 +554,13 @@ public struct PluginManifest: Codable, Equatable {
                  !scope.dataTypes.isEmpty) {
                 throw ConfigurationError.invalidManifest("This Capability only opens links in the default browser")
             }
+            if scope.capability == .captureScreen &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 !scope.dataTypes.isEmpty) {
+                throw ConfigurationError.invalidManifest("This Capability only starts a Host-run screen capture")
+            }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .captureScreen].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }
@@ -627,12 +646,34 @@ public struct PluginManifest: Codable, Equatable {
     }
 
     private func validateConfigurationField(_ command: CommandDeclaration) throws {
+        if !command.configurationFields.isEmpty {
+            guard command.isConfigurable, command.configurationField == nil else {
+                throw ConfigurationError.invalidManifest(
+                    "Command \(command.id.rawValue) must be configurable and declare either configuration_field or configuration_fields"
+                )
+            }
+            var keys = Set<String>()
+            for field in command.configurationFields {
+                guard let key = field.key, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      key.count <= 64, keys.insert(key).inserted,
+                      CommandDeclaration.fieldSetKinds.contains(field.kind) else {
+                    throw ConfigurationError.invalidManifest(
+                        "Configuration fields of Command \(command.id.rawValue) need unique keys and single-value kinds"
+                    )
+                }
+                try validateFieldMetadata(field)
+            }
+        }
         guard let field = command.configurationField else { return }
         guard command.isConfigurable else {
             throw ConfigurationError.invalidManifest(
                 "Non-configurable Command \(command.id.rawValue) cannot declare a Configuration field"
             )
         }
+        try validateFieldMetadata(field)
+    }
+
+    private func validateFieldMetadata(_ field: CommandConfigurationField) throws {
         if let title = field.title {
             try validateText(title, name: "Configuration field title")
         }
@@ -666,6 +707,9 @@ public struct PluginManifest: Codable, Equatable {
             return hostCommand.isValidInput(input)
         case .javascript:
             if let field = command.configurationField, !field.isValidInput(input) {
+                return false
+            }
+            if !command.acceptsConfigurationFieldsInput(input) {
                 return false
             }
             return (try? JSONEncoder().encode(input)) != nil

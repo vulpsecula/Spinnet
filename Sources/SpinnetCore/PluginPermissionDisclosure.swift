@@ -21,11 +21,15 @@ public extension PluginManifest {
 
     func requiredSystemPermissions(for command: CommandDeclaration, input: JSONValue? = nil) -> [PluginSystemPermission] {
         let capabilities = requiredCapabilities(for: command, input: input)
+        var permissions: [PluginSystemPermission] = []
         if capabilities.contains(.readSelectedText) || capabilities.contains(.positionFocusedWindow)
             || command.hostCommand?.requiredSystemPermission == .accessibility {
-            return [.accessibility]
+            permissions.append(.accessibility)
         }
-        return []
+        if capabilities.contains(.captureScreen) {
+            permissions.append(.screenRecording)
+        }
+        return permissions
     }
 }
 
@@ -82,8 +86,13 @@ public struct PluginPermissionDisclosure {
             guard manifest.capabilities.contains(.writeClipboard), !names(.writeClipboard).isEmpty else { return nil }
             return "Replace current clipboard text. Commands: \(names(.writeClipboard))."
         case .systemAccess:
-            let affected = commands.filter { !manifest.requiredSystemPermissions(for: $0, input: inputs[$0.id]).isEmpty }.map(\.title)
-            return affected.isEmpty ? nil : "Accessibility — \(affected.joined(separator: ", ")). Granted separately to Spinnet in macOS System Settings."
+            let lines = PluginSystemPermission.allCases.compactMap { permission -> String? in
+                let affected = commands.filter {
+                    manifest.requiredSystemPermissions(for: $0, input: inputs[$0.id]).contains(permission)
+                }.map(\.title)
+                return affected.isEmpty ? nil : "\(permission.title) — \(affected.joined(separator: ", ")). Granted separately to Spinnet in macOS System Settings."
+            }
+            return lines.isEmpty ? nil : lines.joined(separator: "\n")
         case .monitors, .contacts: return nil
         case .controls:
             var affected = commands.compactMap { command -> String? in
@@ -96,6 +105,9 @@ public struct PluginPermissionDisclosure {
             }
             if manifest.capabilities.contains(.openURL), !names(.openURL).isEmpty {
                 affected.append("Open http and https links in the default browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.")
+            }
+            if manifest.capabilities.contains(.captureScreen), !names(.captureScreen).isEmpty {
+                affected.append("Start a screenshot that Spinnet takes, copies, or saves to the folder you choose. Commands: \(names(.captureScreen)). The Plugin never receives the image.")
             }
             return affected.isEmpty ? nil : affected.joined(separator: "\n")
         }
@@ -111,6 +123,7 @@ public extension PluginCapability {
         case .contactHTTPS: return .contacts
         case .controlExternalApp, .positionFocusedWindow: return .controls
         case .openURL: return .controls
+        case .captureScreen: return .controls
         }
     }
 }

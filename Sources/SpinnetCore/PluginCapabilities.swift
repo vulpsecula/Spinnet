@@ -12,10 +12,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case controlExternalApp = "control_external_app"
     case positionFocusedWindow = "position_focused_window"
     case openURL = "open_url"
+    case captureScreen = "capture_screen"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
-         .positionFocusedWindow, .openURL].contains(self)
+         .positionFocusedWindow, .openURL, .captureScreen].contains(self)
     }
 
     public var title: String {
@@ -31,6 +32,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .controlExternalApp: return "Control External Apps"
         case .positionFocusedWindow: return "Move and Resize the Focused Window"
         case .openURL: return "Open Links"
+        case .captureScreen: return "Capture the Screen"
         }
     }
 
@@ -47,6 +49,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .controlExternalApp: return "Request only the named External Apps and operation families."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
+        case .captureScreen: return "Ask the Host to take a screenshot, then copy it to the clipboard or save it to the folder configured for the Menu Item. The Plugin never receives the image."
         }
     }
 }
@@ -305,11 +308,14 @@ public final class PluginCapabilityGrantStore {
 /// Plugin Capability.
 public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Hashable {
     case accessibility
+    case screenRecording = "screen_recording"
 
     public var title: String {
         switch self {
         case .accessibility:
             return "Accessibility"
+        case .screenRecording:
+            return "Screen Recording"
         }
     }
 
@@ -317,6 +323,8 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
         switch self {
         case .accessibility:
             return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, and move the focused window."
+        case .screenRecording:
+            return "Lets Spinnet take screenshots for the Screenshot Plugin. Spinnet asks for it only when you choose Enable Screen Recording."
         }
     }
 }
@@ -348,6 +356,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Hands one validated http or https link to the default browser. The
     /// Plugin learns nothing back, so opening a page is not fetching it.
     case openURL = "open_url"
+    /// Starts one native screen capture with the post-capture operations the
+    /// Action's configuration names. The Host captures, copies and saves; the
+    /// Plugin supplies a source and learns nothing about the image.
+    case captureScreen = "capture_screen"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -362,6 +374,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .positionFocusedWindow
         case .openURL:
             return .openURL
+        case .captureScreen:
+            return .captureScreen
         }
     }
 
@@ -374,6 +388,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .openURL:
             return nil
+        case .captureScreen:
+            return .screenRecording
         }
     }
 }
@@ -452,6 +468,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedWindowFullScreenToggler: () throws -> Void
     private let focusedWindowFrameRestorer: () throws -> Void
     private let urlOpener: (URL) throws -> Void
+    private let screenCapturer: (ScreenCaptureRequest) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -480,6 +497,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         urlOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening links")
+        },
+        screenCapturer: @escaping (ScreenCaptureRequest) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Screen capture")
         }
     ) {
         self.grantStore = grantStore
@@ -495,6 +515,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedWindowFullScreenToggler = focusedWindowFullScreenToggler
         self.focusedWindowFrameRestorer = focusedWindowFrameRestorer
         self.urlOpener = urlOpener
+        self.screenCapturer = screenCapturer
     }
 
     public func execute(
@@ -616,6 +637,19 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             // Validated here, not trusted from the script: only an http or
             // https link reaches the browser, and nothing comes back.
             try urlOpener(OpenableURL.validate(text))
+            return .null
+        case .captureScreen:
+            // The folder comes from the Action the user configured, never from
+            // the Plugin alone: the request may only name that folder.
+            let registered = package.manifest.commands.first { $0.id == action.commandID }
+            let capture = try ScreenCaptureRequest(
+                json: request.input,
+                configuredFolders: registered?.configuredFolders(in: action.input) ?? []
+            )
+            // Starting the capture is the Action. The user finishes or cancels
+            // it on screen after the Action has returned, which is why the
+            // Plugin receives nothing back.
+            try screenCapturer(capture)
             return .null
         }
     }

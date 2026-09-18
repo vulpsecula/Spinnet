@@ -1,0 +1,55 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.screenshot",
+  "name": "Screenshot",
+  "version": "1.0.0",
+  "capabilities": ["capture_screen"],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "screenshot.capture_area",
+    "default_alternate_command_ids": ["screenshot.capture_full_screen", "screenshot.capture_window"],
+    "default_inputs": {
+      "screenshot.capture_area": {"after_capture": "Copy to Clipboard", "format": "PNG", "folder": "~/Desktop"},
+      "screenshot.capture_full_screen": {"after_capture": "Copy to Clipboard", "format": "PNG", "folder": "~/Desktop"},
+      "screenshot.capture_window": {"after_capture": "Copy to Clipboard", "format": "PNG", "folder": "~/Desktop"}
+    }
+  },
+  "commands": [{
+    "id": "screenshot.capture_area",
+    "title": "Capture Area",
+    "description": "Captures the part of the screen you drag across; press Esc to cancel.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
+      {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
+      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+    ]
+  }, {
+    "id": "screenshot.capture_full_screen",
+    "title": "Capture Full Screen",
+    "description": "Captures the whole main display at once.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
+      {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
+      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+    ]
+  }, {
+    "id": "screenshot.capture_window",
+    "title": "Capture Window",
+    "description": "Captures the window you click; press Esc to cancel.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
+      {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
+      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+    ]
+  }]
+}

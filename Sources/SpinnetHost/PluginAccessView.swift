@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SpinnetCore
 
@@ -98,6 +99,18 @@ struct MenuItemAccessSummary: View {
         }
     }
 
+    private var needsScreenRecording: Bool {
+        !privacy.screenRecordingPermissionGranted && manifest.commands.contains { command in
+            commandIDs.contains(command.id)
+                && manifest.requiredSystemPermissions(for: command, input: inputs[command.id]).contains(.screenRecording)
+        }
+    }
+
+    private func openScreenRecordingSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private func granted(_ capability: PluginCapability) -> Bool {
         privacy.capabilityGrants.contains {
             $0.pluginID == manifest.id && $0.pluginVersion == manifest.version
@@ -113,6 +126,15 @@ struct MenuItemAccessSummary: View {
                           systemImage: granted(capability) ? "checkmark.circle" : "lock")
                 }
                 if capabilities.isEmpty { Text("No Plugin access required for these Commands.") }
+                if needsScreenRecording {
+                    // The Screenshot Configuration Sheet is one of the two
+                    // places the Screen Recording prompt may come from.
+                    Label("Screen Recording: Not granted", systemImage: "lock")
+                    Button("Enable Screen Recording…") {
+                        if !privacy.requestScreenRecordingPermission() { openScreenRecordingSettings() }
+                    }
+                    .accessibilityLabel("Enable Screen Recording")
+                }
                 Text("Manage Plugin-wide access in Library’s Plugin Settings. Your Slot edits will be kept while you open settings.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Open Plugin Settings") { showingPluginSettings = true }

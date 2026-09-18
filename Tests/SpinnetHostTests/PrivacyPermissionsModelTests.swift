@@ -163,4 +163,50 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         let second = makeModel(manifests: [try manifest()])
         XCTAssertFalse(second.permissionGuidePresented)
     }
+
+    // MARK: Screen Recording
+
+    /// Screen Recording is asked for only from an explicit enable action.
+    /// Building the model, refreshing it, and reading its status never prompt.
+    func testScreenRecordingIsNeverRequestedWithoutAnExplicitAction() throws {
+        var requests = 0
+        var granted = false
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { granted },
+            screenRecordingPermissionRequest: { requests += 1; return granted }
+        )
+        model.refreshSystemPermissionStatus()
+        XCTAssertFalse(model.screenRecordingPermissionGranted)
+        XCTAssertFalse(model.isGranted(.screenRecording))
+        XCTAssertTrue(model.isGranted(.accessibility))
+        XCTAssertEqual(requests, 0)
+
+        var authorityChanges = 0
+        model.onAuthorityChanged = { authorityChanges += 1 }
+        granted = true
+        model.requestScreenRecordingPermission()
+        XCTAssertEqual(requests, 1)
+        XCTAssertTrue(model.screenRecordingPermissionGranted)
+        XCTAssertEqual(authorityChanges, 1)
+    }
+
+    /// macOS prompts once. A declined request leaves the permission missing,
+    /// and asking again sends the user to System Settings instead.
+    func testADeclinedScreenRecordingRequestStaysMissing() throws {
+        var requests = 0
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { false },
+            screenRecordingPermissionRequest: { requests += 1; return false }
+        )
+        XCTAssertTrue(model.requestScreenRecordingPermission())
+        XCTAssertEqual(requests, 1)
+        XCTAssertFalse(model.screenRecordingPermissionGranted)
+
+        XCTAssertFalse(model.requestScreenRecordingPermission(), "the caller opens System Settings")
+        XCTAssertEqual(requests, 1)
+    }
 }

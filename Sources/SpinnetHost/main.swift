@@ -32,6 +32,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var currentConfiguration: HostConfiguration?
     private let capabilityGrants = PluginCapabilityGrantStore()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
+    /// Captures outlive their Action, so a post-capture failure is reported
+    /// through Host feedback rather than the Action's outcome.
+    private lazy var screenCapturer = NativeScreenCapturer(report: { [weak self] message in
+        DispatchQueue.main.async { [weak self] in self?.feedback?.showMessage(message) }
+    })
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
@@ -114,6 +119,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 urlOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openURL(url)
+                },
+                screenCapturer: { [screenCapturer] request in
+                    try screenCapturer.begin(request)
                 }
             )
             clipboardBroker = hostServiceBroker
