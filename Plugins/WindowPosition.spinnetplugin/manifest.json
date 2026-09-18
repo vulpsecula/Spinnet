@@ -202,5 +202,11 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
+  }, {
+    "id": "window.toggle_full_screen",
+    "title": "Toggle Full Screen",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "full-screen.js"
   }]
 }

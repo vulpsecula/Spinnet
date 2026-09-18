@@ -2,9 +2,10 @@ import XCTest
 @testable import SpinnetCore
 
 /// The Window Position Bundled Plugin positions the focused window through two
-/// structured Host Services. These tests pin its package shape and the
-/// authorization in front of those services; the scripts' layouts run through
-/// the real helper in `PluginRuntimeTests`.
+/// structured Host Services, and toggles its full screen through a third.
+/// These tests pin its package shape and the authorization in front of those
+/// services; the scripts' requests run through the real helper in
+/// `PluginRuntimeTests`.
 final class WindowPositionTests: XCTestCase {
 
     private let windowPositionCommands = [
@@ -18,7 +19,8 @@ final class WindowPositionTests: XCTestCase {
         "window.top_left_sixth", "window.top_center_sixth", "window.top_right_sixth",
         "window.bottom_left_sixth", "window.bottom_center_sixth", "window.bottom_right_sixth",
         "window.maximize_height", "window.maximize_width", "window.reasonable_size",
-        "window.move_up", "window.move_down", "window.move_left", "window.move_right"
+        "window.move_up", "window.move_down", "window.move_left", "window.move_right",
+        "window.toggle_full_screen"
     ]
 
     func testWindowPositionAppearsOnceInTheLibraryWithFlatCommands() throws {
@@ -164,6 +166,67 @@ final class WindowPositionTests: XCTestCase {
         XCTAssertEqual(frames, [])
     }
 
+    /// Full screen is not a frame, so it has its own service: it takes no
+    /// input, and it sits behind the same Capability and Accessibility.
+    func testTogglingFullScreenRequiresTheGrantAccessibilityAndNoInput() throws {
+        let package = try loadWindowPosition()
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.toggle_full_screen" })
+        let action = try makeAction(command, in: package)
+        let grants = PluginCapabilityGrantStore()
+        var accessibility = true
+        var toggles = 0
+        let broker = makeBroker(grants: grants, accessibility: { accessibility },
+                                read: { Self.window }, set: { _ in },
+                                toggleFullScreen: { toggles += 1 })
+        let toggle = PluginHostService.toggleFocusedWindowFullScreen
+        XCTAssertEqual(toggle.rawValue, "toggle_focused_window_full_screen")
+        XCTAssertEqual(toggle.requiredCapability, .positionFocusedWindow)
+        XCTAssertEqual(toggle.requiredSystemPermission, .accessibility)
+
+        XCTAssertThrowsError(try broker.execute(request: request(toggle, .null, action), for: package, action: action)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.positionFocusedWindow))
+        }
+        grant(package, in: grants)
+        accessibility = false
+        XCTAssertThrowsError(try broker.execute(request: request(toggle, .null, action), for: package, action: action)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .systemPermissionDenied(.accessibility))
+        }
+        XCTAssertEqual(toggles, 0)
+
+        accessibility = true
+        let frame = JSONValue.object(["x": .number(0), "y": .number(0), "width": .number(10), "height": .number(10)])
+        for input in [JSONValue.bool(true), .string("enter"), .object([:]), frame] {
+            XCTAssertThrowsError(try broker.execute(request: request(toggle, input, action), for: package, action: action),
+                                 "\(input)") { error in
+                guard case .invalidInput = error as? PluginHostServiceError else {
+                    return XCTFail("Expected invalid input for \(input), got \(error)")
+                }
+            }
+        }
+        XCTAssertEqual(toggles, 0)
+
+        XCTAssertEqual(try broker.execute(request: request(toggle, .null, action), for: package, action: action), .null)
+        XCTAssertEqual(toggles, 1)
+    }
+
+    func testAPluginThatDidNotDeclareTheCapabilityCannotToggleFullScreen() throws {
+        let manifest = try PluginManifest(
+            id: PluginID("com.example.fuller"), name: "Fuller", version: "1.0.0",
+            capabilities: [.readSelectedText],
+            commands: [CommandDeclaration(id: CommandID("full"), title: "Full", execution: .javascript, script: "full.js")]
+        )
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/fuller"), manifest: manifest)
+        let action = try makeAction(manifest.commands[0], in: package)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .readSelectedText)
+        let broker = makeBroker(grants: grants, accessibility: { true }, read: { Self.window }, set: { _ in })
+
+        XCTAssertThrowsError(try broker.execute(request: request(.toggleFocusedWindowFullScreen, .null, action),
+                                                for: package, action: action)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.positionFocusedWindow))
+        }
+    }
+
     func testTheCapabilityCarriesNoDataHostsOrAppsInItsScope() throws {
         func manifest(scope: String) -> Data {
             Data("""
@@ -213,12 +276,14 @@ final class WindowPositionTests: XCTestCase {
         grants: PluginCapabilityGrantStore,
         accessibility: @escaping () -> Bool,
         read: @escaping () throws -> FocusedWindow,
-        set: @escaping (WindowRect) throws -> Void
+        set: @escaping (WindowRect) throws -> Void,
+        toggleFullScreen: @escaping () throws -> Void = { XCTFail("Full screen was toggled") }
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility() },
             selectedTextProvider: { "" }, clipboardWriter: { _ in },
-            focusedWindowProvider: read, focusedWindowFrameSetter: set
+            focusedWindowProvider: read, focusedWindowFrameSetter: set,
+            focusedWindowFullScreenToggler: toggleFullScreen
         )
     }
 

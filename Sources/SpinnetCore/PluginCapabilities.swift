@@ -43,7 +43,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
         case .controlExternalApp: return "Request only the named External Apps and operation families."
-        case .positionFocusedWindow: return "Read the focused window's frame and its screen, and move or resize that window."
+        case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         }
     }
 }
@@ -335,6 +335,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Moves and resizes whichever window is focused when the request arrives.
     /// The Plugin supplies bounds, never a window or an accessibility action.
     case setFocusedWindowFrame = "set_focused_window_frame"
+    /// Moves whichever window is focused into or out of macOS full screen.
+    /// Full screen is not a frame, so it is not a `set_focused_window_frame`
+    /// input; the Plugin supplies nothing and learns nothing.
+    case toggleFocusedWindowFullScreen = "toggle_focused_window_full_screen"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -345,14 +349,14 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
-        case .readFocusedWindow, .setFocusedWindowFrame:
+        case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen:
             return .positionFocusedWindow
         }
     }
 
     public var requiredSystemPermission: PluginSystemPermission? {
         switch self {
-        case .readSelectedText, .readFocusedWindow, .setFocusedWindowFrame:
+        case .readSelectedText, .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen:
             return .accessibility
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
@@ -432,6 +436,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let clipboardHistoryContentProvider: (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk
     private let focusedWindowProvider: () throws -> FocusedWindow
     private let focusedWindowFrameSetter: (WindowRect) throws -> Void
+    private let focusedWindowFullScreenToggler: () throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -451,6 +456,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         focusedWindowFrameSetter: @escaping (WindowRect) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Focused window")
+        },
+        focusedWindowFullScreenToggler: @escaping () throws -> Void = {
+            throw PluginHostServiceError.unavailable("Focused window")
         }
     ) {
         self.grantStore = grantStore
@@ -463,6 +471,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.clipboardHistoryContentProvider = clipboardHistoryContentProvider
         self.focusedWindowProvider = focusedWindowProvider
         self.focusedWindowFrameSetter = focusedWindowFrameSetter
+        self.focusedWindowFullScreenToggler = focusedWindowFullScreenToggler
     }
 
     public func execute(
@@ -564,6 +573,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 )
             }
             try focusedWindowFrameSetter(frame)
+            return .null
+        case .toggleFocusedWindowFullScreen:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("toggle_focused_window_full_screen expects null")
+            }
+            try focusedWindowFullScreenToggler()
             return .null
         }
     }

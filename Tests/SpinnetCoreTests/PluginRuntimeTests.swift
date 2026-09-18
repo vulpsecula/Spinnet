@@ -236,6 +236,58 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(attempts, [window.visibleFrame], "Only the focused window's layout was requested")
     }
 
+    /// Toggle Full Screen asks for the full-screen service alone: it neither
+    /// reads nor sets a frame, and a window that refuses fails the Action.
+    func testWindowPositionTogglesFullScreenThroughItsOwnService() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.toggle_full_screen" })
+        XCTAssertEqual(command.title, "Toggle Full Screen")
+        let action = try ActionConfiguration(id: ActionID("full-screen"), pluginID: package.manifest.id, command: command, input: .null)
+        var reads = 0
+        var frames: [WindowRect] = []
+        func outcome(toggle: @escaping () throws -> Void) throws -> ActionTerminalOutcome {
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants, systemPermissionCheck: { _ in true },
+                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                focusedWindowProvider: {
+                    reads += 1
+                    return FocusedWindow(frame: WindowRect(x: 0, y: 0, width: 10, height: 10),
+                                         visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875))
+                },
+                focusedWindowFrameSetter: { frames.append($0) },
+                focusedWindowFullScreenToggler: toggle
+            )
+            return HostActionRunner(
+                executor: NoopHostCommandExecutor(),
+                scriptedExecutor: PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt())),
+                hostServiceBroker: broker
+            ).invoke(action, using: registry).terminal
+        }
+
+        var toggles = 0
+        guard case .succeeded = try outcome(toggle: { toggles += 1 }) else {
+            return XCTFail("Toggling a window that allows full screen should succeed")
+        }
+        XCTAssertEqual(toggles, 1)
+
+        let refused = try outcome(toggle: {
+            throw PluginHostServiceError.unavailable("The focused window cannot enter or leave full screen")
+        })
+        guard case .failed(let failure) = refused else {
+            return XCTFail("A window that refuses full screen should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .hostServiceFailed)
+        XCTAssertEqual(reads, 0)
+        XCTAssertEqual(frames, [])
+    }
+
     func testInvocationSchemaDeclaresItsMessageVariant() throws {
         let invocation = PluginRuntimeInvocation(
             pluginID: PluginID("com.example.fixture"),

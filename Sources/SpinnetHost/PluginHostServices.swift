@@ -70,6 +70,7 @@ final class AppKitPluginHostServiceProvider {
     /// tried.
     func setFocusedWindowFrame(_ frame: WindowRect) throws {
         let window = try focusedWindow()
+        try refuseLayoutInFullScreen(window)
         windowLock.lock()
         let expected = readWindow
         windowLock.unlock()
@@ -88,6 +89,44 @@ final class AppKitPluginHostServiceProvider {
             _ = apply(original, to: window)
             throw PluginHostServiceError.failed("The focused window did not accept the new frame")
         }
+    }
+
+    // MARK: Full screen
+
+    /// macOS's attribute for a window's full-screen state. AppKit windows
+    /// support it, but it has no `kAX…` constant in the public headers.
+    private static let fullScreenAttribute = "AXFullScreen" as CFString
+
+    /// Moves whichever window is focused into or out of full screen. A window
+    /// that does not report the state, or does not let it be set, fails before
+    /// anything changes.
+    func toggleFocusedWindowFullScreen() throws {
+        let window = try focusedWindow()
+        var settable = DarwinBoolean(false)
+        guard let isFullScreen = fullScreenState(of: window),
+              AXUIElementIsAttributeSettable(window, Self.fullScreenAttribute, &settable) == .success,
+              settable.boolValue else {
+            throw PluginHostServiceError.unavailable("The focused window cannot enter or leave full screen")
+        }
+        let target = (isFullScreen ? kCFBooleanFalse : kCFBooleanTrue) as CFTypeRef
+        guard AXUIElementSetAttributeValue(window, Self.fullScreenAttribute, target) == .success else {
+            throw PluginHostServiceError.failed("The focused window did not change its full screen state")
+        }
+    }
+
+    /// A frame layout would fight macOS full screen, which owns the window's
+    /// frame until the window leaves it, so the layout is refused instead.
+    private func refuseLayoutInFullScreen(_ window: AXUIElement) throws {
+        if fullScreenState(of: window) == true {
+            throw PluginHostServiceError.unavailable("The focused window is in full screen; leave full screen before choosing a layout")
+        }
+    }
+
+    private func fullScreenState(of window: AXUIElement) -> Bool? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, Self.fullScreenAttribute, &value) == .success,
+              let value, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
+        return CFBooleanGetValue((value as! CFBoolean))
     }
 
     private func apply(_ frame: WindowRect, to window: AXUIElement) -> Bool {
