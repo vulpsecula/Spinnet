@@ -649,6 +649,9 @@ public struct PluginManifest: Codable, Equatable {
             guard let hostCommand = command.hostCommand else { return false }
             return hostCommand.isValidInput(input)
         case .javascript:
+            if let field = command.configurationField, !field.isValidInput(input) {
+                return false
+            }
             return (try? JSONEncoder().encode(input)) != nil
         }
     }

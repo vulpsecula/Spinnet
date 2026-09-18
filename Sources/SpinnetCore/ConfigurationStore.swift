@@ -480,6 +480,13 @@ public final class HostConfigurationEditor {
                         "Configuration input is invalid for Command \(commandID.rawValue)"
                     )
                 }
+                if validateInputs,
+                   let field = command.configurationField,
+                   !field.isValidInput(input) {
+                    throw ConfigurationError.invalidAction(
+                        "\(command.title): \(field.inputRequirement ?? "The value is invalid.")"
+                    )
+                }
             }
             return try makeAvailableAction(
                 id: existingAction?.id ?? ActionID(UUID().uuidString),

@@ -226,5 +226,27 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "restore.js"
+  }, {
+    "id": "window.resize",
+    "title": "Resize Window",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "exact.js",
+    "configuration_field": {
+      "kind": "size",
+      "title": "Width, Height",
+      "placeholder": "800, 600 or 50%, 100%"
+    }
+  }, {
+    "id": "window.move",
+    "title": "Move Window",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "exact.js",
+    "configuration_field": {
+      "kind": "position",
+      "title": "X, Y",
+      "placeholder": "0, 0 or 25%, 10%"
+    }
   }]
 }

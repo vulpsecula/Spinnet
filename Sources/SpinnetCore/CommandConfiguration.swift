@@ -2,8 +2,11 @@ import Foundation
 
 /// The Host-rendered editor used for a Command's instance input.
 ///
-/// A field describes presentation only. The Command remains the authority for
-/// validating and executing the resulting JSON value.
+/// Most fields describe presentation only, and the Command remains the
+/// authority for validating and executing the resulting JSON value. `size` and
+/// `position` also carry a grammar the Host checks before it saves an Action,
+/// so an invalid value is rejected in the Configuration Sheet rather than when
+/// the Action runs.
 public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equatable, Hashable {
     case text
     case multilineText = "multiline_text"
@@ -15,6 +18,10 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
     case shortcut
     case keyboardShortcut = "keyboard_shortcut"
     case url
+    /// A width and a height, such as `800, 600` or `50%, 100%`.
+    case size
+    /// An x and a y from the visible frame's top-left, such as `0, 0` or `25%, 10%`.
+    case position
 
     public var title: String {
         switch self {
@@ -28,6 +35,8 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
         case .shortcut: return "Shortcut"
         case .keyboardShortcut: return "Keyboard Shortcut"
         case .url: return "URL"
+        case .size: return "Size"
+        case .position: return "Position"
         }
     }
 }
@@ -79,4 +88,55 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     }
 
     public var displayTitle: String { title ?? kind.title }
+
+    /// Whether the Host accepts this value for the field. Only kinds with a
+    /// Host-checked grammar can reject a value; every other kind leaves
+    /// validation to its Command.
+    public func isValidInput(_ input: JSONValue) -> Bool {
+        switch kind {
+        case .size:
+            return WindowAxisGrammar.accepts(input, allowsZero: false)
+        case .position:
+            return WindowAxisGrammar.accepts(input, allowsZero: true)
+        default:
+            return true
+        }
+    }
+
+    /// Explains the grammar of a Host-checked field, for the Configuration
+    /// Sheet's error when a value is rejected.
+    public var inputRequirement: String? {
+        switch kind {
+        case .size:
+            return "Enter a width and a height, each in points or as a percentage of the visible frame up to 100%, such as 800, 600 or 50%, 100%. Neither may be zero."
+        case .position:
+            return "Enter an x and a y from the visible frame's top-left, each in points or as a percentage up to 100%, such as 0, 0 or 25%, 10%."
+        default:
+            return nil
+        }
+    }
+}
+
+/// Two comma-separated window lengths, each in points or as a percentage of
+/// the visible frame. The Window Position scripts parse the same grammar; the
+/// Host checks it so the Configuration Sheet can refuse a bad value.
+private enum WindowAxisGrammar {
+    static func accepts(_ input: JSONValue, allowsZero: Bool) -> Bool {
+        guard case .string(let text) = input else { return false }
+        let parts = text.split(separator: ",", omittingEmptySubsequences: false)
+        return parts.count == 2 && parts.allSatisfy { acceptsLength($0, allowsZero: allowsZero) }
+    }
+
+    private static func acceptsLength(_ part: Substring, allowsZero: Bool) -> Bool {
+        var text = part.trimmingCharacters(in: .whitespaces)
+        let isPercent = text.hasSuffix("%")
+        if isPercent { text.removeLast() }
+        // Plain decimal digits only: no sign, exponent, or unit.
+        let pieces = text.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...2).contains(pieces.count),
+              pieces.allSatisfy({ !$0.isEmpty && $0.allSatisfy { ("0"..."9").contains($0) } }),
+              let value = Double(text), value.isFinite,
+              allowsZero || value > 0 else { return false }
+        return value <= (isPercent ? 100 : WindowRect.coordinateLimit)
+    }
 }

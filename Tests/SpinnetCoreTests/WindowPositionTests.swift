@@ -34,15 +34,17 @@ final class WindowPositionTests: XCTestCase {
         XCTAssertEqual(presets.count, 1)
         let preset = try XCTUnwrap(presets.first)
         XCTAssertEqual(preset.name, "Window Position")
-        XCTAssertEqual(preset.commands.map(\.id.rawValue), windowPositionCommands)
-        XCTAssertTrue(preset.commands.allSatisfy { $0.execution == .javascript && !$0.isConfigurable })
+        // Resize Window and Move Window carry values; ExactWindowFrameTests pins them.
+        let layoutCommands = preset.commands.filter { !["window.resize", "window.move"].contains($0.id.rawValue) }
+        XCTAssertEqual(layoutCommands.map(\.id.rawValue), windowPositionCommands)
+        XCTAssertTrue(layoutCommands.allSatisfy { $0.execution == .javascript && !$0.isConfigurable })
 
         // The defaults stay the original four; every other Command is a flat
         // choice the user can make Primary or an Alternate.
         XCTAssertEqual(package.manifest.preset.defaultPrimaryCommandID?.rawValue, "window.maximize")
         XCTAssertEqual(package.manifest.preset.defaultAlternateCommandIDs.map(\.rawValue),
                        ["window.center", "window.left_half", "window.right_half"])
-        XCTAssertEqual(Set(preset.commands.map(\.id)).count, windowPositionCommands.count, "Command IDs are unique")
+        XCTAssertEqual(Set(preset.commands.map(\.id)).count, preset.commands.count, "Command IDs are unique")
         XCTAssertEqual(package.manifest.preset.readiness, .readyToUse)
     }
 

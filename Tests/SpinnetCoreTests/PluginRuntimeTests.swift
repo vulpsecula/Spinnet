@@ -2261,7 +2261,7 @@ final class PluginRuntimeTests: XCTestCase {
         return url
     }
 
-    private func helperURLIfBuilt() -> URL? {
+    func helperURLIfBuilt() -> URL? {
         if let value = ProcessInfo.processInfo.environment["SPINNET_PLUGIN_HELPER_URL"] {
             let url = URL(fileURLWithPath: value)
             return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil

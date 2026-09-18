@@ -67,6 +67,8 @@ struct ConfigurationInputValueResolver {
             return encodedValue(for: value)
         case .keyboardShortcut:
             return encodedValue(for: value)
+        case .size, .position:
+            return encodedValue(for: value)
         }
     }
 
@@ -115,6 +117,9 @@ struct ConfigurationInputValueResolver {
             return replacingBoolMember(in: original, keys: ["enabled", "value", "checked"], with: enabled)
         case .keyboardShortcut:
             return decodeOrString(text)
+        case .size, .position:
+            // Kept as typed; the Host checks the grammar when the sheet saves.
+            return .string(text)
         }
     }
 
@@ -1091,7 +1096,7 @@ private struct SlotConfigurationSheet: View {
                 )
                 .accessibilityLabel("\(command.title) configuration input")
             }
-        case .url:
+        case .url, .size, .position:
             ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
