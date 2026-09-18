@@ -37,6 +37,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var screenCapturer = NativeScreenCapturer(report: { [weak self] message in
         DispatchQueue.main.async { [weak self] in self?.feedback?.showMessage(message) }
     })
+    private let pluginCredentials = KeychainPluginCredentialStore()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
@@ -122,6 +123,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 screenCapturer: { [screenCapturer] request in
                     try screenCapturer.begin(request)
+                },
+                httpsTransport: URLSessionHTTPSTransport(),
+                credentialStore: pluginCredentials,
+                focusedTextInserter: { [pluginHostServiceProvider] text in
+                    try pluginHostServiceProvider.insertText(text)
                 }
             )
             clipboardBroker = hostServiceBroker
@@ -172,7 +178,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings = SettingsWindowController(
                 editor: editor,
                 capabilityGrantStore: capabilityGrants,
-                clipboardHistoryStore: clipboardStore
+                clipboardHistoryStore: clipboardStore,
+                credentialStore: pluginCredentials
             )
             let collector = ClipboardCollector(store: clipboardStore)
             collector.onError = { [weak self] error in self?.showConfigurationError(error) }

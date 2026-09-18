@@ -53,4 +53,11 @@ final class CommandDescriptionTests: XCTestCase {
             XCTAssertTrue(explanation.hasSuffix("."), "\(command.id.rawValue): \(explanation)")
         }
     }
+
+    func testEveryTranslatorCommandExplainsItself() throws {
+        for command in try TranslatorFixture.load().manifest.commands {
+            let explanation = try XCTUnwrap(command.explanation, "\(command.id.rawValue) has no description")
+            XCTAssertTrue(explanation.hasSuffix("."), "\(command.id.rawValue): \(explanation)")
+        }
+    }
 }
