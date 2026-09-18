@@ -320,6 +320,9 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     public let hostCommand: HostCommand?
     public let script: String?
     public let configurationField: CommandConfigurationField?
+    /// One sentence saying what the Command does, shown wherever the user
+    /// chooses between Commands. It is written as `description` in a manifest.
+    public let explanation: String?
 
     public init(
         id: CommandID,
@@ -328,7 +331,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         isConfigurable: Bool = true,
         hostCommand: HostCommand? = nil,
         script: String? = nil,
-        configurationField: CommandConfigurationField? = nil
+        configurationField: CommandConfigurationField? = nil,
+        explanation: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -337,6 +341,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         self.hostCommand = hostCommand
         self.script = script
         self.configurationField = configurationField
+        self.explanation = explanation
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -370,6 +375,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case javascript
         case configurationField = "configuration_field"
         case configuration
+        case explanation = "description"
     }
 
     public init(from decoder: Decoder) throws {
@@ -391,7 +397,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             isConfigurable: try container.decodeIfPresent(Bool.self, forKey: .isConfigurable) ?? true,
             hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
             script: script,
-            configurationField: configurationField
+            configurationField: configurationField,
+            explanation: try container.decodeIfPresent(String.self, forKey: .explanation)
         )
     }
 
@@ -404,6 +411,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encodeIfPresent(hostCommand, forKey: .hostCommand)
         try container.encodeIfPresent(script, forKey: .script)
         try container.encodeIfPresent(configurationField, forKey: .configurationField)
+        try container.encodeIfPresent(explanation, forKey: .explanation)
     }
 
     /// Configuration metadata may change without invalidating an existing
@@ -543,6 +551,9 @@ public struct PluginManifest: Codable, Equatable {
             }
             try validateText(command.id.rawValue, name: "Command ID")
             try validateText(command.title, name: "Command title")
+            if let explanation = command.explanation {
+                try validateText(explanation, name: "Command description")
+            }
             try validate(command)
             try validateConfigurationField(command)
         }

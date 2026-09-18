@@ -206,7 +206,7 @@ final class MenuPresentationController {
             menuItem.target = self
             menuItem.representedObject = action.actionID.rawValue
             menuItem.isEnabled = action.isAvailable
-            menuItem.toolTip = action.accessibilityLabel
+            menuItem.toolTip = action.toolTip
             menu.addItem(menuItem)
             if index == 0, !item.alternateActions.isEmpty {
                 menu.addItem(.separator())

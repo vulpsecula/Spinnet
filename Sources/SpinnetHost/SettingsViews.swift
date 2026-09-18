@@ -967,6 +967,14 @@ private struct SlotConfigurationSheet: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Primary Action")
 
+            if let explanation = plugin.commands.first(where: { $0.id == primaryCommandID })?.explanation {
+                Text(explanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 130)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("Alternate Actions")
                     .font(.subheadline.weight(.semibold))
@@ -981,6 +989,12 @@ private struct SlotConfigurationSheet: View {
                             Toggle(isOn: alternateBinding(for: command.id)) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(command.title)
+                                    if let explanation = command.explanation {
+                                        Text(explanation)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
                                     Text(command.isConfigurable ? "Supports parameters" : "No parameters")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -1029,6 +1043,12 @@ private struct SlotConfigurationSheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(command.title)
                             .font(.subheadline.weight(.semibold))
+                        if let explanation = command.explanation {
+                            Text(explanation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         commandConfigurationField(for: command)
                     }
                 }

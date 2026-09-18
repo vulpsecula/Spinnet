@@ -11,6 +11,8 @@ struct MenuActionPresentation: Equatable {
     let actionID: ActionID
     let title: String
     let availability: ActionAvailability
+    /// What the Action's Command does, from its Plugin's `description`.
+    var explanation: String? = nil
 
     var isAvailable: Bool { availability.isAvailable }
 
@@ -22,6 +24,15 @@ struct MenuActionPresentation: Equatable {
     var accessibilityLabel: String {
         guard let reason = availability.reason else { return title }
         return "\(title), unavailable: \(reason.description)"
+    }
+
+    /// Why an Action is unavailable comes first, then what it does. The title
+    /// is already the menu item's text, so it is repeated only when there is
+    /// nothing else to say.
+    var toolTip: String {
+        guard let explanation else { return accessibilityLabel }
+        guard let reason = availability.reason else { return explanation }
+        return "Unavailable: \(reason.description)\n\(explanation)"
     }
 }
 

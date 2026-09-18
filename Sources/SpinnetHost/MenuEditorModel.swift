@@ -238,6 +238,10 @@ final class MenuEditorModel: ObservableObject {
             },
             presetName: { pluginID in
                 editor.pluginManifests.first { $0.id == pluginID }?.name
+            },
+            explanation: { action in
+                editor.pluginManifests.first { $0.id == action.pluginID }?
+                    .commands.first { $0.id == action.commandID }?.explanation
             }
         )
     }

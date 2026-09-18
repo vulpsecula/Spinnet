@@ -13,222 +13,259 @@
   "commands": [{
     "id": "window.center",
     "title": "Centre Window",
+    "description": "Moves the window to the middle of the screen, keeping its size unless it does not fit.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.maximize",
     "title": "Maximise Window",
+    "description": "Fills the screen, leaving the menu bar and Dock visible.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.left_half",
     "title": "Left Half",
+    "description": "Fills the left half of the screen; run it again to cycle through two thirds and one third.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.right_half",
     "title": "Right Half",
+    "description": "Fills the right half of the screen; run it again to cycle through two thirds and one third.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_half",
     "title": "Top Half",
+    "description": "Fills the top half of the screen; run it again to cycle through two thirds and one third.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_half",
     "title": "Bottom Half",
+    "description": "Fills the bottom half of the screen; run it again to cycle through two thirds and one third.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.first_third",
     "title": "First Third",
+    "description": "Fills the first third of the screen: the left column, or the top row on a portrait display.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.center_third",
     "title": "Centre Third",
+    "description": "Fills the middle third of the screen, as a column or, on a portrait display, a row.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.last_third",
     "title": "Last Third",
+    "description": "Fills the last third of the screen: the right column, or the bottom row on a portrait display.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.first_two_thirds",
     "title": "First Two Thirds",
+    "description": "Fills the first two thirds of the screen, from the left or, on a portrait display, from the top.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.last_two_thirds",
     "title": "Last Two Thirds",
+    "description": "Fills the last two thirds of the screen, from the right or, on a portrait display, from the bottom.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_left_quarter",
     "title": "Top Left Quarter",
+    "description": "Fills the top-left quarter of the screen.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_right_quarter",
     "title": "Top Right Quarter",
+    "description": "Fills the top-right quarter of the screen.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_left_quarter",
     "title": "Bottom Left Quarter",
+    "description": "Fills the bottom-left quarter of the screen.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_right_quarter",
     "title": "Bottom Right Quarter",
+    "description": "Fills the bottom-right quarter of the screen.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.first_fourth",
     "title": "First Fourth",
+    "description": "Fills the first of four strips across the screen, from the left or, on a portrait display, the top.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.second_fourth",
     "title": "Second Fourth",
+    "description": "Fills the second of four strips across the screen, from the left or, on a portrait display, the top.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.third_fourth",
     "title": "Third Fourth",
+    "description": "Fills the third of four strips across the screen, from the left or, on a portrait display, the top.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.last_fourth",
     "title": "Last Fourth",
+    "description": "Fills the last of four strips across the screen, at the right or, on a portrait display, the bottom.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_left_sixth",
     "title": "Top Left Sixth",
+    "description": "Fills the left cell of the top row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_center_sixth",
     "title": "Top Centre Sixth",
+    "description": "Fills the middle cell of the top row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.top_right_sixth",
     "title": "Top Right Sixth",
+    "description": "Fills the right cell of the top row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_left_sixth",
     "title": "Bottom Left Sixth",
+    "description": "Fills the left cell of the bottom row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_center_sixth",
     "title": "Bottom Centre Sixth",
+    "description": "Fills the middle cell of the bottom row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.bottom_right_sixth",
     "title": "Bottom Right Sixth",
+    "description": "Fills the right cell of the bottom row when the screen is split into three columns and two rows.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.maximize_height",
     "title": "Maximise Height",
+    "description": "Stretches the window to the full height of the screen, keeping its width and horizontal position.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.maximize_width",
     "title": "Maximise Width",
+    "description": "Stretches the window to the full width of the screen, keeping its height and vertical position.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.reasonable_size",
     "title": "Reasonable Size",
+    "description": "Resizes the window to 60% of the screen, at most 1025 × 900 points, and centres it.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.move_up",
     "title": "Move Up",
+    "description": "Moves the window to the top edge of the screen without changing its width.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.move_down",
     "title": "Move Down",
+    "description": "Moves the window to the bottom edge of the screen without changing its width.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.move_left",
     "title": "Move Left",
+    "description": "Moves the window to the left edge of the screen without changing its height.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.move_right",
     "title": "Move Right",
+    "description": "Moves the window to the right edge of the screen without changing its height.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
   }, {
     "id": "window.toggle_full_screen",
     "title": "Toggle Full Screen",
+    "description": "Moves the window into macOS full screen, or back out of it.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "full-screen.js"
   }, {
     "id": "window.previous_display",
     "title": "Previous Display",
+    "description": "Moves the window to the previous display, counting left to right, keeping its size and relative position.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "display.js"
   }, {
     "id": "window.next_display",
     "title": "Next Display",
+    "description": "Moves the window to the next display, counting left to right, keeping its size and relative position.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "display.js"
   }, {
     "id": "window.restore",
     "title": "Restore Window",
+    "description": "Puts the window back where it was before Spinnet last moved it.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "restore.js"
   }, {
     "id": "window.resize",
     "title": "Resize Window",
+    "description": "Resizes the window from its top-left corner to the width and height you set, in points or as a percentage of the screen.",
     "execution": "javascript",
     "is_configurable": true,
     "script": "exact.js",
@@ -240,6 +277,7 @@
   }, {
     "id": "window.move",
     "title": "Move Window",
+    "description": "Moves the window to the position you set, in points or as a percentage of the screen.",
     "execution": "javascript",
     "is_configurable": true,
     "script": "exact.js",
