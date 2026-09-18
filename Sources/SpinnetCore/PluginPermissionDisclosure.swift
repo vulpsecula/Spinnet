@@ -94,6 +94,9 @@ public struct PluginPermissionDisclosure {
             if manifest.capabilities.contains(.positionFocusedWindow), !names(.positionFocusedWindow).isEmpty {
                 affected.append("Move and resize the focused window. Commands: \(names(.positionFocusedWindow)). No other window or app content is read.")
             }
+            if manifest.capabilities.contains(.openURL), !names(.openURL).isEmpty {
+                affected.append("Open http and https links in the default browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.")
+            }
             return affected.isEmpty ? nil : affected.joined(separator: "\n")
         }
     }
@@ -107,6 +110,7 @@ public extension PluginCapability {
         case .monitorClipboard: return .monitors
         case .contactHTTPS: return .contacts
         case .controlExternalApp, .positionFocusedWindow: return .controls
+        case .openURL: return .controls
         }
     }
 }

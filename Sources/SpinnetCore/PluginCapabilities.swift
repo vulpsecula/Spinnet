@@ -11,10 +11,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case contactHTTPS = "contact_https"
     case controlExternalApp = "control_external_app"
     case positionFocusedWindow = "position_focused_window"
+    case openURL = "open_url"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
-         .positionFocusedWindow].contains(self)
+         .positionFocusedWindow, .openURL].contains(self)
     }
 
     public var title: String {
@@ -29,6 +30,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .contactHTTPS: return "Contact HTTPS Hosts"
         case .controlExternalApp: return "Control External Apps"
         case .positionFocusedWindow: return "Move and Resize the Focused Window"
+        case .openURL: return "Open Links"
         }
     }
 
@@ -44,6 +46,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
         case .controlExternalApp: return "Request only the named External Apps and operation families."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
+        case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
         }
     }
 }
@@ -342,6 +345,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Returns the focused window to the frame it had before Spinnet last
     /// moved it. The Host remembers that frame; the Plugin supplies nothing.
     case restoreFocusedWindowFrame = "restore_focused_window_frame"
+    /// Hands one validated http or https link to the default browser. The
+    /// Plugin learns nothing back, so opening a page is not fetching it.
+    case openURL = "open_url"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -354,6 +360,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .writeClipboard
         case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
             return .positionFocusedWindow
+        case .openURL:
+            return .openURL
         }
     }
 
@@ -363,6 +371,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .accessibility
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
+            return nil
+        case .openURL:
             return nil
         }
     }
@@ -441,6 +451,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedWindowFrameSetter: (WindowRect) throws -> Void
     private let focusedWindowFullScreenToggler: () throws -> Void
     private let focusedWindowFrameRestorer: () throws -> Void
+    private let urlOpener: (URL) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -466,6 +477,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         focusedWindowFrameRestorer: @escaping () throws -> Void = {
             throw PluginHostServiceError.unavailable("Focused window")
+        },
+        urlOpener: @escaping (URL) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Opening links")
         }
     ) {
         self.grantStore = grantStore
@@ -480,6 +494,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedWindowFrameSetter = focusedWindowFrameSetter
         self.focusedWindowFullScreenToggler = focusedWindowFullScreenToggler
         self.focusedWindowFrameRestorer = focusedWindowFrameRestorer
+        self.urlOpener = urlOpener
     }
 
     public func execute(
@@ -593,6 +608,14 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("restore_focused_window_frame expects null")
             }
             try focusedWindowFrameRestorer()
+            return .null
+        case .openURL:
+            guard case .string(let text) = request.input else {
+                throw PluginHostServiceError.invalidInput("open_url expects a link string")
+            }
+            // Validated here, not trusted from the script: only an http or
+            // https link reaches the browser, and nothing comes back.
+            try urlOpener(OpenableURL.validate(text))
             return .null
         }
     }

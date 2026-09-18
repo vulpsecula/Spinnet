@@ -535,8 +535,13 @@ public struct PluginManifest: Codable, Equatable {
                  !scope.dataTypes.isEmpty) {
                 throw ConfigurationError.invalidManifest("This Capability acts only on the focused window")
             }
+            if scope.capability == .openURL &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 !scope.dataTypes.isEmpty) {
+                throw ConfigurationError.invalidManifest("This Capability only opens links in the default browser")
+            }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }

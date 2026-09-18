@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.smart-jump",
+  "name": "Smart Jump",
+  "version": "1.0.0",
+  "capabilities": ["read_selected_text", "open_url"],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "smart_jump.open_selection",
+    "default_alternate_command_ids": []
+  },
+  "commands": [{
+    "id": "smart_jump.open_selection",
+    "title": "Open Selected Link",
+    "description": "Opens the selected http or https link in your default browser.",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "open.js"
+  }]
+}

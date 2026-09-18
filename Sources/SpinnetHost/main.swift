@@ -111,6 +111,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 focusedWindowFrameRestorer: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.restoreFocusedWindowFrame()
+                },
+                urlOpener: { [pluginHostServiceProvider] url in
+                    try pluginHostServiceProvider.openURL(url)
                 }
             )
             clipboardBroker = hostServiceBroker

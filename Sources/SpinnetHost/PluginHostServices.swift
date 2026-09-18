@@ -237,6 +237,14 @@ final class AppKitPluginHostServiceProvider {
             throw PluginHostServiceError.failed("Clipboard could not be updated")
         }
     }
+
+    /// Hands a link the broker has already validated to the default browser.
+    /// Nothing about the page comes back to the Plugin.
+    func openURL(_ url: URL) throws {
+        guard onMain({ NSWorkspace.shared.open(url) }) else {
+            throw PluginHostServiceError.failed("The link could not be opened")
+        }
+    }
 }
 
 /// A window's identity for remembered frames. Accessibility elements compare
