@@ -26,7 +26,7 @@ final class WindowPositionTests: XCTestCase {
     ]
 
     func testWindowPositionAppearsOnceInTheLibraryWithFlatCommands() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
 
@@ -49,7 +49,7 @@ final class WindowPositionTests: XCTestCase {
     }
 
     func testWindowPositionAsksOnlyForTheFocusedWindowCapability() throws {
-        let manifest = try loadWindowPosition().manifest
+        let manifest = try WindowPositionFixture.load().manifest
         XCTAssertEqual(manifest.capabilities, [.positionFocusedWindow])
         for command in manifest.commands {
             XCTAssertEqual(manifest.requiredCapabilities(for: command), [.positionFocusedWindow])
@@ -60,7 +60,7 @@ final class WindowPositionTests: XCTestCase {
     /// Missing Accessibility keeps the Actions but marks them unavailable with
     /// the Accessibility repair route, not the Capability one.
     func testMissingAccessibilityLeavesActionsUnavailableWithThePermissionRepairRoute() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
         grant(package, in: grants)
         var accessibility = false
@@ -78,7 +78,7 @@ final class WindowPositionTests: XCTestCase {
     }
 
     func testReadingAndSettingTheFocusedWindowRequireTheGrantAndAccessibility() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let action = try makeAction(package.manifest.commands[0], in: package)
         let grants = PluginCapabilityGrantStore()
         var accessibility = true
@@ -122,7 +122,7 @@ final class WindowPositionTests: XCTestCase {
     /// Only a structured frame reaches the window adapter; anything else is
     /// refused before the Host touches a window.
     func testSettingTheFocusedWindowAcceptsOnlyAStructuredFrame() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let action = try makeAction(package.manifest.commands[0], in: package)
         let grants = PluginCapabilityGrantStore()
         grant(package, in: grants)
@@ -178,7 +178,7 @@ final class WindowPositionTests: XCTestCase {
     /// Full screen is not a frame, so it has its own service: it takes no
     /// input, and it sits behind the same Capability and Accessibility.
     func testTogglingFullScreenRequiresTheGrantAccessibilityAndNoInput() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.toggle_full_screen" })
         let action = try makeAction(command, in: package)
         let grants = PluginCapabilityGrantStore()
@@ -266,12 +266,6 @@ final class WindowPositionTests: XCTestCase {
         displays: [WindowRect(x: -1920, y: -100, width: 1920, height: 1080), WindowRect(x: 0, y: 25, width: 1440, height: 875)],
         displayIndex: 1
     )
-
-    private func loadWindowPosition() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
-    }
 
     private func grant(_ package: PluginPackage, in grants: PluginCapabilityGrantStore) {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,

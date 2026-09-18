@@ -56,12 +56,9 @@ final class PluginRuntimeTests: XCTestCase {
     }
 
     func testBundledWindowPositionRequestsEachLayoutWithinTheVisibleFrame() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
 
@@ -101,12 +98,9 @@ final class PluginRuntimeTests: XCTestCase {
     /// without gaps or overlaps; each boundary rounds down, so the odd points go
     /// to the right-hand or lower cells.
     func testBundledWindowPositionRequestsEveryCatalogueLayoutWithinTheVisibleFrame() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
 
@@ -191,12 +185,9 @@ final class PluginRuntimeTests: XCTestCase {
     /// state, so the step comes from the window's frame, within 2 points. The
     /// 2/3 and 1/3 steps share the thirds layouts' boundaries.
     func testBundledWindowPositionCyclesHalvesFromTheWindowsCurrentFrame() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
 
@@ -275,14 +266,11 @@ final class PluginRuntimeTests: XCTestCase {
     }
 
     func testWindowPositionFailsWithoutMovingAnythingWhenTheWindowCannotBePositioned() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.maximize" })
         let action = try ActionConfiguration(id: ActionID("maximize"), pluginID: package.manifest.id, command: command, input: .null)
         let window = FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 300, height: 200),
@@ -327,14 +315,11 @@ final class PluginRuntimeTests: XCTestCase {
     /// Toggle Full Screen asks for the full-screen service alone: it neither
     /// reads nor sets a frame, and a window that refuses fails the Action.
     func testWindowPositionTogglesFullScreenThroughItsOwnService() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.toggle_full_screen" })
         XCTAssertEqual(command.title, "Toggle Full Screen")
         let action = try ActionConfiguration(id: ActionID("full-screen"), pluginID: package.manifest.id, command: command, input: .null)
@@ -377,12 +362,9 @@ final class PluginRuntimeTests: XCTestCase {
     }
 
     func testBundledWindowPositionMovesTheWindowBetweenDisplays() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
 
@@ -446,14 +428,11 @@ final class PluginRuntimeTests: XCTestCase {
     /// Restore asks the Host to put the window back and supplies nothing: no
     /// window, no frame, and no read of the window first.
     func testBundledWindowPositionRestoreRequestsTheHostRestore() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.restore" })
         let action = try ActionConfiguration(id: ActionID("restore"), pluginID: package.manifest.id, command: command, input: .null)
         var reads = 0

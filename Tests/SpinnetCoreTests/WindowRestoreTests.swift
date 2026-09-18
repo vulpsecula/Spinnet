@@ -23,6 +23,20 @@ final class WindowRestoreTests: XCTestCase {
         XCTAssertEqual(frames.frameToRestore(for: "finder"), original)
     }
 
+    /// Apps round or nudge a frame after it is set. Within 2 points the window
+    /// is still where Spinnet put it; further off, the user moved it.
+    func testAWindowNudgedWithinTwoPointsStillCountsAsWhereSpinnetPutIt() {
+        var frames = RememberedWindowFrames<String>()
+        frames.recordMove(of: "finder", from: original, to: maximised)
+        let nudged = WindowRect(x: maximised.x + 2, y: maximised.y - 1, width: maximised.width - 2, height: maximised.height)
+        frames.recordMove(of: "finder", from: nudged, to: leftHalf)
+        XCTAssertEqual(frames.frameToRestore(for: "finder"), original)
+
+        let moved = WindowRect(x: leftHalf.x + 3, y: leftHalf.y, width: leftHalf.width, height: leftHalf.height)
+        frames.recordMove(of: "finder", from: moved, to: maximised)
+        XCTAssertEqual(frames.frameToRestore(for: "finder"), moved)
+    }
+
     /// A window the user moved after a layout is remembered from where the
     /// user left it, not from where Spinnet first found it.
     func testALayoutAfterTheUserMovedTheWindowRemembersTheUsersFrame() {
@@ -71,7 +85,7 @@ final class WindowRestoreTests: XCTestCase {
     // MARK: - Broker
 
     func testRestoringRequiresTheGrantAndAccessibility() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let action = try restoreAction(in: package)
         let grants = PluginCapabilityGrantStore()
         var accessibility = true
@@ -96,7 +110,7 @@ final class WindowRestoreTests: XCTestCase {
     /// The Plugin names no window and no frame; any input is refused before
     /// the Host touches a window.
     func testRestoringAcceptsOnlyNull() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let action = try restoreAction(in: package)
         let grants = PluginCapabilityGrantStore()
         grant(package, in: grants)
@@ -118,7 +132,7 @@ final class WindowRestoreTests: XCTestCase {
     }
 
     func testNothingToRestoreReachesThePluginAsAStableFailure() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let action = try restoreAction(in: package)
         let grants = PluginCapabilityGrantStore()
         grant(package, in: grants)
@@ -134,12 +148,6 @@ final class WindowRestoreTests: XCTestCase {
     }
 
     // MARK: - Support
-
-    private func loadWindowPosition() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
-    }
 
     private func grant(_ package: PluginPackage, in grants: PluginCapabilityGrantStore) {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,

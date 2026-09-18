@@ -43,7 +43,7 @@ final class ExactWindowFrameConfigurationTests: XCTestCase {
     }
 
     func testWindowPositionOffersResizeAndMoveOutsideItsReadyToUseDefaults() throws {
-        let manifest = try loadWindowPosition().manifest
+        let manifest = try WindowPositionFixture.load().manifest
         let resize = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == "window.resize" })
         let move = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == "window.move" })
         XCTAssertEqual(resize.title, "Resize Window")
@@ -61,7 +61,7 @@ final class ExactWindowFrameConfigurationTests: XCTestCase {
     }
 
     func testTheConfigurationSheetRejectsInvalidValuesAndSeveralItemsKeepTheirOwn() throws {
-        let package = try loadWindowPosition()
+        let package = try WindowPositionFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
         let editor = HostConfigurationEditor(
@@ -116,22 +116,14 @@ final class ExactWindowFrameConfigurationTests: XCTestCase {
         XCTAssertThrowsError(try PluginManifestLoader.decode(manifest("0, 600")))
     }
 
-    private func loadWindowPosition() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
-    }
 }
 
 extension PluginRuntimeTests {
 
     func testBundledWindowPositionResizesAndMovesToExactValuesWithinTheVisibleFrame() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
 
@@ -183,12 +175,9 @@ extension PluginRuntimeTests {
     }
 
     func testBundledExactWindowCommandsRefuseAMalformedValueWithoutMovingTheWindow() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let package = try WindowPositionFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        WindowPositionFixture.grant(package, in: grants)
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
         var frames: [WindowRect] = []

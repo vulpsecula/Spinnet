@@ -5,6 +5,7 @@ import SpinnetCore
 /// Plugin. The Plugin helper never receives these objects or framework access.
 final class AppKitPluginHostServiceProvider {
     private let windowLock = NSLock()
+    private let closedWindowSweep = DispatchQueue(label: "com.vulpsecula.Spinnet.closed-window-sweep", qos: .utility)
     /// The window a Plugin last read. Setting a frame applies only to it, and
     /// only while it is still focused, so a layout computed for one window is
     /// never applied to another that took focus in between.
@@ -55,9 +56,7 @@ final class AppKitPluginHostServiceProvider {
     func readFocusedWindow() throws -> FocusedWindow {
         let window = try focusedWindow()
         let frame = try frame(of: window)
-        windowLock.lock()
-        readWindow = window
-        windowLock.unlock()
+        windowLock.withLock { readWindow = window }
         let screens = onMain {
             NSScreen.screens.map { FocusedWindowScreen(frame: $0.frame, visibleFrame: $0.visibleFrame) }
         }
@@ -74,32 +73,20 @@ final class AppKitPluginHostServiceProvider {
     func setFocusedWindowFrame(_ frame: WindowRect) throws {
         let window = try focusedWindow()
         try refuseLayoutInFullScreen(window)
-        windowLock.lock()
-        let expected = readWindow
-        windowLock.unlock()
+        let expected = windowLock.withLock { readWindow }
         guard let expected, CFEqual(expected, window) else {
             throw PluginHostServiceError.unavailable("The focused window changed after it was read")
         }
         let original = try self.frame(of: window)
-        for attribute in [kAXPositionAttribute, kAXSizeAttribute] {
-            var settable = DarwinBoolean(false)
-            guard AXUIElementIsAttributeSettable(window, attribute as CFString, &settable) == .success,
-                  settable.boolValue else {
-                throw PluginHostServiceError.unavailable("The focused window cannot be moved or resized")
-            }
-        }
-        guard apply(frame, to: window) else {
-            _ = apply(original, to: window)
-            throw PluginHostServiceError.failed("The focused window did not accept the new frame")
-        }
+        try replaceFrame(of: window, from: original, with: frame)
         // Remember the frame the window settled on, which may differ from the
         // one requested if the window clamped it, so the next layout can tell
         // whether the window is still where Spinnet put it.
         let applied = (try? self.frame(of: window)) ?? frame
-        windowLock.lock()
-        rememberedFrames.recordMove(of: AXWindowKey(window), from: original, to: applied)
-        windowLock.unlock()
-        forgetClosedWindows()
+        windowLock.withLock { rememberedFrames.recordMove(of: AXWindowKey(window), from: original, to: applied) }
+        // Checking every remembered window can wait on unresponsive
+        // applications, so it happens after the layout, not before it.
+        closedWindowSweep.async { [weak self] in self?.forgetClosedWindows() }
     }
 
     /// Returns the focused window to the frame it had before Spinnet last
@@ -109,17 +96,12 @@ final class AppKitPluginHostServiceProvider {
     func restoreFocusedWindowFrame() throws {
         let window = try focusedWindow()
         try refuseLayoutInFullScreen(window)
-        forgetClosedWindows()
         let key = AXWindowKey(window)
-        windowLock.lock()
-        let remembered = rememberedFrames.frameToRestore(for: key)
-        windowLock.unlock()
+        let remembered = windowLock.withLock { rememberedFrames.frameToRestore(for: key) }
         guard let remembered else { throw PluginHostServiceError.nothingToRestore }
         let original = try self.frame(of: window)
         try replaceFrame(of: window, from: original, with: remembered)
-        windowLock.lock()
-        rememberedFrames.forget(key)
-        windowLock.unlock()
+        windowLock.withLock { rememberedFrames.forget(key) }
     }
 
     /// Checks both halves are settable before changing anything, and puts
@@ -143,18 +125,14 @@ final class AppKitPluginHostServiceProvider {
     /// unresponsive application from stalling the request, and such a window
     /// is kept until it answers or ages out of the bound.
     private func forgetClosedWindows() {
-        windowLock.lock()
-        let windows = rememberedFrames.windows
-        windowLock.unlock()
+        let windows = windowLock.withLock { rememberedFrames.windows }
         let closed = Set(windows.filter { key in
             AXUIElementSetMessagingTimeout(key.element, 0.25)
             var role: CFTypeRef?
             return AXUIElementCopyAttributeValue(key.element, kAXRoleAttribute as CFString, &role) == .invalidUIElement
         })
         guard !closed.isEmpty else { return }
-        windowLock.lock()
-        rememberedFrames.forget { closed.contains($0) }
-        windowLock.unlock()
+        windowLock.withLock { rememberedFrames.forget { closed.contains($0) } }
     }
 
     // MARK: Full screen
