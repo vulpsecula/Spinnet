@@ -27,6 +27,25 @@
     width,
     height
   });
+  // Running a half again on a window already in the current step moves it to
+  // the next one: 1/2, 2/3, 1/3, then back to 1/2. The script keeps no state,
+  // so the step comes from the window's frame, within 2 points because apps
+  // round their frames. The 2/3 and 1/3 steps are thirds cells, so a cycled
+  // window lines up with the thirds layouts.
+  const matches = (a, b) =>
+    ["x", "y", "width", "height"].every((key) => Math.abs(a[key] - b[key]) <= 2);
+  const cycle = (steps) => {
+    const current = steps.findIndex((step) => matches(window.frame, step));
+    return steps[(current + 1) % steps.length];
+  };
+  // `edge` 0 is the left (or top) half and 1 the right (or bottom) half.
+  const halfCycle = (vertical, edge) => {
+    const along = (count, first, last) =>
+      vertical ? grid(1, count, 0, first, 0, last) : grid(count, 1, first, 0, last, 0);
+    return edge === 0
+      ? cycle([along(2, 0, 0), along(3, 0, 1), along(3, 0, 0)])
+      : cycle([along(2, 1, 1), along(3, 1, 2), along(3, 2, 2)]);
+  };
   // Keep the window's size, shrinking it only where it cannot fit.
   const fittedWidth = Math.min(window.frame.width, screen.width);
   const fittedHeight = Math.min(window.frame.height, screen.height);
@@ -35,10 +54,10 @@
   const layouts = {
     "window.maximize": () => screen,
     "window.center": () => centred(fittedWidth, fittedHeight),
-    "window.left_half": () => grid(2, 1, 0, 0),
-    "window.right_half": () => grid(2, 1, 1, 0),
-    "window.top_half": () => grid(1, 2, 0, 0),
-    "window.bottom_half": () => grid(1, 2, 0, 1),
+    "window.left_half": () => halfCycle(false, 0),
+    "window.right_half": () => halfCycle(false, 1),
+    "window.top_half": () => halfCycle(true, 0),
+    "window.bottom_half": () => halfCycle(true, 1),
     "window.first_third": () => strip(3, 0),
     "window.center_third": () => strip(3, 1),
     "window.last_third": () => strip(3, 2),

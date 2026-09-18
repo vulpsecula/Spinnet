@@ -186,6 +186,94 @@ final class PluginRuntimeTests: XCTestCase {
         try assertLayouts(["window.reasonable_size": rect(768, 308, 1025, 849)])
     }
 
+    /// Running a half again on a window that already fills the current step
+    /// moves it to the next one: 1/2 → 2/3 → 1/3 → 1/2. The script keeps no
+    /// state, so the step comes from the window's frame, within 2 points. The
+    /// 2/3 and 1/3 steps share the thirds layouts' boundaries.
+    func testBundledWindowPositionCyclesHalvesFromTheWindowsCurrentFrame() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        defer { supervisor.shutdown() }
+
+        let visible = WindowRect(x: -1501, y: -201, width: 1501, height: 875)
+        var current = WindowRect(x: -1400, y: 100, width: 600, height: 401)
+        var frames: [WindowRect] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            focusedWindowProvider: { FocusedWindow(frame: current, visibleFrame: visible) },
+            focusedWindowFrameSetter: { frames.append($0) }
+        )
+        func rect(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> WindowRect {
+            WindowRect(x: x, y: y, width: width, height: height)
+        }
+        /// Runs `commandID` on a window at `from` and asserts the one frame it requests.
+        func assertRun(_ commandID: String, from: WindowRect, to expected: WindowRect,
+                       file: StaticString = #filePath, line: UInt = #line) throws {
+            current = from
+            frames = []
+            let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID }, commandID, file: file, line: line)
+            let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command, input: .null)
+            XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null, commandID, file: file, line: line)
+            XCTAssertEqual(frames, [expected], commandID, file: file, line: line)
+        }
+        let elsewhere = rect(-1400, 100, 600, 401)
+
+        // Each half: a window that matches no step goes to 1/2, then each run
+        // moves one step, and 1/3 wraps back to 1/2.
+        let cycles: [(String, [WindowRect])] = [
+            ("window.left_half", [rect(-1501, -201, 750, 875), rect(-1501, -201, 1000, 875), rect(-1501, -201, 500, 875)]),
+            ("window.right_half", [rect(-751, -201, 751, 875), rect(-1001, -201, 1001, 875), rect(-501, -201, 501, 875)]),
+            ("window.top_half", [rect(-1501, -201, 1501, 437), rect(-1501, -201, 1501, 583), rect(-1501, -201, 1501, 291)]),
+            ("window.bottom_half", [rect(-1501, 236, 1501, 438), rect(-1501, 90, 1501, 584), rect(-1501, 382, 1501, 292)])
+        ]
+        for (commandID, steps) in cycles {
+            try assertRun(commandID, from: elsewhere, to: steps[0])
+            try assertRun(commandID, from: steps[0], to: steps[1])
+            try assertRun(commandID, from: steps[1], to: steps[2])
+            try assertRun(commandID, from: steps[2], to: steps[0])
+        }
+
+        // The 2/3 and 1/3 steps are exactly the thirds layouts on a landscape
+        // screen, so a cycled window lines up with them.
+        try assertRun("window.first_two_thirds", from: elsewhere, to: cycles[0].1[1])
+        try assertRun("window.first_third", from: elsewhere, to: cycles[0].1[2])
+        try assertRun("window.last_two_thirds", from: elsewhere, to: cycles[1].1[1])
+        try assertRun("window.last_third", from: elsewhere, to: cycles[1].1[2])
+
+        // Apps round their frames: 2 points off on every edge still matches the
+        // step, 3 points off matches none and starts again at 1/2.
+        let leftHalf = cycles[0].1[0]
+        try assertRun("window.left_half", from: rect(-1499, -199, 748, 877), to: cycles[0].1[1])
+        try assertRun("window.left_half", from: rect(-1503, -203, 752, 873), to: cycles[0].1[1])
+        try assertRun("window.left_half", from: rect(-1501, -201, 753, 875), to: leftHalf)
+        try assertRun("window.left_half", from: rect(-1504, -201, 750, 875), to: leftHalf)
+        try assertRun("window.left_half", from: rect(-1501, -201, 750, 872), to: leftHalf)
+
+        // A step of a different half is not a step of this one.
+        try assertRun("window.right_half", from: leftHalf, to: cycles[1].1[0])
+        try assertRun("window.top_half", from: leftHalf, to: cycles[2].1[0])
+
+        // Other layouts never cycle: running one again on a window already
+        // in it requests the same frame.
+        for (commandID, frame) in [
+            ("window.first_third", rect(-1501, -201, 500, 875)),
+            ("window.first_two_thirds", rect(-1501, -201, 1000, 875)),
+            ("window.top_left_quarter", rect(-1501, -201, 750, 437)),
+            ("window.first_fourth", rect(-1501, -201, 375, 875)),
+            ("window.top_left_sixth", rect(-1501, -201, 500, 437)),
+            ("window.maximize", visible)
+        ] {
+            try assertRun(commandID, from: frame, to: frame)
+        }
+        try assertRun("window.center", from: rect(-1050, 36, 600, 401), to: rect(-1050, 36, 600, 401))
+    }
+
     func testWindowPositionFailsWithoutMovingAnythingWhenTheWindowCannotBePositioned() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
