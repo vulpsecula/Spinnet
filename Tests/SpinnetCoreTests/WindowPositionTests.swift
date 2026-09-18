@@ -8,7 +8,17 @@ import XCTest
 final class WindowPositionTests: XCTestCase {
 
     private let windowPositionCommands = [
-        "window.center", "window.maximize", "window.left_half", "window.right_half"
+        "window.center", "window.maximize", "window.left_half", "window.right_half",
+        "window.top_half", "window.bottom_half",
+        "window.first_third", "window.center_third", "window.last_third",
+        "window.first_two_thirds", "window.last_two_thirds",
+        "window.top_left_quarter", "window.top_right_quarter",
+        "window.bottom_left_quarter", "window.bottom_right_quarter",
+        "window.first_fourth", "window.second_fourth", "window.third_fourth", "window.last_fourth",
+        "window.top_left_sixth", "window.top_center_sixth", "window.top_right_sixth",
+        "window.bottom_left_sixth", "window.bottom_center_sixth", "window.bottom_right_sixth",
+        "window.maximize_height", "window.maximize_width", "window.reasonable_size",
+        "window.move_up", "window.move_down", "window.move_left", "window.move_right"
     ]
 
     func testWindowPositionAppearsOnceInTheLibraryWithFlatCommands() throws {
@@ -23,12 +33,12 @@ final class WindowPositionTests: XCTestCase {
         XCTAssertEqual(preset.commands.map(\.id.rawValue), windowPositionCommands)
         XCTAssertTrue(preset.commands.allSatisfy { $0.execution == .javascript && !$0.isConfigurable })
 
-        // One Command is Primary and every sibling is on offer as an Alternate.
-        let primary = try XCTUnwrap(package.manifest.preset.defaultPrimaryCommandID)
-        XCTAssertEqual(
-            Set([primary] + package.manifest.preset.defaultAlternateCommandIDs).map(\.rawValue).sorted(),
-            windowPositionCommands.sorted()
-        )
+        // The defaults stay the original four; every other Command is a flat
+        // choice the user can make Primary or an Alternate.
+        XCTAssertEqual(package.manifest.preset.defaultPrimaryCommandID?.rawValue, "window.maximize")
+        XCTAssertEqual(package.manifest.preset.defaultAlternateCommandIDs.map(\.rawValue),
+                       ["window.center", "window.left_half", "window.right_half"])
+        XCTAssertEqual(Set(preset.commands.map(\.id)).count, windowPositionCommands.count, "Command IDs are unique")
         XCTAssertEqual(package.manifest.preset.readiness, .readyToUse)
     }
 

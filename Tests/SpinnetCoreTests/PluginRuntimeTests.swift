@@ -96,6 +96,96 @@ final class PluginRuntimeTests: XCTestCase {
         ])
     }
 
+    /// Every catalogue layout on a secondary display with an odd size and a
+    /// negative origin. Adjacent layouts share their boundaries, so they tile
+    /// without gaps or overlaps; each boundary rounds down, so the odd points go
+    /// to the right-hand or lower cells.
+    func testBundledWindowPositionRequestsEveryCatalogueLayoutWithinTheVisibleFrame() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        defer { supervisor.shutdown() }
+
+        var window = FocusedWindow(frame: WindowRect(x: -1400, y: 100, width: 600, height: 401),
+                                   visibleFrame: WindowRect(x: -1501, y: -201, width: 1501, height: 875))
+        var frames: [WindowRect] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
+        )
+        func assertLayouts(_ expected: KeyValuePairs<String, WindowRect>, file: StaticString = #filePath, line: UInt = #line) throws {
+            for (commandID, frame) in expected {
+                frames = []
+                let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID }, commandID, file: file, line: line)
+                let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command, input: .null)
+                XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null, commandID, file: file, line: line)
+                XCTAssertEqual(frames, [frame], commandID, file: file, line: line)
+            }
+        }
+        func rect(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> WindowRect {
+            WindowRect(x: x, y: y, width: width, height: height)
+        }
+
+        // Landscape: thirds and fourths split the width.
+        try assertLayouts([
+            "window.top_half": rect(-1501, -201, 1501, 437),
+            "window.bottom_half": rect(-1501, 236, 1501, 438),
+            "window.first_third": rect(-1501, -201, 500, 875),
+            "window.center_third": rect(-1001, -201, 500, 875),
+            "window.last_third": rect(-501, -201, 501, 875),
+            "window.first_two_thirds": rect(-1501, -201, 1000, 875),
+            "window.last_two_thirds": rect(-1001, -201, 1001, 875),
+            "window.top_left_quarter": rect(-1501, -201, 750, 437),
+            "window.top_right_quarter": rect(-751, -201, 751, 437),
+            "window.bottom_left_quarter": rect(-1501, 236, 750, 438),
+            "window.bottom_right_quarter": rect(-751, 236, 751, 438),
+            "window.first_fourth": rect(-1501, -201, 375, 875),
+            "window.second_fourth": rect(-1126, -201, 375, 875),
+            "window.third_fourth": rect(-751, -201, 375, 875),
+            "window.last_fourth": rect(-376, -201, 376, 875),
+            "window.top_left_sixth": rect(-1501, -201, 500, 437),
+            "window.top_center_sixth": rect(-1001, -201, 500, 437),
+            "window.top_right_sixth": rect(-501, -201, 501, 437),
+            "window.bottom_left_sixth": rect(-1501, 236, 500, 438),
+            "window.bottom_center_sixth": rect(-1001, 236, 500, 438),
+            "window.bottom_right_sixth": rect(-501, 236, 501, 438),
+            "window.maximize_height": rect(-1400, -201, 600, 875),
+            "window.maximize_width": rect(-1501, 100, 1501, 401),
+            "window.reasonable_size": rect(-1201, -26, 901, 525),
+            "window.move_up": rect(-1400, -201, 600, 401),
+            "window.move_down": rect(-1400, 273, 600, 401),
+            "window.move_left": rect(-1501, 100, 600, 401),
+            "window.move_right": rect(-600, 100, 600, 401)
+        ])
+
+        // Portrait: thirds and fourths split the height, the longer edge, and
+        // Reasonable Size meets its 900-point height cap.
+        window = FocusedWindow(frame: WindowRect(x: 1500, y: 0, width: 600, height: 401),
+                               visibleFrame: WindowRect(x: 1440, y: -123, width: 875, height: 1501))
+        try assertLayouts([
+            "window.first_third": rect(1440, -123, 875, 500),
+            "window.center_third": rect(1440, 377, 875, 500),
+            "window.last_third": rect(1440, 877, 875, 501),
+            "window.first_two_thirds": rect(1440, -123, 875, 1000),
+            "window.last_two_thirds": rect(1440, 377, 875, 1001),
+            "window.first_fourth": rect(1440, -123, 875, 375),
+            "window.second_fourth": rect(1440, 252, 875, 375),
+            "window.third_fourth": rect(1440, 627, 875, 375),
+            "window.last_fourth": rect(1440, 1002, 875, 376),
+            "window.reasonable_size": rect(1615, 178, 525, 900)
+        ])
+
+        // A wide display: Reasonable Size meets its 1025-point width cap.
+        window = FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 600, height: 401),
+                               visibleFrame: WindowRect(x: 0, y: 25, width: 2561, height: 1415))
+        try assertLayouts(["window.reasonable_size": rect(768, 308, 1025, 849)])
+    }
+
     func testWindowPositionFailsWithoutMovingAnythingWhenTheWindowCannotBePositioned() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))

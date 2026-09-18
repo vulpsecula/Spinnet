@@ -34,5 +34,173 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "position.js"
+  }, {
+    "id": "window.top_half",
+    "title": "Top Half",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_half",
+    "title": "Bottom Half",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.first_third",
+    "title": "First Third",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.center_third",
+    "title": "Centre Third",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.last_third",
+    "title": "Last Third",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.first_two_thirds",
+    "title": "First Two Thirds",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.last_two_thirds",
+    "title": "Last Two Thirds",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.top_left_quarter",
+    "title": "Top Left Quarter",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.top_right_quarter",
+    "title": "Top Right Quarter",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_left_quarter",
+    "title": "Bottom Left Quarter",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_right_quarter",
+    "title": "Bottom Right Quarter",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.first_fourth",
+    "title": "First Fourth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.second_fourth",
+    "title": "Second Fourth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.third_fourth",
+    "title": "Third Fourth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.last_fourth",
+    "title": "Last Fourth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.top_left_sixth",
+    "title": "Top Left Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.top_center_sixth",
+    "title": "Top Centre Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.top_right_sixth",
+    "title": "Top Right Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_left_sixth",
+    "title": "Bottom Left Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_center_sixth",
+    "title": "Bottom Centre Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.bottom_right_sixth",
+    "title": "Bottom Right Sixth",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.maximize_height",
+    "title": "Maximise Height",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.maximize_width",
+    "title": "Maximise Width",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.reasonable_size",
+    "title": "Reasonable Size",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.move_up",
+    "title": "Move Up",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.move_down",
+    "title": "Move Down",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.move_left",
+    "title": "Move Left",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.move_right",
+    "title": "Move Right",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
   }]
 }
