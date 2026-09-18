@@ -34,15 +34,23 @@ public struct WindowRect: Codable, Equatable, Hashable {
     }
 }
 
-/// What a Plugin learns about the focused window: where it is, and the part of
-/// its screen that windows may occupy. Nothing identifies the window or its
-/// application, and nothing else in the accessibility tree is exposed.
+/// What a Plugin learns about the focused window: where it is, the part of
+/// its screen that windows may occupy, and the same for every display, so a
+/// Plugin can move the window to another one. Nothing identifies the window or
+/// its application, and nothing else in the accessibility tree is exposed.
 public struct FocusedWindow: Codable, Equatable {
     public let frame: WindowRect
     public let visibleFrame: WindowRect
+    /// Every display's visible frame, left to right and then top to bottom.
+    public let displays: [WindowRect]
+    /// The position in `displays` of the display holding the window.
+    public let displayIndex: Int
 
-    public init(frame: WindowRect, visibleFrame: WindowRect) {
+    /// Without a list of displays, the window's own screen is the only one.
+    public init(frame: WindowRect, visibleFrame: WindowRect, displays: [WindowRect]? = nil, displayIndex: Int = 0) {
         self.frame = frame
         self.visibleFrame = visibleFrame
+        self.displays = displays ?? [visibleFrame]
+        self.displayIndex = displayIndex
     }
 }

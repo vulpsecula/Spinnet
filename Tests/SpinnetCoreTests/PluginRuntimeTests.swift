@@ -288,6 +288,73 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(frames, [])
     }
 
+    func testBundledWindowPositionMovesTheWindowBetweenDisplays() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        defer { supervisor.shutdown() }
+
+        // Left to right: a larger display with a negative origin, the primary
+        // display below its menu bar, and a smaller display set higher up.
+        let large = WindowRect(x: -1920, y: -100, width: 1920, height: 1080)
+        let primary = WindowRect(x: 0, y: 25, width: 1440, height: 875)
+        let small = WindowRect(x: 1440, y: -375, width: 1280, height: 775)
+        var window = FocusedWindow(frame: primary, visibleFrame: primary)
+        var frames: [WindowRect] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
+        )
+        func move(_ frame: WindowRect, on index: Int, of displays: [WindowRect], _ commandID: String) throws -> WindowRect? {
+            window = FocusedWindow(frame: frame, visibleFrame: displays[index], displays: displays, displayIndex: index)
+            frames = []
+            let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID })
+            let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command, input: .null)
+            XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+            XCTAssertLessThanOrEqual(frames.count, 1)
+            return frames.first
+        }
+        let next = "window.next_display", previous = "window.previous_display"
+        let three = [large, primary, small]
+        let two = [primary, small]
+
+        // Halfway across the free width and a fifth of the way down the free
+        // height stays so on the target display, at the same size.
+        let centred = WindowRect(x: 420, y: 120, width: 600, height: 400)
+        XCTAssertEqual(try move(centred, on: 1, of: three, next), WindowRect(x: 1780, y: -300, width: 600, height: 400))
+        XCTAssertEqual(try move(centred, on: 1, of: three, previous), WindowRect(x: -1260, y: 36, width: 600, height: 400))
+
+        // Both commands wrap around the ends of the list.
+        let wide = WindowRect(x: -1800, y: 240, width: 1600, height: 600)
+        XCTAssertEqual(try move(wide, on: 0, of: three, previous), WindowRect(x: 1440, y: -251, width: 1280, height: 600))
+        let onSmall = WindowRect(x: 1780, y: -300, width: 600, height: 400)
+        XCTAssertEqual(try move(onSmall, on: 2, of: three, next), WindowRect(x: -1260, y: 36, width: 600, height: 400))
+
+        // Only a dimension larger than the target is shrunk.
+        XCTAssertEqual(try move(wide, on: 0, of: three, next), WindowRect(x: 0, y: 220, width: 1440, height: 600))
+        XCTAssertEqual(try move(large, on: 0, of: three, next), primary)
+        XCTAssertEqual(try move(primary, on: 1, of: three, previous), WindowRect(x: -1920, y: -100, width: 1440, height: 875))
+
+        // A window hanging off its visible frame lands wholly inside the target.
+        let hanging = WindowRect(x: -50, y: 0, width: 600, height: 400)
+        XCTAssertEqual(try move(hanging, on: 1, of: three, next), WindowRect(x: 1440, y: -375, width: 600, height: 400))
+
+        // With two displays either command reaches the other one, and back.
+        XCTAssertEqual(try move(centred, on: 0, of: two, next), onSmall)
+        XCTAssertEqual(try move(centred, on: 0, of: two, previous), onSmall)
+        XCTAssertEqual(try move(onSmall, on: 1, of: two, next), centred)
+        XCTAssertEqual(try move(onSmall, on: 1, of: two, previous), centred)
+
+        // A single display leaves the window where it is and succeeds.
+        XCTAssertNil(try move(centred, on: 0, of: [primary], next))
+        XCTAssertNil(try move(centred, on: 0, of: [primary], previous))
+    }
+
     func testInvocationSchemaDeclaresItsMessageVariant() throws {
         let invocation = PluginRuntimeInvocation(
             pluginID: PluginID("com.example.fixture"),

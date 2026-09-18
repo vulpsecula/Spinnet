@@ -208,5 +208,17 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "full-screen.js"
+  }, {
+    "id": "window.previous_display",
+    "title": "Previous Display",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "display.js"
+  }, {
+    "id": "window.next_display",
+    "title": "Next Display",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "display.js"
   }]
 }

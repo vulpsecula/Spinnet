@@ -20,7 +20,8 @@ final class WindowPositionTests: XCTestCase {
         "window.bottom_left_sixth", "window.bottom_center_sixth", "window.bottom_right_sixth",
         "window.maximize_height", "window.maximize_width", "window.reasonable_size",
         "window.move_up", "window.move_down", "window.move_left", "window.move_right",
-        "window.toggle_full_screen"
+        "window.toggle_full_screen",
+        "window.previous_display", "window.next_display"
     ]
 
     func testWindowPositionAppearsOnceInTheLibraryWithFlatCommands() throws {
@@ -104,7 +105,12 @@ final class WindowPositionTests: XCTestCase {
         let read = try broker.execute(request: request(.readFocusedWindow, .null, action), for: package, action: action)
         XCTAssertEqual(read, .object([
             "frame": .object(["x": .number(100), "y": .number(120), "width": .number(600), "height": .number(400)]),
-            "visibleFrame": .object(["x": .number(0), "y": .number(25), "width": .number(1440), "height": .number(875)])
+            "visibleFrame": .object(["x": .number(0), "y": .number(25), "width": .number(1440), "height": .number(875)]),
+            "displays": .array([
+                .object(["x": .number(-1920), "y": .number(-100), "width": .number(1920), "height": .number(1080)]),
+                .object(["x": .number(0), "y": .number(25), "width": .number(1440), "height": .number(875)])
+            ]),
+            "displayIndex": .number(1)
         ]))
         XCTAssertEqual(try broker.execute(request: request(.setFocusedWindowFrame, frame, action), for: package, action: action), .null)
         XCTAssertEqual(frames, [WindowRect(x: 0, y: 25, width: 720, height: 875)])
@@ -253,7 +259,9 @@ final class WindowPositionTests: XCTestCase {
 
     static let window = FocusedWindow(
         frame: WindowRect(x: 100, y: 120, width: 600, height: 400),
-        visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875)
+        visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875),
+        displays: [WindowRect(x: -1920, y: -100, width: 1920, height: 1080), WindowRect(x: 0, y: 25, width: 1440, height: 875)],
+        displayIndex: 1
     )
 
     private func loadWindowPosition() throws -> PluginPackage {

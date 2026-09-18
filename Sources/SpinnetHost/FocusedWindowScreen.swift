@@ -27,4 +27,18 @@ struct FocusedWindowScreen: Equatable {
         let visible = flip(screen.visibleFrame)
         return WindowRect(x: visible.minX, y: visible.minY, width: visible.width, height: visible.height)
     }
+
+    /// `window` with its screen's visible frame and every display's, all in
+    /// the window's top-left coordinates. Displays are listed left to right,
+    /// then top to bottom, so the order does not depend on which is primary.
+    static func focusedWindow(_ window: WindowRect, among screens: [FocusedWindowScreen]) -> FocusedWindow? {
+        guard let primary = screens.first,
+              let visibleFrame = visibleFrame(for: window, among: screens) else { return nil }
+        let displays = screens.map { screen in
+            WindowRect(x: screen.visibleFrame.minX, y: primary.frame.maxY - screen.visibleFrame.maxY,
+                       width: screen.visibleFrame.width, height: screen.visibleFrame.height)
+        }.sorted { ($0.x, $0.y) < ($1.x, $1.y) }
+        guard let displayIndex = displays.firstIndex(of: visibleFrame) else { return nil }
+        return FocusedWindow(frame: window, visibleFrame: visibleFrame, displays: displays, displayIndex: displayIndex)
+    }
 }

@@ -58,10 +58,10 @@ final class AppKitPluginHostServiceProvider {
         let screens = onMain {
             NSScreen.screens.map { FocusedWindowScreen(frame: $0.frame, visibleFrame: $0.visibleFrame) }
         }
-        guard let visibleFrame = FocusedWindowScreen.visibleFrame(for: frame, among: screens) else {
+        guard let focused = FocusedWindowScreen.focusedWindow(frame, among: screens) else {
             throw PluginHostServiceError.unavailable("No display is available")
         }
-        return FocusedWindow(frame: frame, visibleFrame: visibleFrame)
+        return focused
     }
 
     /// Moves the window last read, provided it is still focused. A window that
