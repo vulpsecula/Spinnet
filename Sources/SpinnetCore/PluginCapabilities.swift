@@ -339,6 +339,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Full screen is not a frame, so it is not a `set_focused_window_frame`
     /// input; the Plugin supplies nothing and learns nothing.
     case toggleFocusedWindowFullScreen = "toggle_focused_window_full_screen"
+    /// Returns the focused window to the frame it had before Spinnet last
+    /// moved it. The Host remembers that frame; the Plugin supplies nothing.
+    case restoreFocusedWindowFrame = "restore_focused_window_frame"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -349,14 +352,14 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
-        case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen:
+        case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
             return .positionFocusedWindow
         }
     }
 
     public var requiredSystemPermission: PluginSystemPermission? {
         switch self {
-        case .readSelectedText, .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen:
+        case .readSelectedText, .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
             return .accessibility
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
@@ -437,6 +440,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedWindowProvider: () throws -> FocusedWindow
     private let focusedWindowFrameSetter: (WindowRect) throws -> Void
     private let focusedWindowFullScreenToggler: () throws -> Void
+    private let focusedWindowFrameRestorer: () throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -459,6 +463,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         focusedWindowFullScreenToggler: @escaping () throws -> Void = {
             throw PluginHostServiceError.unavailable("Focused window")
+        },
+        focusedWindowFrameRestorer: @escaping () throws -> Void = {
+            throw PluginHostServiceError.unavailable("Focused window")
         }
     ) {
         self.grantStore = grantStore
@@ -472,6 +479,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedWindowProvider = focusedWindowProvider
         self.focusedWindowFrameSetter = focusedWindowFrameSetter
         self.focusedWindowFullScreenToggler = focusedWindowFullScreenToggler
+        self.focusedWindowFrameRestorer = focusedWindowFrameRestorer
     }
 
     public func execute(
@@ -579,6 +587,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("toggle_focused_window_full_screen expects null")
             }
             try focusedWindowFullScreenToggler()
+            return .null
+        case .restoreFocusedWindowFrame:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("restore_focused_window_frame expects null")
+            }
+            try focusedWindowFrameRestorer()
             return .null
         }
     }

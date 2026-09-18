@@ -21,7 +21,8 @@ final class WindowPositionTests: XCTestCase {
         "window.maximize_height", "window.maximize_width", "window.reasonable_size",
         "window.move_up", "window.move_down", "window.move_left", "window.move_right",
         "window.toggle_full_screen",
-        "window.previous_display", "window.next_display"
+        "window.previous_display", "window.next_display",
+        "window.restore"
     ]
 
     func testWindowPositionAppearsOnceInTheLibraryWithFlatCommands() throws {

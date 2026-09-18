@@ -9,6 +9,9 @@ final class AppKitPluginHostServiceProvider {
     /// only while it is still focused, so a layout computed for one window is
     /// never applied to another that took focus in between.
     private var readWindow: AXUIElement?
+    /// Where each window was before Spinnet last moved it, for Restore. Held
+    /// in memory only and never persisted.
+    private var rememberedFrames = RememberedWindowFrames<AXWindowKey>()
 
     func isGranted(_ permission: PluginSystemPermission) -> Bool {
         switch permission {
@@ -89,6 +92,69 @@ final class AppKitPluginHostServiceProvider {
             _ = apply(original, to: window)
             throw PluginHostServiceError.failed("The focused window did not accept the new frame")
         }
+        // Remember the frame the window settled on, which may differ from the
+        // one requested if the window clamped it, so the next layout can tell
+        // whether the window is still where Spinnet put it.
+        let applied = (try? self.frame(of: window)) ?? frame
+        windowLock.lock()
+        rememberedFrames.recordMove(of: AXWindowKey(window), from: original, to: applied)
+        windowLock.unlock()
+        forgetClosedWindows()
+    }
+
+    /// Returns the focused window to the frame it had before Spinnet last
+    /// moved it, under the same rules as `setFocusedWindowFrame`. The frame is
+    /// looked up for the focused window itself, so it can never be applied to
+    /// another window. A window Spinnet never moved does not move.
+    func restoreFocusedWindowFrame() throws {
+        let window = try focusedWindow()
+        try refuseLayoutInFullScreen(window)
+        forgetClosedWindows()
+        let key = AXWindowKey(window)
+        windowLock.lock()
+        let remembered = rememberedFrames.frameToRestore(for: key)
+        windowLock.unlock()
+        guard let remembered else { throw PluginHostServiceError.nothingToRestore }
+        let original = try self.frame(of: window)
+        try replaceFrame(of: window, from: original, with: remembered)
+        windowLock.lock()
+        rememberedFrames.forget(key)
+        windowLock.unlock()
+    }
+
+    /// Checks both halves are settable before changing anything, and puts
+    /// `original` back if the window rejects the change part-way.
+    private func replaceFrame(of window: AXUIElement, from original: WindowRect, with frame: WindowRect) throws {
+        for attribute in [kAXPositionAttribute, kAXSizeAttribute] {
+            var settable = DarwinBoolean(false)
+            guard AXUIElementIsAttributeSettable(window, attribute as CFString, &settable) == .success,
+                  settable.boolValue else {
+                throw PluginHostServiceError.unavailable("The focused window cannot be moved or resized")
+            }
+        }
+        guard apply(frame, to: window) else {
+            _ = apply(original, to: window)
+            throw PluginHostServiceError.failed("The focused window did not accept the new frame")
+        }
+    }
+
+    /// Drops remembered frames for windows that no longer exist. Accessibility
+    /// reports a closed window's element as invalid; a short timeout keeps an
+    /// unresponsive application from stalling the request, and such a window
+    /// is kept until it answers or ages out of the bound.
+    private func forgetClosedWindows() {
+        windowLock.lock()
+        let windows = rememberedFrames.windows
+        windowLock.unlock()
+        let closed = Set(windows.filter { key in
+            AXUIElementSetMessagingTimeout(key.element, 0.25)
+            var role: CFTypeRef?
+            return AXUIElementCopyAttributeValue(key.element, kAXRoleAttribute as CFString, &role) == .invalidUIElement
+        })
+        guard !closed.isEmpty else { return }
+        windowLock.lock()
+        rememberedFrames.forget { closed.contains($0) }
+        windowLock.unlock()
     }
 
     // MARK: Full screen
@@ -192,5 +258,24 @@ final class AppKitPluginHostServiceProvider {
               pasteboard.setString(text, forType: .string) else {
             throw PluginHostServiceError.failed("Clipboard could not be updated")
         }
+    }
+}
+
+/// A window's identity for remembered frames. Accessibility elements compare
+/// by the window they refer to rather than by reference, so two reads of the
+/// same focused window produce equal keys.
+struct AXWindowKey: Hashable {
+    let element: AXUIElement
+
+    init(_ element: AXUIElement) {
+        self.element = element
+    }
+
+    static func == (lhs: AXWindowKey, rhs: AXWindowKey) -> Bool {
+        CFEqual(lhs.element, rhs.element)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(CFHash(element))
     }
 }

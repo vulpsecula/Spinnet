@@ -108,6 +108,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 focusedWindowFullScreenToggler: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.toggleFocusedWindowFullScreen()
+                },
+                focusedWindowFrameRestorer: { [pluginHostServiceProvider] in
+                    try pluginHostServiceProvider.restoreFocusedWindowFrame()
                 }
             )
             clipboardBroker = hostServiceBroker

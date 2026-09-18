@@ -220,5 +220,11 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "display.js"
+  }, {
+    "id": "window.restore",
+    "title": "Restore Window",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "restore.js"
   }]
 }

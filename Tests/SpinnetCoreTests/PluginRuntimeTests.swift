@@ -443,6 +443,52 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertNil(try move(centred, on: 0, of: [primary], previous))
     }
 
+    /// Restore asks the Host to put the window back and supplies nothing: no
+    /// window, no frame, and no read of the window first.
+    func testBundledWindowPositionRestoreRequestsTheHostRestore() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.restore" })
+        let action = try ActionConfiguration(id: ActionID("restore"), pluginID: package.manifest.id, command: command, input: .null)
+        var reads = 0
+        var frames: [WindowRect] = []
+        func outcome(restore: @escaping () throws -> Void) throws -> ActionTerminalOutcome {
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants, systemPermissionCheck: { _ in true },
+                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                focusedWindowProvider: { reads += 1; throw PluginHostServiceError.unavailable("No focused window") },
+                focusedWindowFrameSetter: { frames.append($0) },
+                focusedWindowFrameRestorer: restore
+            )
+            return HostActionRunner(
+                executor: NoopHostCommandExecutor(),
+                scriptedExecutor: PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt())),
+                hostServiceBroker: broker
+            ).invoke(action, using: registry).terminal
+        }
+
+        var restores = 0
+        guard case .succeeded = try outcome(restore: { restores += 1 }) else {
+            return XCTFail("Restoring a moved window should succeed")
+        }
+        XCTAssertEqual(restores, 1)
+
+        let nothing = try outcome(restore: { throw PluginHostServiceError.nothingToRestore })
+        guard case .failed(let failure) = nothing else {
+            return XCTFail("A window Spinnet never moved should fail the Action")
+        }
+        XCTAssertEqual(failure.category, .hostServiceFailed)
+        XCTAssertTrue(failure.message.contains("nothing to restore"), failure.message)
+        XCTAssertEqual(reads, 0)
+        XCTAssertEqual(frames, [])
+    }
+
     func testInvocationSchemaDeclaresItsMessageVariant() throws {
         let invocation = PluginRuntimeInvocation(
             pluginID: PluginID("com.example.fixture"),
