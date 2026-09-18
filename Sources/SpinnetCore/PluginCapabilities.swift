@@ -10,9 +10,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case monitorClipboard = "monitor_clipboard"
     case contactHTTPS = "contact_https"
     case controlExternalApp = "control_external_app"
+    case positionFocusedWindow = "position_focused_window"
 
     public var isSupportedByHostServices: Bool {
-        [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory].contains(self)
+        [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
+         .positionFocusedWindow].contains(self)
     }
 
     public var title: String {
@@ -26,6 +28,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .monitorClipboard: return "Monitor Clipboard"
         case .contactHTTPS: return "Contact HTTPS Hosts"
         case .controlExternalApp: return "Control External Apps"
+        case .positionFocusedWindow: return "Move and Resize the Focused Window"
         }
     }
 
@@ -40,6 +43,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
         case .controlExternalApp: return "Request only the named External Apps and operation families."
+        case .positionFocusedWindow: return "Read the focused window's frame and its screen, and move or resize that window."
         }
     }
 }
@@ -309,7 +313,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
     public var explanation: String {
         switch self {
         case .accessibility:
-            return "Lets Spinnet intercept the configured Side Button, read selected text, and send keyboard actions such as Paste or Cut."
+            return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, and move the focused window."
         }
     }
 }
@@ -325,6 +329,12 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// the Plugin, and only a shipped Plugin may ask (ADR 0002), so it is named
     /// rather than hidden in another service's input.
     case presentClipboardHistory = "present_clipboard_history"
+    /// The focused window's frame and its screen's visible frame, and nothing
+    /// else from the accessibility tree.
+    case readFocusedWindow = "read_focused_window"
+    /// Moves and resizes whichever window is focused when the request arrives.
+    /// The Plugin supplies bounds, never a window or an accessibility action.
+    case setFocusedWindowFrame = "set_focused_window_frame"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -335,12 +345,14 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .readClipboardHistory
         case .writeClipboard:
             return .writeClipboard
+        case .readFocusedWindow, .setFocusedWindowFrame:
+            return .positionFocusedWindow
         }
     }
 
     public var requiredSystemPermission: PluginSystemPermission? {
         switch self {
-        case .readSelectedText:
+        case .readSelectedText, .readFocusedWindow, .setFocusedWindowFrame:
             return .accessibility
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
@@ -418,6 +430,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
     private let clipboardHistoryPresenter: (PluginPackage, ActionConfiguration) -> Void
     private let clipboardHistoryContentProvider: (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk
+    private let focusedWindowProvider: () throws -> FocusedWindow
+    private let focusedWindowFrameSetter: (WindowRect) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -431,7 +445,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         clipboardHistoryContentProvider: @escaping (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk = { _, _, _, _ in
             throw PluginHostServiceError.unavailable("Clipboard History content")
         },
-        clipboardHistoryPresenter: @escaping (PluginPackage, ActionConfiguration) -> Void = { _, _ in }
+        clipboardHistoryPresenter: @escaping (PluginPackage, ActionConfiguration) -> Void = { _, _ in },
+        focusedWindowProvider: @escaping () throws -> FocusedWindow = {
+            throw PluginHostServiceError.unavailable("Focused window")
+        },
+        focusedWindowFrameSetter: @escaping (WindowRect) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Focused window")
+        }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -441,6 +461,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.clipboardHistoryProvider = clipboardHistoryProvider
         self.clipboardHistoryPresenter = clipboardHistoryPresenter
         self.clipboardHistoryContentProvider = clipboardHistoryContentProvider
+        self.focusedWindowProvider = focusedWindowProvider
+        self.focusedWindowFrameSetter = focusedWindowFrameSetter
     }
 
     public func execute(
@@ -529,6 +551,19 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 )
             }
             try clipboardWriter(text)
+            return .null
+        case .readFocusedWindow:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("read_focused_window expects null")
+            }
+            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(focusedWindowProvider()))
+        case .setFocusedWindowFrame:
+            guard let frame = WindowRect(json: request.input) else {
+                throw PluginHostServiceError.invalidInput(
+                    "set_focused_window_frame expects x, y, width, and height, with a positive size"
+                )
+            }
+            try focusedWindowFrameSetter(frame)
             return .null
         }
     }

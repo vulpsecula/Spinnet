@@ -20,7 +20,8 @@ public extension PluginManifest {
     }
 
     func requiredSystemPermissions(for command: CommandDeclaration, input: JSONValue? = nil) -> [PluginSystemPermission] {
-        if requiredCapabilities(for: command, input: input).contains(.readSelectedText)
+        let capabilities = requiredCapabilities(for: command, input: input)
+        if capabilities.contains(.readSelectedText) || capabilities.contains(.positionFocusedWindow)
             || command.hostCommand?.requiredSystemPermission == .accessibility {
             return [.accessibility]
         }
@@ -85,10 +86,13 @@ public struct PluginPermissionDisclosure {
             return affected.isEmpty ? nil : "Accessibility — \(affected.joined(separator: ", ")). Granted separately to Spinnet in macOS System Settings."
         case .monitors, .contacts: return nil
         case .controls:
-            let affected = commands.compactMap { command -> String? in
+            var affected = commands.compactMap { command -> String? in
                 guard let operation = command.hostCommand,
                       ![HostCommand.copyText, .presentFeedback].contains(operation) else { return nil }
                 return "\(command.title): \(operation.rawValue) (target configured per Menu Item)"
+            }
+            if manifest.capabilities.contains(.positionFocusedWindow), !names(.positionFocusedWindow).isEmpty {
+                affected.append("Move and resize the focused window. Commands: \(names(.positionFocusedWindow)). No other window or app content is read.")
             }
             return affected.isEmpty ? nil : affected.joined(separator: "\n")
         }
@@ -102,7 +106,7 @@ public extension PluginCapability {
         case .writeClipboard: return .changes
         case .monitorClipboard: return .monitors
         case .contactHTTPS: return .contacts
-        case .controlExternalApp: return .controls
+        case .controlExternalApp, .positionFocusedWindow: return .controls
         }
     }
 }

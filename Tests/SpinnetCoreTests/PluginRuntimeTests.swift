@@ -55,6 +55,97 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.count, 2)
     }
 
+    func testBundledWindowPositionRequestsEachLayoutWithinTheVisibleFrame() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        defer { supervisor.shutdown() }
+
+        // A secondary display left of the primary one, below its menu bar, with
+        // an odd width so the halves have to share the extra point.
+        let visible = WindowRect(x: -1501, y: 25, width: 1501, height: 875)
+        var window = FocusedWindow(frame: WindowRect(x: -1400, y: 300, width: 600, height: 401), visibleFrame: visible)
+        var frames: [WindowRect] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
+        )
+        func run(_ commandID: String) throws -> JSONValue {
+            let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID })
+            let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command, input: .null)
+            return try supervisor.execute(action, in: package, using: broker)
+        }
+
+        XCTAssertEqual(try run("window.maximize"), .null)
+        XCTAssertEqual(try run("window.left_half"), .null)
+        XCTAssertEqual(try run("window.right_half"), .null)
+        XCTAssertEqual(try run("window.center"), .null)
+        window = FocusedWindow(frame: WindowRect(x: -1400, y: 300, width: 2000, height: 1000), visibleFrame: visible)
+        XCTAssertEqual(try run("window.center"), .null)
+        XCTAssertEqual(frames, [
+            visible,
+            WindowRect(x: -1501, y: 25, width: 750, height: 875),
+            WindowRect(x: -751, y: 25, width: 751, height: 875),
+            WindowRect(x: -1050, y: 262, width: 600, height: 401),
+            visible
+        ])
+    }
+
+    func testWindowPositionFailsWithoutMovingAnythingWhenTheWindowCannotBePositioned() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/WindowPosition.spinnetplugin"))
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                           capability: .positionFocusedWindow, scope: package.manifest.scope(for: .positionFocusedWindow))
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "window.maximize" })
+        let action = try ActionConfiguration(id: ActionID("maximize"), pluginID: package.manifest.id, command: command, input: .null)
+        let window = FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 300, height: 200),
+                                   visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875))
+        func outcome(read: @escaping () throws -> FocusedWindow,
+                     set: @escaping (WindowRect) throws -> Void) throws -> ActionTerminalOutcome {
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants, systemPermissionCheck: { _ in true },
+                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                focusedWindowProvider: read, focusedWindowFrameSetter: set
+            )
+            return HostActionRunner(
+                executor: NoopHostCommandExecutor(),
+                scriptedExecutor: PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt())),
+                hostServiceBroker: broker
+            ).invoke(action, using: registry).terminal
+        }
+
+        // No readable focused window: the script never reaches the setter.
+        var frames: [WindowRect] = []
+        let unreadable = try outcome(read: { throw PluginHostServiceError.unavailable("No focused window") },
+                                     set: { frames.append($0) })
+        guard case .failed(let unreadableFailure) = unreadable else {
+            return XCTFail("A missing window should fail the Action")
+        }
+        XCTAssertEqual(unreadableFailure.category, .hostServiceFailed)
+        XCTAssertEqual(frames, [], "The script fell through to moving a window")
+
+        // A window that reports its frame but refuses a new one.
+        var attempts: [WindowRect] = []
+        let refused = try outcome(read: { window }, set: {
+            attempts.append($0)
+            throw PluginHostServiceError.unavailable("The focused window cannot be moved or resized")
+        })
+        guard case .failed(let refusedFailure) = refused else {
+            return XCTFail("A non-settable window should fail the Action")
+        }
+        XCTAssertEqual(refusedFailure.category, .hostServiceFailed)
+        XCTAssertEqual(attempts, [window.visibleFrame], "Only the focused window's layout was requested")
+    }
+
     func testInvocationSchemaDeclaresItsMessageVariant() throws {
         let invocation = PluginRuntimeInvocation(
             pluginID: PluginID("com.example.fixture"),

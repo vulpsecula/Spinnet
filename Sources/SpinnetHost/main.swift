@@ -99,6 +99,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 clipboardHistoryPresenter: { [weak self] package, action in
                     DispatchQueue.main.async { [weak self] in self?.presentClipboardHistory(package: package, action: action) }
+                },
+                focusedWindowProvider: { [pluginHostServiceProvider] in
+                    try pluginHostServiceProvider.readFocusedWindow()
+                },
+                focusedWindowFrameSetter: { [pluginHostServiceProvider] frame in
+                    try pluginHostServiceProvider.setFocusedWindowFrame(frame)
                 }
             )
             clipboardBroker = hostServiceBroker

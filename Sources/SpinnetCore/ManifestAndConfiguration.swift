@@ -522,8 +522,13 @@ public struct PluginManifest: Codable, Equatable {
                  scope.dataTypes.contains(where: { $0 != "text" })) {
                 throw ConfigurationError.invalidManifest("This Capability only supports current text data")
             }
+            if scope.capability == .positionFocusedWindow &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 !scope.dataTypes.isEmpty) {
+                throw ConfigurationError.invalidManifest("This Capability acts only on the focused window")
+            }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }

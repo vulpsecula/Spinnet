@@ -1,0 +1,38 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.window-position",
+  "name": "Window Position",
+  "version": "1.0.0",
+  "capabilities": ["position_focused_window"],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "window.maximize",
+    "default_alternate_command_ids": ["window.center", "window.left_half", "window.right_half"]
+  },
+  "commands": [{
+    "id": "window.center",
+    "title": "Centre Window",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.maximize",
+    "title": "Maximise Window",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.left_half",
+    "title": "Left Half",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }, {
+    "id": "window.right_half",
+    "title": "Right Half",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "position.js"
+  }]
+}
