@@ -559,6 +559,15 @@ public struct PluginManifest: Codable, Equatable {
                  !scope.dataTypes.isEmpty) {
                 throw ConfigurationError.invalidManifest("This Capability only starts a Host-run screen capture")
             }
+            // Only the user adds hosts beyond the declared ones.
+            if !scope.consentedHTTPSHosts.isEmpty {
+                throw ConfigurationError.invalidManifest("A manifest cannot declare user-consented hosts")
+            }
+            if scope.capability == .insertIntoFocusedApp &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 scope.dataTypes.contains(where: { $0 != "text" })) {
+                throw ConfigurationError.invalidManifest("This Capability only inserts text into the focused App")
+            }
         }
         for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .captureScreen].contains(capability) {
             guard scope(for: capability) != nil else {

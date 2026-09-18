@@ -124,7 +124,7 @@ final class HostServicesTests: XCTestCase {
         XCTAssertTrue(details.contains("Read Text"))
     }
 
-    func testScopedHostAndAppExpansionRequiresFreshConsentAndUnsupportedServicesStayUnavailable() throws {
+    func testScopedHostExpansionRequiresFreshConsent() throws {
         let command = CommandDeclaration(id: CommandID("translate"), title: "Translate", hostCommand: .presentFeedback)
         let scope = PluginCapabilityScope(capability: .contactHTTPS, commandIDs: [command.id],
                                           dataTypes: ["text"], httpsHosts: ["api.example.com"])
@@ -145,7 +145,8 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(registry.availability(for: action), .unavailable(.capabilityDenied))
         guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Old scope must not authorize expansion") }
         restored.setDecision(.granted, for: original.id, pluginVersion: "1", capability: .contactHTTPS, scope: expandedScope)
-        XCTAssertEqual(registry.availability(for: action), .unavailable(.hostServiceUnavailable))
+        // Contact is a Host Service now (#29), so a decision on the new scope restores the Command.
+        XCTAssertEqual(registry.availability(for: action), .available)
         let disclosure = PluginPermissionDisclosure(manifest: expanded).details(for: .contacts)
         XCTAssertTrue(disclosure.contains("images.example.com"))
         XCTAssertTrue(disclosure.contains("image"))

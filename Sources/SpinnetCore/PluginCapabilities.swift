@@ -13,10 +13,13 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case positionFocusedWindow = "position_focused_window"
     case openURL = "open_url"
     case captureScreen = "capture_screen"
+    /// Typing text into the focused App in place of its selection. Separate
+    /// from `write_clipboard`: inserting changes a document, copying does not.
+    case insertIntoFocusedApp = "insert_into_focused_app"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
-         .positionFocusedWindow, .openURL, .captureScreen].contains(self)
+         .positionFocusedWindow, .openURL, .captureScreen, .contactHTTPS, .insertIntoFocusedApp].contains(self)
     }
 
     public var title: String {
@@ -33,6 +36,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .positionFocusedWindow: return "Move and Resize the Focused Window"
         case .openURL: return "Open Links"
         case .captureScreen: return "Capture the Screen"
+        case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         }
     }
 
@@ -50,6 +54,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
         case .captureScreen: return "Ask the Host to take a screenshot, then copy it to the clipboard or save it to the folder configured for the Menu Item. The Plugin never receives the image."
+        case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         }
     }
 }
@@ -147,12 +152,16 @@ public final class PluginCapabilityGrantStore {
     /// scope. Snapshot first because an update may reuse its version string.
     public func prepareInstallation(of manifest: PluginManifest, replacing previous: PluginManifest?) {
         let inherited = manifest.capabilities.map { capability -> PluginCapabilityGrant in
-            let scope = manifest.scope(for: capability)
+            var scope = manifest.scope(for: capability)
             let decision: PluginCapabilityGrantDecision
             if let previous, previous.id == manifest.id,
                previous.capabilities.contains(capability), previous.scope(for: capability) == scope {
                 decision = self.decision(for: previous.id, pluginVersion: previous.version,
                                          capability: capability, scope: scope)
+                if let declared = scope {
+                    let added = consentedHTTPSHosts(for: previous.id, pluginVersion: previous.version, declaredScope: declared)
+                    if !added.isEmpty { scope = declared.withConsentedHTTPSHosts(added) }
+                }
             } else {
                 decision = .notDetermined
             }
@@ -173,7 +182,8 @@ public final class PluginCapabilityGrantStore {
     ) -> PluginCapabilityGrantDecision {
         lock.lock()
         defer { lock.unlock() }
-        guard scopes[pluginID]?[pluginVersion]?[capability] == scope else { return .notDetermined }
+        // Hosts the user added extend a scope without changing its decision.
+        guard scopes[pluginID]?[pluginVersion]?[capability]?.declaredPart == scope?.declaredPart else { return .notDetermined }
         return decisions[pluginID]?[pluginVersion]?[capability] ?? .notDetermined
     }
 
@@ -187,6 +197,12 @@ public final class PluginCapabilityGrantStore {
         lock.lock()
         let previous = decisions[pluginID]?[pluginVersion]?[capability]
         let previousScope = scopes[pluginID]?[pluginVersion]?[capability]
+        // A decision on the unchanged declared scope keeps the hosts the user
+        // added to it; any other scope replaces them.
+        var scope = scope
+        if let previousScope, scope?.consentedHTTPSHosts.isEmpty == true, previousScope.declaredPart == scope {
+            scope = previousScope
+        }
         decisions[pluginID, default: [:]][pluginVersion, default: [:]][capability] = decision
         scopes[pluginID, default: [:]][pluginVersion, default: [:]][capability] = scope
         if previous == .granted && (decision != .granted || previousScope != scope) {
@@ -272,6 +288,51 @@ public final class PluginCapabilityGrantStore {
                 )
             )
         }
+    }
+
+    /// Hosts the user added to the Plugin's declared `contact_https` scope, or
+    /// none when the stored scope was decided for a different declaration.
+    public func consentedHTTPSHosts(
+        for pluginID: PluginID,
+        pluginVersion: String,
+        declaredScope: PluginCapabilityScope
+    ) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let stored = scopes[pluginID]?[pluginVersion]?[declaredScope.capability],
+              stored.declaredPart == declaredScope.declaredPart else { return [] }
+        return stored.consentedHTTPSHosts
+    }
+
+    /// Records the hosts the user consented to, such as a self-hosted
+    /// endpoint entered in a Configuration Sheet. That consent is the decision
+    /// for those hosts; the Capability's decision for the declared hosts is
+    /// kept. Removing a host retires running work like any revocation.
+    public func setConsentedHTTPSHosts(
+        _ hosts: [String],
+        for pluginID: PluginID,
+        pluginVersion: String,
+        declaredScope: PluginCapabilityScope
+    ) {
+        lock.lock()
+        let capability = declaredScope.capability
+        let previousScope = scopes[pluginID]?[pluginVersion]?[capability]
+        let matches = previousScope?.declaredPart == declaredScope.declaredPart
+        let previousDecision = matches ? decisions[pluginID]?[pluginVersion]?[capability] : nil
+        var unique: [String] = []
+        for host in hosts.map({ $0.lowercased() })
+        where !unique.contains(host) && !declaredScope.httpsHosts.contains(host) {
+            unique.append(host)
+        }
+        decisions[pluginID, default: [:]][pluginVersion, default: [:]][capability] = previousDecision ?? .notDetermined
+        scopes[pluginID, default: [:]][pluginVersion, default: [:]][capability] = declaredScope.withConsentedHTTPSHosts(unique)
+        let removed = !Set(matches ? previousScope?.consentedHTTPSHosts ?? [] : []).subtracting(unique).isEmpty
+        if previousDecision == .granted && removed {
+            for observer in revocationObservers.values { observer(pluginID) }
+        }
+        let observers = Array(changeObservers.values)
+        lock.unlock()
+        observers.forEach { $0() }
     }
 
     /// A stable snapshot suitable for persistence by a Host settings layer.
@@ -360,6 +421,11 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Action's configuration names. The Host captures, copies and saves; the
     /// Plugin supplies a source and learns nothing about the image.
     case captureScreen = "capture_screen"
+    /// One HTTPS request to a host in the Plugin's consented contact scope.
+    /// The Host owns the transport, redirects, and credential injection.
+    case httpsRequest = "https_request"
+    /// Replaces the focused App's selection with the supplied text.
+    case insertText = "insert_text"
 
     public var requiredCapability: PluginCapability {
         switch self {
@@ -376,6 +442,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .openURL
         case .captureScreen:
             return .captureScreen
+        case .httpsRequest:
+            return .contactHTTPS
+        case .insertText:
+            return .insertIntoFocusedApp
         }
     }
 
@@ -390,6 +460,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .captureScreen:
             return .screenRecording
+        case .httpsRequest:
+            return nil
+        case .insertText:
+            return .accessibility
         }
     }
 }
@@ -469,6 +543,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedWindowFrameRestorer: () throws -> Void
     private let urlOpener: (URL) throws -> Void
     private let screenCapturer: (ScreenCaptureRequest) throws -> Void
+    private let httpsTransport: HTTPSTransport?
+    private let credentialStore: PluginCredentialStore?
+    private let focusedTextInserter: (String) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -500,6 +577,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         screenCapturer: @escaping (ScreenCaptureRequest) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Screen capture")
+        },
+        httpsTransport: HTTPSTransport? = nil,
+        credentialStore: PluginCredentialStore? = nil,
+        focusedTextInserter: @escaping (String) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Text insertion")
         }
     ) {
         self.grantStore = grantStore
@@ -516,6 +598,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedWindowFrameRestorer = focusedWindowFrameRestorer
         self.urlOpener = urlOpener
         self.screenCapturer = screenCapturer
+        self.httpsTransport = httpsTransport
+        self.credentialStore = credentialStore
+        self.focusedTextInserter = focusedTextInserter
     }
 
     public func execute(
@@ -650,6 +735,32 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             // it on screen after the Action has returned, which is why the
             // Plugin receives nothing back.
             try screenCapturer(capture)
+            return .null
+        case .httpsRequest:
+            guard let httpsTransport else {
+                throw PluginHostServiceError.unavailable("HTTPS transport")
+            }
+            // The declared hosts plus those the user consented to, read from
+            // the grant on every request so a change applies at once.
+            let hosts = package.manifest.scope(for: capability).map { declared in
+                declared.withConsentedHTTPSHosts(grantStore.consentedHTTPSHosts(
+                    for: package.manifest.id, pluginVersion: package.manifest.version, declaredScope: declared
+                )).contactableHTTPSHosts
+            } ?? []
+            let pluginID = package.manifest.id
+            return try PluginHTTPSRequestPerformer(
+                transport: httpsTransport,
+                consentedHosts: hosts,
+                credential: { [credentialStore] reference in
+                    try credentialStore?.secret(for: pluginID, reference: reference)
+                }
+            ).perform(request.input)
+        case .insertText:
+            guard case .string(let text) = request.input,
+                  text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
+                throw PluginHostServiceError.invalidInput("insert_text expects a text string of at most 256 KiB")
+            }
+            try focusedTextInserter(text)
             return .null
         }
     }

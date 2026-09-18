@@ -23,6 +23,7 @@ public extension PluginManifest {
         let capabilities = requiredCapabilities(for: command, input: input)
         var permissions: [PluginSystemPermission] = []
         if capabilities.contains(.readSelectedText) || capabilities.contains(.positionFocusedWindow)
+            || capabilities.contains(.insertIntoFocusedApp)
             || command.hostCommand?.requiredSystemPermission == .accessibility {
             permissions.append(.accessibility)
         }
@@ -47,9 +48,14 @@ public struct PluginPermissionDisclosure {
     public let commands: [CommandDeclaration]
     public let inputs: [CommandID: JSONValue]
 
-    public init(manifest: PluginManifest, commandIDs: Set<CommandID>? = nil, inputs: [CommandID: JSONValue] = [:]) {
+    /// Hosts the user added to the contact scope, disclosed with the declared ones.
+    public let consentedHTTPSHosts: [String]
+
+    public init(manifest: PluginManifest, commandIDs: Set<CommandID>? = nil, inputs: [CommandID: JSONValue] = [:],
+                consentedHTTPSHosts: [String] = []) {
         self.manifest = manifest
         self.inputs = inputs
+        self.consentedHTTPSHosts = consentedHTTPSHosts
         commands = manifest.commands.filter { commandIDs?.contains($0.id) ?? true }
     }
 
@@ -63,6 +69,9 @@ public struct PluginPermissionDisclosure {
                 if !scope.dataTypes.isEmpty { lines.append("Data types: " + scope.dataTypes.joined(separator: ", ")) }
                 lines.append(scope.includesExistingHostData ? "Includes existing Host-held data retained before this grant." : "No existing Host-held history access.")
                 if !scope.httpsHosts.isEmpty { lines.append("HTTPS hosts: " + scope.httpsHosts.joined(separator: ", ")) }
+                if scope.capability == .contactHTTPS, !consentedHTTPSHosts.isEmpty {
+                    lines.append("Hosts you added: " + consentedHTTPSHosts.joined(separator: ", "))
+                }
                 for app in scope.externalApps { lines.append("\(app.bundleID): \(app.operationFamilies.joined(separator: ", "))") }
                 if !scope.capability.isSupportedByHostServices { lines.append("Host Service not available in this version; affected Commands remain unavailable.") }
                 return lines.joined(separator: "\n")
@@ -124,6 +133,7 @@ public extension PluginCapability {
         case .controlExternalApp, .positionFocusedWindow: return .controls
         case .openURL: return .controls
         case .captureScreen: return .controls
+        case .insertIntoFocusedApp: return .changes
         }
     }
 }
