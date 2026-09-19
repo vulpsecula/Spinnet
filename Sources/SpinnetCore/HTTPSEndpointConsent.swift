@@ -4,11 +4,10 @@ public extension CommandConfigurationField {
     /// The host of an `https_endpoint` value: an absolute https URL without a
     /// user name, query, fragment, or port other than 443.
     static func httpsEndpointHost(_ value: JSONValue) -> String? {
+        // An endpoint is a base address, so it also carries no query or fragment.
         guard case .string(let text) = value, let url = URL(string: text.trimmingCharacters(in: .whitespaces)),
-              url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), !host.isEmpty,
-              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
-              url.port == nil || url.port == 443 else { return nil }
-        return host
+              url.query == nil, url.fragment == nil else { return nil }
+        return HTTPSDestination.host(of: url)
     }
 }
 
@@ -60,10 +59,12 @@ public struct HTTPSEndpointConsent {
             + newHosts.joined(separator: ", ") + ", which the Plugin did not declare."
     }
 
-    /// Records the consent, or refuses the save when it was not given.
-    public func approve(userConsented: Bool, grantStore: PluginCapabilityGrantStore) throws {
+    /// Records the consent, or refuses the save when it was not given for
+    /// every new host. Consent names hosts, not a yes: allowing one host must
+    /// not carry over to another the endpoint was edited to afterwards.
+    public func approve(allowedHosts: Set<String>, grantStore: PluginCapabilityGrantStore) throws {
         guard !newHosts.isEmpty, let declared = manifest.scope(for: .contactHTTPS) else { return }
-        guard userConsented else {
+        guard Set(newHosts).isSubset(of: allowedHosts) else {
             throw ConfigurationError.invalidAction(
                 "Allow \(manifest.name) to contact \(newHosts.joined(separator: ", ")) before saving."
             )

@@ -385,7 +385,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
         case .accessibility:
             return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, and move the focused window."
         case .screenRecording:
-            return "Lets Spinnet take screenshots for the Screenshot Plugin. Spinnet asks for it only when you choose Enable Screen Recording."
+            return "Lets Spinnet take screenshots for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording."
         }
     }
 }
@@ -758,7 +758,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .insertText:
             guard case .string(let text) = request.input,
                   text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
-                throw PluginHostServiceError.invalidInput("insert_text expects a text string of at most 256 KiB")
+                throw PluginHostServiceError.invalidInput("insert_text expects a text string of at most 128 KiB")
             }
             try focusedTextInserter(text)
             return .null

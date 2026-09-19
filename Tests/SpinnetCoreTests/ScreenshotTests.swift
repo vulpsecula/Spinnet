@@ -122,19 +122,24 @@ final class ScreenshotTests: XCTestCase {
                        .available)
 
         let missing = folder.appendingPathComponent("gone").path
-        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: missing))),
+        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: missing, after: "Save to Folder"))),
                        .unavailable(.saveFolderUnavailable))
+        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: missing, after: "Copy and Save"))),
+                       .unavailable(.saveFolderUnavailable))
+        // Copying alone never touches the folder, so a bad one cannot disable it.
+        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: missing))),
+                       .available)
 
         let file = folder.appendingPathComponent("not-a-folder.txt")
         try Data("x".utf8).write(to: file)
-        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: file.path))),
+        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: file.path, after: "Save to Folder"))),
                        .unavailable(.saveFolderUnavailable))
 
         let readOnly = folder.appendingPathComponent("read-only", isDirectory: true)
         try FileManager.default.createDirectory(at: readOnly, withIntermediateDirectories: false)
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnly.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readOnly.path) }
-        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: readOnly.path))),
+        XCTAssertEqual(registry.availability(for: try makeAction(command, in: package, input: settings(folder: readOnly.path, after: "Save to Folder"))),
                        .unavailable(.saveFolderUnavailable))
 
         XCTAssertTrue(ActionUnavailableReason.saveFolderUnavailable.description.contains("Configuration Sheet"))

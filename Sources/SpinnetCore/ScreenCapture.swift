@@ -91,11 +91,14 @@ public enum ScreenCaptureDestination {
 }
 
 public extension CommandDeclaration {
-    /// The values the Action gives this Command's `folder` fields, as typed.
+    /// The values the Action gives the `folder` fields it uses, as typed. A
+    /// folder whose `used_when` is not met, such as a save folder for an
+    /// Action that only copies, is left out.
     func configuredFolders(in input: JSONValue) -> [String] {
         guard case .object(let values) = input else { return [] }
         return configurationFields.compactMap { field in
-            guard field.kind == .folder, let key = field.key, case .string(let path) = values[key] else { return nil }
+            guard field.kind == .folder, field.isUsed(by: values),
+                  let key = field.key, case .string(let path) = values[key] else { return nil }
             return path
         }
     }

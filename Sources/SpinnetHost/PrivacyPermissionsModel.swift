@@ -178,8 +178,8 @@ final class PrivacyPermissionsModel: ObservableObject {
     }
 
     /// Records the user's consent to new endpoint hosts, or refuses the save.
-    func approveEndpointConsent(_ consent: HTTPSEndpointConsent, userConsented: Bool) throws {
-        try consent.approve(userConsented: userConsented, grantStore: grantStore)
+    func approveEndpointConsent(_ consent: HTTPSEndpointConsent, allowedHosts: Set<String>) throws {
+        try consent.approve(allowedHosts: allowedHosts, grantStore: grantStore)
         onGrantsChanged?(grantStore.allGrants)
     }
 

@@ -54,6 +54,19 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
 }
 
 /// Declarative metadata for one Host-rendered configuration field.
+/// The choices of another field in the same set that use a field. A field
+/// whose condition is not met is not used by the Action, so the Host ignores
+/// its value, for instance when deciding whether a save folder must exist.
+public struct CommandConfigurationFieldCondition: Codable, Equatable, Hashable {
+    public let key: String
+    public let values: [String]
+
+    public init(key: String, values: [String]) {
+        self.key = key
+        self.values = values
+    }
+}
+
 public struct CommandConfigurationField: Codable, Equatable, Hashable {
     public let kind: CommandConfigurationFieldKind
     public let title: String?
@@ -62,19 +75,30 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     /// Names the field's member in the Action input when a Command declares
     /// several `configuration_fields`. A lone `configuration_field` has none.
     public let key: String?
+    /// Written as `used_when`; only valid inside `configuration_fields`.
+    public let usedWhen: CommandConfigurationFieldCondition?
 
     public init(
         kind: CommandConfigurationFieldKind,
         title: String? = nil,
         placeholder: String? = nil,
         choices: [String] = [],
-        key: String? = nil
+        key: String? = nil,
+        usedWhen: CommandConfigurationFieldCondition? = nil
     ) {
         self.kind = kind
         self.title = title
         self.placeholder = placeholder
         self.choices = choices
         self.key = key
+        self.usedWhen = usedWhen
+    }
+
+    /// Whether an Action whose field values are `values` uses this field.
+    public func isUsed(by values: [String: JSONValue]) -> Bool {
+        guard let usedWhen else { return true }
+        guard case .string(let chosen) = values[usedWhen.key] else { return false }
+        return usedWhen.values.contains(chosen)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -83,6 +107,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case placeholder
         case choices
         case key
+        case usedWhen = "used_when"
     }
 
     public init(from decoder: Decoder) throws {
@@ -92,7 +117,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             title: container.decodeIfPresent(String.self, forKey: .title),
             placeholder: container.decodeIfPresent(String.self, forKey: .placeholder),
             choices: container.decodeIfPresent([String].self, forKey: .choices) ?? [],
-            key: container.decodeIfPresent(String.self, forKey: .key)
+            key: container.decodeIfPresent(String.self, forKey: .key),
+            usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen)
         )
     }
 
@@ -105,6 +131,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             try container.encode(choices, forKey: .choices)
         }
         try container.encodeIfPresent(key, forKey: .key)
+        try container.encodeIfPresent(usedWhen, forKey: .usedWhen)
     }
 
     public var displayTitle: String { title ?? kind.title }

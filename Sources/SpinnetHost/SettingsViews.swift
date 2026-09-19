@@ -841,7 +841,9 @@ private struct SlotConfigurationSheet: View {
     /// Secrets typed into credential fields, by credential reference. They go
     /// to the credential store on Save and never into an Action.
     @State private var credentialSecrets: [String: String] = [:]
-    @State private var endpointConsentGiven = false
+    /// The hosts the user ticked Allow for. Keyed by host, so editing the
+    /// endpoint to another host clears the tick instead of carrying it over.
+    @State private var allowedEndpointHosts: Set<String> = []
     private let credentialStore: PluginCredentialStore?
 
     init(
@@ -901,7 +903,13 @@ private struct SlotConfigurationSheet: View {
                         Divider()
                         actionParameters()
                         if let endpointConsent {
-                            EndpointConsentBox(consent: endpointConsent, allowed: $endpointConsentGiven)
+                            EndpointConsentBox(consent: endpointConsent, allowed: Binding(
+                                get: { Set(endpointConsent.newHosts).isSubset(of: allowedEndpointHosts) },
+                                set: { allowed in
+                                    if allowed { allowedEndpointHosts.formUnion(endpointConsent.newHosts) }
+                                    else { allowedEndpointHosts.subtract(endpointConsent.newHosts) }
+                                }
+                            ))
                         }
                         if let permissionModel {
                             MenuItemAccessSummary(privacy: permissionModel, manifest: pluginManifest,
@@ -1286,7 +1294,7 @@ private struct SlotConfigurationSheet: View {
                 // A new endpoint host needs explicit consent before anything
                 // is saved; the consent then joins the Plugin's contact scope.
                 if let endpointConsent, let permissionModel {
-                    try permissionModel.approveEndpointConsent(endpointConsent, userConsented: endpointConsentGiven)
+                    try permissionModel.approveEndpointConsent(endpointConsent, allowedHosts: allowedEndpointHosts)
                 }
                 if !secrets.isEmpty {
                     guard let credentialStore else {

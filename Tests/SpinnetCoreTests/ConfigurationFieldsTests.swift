@@ -115,19 +115,27 @@ final class ConfigurationFieldsTests: XCTestCase {
 
         let declaredOnly = HTTPSEndpointConsent(manifest: manifest, inputs: [run: validInput()], grantStore: grants)
         XCTAssertEqual(declaredOnly.newHosts, [])
-        XCTAssertNoThrow(try declaredOnly.approve(userConsented: false, grantStore: grants))
+        XCTAssertNoThrow(try declaredOnly.approve(allowedHosts: [], grantStore: grants))
 
         let selfHosted = HTTPSEndpointConsent(
             manifest: manifest, inputs: [run: validInput(endpoint: "https://Translate.Self-Hosted.test/v2")], grantStore: grants
         )
         XCTAssertEqual(selfHosted.newHosts, ["translate.self-hosted.test"])
-        XCTAssertThrowsError(try selfHosted.approve(userConsented: false, grantStore: grants)) { error in
+        XCTAssertThrowsError(try selfHosted.approve(allowedHosts: [], grantStore: grants)) { error in
             XCTAssertTrue(error.localizedDescription.contains("translate.self-hosted.test"))
         }
         XCTAssertEqual(grants.consentedHTTPSHosts(for: manifest.id, pluginVersion: manifest.version, declaredScope: declared), [],
                        "Refusing consent records nothing")
 
-        try selfHosted.approve(userConsented: true, grantStore: grants)
+        // Allowing one host is not consent to another: an endpoint edited
+        // after the box was ticked names a host the user never allowed.
+        let edited = HTTPSEndpointConsent(
+            manifest: manifest, inputs: [run: validInput(endpoint: "https://other.self-hosted.test")], grantStore: grants
+        )
+        XCTAssertThrowsError(try edited.approve(allowedHosts: ["translate.self-hosted.test"], grantStore: grants))
+        XCTAssertEqual(grants.consentedHTTPSHosts(for: manifest.id, pluginVersion: manifest.version, declaredScope: declared), [])
+
+        try selfHosted.approve(allowedHosts: ["translate.self-hosted.test"], grantStore: grants)
         XCTAssertEqual(grants.consentedHTTPSHosts(for: manifest.id, pluginVersion: manifest.version, declaredScope: declared),
                        ["translate.self-hosted.test"])
         XCTAssertEqual(grants.decision(for: manifest.id, pluginVersion: manifest.version,
@@ -144,5 +152,36 @@ final class ConfigurationFieldsTests: XCTestCase {
             grantStore: PluginCapabilityGrantStore()
         )
         XCTAssertEqual(consent.newHosts, [])
+    }
+
+    // MARK: Fields used only for some choices
+
+    /// A field may declare the choices that use it. Validation holds it to a
+    /// choice field in the same set and to that field's own choices.
+    func testUsedWhenMustNameAChoiceFieldAndItsChoices() throws {
+        func manifest(usedWhen: String) -> Data {
+            Data("""
+            {
+              "protocol_version": "1.0", "id": "com.example.conditional", "name": "Conditional", "version": "1.0.0",
+              "commands": [{"id": "run", "title": "Run", "execution": "javascript", "script": "run.js",
+                "configuration_fields": [
+                  {"key": "mode", "kind": "choice", "choices": ["Copy", "Save"]},
+                  {"key": "note", "kind": "text"},
+                  {"key": "folder", "kind": "folder", "used_when": \(usedWhen)}
+                ]}]
+            }
+            """.utf8)
+        }
+        let valid = try PluginManifestLoader.decode(manifest(usedWhen: #"{"key": "mode", "values": ["Save"]}"#))
+        let folder = try XCTUnwrap(valid.commands[0].configurationFields.last)
+        XCTAssertEqual(folder.usedWhen, CommandConfigurationFieldCondition(key: "mode", values: ["Save"]))
+        XCTAssertTrue(folder.isUsed(by: ["mode": .string("Save")]))
+        XCTAssertFalse(folder.isUsed(by: ["mode": .string("Copy")]))
+
+        for invalid in [#"{"key": "missing", "values": ["Save"]}"#, #"{"key": "note", "values": ["Save"]}"#,
+                        #"{"key": "mode", "values": ["Print"]}"#, #"{"key": "mode", "values": []}"#,
+                        #"{"key": "folder", "values": ["Save"]}"#] {
+            XCTAssertThrowsError(try PluginManifestLoader.decode(manifest(usedWhen: invalid)), invalid)
+        }
     }
 }

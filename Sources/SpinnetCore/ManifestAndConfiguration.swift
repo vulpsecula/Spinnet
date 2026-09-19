@@ -672,8 +672,22 @@ public struct PluginManifest: Codable, Equatable {
                 }
                 try validateFieldMetadata(field)
             }
+            for field in command.configurationFields {
+                guard let condition = field.usedWhen else { continue }
+                guard condition.key != field.key, !condition.values.isEmpty,
+                      let governing = command.configurationFields.first(where: { $0.key == condition.key }),
+                      governing.kind == .choice,
+                      Set(condition.values).isSubset(of: governing.choices) else {
+                    throw ConfigurationError.invalidManifest(
+                        "used_when in Command \(command.id.rawValue) must name another choice field and some of its choices"
+                    )
+                }
+            }
         }
         guard let field = command.configurationField else { return }
+        guard field.usedWhen == nil else {
+            throw ConfigurationError.invalidManifest("used_when is only valid inside configuration_fields")
+        }
         guard command.isConfigurable else {
             throw ConfigurationError.invalidManifest(
                 "Non-configurable Command \(command.id.rawValue) cannot declare a Configuration field"

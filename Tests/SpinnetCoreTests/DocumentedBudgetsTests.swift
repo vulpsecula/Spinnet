@@ -125,3 +125,20 @@ final class ClipboardHistoryBudgetsTests: XCTestCase {
         }
     }
 }
+
+final class HTTPSRequestBudgetsTests: XCTestCase {
+
+    /// docs/plugin-interface.md, "HTTPS requests"
+    func testBudgetsMatchDocumentedInterface() {
+        // "Request and response bodies are at most 128 KiB"
+        XCTAssertEqual(HTTPSRequestBudgets.maximumRequestBodyBytes, 128 * 1024)
+        XCTAssertEqual(HTTPSRequestBudgets.maximumResponseBodyBytes, 128 * 1024)
+
+        // "The Host follows at most 3 redirects"
+        XCTAssertEqual(HTTPSRequestBudgets.maximumRedirects, 3)
+
+        // "A request has a 3-second budget inside the Action deadline"
+        XCTAssertEqual(HTTPSRequestBudgets.timeout, 3)
+        XCTAssertLessThan(HTTPSRequestBudgets.timeout, ScriptedActionBudgets.actionDeadline)
+    }
+}

@@ -2,6 +2,18 @@ import Foundation
 
 /// The bounds of one `https_request`. They are part of the Documented Plugin
 /// Interface, like `ScriptedActionBudgets`.
+/// The one definition of an address Spinnet may contact: https, a host, no
+/// user name or password, and the default port. The Configuration Sheet and
+/// the request broker both ask it, so they cannot disagree.
+enum HTTPSDestination {
+    /// The lower-cased host of `url` when it is such an address.
+    static func host(of url: URL) -> String? {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), !host.isEmpty,
+              url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return nil }
+        return host
+    }
+}
+
 public enum HTTPSRequestBudgets {
     /// Wall-clock budget for the whole request, redirects included. It sits
     /// inside the four-second scripted Action deadline so the script still has
@@ -202,8 +214,7 @@ struct PluginHTTPSRequestPerformer {
     }
 
     private func requireConsented(_ url: URL, isRedirect: Bool) throws {
-        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), !host.isEmpty,
-              url.user == nil, url.password == nil, url.port == nil || url.port == 443 else {
+        guard let host = HTTPSDestination.host(of: url) else {
             if isRedirect { throw PluginHostServiceError.failed("The server redirected away from https") }
             throw PluginHostServiceError.invalidInput("https_request expects an absolute https URL without credentials or a port")
         }

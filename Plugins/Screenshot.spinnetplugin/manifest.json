@@ -25,7 +25,8 @@
     "configuration_fields": [
       {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
       {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
-      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+      {"key": "folder", "kind": "folder", "title": "Save Folder",
+       "used_when": {"key": "after_capture", "values": ["Save to Folder", "Copy and Save"]}}
     ]
   }, {
     "id": "screenshot.capture_full_screen",
@@ -37,7 +38,8 @@
     "configuration_fields": [
       {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
       {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
-      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+      {"key": "folder", "kind": "folder", "title": "Save Folder",
+       "used_when": {"key": "after_capture", "values": ["Save to Folder", "Copy and Save"]}}
     ]
   }, {
     "id": "screenshot.capture_window",
@@ -49,7 +51,8 @@
     "configuration_fields": [
       {"key": "after_capture", "kind": "choice", "title": "After Capture", "choices": ["Copy to Clipboard", "Save to Folder", "Copy and Save"]},
       {"key": "format", "kind": "choice", "title": "Format", "choices": ["PNG", "JPEG"]},
-      {"key": "folder", "kind": "folder", "title": "Save Folder"}
+      {"key": "folder", "kind": "folder", "title": "Save Folder",
+       "used_when": {"key": "after_capture", "values": ["Save to Folder", "Copy and Save"]}}
     ]
   }]
 }
