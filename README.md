@@ -58,6 +58,23 @@ and triggers are saved automatically.
 
 ## Manual acceptance checks
 
+Smart Jump recognises links, DOI identifiers, Bilibili AV/BV numbers, local
+paths and arithmetic; other text becomes a web search. The first target in a
+passage wins. Quote paths containing spaces when they are part of a passage.
+Downloads open in the default browser. In the Library's Plugin Settings,
+configure search engines as one `Name | URL` per line, with `{query}` in the
+URL; the first is the default (Google initially). Running with no selection
+opens an input window with a destination preview and search-engine picker.
+Arithmetic results can be copied explicitly. Opening local paths and writing
+the clipboard each require their own grant.
+
+For #46, check a bare domain, a DOI inside a sentence, an AV/BV number, a
+download link, an existing file and folder, and `32-68*(50/6-3.28)+5` from
+another app. Also check no selection, Return/Escape in the input window,
+editing shortcuts, changing search engines, copying a result, and revoking a
+grant while the window remains open. These real-app checks are separate from
+the deterministic classifier and Host Action tests.
+
 1. Open Settings from the status item and add `Open URL` from the Library to a
    Slot. A first launch has an empty Menu, so every check below needs at least
    one Menu Item to exist first.

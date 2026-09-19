@@ -115,6 +115,9 @@ public struct PluginPermissionDisclosure {
             if manifest.capabilities.contains(.openURL), !names(.openURL).isEmpty {
                 affected.append("Open http and https links in the default browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.")
             }
+            if manifest.capabilities.contains(.openLocalPath), !names(.openLocalPath).isEmpty {
+                affected.append("\(PluginCapability.openLocalPath.explanation) Commands: \(names(.openLocalPath)).")
+            }
             if manifest.capabilities.contains(.captureScreen), !names(.captureScreen).isEmpty {
                 affected.append("Start a screenshot that Spinnet takes, then copies or saves to a folder you chose. Commands: \(names(.captureScreen)). The Plugin never receives the image.")
             }
@@ -131,7 +134,7 @@ public extension PluginCapability {
         case .monitorClipboard: return .monitors
         case .contactHTTPS: return .contacts
         case .controlExternalApp, .positionFocusedWindow: return .controls
-        case .openURL: return .controls
+        case .openURL, .openLocalPath: return .controls
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
         }

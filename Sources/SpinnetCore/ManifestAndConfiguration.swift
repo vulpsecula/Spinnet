@@ -597,10 +597,10 @@ public struct PluginManifest: Codable, Equatable {
                  !scope.dataTypes.isEmpty) {
                 throw ConfigurationError.invalidManifest("This Capability acts only on the focused window")
             }
-            if scope.capability == .openURL &&
+            if [.openURL, .openLocalPath].contains(scope.capability) &&
                 (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
                  !scope.dataTypes.isEmpty) {
-                throw ConfigurationError.invalidManifest("This Capability only opens links in the default browser")
+                throw ConfigurationError.invalidManifest("This Capability opens a target without returning its contents")
             }
             if scope.capability == .captureScreen &&
                 (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
@@ -617,7 +617,7 @@ public struct PluginManifest: Codable, Equatable {
                 throw ConfigurationError.invalidManifest("This Capability only inserts text into the focused App")
             }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .captureScreen].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }

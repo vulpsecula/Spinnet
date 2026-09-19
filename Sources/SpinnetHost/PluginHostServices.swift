@@ -37,6 +37,7 @@ final class AppKitPluginHostServiceProvider {
             kAXFocusedUIElementAttribute as CFString,
             &focusedValue
         )
+        if focusedStatus == .noValue || focusedStatus == .attributeUnsupported { return "" }
         guard focusedStatus == .success,
               let focusedValue,
               CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else {
@@ -50,6 +51,10 @@ final class AppKitPluginHostServiceProvider {
             kAXSelectedTextAttribute as CFString,
             &selectedValue
         )
+        // A focused control without a selection is ordinary empty input.
+        // Missing Accessibility and actual AX failures still surface above
+        // or below, rather than being mistaken for an empty selection.
+        if selectedStatus == .noValue || selectedStatus == .attributeUnsupported { return "" }
         guard selectedStatus == .success,
               let selectedText = selectedValue as? String else {
             throw PluginHostServiceError.failed("Focused application has no readable text selection")
@@ -247,6 +252,15 @@ final class AppKitPluginHostServiceProvider {
     func openURL(_ url: URL) throws {
         guard onMain({ NSWorkspace.shared.open(url) }) else {
             throw PluginHostServiceError.failed("The link could not be opened")
+        }
+    }
+
+    func openLocalPath(_ url: URL) throws {
+        guard url.isFileURL, FileManager.default.fileExists(atPath: url.path) else {
+            throw PluginHostServiceError.unavailable("The local file or folder does not exist")
+        }
+        guard onMain({ NSWorkspace.shared.open(url) }) else {
+            throw PluginHostServiceError.failed("The local file or folder could not be opened")
         }
     }
 

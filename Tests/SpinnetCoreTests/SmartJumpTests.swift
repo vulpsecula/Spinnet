@@ -2,8 +2,8 @@ import XCTest
 @testable import SpinnetCore
 
 /// The Smart Jump Bundled Plugin reads the selected text and asks the Host to
-/// open it as an http or https link. These tests pin its package shape, the
-/// Host-side link validation, and the authorization in front of `open_url`.
+/// recognise and act on it in the Host. These tests pin its package shape,
+/// Host-side validation, and authorization in front of each effect.
 /// No test opens a real URL: the opener is always a recording closure.
 final class SmartJumpTests: XCTestCase {
 
@@ -22,12 +22,12 @@ final class SmartJumpTests: XCTestCase {
         XCTAssertTrue(preset.commands.allSatisfy { $0.explanation?.isEmpty == false }, "Every Command has a description")
     }
 
-    func testSmartJumpAsksOnlyForSelectedTextAndOpeningLinks() throws {
+    func testSmartJumpDeclaresEachEffectSeparatelyWithoutNetworkFetch() throws {
         let manifest = try SmartJumpFixture.load().manifest
-        XCTAssertEqual(manifest.capabilities, [.readSelectedText, .openURL])
+        XCTAssertEqual(manifest.capabilities, [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertFalse(manifest.capabilities.contains(.contactHTTPS), "Opening a link grants no fetch")
         let command = manifest.commands[0]
-        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL])
+        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [.accessibility])
     }
 
@@ -250,6 +250,88 @@ final class SmartJumpTests: XCTestCase {
 /// Action seam with recording adapters.
 extension PluginRuntimeTests {
 
+    func testSmartJumpSharesConfiguredEnginesBetweenSelectionAndInput() throws {
+        let settings: [String: JSONValue] = ["search_engines": .string("DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}")]
+        var opened: [URL] = []
+        let search = try smartJumpOutcome(selection: { "cats & dogs" }, open: { opened.append($0) }, settings: settings)
+        guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }
+        XCTAssertEqual(opened, [URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs")!])
+        var session: SmartJumpSession?
+        _ = try smartJumpOutcome(selection: { "" }, open: { opened.append($0) }, present: { session = $0 }, settings: settings)
+        let input = try XCTUnwrap(session)
+        XCTAssertEqual(input.searchEngines.map(\.name), ["DuckDuckGo", "Google"])
+        _ = try input.submit("cats & dogs", engineName: "Google")
+        XCTAssertEqual(opened.last, URL(string: "https://www.google.com/search?q=cats%20%26%20dogs"))
+    }
+
+    func testSmartJumpOpensPathsWithSeparateAuthorityAndDisclosure() throws {
+        var paths: [URL] = []
+        var grants: PluginCapabilityGrantStore!
+        let package = try SmartJumpFixture.load()
+        let run = try smartJumpOutcome(selection: { "Look in /tmp/report.pdf, please." },
+                                       open: { _ in XCTFail("No browser for a local path") }, path: { paths.append($0) })
+        guard case .succeeded = run else { return XCTFail("Path should open: \(run)") }
+        XCTAssertEqual(paths, [URL(fileURLWithPath: "/tmp/report.pdf")])
+        let denied = try smartJumpOutcome(selection: {
+            grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .openLocalPath)
+            return "/tmp/report.pdf"
+        }, open: { _ in XCTFail("No fallback after denial") }, grantStore: { grants = $0 }, path: { paths.append($0) })
+        guard case .failed(let failure) = denied else { return XCTFail("A revoked path grant must fail") }
+        XCTAssertEqual(failure.category, .capabilityDenied)
+        XCTAssertEqual(paths.count, 1)
+        XCTAssertTrue(PluginPermissionDisclosure(manifest: package.manifest).details(for: .controls).contains("local files and folders"))
+        XCTAssertFalse(package.manifest.capabilities.contains(.contactHTTPS))
+    }
+
+    func testSmartJumpShowsArithmeticAndCopiesOnlyWithCurrentClipboardGrant() throws {
+        var session: SmartJumpSession?
+        var copied: [String] = []
+        var grants: PluginCapabilityGrantStore!
+        let outcome = try smartJumpOutcome(selection: { "2+3*4" }, open: { _ in XCTFail("No browser for arithmetic") },
+                                          grantStore: { grants = $0 }, present: { session = $0 }, copy: { copied.append($0) })
+        guard case .succeeded = outcome else { return XCTFail("Calculation should display: \(outcome)") }
+        let result = try XCTUnwrap(session)
+        XCTAssertEqual(try result.preview(result.initialText), .calculation(14))
+        XCTAssertTrue(copied.isEmpty, "Showing a result must not overwrite the clipboard")
+        XCTAssertEqual(try result.submit("(4+2)/3"), .calculation(2))
+        try result.copyResult(for: "(4+2)/3")
+        XCTAssertEqual(copied, ["2"])
+        let package = try SmartJumpFixture.load()
+        grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .writeClipboard)
+        XCTAssertThrowsError(try result.copyResult(for: "2+3")) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.writeClipboard))
+        }
+        XCTAssertEqual(copied, ["2"])
+    }
+
+    func testSmartJumpWithoutASelectionPresentsInputAndRechecksPermissionOnSubmit() throws {
+        var session: SmartJumpSession?
+        var opened: [URL] = []
+        var grants: PluginCapabilityGrantStore!
+        let outcome = try smartJumpOutcome(selection: { "" }, open: { opened.append($0) },
+                                          grantStore: { grants = $0 }, present: { session = $0 })
+        guard case .succeeded = outcome else { return XCTFail("Input should open: \(outcome)") }
+        let input = try XCTUnwrap(session)
+        XCTAssertEqual(input.initialText, "")
+        XCTAssertEqual(try input.preview("github.com"), .link(URL(string: "https://github.com")!, .web))
+        XCTAssertTrue(opened.isEmpty, "Preview must have no side effect")
+        _ = try input.submit("github.com")
+        XCTAssertEqual(opened, [URL(string: "https://github.com")!])
+        let package = try SmartJumpFixture.load()
+        grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .openURL)
+        XCTAssertThrowsError(try input.submit("example.com")) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.openURL))
+        }
+        XCTAssertEqual(opened.count, 1)
+    }
+
+    func testSmartJumpFindsAnAddressInASelectionThroughTheHostActionSeam() throws {
+        var opened: [URL] = []
+        let outcome = try smartJumpOutcome(selection: { "See github.com for the project" }, open: { opened.append($0) })
+        guard case .succeeded = outcome else { return XCTFail("Recognition should succeed: \(outcome)") }
+        XCTAssertEqual(opened, [URL(string: "https://github.com")!])
+    }
+
     func testSmartJumpOpensTheSelectedLinkThroughTheHostActionSeam() throws {
         var opened: [URL] = []
         let outcome = try smartJumpOutcome(selection: { "  https://example.com/path?q=1 \n" }, open: { opened.append($0) })
@@ -257,26 +339,13 @@ extension PluginRuntimeTests {
         XCTAssertEqual(opened, [URL(string: "https://example.com/path?q=1")!])
     }
 
-    func testSmartJumpGivesStableExplanationsForInvalidSelections() throws {
-        let cases: [(String, ActionFailureCategory, String)] = [
-            ("", .scriptedActionFailed, "No text is selected"),
-            (" \n ", .scriptedActionFailed, "No text is selected"),
-            ("mailto:someone@example.com", .hostServiceFailed, OpenableURL.unsupportedSchemeMessage),
-            ("javascript:alert(1)", .hostServiceFailed, OpenableURL.unsupportedSchemeMessage),
-            ("example.com", .hostServiceFailed, OpenableURL.unsupportedSchemeMessage),
-            ("https://exa mple.com", .hostServiceFailed, OpenableURL.malformedMessage),
-            ("https://", .hostServiceFailed, OpenableURL.malformedMessage)
-        ]
+    func testSmartJumpSearchesUnrecognisedTextWithoutOpeningUnsupportedSchemes() throws {
         var opened: [URL] = []
-        for (selection, category, message) in cases {
+        for selection in ["mailto:someone@example.com", "javascript:alert(1)", "ordinary search text", "https://"] {
             let outcome = try smartJumpOutcome(selection: { selection }, open: { opened.append($0) })
-            guard case .failed(let failure) = outcome else {
-                XCTFail("\(selection.debugDescription) should fail"); continue
-            }
-            XCTAssertEqual(failure.category, category, selection.debugDescription)
-            XCTAssertTrue(failure.message.contains(message), "\(selection.debugDescription): \(failure.message)")
+            guard case .succeeded = outcome else { XCTFail("Search should succeed: \(outcome)"); continue }
+            XCTAssertEqual(opened.last, try SmartJumpSearchEngine.google.url(for: selection))
         }
-        XCTAssertEqual(opened, [])
     }
 
     func testSmartJumpIsDeniedWithoutTheGrantAndStopsWhenTheGrantIsRevoked() throws {
@@ -323,7 +392,13 @@ extension PluginRuntimeTests {
         accessibility: Bool = true,
         selection: @escaping () throws -> String,
         open: @escaping (URL) throws -> Void,
-        grantStore: (PluginCapabilityGrantStore) -> Void = { _ in }
+        grantStore: (PluginCapabilityGrantStore) -> Void = { _ in },
+        present: @escaping (SmartJumpSession) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Unexpected input window")
+        },
+        copy: @escaping (String) throws -> Void = { _ in XCTFail("The clipboard was written") },
+        path: @escaping (URL) throws -> Void = { _ in XCTFail("A local path was opened") },
+        settings: [String: JSONValue] = [:]
     ) throws -> ActionTerminalOutcome {
         let package = try SmartJumpFixture.load()
         let grants = PluginCapabilityGrantStore()
@@ -335,15 +410,18 @@ extension PluginRuntimeTests {
                                              command: package.manifest.commands[0], input: .null)
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility },
-            selectedTextProvider: selection, clipboardWriter: { _ in XCTFail("The clipboard was written") },
-            urlOpener: open
+            selectedTextProvider: selection, clipboardWriter: copy,
+            urlOpener: open,
+            smartJumpPresenter: present,
+            localPathOpener: path
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
         return HostActionRunner(
             executor: SmartJumpNoopExecutor(),
             scriptedExecutor: supervisor,
-            hostServiceBroker: broker
+            hostServiceBroker: broker,
+            pluginSettings: { $0.resolvedSettings(stored: settings) }
         ).invoke(action, using: registry).terminal
     }
 }
@@ -364,7 +442,7 @@ enum SmartJumpFixture {
         return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
     }
 
-    /// Grants both of the package's Capabilities with their current scopes.
+    /// Grants the package's Capabilities with their current scopes.
     static func grant(_ package: PluginPackage, in grants: PluginCapabilityGrantStore) {
         for capability in package.manifest.capabilities {
             grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,

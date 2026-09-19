@@ -54,6 +54,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let pluginCredentials = KeychainPluginCredentialStore()
     /// Result popups outlive the Action that presented them.
     private let resultsPopup = ResultsPopupController()
+    private let smartJumpWindow = SmartJumpWindowController()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
@@ -154,6 +155,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 resultsPresenter: { [resultsPopup] session in
                     DispatchQueue.main.async { resultsPopup.present(session) }
+                },
+                smartJumpPresenter: { [smartJumpWindow] session in
+                    DispatchQueue.main.async { smartJumpWindow.present(session) }
+                },
+                localPathOpener: { [pluginHostServiceProvider] url in
+                    try pluginHostServiceProvider.openLocalPath(url)
                 }
             )
             clipboardBroker = hostServiceBroker

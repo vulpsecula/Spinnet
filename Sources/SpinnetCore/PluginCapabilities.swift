@@ -12,6 +12,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case controlExternalApp = "control_external_app"
     case positionFocusedWindow = "position_focused_window"
     case openURL = "open_url"
+    case openLocalPath = "open_local_path"
     case captureScreen = "capture_screen"
     /// Typing text into the focused App in place of its selection. Separate
     /// from `write_clipboard`: inserting changes a document, copying does not.
@@ -19,7 +20,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
-         .positionFocusedWindow, .openURL, .captureScreen, .contactHTTPS, .insertIntoFocusedApp].contains(self)
+         .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS, .insertIntoFocusedApp].contains(self)
     }
 
     public var title: String {
@@ -35,6 +36,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .controlExternalApp: return "Control External Apps"
         case .positionFocusedWindow: return "Move and Resize the Focused Window"
         case .openURL: return "Open Links"
+        case .openLocalPath: return "Open Local Files and Folders"
         case .captureScreen: return "Capture the Screen"
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         }
@@ -53,6 +55,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .controlExternalApp: return "Request only the named External Apps and operation families."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
+        case .openLocalPath: return "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents."
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         }
@@ -428,6 +431,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// the Host sends after the Action returns (ADR 0002). It needs what the
     /// requests need, `contact_https`, and tells the Plugin nothing back.
     case presentResults = "present_results"
+    /// Classifies text in the Host, then performs only the corresponding
+    /// Capability-checked operation. Empty text asks the Host for input.
+    case smartJump = "smart_jump"
+    case openLocalPath = "open_local_path"
     /// Replaces the focused App's selection with the supplied text.
     case insertText = "insert_text"
 
@@ -442,8 +449,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .writeClipboard
         case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
             return .positionFocusedWindow
-        case .openURL:
+        case .openURL, .smartJump:
             return .openURL
+        case .openLocalPath: return .openLocalPath
         case .captureScreen:
             return .captureScreen
         case .httpsRequest, .presentResults:
@@ -460,7 +468,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
             return nil
-        case .openURL:
+        case .openURL, .smartJump, .openLocalPath:
             return nil
         case .captureScreen:
             return .screenRecording
@@ -551,6 +559,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
     private let resultsPresenter: (ResultsPresentationSession) throws -> Void
+    private let smartJumpPresenter: (SmartJumpSession) throws -> Void
+    private let localPathOpener: (URL) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -590,6 +600,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         resultsPresenter: @escaping (ResultsPresentationSession) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Result popups")
+        },
+        smartJumpPresenter: @escaping (SmartJumpSession) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Smart Jump window")
+        },
+        localPathOpener: @escaping (URL) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Opening local paths")
         }
     ) {
         self.grantStore = grantStore
@@ -610,6 +626,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.credentialStore = credentialStore
         self.focusedTextInserter = focusedTextInserter
         self.resultsPresenter = resultsPresenter
+        self.smartJumpPresenter = smartJumpPresenter
+        self.localPathOpener = localPathOpener
     }
 
     public func execute(
@@ -723,6 +741,44 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("restore_focused_window_frame expects null")
             }
             try focusedWindowFrameRestorer()
+            return .null
+        case .smartJump:
+            guard case .string(let text) = request.input else {
+                throw PluginHostServiceError.invalidInput("smart_jump expects text")
+            }
+            let engines: [SmartJumpSearchEngine]
+            if case .object(let values) = action.input, case .string(let configuration)? = values["search_engines"] {
+                engines = try SmartJumpSearchEngine.parse(configuration)
+            } else { engines = [.google] }
+            let session = SmartJumpSession(initialText: text, searchEngines: engines, copy: { [self] text in
+                let copy = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
+                                                          service: .writeClipboard, input: .string(text))
+                _ = try execute(request: copy, for: package, action: action)
+            }) { [self] target in
+                switch target {
+                case .link(let url, _), .search(let url, _):
+                    let open = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
+                                                              service: .openURL, input: .string(url.absoluteString))
+                    _ = try execute(request: open, for: package, action: action)
+                case .calculation: break
+                case .localPath(let path):
+                    let open = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
+                                                              service: .openLocalPath, input: .string(path))
+                    _ = try execute(request: open, for: package, action: action)
+                case .input:
+                    throw PluginHostServiceError.unavailable("This Smart Jump target is not available")
+                }
+            }
+            switch try session.preview(text) {
+            case .input, .calculation: try smartJumpPresenter(session)
+            default: try session.submit(text)
+            }
+            return .null
+        case .openLocalPath:
+            guard case .string(let path) = request.input else {
+                throw PluginHostServiceError.invalidInput("open_local_path expects a local path")
+            }
+            try localPathOpener(OpenableLocalPath.validate(path))
             return .null
         case .openURL:
             guard case .string(let text) = request.input else {

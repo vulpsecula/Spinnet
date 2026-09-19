@@ -2,8 +2,16 @@
   "protocol_version": "1.0",
   "id": "com.spinnet.smart-jump",
   "name": "Smart Jump",
-  "version": "1.0.0",
-  "capabilities": ["read_selected_text", "open_url"],
+  "version": "2.0.0",
+  "capabilities": ["read_selected_text", "open_url", "write_clipboard", "open_local_path"],
+  "settings_fields": [{
+    "key": "search_engines", "kind": "multiline_text",
+    "title": "Search Engines (first is default)",
+    "placeholder": "One per line: Name | https://example.com/search?q={query}"
+  }],
+  "default_settings": {
+    "search_engines": "Google | https://www.google.com/search?q={query}\nBing | https://www.bing.com/search?q={query}\nDuckDuckGo | https://duckduckgo.com/?q={query}"
+  },
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": true,
@@ -13,7 +21,7 @@
   "commands": [{
     "id": "smart_jump.open_selection",
     "title": "Open Selected Link",
-    "description": "Opens the selected http or https link in your default browser.",
+    "description": "Opens the first link, DOI, video ID or local path in selected text, calculates arithmetic, or searches the web. With no selection, opens an input window. Downloads open in the browser.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "open.js"
