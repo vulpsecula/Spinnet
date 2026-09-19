@@ -270,7 +270,9 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testHostExecutorRoutesTheCommonFixtureCommandsThroughAdapters() throws {
-        let commands = HostCommand.allCases.map { hostCommand in
+        // Captures go to the capture service, not an adapter; see
+        // ScreenshotHostCommandTests.
+        let commands = HostCommand.allCases.filter { $0.captureSource == nil }.map { hostCommand in
             CommandDeclaration(
                 id: CommandID("fixture.\(hostCommand.rawValue.replacingOccurrences(of: ".", with: "_"))"),
                 title: hostCommand.rawValue,

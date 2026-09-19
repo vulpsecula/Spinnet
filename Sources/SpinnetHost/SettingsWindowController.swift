@@ -43,6 +43,11 @@ final class SettingsWindowController: NSWindowController {
         set { model.menuEditor.removePlugin = newValue }
     }
 
+    var onScreenshotSettingsChanged: (() -> Void)? {
+        get { model.onScreenshotSettingsChanged }
+        set { model.onScreenshotSettingsChanged = newValue }
+    }
+
     var onClipboardHistoryChanged: (() -> Void)? {
         get { model.clipboardHistory.onChange }
         set { model.clipboardHistory.onChange = newValue }

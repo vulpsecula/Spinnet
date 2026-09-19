@@ -12,7 +12,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     /// The Screen Recording System Permission is missing. Accessibility keeps
     /// `systemPermissionDenied`, so each permission names its own repair.
     case screenRecordingDenied = "screen_recording_denied"
-    /// A configured save folder is gone, is not a folder, or cannot be written.
+    /// The Screenshots save folder is gone, is not a folder, or cannot be
+    /// written, and the settings say to save.
     case saveFolderUnavailable = "save_folder_unavailable"
 
     public var description: String {
@@ -26,7 +27,7 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
         case .hostServiceUnavailable: return "Required Host Service is not available in this version"
         case .screenRecordingDenied: return "Enable Screen Recording in Privacy & Permissions"
-        case .saveFolderUnavailable: return "Save folder is missing or not writable; choose it again in the Configuration Sheet"
+        case .saveFolderUnavailable: return "Screenshot save folder is missing or not writable; choose it again in Screenshots settings"
         }
     }
 }
@@ -381,14 +382,6 @@ public final class PluginRegistry {
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
         if let missing = permissions.first(where: { !systemPermissionCheck($0) }) {
             return .unavailable(missing == .screenRecording ? .screenRecordingDenied : .systemPermissionDenied)
-        }
-        // A capture saves only to a folder the user configured, so a folder
-        // that went away disables the Action rather than failing mid-capture.
-        if let command = package.manifest.commands.first(where: { $0.id == action.commandID }),
-           command.configuredFolders(in: action.input).contains(where: {
-               !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !ScreenCaptureDestination.isUsableFolder($0)
-           }) {
-            return .unavailable(.saveFolderUnavailable)
         }
         return .available
     }

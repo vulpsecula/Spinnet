@@ -53,7 +53,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .controlExternalApp: return "Request only the named External Apps and operation families."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
-        case .captureScreen: return "Ask the Host to take a screenshot, then copy it to the clipboard or save it to the folder configured for the Menu Item. The Plugin never receives the image."
+        case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window. The Host copies or saves it as set in Screenshots settings; the Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         }
     }
@@ -385,7 +385,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
         case .accessibility:
             return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, and move the focused window."
         case .screenRecording:
-            return "Lets Spinnet take screenshots for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording."
+            return "Lets Spinnet take screenshots, for its own Capture commands and for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording."
         }
     }
 }
@@ -417,9 +417,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Hands one validated http or https link to the default browser. The
     /// Plugin learns nothing back, so opening a page is not fetching it.
     case openURL = "open_url"
-    /// Starts one native screen capture with the post-capture operations the
-    /// Action's configuration names. The Host captures, copies and saves; the
-    /// Plugin supplies a source and learns nothing about the image.
+    /// Starts one native screen capture of the source the Plugin names. The
+    /// Host captures, then copies or saves as its Screenshots settings say; the
+    /// Plugin learns nothing about the image.
     case captureScreen = "capture_screen"
     /// One HTTPS request to a host in the Plugin's consented contact scope.
     /// The Host owns the transport, redirects, and credential injection.
@@ -542,7 +542,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedWindowFullScreenToggler: () throws -> Void
     private let focusedWindowFrameRestorer: () throws -> Void
     private let urlOpener: (URL) throws -> Void
-    private let screenCapturer: (ScreenCaptureRequest) throws -> Void
+    private let screenCapturer: (ScreenCaptureSource) throws -> Void
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
@@ -575,7 +575,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         urlOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening links")
         },
-        screenCapturer: @escaping (ScreenCaptureRequest) throws -> Void = { _ in
+        screenCapturer: @escaping (ScreenCaptureSource) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Screen capture")
         },
         httpsTransport: HTTPSTransport? = nil,
@@ -724,17 +724,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try urlOpener(OpenableURL.validate(text))
             return .null
         case .captureScreen:
-            // The folder comes from the Action the user configured, never from
-            // the Plugin alone: the request may only name that folder.
-            let registered = package.manifest.commands.first { $0.id == action.commandID }
-            let capture = try ScreenCaptureRequest(
-                json: request.input,
-                configuredFolders: registered?.configuredFolders(in: action.input) ?? []
-            )
-            // Starting the capture is the Action. The user finishes or cancels
-            // it on screen after the Action has returned, which is why the
-            // Plugin receives nothing back.
-            try screenCapturer(capture)
+            // The Plugin names the source only. What happens to the image is
+            // the user's Screenshot setting, applied by the Host. Starting the
+            // capture is the Action: the user finishes or cancels it on screen
+            // after the Action has returned, so the Plugin receives nothing.
+            try screenCapturer(ScreenCaptureSource(serviceInput: request.input))
             return .null
         case .httpsRequest:
             guard let httpsTransport else {

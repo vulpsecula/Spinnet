@@ -184,4 +184,26 @@ final class ConfigurationFieldsTests: XCTestCase {
             XCTAssertThrowsError(try PluginManifestLoader.decode(manifest(usedWhen: invalid)), invalid)
         }
     }
+
+    /// The input is an object with exactly one value of the declared kind per
+    /// key, and a choice must be one of its choices.
+    func testConfigurationFieldsInputIsAnObjectOfDeclaredValues() throws {
+        let command = try XCTUnwrap(PluginManifestLoader.decode(Data("""
+        {
+          "protocol_version": "1.0", "id": "com.example.fields", "name": "Fields", "version": "1.0.0",
+          "commands": [{"id": "run", "title": "Run", "execution": "javascript", "is_configurable": true, "script": "run.js",
+                        "configuration_fields": [{"key": "format", "kind": "choice", "choices": ["PNG", "JPEG"]},
+                                                 {"key": "folder", "kind": "folder"}]}]
+        }
+        """.utf8)).commands.first)
+        XCTAssertTrue(command.acceptsConfigurationFieldsInput(.object(["format": .string("PNG"), "folder": .string("/tmp")])))
+        XCTAssertTrue(command.acceptsConfigurationFieldsInput(.object(["format": .string("JPEG"), "folder": .string("")])))
+        XCTAssertFalse(command.acceptsConfigurationFieldsInput(.object(["format": .string("GIF"), "folder": .string("/tmp")])))
+        XCTAssertFalse(command.acceptsConfigurationFieldsInput(.string("/tmp")))
+        XCTAssertFalse(command.acceptsConfigurationFieldsInput(.object(["format": .string("PNG")])))
+        XCTAssertFalse(command.acceptsConfigurationFieldsInput(.object(["format": .string("PNG"), "folder": .number(1)])))
+        XCTAssertFalse(command.acceptsConfigurationFieldsInput(.object([
+            "format": .string("PNG"), "folder": .string("/tmp"), "extra": .string("x")
+        ])))
+    }
 }

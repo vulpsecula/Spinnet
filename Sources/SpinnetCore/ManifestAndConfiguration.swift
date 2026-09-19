@@ -34,6 +34,11 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case pasteText = "clipboard.paste"
     case cutText = "clipboard.cut"
     case presentFeedback = "feedback.present"
+    /// Screenshots. The Host captures and then copies or saves as its
+    /// Screenshots settings say; the Action names only the source.
+    case captureArea = "screen.capture_area"
+    case captureFullScreen = "screen.capture_full_screen"
+    case captureWindow = "screen.capture_window"
 
     /// A protected Host Command is still declarative, but it must pass through
     /// the same authority checks as an equivalent Host Service request.
@@ -41,6 +46,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         switch self {
         case .copyText:
             return .writeClipboard
+        case .captureArea, .captureFullScreen, .captureWindow:
+            return .captureScreen
         default:
             return nil
         }
@@ -50,8 +57,20 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         switch self {
         case .invokeKeyboardShortcut, .pasteText, .cutText:
             return .accessibility
+        case .captureArea, .captureFullScreen, .captureWindow:
+            return .screenRecording
         default:
             return nil
+        }
+    }
+
+    /// What a screenshot Host Command captures, or nil for any other.
+    public var captureSource: ScreenCaptureSource? {
+        switch self {
+        case .captureArea: return .area
+        case .captureFullScreen: return .fullScreen
+        case .captureWindow: return .window
+        default: return nil
         }
     }
 
@@ -79,6 +98,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             return "Cuts the current selection in the focused app"
         case .presentFeedback:
             return "Feedback message"
+        case .captureArea, .captureFullScreen, .captureWindow:
+            return "Copies or saves as set in Screenshots settings"
         }
     }
 
@@ -135,7 +156,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
                 title: "macOS Service",
                 placeholder: inputPlaceholder
             )
-        case .copyText, .pasteText, .cutText:
+        case .copyText, .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow:
             return nil
         }
     }
@@ -176,7 +197,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             // string/object forms remain accepted for backwards compatibility
             // with persisted Actions created before the Built-in Preset.
             return input == .null || containsStringValue(from: input, keys: ["text"])
-        case .pasteText, .cutText:
+        case .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow:
             return input == .null
         case .presentFeedback:
             return stringValue(from: input, keys: ["message", "text"]) != nil

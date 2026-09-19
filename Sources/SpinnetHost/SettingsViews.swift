@@ -197,8 +197,11 @@ final class SettingsWindowModel: ObservableObject {
     let trigger: MenuTriggerModel
     /// Appearance owns its own values, persistence and undo history.
     let appearance: MenuAppearanceModel
+    /// What the Host does after every screenshot.
+    let screenshots: ScreenshotSettingsModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
+    var onScreenshotSettingsChanged: (() -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     /// Where Configuration Sheets keep secrets typed into credential fields.
     var credentialStore: PluginCredentialStore?
@@ -228,9 +231,15 @@ final class SettingsWindowModel: ObservableObject {
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
+        screenshots = ScreenshotSettingsModel(defaults: defaults)
         // Authority decides Menu Item availability, so a grant or permission
         // change has to recompute the Slots.
         privacy.onAuthorityChanged = { [weak menuEditor] in menuEditor?.refreshMenuSlots() }
+        // So does the save folder, while the settings save.
+        screenshots.onChange = { [weak self] in
+            self?.menuEditor.refreshMenuSlots()
+            self?.onScreenshotSettingsChanged?()
+        }
         // A newly installed Plugin may declare Capabilities nobody has decided
         // on yet; the consent sheet takes over from the install message.
         menuEditor.onPluginInstalled = { [weak privacy] manifest in
@@ -303,6 +312,7 @@ struct SettingsRootView: View {
     @ObservedObject var clipboardHistory: ClipboardHistorySettingsModel
     @ObservedObject var privacy: PrivacyPermissionsModel
     @ObservedObject var menuEditor: MenuEditorModel
+    @ObservedObject var screenshots: ScreenshotSettingsModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
@@ -312,6 +322,7 @@ struct SettingsRootView: View {
         self.trigger = model.trigger
         self.clipboardHistory = model.clipboardHistory
         self.privacy = model.privacy
+        self.screenshots = model.screenshots
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -723,6 +734,8 @@ struct SettingsRootView: View {
                     enableScreenRecording: { privacy.requestScreenRecordingPermission() }
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
+            case .screenshots:
+                ScreenshotSettingsView(model: screenshots)
             case .about:
                 AboutSettingsView(metadata: model.metadata)
             }

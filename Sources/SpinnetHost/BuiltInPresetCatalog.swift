@@ -6,6 +6,8 @@ import SpinnetCore
 /// Menu Slot without first creating a fixture Plugin Action.
 enum BuiltInPresetCatalog {
     static let openURLPluginID = PluginID("com.spinnet.builtin.open-url")
+    static let screenshotPluginID = PluginID("com.spinnet.builtin.screenshot")
+    static let screenshotPluginVersion = "1.0.0"
 
     static func pluginID(for hostCommand: HostCommand) -> PluginID? {
         switch hostCommand {
@@ -19,6 +21,7 @@ enum BuiltInPresetCatalog {
         case .copyText: return PluginID("com.spinnet.builtin.copy-selected-text")
         case .pasteText: return PluginID("com.spinnet.builtin.paste")
         case .cutText: return PluginID("com.spinnet.builtin.cut")
+        case .captureArea, .captureFullScreen, .captureWindow: return screenshotPluginID
         case .presentFeedback: return nil
         }
     }
@@ -103,8 +106,49 @@ enum BuiltInPresetCatalog {
                 hostCommand: .cutText,
                 isConfigurable: false,
                 readiness: .readyToUse
-            )
+            ),
+            try screenshotPackage()
         ]
+    }
+
+    /// The capture Host Commands, siblings in one Preset: Area is the
+    /// Primary Action and the other two are Alternates. None takes input,
+    /// because what happens after a capture is a Host setting.
+    static let screenshotCommands = [
+        CommandDeclaration(
+            id: CommandID("builtin.capture_area"), title: "Capture Area", isConfigurable: false,
+            hostCommand: .captureArea,
+            explanation: "Captures the part of the screen you drag across; press Esc to cancel."
+        ),
+        CommandDeclaration(
+            id: CommandID("builtin.capture_full_screen"), title: "Capture Full Screen", isConfigurable: false,
+            hostCommand: .captureFullScreen,
+            explanation: "Captures the whole main display at once."
+        ),
+        CommandDeclaration(
+            id: CommandID("builtin.capture_window"), title: "Capture Window", isConfigurable: false,
+            hostCommand: .captureWindow,
+            explanation: "Captures the window you click; press Esc to cancel."
+        )
+    ]
+
+    private static func screenshotPackage() throws -> PluginPackage {
+        let manifest = try PluginManifest(
+            id: screenshotPluginID,
+            name: "Screenshot",
+            version: screenshotPluginVersion,
+            capabilities: [.captureScreen],
+            commands: screenshotCommands,
+            preset: MenuItemPresetDeclaration(
+                readiness: .readyToUse,
+                // The sheet after placing chooses Alternates and asks for the
+                // Capability and Screen Recording, as the Plugin's did.
+                isConfigurable: true,
+                defaultPrimaryCommandID: screenshotCommands[0].id,
+                defaultAlternateCommandIDs: screenshotCommands.dropFirst().map(\.id)
+            )
+        )
+        return PluginPackage(rootURL: nil, manifest: manifest, origin: .hostCommand)
     }
 
     private static func package(

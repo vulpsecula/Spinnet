@@ -37,6 +37,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var screenCapturer = NativeScreenCapturer(report: { [weak self] message in
         DispatchQueue.main.async { [weak self] in self?.feedback?.showMessage(message) }
     })
+    /// The capture Host Service behind both the Screenshot Host Commands and
+    /// Plugins' `capture_screen` requests. Either names a source; the user's
+    /// Screenshots settings, read at the moment of capture, decide the rest.
+    private lazy var captureScreen: (ScreenCaptureSource) throws -> Void = { [screenCapturer] source in
+        try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
+    }
     private let pluginCredentials = KeychainPluginCredentialStore()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
@@ -62,6 +68,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let bundledPlugins = try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
+            // Before decisions for Plugins that are gone are discarded below.
+            ScreenshotPluginMigration.carryGrant(in: capabilityGrants)
             let registeredManifests = registry.manifests()
             for registeredManifest in registeredManifests {
                 capabilityGrants.register(
@@ -121,9 +129,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 urlOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openURL(url)
                 },
-                screenCapturer: { [screenCapturer] request in
-                    try screenCapturer.begin(request)
-                },
+                screenCapturer: captureScreen,
                 httpsTransport: URLSessionHTTPSTransport(),
                 credentialStore: pluginCredentials,
                 focusedTextInserter: { [pluginHostServiceProvider] text in
@@ -144,7 +150,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                         DispatchQueue.main.async { [weak self] in
                             self?.feedback?.showMessage(message)
                         }
-                    }
+                    },
+                    screenCapture: captureScreen
                 ),
                 scriptedExecutor: scriptedExecutor,
                 hostServiceBroker: hostServiceBroker,
@@ -223,6 +230,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     self?.showConfigurationError(error)
                 }
             }
+            settings.onScreenshotSettingsChanged = { [weak self] in
+                guard let self, let configuration = self.currentConfiguration else { return }
+                self.menu.reload(items: self.makeMenuSlots(from: configuration))
+            }
             settings.onAppearanceChanged = { [weak self] appearance in
                 self?.menu.applyAppearance(appearance)
             }
@@ -272,6 +283,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// "never configured".
     private func loadConfiguration() throws -> HostConfiguration {
         if let storedConfiguration = try configurationStore.load() {
+            // Menu Items built from the retired Screenshot Plugin move onto
+            // the Host Commands once, and the result is kept.
+            ScreenshotPluginMigration.seedSettings(from: storedConfiguration, in: .standard)
+            if let migrated = try ScreenshotPluginMigration.migrate(storedConfiguration) {
+                try configurationStore.save(migrated)
+                return migrated
+            }
             return storedConfiguration
         }
         return try HostConfiguration(

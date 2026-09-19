@@ -5,6 +5,7 @@ enum SettingsPage: String, CaseIterable, Hashable {
     case menu
     case appearance
     case privacyAndPermissions = "privacy-and-permissions"
+    case screenshots
     case about
 }
 
@@ -117,6 +118,15 @@ extension SettingsPage {
                     }
                 }
             )
+        case .screenshots:
+            return SettingsPageDescriptor(
+                title: "Screenshots",
+                showsEditorMode: false,
+                accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.screenshots"),
+                contentAccessibilityNames: { _ in
+                    ["Screenshots", "After Capture", "Format", "Save Folder", "Choose Save Folder"]
+                }
+            )
         case .about:
             return SettingsPageDescriptor(
                 title: "About",
@@ -147,6 +157,7 @@ extension SettingsPage {
         case .menu: return "circle.hexagongrid"
         case .appearance: return "paintbrush"
         case .privacyAndPermissions: return "hand.raised"
+        case .screenshots: return "camera.viewfinder"
         case .about: return "info.circle"
         }
     }

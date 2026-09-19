@@ -196,6 +196,9 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let selectedTextProvider: (() throws -> String)?
     private let feedbackPresenter: (String) -> Void
+    /// The capture Host Service, shared with Plugins that ask for a capture:
+    /// it applies the Screenshots settings to the source it is given.
+    private let screenCapture: (ScreenCaptureSource) throws -> Void
 
     init(
         adapter: HostCommandAdapter = AppKitHostCommandAdapter(),
@@ -209,13 +212,17 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             }
         },
         selectedTextProvider: (() throws -> String)? = nil,
-        feedbackPresenter: @escaping (String) -> Void = { _ in }
+        feedbackPresenter: @escaping (String) -> Void = { _ in },
+        screenCapture: @escaping (ScreenCaptureSource) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Screen capture")
+        }
     ) {
         self.adapter = adapter
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.selectedTextProvider = selectedTextProvider
         self.feedbackPresenter = feedbackPresenter
+        self.screenCapture = screenCapture
     }
 
     func execute(_ action: ActionConfiguration) throws -> JSONValue {
@@ -355,6 +362,20 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             )
             feedbackPresenter(message)
             return .object(["presented": .string(message)])
+        case .captureArea, .captureFullScreen, .captureWindow:
+            guard let source = command.captureSource else {
+                throw HostCommandExecutionError.invalidInput("Not a capture Host Command")
+            }
+            // Starting the capture is the Action; the user finishes or
+            // cancels it on screen afterwards.
+            do {
+                try screenCapture(source)
+            } catch PluginHostServiceError.unavailable(let reason) {
+                throw HostCommandExecutionError.unavailable(reason)
+            } catch PluginHostServiceError.failed(let reason) {
+                throw HostCommandExecutionError.failed(reason)
+            }
+            return .null
         }
     }
 

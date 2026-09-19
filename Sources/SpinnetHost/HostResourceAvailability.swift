@@ -6,10 +6,19 @@ import SpinnetCore
 /// sheet so Bundle ID availability cannot drift between those surfaces.
 enum HostResourceAvailability {
     static func missingReason(for action: ActionConfiguration) -> ActionUnavailableReason? {
+        missingReason(for: action, screenshotSettings: ScreenshotSettings(defaults: .standard))
+    }
+
+    /// The capture Host Commands depend on the Screenshots save folder, but
+    /// only while the settings save.
+    static func missingReason(
+        for action: ActionConfiguration,
+        screenshotSettings: ScreenshotSettings
+    ) -> ActionUnavailableReason? {
         ActionResourceAvailability.missingReason(
             for: action,
             applicationExists: applicationExists
-        )
+        ) ?? screenshotSettings.unavailableReason(for: action)
     }
 
     static func resourceExists(

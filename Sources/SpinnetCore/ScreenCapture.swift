@@ -16,9 +16,10 @@ public enum ScreenCaptureFormat: String, Codable, CaseIterable, Equatable, Hasha
     case jpg
 }
 
-/// One validated `capture_screen` request. The Host runs the capture and the
-/// post-capture operations; nothing here is a command-line argument, so a
-/// Plugin cannot reach the capture tool's other options.
+/// One capture for the native capturer: where to capture and what to do with
+/// the image afterwards. The Host builds it from `ScreenshotSettings`, never
+/// from Plugin input, and nothing here is a command-line argument, so nothing
+/// reaches the capture tool's other options.
 public struct ScreenCaptureRequest: Equatable, Hashable {
     public let source: ScreenCaptureSource
     public let format: ScreenCaptureFormat
@@ -32,52 +33,108 @@ public struct ScreenCaptureRequest: Equatable, Hashable {
         self.copyToClipboard = copyToClipboard
         self.saveFolder = saveFolder
     }
+}
 
-    private static let keys: Set<String> = ["source", "format", "copy_to_clipboard", "save_to_folder"]
-
-    /// Reads a Plugin's request. `configuredFolders` are the folder values of
-    /// the Action the Plugin is running; a save may name only one of them, so
-    /// a Plugin can never pick its own destination.
-    public init(json: JSONValue, configuredFolders: [String]) throws {
-        let shape = "capture_screen expects source (area, fullscreen or window), format (png or jpg), "
-            + "copy_to_clipboard (a boolean) and save_to_folder (the configured folder or null)"
-        guard case .object(let fields) = json, Set(fields.keys) == Self.keys,
-              case .string(let rawSource) = fields["source"], let source = ScreenCaptureSource(rawValue: rawSource),
-              case .string(let rawFormat) = fields["format"], let format = ScreenCaptureFormat(rawValue: rawFormat),
-              case .bool(let copy) = fields["copy_to_clipboard"] else {
-            throw PluginHostServiceError.invalidInput(shape)
+public extension ScreenCaptureSource {
+    /// Reads a Plugin's `capture_screen` request, `{"source": …}`. A Plugin
+    /// chooses the source only; the user's Screenshots settings decide what
+    /// happens to the image, so any other member is refused.
+    init(serviceInput json: JSONValue) throws {
+        guard case .object(let fields) = json, fields.count == 1,
+              case .string(let raw) = fields["source"], let source = ScreenCaptureSource(rawValue: raw) else {
+            throw PluginHostServiceError.invalidInput(
+                "capture_screen expects {\"source\": \"area\"|\"fullscreen\"|\"window\"} and nothing else"
+            )
         }
-        var folder: URL?
-        switch fields["save_to_folder"] {
-        case .null?:
-            guard copy else {
-                throw PluginHostServiceError.invalidInput("capture_screen must copy to the clipboard, save to a folder, or both")
-            }
-        case .string(let path)?:
-            guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw PluginHostServiceError.unavailable("No save folder is configured; choose one in the Configuration Sheet")
-            }
-            guard configuredFolders.contains(path) else {
-                throw PluginHostServiceError.invalidInput("save_to_folder must be the folder configured for this Action")
-            }
-            guard ScreenCaptureDestination.isUsableFolder(path) else {
-                throw PluginHostServiceError.unavailable(
-                    "The save folder is missing or cannot be written; choose it again in the Configuration Sheet"
-                )
-            }
-            folder = ScreenCaptureDestination.url(for: path)
-        default:
-            throw PluginHostServiceError.invalidInput(shape)
-        }
-        self.init(source: source, format: format, copyToClipboard: copy, saveFolder: folder)
+        self = source
     }
 }
 
-/// Checks a configured save folder the same way wherever it is used: when a
-/// Menu Item's availability is computed and again when a capture starts.
+/// What the Host does with every screenshot, whether a capture Host Command
+/// or another Plugin asked for it. A Host setting, so a Plugin can neither
+/// read nor choose it.
+public struct ScreenshotSettings: Codable, Equatable {
+    public enum AfterCapture: String, Codable, CaseIterable, Equatable {
+        case copyToClipboard = "copy"
+        case saveToFolder = "save"
+        case copyAndSave = "copy_and_save"
+
+        public var title: String {
+            switch self {
+            case .copyToClipboard: return "Copy to Clipboard"
+            case .saveToFolder: return "Save to Folder"
+            case .copyAndSave: return "Copy and Save"
+            }
+        }
+
+        public var copies: Bool { self != .saveToFolder }
+        public var saves: Bool { self != .copyToClipboard }
+    }
+
+    public static let defaultsKey = "screenshots.settings"
+
+    public var afterCapture: AfterCapture
+    public var format: ScreenCaptureFormat
+    /// The folder as the user chose it, `~` included. Kept while the capture
+    /// only copies, so switching back to saving finds it again.
+    public var saveFolder: String
+
+    public init(afterCapture: AfterCapture = .copyToClipboard, format: ScreenCaptureFormat = .png, saveFolder: String = "~/Desktop") {
+        self.afterCapture = afterCapture
+        self.format = format
+        self.saveFolder = saveFolder
+    }
+
+    /// The stored settings, or the defaults when none are stored or they no
+    /// longer read.
+    public init(defaults: UserDefaults) {
+        self = defaults.data(forKey: Self.defaultsKey).flatMap { try? JSONDecoder().decode(Self.self, from: $0) } ?? Self()
+    }
+
+    public func save(to defaults: UserDefaults) {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        defaults.set(data, forKey: Self.defaultsKey)
+    }
+
+    /// Why a capture cannot run as set, or nil when it can. Only a capture
+    /// that saves looks at the folder.
+    public var unavailableReason: ActionUnavailableReason? {
+        afterCapture.saves && !ScreenCaptureDestination.isUsableFolder(saveFolder) ? .saveFolderUnavailable : nil
+    }
+
+    /// `unavailableReason` for a capture Host Command's Action; any other
+    /// Action does not depend on these settings.
+    public func unavailableReason(for action: ActionConfiguration) -> ActionUnavailableReason? {
+        action.hostCommand?.captureSource == nil ? nil : unavailableReason
+    }
+
+    /// The capture these settings describe. The folder is checked here as
+    /// well, since it may have gone since the Menu last looked.
+    public func request(for source: ScreenCaptureSource) throws -> ScreenCaptureRequest {
+        guard unavailableReason == nil else {
+            throw PluginHostServiceError.unavailable(
+                "The screenshot save folder is missing or cannot be written; choose it again in Screenshots settings"
+            )
+        }
+        return ScreenCaptureRequest(
+            source: source, format: format, copyToClipboard: afterCapture.copies,
+            saveFolder: afterCapture.saves ? ScreenCaptureDestination.url(for: saveFolder) : nil
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case afterCapture = "after_capture"
+        case format
+        case saveFolder = "save_folder"
+    }
+}
+
+/// Checks the save folder the same way wherever it is used: when a Menu
+/// Item's availability is computed and again when a capture starts.
 public enum ScreenCaptureDestination {
     /// A folder is usable when it exists, is a directory, and can be written.
     public static func isUsableFolder(_ path: String) -> Bool {
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         let resolved = url(for: path).path
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: resolved, isDirectory: &isDirectory)
@@ -87,19 +144,5 @@ public enum ScreenCaptureDestination {
 
     static func url(for path: String) -> URL {
         URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true).standardizedFileURL
-    }
-}
-
-public extension CommandDeclaration {
-    /// The values the Action gives the `folder` fields it uses, as typed. A
-    /// folder whose `used_when` is not met, such as a save folder for an
-    /// Action that only copies, is left out.
-    func configuredFolders(in input: JSONValue) -> [String] {
-        guard case .object(let values) = input else { return [] }
-        return configurationFields.compactMap { field in
-            guard field.kind == .folder, field.isUsed(by: values),
-                  let key = field.key, case .string(let path) = values[key] else { return nil }
-            return path
-        }
     }
 }
