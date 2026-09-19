@@ -37,9 +37,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var screenCapturer = NativeScreenCapturer(report: { [weak self] message in
         DispatchQueue.main.async { [weak self] in self?.feedback?.showMessage(message) }
     })
-    /// The capture Host Service behind both the Screenshot Host Commands and
-    /// Plugins' `capture_screen` requests. Either names a source; the user's
-    /// Screenshots settings, read at the moment of capture, decide the rest.
+    /// The Screenshot Host Commands name a source; the Screenshot Plugin
+    /// Settings, read at the moment of capture, decide the rest. A Plugin's
+    /// `capture_screen` request brings its own options instead.
     private lazy var captureScreen: (ScreenCaptureSource) throws -> Void = { [screenCapturer] source in
         try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
     }
@@ -129,7 +129,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 urlOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openURL(url)
                 },
-                screenCapturer: captureScreen,
+                screenCapturer: { [screenCapturer] request in
+                    try screenCapturer.begin(request)
+                },
                 httpsTransport: URLSessionHTTPSTransport(),
                 credentialStore: pluginCredentials,
                 focusedTextInserter: { [pluginHostServiceProvider] text in

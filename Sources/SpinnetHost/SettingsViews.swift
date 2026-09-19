@@ -357,7 +357,8 @@ struct SettingsRootView: View {
             set: { if !$0 { privacy.pluginSettingsManifest = nil } }
         )) {
             if let manifest = privacy.pluginSettingsManifest {
-                PluginConsentSheet(privacy: privacy, manifest: manifest)
+                PluginConsentSheet(privacy: privacy, manifest: manifest,
+                                   screenshotSettings: manifest.id == BuiltInPresetCatalog.screenshotPluginID ? screenshots : nil)
             }
         }
         .alert(menuEditor.deletionTitle, isPresented: Binding(
@@ -734,8 +735,6 @@ struct SettingsRootView: View {
                     enableScreenRecording: { privacy.requestScreenRecordingPermission() }
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
-            case .screenshots:
-                ScreenshotSettingsView(model: screenshots)
             case .about:
                 AboutSettingsView(metadata: model.metadata)
             }

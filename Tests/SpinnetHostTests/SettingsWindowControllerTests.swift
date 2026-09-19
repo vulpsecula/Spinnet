@@ -71,7 +71,7 @@ final class SettingsWindowControllerTests: XCTestCase {
 
         XCTAssertEqual(
             controller.presentationSnapshot.navigationPages,
-            [.menu, .appearance, .privacyAndPermissions, .screenshots, .about]
+            [.menu, .appearance, .privacyAndPermissions, .about]
         )
         XCTAssertEqual(controller.presentationSnapshot.page, .menu)
         XCTAssertEqual(
@@ -188,7 +188,6 @@ final class SettingsWindowControllerTests: XCTestCase {
                 .navigation(.menu),
                 .navigation(.appearance),
                 .navigation(.privacyAndPermissions),
-                .navigation(.screenshots),
                 .navigation(.about),
                 .pageContent
             ]
@@ -198,8 +197,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             .navigation(.menu)
         )
         XCTAssertEqual(
-            Array(controller.presentationSnapshot.accessibleNames.prefix(5)),
-            ["Menu", "Appearance", "Privacy & Permissions", "Screenshots", "About"]
+            Array(controller.presentationSnapshot.accessibleNames.prefix(4)),
+            ["Menu", "Appearance", "Privacy & Permissions", "About"]
         )
     }
 

@@ -2,11 +2,12 @@ import XCTest
 @testable import SpinnetCore
 
 /// Screenshots are a Host feature. Capture Area, Capture Full Screen and
-/// Capture Window are Host Commands, and another Plugin may ask for a capture
-/// through the `capture_screen` Host Service, naming only the source. Either
-/// way the Host applies the user's Screenshots settings afterwards. These tests
-/// pin the Host Commands' authority, the settings, the service's input and
-/// the save-folder check, and, through the real helper, a Plugin's request.
+/// Capture Window are Host Commands, whose after-capture options live in the
+/// Screenshot entry's Plugin Settings. Another Plugin asks for a capture
+/// through the `capture_screen` Host Service with its own options, saving only
+/// to a folder the user configured on its Action. These tests pin the Host
+/// Commands' authority, the settings, the service's input and folder checks,
+/// and, through the real helper, a Plugin's request.
 final class ScreenshotTests: XCTestCase {
 
     // MARK: - Host Commands
@@ -57,7 +58,7 @@ final class ScreenshotTests: XCTestCase {
         // with a per-item target would describe something they do not have.
         let controls = PluginPermissionDisclosure(manifest: manifest).details(for: .controls)
         XCTAssertFalse(controls.contains("screen.capture"), controls)
-        XCTAssertTrue(controls.contains("Screenshots settings"), controls)
+        XCTAssertTrue(controls.contains("never receives the image"), controls)
     }
 
     /// Missing Screen Recording keeps the Actions but names the Screen
@@ -86,7 +87,7 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    // MARK: - Screenshots settings
+    // MARK: - Screenshot Plugin Settings
 
     func testTheDefaultSettingsCopyAndKeepTheDesktopAndAutomaticFormatForSaving() {
         let settings = ScreenshotSettings()
@@ -144,11 +145,11 @@ final class ScreenshotTests: XCTestCase {
                 XCTAssertEqual(saving.unavailableReason, .saveFolderUnavailable, path)
                 XCTAssertThrowsError(try saving.request(for: .area), path) { error in
                     guard case .unavailable(let message) = error as? PluginHostServiceError else { return XCTFail("\(error)") }
-                    XCTAssertTrue(message.contains("Screenshots settings"), message)
+                    XCTAssertTrue(message.contains("Screenshot Plugin Settings"), message)
                 }
             }
         }
-        XCTAssertTrue(ActionUnavailableReason.saveFolderUnavailable.description.contains("Screenshots settings"))
+        XCTAssertTrue(ActionUnavailableReason.saveFolderUnavailable.description.contains("Screenshot Plugin Settings"))
     }
 
     /// Only the capture Host Commands depend on the settings' folder.
@@ -232,27 +233,83 @@ final class ScreenshotTests: XCTestCase {
 
     // MARK: - The capture_screen Host Service
 
-    func testTheServiceTakesOnlyASource() throws {
-        let valid: [(JSONValue, ScreenCaptureSource)] = [
-            (.object(["source": .string("area")]), .area),
-            (.object(["source": .string("fullscreen")]), .fullScreen),
-            (.object(["source": .string("window")]), .window)
+    /// A Plugin chooses the source and its own after-capture options. It may
+    /// save only to a folder the user configured on its Action, so it can
+    /// never pick its own destination.
+    func testTheServiceTakesTheCallersOptionsAndOnlyAConfiguredFolder() throws {
+        let folder = try temporaryFolder()
+        let saved = folder.standardizedFileURL
+        let configured = [folder.path]
+        let valid: [(JSONValue, ScreenCaptureRequest)] = [
+            (serviceInput("area"), ScreenCaptureRequest(source: .area, copyToClipboard: true, saveFolder: nil, saveFormat: .png)),
+            (serviceInput("fullscreen", copy: .bool(false), save: saveTo(folder.path, "jpg")),
+             ScreenCaptureRequest(source: .fullScreen, copyToClipboard: false, saveFolder: saved, saveFormat: .jpeg)),
+            (serviceInput("window", save: saveTo(folder.path, "automatic")),
+             ScreenCaptureRequest(source: .window, copyToClipboard: true, saveFolder: saved, saveFormat: .automatic))
         ]
-        for (input, source) in valid {
-            XCTAssertEqual(try ScreenCaptureSource(serviceInput: input), source)
+        for (input, expected) in valid {
+            XCTAssertEqual(try ScreenCaptureRequest(serviceInput: input, configuredFolders: configured), expected)
         }
+
         let invalid: [JSONValue] = [
-            .null, .string("area"), .object([:]), .object(["source": .string("screen")]),
-            // The Host, not the Plugin, decides what happens after the capture.
-            .object(["source": .string("area"), "format": .string("png")]),
-            .object(["source": .string("area"), "save_to_folder": .string("/tmp")]),
-            .object(["source": .string("area"), "copy_to_clipboard": .bool(true)])
+            .null, .string("area"), .object(["source": .string("area")]),
+            serviceInput("screen"),
+            serviceInput("area", copy: .string("yes")),
+            serviceInput("area", copy: .bool(false), save: .null),
+            serviceInput("area", save: .string(folder.path)),
+            serviceInput("area", save: .object(["folder": .string(folder.path)])),
+            serviceInput("area", save: saveTo(folder.path, "gif")),
+            serviceInput("area", save: .object(["folder": .string(folder.path), "format": .string("png"), "name": .string("x")])),
+            .object(["source": .string("area"), "copy_to_clipboard": .bool(true), "save": .null, "arguments": .string("-x")])
         ]
         for input in invalid {
-            XCTAssertThrowsError(try ScreenCaptureSource(serviceInput: input), "\(input)") { error in
+            XCTAssertThrowsError(try ScreenCaptureRequest(serviceInput: input, configuredFolders: configured), "\(input)") { error in
                 guard case .invalidInput = error as? PluginHostServiceError else { return XCTFail("\(error)") }
             }
         }
+
+        // Another folder, even a real and writable one, is refused.
+        let elsewhere = try temporaryFolder()
+        XCTAssertThrowsError(try ScreenCaptureRequest(serviceInput: serviceInput("area", save: saveTo(elsewhere.path, "png")),
+                                                      configuredFolders: configured)) { error in
+            guard case .invalidInput = error as? PluginHostServiceError else { return XCTFail("\(error)") }
+        }
+    }
+
+    /// The configured folder is checked when the capture is asked for, so a
+    /// folder that went away fails without capturing.
+    func testAConfiguredFolderThatIsUnusableFailsWithTheConfigurationSheetRepair() throws {
+        let folder = try temporaryFolder()
+        try FileManager.default.removeItem(at: folder)
+        for path in [folder.path, ""] {
+            XCTAssertThrowsError(try ScreenCaptureRequest(serviceInput: serviceInput("area", save: saveTo(path, "png")),
+                                                          configuredFolders: [path]), path) { error in
+                guard case .unavailable(let message) = error as? PluginHostServiceError else { return XCTFail("\(error)") }
+                XCTAssertTrue(message.contains("Configuration Sheet"), message)
+            }
+        }
+    }
+
+    /// Only the folders an Action uses count as configured: a folder whose
+    /// `used_when` choice is not selected is left out.
+    func testConfiguredFoldersAreTheFolderFieldsTheActionUses() throws {
+        let command = try XCTUnwrap(PluginManifestLoader.decode(Data("""
+        {
+          "protocol_version": "1.0", "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
+          "capabilities": ["capture_screen"],
+          "commands": [{"id": "shoot", "title": "Shoot", "execution": "javascript", "is_configurable": true, "script": "shoot.js",
+                        "configuration_fields": [
+                          {"key": "mode", "kind": "choice", "choices": ["Copy", "Save"]},
+                          {"key": "folder", "kind": "folder", "used_when": {"key": "mode", "values": ["Save"]}},
+                          {"key": "note", "kind": "text"}]}]
+        }
+        """.utf8)).commands.first)
+        func input(_ mode: String) -> JSONValue {
+            .object(["mode": .string(mode), "folder": .string("~/Pictures"), "note": .string("/tmp")])
+        }
+        XCTAssertEqual(command.configuredFolders(in: input("Save")), ["~/Pictures"])
+        XCTAssertEqual(command.configuredFolders(in: input("Copy")), [])
+        XCTAssertEqual(command.configuredFolders(in: .null), [])
     }
 
     func testCapturingThroughTheServiceRequiresTheGrantAndScreenRecording() throws {
@@ -264,10 +321,10 @@ final class ScreenshotTests: XCTestCase {
         let action = try makeAction(manifest.commands[0], pluginID: manifest.id)
         let grants = PluginCapabilityGrantStore()
         var screenRecording = true
-        var captures: [ScreenCaptureSource] = []
+        var captures: [ScreenCaptureRequest] = []
         let broker = makeBroker(grants: grants, permissions: { $0 == .screenRecording && screenRecording },
                                 capture: { captures.append($0) })
-        let input: JSONValue = .object(["source": .string("window")])
+        let input = serviceInput("window")
 
         XCTAssertThrowsError(try broker.execute(request: request(input, action), for: package, action: action)) {
             XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.captureScreen))
@@ -277,13 +334,13 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertThrowsError(try broker.execute(request: request(input, action), for: package, action: action)) {
             XCTAssertEqual($0 as? PluginHostServiceError, .systemPermissionDenied(.screenRecording))
         }
-        XCTAssertThrowsError(try broker.execute(request: request(.object(["source": .string("window"), "format": .string("png")]), action),
+        XCTAssertThrowsError(try broker.execute(request: request(.object(["source": .string("window")]), action),
                                                 for: package, action: action))
         XCTAssertEqual(captures, [])
 
         screenRecording = true
         XCTAssertEqual(try broker.execute(request: request(input, action), for: package, action: action), .null)
-        XCTAssertEqual(captures, [.window])
+        XCTAssertEqual(captures, [ScreenCaptureRequest(source: .window, copyToClipboard: true, saveFolder: nil, saveFormat: .png)])
     }
 
     func testAPluginThatDidNotDeclareTheCapabilityCannotCapture() throws {
@@ -299,16 +356,16 @@ final class ScreenshotTests: XCTestCase {
         var captures = 0
         let broker = makeBroker(grants: grants, permissions: { _ in true }, capture: { _ in captures += 1 })
 
-        XCTAssertThrowsError(try broker.execute(request: request(.object(["source": .string("area")]), action),
+        XCTAssertThrowsError(try broker.execute(request: request(serviceInput("area"), action),
                                                 for: package, action: action)) {
             XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.captureScreen))
         }
         XCTAssertEqual(captures, 0)
     }
 
-    /// A Plugin's script asks for a source through the real helper; the
-    /// capture adapter receives that source and nothing the script chose
-    /// about the image.
+    /// A Plugin's script asks for a capture through the real helper, saving
+    /// to the folder the user configured on its Action; the capture adapter
+    /// receives exactly that request.
     func testAPluginScriptRequestsACaptureThroughTheRealHelper() throws {
         let helper = try XCTUnwrap(Self.helperURLIfBuilt(), "Build SpinnetPluginHelper before running helper-backed tests")
         let root = try temporaryFolder().appendingPathComponent("Shooter.spinnetplugin", isDirectory: true)
@@ -317,11 +374,16 @@ final class ScreenshotTests: XCTestCase {
         {
           "protocol_version": "1.0", "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
           "capabilities": ["capture_screen"],
-          "commands": [{"id": "shoot", "title": "Shoot", "execution": "javascript", "is_configurable": false, "script": "shoot.js"}]
+          "commands": [{"id": "shoot", "title": "Shoot", "execution": "javascript", "is_configurable": true, "script": "shoot.js",
+                        "configuration_fields": [{"key": "folder", "kind": "folder"}]}]
         }
         """.utf8).write(to: root.appendingPathComponent("manifest.json"))
-        try Data(#"requestHostService("capture_screen", {source: "fullscreen"}); null"#.utf8)
-            .write(to: root.appendingPathComponent("shoot.js"))
+        try Data("""
+        requestHostService("capture_screen", {
+          source: "fullscreen", copy_to_clipboard: false, save: {folder: input.folder, format: "automatic"}
+        }); null
+        """.utf8).write(to: root.appendingPathComponent("shoot.js"))
+        let folder = try temporaryFolder()
         let package = try PluginManifestLoader.load(packageAt: root)
         let registry = PluginRegistry()
         try registry.register(package)
@@ -329,16 +391,19 @@ final class ScreenshotTests: XCTestCase {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .captureScreen)
         let supervisor = PluginRuntimeSupervisor(helperURL: helper)
         defer { supervisor.shutdown() }
-        var captures: [ScreenCaptureSource] = []
+        var captures: [ScreenCaptureRequest] = []
         let runner = HostActionRunner(
             executor: ScreenshotNoopExecutor(), scriptedExecutor: supervisor,
             hostServiceBroker: makeBroker(grants: grants, permissions: { _ in true }, capture: { captures.append($0) })
         )
 
-        let outcome = runner.invoke(try makeAction(package.manifest.commands[0], pluginID: package.manifest.id), using: registry)
+        let action = try makeAction(package.manifest.commands[0], pluginID: package.manifest.id,
+                                    input: .object(["folder": .string(folder.path)]))
+        let outcome = runner.invoke(action, using: registry)
         guard case .succeeded(let result) = outcome.terminal else { return XCTFail("\(outcome.terminal)") }
         XCTAssertEqual(result, .null)
-        XCTAssertEqual(captures, [.fullScreen])
+        XCTAssertEqual(captures, [ScreenCaptureRequest(source: .fullScreen, copyToClipboard: false,
+                                                       saveFolder: folder.standardizedFileURL, saveFormat: .automatic)])
     }
 
     // MARK: - Support
@@ -378,13 +443,21 @@ final class ScreenshotTests: XCTestCase {
     private func makeBroker(
         grants: PluginCapabilityGrantStore,
         permissions: @escaping (PluginSystemPermission) -> Bool,
-        capture: @escaping (ScreenCaptureSource) throws -> Void
+        capture: @escaping (ScreenCaptureRequest) throws -> Void
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: permissions,
             selectedTextProvider: { "" }, clipboardWriter: { _ in },
             screenCapturer: capture
         )
+    }
+
+    private func serviceInput(_ source: String, copy: JSONValue = .bool(true), save: JSONValue = .null) -> JSONValue {
+        .object(["source": .string(source), "copy_to_clipboard": copy, "save": save])
+    }
+
+    private func saveTo(_ folder: String, _ format: String) -> JSONValue {
+        .object(["folder": .string(folder), "format": .string(format)])
     }
 
     private func request(_ input: JSONValue, _ action: ActionConfiguration) -> PluginRuntimeHostServiceRequest {

@@ -4,7 +4,7 @@ import SpinnetCore
 /// Screenshots were a Bundled Plugin, `com.spinnet.screenshot`, before they
 /// became Host Commands. Its Actions move onto the Host Commands with their
 /// IDs unchanged, so every Menu Slot, alias and Alternate Action stays as the user
-/// arranged it. The Screenshots settings apply to every capture now, so the
+/// arranged it. The Screenshot Plugin Settings apply to all of its captures now, so the
 /// first Menu Item's after-capture values seed them once.
 enum ScreenshotPluginMigration {
     static let retiredPluginID = PluginID("com.spinnet.screenshot")
@@ -37,7 +37,7 @@ enum ScreenshotPluginMigration {
     }
 
     /// The after-capture values of the first Menu Item's Primary Action built
-    /// from the retired Plugin, as Screenshots settings, or nil when there is
+    /// from the retired Plugin, as Screenshot Plugin Settings, or nil when there is
     /// none or its values no longer read.
     static func settings(from configuration: HostConfiguration) -> ScreenshotSettings? {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
@@ -51,8 +51,8 @@ enum ScreenshotPluginMigration {
         return ScreenshotSettings(afterCapture: afterCapture, format: format == "JPEG" ? .jpeg : .png, saveFolder: folder)
     }
 
-    /// Stores `settings(from:)` unless the user already has Screenshots
-    /// settings. Run before `migrate`, which drops the values.
+    /// Stores `settings(from:)` unless the user already has Screenshot
+    /// Plugin Settings. Run before `migrate`, which drops the values.
     static func seedSettings(from configuration: HostConfiguration, in defaults: UserDefaults) {
         guard defaults.object(forKey: ScreenshotSettings.defaultsKey) == nil,
               let seeded = settings(from: configuration) else { return }

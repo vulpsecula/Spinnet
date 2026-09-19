@@ -35,7 +35,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case cutText = "clipboard.cut"
     case presentFeedback = "feedback.present"
     /// Screenshots. The Host captures and then copies or saves as its
-    /// Screenshots settings say; the Action names only the source.
+    /// Screenshot Plugin Settings say; the Action names only the source.
     case captureArea = "screen.capture_area"
     case captureFullScreen = "screen.capture_full_screen"
     case captureWindow = "screen.capture_window"
@@ -99,7 +99,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .presentFeedback:
             return "Feedback message"
         case .captureArea, .captureFullScreen, .captureWindow:
-            return "Copies or saves as set in Screenshots settings"
+            return "Copies or saves as set in Screenshot Plugin Settings"
         }
     }
 

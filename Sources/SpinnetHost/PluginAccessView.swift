@@ -56,6 +56,8 @@ struct PluginConsentSheet: View {
     let manifest: PluginManifest
     var reviewInstallation: Bool? = nil
     var onDone: (() -> Void)? = nil
+    /// The Screenshot entry's own options, shown above its access.
+    var screenshotSettings: ScreenshotSettingsModel? = nil
 
     private var isInstallation: Bool { reviewInstallation ?? privacy.installationConsentPresented }
 
@@ -64,9 +66,14 @@ struct PluginConsentSheet: View {
             Text(isInstallation ? "Plugin Installed — Review Access" : "Plugin Settings")
                 .font(.title2.weight(.semibold))
             ScrollView {
-                PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
-                                 setDecision: privacy.setCapabilityDecision,
-                                 consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
+                VStack(alignment: .leading, spacing: 16) {
+                    if let screenshotSettings, !isInstallation {
+                        ScreenshotSettingsView(model: screenshotSettings)
+                    }
+                    PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
+                                     setDecision: privacy.setCapabilityDecision,
+                                     consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
+                }
             }
             HStack {
                 if isInstallation {

@@ -196,8 +196,8 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let selectedTextProvider: (() throws -> String)?
     private let feedbackPresenter: (String) -> Void
-    /// The capture Host Service, shared with Plugins that ask for a capture:
-    /// it applies the Screenshots settings to the source it is given.
+    /// Starts a capture of the source a Screenshot Host Command names, as the
+    /// Screenshot Plugin Settings say.
     private let screenCapture: (ScreenCaptureSource) throws -> Void
 
     init(

@@ -2,9 +2,9 @@ import AppKit
 import Combine
 import SpinnetCore
 
-/// Drives the Screenshots settings page: what the Host does after every
-/// capture, whichever Host Command or Plugin asked for it. Each change is
-/// written at once and reported, so the Menu can recheck availability.
+/// Drives the Screenshot entry's Plugin Settings: what the Host does after a
+/// capture from the Screenshot Host Commands. Each change is written at once
+/// and reported, so the Menu can recheck availability.
 final class ScreenshotSettingsModel: ObservableObject {
     @Published var afterCapture: ScreenshotSettings.AfterCapture { didSet { commit() } }
     @Published var format: ScreenshotSettings.FileFormat { didSet { commit() } }

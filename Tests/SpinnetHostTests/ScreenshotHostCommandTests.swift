@@ -221,7 +221,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(fresh.decision(for: manifest.id, pluginVersion: manifest.version, capability: .captureScreen), .notDetermined)
     }
 
-    // MARK: - The Screenshots settings
+    // MARK: - The Screenshot Plugin Settings
 
     func testTheSettingsModelRemembersEachChangeAndReportsIt() throws {
         let suite = "Spinnet.screenshot-settings.\(UUID().uuidString)"

@@ -116,7 +116,7 @@ public struct PluginPermissionDisclosure {
                 affected.append("Open http and https links in the default browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.")
             }
             if manifest.capabilities.contains(.captureScreen), !names(.captureScreen).isEmpty {
-                affected.append("Start a screenshot that Spinnet takes, then copies or saves as set in Screenshots settings. Commands: \(names(.captureScreen)). The Plugin never receives the image.")
+                affected.append("Start a screenshot that Spinnet takes, then copies or saves to a folder you chose. Commands: \(names(.captureScreen)). The Plugin never receives the image.")
             }
             return affected.isEmpty ? nil : affected.joined(separator: "\n")
         }

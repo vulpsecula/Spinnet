@@ -17,9 +17,10 @@ public enum ScreenCaptureFormat: String, Codable, CaseIterable, Equatable, Hasha
 }
 
 /// One capture for the native capturer: where to capture and what to do with
-/// the image afterwards. The Host builds it from `ScreenshotSettings`, never
-/// from Plugin input, and nothing here is a command-line argument, so nothing
-/// reaches the capture tool's other options.
+/// the image afterwards. The Host builds it from the Screenshot Plugin
+/// Settings for its own Host Commands, or from a Plugin's validated request.
+/// Nothing here is a command-line argument, so nothing reaches the capture
+/// tool's other options.
 public struct ScreenCaptureRequest: Equatable, Hashable {
     public let source: ScreenCaptureSource
     public let copyToClipboard: Bool
@@ -38,24 +39,68 @@ public struct ScreenCaptureRequest: Equatable, Hashable {
     }
 }
 
-public extension ScreenCaptureSource {
-    /// Reads a Plugin's `capture_screen` request, `{"source": …}`. A Plugin
-    /// chooses the source only; the user's Screenshots settings decide what
-    /// happens to the image, so any other member is refused.
-    init(serviceInput json: JSONValue) throws {
-        guard case .object(let fields) = json, fields.count == 1,
-              case .string(let raw) = fields["source"], let source = ScreenCaptureSource(rawValue: raw) else {
-            throw PluginHostServiceError.invalidInput(
-                "capture_screen expects {\"source\": \"area\"|\"fullscreen\"|\"window\"} and nothing else"
-            )
+public extension ScreenCaptureRequest {
+    private static let keys: Set<String> = ["source", "copy_to_clipboard", "save"]
+
+    /// Reads a Plugin's `capture_screen` request:
+    /// `{"source": "area"|"fullscreen"|"window", "copy_to_clipboard": bool,
+    /// "save": null | {"folder": …, "format": "automatic"|"png"|"jpg"}}`.
+    /// `configuredFolders` are the folder values of the Action the Plugin is
+    /// running; a save may name only one of them, so a Plugin can never pick
+    /// its own destination. The Plugin's options are its own: the Screenshot
+    /// Plugin Settings play no part.
+    init(serviceInput json: JSONValue, configuredFolders: [String]) throws {
+        let shape = "capture_screen expects source (area, fullscreen or window), copy_to_clipboard (a boolean) "
+            + "and save (null, or folder and format: automatic, png or jpg)"
+        guard case .object(let fields) = json, Set(fields.keys) == Self.keys,
+              case .string(let rawSource) = fields["source"], let source = ScreenCaptureSource(rawValue: rawSource),
+              case .bool(let copy) = fields["copy_to_clipboard"] else {
+            throw PluginHostServiceError.invalidInput(shape)
         }
-        self = source
+        switch fields["save"] {
+        case .null?:
+            guard copy else {
+                throw PluginHostServiceError.invalidInput("capture_screen must copy to the clipboard, save to a folder, or both")
+            }
+            self.init(source: source, copyToClipboard: true, saveFolder: nil, saveFormat: .png)
+        case .object(let save)? where Set(save.keys) == ["folder", "format"]:
+            guard case .string(let path) = save["folder"],
+                  case .string(let rawFormat) = save["format"],
+                  let format = ScreenshotSettings.FileFormat(rawValue: rawFormat) else {
+                throw PluginHostServiceError.invalidInput(shape)
+            }
+            guard configuredFolders.contains(path) else {
+                throw PluginHostServiceError.invalidInput("save.folder must be a folder configured for this Action")
+            }
+            guard ScreenCaptureDestination.isUsableFolder(path) else {
+                throw PluginHostServiceError.unavailable(
+                    "The save folder is missing or cannot be written; choose it again in the Configuration Sheet"
+                )
+            }
+            self.init(source: source, copyToClipboard: copy, saveFolder: ScreenCaptureDestination.url(for: path), saveFormat: format)
+        default:
+            throw PluginHostServiceError.invalidInput(shape)
+        }
     }
 }
 
-/// What the Host does with every screenshot, whether a capture Host Command
-/// or another Plugin asked for it. A Host setting, so a Plugin can neither
-/// read nor choose it.
+public extension CommandDeclaration {
+    /// The values the Action gives the `folder` fields it uses, as typed. A
+    /// folder whose `used_when` is not met, such as a save folder for an
+    /// Action that only copies, is left out.
+    func configuredFolders(in input: JSONValue) -> [String] {
+        guard case .object(let values) = input else { return [] }
+        return configurationFields.compactMap { field in
+            guard field.kind == .folder, field.isUsed(by: values),
+                  let key = field.key, case .string(let path) = values[key] else { return nil }
+            return path
+        }
+    }
+}
+
+/// What the Host does after a capture from its own Screenshot Host Commands:
+/// the Screenshot entry's Plugin Settings. A Plugin that asks for a capture
+/// brings its own options and neither reads nor uses these.
 public struct ScreenshotSettings: Codable, Equatable {
     public enum AfterCapture: String, Codable, CaseIterable, Equatable {
         case copyToClipboard = "copy"
@@ -143,7 +188,7 @@ public struct ScreenshotSettings: Codable, Equatable {
     public func request(for source: ScreenCaptureSource) throws -> ScreenCaptureRequest {
         guard unavailableReason == nil else {
             throw PluginHostServiceError.unavailable(
-                "The screenshot save folder is missing or cannot be written; choose it again in Screenshots settings"
+                "The screenshot save folder is missing or cannot be written; choose it again in Screenshot Plugin Settings"
             )
         }
         return ScreenCaptureRequest(

@@ -12,8 +12,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     /// The Screen Recording System Permission is missing. Accessibility keeps
     /// `systemPermissionDenied`, so each permission names its own repair.
     case screenRecordingDenied = "screen_recording_denied"
-    /// The Screenshots save folder is gone, is not a folder, or cannot be
-    /// written, and the settings say to save.
+    /// The Screenshot save folder is gone, is not a folder, or cannot be
+    /// written, and the Screenshot Plugin Settings say to save.
     case saveFolderUnavailable = "save_folder_unavailable"
 
     public var description: String {
@@ -27,7 +27,7 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
         case .hostServiceUnavailable: return "Required Host Service is not available in this version"
         case .screenRecordingDenied: return "Enable Screen Recording in Privacy & Permissions"
-        case .saveFolderUnavailable: return "Screenshot save folder is missing or not writable; choose it again in Screenshots settings"
+        case .saveFolderUnavailable: return "Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings"
         }
     }
 }
