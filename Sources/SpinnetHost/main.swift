@@ -67,6 +67,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Never shown, but it is how editing shortcuts reach text fields.
+        NSApp.mainMenu = HostEditMenu.make()
 
         do {
             pluginSettings = try PluginSettingsStore(
