@@ -58,6 +58,8 @@ struct PluginConsentSheet: View {
     var onDone: (() -> Void)? = nil
     /// The Screenshot entry's own options, shown above its access.
     var screenshotSettings: ScreenshotSettingsModel? = nil
+    /// The Plugin's declared settings, saved by Done.
+    var pluginSettings: PluginSettingsModel? = nil
 
     private var isInstallation: Bool { reviewInstallation ?? privacy.installationConsentPresented }
 
@@ -70,6 +72,9 @@ struct PluginConsentSheet: View {
                     if let screenshotSettings, !isInstallation {
                         ScreenshotSettingsView(model: screenshotSettings)
                     }
+                    if let pluginSettings, !isInstallation {
+                        PluginSettingsForm(model: pluginSettings)
+                    }
                     PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
                                      setDecision: privacy.setCapabilityDecision,
                                      consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
@@ -81,9 +86,15 @@ struct PluginConsentSheet: View {
                     Spacer()
                     Button("Grant New Requests") { privacy.finishPluginConsent(grant: true) }
                 } else {
+                    if pluginSettings != nil {
+                        Button("Cancel", action: close)
+                            .keyboardShortcut(.cancelAction)
+                    }
                     Spacer()
-                    Button("Done") {
-                        if let onDone { onDone() } else { privacy.pluginSettingsManifest = nil }
+                    Button(pluginSettings == nil ? "Done" : "Save") {
+                        // Settings that do not save keep the sheet open with the reason.
+                        if let pluginSettings, !pluginSettings.save() { return }
+                        close()
                     }
                         .keyboardShortcut(.defaultAction)
                 }
@@ -91,6 +102,10 @@ struct PluginConsentSheet: View {
         }
         .padding(24)
         .frame(width: 600, height: 640)
+    }
+
+    private func close() {
+        if let onDone { onDone() } else { privacy.pluginSettingsManifest = nil }
     }
 }
 

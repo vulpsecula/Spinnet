@@ -8,8 +8,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var registry = PluginRegistry(
         grantStore: capabilityGrants,
         systemPermissionCheck: { [pluginHostServiceProvider] in pluginHostServiceProvider.isGranted($0) },
-        externalAppExists: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }
+        externalAppExists: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil },
+        pluginSettingsComplete: { [unowned self] manifest in
+            manifest.missingSettings(in: self.resolvedPluginSettings(manifest), hasSecret: { reference in
+                self.pluginCredentials.hasSecret(for: manifest.id, reference: reference)
+            }).isEmpty
+        }
     )
+    /// Each Plugin's Plugin Settings, read when an Action runs or availability
+    /// is computed. Set first thing at launch.
+    private var pluginSettings: PluginSettingsStore?
     private lazy var pluginInstallation = PluginInstallationStore(
         directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
         registry: registry, grants: capabilityGrants,
@@ -61,6 +69,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         do {
+            pluginSettings = try PluginSettingsStore(
+                fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginSettings.json")
+            )
             for package in try BuiltInPresetCatalog.makePackages() {
                 try registry.register(package)
             }
@@ -157,7 +168,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 ),
                 scriptedExecutor: scriptedExecutor,
                 hostServiceBroker: hostServiceBroker,
-                resourceAvailability: HostResourceAvailability.missingReason
+                resourceAvailability: HostResourceAvailability.missingReason,
+                pluginSettings: { [unowned self] manifest in self.resolvedPluginSettings(manifest) }
             )
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
             let configuration = try loadConfiguration()
@@ -188,7 +200,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 editor: editor,
                 capabilityGrantStore: capabilityGrants,
                 clipboardHistoryStore: clipboardStore,
-                credentialStore: pluginCredentials
+                credentialStore: pluginCredentials,
+                pluginSettingsStore: pluginSettings
             )
             let collector = ClipboardCollector(store: clipboardStore)
             collector.onError = { [weak self] error in self?.showConfigurationError(error) }
@@ -231,6 +244,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     self?.showConfigurationError(error)
                 }
+            }
+            settings.onPluginSettingsChanged = { [weak self] in
+                guard let self, let configuration = self.currentConfiguration else { return }
+                self.menu.reload(items: self.makeMenuSlots(from: configuration))
             }
             settings.onScreenshotSettingsChanged = { [weak self] in
                 guard let self, let configuration = self.currentConfiguration else { return }
@@ -288,11 +305,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // Menu Items built from the retired Screenshot Plugin move onto
             // the Host Commands once, and the result is kept.
             ScreenshotPluginMigration.seedSettings(from: storedConfiguration, in: .standard)
-            if let migrated = try ScreenshotPluginMigration.migrate(storedConfiguration) {
-                try configurationStore.save(migrated)
-                return migrated
+            var configuration = try ScreenshotPluginMigration.migrate(storedConfiguration) ?? storedConfiguration
+            // Actions from before their Plugin declared settings carried every
+            // value; those move into Plugin Settings once.
+            if let pluginSettings {
+                for manifest in registry.manifests() where manifest.hasSettings {
+                    let stored = pluginSettings.hasValues(for: manifest.id) ? pluginSettings.values(for: manifest.id) : nil
+                    guard let result = try PluginSettingsMigration.migrate(configuration, manifest: manifest,
+                                                                          storedSettings: stored) else { continue }
+                    if let seeded = result.settings { try pluginSettings.setValues(seeded, for: manifest.id) }
+                    configuration = result.configuration
+                }
             }
-            return storedConfiguration
+            if configuration != storedConfiguration { try configurationStore.save(configuration) }
+            return configuration
         }
         return try HostConfiguration(
             actions: [],
@@ -330,6 +356,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 self?.registry.command(for: action.pluginID, commandID: action.commandID)?.explanation
             }
         )
+    }
+
+    private func resolvedPluginSettings(_ manifest: PluginManifest) -> [String: JSONValue] {
+        manifest.resolvedSettings(stored: pluginSettings?.values(for: manifest.id) ?? [:])
     }
 
     private func actionAvailability(for action: ActionConfiguration) -> ActionAvailability {

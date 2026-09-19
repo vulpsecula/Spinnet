@@ -487,7 +487,8 @@ public final class HostConfigurationEditor {
                         "\(command.title): \(field.inputRequirement ?? "The value is invalid.")"
                     )
                 }
-                if validateInputs, !command.acceptsConfigurationFieldsInput(input) {
+                if validateInputs, !(registry.package(for: pluginID)?.manifest.acceptsActionInput(input, for: command)
+                                     ?? command.acceptsConfigurationFieldsInput(input)) {
                     throw ConfigurationError.invalidAction(
                         "\(command.title): Fill in every setting with one of its offered values."
                     )

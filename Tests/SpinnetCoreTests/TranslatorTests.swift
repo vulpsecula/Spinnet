@@ -26,37 +26,39 @@ final class TranslatorTests: XCTestCase {
     private let replace = "translator.replace"
     private let clipboard = "translator.clipboard"
 
-    private func input(endpoint: String = "https://api-free.deepl.com", target: String = "DE",
-                       formality: String = "default") -> JSONValue {
-        .object(["endpoint": .string(endpoint), "credential": .string("deepl"),
-                 "target_language": .string(target), "formality": .string(formality)])
-    }
-
-    private func action(_ commandID: String, in package: PluginPackage, input: JSONValue? = nil) throws -> ActionConfiguration {
+    private func action(_ commandID: String, in package: PluginPackage, input: JSONValue = .object([:])) throws -> ActionConfiguration {
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID })
-        return try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command,
-                                       input: input ?? self.input())
+        return try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id, command: command, input: input)
     }
 
     // MARK: Package
 
-    func testTranslatorAppearsOnceWithFlatSetupRequiredCommands() throws {
+    /// The endpoint and key are Plugin Settings, entered once from the
+    /// Library; the target language and formality are settings too, which one
+    /// Menu Item may override. The Preset is then ready to place.
+    func testTranslatorAppearsOnceWithItsValuesInPluginSettings() throws {
         let package = try TranslatorFixture.load()
         let registry = PluginRegistry()
         try registry.register(package)
         let presets = registry.menuItemPresets().filter { $0.pluginID == package.manifest.id }
         XCTAssertEqual(presets.map(\.name), ["Translator"])
-        XCTAssertEqual(package.manifest.preset.readiness, .setupRequired, "An API key has to be entered first")
+        XCTAssertEqual(package.manifest.preset.readiness, .readyToUse, "The key is entered in Plugin Settings")
+        XCTAssertEqual(package.manifest.settingsFields.map(\.key), ["endpoint", "credential", "target_language", "formality"])
+        XCTAssertEqual(package.manifest.settingsFields.map(\.kind), [.httpsEndpoint, .credential, .choice, .choice])
+        XCTAssertEqual(package.manifest.overridableSettingsFields.map(\.key), ["target_language", "formality"])
+        XCTAssertEqual(package.manifest.resolvedSettings(stored: [:]),
+                       ["endpoint": .string("https://api-free.deepl.com"), "credential": .string("deepl"),
+                        "target_language": .string("EN-US"), "formality": .string("default")])
+        XCTAssertEqual(package.manifest.missingSettings(in: package.manifest.resolvedSettings(stored: [:]),
+                                                        hasSecret: { _ in false }).map(\.key), ["credential"],
+                       "Only the key's secret is missing out of the box")
         XCTAssertEqual(package.manifest.commands.map(\.id.rawValue), [copy, replace, clipboard])
         XCTAssertEqual(package.manifest.preset.defaultPrimaryCommandID?.rawValue, copy)
         XCTAssertEqual(package.manifest.preset.defaultAlternateCommandIDs.map(\.rawValue), [replace, clipboard])
         for command in package.manifest.commands {
             XCTAssertNotNil(command.explanation, command.id.rawValue)
-            XCTAssertEqual(command.configurationFields.map(\.key), ["endpoint", "credential", "target_language", "formality"])
-            XCTAssertEqual(command.configurationFields.map(\.kind), [.httpsEndpoint, .credential, .choice, .choice])
-            // The defaults are usable once a key is stored.
-            let defaultInput = try XCTUnwrap(package.manifest.preset.defaultInputs[command.id])
-            XCTAssertTrue(command.acceptsConfigurationFieldsInput(defaultInput))
+            XCTAssertEqual(command.configurationFields, [])
+            XCTAssertEqual(package.manifest.preset.defaultInputs[command.id], .object([:]))
         }
     }
 
@@ -141,10 +143,10 @@ final class TranslatorTests: XCTestCase {
 /// Translator runs through the real helper and the real broker, with a
 /// deterministic transport in place of the network.
 extension PluginRuntimeTests {
-    private func translatorInput(endpoint: String = "https://api-free.deepl.com", target: String = "DE",
-                                 formality: String = "default") -> JSONValue {
-        .object(["endpoint": .string(endpoint), "credential": .string("deepl"),
-                 "target_language": .string(target), "formality": .string(formality)])
+    private func translatorSettings(endpoint: String = "https://api-free.deepl.com", target: String = "DE",
+                                    formality: String = "default") -> [String: JSONValue] {
+        ["endpoint": .string(endpoint), "credential": .string("deepl"),
+         "target_language": .string(target), "formality": .string(formality)]
     }
 
     private func translatorAction(_ commandID: String, in package: PluginPackage, input: JSONValue) throws -> ActionConfiguration {
@@ -154,7 +156,10 @@ extension PluginRuntimeTests {
 
     // MARK: Runs through the helper
 
-    private func runTranslator(_ commandID: String, input: JSONValue? = nil, selection: String = "Good morning",
+    /// `settings` are the stored Plugin Settings; `input` is the Menu Item's
+    /// own overrides.
+    private func runTranslator(_ commandID: String, settings: [String: JSONValue]? = nil, input: JSONValue = .object([:]),
+                     selection: String = "Good morning",
                      clipboardText: String? = nil, responses: [HTTPSTransportResponse],
                      prepare: (PluginPackage, PluginCapabilityGrantStore) -> Void = { _, _ in })
         throws -> (outcome: ActionTerminalOutcome, transport: ScriptedHTTPSTransport, copied: [String], inserted: [String]) {
@@ -178,9 +183,11 @@ extension PluginRuntimeTests {
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
+        let stored = settings ?? translatorSettings()
         let outcome = HostActionRunner(executor: TranslatorNoopExecutor(), scriptedExecutor: supervisor,
-                                       hostServiceBroker: broker)
-            .invoke(try translatorAction(commandID, in: package, input: input ?? translatorInput()), using: registry).terminal
+                                       hostServiceBroker: broker,
+                                       pluginSettings: { $0.resolvedSettings(stored: stored) })
+            .invoke(try translatorAction(commandID, in: package, input: input), using: registry).terminal
         return (outcome, transport, copied, inserted)
     }
 
@@ -189,7 +196,8 @@ extension PluginRuntimeTests {
     }
 
     func testTranslateSelectionAndCopySendsADeepLRequestAndCopiesTheResult() throws {
-        let result = try runTranslator("translator.copy", input: translatorInput(target: "DE", formality: "prefer_more"), responses: [deepL("Guten Morgen")])
+        let result = try runTranslator("translator.copy", settings: translatorSettings(target: "DE", formality: "prefer_more"),
+                                       responses: [deepL("Guten Morgen")])
         guard case .succeeded = result.outcome else { return XCTFail("\(result.outcome)") }
         XCTAssertEqual(result.copied, ["Guten Morgen"])
         XCTAssertEqual(result.inserted, [])
@@ -203,6 +211,18 @@ extension PluginRuntimeTests {
         let body = try JSONDecoder().decode(JSONValue.self, from: try XCTUnwrap(request.body))
         XCTAssertEqual(body, .object(["text": .array([.string("Good morning")]), "target_lang": .string("DE"),
                                       "formality": .string("prefer_more")]))
+    }
+
+    /// One Menu Item translates into French while the Plugin Settings say
+    /// German; everything it does not override comes from the settings.
+    func testAMenuItemsOverrideReplacesThePluginSettingForThatItemOnly() throws {
+        let result = try runTranslator("translator.copy", settings: translatorSettings(target: "DE", formality: "prefer_less"),
+                                       input: .object(["target_language": .string("FR")]), responses: [deepL("Bonjour")])
+        guard case .succeeded = result.outcome else { return XCTFail("\(result.outcome)") }
+        let body = try JSONDecoder().decode(JSONValue.self, from: try XCTUnwrap(result.transport.requests.first?.body))
+        XCTAssertEqual(body, .object(["text": .array([.string("Good morning")]), "target_lang": .string("FR"),
+                                      "formality": .string("prefer_less")]))
+        XCTAssertEqual(result.transport.requests.first?.headers["Authorization"], "DeepL-Auth-Key deepl-secret:fx")
     }
 
     func testTranslateInPlaceInsertsIntoTheFocusedAppWithoutTouchingTheClipboard() throws {
@@ -228,14 +248,14 @@ extension PluginRuntimeTests {
     }
 
     func testTranslatorAnUnconsentedSelfHostedEndpointIsRefusedAndAConsentedOneIsUsed() throws {
-        let selfHosted = translatorInput(endpoint: "https://translate.example.org")
-        let refused = try runTranslator("translator.copy", input: selfHosted, responses: [deepL("Guten Morgen")])
+        let selfHosted = translatorSettings(endpoint: "https://translate.example.org")
+        let refused = try runTranslator("translator.copy", settings: selfHosted, responses: [deepL("Guten Morgen")])
         guard case .failed(let failure) = refused.outcome else { return XCTFail("An unconsented host must be refused") }
         XCTAssertEqual(failure.category, .capabilityDenied)
         XCTAssertEqual(refused.transport.requests, [], "Nothing was sent to the undeclared host")
         XCTAssertEqual(refused.copied, [])
 
-        let consented = try runTranslator("translator.copy", input: selfHosted, responses: [deepL("Guten Morgen")]) { package, grants in
+        let consented = try runTranslator("translator.copy", settings: selfHosted, responses: [deepL("Guten Morgen")]) { package, grants in
             let declared = package.manifest.scope(for: .contactHTTPS)!
             grants.setConsentedHTTPSHosts(["translate.example.org"], for: package.manifest.id,
                                           pluginVersion: package.manifest.version, declaredScope: declared)

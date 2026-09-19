@@ -77,7 +77,7 @@ A modal settings surface for editing one Menu Item's instance-specific configura
 _Avoid_: Submenu, secondary window, inspector
 
 **Plugin Settings**:
-Configuration shared by a Plugin across the Menu Items created from its Presets.
+Configuration shared by a Plugin across the Menu Items created from its Presets, filled in from the Library before any is placed. A setting the Plugin marks overridable may be set again on one Menu Item.
 _Avoid_: Menu Item configuration, Preset defaults
 
 **Appearance**:

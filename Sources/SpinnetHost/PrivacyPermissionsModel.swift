@@ -188,6 +188,11 @@ final class PrivacyPermissionsModel: ObservableObject {
         HTTPSEndpointConsent(manifest: manifest, inputs: inputs, grantStore: grantStore)
     }
 
+    /// What Plugin Settings must disclose before saving these values.
+    func endpointConsent(for manifest: PluginManifest, settings: [String: JSONValue]) -> HTTPSEndpointConsent {
+        HTTPSEndpointConsent(manifest: manifest, settings: settings, grantStore: grantStore)
+    }
+
     /// Records the user's consent to new endpoint hosts, or refuses the save.
     func approveEndpointConsent(_ consent: HTTPSEndpointConsent, allowedHosts: Set<String>) throws {
         try consent.approve(allowedHosts: allowedHosts, grantStore: grantStore)

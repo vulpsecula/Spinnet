@@ -202,6 +202,12 @@ final class SettingsWindowModel: ObservableObject {
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
+    /// Where Plugin Settings are kept, and who hears that they changed.
+    var pluginSettingsStore: PluginSettingsStore?
+    var onPluginSettingsChanged: (() -> Void)?
+    /// The settings section of the open Plugin Settings sheet, kept while it
+    /// is open so edits survive a redraw.
+    private var openPluginSettings: PluginSettingsModel?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     /// Where Configuration Sheets keep secrets typed into credential fields.
     var credentialStore: PluginCredentialStore?
@@ -245,6 +251,28 @@ final class SettingsWindowModel: ObservableObject {
         menuEditor.onPluginInstalled = { [weak privacy] manifest in
             privacy?.beginInstallationConsent(for: manifest) ?? false
         }
+    }
+
+    /// The settings section for a Plugin that declares settings.
+    func pluginSettingsModel(for manifest: PluginManifest) -> PluginSettingsModel? {
+        guard manifest.hasSettings, let store = pluginSettingsStore else { return nil }
+        if let open = openPluginSettings, open.manifest == manifest { return open }
+        let model = PluginSettingsModel(
+            manifest: manifest, store: store, credentialStore: credentialStore,
+            approveConsent: { [privacy] in try privacy.approveEndpointConsent($0, allowedHosts: $1) },
+            consent: { [privacy] in privacy.endpointConsent(for: manifest, settings: $0) },
+            onSaved: { [weak self] in
+                self?.menuEditor.refreshMenuSlots()
+                self?.onPluginSettingsChanged?()
+            }
+        )
+        openPluginSettings = model
+        return model
+    }
+
+    func closePluginSettings() {
+        privacy.pluginSettingsManifest = nil
+        openPluginSettings = nil
     }
 
     func selectPage(_ page: SettingsPage) {
@@ -354,11 +382,13 @@ struct SettingsRootView: View {
         .onChange(of: model.page) { focusedPage = $0 }
         .sheet(isPresented: Binding(
             get: { privacy.pluginSettingsManifest != nil },
-            set: { if !$0 { privacy.pluginSettingsManifest = nil } }
+            set: { if !$0 { model.closePluginSettings() } }
         )) {
             if let manifest = privacy.pluginSettingsManifest {
                 PluginConsentSheet(privacy: privacy, manifest: manifest,
-                                   screenshotSettings: manifest.id == BuiltInPresetCatalog.screenshotPluginID ? screenshots : nil)
+                                   onDone: model.closePluginSettings,
+                                   screenshotSettings: manifest.id == BuiltInPresetCatalog.screenshotPluginID ? screenshots : nil,
+                                   pluginSettings: privacy.installationConsentPresented ? nil : model.pluginSettingsModel(for: manifest))
             }
         }
         .alert(menuEditor.deletionTitle, isPresented: Binding(
@@ -758,7 +788,10 @@ struct SettingsRootView: View {
                             menuEditor.saveMenuItemConfiguration(configuration)
                         }
                     },
-                    credentialStore: model.credentialStore
+                    credentialStore: model.credentialStore,
+                    pluginSettings: { [store = model.pluginSettingsStore] manifest in
+                        manifest.resolvedSettings(stored: store?.values(for: manifest.id) ?? [:])
+                    }
                 )
             }
         }
@@ -884,6 +917,9 @@ private struct SlotConfigurationSheet: View {
     /// endpoint to another host clears the tick instead of carrying it over.
     @State private var allowedEndpointHosts: Set<String> = []
     private let credentialStore: PluginCredentialStore?
+    /// The Plugin's resolved Plugin Settings, shown beside each setting this
+    /// Menu Item may override.
+    private let pluginSettings: [String: JSONValue]
 
     init(
         editor: HostConfigurationEditor,
@@ -891,7 +927,8 @@ private struct SlotConfigurationSheet: View {
         presetPluginID: PluginID? = nil,
         permissionModel: PrivacyPermissionsModel? = nil,
         onSaved: @escaping (HostConfiguration) -> Void,
-        credentialStore: PluginCredentialStore? = nil
+        credentialStore: PluginCredentialStore? = nil,
+        pluginSettings: (PluginManifest) -> [String: JSONValue] = { _ in [:] }
     ) {
         self.editor = editor
         self.slotIndex = slotIndex
@@ -906,6 +943,7 @@ private struct SlotConfigurationSheet: View {
         )
         pluginManifest = initialState.pluginManifest
         pluginID = initialState.pluginID
+        self.pluginSettings = initialState.pluginManifest.map(pluginSettings) ?? [:]
         _itemAlias = State(initialValue: initialState.itemAlias)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
         _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
@@ -1135,10 +1173,96 @@ private struct SlotConfigurationSheet: View {
 
     @ViewBuilder
     private func commandConfigurationField(for command: CommandDeclaration) -> some View {
-        if command.configurationFields.isEmpty {
+        if let pluginManifest, pluginManifest.hasSettings {
+            // Shared values live in Plugin Settings; this Menu Item shows its
+            // own fields and the settings it may override.
+            VStack(alignment: .leading, spacing: 8) {
+                if !command.configurationFields.isEmpty {
+                    configurationFieldSet(for: command)
+                }
+                ForEach(pluginManifest.overridableSettingsFields, id: \.key) { field in
+                    settingOverrideRow(field, for: command)
+                }
+                if command.configurationFields.isEmpty && pluginManifest.overridableSettingsFields.isEmpty {
+                    Text("Uses the Plugin Settings.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } else if command.configurationFields.isEmpty {
             singleConfigurationField(for: command)
         } else {
             configurationFieldSet(for: command)
+        }
+    }
+
+    /// One overridable Plugin Setting: the Plugin's value, or this Menu
+    /// Item's own. Choosing the Plugin's value removes the override, so a
+    /// later change in Plugin Settings reaches this Menu Item again.
+    private func settingOverrideRow(_ field: CommandConfigurationField, for command: CommandDeclaration) -> some View {
+        let key = field.key ?? ""
+        let shared = Self.displayText(pluginSettings[key])
+        let own = fieldValues(for: command.id)[key]
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(field.displayTitle)
+                .frame(width: 118, alignment: .leading)
+            switch field.kind {
+            case .choice:
+                Picker(field.displayTitle, selection: Binding<String?>(
+                    get: { if case .string(let value)? = own { return value } else { return nil } },
+                    set: { value in
+                        if let value { setField(.string(value), for: command.id, key: key) }
+                        else { removeField(key, for: command.id) }
+                    }
+                )) {
+                    Text("Plugin Setting (\(shared))").tag(String?.none)
+                    Divider()
+                    ForEach(field.choices, id: \.self) { Text($0).tag(String?.some($0)) }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            case .toggle:
+                Picker(field.displayTitle, selection: Binding<Bool?>(
+                    get: { if case .bool(let value)? = own { return value } else { return nil } },
+                    set: { value in
+                        if let value { setField(.bool(value), for: command.id, key: key) }
+                        else { removeField(key, for: command.id) }
+                    }
+                )) {
+                    Text("Plugin Setting (\(shared))").tag(Bool?.none)
+                    Text("On").tag(Bool?.some(true))
+                    Text("Off").tag(Bool?.some(false))
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            default:
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Use Plugin Setting (\(shared))", isOn: Binding(
+                        get: { own == nil },
+                        set: { usePlugin in
+                            if usePlugin { removeField(key, for: command.id) }
+                            else { setField(pluginSettings[key] ?? .string(""), for: command.id, key: key) }
+                        }
+                    ))
+                    if own != nil {
+                        ConfigurationTextField(text: fieldBinding(for: command.id, key: key), placeholder: field.placeholder ?? "")
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(command.title) \(field.displayTitle)")
+    }
+
+    private func removeField(_ key: String, for commandID: CommandID) {
+        var values = fieldValues(for: commandID)
+        values.removeValue(forKey: key)
+        inputTexts[commandID] = Self.displayValue(for: .object(values))
+    }
+
+    private static func displayText(_ value: JSONValue?) -> String {
+        switch value {
+        case .string(let text)?: return text.isEmpty ? "not set" : text
+        case .bool(let on)?: return on ? "On" : "Off"
+        default: return "not set"
         }
     }
 
@@ -1694,7 +1818,7 @@ private struct SlotConfigurationSheet: View {
     }
 }
 
-private struct ConfigurationTextField: View {
+struct ConfigurationTextField: View {
     @Binding var text: String
     let placeholder: String
 
@@ -1752,7 +1876,7 @@ private struct PermissionGuideBanner: View {
     }
 }
 
-private struct ConfigurationTextEditor: View {
+struct ConfigurationTextEditor: View {
     @Binding var text: String
     let placeholder: String
 
@@ -1783,7 +1907,7 @@ private struct ConfigurationTextEditor: View {
     }
 }
 
-private struct ResourcePathField: View {
+struct ResourcePathField: View {
     let kind: CommandConfigurationFieldKind
     @Binding var value: String
 

@@ -26,16 +26,21 @@
     "command_ids": ["translator.replace"],
     "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
   }],
+  "settings_fields": [
+    {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint", "placeholder": "https://api-free.deepl.com"},
+    {"key": "credential", "kind": "credential", "title": "API Key", "placeholder": "DeepL authentication key"},
+    {"key": "target_language", "kind": "choice", "title": "Translate Into", "overridable": true,
+     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "SV", "DA", "FI", "CS", "UK", "TR", "JA", "KO", "ZH-HANS"]},
+    {"key": "formality", "kind": "choice", "title": "Formality", "overridable": true,
+     "choices": ["default", "prefer_more", "prefer_less"]}
+  ],
+  "default_settings": {"endpoint": "https://api-free.deepl.com", "credential": "deepl", "target_language": "EN-US", "formality": "default"},
   "preset": {
-    "readiness": "setup_required",
+    "readiness": "ready_to_use",
     "is_configurable": true,
     "default_primary_command_id": "translator.copy",
     "default_alternate_command_ids": ["translator.replace", "translator.clipboard"],
-    "default_inputs": {
-      "translator.copy": {"endpoint": "https://api-free.deepl.com", "credential": "deepl", "target_language": "EN-US", "formality": "default"},
-      "translator.replace": {"endpoint": "https://api-free.deepl.com", "credential": "deepl", "target_language": "EN-US", "formality": "default"},
-      "translator.clipboard": {"endpoint": "https://api-free.deepl.com", "credential": "deepl", "target_language": "EN-US", "formality": "default"}
-    }
+    "default_inputs": {"translator.copy": {}, "translator.replace": {}, "translator.clipboard": {}}
   },
   "commands": [{
     "id": "translator.copy",
@@ -43,38 +48,20 @@
     "description": "Translates the selected text and puts the translation on the clipboard, leaving the document unchanged.",
     "execution": "javascript",
     "is_configurable": true,
-    "script": "translate.js",
-    "configuration_fields": [
-      {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint", "placeholder": "https://api-free.deepl.com"},
-      {"key": "credential", "kind": "credential", "title": "API Key", "placeholder": "DeepL authentication key"},
-      {"key": "target_language", "kind": "choice", "title": "Translate Into", "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "SV", "DA", "FI", "CS", "UK", "TR", "JA", "KO", "ZH-HANS"]},
-      {"key": "formality", "kind": "choice", "title": "Formality", "choices": ["default", "prefer_more", "prefer_less"]}
-    ]
+    "script": "translate.js"
   }, {
     "id": "translator.replace",
     "title": "Translate Selection in Place",
     "description": "Translates the selected text and replaces the selection with the translation.",
     "execution": "javascript",
     "is_configurable": true,
-    "script": "translate.js",
-    "configuration_fields": [
-      {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint", "placeholder": "https://api-free.deepl.com"},
-      {"key": "credential", "kind": "credential", "title": "API Key", "placeholder": "DeepL authentication key"},
-      {"key": "target_language", "kind": "choice", "title": "Translate Into", "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "SV", "DA", "FI", "CS", "UK", "TR", "JA", "KO", "ZH-HANS"]},
-      {"key": "formality", "kind": "choice", "title": "Formality", "choices": ["default", "prefer_more", "prefer_less"]}
-    ]
+    "script": "translate.js"
   }, {
     "id": "translator.clipboard",
     "title": "Translate Clipboard",
     "description": "Translates the text on the clipboard and puts the translation back on the clipboard, without reading the selection.",
     "execution": "javascript",
     "is_configurable": true,
-    "script": "translate.js",
-    "configuration_fields": [
-      {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint", "placeholder": "https://api-free.deepl.com"},
-      {"key": "credential", "kind": "credential", "title": "API Key", "placeholder": "DeepL authentication key"},
-      {"key": "target_language", "kind": "choice", "title": "Translate Into", "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "SV", "DA", "FI", "CS", "UK", "TR", "JA", "KO", "ZH-HANS"]},
-      {"key": "formality", "kind": "choice", "title": "Formality", "choices": ["default", "prefer_more", "prefer_less"]}
-    ]
+    "script": "translate.js"
   }]
 }

@@ -77,6 +77,9 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     public let key: String?
     /// Written as `used_when`; only valid inside `configuration_fields`.
     public let usedWhen: CommandConfigurationFieldCondition?
+    /// Only in `settings_fields`: one Menu Item may set its own value in place
+    /// of the Plugin's, such as a different target language.
+    public let overridable: Bool
 
     public init(
         kind: CommandConfigurationFieldKind,
@@ -84,7 +87,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         placeholder: String? = nil,
         choices: [String] = [],
         key: String? = nil,
-        usedWhen: CommandConfigurationFieldCondition? = nil
+        usedWhen: CommandConfigurationFieldCondition? = nil,
+        overridable: Bool = false
     ) {
         self.kind = kind
         self.title = title
@@ -92,6 +96,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         self.choices = choices
         self.key = key
         self.usedWhen = usedWhen
+        self.overridable = overridable
     }
 
     /// Whether an Action whose field values are `values` uses this field.
@@ -108,6 +113,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case choices
         case key
         case usedWhen = "used_when"
+        case overridable
     }
 
     public init(from decoder: Decoder) throws {
@@ -118,7 +124,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             placeholder: container.decodeIfPresent(String.self, forKey: .placeholder),
             choices: container.decodeIfPresent([String].self, forKey: .choices) ?? [],
             key: container.decodeIfPresent(String.self, forKey: .key),
-            usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen)
+            usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen),
+            overridable: container.decodeIfPresent(Bool.self, forKey: .overridable) ?? false
         )
     }
 
@@ -132,6 +139,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         }
         try container.encodeIfPresent(key, forKey: .key)
         try container.encodeIfPresent(usedWhen, forKey: .usedWhen)
+        if overridable { try container.encode(true, forKey: .overridable) }
     }
 
     public var displayTitle: String { title ?? kind.title }
@@ -160,6 +168,24 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             return "Enter an x and a y from the visible frame's top-left, each in points or as a percentage up to 100%, such as 0, 0 or 25%, 10%."
         default:
             return nil
+        }
+    }
+}
+
+public extension CommandConfigurationField {
+    /// Whether a value has this field's shape as a member of a field set: a
+    /// boolean for a `toggle`, one of the choices for a `choice`, a valid
+    /// reference for a `credential`, an https base URL for an
+    /// `https_endpoint`, and a string otherwise.
+    func acceptsMemberValue(_ value: JSONValue) -> Bool {
+        switch (kind, value) {
+        case (.toggle, .bool): return true
+        case (.choice, .string(let choice)): return choices.contains(choice)
+        case (.credential, .string(let reference)): return PluginCredentialReference.isValid(reference)
+        case (.httpsEndpoint, _): return Self.httpsEndpointHost(value) != nil
+        case (.toggle, _), (.choice, _), (.credential, _): return false
+        case (_, .string): return true
+        default: return false
         }
     }
 }
@@ -211,15 +237,7 @@ public extension CommandDeclaration {
               Set(values.keys) == Set(configurationFields.compactMap(\.key)) else { return false }
         return configurationFields.allSatisfy { field in
             guard let key = field.key, let value = values[key] else { return false }
-            switch (field.kind, value) {
-            case (.toggle, .bool): return true
-            case (.choice, .string(let choice)): return field.choices.contains(choice)
-            case (.credential, .string(let reference)): return PluginCredentialReference.isValid(reference)
-            case (.httpsEndpoint, _): return CommandConfigurationField.httpsEndpointHost(value) != nil
-            case (.toggle, _), (.choice, _), (.credential, _): return false
-            case (_, .string): return true
-            default: return false
-            }
+            return field.acceptsMemberValue(value)
         }
     }
 }

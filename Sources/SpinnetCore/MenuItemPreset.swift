@@ -99,6 +99,9 @@ public struct MenuItemPreset: Equatable {
     /// A Host Command is part of the Host, so the Library offers no way to
     /// remove it. Every other entry comes from a Plugin the user may drop.
     public let canBeRemoved: Bool
+    /// The Plugin declares Plugin Settings and one has no usable value yet.
+    /// The Preset can still be placed; its Menu Items wait for the settings.
+    public let needsPluginSettings: Bool
 
     public var id: String { pluginID.rawValue }
     public var readiness: MenuItemPresetReadiness { declaration.readiness }
@@ -107,7 +110,7 @@ public struct MenuItemPreset: Equatable {
 
     public var stateLabel: String {
         guard unavailableReason == nil else { return "Unavailable" }
-        return readiness.label
+        return needsPluginSettings ? "Needs Plugin Settings" : readiness.label
     }
 
     public var configurationLabel: String {
@@ -127,7 +130,8 @@ public struct MenuItemPreset: Equatable {
         source: MenuItemPresetSource,
         declaration: MenuItemPresetDeclaration,
         unavailableReason: ActionUnavailableReason? = nil,
-        canBeRemoved: Bool = false
+        canBeRemoved: Bool = false,
+        needsPluginSettings: Bool = false
     ) {
         self.pluginID = pluginID
         self.name = name
@@ -136,6 +140,7 @@ public struct MenuItemPreset: Equatable {
         self.declaration = declaration
         self.unavailableReason = unavailableReason
         self.canBeRemoved = canBeRemoved
+        self.needsPluginSettings = needsPluginSettings
     }
 }
 

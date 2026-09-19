@@ -43,6 +43,11 @@ final class SettingsWindowController: NSWindowController {
         set { model.menuEditor.removePlugin = newValue }
     }
 
+    var onPluginSettingsChanged: (() -> Void)? {
+        get { model.onPluginSettingsChanged }
+        set { model.onPluginSettingsChanged = newValue }
+    }
+
     var onScreenshotSettingsChanged: (() -> Void)? {
         get { model.onScreenshotSettingsChanged }
         set { model.onScreenshotSettingsChanged = newValue }
@@ -103,7 +108,8 @@ final class SettingsWindowController: NSWindowController {
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
-        credentialStore: PluginCredentialStore? = nil
+        credentialStore: PluginCredentialStore? = nil,
+        pluginSettingsStore: PluginSettingsStore? = nil
     ) {
         model = SettingsWindowModel(
             editor: editor,
@@ -113,6 +119,7 @@ final class SettingsWindowController: NSWindowController {
             clipboardHistoryStore: clipboardHistoryStore
         )
         model.credentialStore = credentialStore
+        model.pluginSettingsStore = pluginSettingsStore
 
         let window = SettingsWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1_360, height: 820),

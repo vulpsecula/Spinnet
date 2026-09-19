@@ -21,6 +21,18 @@ public extension CommandDeclaration {
     }
 }
 
+public extension PluginManifest {
+    /// Hosts named by a Command's input: its own `https_endpoint` fields and
+    /// the Plugin's `https_endpoint` settings, which reach every Command.
+    func configuredEndpointHosts(for command: CommandDeclaration, in input: JSONValue) -> [String] {
+        guard case .object(let members) = input else { return [] }
+        let settings = settingsFields.filter { $0.kind == .httpsEndpoint }.compactMap { field in
+            field.key.flatMap { members[$0] }.flatMap(CommandConfigurationField.httpsEndpointHost)
+        }
+        return command.configuredEndpointHosts(in: input) + settings
+    }
+}
+
 /// The consent a Configuration Sheet needs before it saves an endpoint whose
 /// host the Plugin did not declare, such as a self-hosted server.
 ///
@@ -46,7 +58,8 @@ public struct HTTPSEndpointConsent {
         var hosts: [String] = []
         for command in manifest.commands where declared.commandIDs.contains(command.id) {
             guard let input = inputs[command.id] else { continue }
-            for host in command.configuredEndpointHosts(in: input) where !known.contains(host) && !hosts.contains(host) {
+            for host in manifest.configuredEndpointHosts(for: command, in: input)
+            where !known.contains(host) && !hosts.contains(host) {
                 hosts.append(host)
             }
         }

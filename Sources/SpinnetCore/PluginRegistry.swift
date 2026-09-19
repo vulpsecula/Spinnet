@@ -15,6 +15,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     /// The Screenshot save folder is gone, is not a folder, or cannot be
     /// written, and the Screenshot Plugin Settings say to save.
     case saveFolderUnavailable = "save_folder_unavailable"
+    /// The Plugin declares settings and one still has no usable value.
+    case pluginSettingsIncomplete = "plugin_settings_incomplete"
 
     public var description: String {
         switch self {
@@ -27,6 +29,7 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
         case .hostServiceUnavailable: return "Required Host Service is not available in this version"
         case .screenRecordingDenied: return "Enable Screen Recording in Privacy & Permissions"
+        case .pluginSettingsIncomplete: return "Complete this Plugin's Plugin Settings in the Library"
         case .saveFolderUnavailable: return "Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings"
         }
     }
@@ -225,15 +228,18 @@ public final class PluginRegistry {
     private let grantStore: PluginCapabilityGrantStore?
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let externalAppExists: (String) -> Bool
+    private let pluginSettingsComplete: (PluginManifest) -> Bool
 
     public init(
         grantStore: PluginCapabilityGrantStore? = nil,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { _ in true },
-        externalAppExists: @escaping (String) -> Bool = { _ in false }
+        externalAppExists: @escaping (String) -> Bool = { _ in false },
+        pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.externalAppExists = externalAppExists
+        self.pluginSettingsComplete = pluginSettingsComplete
     }
 
     @discardableResult
@@ -339,7 +345,8 @@ public final class PluginRegistry {
                     unavailableReason: disabledPluginIDs.contains(package.manifest.id)
                         ? .pluginDisabled
                         : nil,
-                    canBeRemoved: package.canBeRemovedByUser
+                    canBeRemoved: package.canBeRemovedByUser,
+                    needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest)
                 )
             }
             .sorted { lhs, rhs in
@@ -382,6 +389,9 @@ public final class PluginRegistry {
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
         if let missing = permissions.first(where: { !systemPermissionCheck($0) }) {
             return .unavailable(missing == .screenRecording ? .screenRecordingDenied : .systemPermissionDenied)
+        }
+        if package.manifest.hasSettings, !pluginSettingsComplete(package.manifest) {
+            return .unavailable(.pluginSettingsIncomplete)
         }
         return .available
     }

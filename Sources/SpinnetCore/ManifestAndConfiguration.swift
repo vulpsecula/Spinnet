@@ -472,6 +472,11 @@ public struct PluginManifest: Codable, Equatable {
     public let capabilityScopes: [PluginCapabilityScope]
     public let commands: [CommandDeclaration]
     public let preset: MenuItemPresetDeclaration
+    /// Plugin Settings: fields shared by every Menu Item made from this
+    /// Plugin, filled in from the Library. Written as `settings_fields`.
+    public let settingsFields: [CommandConfigurationField]
+    /// Starting values for `settingsFields`, written as `default_settings`.
+    public let defaultSettings: [String: JSONValue]
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
@@ -481,7 +486,9 @@ public struct PluginManifest: Codable, Equatable {
         capabilities: [PluginCapability] = [],
         capabilityScopes: [PluginCapabilityScope] = [],
         commands: [CommandDeclaration],
-        preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration()
+        preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration(),
+        settingsFields: [CommandConfigurationField] = [],
+        defaultSettings: [String: JSONValue] = [:]
     ) throws {
         self.protocolVersion = protocolVersion
         self.id = id
@@ -491,6 +498,8 @@ public struct PluginManifest: Codable, Equatable {
         self.capabilityScopes = capabilityScopes
         self.commands = commands
         self.preset = preset
+        self.settingsFields = settingsFields
+        self.defaultSettings = defaultSettings
         try validate()
     }
 
@@ -503,6 +512,22 @@ public struct PluginManifest: Codable, Equatable {
         case capabilityScopes = "capability_scopes"
         case commands
         case preset
+        case settingsFields = "settings_fields"
+        case defaultSettings = "default_settings"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(protocolVersion, forKey: .protocolVersion)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(version, forKey: .version)
+        try container.encode(capabilities, forKey: .capabilities)
+        try container.encode(capabilityScopes, forKey: .capabilityScopes)
+        try container.encode(commands, forKey: .commands)
+        try container.encode(preset, forKey: .preset)
+        if !settingsFields.isEmpty { try container.encode(settingsFields, forKey: .settingsFields) }
+        if !defaultSettings.isEmpty { try container.encode(defaultSettings, forKey: .defaultSettings) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -521,6 +546,8 @@ public struct PluginManifest: Codable, Equatable {
             MenuItemPresetDeclaration.self,
             forKey: .preset
         ) ?? MenuItemPresetDeclaration()
+        self.settingsFields = try container.decodeIfPresent([CommandConfigurationField].self, forKey: .settingsFields) ?? []
+        self.defaultSettings = try container.decodeIfPresent([String: JSONValue].self, forKey: .defaultSettings) ?? [:]
         try validate()
     }
 
@@ -611,6 +638,7 @@ public struct PluginManifest: Codable, Equatable {
             try validate(command)
             try validateConfigurationField(command)
         }
+        try validateSettings()
 
         let primaryCommandID = preset.defaultPrimaryCommandID ?? commands[0].id
         guard commandIDs.contains(primaryCommandID) else {
@@ -722,6 +750,35 @@ public struct PluginManifest: Codable, Equatable {
         try validateFieldMetadata(field)
     }
 
+    private func validateSettings() throws {
+        var keys = Set<String>()
+        for field in settingsFields {
+            guard let key = field.key, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  key.count <= 64, keys.insert(key).inserted,
+                  CommandDeclaration.fieldSetKinds.contains(field.kind), field.usedWhen == nil else {
+                throw ConfigurationError.invalidManifest(
+                    "Settings fields need unique keys and single-value kinds, without used_when"
+                )
+            }
+            try validateFieldMetadata(field)
+        }
+        for command in commands {
+            if command.configurationFields.contains(where: \.overridable) || command.configurationField?.overridable == true {
+                throw ConfigurationError.invalidManifest("overridable is only valid inside settings_fields")
+            }
+            if command.configurationFields.contains(where: { $0.key.map(keys.contains) ?? false }) {
+                throw ConfigurationError.invalidManifest(
+                    "Command \(command.id.rawValue) declares a field that is also a Plugin setting"
+                )
+            }
+        }
+        for (key, value) in defaultSettings {
+            guard let field = settingsFields.first(where: { $0.key == key }), field.acceptsMemberValue(value) else {
+                throw ConfigurationError.invalidManifest("default_settings names an unknown setting or an invalid value for \(key)")
+            }
+        }
+    }
+
     private func validateFieldMetadata(_ field: CommandConfigurationField) throws {
         if let title = field.title {
             try validateText(title, name: "Configuration field title")
@@ -758,7 +815,7 @@ public struct PluginManifest: Codable, Equatable {
             if let field = command.configurationField, !field.isValidInput(input) {
                 return false
             }
-            if !command.acceptsConfigurationFieldsInput(input) {
+            if !acceptsActionInput(input, for: command) {
                 return false
             }
             return (try? JSONEncoder().encode(input)) != nil
@@ -1292,17 +1349,22 @@ public struct HostActionRunner {
     private let scriptedExecutor: ScriptedActionExecutor?
     private let hostServiceBroker: PluginHostServiceBroker?
     private let resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)?
+    private let pluginSettings: ((PluginManifest) -> [String: JSONValue])?
 
+    /// `pluginSettings` gives a Plugin's resolved Plugin Settings; a scripted
+    /// Action runs with them combined into its input.
     public init(
         executor: HostCommandExecutor,
         scriptedExecutor: ScriptedActionExecutor? = nil,
         hostServiceBroker: PluginHostServiceBroker? = nil,
-        resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)? = nil
+        resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)? = nil,
+        pluginSettings: ((PluginManifest) -> [String: JSONValue])? = nil
     ) {
         self.executor = executor
         self.scriptedExecutor = scriptedExecutor
         self.hostServiceBroker = hostServiceBroker
         self.resourceAvailability = resourceAvailability
+        self.pluginSettings = pluginSettings
     }
 
     public func invoke(_ action: ActionConfiguration) -> ActionOutcome {
@@ -1346,6 +1408,14 @@ public struct HostActionRunner {
                 )
             }
             do {
+                // The script, and every Host Service it asks for, sees the
+                // Plugin Settings with this Menu Item's overrides applied.
+                let manifest = package.manifest
+                let action = try manifest.commands.first(where: { $0.id == action.commandID }).map { command in
+                    try action.withInput(manifest.effectiveInput(
+                        for: command, actionInput: action.input, settings: pluginSettings?(manifest) ?? [:]
+                    ))
+                } ?? action
                 return ActionOutcome(
                     actionID: action.id,
                     pluginID: action.pluginID,
