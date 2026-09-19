@@ -124,4 +124,53 @@ final class PluginSettingsModelTests: XCTestCase {
         XCTAssertFalse(preset.needsPluginSettings)
         XCTAssertEqual(preset.stateLabel, MenuItemPresetReadiness.readyToUse.label)
     }
+
+    // MARK: - Sources the user turns on and orders
+
+    private func translatorModel() throws -> (PluginSettingsModel, PluginSettingsStore) {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/Translator.spinnetplugin")).manifest
+        let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
+        let grants = PluginCapabilityGrantStore()
+        let model = PluginSettingsModel(
+            manifest: manifest, store: store, credentialStore: InMemoryPluginCredentialStore(),
+            approveConsent: { consent, allowed in try consent.approve(allowedHosts: allowed, grantStore: grants) },
+            consent: { HTTPSEndpointConsent(manifest: manifest, settings: $0, grantStore: grants) },
+            onSaved: {}
+        )
+        return (model, store)
+    }
+
+    func testTurningASourceOnAddsItLastAndItCanBeMovedUp() throws {
+        let (model, _) = try translatorModel()
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL"])
+        model.setChoice("OpenAI", enabled: true, for: "sources")
+        model.setChoice("Google", enabled: true, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "OpenAI", "Google"])
+        model.moveChoice("Google", by: -1, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "Google", "OpenAI"])
+        model.moveChoice("DeepL", by: -1, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "Google", "OpenAI"], "The first cannot move up")
+        model.setChoice("DeepL", enabled: false, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google", "OpenAI"])
+        XCTAssertEqual(model.values["sources"], .array([.string("Google"), .string("OpenAI")]))
+    }
+
+    /// Only the settings of the sources that are on are shown, and a value
+    /// left behind in one that is off does not stop the sheet saving.
+    func testOnlyTheSettingsOfSourcesThatAreOnAreShownOrChecked() throws {
+        let (model, store) = try translatorModel()
+        XCTAssertEqual(model.visibleFields.compactMap(\.key),
+                       ["sources", "target_language", "deepl_endpoint", "deepl_credential", "formality"])
+        model.values["openai_endpoint"] = .string("not an address")
+        model.setChoice("DeepL", enabled: false, for: "sources")
+        model.setChoice("Google", enabled: true, for: "sources")
+        XCTAssertEqual(model.visibleFields.compactMap(\.key), ["sources", "target_language", "google_credential"])
+        model.secrets["google"] = "key"
+        XCTAssertTrue(model.save(), model.error ?? "")
+        XCTAssertEqual(store.values(for: model.manifest.id)["sources"], .array([.string("Google")]))
+
+        model.setChoice("OpenAI", enabled: true, for: "sources")
+        XCTAssertFalse(model.save(), "An address in use must be valid")
+    }
 }

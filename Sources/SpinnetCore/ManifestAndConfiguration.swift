@@ -734,6 +734,9 @@ public struct PluginManifest: Codable, Equatable {
             }
         }
         guard let field = command.configurationField else { return }
+        guard field.kind != .orderedChoices else {
+            throw ConfigurationError.invalidManifest("An ordered_choices field is only valid in settings_fields")
+        }
         guard field.usedWhen == nil else {
             throw ConfigurationError.invalidManifest("used_when is only valid inside configuration_fields")
         }
@@ -755,12 +758,26 @@ public struct PluginManifest: Codable, Equatable {
         for field in settingsFields {
             guard let key = field.key, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   key.count <= 64, keys.insert(key).inserted,
-                  CommandDeclaration.fieldSetKinds.contains(field.kind), field.usedWhen == nil else {
+                  CommandDeclaration.fieldSetKinds.contains(field.kind) || field.kind == .orderedChoices else {
                 throw ConfigurationError.invalidManifest(
-                    "Settings fields need unique keys and single-value kinds, without used_when"
+                    "Settings fields need unique keys and single-value or ordered_choices kinds"
                 )
             }
+            guard !(field.kind == .orderedChoices && field.overridable) else {
+                throw ConfigurationError.invalidManifest("An ordered_choices setting cannot be overridable")
+            }
             try validateFieldMetadata(field)
+        }
+        for field in settingsFields {
+            guard let condition = field.usedWhen else { continue }
+            guard condition.key != field.key, !condition.values.isEmpty,
+                  let governing = settingsFields.first(where: { $0.key == condition.key }),
+                  governing.kind == .choice || governing.kind == .orderedChoices,
+                  Set(condition.values).isSubset(of: governing.choices) else {
+                throw ConfigurationError.invalidManifest(
+                    "used_when in settings_fields must name another choice or ordered_choices setting and some of its choices"
+                )
+            }
         }
         for command in commands {
             if command.configurationFields.contains(where: \.overridable) || command.configurationField?.overridable == true {
@@ -790,12 +807,13 @@ public struct PluginManifest: Codable, Equatable {
                 )
             }
         }
-        guard field.kind == .choice || field.choices.isEmpty else {
+        let offersChoices = field.kind == .choice || field.kind == .orderedChoices
+        guard offersChoices || field.choices.isEmpty else {
             throw ConfigurationError.invalidManifest(
-                "Configuration field choices require the choice kind"
+                "Configuration field choices require the choice or ordered_choices kind"
             )
         }
-        if field.kind == .choice {
+        if offersChoices {
             guard !field.choices.isEmpty,
                   Set(field.choices).count == field.choices.count,
                   field.choices.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {

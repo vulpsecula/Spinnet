@@ -13,7 +13,7 @@ struct PluginSettingsForm: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(model.manifest.settingsFields, id: \.key) { field in
+            ForEach(model.visibleFields, id: \.key) { field in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(field.displayTitle)
@@ -71,9 +71,43 @@ struct PluginSettingsForm: View {
             ConfigurationTextEditor(text: text(key), placeholder: field.placeholder ?? "")
         case .credential:
             credential(reference: text(key).wrappedValue, placeholder: field.placeholder)
+        case .orderedChoices:
+            orderedChoices(field, key: key)
         default:
             ConfigurationTextField(text: text(key), placeholder: field.placeholder ?? "")
         }
+    }
+
+    /// Every choice with a checkbox: the checked ones first, in the order
+    /// they run, each movable within them, then the rest.
+    private func orderedChoices(_ field: CommandConfigurationField, key: String) -> some View {
+        let chosen = model.orderedChoices(for: key)
+        let rows = chosen + field.choices.filter { !chosen.contains($0) }
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(rows, id: \.self) { choice in
+                let index = chosen.firstIndex(of: choice)
+                HStack(spacing: 6) {
+                    Toggle(choice, isOn: Binding(
+                        get: { index != nil },
+                        set: { model.setChoice(choice, enabled: $0, for: key) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    Spacer(minLength: 8)
+                    if let index {
+                        Button { model.moveChoice(choice, by: -1, for: key) } label: { Image(systemName: "chevron.up") }
+                            .disabled(index == 0)
+                            .accessibilityLabel("Move \(choice) up")
+                        Button { model.moveChoice(choice, by: 1, for: key) } label: { Image(systemName: "chevron.down") }
+                            .disabled(index == chosen.count - 1)
+                            .accessibilityLabel("Move \(choice) down")
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
+            Text("Checked ones are used, in this order.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// A credential setting's value is its reference; the secret typed here

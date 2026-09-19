@@ -424,6 +424,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// One HTTPS request to a host in the Plugin's consented contact scope.
     /// The Host owns the transport, redirects, and credential injection.
     case httpsRequest = "https_request"
+    /// Opens a Host-rendered result popup whose sections are HTTPS requests
+    /// the Host sends after the Action returns (ADR 0002). It needs what the
+    /// requests need, `contact_https`, and tells the Plugin nothing back.
+    case presentResults = "present_results"
     /// Replaces the focused App's selection with the supplied text.
     case insertText = "insert_text"
 
@@ -442,7 +446,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .openURL
         case .captureScreen:
             return .captureScreen
-        case .httpsRequest:
+        case .httpsRequest, .presentResults:
             return .contactHTTPS
         case .insertText:
             return .insertIntoFocusedApp
@@ -460,7 +464,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .captureScreen:
             return .screenRecording
-        case .httpsRequest:
+        case .httpsRequest, .presentResults:
             return nil
         case .insertText:
             return .accessibility
@@ -546,6 +550,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
+    private let resultsPresenter: (ResultsPresentationSession) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -582,6 +587,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         credentialStore: PluginCredentialStore? = nil,
         focusedTextInserter: @escaping (String) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Text insertion")
+        },
+        resultsPresenter: @escaping (ResultsPresentationSession) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Result popups")
         }
     ) {
         self.grantStore = grantStore
@@ -601,6 +609,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.httpsTransport = httpsTransport
         self.credentialStore = credentialStore
         self.focusedTextInserter = focusedTextInserter
+        self.resultsPresenter = resultsPresenter
     }
 
     public func execute(
@@ -737,24 +746,29 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try screenCapturer(capture)
             return .null
         case .httpsRequest:
-            guard let httpsTransport else {
-                throw PluginHostServiceError.unavailable("HTTPS transport")
+            return try httpsPerformer(for: package).perform(request.input)
+        case .presentResults:
+            let presentation = try ResultsPresentation(serviceInput: request.input)
+            // Every section is checked now, so a popup never opens for a
+            // request that could not be sent.
+            let performer = try httpsPerformer(for: package)
+            for section in presentation.sections {
+                try performer.validate(section.request(with: presentation.original ?? ""))
             }
-            // The declared hosts plus those the user consented to, read from
-            // the grant on every request so a change applies at once.
-            let hosts = package.manifest.scope(for: capability).map { declared in
-                declared.withConsentedHTTPSHosts(grantStore.consentedHTTPSHosts(
-                    for: package.manifest.id, pluginVersion: package.manifest.version, declaredScope: declared
-                )).contactableHTTPSHosts
-            } ?? []
-            let pluginID = package.manifest.id
-            return try PluginHTTPSRequestPerformer(
-                transport: httpsTransport,
-                consentedHosts: hosts,
-                credential: { [credentialStore] reference in
-                    try credentialStore?.secret(for: pluginID, reference: reference)
+            // The popup outlives the Action, so each send checks the grant
+            // and the consented hosts again rather than trusting this one.
+            let session = ResultsPresentationSession(presentation: presentation) { [self] input in
+                guard grantStore.decision(
+                    for: package.manifest.id, pluginVersion: package.manifest.version,
+                    capability: .contactHTTPS, scope: package.manifest.scope(for: .contactHTTPS)
+                ) == .granted else {
+                    throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
                 }
-            ).perform(request.input)
+                return try httpsPerformer(for: package).perform(input)
+            }
+            try resultsPresenter(session)
+            // The user reads the answers; the Plugin never sees them.
+            return .null
         case .insertText:
             guard case .string(let text) = request.input,
                   text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
@@ -763,6 +777,27 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try focusedTextInserter(text)
             return .null
         }
+    }
+
+    /// A performer for the Plugin's declared hosts plus those the user
+    /// consented to, read from the grant each time so a change applies at once.
+    private func httpsPerformer(for package: PluginPackage) throws -> PluginHTTPSRequestPerformer {
+        guard let httpsTransport else {
+            throw PluginHostServiceError.unavailable("HTTPS transport")
+        }
+        let hosts = package.manifest.scope(for: .contactHTTPS).map { declared in
+            declared.withConsentedHTTPSHosts(grantStore.consentedHTTPSHosts(
+                for: package.manifest.id, pluginVersion: package.manifest.version, declaredScope: declared
+            )).contactableHTTPSHosts
+        } ?? []
+        let pluginID = package.manifest.id
+        return PluginHTTPSRequestPerformer(
+            transport: httpsTransport,
+            consentedHosts: hosts,
+            credential: { [credentialStore] reference in
+                try credentialStore?.secret(for: pluginID, reference: reference)
+            }
+        )
     }
 
     /// Filesystem errors can contain the private archive or payload URL.

@@ -69,8 +69,8 @@ struct ConfigurationInputValueResolver {
             return encodedValue(for: value)
         case .size, .position:
             return encodedValue(for: value)
-        case .credential, .httpsEndpoint:
-            // Only members of `configuration_fields`, never a lone field.
+        case .credential, .httpsEndpoint, .orderedChoices:
+            // Only members of a field set, never a lone field.
             return encodedValue(for: value)
         }
     }
@@ -123,8 +123,8 @@ struct ConfigurationInputValueResolver {
         case .size, .position:
             // Kept as typed; the Host checks the grammar when the sheet saves.
             return .string(text)
-        case .credential, .httpsEndpoint:
-            // Only members of `configuration_fields`, never a lone field.
+        case .credential, .httpsEndpoint, .orderedChoices:
+            // Only members of a field set, never a lone field.
             return .string(text)
         }
     }
@@ -1180,10 +1180,12 @@ private struct SlotConfigurationSheet: View {
                 if !command.configurationFields.isEmpty {
                     configurationFieldSet(for: command)
                 }
-                ForEach(pluginManifest.overridableSettingsFields, id: \.key) { field in
+                // A setting Plugin Settings do not use has nothing to override.
+                let overridable = pluginManifest.overridableSettingsFields.filter { $0.isUsed(by: pluginSettings) }
+                ForEach(overridable, id: \.key) { field in
                     settingOverrideRow(field, for: command)
                 }
-                if command.configurationFields.isEmpty && pluginManifest.overridableSettingsFields.isEmpty {
+                if command.configurationFields.isEmpty && overridable.isEmpty {
                     Text("Uses the Plugin Settings.").font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -1406,7 +1408,7 @@ private struct SlotConfigurationSheet: View {
                 )
                 .accessibilityLabel("\(command.title) configuration input")
             }
-        case .url, .size, .position, .credential, .httpsEndpoint:
+        case .url, .size, .position, .credential, .httpsEndpoint, .orderedChoices:
             ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)

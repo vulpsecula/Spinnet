@@ -32,6 +32,10 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
     /// before the Configuration Sheet saves. Only in `configuration_fields`;
     /// unlike `url`, which accepts any link.
     case httpsEndpoint = "https_endpoint"
+    /// Some of the field's `choices`, each at most once, in the order the
+    /// user put them, such as which translation sources run and in what
+    /// order. Only in `settings_fields`, and never overridable.
+    case orderedChoices = "ordered_choices"
 
     public var title: String {
         switch self {
@@ -49,6 +53,7 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
         case .position: return "Position"
         case .credential: return "Credential"
         case .httpsEndpoint: return "HTTPS Endpoint"
+        case .orderedChoices: return "Ordered Choices"
         }
     }
 }
@@ -99,11 +104,19 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         self.overridable = overridable
     }
 
-    /// Whether an Action whose field values are `values` uses this field.
+    /// Whether an Action whose field values are `values` uses this field:
+    /// the governing `choice` holds one of the named choices, or the
+    /// governing `ordered_choices` holds at least one of them.
     public func isUsed(by values: [String: JSONValue]) -> Bool {
         guard let usedWhen else { return true }
-        guard case .string(let chosen) = values[usedWhen.key] else { return false }
-        return usedWhen.values.contains(chosen)
+        switch values[usedWhen.key] {
+        case .string(let chosen)?:
+            return usedWhen.values.contains(chosen)
+        case .array?:
+            return values[usedWhen.key]?.strings?.contains(where: usedWhen.values.contains) ?? false
+        default:
+            return false
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -174,15 +187,18 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
 
 public extension CommandConfigurationField {
     /// Whether a value has this field's shape as a member of a field set: a
-    /// boolean for a `toggle`, one of the choices for a `choice`, a valid
-    /// reference for a `credential`, an https base URL for an
-    /// `https_endpoint`, and a string otherwise.
+    /// boolean for a `toggle`, one of the choices for a `choice`, distinct
+    /// choices for `ordered_choices`, a valid reference for a `credential`,
+    /// an https base URL for an `https_endpoint`, and a string otherwise.
     func acceptsMemberValue(_ value: JSONValue) -> Bool {
         switch (kind, value) {
         case (.toggle, .bool): return true
         case (.choice, .string(let choice)): return choices.contains(choice)
         case (.credential, .string(let reference)): return PluginCredentialReference.isValid(reference)
         case (.httpsEndpoint, _): return Self.httpsEndpointHost(value) != nil
+        case (.orderedChoices, _):
+            guard let chosen = value.strings else { return false }
+            return chosen.allSatisfy(choices.contains) && Set(chosen).count == chosen.count
         case (.toggle, _), (.choice, _), (.credential, _): return false
         case (_, .string): return true
         default: return false

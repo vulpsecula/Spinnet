@@ -24,15 +24,19 @@ public extension PluginManifest {
         return values
     }
 
-    /// Settings fields without a usable value: absent, blank text, or a
-    /// credential whose secret is not stored. Until there are none, the
-    /// Plugin's Menu Items are unavailable.
+    /// Settings fields the current values use that have no usable value:
+    /// absent, blank text, no choice in an `ordered_choices`, or a
+    /// credential whose secret is not stored. A field whose `used_when` is
+    /// not met is never missing. Until none are, the Plugin's Menu Items are
+    /// unavailable.
     func missingSettings(in values: [String: JSONValue], hasSecret: (String) -> Bool) -> [CommandConfigurationField] {
         settingsFields.filter { field in
+            guard field.isUsed(by: values) else { return false }
             guard let key = field.key, let value = values[key], field.acceptsMemberValue(value) else { return true }
             switch (field.kind, value) {
             case (.credential, .string(let reference)): return !hasSecret(reference)
             case (_, .string(let text)): return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case (_, .array(let items)): return items.isEmpty
             default: return false
             }
         }

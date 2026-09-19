@@ -52,6 +52,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
     }
     private let pluginCredentials = KeychainPluginCredentialStore()
+    /// Result popups outlive the Action that presented them.
+    private let resultsPopup = ResultsPopupController()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
@@ -149,6 +151,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 credentialStore: pluginCredentials,
                 focusedTextInserter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.insertText(text)
+                },
+                resultsPresenter: { [resultsPopup] session in
+                    DispatchQueue.main.async { resultsPopup.present(session) }
                 }
             )
             clipboardBroker = hostServiceBroker
@@ -308,9 +313,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // the Host Commands once, and the result is kept.
             ScreenshotPluginMigration.seedSettings(from: storedConfiguration, in: .standard)
             var configuration = try ScreenshotPluginMigration.migrate(storedConfiguration) ?? storedConfiguration
+            // Translator 2 retired two Commands; their Actions move onto the new ones.
+            configuration = try TranslatorCommandMigration.migrate(
+                configuration, manifest: registry.package(for: TranslatorCommandMigration.pluginID)?.manifest
+            ) ?? configuration
             // Actions from before their Plugin declared settings carried every
             // value; those move into Plugin Settings once.
             if let pluginSettings {
+                let translator = TranslatorCommandMigration.pluginID
+                if let renamed = TranslatorCommandMigration.migrateSettings(pluginSettings.values(for: translator)) {
+                    try pluginSettings.setValues(renamed, for: translator)
+                }
                 for manifest in registry.manifests() where manifest.hasSettings {
                     let stored = pluginSettings.hasValues(for: manifest.id) ? pluginSettings.values(for: manifest.id) : nil
                     guard let result = try PluginSettingsMigration.migrate(configuration, manifest: manifest,

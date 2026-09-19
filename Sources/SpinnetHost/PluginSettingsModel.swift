@@ -49,6 +49,33 @@ final class PluginSettingsModel: ObservableObject {
         }).map(\.displayTitle)
     }
 
+    /// The fields the values as edited use; a field whose `used_when` is not
+    /// met is hidden.
+    var visibleFields: [CommandConfigurationField] {
+        manifest.settingsFields.filter { $0.isUsed(by: values) }
+    }
+
+    /// The choices an `ordered_choices` setting holds, in order.
+    func orderedChoices(for key: String) -> [String] {
+        values[key]?.strings ?? []
+    }
+
+    /// Turns a choice on, as the last one, or off.
+    func setChoice(_ choice: String, enabled: Bool, for key: String) {
+        var chosen = orderedChoices(for: key).filter { $0 != choice }
+        if enabled { chosen.append(choice) }
+        values[key] = .array(chosen.map(JSONValue.string))
+    }
+
+    /// Moves a chosen choice `offset` places earlier (negative) or later,
+    /// within the chosen ones.
+    func moveChoice(_ choice: String, by offset: Int, for key: String) {
+        var chosen = orderedChoices(for: key)
+        guard let index = chosen.firstIndex(of: choice), chosen.indices.contains(index + offset) else { return }
+        chosen.swapAt(index, index + offset)
+        values[key] = .array(chosen.map(JSONValue.string))
+    }
+
     /// Consent needed for the endpoint as edited, or nil when none is.
     var endpointConsent: HTTPSEndpointConsent? {
         let needed = consent(values)
@@ -59,7 +86,8 @@ final class PluginSettingsModel: ObservableObject {
     @discardableResult
     func save() -> Bool {
         do {
-            for field in manifest.settingsFields {
+            // A field not in use sends nothing, so what it holds cannot stop a save.
+            for field in visibleFields {
                 guard let key = field.key, let value = values[key] else { continue }
                 guard field.acceptsMemberValue(value) else {
                     throw ConfigurationError.invalidAction(field.kind == .httpsEndpoint

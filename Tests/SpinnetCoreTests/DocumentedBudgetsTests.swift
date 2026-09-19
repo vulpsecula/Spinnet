@@ -142,3 +142,21 @@ final class HTTPSRequestBudgetsTests: XCTestCase {
         XCTAssertLessThan(HTTPSRequestBudgets.timeout, ScriptedActionBudgets.actionDeadline)
     }
 }
+
+final class ResultsPresentationBudgetsTests: XCTestCase {
+
+    /// docs/plugin-interface.md, "Result popups"
+    func testBudgetsMatchDocumentedInterface() {
+        // "at most 8 sections"
+        XCTAssertEqual(ResultsPresentationBudgets.maximumSections, 8)
+        // "titles, section titles, the placeholder and the button label are
+        //  non-empty and at most 256 characters"
+        XCTAssertEqual(ResultsPresentationBudgets.maximumTitleLength, 256)
+        // "pointers are at most 512 characters"
+        XCTAssertEqual(ResultsPresentationBudgets.maximumPointerLength, 512)
+        // "A message is at most 512 characters"
+        XCTAssertEqual(ResultsPresentationBudgets.maximumMessageLength, 512)
+        // "a JSON string exactly equal to `{{text}}`"
+        XCTAssertEqual(ResultsPresentationBudgets.textPlaceholder, "{{text}}")
+    }
+}

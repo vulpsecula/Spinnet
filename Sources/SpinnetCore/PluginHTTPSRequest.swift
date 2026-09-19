@@ -106,7 +106,27 @@ struct PluginHTTPSRequestPerformer {
         let format: String
     }
 
+    /// A request whose shape, destination, and headers have been checked,
+    /// before any secret is looked up or anything is sent.
+    private struct Prepared {
+        let method: String
+        let url: URL
+        let headers: [String: String]
+        let body: Data?
+        let placement: CredentialPlacement?
+    }
+
     func perform(_ input: JSONValue) throws -> JSONValue {
+        try send(prepare(input))
+    }
+
+    /// Checks everything `perform` checks before it sends, without sending
+    /// or reading a secret.
+    func validate(_ input: JSONValue) throws {
+        _ = try prepare(input)
+    }
+
+    private func prepare(_ input: JSONValue) throws -> Prepared {
         guard case .object(let fields) = input,
               Set(fields.keys).isSubset(of: ["method", "url", "headers", "body", "credential"]) else {
             throw PluginHostServiceError.invalidInput("https_request expects method, url, and optional headers, body, and credential")
@@ -135,8 +155,14 @@ struct PluginHTTPSRequestPerformer {
             throw PluginHostServiceError.invalidInput("The request body must be a string")
         }
         let placement = try parseCredential(fields["credential"], headers: headers)
+        return Prepared(method: method, url: url, headers: headers, body: body, placement: placement)
+    }
+
+    private func send(_ prepared: Prepared) throws -> JSONValue {
+        let (method, url, headers) = (prepared.method, prepared.url, prepared.headers)
+        var body = prepared.body
         var secretHeader: (name: String, value: String)?
-        if let placement {
+        if let placement = prepared.placement {
             guard let secret = try credential(placement.reference), !secret.isEmpty else {
                 throw PluginHostServiceError.failed(
                     "No credential is stored for reference \(placement.reference); enter it in the Configuration Sheet"

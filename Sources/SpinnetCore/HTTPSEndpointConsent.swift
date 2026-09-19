@@ -23,10 +23,11 @@ public extension CommandDeclaration {
 
 public extension PluginManifest {
     /// Hosts named by a Command's input: its own `https_endpoint` fields and
-    /// the Plugin's `https_endpoint` settings, which reach every Command.
+    /// the Plugin's `https_endpoint` settings in use, which reach every
+    /// Command. An endpoint whose `used_when` is not met is never contacted.
     func configuredEndpointHosts(for command: CommandDeclaration, in input: JSONValue) -> [String] {
         guard case .object(let members) = input else { return [] }
-        let settings = settingsFields.filter { $0.kind == .httpsEndpoint }.compactMap { field in
+        let settings = settingsFields.filter { $0.kind == .httpsEndpoint && $0.isUsed(by: members) }.compactMap { field in
             field.key.flatMap { members[$0] }.flatMap(CommandConfigurationField.httpsEndpointHost)
         }
         return command.configuredEndpointHosts(in: input) + settings

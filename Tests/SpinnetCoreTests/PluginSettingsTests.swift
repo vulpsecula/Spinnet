@@ -12,11 +12,12 @@ final class PluginSettingsTests: XCTestCase {
 
     private func manifest(settings: String = PluginSettingsTests.settings, defaults: String = #"{"target": "DE"}"#,
                           commandFields: String = "", defaultInput: String = "{}",
-                          capabilities: String = "") throws -> PluginManifest {
+                          capabilities: String = "", scopes: String = "") throws -> PluginManifest {
         try PluginManifestLoader.decode(Data("""
         {
           "protocol_version": "1.0", "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
           "capabilities": [\(capabilities)],
+          "capability_scopes": [\(scopes)],
           "settings_fields": \(settings),
           "default_settings": \(defaults),
           "preset": {"readiness": "ready_to_use", "is_configurable": true, "default_primary_command_id": "remote.run",
@@ -51,7 +52,12 @@ final class PluginSettingsTests: XCTestCase {
             ("duplicate key", { try self.manifest(settings: #"[{"key": "a", "kind": "text"}, {"key": "a", "kind": "text"}]"#, defaults: "{}") }),
             ("missing key", { try self.manifest(settings: #"[{"kind": "text"}]"#, defaults: "{}") }),
             ("unsupported kind", { try self.manifest(settings: #"[{"key": "a", "kind": "keyboard_shortcut"}]"#, defaults: "{}") }),
-            ("used_when", { try self.manifest(settings: #"[{"key": "m", "kind": "choice", "choices": ["x"]}, {"key": "a", "kind": "text", "used_when": {"key": "m", "values": ["x"]}}]"#, defaults: "{}") }),
+            ("used_when naming a text field", { try self.manifest(settings: #"[{"key": "m", "kind": "text"}, {"key": "a", "kind": "text", "used_when": {"key": "m", "values": ["x"]}}]"#, defaults: "{}") }),
+            ("used_when naming an unknown choice", { try self.manifest(settings: #"[{"key": "m", "kind": "choice", "choices": ["x"]}, {"key": "a", "kind": "text", "used_when": {"key": "m", "values": ["y"]}}]"#, defaults: "{}") }),
+            ("ordered choices without choices", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices"}]"#, defaults: "{}") }),
+            ("ordered choices overridable", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a"], "overridable": true}]"#, defaults: "{}") }),
+            ("ordered choices default repeating a choice", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a", "b"]}]"#, defaults: #"{"s": ["a", "a"]}"#) }),
+            ("ordered choices on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "ordered_choices", "choices": ["a"]}]"#) }),
             ("default for an unknown key", { try self.manifest(defaults: #"{"other": "x"}"#) }),
             ("invalid default", { try self.manifest(defaults: #"{"target": "IT"}"#) }),
             ("clashes with a Command field", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "target", "kind": "text"}]"#) }),
@@ -60,6 +66,62 @@ final class PluginSettingsTests: XCTestCase {
         for (name, make) in cases {
             XCTAssertThrowsError(try make(), name)
         }
+    }
+
+    // MARK: - Ordered choices and conditional settings
+
+    private static let sourceSettings = """
+    [{"key": "sources", "kind": "ordered_choices", "title": "Sources", "choices": ["DeepL", "Google", "OpenAI"]},
+     {"key": "deepl_key", "kind": "credential", "used_when": {"key": "sources", "values": ["DeepL"]}},
+     {"key": "deepl_endpoint", "kind": "https_endpoint", "used_when": {"key": "sources", "values": ["DeepL"]}},
+     {"key": "openai_model", "kind": "text", "used_when": {"key": "sources", "values": ["OpenAI"]}}]
+    """
+
+    /// An `ordered_choices` setting holds some of its choices, each once, in
+    /// the order the user put them: which sources are on, and in what order.
+    func testAnOrderedChoicesSettingHoldsSomeOfItsChoicesInOrder() throws {
+        let manifest = try manifest(settings: Self.sourceSettings, defaults: #"{"sources": ["DeepL"], "deepl_key": "deepl"}"#)
+        let field = manifest.settingsFields[0]
+        XCTAssertEqual(field.kind, .orderedChoices)
+        XCTAssertTrue(field.acceptsMemberValue(.array([.string("OpenAI"), .string("DeepL")])))
+        XCTAssertTrue(field.acceptsMemberValue(.array([])))
+        XCTAssertFalse(field.acceptsMemberValue(.array([.string("DeepL"), .string("DeepL")])), "each choice once")
+        XCTAssertFalse(field.acceptsMemberValue(.array([.string("Bing")])))
+        XCTAssertFalse(field.acceptsMemberValue(.string("DeepL")))
+        XCTAssertEqual(manifest.resolvedSettings(stored: ["sources": .array([.string("OpenAI"), .string("DeepL")])])["sources"],
+                       .array([.string("OpenAI"), .string("DeepL")]))
+        let decoded = try JSONDecoder().decode(PluginManifest.self, from: JSONEncoder().encode(manifest))
+        XCTAssertEqual(decoded, manifest)
+    }
+
+    /// A setting used only while a source is on needs no value while it is
+    /// off, and an empty list of sources is itself missing.
+    func testASettingUsedOnlyForAChoiceIsNotNeededWhileThatChoiceIsOff() throws {
+        let manifest = try manifest(settings: Self.sourceSettings, defaults: #"{"sources": ["DeepL"], "deepl_key": "deepl"}"#)
+        var values = manifest.resolvedSettings(stored: [:])
+        values["deepl_endpoint"] = .string("https://api-free.deepl.com")
+        XCTAssertEqual(manifest.missingSettings(in: values, hasSecret: { _ in true }), [], "the OpenAI model is not used")
+        values["sources"] = .array([.string("OpenAI")])
+        XCTAssertEqual(manifest.missingSettings(in: values, hasSecret: { _ in false }).map(\.key), ["openai_model"],
+                       "DeepL is off, so its key and endpoint are not needed")
+        values["sources"] = .array([])
+        XCTAssertEqual(manifest.missingSettings(in: values, hasSecret: { _ in true }).map(\.key), ["sources"],
+                       "at least one source is needed")
+        XCTAssertTrue(manifest.settingsFields[1].isUsed(by: ["sources": .array([.string("Google"), .string("DeepL")])]))
+        XCTAssertFalse(manifest.settingsFields[1].isUsed(by: ["sources": .array([.string("Google")])]))
+    }
+
+    /// An endpoint for a source that is off sends nothing, so it needs no consent.
+    func testAnEndpointForASourceThatIsOffNeedsNoConsent() throws {
+        let scoped = try manifest(settings: Self.sourceSettings, defaults: #"{"sources": ["DeepL"]}"#,
+                                  capabilities: #""contact_https""#,
+                                  scopes: #"{"capability": "contact_https", "command_ids": ["remote.run"], "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": ["api.deepl.com"], "external_apps": []}"#)
+        let grants = PluginCapabilityGrantStore()
+        let selfHosted: [String: JSONValue] = ["deepl_endpoint": .string("https://deepl.example.org")]
+        XCTAssertEqual(HTTPSEndpointConsent(manifest: scoped, settings: selfHosted.merging(["sources": .array([.string("DeepL")])]) { $1 },
+                                            grantStore: grants).newHosts, ["deepl.example.org"])
+        XCTAssertEqual(HTTPSEndpointConsent(manifest: scoped, settings: selfHosted.merging(["sources": .array([.string("OpenAI")])]) { $1 },
+                                            grantStore: grants).newHosts, [])
     }
 
     // MARK: - Combining settings with an Action
