@@ -69,6 +69,9 @@ struct ConfigurationInputValueResolver {
             return encodedValue(for: value)
         case .size, .position:
             return encodedValue(for: value)
+        case .credential, .httpsEndpoint:
+            // Only members of `configuration_fields`, never a lone field.
+            return encodedValue(for: value)
         }
     }
 
@@ -119,6 +122,9 @@ struct ConfigurationInputValueResolver {
             return decodeOrString(text)
         case .size, .position:
             // Kept as typed; the Host checks the grammar when the sheet saves.
+            return .string(text)
+        case .credential, .httpsEndpoint:
+            // Only members of `configuration_fields`, never a lone field.
             return .string(text)
         }
     }
@@ -194,6 +200,8 @@ final class SettingsWindowModel: ObservableObject {
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
+    /// Where Configuration Sheets keep secrets typed into credential fields.
+    var credentialStore: PluginCredentialStore?
     private let defaults: UserDefaults
 
     init(
@@ -710,7 +718,8 @@ struct SettingsRootView: View {
                         } else {
                             menuEditor.saveMenuItemConfiguration(configuration)
                         }
-                    }
+                    },
+                    credentialStore: model.credentialStore
                 )
             }
         }
@@ -829,19 +838,26 @@ private struct SlotConfigurationSheet: View {
     @State private var originalInputValues: [CommandID: JSONValue]
     @State private var itemAlias: String
     @State private var errorMessage: String?
+    /// Secrets typed into credential fields, by credential reference. They go
+    /// to the credential store on Save and never into an Action.
+    @State private var credentialSecrets: [String: String] = [:]
+    @State private var endpointConsentGiven = false
+    private let credentialStore: PluginCredentialStore?
 
     init(
         editor: HostConfigurationEditor,
         slotIndex: Int,
         presetPluginID: PluginID? = nil,
         permissionModel: PrivacyPermissionsModel? = nil,
-        onSaved: @escaping (HostConfiguration) -> Void
+        onSaved: @escaping (HostConfiguration) -> Void,
+        credentialStore: PluginCredentialStore? = nil
     ) {
         self.editor = editor
         self.slotIndex = slotIndex
         self.presetPluginID = presetPluginID
         self.onSaved = onSaved
         self.permissionModel = permissionModel
+        self.credentialStore = credentialStore
         let initialState = Self.initialState(
             in: editor,
             slotIndex: slotIndex,
@@ -856,6 +872,15 @@ private struct SlotConfigurationSheet: View {
         _alternateCommandIDs = State(initialValue: initialState.enabledAlternateCommandIDs)
         _inputTexts = State(initialValue: initialState.inputTexts)
         _originalInputValues = State(initialValue: initialState.originalInputValues)
+    }
+
+    /// Consent needed for configured endpoints on hosts the Plugin did not declare.
+    private var endpointConsent: HTTPSEndpointConsent? {
+        guard let permissionModel, let pluginManifest else { return nil }
+        let consent = permissionModel.endpointConsent(for: pluginManifest, inputs: Dictionary(
+            uniqueKeysWithValues: configurableCommands.map { ($0.id, inputValue(for: $0.id)) }
+        ))
+        return consent.newHosts.isEmpty ? nil : consent
     }
 
     var body: some View {
@@ -875,6 +900,9 @@ private struct SlotConfigurationSheet: View {
                         actionSelection(for: pluginManifest)
                         Divider()
                         actionParameters()
+                        if let endpointConsent {
+                            EndpointConsentBox(consent: endpointConsent, allowed: $endpointConsentGiven)
+                        }
                         if let permissionModel {
                             MenuItemAccessSummary(privacy: permissionModel, manifest: pluginManifest,
                                                   commandIDs: Set(selectedCommands.map(\.id)),
@@ -1090,6 +1118,10 @@ private struct SlotConfigurationSheet: View {
                     case .toggle:
                         Toggle("Enabled", isOn: fieldBoolBinding(for: command.id, key: field.key ?? ""))
                             .toggleStyle(.switch)
+                    case .multilineText:
+                        ConfigurationTextEditor(text: binding, placeholder: field.placeholder ?? "")
+                    case .credential:
+                        credentialField(reference: binding.wrappedValue, placeholder: field.placeholder)
                     default:
                         ConfigurationTextField(text: binding, placeholder: field.placeholder ?? "")
                     }
@@ -1097,6 +1129,21 @@ private struct SlotConfigurationSheet: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("\(command.title) \(field.displayTitle)")
             }
+        }
+    }
+
+    /// A credential field's value is its reference; the secret typed here goes
+    /// to the credential store on Save, shared by every Action naming it.
+    private func credentialField(reference: String, placeholder: String?) -> some View {
+        let stored = pluginID.map { credentialStore?.hasSecret(for: $0, reference: reference) ?? false } ?? false
+        return VStack(alignment: .leading, spacing: 3) {
+            SecureField(stored ? "Stored in the Keychain; type to replace" : placeholder ?? "Not set",
+                        text: Binding(get: { credentialSecrets[reference] ?? "" },
+                                      set: { credentialSecrets[reference] = $0 }))
+                .textFieldStyle(.roundedBorder)
+            Text("Spinnet keeps this secret and adds it to requests itself; the Plugin never reads it.")
+                .font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1188,7 +1235,7 @@ private struct SlotConfigurationSheet: View {
                 )
                 .accessibilityLabel("\(command.title) configuration input")
             }
-        case .url, .size, .position:
+        case .url, .size, .position, .credential, .httpsEndpoint:
             ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
@@ -1230,6 +1277,25 @@ private struct SlotConfigurationSheet: View {
                     actions: candidate.actions,
                     menu: MenuConfiguration(slots: slots)
                 )
+                let secrets = CredentialFieldSecrets.typed(
+                    for: selectedCommands, inputs: inputs, secrets: credentialSecrets
+                )
+                guard secrets.values.allSatisfy(PluginCredentialReference.isValidSecret) else {
+                    throw ConfigurationError.invalidAction("A credential must be one line of at most 4096 characters.")
+                }
+                // A new endpoint host needs explicit consent before anything
+                // is saved; the consent then joins the Plugin's contact scope.
+                if let endpointConsent, let permissionModel {
+                    try permissionModel.approveEndpointConsent(endpointConsent, userConsented: endpointConsentGiven)
+                }
+                if !secrets.isEmpty {
+                    guard let credentialStore else {
+                        throw ConfigurationError.invalidAction("Credentials cannot be stored in this session")
+                    }
+                    for (reference, secret) in secrets {
+                        try credentialStore.setSecret(secret, for: pluginID, reference: reference)
+                    }
+                }
                 onSaved(finalConfiguration)
                 dismiss()
                 return

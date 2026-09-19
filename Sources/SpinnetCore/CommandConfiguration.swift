@@ -22,6 +22,16 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
     case size
     /// An x and a y from the visible frame's top-left, such as `0, 0` or `25%, 10%`.
     case position
+    /// A secret the Host keeps, such as an API key. The Action stores only the
+    /// credential reference; the Host renders a secure field and injects the
+    /// secret into an `https_request` itself. Only in `configuration_fields`.
+    case credential
+    /// The base URL of a remote service: https only, without a user name,
+    /// query, fragment, or port other than 443. On a Command that contacts
+    /// the network, a host the Plugin did not declare needs the user's consent
+    /// before the Configuration Sheet saves. Only in `configuration_fields`;
+    /// unlike `url`, which accepts any link.
+    case httpsEndpoint = "https_endpoint"
 
     public var title: String {
         switch self {
@@ -37,6 +47,8 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
         case .url: return "URL"
         case .size: return "Size"
         case .position: return "Position"
+        case .credential: return "Credential"
+        case .httpsEndpoint: return "HTTPS Endpoint"
         }
     }
 }
@@ -156,7 +168,13 @@ private enum WindowAxisGrammar {
 public extension CommandDeclaration {
     /// Kinds whose value is a single string or boolean, which is what a
     /// member of a field set holds.
-    static let fieldSetKinds: Set<CommandConfigurationFieldKind> = [.text, .toggle, .choice, .file, .folder, .url]
+    static let fieldSetKinds: Set<CommandConfigurationFieldKind> = [
+        .text, .multilineText, .toggle, .choice, .file, .folder, .url, .credential, .httpsEndpoint
+    ]
+
+    /// Kinds that only make sense as a member of a field set: a credential
+    /// reference and a network endpoint describe one part of a request.
+    static let fieldSetOnlyKinds: Set<CommandConfigurationFieldKind> = [.credential, .httpsEndpoint]
 
     /// Whether the input has exactly the declared members, each of its field's
     /// shape. A Command without `configuration_fields` accepts any input here.
@@ -169,7 +187,9 @@ public extension CommandDeclaration {
             switch (field.kind, value) {
             case (.toggle, .bool): return true
             case (.choice, .string(let choice)): return field.choices.contains(choice)
-            case (.toggle, _), (.choice, _): return false
+            case (.credential, .string(let reference)): return PluginCredentialReference.isValid(reference)
+            case (.httpsEndpoint, _): return CommandConfigurationField.httpsEndpointHost(value) != nil
+            case (.toggle, _), (.choice, _), (.credential, _): return false
             case (_, .string): return true
             default: return false
             }

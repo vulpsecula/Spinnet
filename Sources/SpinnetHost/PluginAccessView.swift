@@ -10,9 +10,12 @@ struct PluginAccessView: View {
     var commandIDs: Set<CommandID>? = nil
     var inputs: [CommandID: JSONValue] = [:]
     let setDecision: (PluginCapabilityGrantDecision, PluginID, String, PluginCapability) -> Void
+    /// Hosts the user added to the contact scope, such as a self-hosted endpoint.
+    var consentedHTTPSHosts: [String] = []
 
     var body: some View {
-        let disclosure = PluginPermissionDisclosure(manifest: manifest, commandIDs: commandIDs, inputs: inputs)
+        let disclosure = PluginPermissionDisclosure(manifest: manifest, commandIDs: commandIDs, inputs: inputs,
+                                                    consentedHTTPSHosts: consentedHTTPSHosts)
         VStack(alignment: .leading, spacing: 12) {
             Text("\(manifest.name) · \(manifest.version)").font(.headline)
             ForEach(PluginConsentGroup.allCases, id: \.self) { group in
@@ -62,7 +65,8 @@ struct PluginConsentSheet: View {
                 .font(.title2.weight(.semibold))
             ScrollView {
                 PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
-                                 setDecision: privacy.setCapabilityDecision)
+                                 setDecision: privacy.setCapabilityDecision,
+                                 consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
             }
             HStack {
                 if isInstallation {

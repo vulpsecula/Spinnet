@@ -164,6 +164,25 @@ final class PrivacyPermissionsModel: ObservableObject {
         }
     }
 
+    // MARK: Contact hosts
+
+    /// Hosts the user added to this Plugin's contact scope.
+    func consentedHTTPSHosts(for manifest: PluginManifest) -> [String] {
+        guard let declared = manifest.scope(for: .contactHTTPS) else { return [] }
+        return grantStore.consentedHTTPSHosts(for: manifest.id, pluginVersion: manifest.version, declaredScope: declared)
+    }
+
+    /// What a Configuration Sheet must disclose before saving these inputs.
+    func endpointConsent(for manifest: PluginManifest, inputs: [CommandID: JSONValue]) -> HTTPSEndpointConsent {
+        HTTPSEndpointConsent(manifest: manifest, inputs: inputs, grantStore: grantStore)
+    }
+
+    /// Records the user's consent to new endpoint hosts, or refuses the save.
+    func approveEndpointConsent(_ consent: HTTPSEndpointConsent, userConsented: Bool) throws {
+        try consent.approve(userConsented: userConsented, grantStore: grantStore)
+        onGrantsChanged?(grantStore.allGrants)
+    }
+
     // MARK: Consent and review sheets
 
     /// Opens the consent sheet for a freshly installed or updated Plugin.

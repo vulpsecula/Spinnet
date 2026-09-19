@@ -11,6 +11,14 @@ public protocol PluginCredentialStore: AnyObject {
     func secret(for pluginID: PluginID, reference: String) throws -> String?
     func setSecret(_ secret: String, for pluginID: PluginID, reference: String) throws
     func removeSecret(for pluginID: PluginID, reference: String) throws
+    /// Whether a secret is stored, for Settings to show without reading it.
+    func hasSecret(for pluginID: PluginID, reference: String) -> Bool
+}
+
+public extension PluginCredentialStore {
+    func hasSecret(for pluginID: PluginID, reference: String) -> Bool {
+        ((try? secret(for: pluginID, reference: reference)) ?? nil) != nil
+    }
 }
 
 public enum PluginCredentialReference {

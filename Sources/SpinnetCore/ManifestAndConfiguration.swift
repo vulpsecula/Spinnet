@@ -679,6 +679,11 @@ public struct PluginManifest: Codable, Equatable {
                 "Non-configurable Command \(command.id.rawValue) cannot declare a Configuration field"
             )
         }
+        guard !CommandDeclaration.fieldSetOnlyKinds.contains(field.kind) else {
+            throw ConfigurationError.invalidManifest(
+                "A \(field.kind.rawValue) field must be declared in configuration_fields"
+            )
+        }
         try validateFieldMetadata(field)
     }
 
