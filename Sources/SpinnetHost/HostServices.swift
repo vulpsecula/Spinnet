@@ -651,6 +651,10 @@ final class GlobalTriggerController {
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
     private(set) var mouseInterceptionAvailable = false
+    /// False once stopped. A stopped controller installs nothing, so a
+    /// permission retry or a trigger edit cannot bring listening back while
+    /// Spinnet is switched off.
+    private(set) var isRunning = false
 
     var onInvoke: (() -> Void)?
     var onEscape: (() -> Void)?
@@ -711,6 +715,7 @@ final class GlobalTriggerController {
             &eventHandler
         )
         guard status == noErr else { return false }
+        isRunning = true
 
         mouseInterceptionAvailable = installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
@@ -728,6 +733,7 @@ final class GlobalTriggerController {
 
     func apply(_ configuration: MenuTriggerConfiguration) -> Bool {
         self.configuration = configuration
+        guard isRunning else { return true }
         mouseGestureOrigin = nil
         mouseGestureDidDrag = false
         if let invokeHotKey {
@@ -842,7 +848,7 @@ final class GlobalTriggerController {
     }
 
     func retryMouseInterceptionIfAuthorized() {
-        guard !mouseInterceptionAvailable, accessibilityPermission.isAuthorized else { return }
+        guard isRunning, !mouseInterceptionAvailable, accessibilityPermission.isAuthorized else { return }
         mouseInterceptionAvailable = installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
         if mouseInterceptionAvailable {
@@ -922,6 +928,7 @@ final class GlobalTriggerController {
     }
 
     func stop() {
+        isRunning = false
         permissionRetryTimer?.invalidate()
         permissionRetryTimer = nil
         unregisterEscape()

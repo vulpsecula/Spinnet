@@ -95,4 +95,34 @@ final class MenuTriggerModelTests: XCTestCase {
         XCTAssertEqual(second.mouseButton, 5)
         XCTAssertFalse(second.clickDragEnabled)
     }
+
+    /// The master switch at the top of the Menu page. Spinnet starts enabled,
+    /// and turning it off is remembered and reported so the Host can stop
+    /// listening for its triggers.
+    func testTheMasterSwitchStartsOnPersistsAndReportsChanges() {
+        let model = MenuTriggerModel(defaults: defaults, conflictCheck: { _ in [] })
+        XCTAssertTrue(model.isEnabled)
+        var reported: [Bool] = []
+        model.onEnabledChange = { reported.append($0) }
+
+        model.isEnabled = false
+        XCTAssertEqual(reported, [false])
+        XCTAssertFalse(MenuTriggerModel(defaults: defaults, conflictCheck: { _ in [] }).isEnabled)
+
+        model.isEnabled = true
+        XCTAssertEqual(reported, [false, true])
+        XCTAssertTrue(MenuTriggerModel(defaults: defaults, conflictCheck: { _ in [] }).isEnabled)
+    }
+
+    /// Switching off is not a trigger edit: the saved trigger is untouched, so
+    /// switching back on restores exactly what the user configured.
+    func testTheMasterSwitchLeavesTheTriggerConfigurationAlone() {
+        let model = MenuTriggerModel(defaults: defaults, conflictCheck: { _ in [] })
+        model.mouseButton = 4
+        var triggerChanges = 0
+        model.onChange = { _ in triggerChanges += 1 }
+        model.isEnabled = false
+        XCTAssertEqual(triggerChanges, 0)
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).mouseButton, 4)
+    }
 }

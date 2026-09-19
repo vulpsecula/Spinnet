@@ -23,7 +23,26 @@ final class MenuTriggerModel: ObservableObject {
 
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
 
+    /// Spinnet's master switch. Off, the Host stops listening for the mouse
+    /// button and keyboard shortcut, so both go back to other apps, and the
+    /// Menu cannot open. The trigger itself is kept for switching back on.
+    @Published var isEnabled: Bool {
+        didSet {
+            guard isEnabled != oldValue else { return }
+            defaults.set(isEnabled, forKey: Self.enabledKey)
+            onEnabledChange?(isEnabled)
+        }
+    }
+
+    static let enabledKey = "spinnet.enabled"
+
+    /// Whether the user left Spinnet switched on, which it is until they don't.
+    static func isEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: enabledKey) as? Bool ?? true
+    }
+
     var onChange: ((MenuTriggerConfiguration) -> Void)?
+    var onEnabledChange: ((Bool) -> Void)?
 
     var configuration: MenuTriggerConfiguration {
         MenuTriggerConfiguration(
@@ -49,6 +68,7 @@ final class MenuTriggerModel: ObservableObject {
         clickDragEnabled = saved.clickDragEnabled
         keyboardShortcut = saved.keyboardShortcut
         mouseInputConflicts = conflictCheck(saved.mouseButton)
+        isEnabled = Self.isEnabled(in: defaults)
     }
 
     /// Re-runs detection without changing the trigger. The set of conflicting

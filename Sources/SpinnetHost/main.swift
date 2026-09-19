@@ -232,6 +232,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
             }
+            settings.onEnabledChanged = { [weak self] isEnabled in
+                self?.setTriggersEnabled(isEnabled)
+            }
             settings.onMouseCaptureChanged = { [weak self] isCapturing, session in
                 self?.triggers?.setMouseButtonCaptureActive(isCapturing, onCapture: session.capture)
             }
@@ -348,6 +351,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             NSLog("Spinnet: Accessibility permission is required to intercept the mouse trigger")
         }
         triggers = controller
+        if !MenuTriggerModel.isEnabled(in: .standard) { controller.stop() }
+    }
+
+    /// Spinnet's master switch. Off stops listening for the trigger, so the
+    /// mouse button and shortcut reach other apps again; on starts listening
+    /// with the trigger the user saved.
+    private func setTriggersEnabled(_ isEnabled: Bool) {
+        guard let triggers else { return }
+        if isEnabled {
+            if !triggers.start(configuration: MenuTriggerConfiguration(defaults: .standard)) {
+                NSLog("Spinnet: Menu trigger registration failed when switching Spinnet on")
+            }
+        } else {
+            menu?.dismiss()
+            triggers.stop()
+        }
     }
 
     private func toggleMenu() {

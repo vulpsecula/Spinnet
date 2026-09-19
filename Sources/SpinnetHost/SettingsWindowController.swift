@@ -23,6 +23,7 @@ final class SettingsWindowController: NSWindowController {
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
+    var onEnabledChanged: ((Bool) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
     var installPlugin: ((URL) throws -> PluginInstallationOutcome)? {
@@ -145,6 +146,9 @@ final class SettingsWindowController: NSWindowController {
         }
         model.trigger.onChange = { [weak self] configuration in
             self?.onTriggerChanged?(configuration)
+        }
+        model.trigger.onEnabledChange = { [weak self] isEnabled in
+            self?.onEnabledChanged?(isEnabled)
         }
         model.onMouseCaptureChanged = { [weak self] isCapturing, capture in
             self?.onMouseCaptureChanged?(isCapturing, capture)

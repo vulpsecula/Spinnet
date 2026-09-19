@@ -641,10 +641,35 @@ struct SettingsRootView: View {
         _ = openURL(url)
     }
 
+    /// Spinnet's master switch, above everything else on the Menu page.
+    private var spinnetEnabledSwitch: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Enable Spinnet").font(.headline)
+                Text(trigger.isEnabled
+                     ? "The Menu opens with your trigger."
+                     : "Spinnet is off: the trigger reaches other apps and the Menu does not open. Clipboard History follows its own setting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Toggle("Enable Spinnet", isOn: $trigger.isEnabled)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .accessibilityLabel("Enable Spinnet")
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+    }
+
     private var pageContent: some View {
         Group {
             switch model.page {
             case .menu:
+                VStack(spacing: 0) {
+                    spinnetEnabledSwitch
+                    Divider()
                 MenuEditorView(
                     editor: model.editor,
                     selectedMenuIndex: $menuEditor.selectedMenuIndex,
@@ -658,6 +683,7 @@ struct SettingsRootView: View {
                     restorableFailure: menuEditor.restorableFailure,
                     onRestorePlugin: menuEditor.restoreRemovedPlugin
                 )
+                }
                 .id(menuEditor.refreshToken)
                 .onAppear { privacy.refreshSystemPermissionStatus() }
             case .appearance:
