@@ -209,4 +209,61 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertFalse(model.requestScreenRecordingPermission(), "the caller opens System Settings")
         XCTAssertEqual(requests, 1)
     }
+
+    /// macOS applies a new Screen Recording grant only after Spinnet
+    /// relaunches, so once the user has asked for it this session and it still
+    /// reads as missing, the page offers a restart rather than asking again.
+    func testAScreenRecordingRequestThisSessionAwaitsARestartUntilGranted() throws {
+        var granted = false
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { granted },
+            screenRecordingPermissionRequest: { false }
+        )
+        XCTAssertFalse(model.screenRecordingAwaitsRestart, "nothing was asked for yet")
+
+        model.requestScreenRecordingPermission()
+        XCTAssertTrue(model.screenRecordingAwaitsRestart)
+
+        // A second press goes to System Settings; the restart is still owed.
+        model.requestScreenRecordingPermission()
+        XCTAssertTrue(model.screenRecordingAwaitsRestart)
+
+        granted = true
+        model.refreshSystemPermissionStatus()
+        XCTAssertFalse(model.screenRecordingAwaitsRestart)
+    }
+
+    func testAnEarlierSessionsRequestDoesNotAwaitARestart() throws {
+        defaults.set(true, forKey: "privacy.screen-recording-requested")
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { false },
+            screenRecordingPermissionRequest: { false }
+        )
+        XCTAssertFalse(model.screenRecordingAwaitsRestart)
+    }
+
+    /// The first-run guide asks for Accessibility; once it is granted there is
+    /// nothing left to guide, whether it was granted before launch or while
+    /// Spinnet runs.
+    func testThePermissionGuideIsNotShownOnceAccessibilityIsGranted() throws {
+        let grantedBeforeLaunch = try XCTUnwrap(UserDefaults(suiteName: "SpinnetHostTests.Guide.\(UUID().uuidString)"))
+        XCTAssertFalse(PrivacyPermissionsModel(grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+                                               accessibilityPermissionCheck: { true },
+                                               defaults: grantedBeforeLaunch).permissionGuidePresented)
+
+        var granted = false
+        let model = makeModel(manifests: [], accessibilityGranted: { granted })
+        XCTAssertTrue(model.permissionGuidePresented, "a first run without Accessibility shows the guide")
+        granted = true
+        model.refreshSystemPermissionStatus()
+        XCTAssertFalse(model.permissionGuidePresented)
+
+        granted = false
+        XCTAssertFalse(makeModel(manifests: [], accessibilityGranted: { granted }).permissionGuidePresented,
+                       "a guide that has done its job stays dismissed, even if access is later lost")
+    }
 }

@@ -15,6 +15,10 @@ final class PrivacyPermissionsModel: ObservableObject {
     @Published private(set) var capabilityGrants: [PluginCapabilityGrant] = []
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var screenRecordingPermissionGranted: Bool
+    /// The user asked for Screen Recording during this run and it still reads
+    /// as missing. macOS applies the grant only to a relaunched process, so the
+    /// page offers a restart instead of asking again.
+    @Published private(set) var screenRecordingAwaitsRestart = false
 
     /// The Plugin whose access sheet is open, for review or for consent.
     @Published var pluginSettingsManifest: PluginManifest?
@@ -62,7 +66,11 @@ final class PrivacyPermissionsModel: ObservableObject {
         self.manifests = manifests
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
         self.defaults = defaults
-        accessibilityPermissionGranted = accessibilityPermissionCheck()
+        let accessibilityGranted = accessibilityPermissionCheck()
+        accessibilityPermissionGranted = accessibilityGranted
+        // The guide asks for Accessibility, so a Host that already has it has
+        // nothing to be guided through, and never needs the guide again.
+        if accessibilityGranted { defaults.set(true, forKey: Keys.permissionGuideShown) }
         permissionGuidePresented = !defaults.bool(forKey: Keys.permissionGuideShown)
         refreshCapabilityGrants()
 
@@ -86,7 +94,9 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     func refreshSystemPermissionStatus() {
         accessibilityPermissionGranted = accessibilityPermissionCheck()
+        if accessibilityPermissionGranted && permissionGuidePresented { permissionGuidePresented = false }
         screenRecordingPermissionGranted = screenRecordingPermissionCheck()
+        if screenRecordingPermissionGranted { screenRecordingAwaitsRestart = false }
         onAuthorityChanged?()
     }
 
@@ -113,6 +123,7 @@ final class PrivacyPermissionsModel: ObservableObject {
             _ = screenRecordingPermissionRequest()
         }
         refreshSystemPermissionStatus()
+        screenRecordingAwaitsRestart = !screenRecordingPermissionGranted
         return prompted
     }
 

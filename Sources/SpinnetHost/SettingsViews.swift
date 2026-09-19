@@ -693,6 +693,7 @@ struct SettingsRootView: View {
                     setCapabilityDecision: privacy.setCapabilityDecision,
                     openURL: openURL,
                     screenRecordingPermissionGranted: privacy.screenRecordingPermissionGranted,
+                    screenRecordingAwaitsRestart: privacy.screenRecordingAwaitsRestart,
                     enableScreenRecording: { privacy.requestScreenRecordingPermission() }
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
@@ -2148,6 +2149,7 @@ private struct PrivacySettingsView: View {
     ) -> Void
     let openURL: (URL) -> Bool
     var screenRecordingPermissionGranted = false
+    var screenRecordingAwaitsRestart = false
     /// Asks macOS for Screen Recording, returning false when it will not ask
     /// again and System Settings is the way forward.
     var enableScreenRecording: () -> Bool = { false }
@@ -2164,9 +2166,7 @@ private struct PrivacySettingsView: View {
                             icon: systemPermissionIconName(permission),
                             title: permission.title,
                             body: permission.explanation,
-                            status: systemPermissionGranted(permission)
-                                ? "\(permission.title) granted"
-                                : "\(permission.title) required",
+                            status: systemPermissionStatus(permission),
                             actionTitle: systemPermissionActionTitle(permission),
                             action: { systemPermissionAction(permission) }
                         )
@@ -2328,12 +2328,25 @@ private struct PrivacySettingsView: View {
     /// Screen Recording is requested only here, from the user's click; every
     /// other permission row opens System Settings.
     private func systemPermissionActionTitle(_ permission: PluginSystemPermission) -> String {
-        permission == .screenRecording && !screenRecordingPermissionGranted
+        if restartFinishes(permission) { return "Restart Spinnet" }
+        return permission == .screenRecording && !screenRecordingPermissionGranted
             ? "Enable Screen Recording…"
             : "Open \(permission.title) Settings…"
     }
 
+    private func systemPermissionStatus(_ permission: PluginSystemPermission) -> String {
+        if systemPermissionGranted(permission) { return "\(permission.title) granted" }
+        if restartFinishes(permission) { return "Restart Spinnet to finish" }
+        return "\(permission.title) required"
+    }
+
+    /// macOS applies a new Screen Recording grant only to a relaunched Spinnet.
+    private func restartFinishes(_ permission: PluginSystemPermission) -> Bool {
+        permission == .screenRecording && screenRecordingAwaitsRestart && HostRelaunch.isAvailable
+    }
+
     private func systemPermissionAction(_ permission: PluginSystemPermission) {
+        if restartFinishes(permission) { HostRelaunch.relaunch(); return }
         if permission == .screenRecording, !screenRecordingPermissionGranted, enableScreenRecording() { return }
         openSystemSettings(for: permission)
     }

@@ -341,7 +341,8 @@ final class SettingsWindowControllerTests: XCTestCase {
             editor: try makeEditor(),
             metadata: .current,
             defaults: defaults,
-            accessibilityPermissionCheck: { true },
+            // Without Accessibility, so the first-run guide has something to ask for.
+            accessibilityPermissionCheck: { false },
             mouseInputConflictCheck: { _ in [] }
         )
 

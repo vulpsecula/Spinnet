@@ -133,11 +133,17 @@ struct MenuItemAccessSummary: View {
                 if needsScreenRecording {
                     // The Screenshot Configuration Sheet is one of the two
                     // places the Screen Recording prompt may come from.
-                    Label("Screen Recording: Not granted", systemImage: "lock")
-                    Button("Enable Screen Recording…") {
-                        if !privacy.requestScreenRecordingPermission() { openScreenRecordingSettings() }
+                    if privacy.screenRecordingAwaitsRestart && HostRelaunch.isAvailable {
+                        Label("Screen Recording: Restart Spinnet to finish", systemImage: "arrow.clockwise")
+                        Button("Restart Spinnet") { HostRelaunch.relaunch() }
+                            .accessibilityLabel("Restart Spinnet to finish enabling Screen Recording")
+                    } else {
+                        Label("Screen Recording: Not granted", systemImage: "lock")
+                        Button("Enable Screen Recording…") {
+                            if !privacy.requestScreenRecordingPermission() { openScreenRecordingSettings() }
+                        }
+                        .accessibilityLabel("Enable Screen Recording")
                     }
-                    .accessibilityLabel("Enable Screen Recording")
                 }
                 Text("Manage Plugin-wide access in Library’s Plugin Settings. Your Slot edits will be kept while you open settings.")
                     .font(.caption).foregroundStyle(.secondary)
