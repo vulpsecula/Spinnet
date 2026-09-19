@@ -168,13 +168,13 @@ final class ScreenshotHostCommandTests: XCTestCase {
             .empty, .occupied(try MenuItemConfiguration(primaryActionID: primary.id))
         ]))
         XCTAssertEqual(ScreenshotPluginMigration.settings(from: configuration),
-                       ScreenshotSettings(afterCapture: .copyAndSave, format: .jpg, saveFolder: "~/Pictures"))
+                       ScreenshotSettings(afterCapture: .copyAndSave, format: .jpeg, saveFolder: "~/Pictures"))
 
         let suite = "Spinnet.screenshot-seed.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         ScreenshotPluginMigration.seedSettings(from: configuration, in: defaults)
-        XCTAssertEqual(ScreenshotSettings(defaults: defaults).format, .jpg)
+        XCTAssertEqual(ScreenshotSettings(defaults: defaults).format, .jpeg)
         ScreenshotSettings().save(to: defaults)
         ScreenshotPluginMigration.seedSettings(from: configuration, in: defaults)
         XCTAssertEqual(ScreenshotSettings(defaults: defaults), ScreenshotSettings(), "Stored settings stand")
@@ -233,7 +233,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(model.settings, ScreenshotSettings())
 
         model.afterCapture = .copyAndSave
-        model.format = .jpg
+        model.format = .jpeg
         model.saveFolder = FileManager.default.temporaryDirectory.path
         XCTAssertEqual(changes, 3)
         XCTAssertEqual(ScreenshotSettings(defaults: defaults), model.settings)

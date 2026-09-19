@@ -48,7 +48,7 @@ enum ScreenshotPluginMigration {
               let afterCapture = ScreenshotSettings.AfterCapture.allCases.first(where: { $0.title == after }),
               case .string(let format) = values["format"], ["PNG", "JPEG"].contains(format),
               case .string(let folder) = values["folder"] else { return nil }
-        return ScreenshotSettings(afterCapture: afterCapture, format: format == "JPEG" ? .jpg : .png, saveFolder: folder)
+        return ScreenshotSettings(afterCapture: afterCapture, format: format == "JPEG" ? .jpeg : .png, saveFolder: folder)
     }
 
     /// Stores `settings(from:)` unless the user already has Screenshots

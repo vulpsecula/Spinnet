@@ -7,7 +7,7 @@ import SpinnetCore
 /// written at once and reported, so the Menu can recheck availability.
 final class ScreenshotSettingsModel: ObservableObject {
     @Published var afterCapture: ScreenshotSettings.AfterCapture { didSet { commit() } }
-    @Published var format: ScreenCaptureFormat { didSet { commit() } }
+    @Published var format: ScreenshotSettings.FileFormat { didSet { commit() } }
     @Published var saveFolder: String { didSet { commit() } }
 
     var onChange: (() -> Void)?

@@ -88,13 +88,23 @@ final class ScreenshotTests: XCTestCase {
 
     // MARK: - Screenshots settings
 
-    func testTheDefaultSettingsCopyAPNGAndKeepTheDesktopForSaving() {
+    func testTheDefaultSettingsCopyAndKeepTheDesktopAndAutomaticFormatForSaving() {
         let settings = ScreenshotSettings()
         XCTAssertEqual(settings.afterCapture, .copyToClipboard)
-        XCTAssertEqual(settings.format, .png)
+        XCTAssertEqual(settings.format, .automatic)
         XCTAssertEqual(settings.saveFolder, "~/Desktop")
         XCTAssertEqual(ScreenshotSettings.AfterCapture.allCases.map(\.title),
                        ["Copy to Clipboard", "Save to Folder", "Copy and Save"])
+        XCTAssertEqual(ScreenshotSettings.FileFormat.allCases.map(\.title), ["Automatic", "PNG", "JPEG"])
+        XCTAssertTrue(ScreenshotSettings.FileFormat.allCases.allSatisfy { !$0.summary.isEmpty })
+    }
+
+    /// A format chosen before Automatic existed is still read as chosen.
+    func testAStoredPNGOrJPEGChoiceStillReads() throws {
+        for (raw, format) in [("png", ScreenshotSettings.FileFormat.png), ("jpg", .jpeg), ("automatic", .automatic)] {
+            let data = Data(#"{"after_capture": "save", "format": "\#(raw)", "save_folder": "~/Desktop"}"#.utf8)
+            XCTAssertEqual(try JSONDecoder().decode(ScreenshotSettings.self, from: data).format, format, raw)
+        }
     }
 
     func testTheSettingsTurnEachSourceIntoTheRequestTheyDescribe() throws {
@@ -102,11 +112,11 @@ final class ScreenshotTests: XCTestCase {
         let saved = folder.standardizedFileURL
         let cases: [(ScreenshotSettings, ScreenCaptureRequest)] = [
             (ScreenshotSettings(afterCapture: .copyToClipboard, format: .png, saveFolder: folder.path),
-             ScreenCaptureRequest(source: .area, format: .png, copyToClipboard: true, saveFolder: nil)),
-            (ScreenshotSettings(afterCapture: .saveToFolder, format: .jpg, saveFolder: folder.path),
-             ScreenCaptureRequest(source: .area, format: .jpg, copyToClipboard: false, saveFolder: saved)),
-            (ScreenshotSettings(afterCapture: .copyAndSave, format: .png, saveFolder: folder.path),
-             ScreenCaptureRequest(source: .area, format: .png, copyToClipboard: true, saveFolder: saved))
+             ScreenCaptureRequest(source: .area, copyToClipboard: true, saveFolder: nil, saveFormat: .png)),
+            (ScreenshotSettings(afterCapture: .saveToFolder, format: .jpeg, saveFolder: folder.path),
+             ScreenCaptureRequest(source: .area, copyToClipboard: false, saveFolder: saved, saveFormat: .jpeg)),
+            (ScreenshotSettings(afterCapture: .copyAndSave, format: .automatic, saveFolder: folder.path),
+             ScreenCaptureRequest(source: .area, copyToClipboard: true, saveFolder: saved, saveFormat: .automatic))
         ]
         for (settings, expected) in cases {
             XCTAssertEqual(try settings.request(for: .area), expected)
@@ -159,12 +169,65 @@ final class ScreenshotTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         XCTAssertEqual(ScreenshotSettings(defaults: defaults), ScreenshotSettings())
-        let chosen = ScreenshotSettings(afterCapture: .copyAndSave, format: .jpg, saveFolder: "~/Pictures")
+        let chosen = ScreenshotSettings(afterCapture: .copyAndSave, format: .jpeg, saveFolder: "~/Pictures")
         chosen.save(to: defaults)
         XCTAssertEqual(ScreenshotSettings(defaults: defaults), chosen)
 
         defaults.set(Data("{\"after_capture\": \"print\"}".utf8), forKey: ScreenshotSettings.defaultsKey)
         XCTAssertEqual(ScreenshotSettings(defaults: defaults), ScreenshotSettings())
+    }
+
+    // MARK: - Automatic format
+
+    /// Text and flat colours: large runs of one colour, hard edges.
+    func testFlatColoursAndTextSaveAsPNG() {
+        let image = TestImage(width: 400, height: 300) { x, y in
+            if y < 30 { return (236, 236, 236) }                              // title bar
+            if x % 40 < 3 && y % 20 < 12 { return (20, 20, 20) }              // glyph strokes
+            if x % 40 == 3 && y % 20 < 12 { return (140, 140, 140) }          // antialiased edge
+            return (255, 255, 255)
+        }
+        XCTAssertEqual(image.suggestedFormat, .png)
+    }
+
+    func testGradientsSaveAsJPEG() {
+        let image = TestImage(width: 600, height: 400) { x, y in
+            (UInt8(x * 255 / 599), UInt8(y * 255 / 399), 128)
+        }
+        XCTAssertEqual(image.suggestedFormat, .jpg)
+    }
+
+    func testNoiseAndPhotographsSaveAsJPEG() {
+        var random = SystemRandomNumberGenerator()
+        let noise = TestImage(width: 300, height: 200) { _, _ in
+            (UInt8.random(in: 0...255, using: &random), UInt8.random(in: 0...255, using: &random), UInt8.random(in: 0...255, using: &random))
+        }
+        XCTAssertEqual(noise.suggestedFormat, .jpg)
+        // A photograph: smooth light with a little sensor grain.
+        let photo = TestImage(width: 300, height: 200) { x, y in
+            let base = 90 + (x + y) / 5
+            let grain = Int.random(in: -3...3, using: &random)
+            return (UInt8(clamping: base + grain), UInt8(clamping: base / 2 + grain), UInt8(clamping: 200 - base / 3 + grain))
+        }
+        XCTAssertEqual(photo.suggestedFormat, .jpg)
+    }
+
+    /// A small photo inside a mostly flat window is still a window.
+    func testASmallPhotoInAFlatWindowSavesAsPNG() {
+        var random = SystemRandomNumberGenerator()
+        let image = TestImage(width: 500, height: 400) { x, y in
+            if (20..<120).contains(x) && (20..<80).contains(y) {
+                let v = UInt8.random(in: 60...200, using: &random)
+                return (v, v, v)
+            }
+            return y < 40 ? (230, 230, 230) : (250, 250, 250)
+        }
+        XCTAssertEqual(image.suggestedFormat, .png)
+    }
+
+    func testAnEmptyImageSavesAsPNG() {
+        XCTAssertEqual(ScreenshotContent.suggestedFormat(rgba: [], width: 0, height: 0), .png)
+        XCTAssertEqual(TestImage(width: 1, height: 1) { _, _ in (1, 2, 3) }.suggestedFormat, .png)
     }
 
     // MARK: - The capture_screen Host Service
@@ -345,6 +408,31 @@ final class ScreenshotTests: XCTestCase {
             if FileManager.default.isExecutableFile(atPath: candidate.path) { return candidate }
         }
         return nil
+    }
+}
+
+/// An RGBA image drawn pixel by pixel.
+private struct TestImage {
+    let width: Int
+    let height: Int
+    let rgba: [UInt8]
+
+    init(width: Int, height: Int, pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) {
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let (r, g, b) = pixel(x, y)
+                bytes += [r, g, b, 255]
+            }
+        }
+        self.width = width
+        self.height = height
+        rgba = bytes
+    }
+
+    var suggestedFormat: ScreenCaptureFormat {
+        ScreenshotContent.suggestedFormat(rgba: rgba, width: width, height: height)
     }
 }
 

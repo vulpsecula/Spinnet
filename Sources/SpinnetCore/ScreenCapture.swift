@@ -10,7 +10,7 @@ public enum ScreenCaptureSource: String, Codable, CaseIterable, Equatable, Hasha
     case window
 }
 
-/// The image format of a saved or copied capture.
+/// The format a saved capture's file is written in.
 public enum ScreenCaptureFormat: String, Codable, CaseIterable, Equatable, Hashable {
     case png
     case jpg
@@ -22,16 +22,19 @@ public enum ScreenCaptureFormat: String, Codable, CaseIterable, Equatable, Hasha
 /// reaches the capture tool's other options.
 public struct ScreenCaptureRequest: Equatable, Hashable {
     public let source: ScreenCaptureSource
-    public let format: ScreenCaptureFormat
     public let copyToClipboard: Bool
     /// Where the capture is saved, or nil when it is only copied.
     public let saveFolder: URL?
+    /// The saved file's format. The clipboard always gets the lossless
+    /// capture.
+    public let saveFormat: ScreenshotSettings.FileFormat
 
-    public init(source: ScreenCaptureSource, format: ScreenCaptureFormat, copyToClipboard: Bool, saveFolder: URL?) {
+    public init(source: ScreenCaptureSource, copyToClipboard: Bool, saveFolder: URL?,
+                saveFormat: ScreenshotSettings.FileFormat) {
         self.source = source
-        self.format = format
         self.copyToClipboard = copyToClipboard
         self.saveFolder = saveFolder
+        self.saveFormat = saveFormat
     }
 }
 
@@ -71,15 +74,42 @@ public struct ScreenshotSettings: Codable, Equatable {
         public var saves: Bool { self != .copyToClipboard }
     }
 
+    /// How a saved screenshot's file is written. The raw values of PNG and
+    /// JPEG are those stored before Automatic existed.
+    public enum FileFormat: String, Codable, CaseIterable, Equatable, Hashable {
+        case automatic
+        case png
+        case jpeg = "jpg"
+
+        public var title: String {
+            switch self {
+            case .automatic: return "Automatic"
+            case .png: return "PNG"
+            case .jpeg: return "JPEG"
+            }
+        }
+
+        /// A few words on what the choice trades, shown beside it.
+        public var summary: String {
+            switch self {
+            case .automatic:
+                return "JPEG for photos, gradients and noise; PNG for text and flat colours."
+            case .png: return "Lossless and sharp for text; larger files."
+            case .jpeg: return "Much smaller files; text and edges may blur slightly."
+            }
+        }
+    }
+
     public static let defaultsKey = "screenshots.settings"
 
     public var afterCapture: AfterCapture
-    public var format: ScreenCaptureFormat
+    /// Used only when the settings save.
+    public var format: FileFormat
     /// The folder as the user chose it, `~` included. Kept while the capture
     /// only copies, so switching back to saving finds it again.
     public var saveFolder: String
 
-    public init(afterCapture: AfterCapture = .copyToClipboard, format: ScreenCaptureFormat = .png, saveFolder: String = "~/Desktop") {
+    public init(afterCapture: AfterCapture = .copyToClipboard, format: FileFormat = .automatic, saveFolder: String = "~/Desktop") {
         self.afterCapture = afterCapture
         self.format = format
         self.saveFolder = saveFolder
@@ -117,8 +147,9 @@ public struct ScreenshotSettings: Codable, Equatable {
             )
         }
         return ScreenCaptureRequest(
-            source: source, format: format, copyToClipboard: afterCapture.copies,
-            saveFolder: afterCapture.saves ? ScreenCaptureDestination.url(for: saveFolder) : nil
+            source: source, copyToClipboard: afterCapture.copies,
+            saveFolder: afterCapture.saves ? ScreenCaptureDestination.url(for: saveFolder) : nil,
+            saveFormat: format
         )
     }
 
@@ -145,4 +176,40 @@ public enum ScreenCaptureDestination {
     static func url(for path: String) -> URL {
         URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true).standardizedFileURL
     }
+}
+
+/// Automatic format: what a capture looks like decides how it is saved.
+/// Photographs, gradients and noise change a little from pixel to pixel, which
+/// JPEG stores small and without visible loss. Text and flat colours are long
+/// runs of one colour with hard edges, which PNG stores small and sharp while
+/// JPEG would blur them.
+public enum ScreenshotContent {
+    /// Suggests a format for 8-bit RGBA pixels, row by row with no padding.
+    /// Each pixel is compared with its right and lower neighbours: an image
+    /// that is mostly unchanged runs, with few small steps, is flat.
+    public static func suggestedFormat(rgba: [UInt8], width: Int, height: Int) -> ScreenCaptureFormat {
+        guard width > 1, height > 1, rgba.count >= width * height * 4 else { return .png }
+        var pairs = 0, unchanged = 0, smallSteps = 0
+        func compare(_ a: Int, _ b: Int) {
+            let step = max(abs(Int(rgba[a]) - Int(rgba[b])),
+                           abs(Int(rgba[a + 1]) - Int(rgba[b + 1])),
+                           abs(Int(rgba[a + 2]) - Int(rgba[b + 2])))
+            pairs += 1
+            if step == 0 { unchanged += 1 } else if step <= smallStep { smallSteps += 1 }
+        }
+        for y in 0..<(height - 1) {
+            for x in 0..<(width - 1) {
+                let offset = (y * width + x) * 4
+                compare(offset, offset + 4)
+                compare(offset, offset + width * 4)
+            }
+        }
+        let changed = pairs - unchanged
+        let busy = Double(unchanged) < Double(pairs) * 0.4
+        let smooth = Double(changed) >= Double(pairs) * 0.05 && Double(smallSteps) >= Double(changed) * 0.5
+        return busy || smooth ? .jpg : .png
+    }
+
+    /// The largest channel change still read as shading rather than an edge.
+    private static let smallStep = 16
 }
