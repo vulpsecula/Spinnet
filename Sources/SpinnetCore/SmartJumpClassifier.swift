@@ -27,13 +27,7 @@ public struct SmartJumpClassifier {
         }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .input }
-        // A selection beginning with a path is a whole path, including spaces.
-        // In prose, quotation marks delimit a path containing spaces.
-        if text.hasPrefix("/") || text.hasPrefix("~/") {
-            _ = try OpenableLocalPath.validate(text)
-            return .localPath(text)
-        }
-        if let result = try SmartJumpArithmetic.result(for: text) { return .calculation(result) }
+        if text == "/" || text == "~/" { return .localPath(text) }
         var candidates: [(offset: Int, priority: Int, target: SmartJumpTarget)] = []
         for (priority, rule) in Self.rules.enumerated() {
             for match in rule.expression.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -64,9 +58,12 @@ public struct SmartJumpClassifier {
                 if let target { candidates.append((match.range.location, priority, target)) }
             }
         }
-        if let first = candidates.min(by: { ($0.offset, $0.priority) < ($1.offset, $1.priority) }) {
-            return first.target
-        }
+        let first = candidates.min(by: { ($0.offset, $0.priority) < ($1.offset, $1.priority) })
+        // A DOI may consist entirely of decimal-looking numbers and a slash.
+        if let first, case .link(_, .doi) = first.target { return first.target }
+        // A leading slash is a path, not a division missing its numerator.
+        if !text.hasPrefix("/"), let result = try SmartJumpArithmetic.result(for: text) { return .calculation(result) }
+        if let first { return first.target }
         let engine = searchEngines[0]
         return .search(try engine.url(for: text), engine.name)
     }
@@ -78,8 +75,10 @@ public struct SmartJumpClassifier {
     private static func withoutTrailingPunctuation(_ text: String) -> String {
         var value = text.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?，。；！？”’"))
         for (opening, closing) in [(Character("("), Character(")")), ("[", "]")] {
-            while value.last == closing, value.filter({ $0 == closing }).count > value.filter({ $0 == opening }).count {
+            var excess = value.filter { $0 == closing }.count - value.filter { $0 == opening }.count
+            while value.last == closing, excess > 0 {
                 value.removeLast()
+                excess -= 1
             }
         }
         return value

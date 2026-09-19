@@ -2,10 +2,22 @@ import XCTest
 @testable import SpinnetCore
 
 final class SmartJumpRecognitionTests: XCTestCase {
-    func testWholePathsKeepSpacesAndNumericPathsAreNotArithmetic() throws {
+    func testNumericDOISuffixesTakePrecedenceOverArithmetic() throws {
+        for doi in ["10.1000/123", "10.1000/0", "10.1000/123.456"] {
+            XCTAssertEqual(try SmartJumpClassifier().classify(doi), .link(URL(string: "https://doi.org/" + doi)!, .doi))
+        }
+    }
+    func testLeadingPathsStopAtProseJustLikeEmbeddedPaths() throws {
+        for text in ["/tmp/report.pdf is the document", "/tmp/report.pdf\nPlease read this", "See /tmp/report.pdf for details"] {
+            XCTAssertEqual(try SmartJumpClassifier().classify(text), .localPath("/tmp/report.pdf"))
+        }
+        XCTAssertEqual(try SmartJumpClassifier().classify("~/Download/ then github.com"), .localPath("~/Download/"))
+    }
+
+    func testQuotedPathsKeepSpacesAndNumericPathsAreNotArithmetic() throws {
         let classifier = SmartJumpClassifier()
-        XCTAssertEqual(try classifier.classify("/tmp/My Report.pdf"), .localPath("/tmp/My Report.pdf"))
-        XCTAssertEqual(try classifier.classify("~/My Folder/"), .localPath("~/My Folder/"))
+        XCTAssertEqual(try classifier.classify("\"/tmp/My Report.pdf\""), .localPath("/tmp/My Report.pdf"))
+        XCTAssertEqual(try classifier.classify("\"~/My Folder/\""), .localPath("~/My Folder/"))
         XCTAssertEqual(try classifier.classify("/123/456"), .localPath("/123/456"))
         XCTAssertEqual(try classifier.classify("See \"/tmp/My Report.pdf\" for details"), .localPath("/tmp/My Report.pdf"))
     }

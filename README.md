@@ -60,7 +60,7 @@ and triggers are saved automatically.
 
 Smart Jump recognises links, DOI identifiers, Bilibili AV/BV numbers, local
 paths and arithmetic; other text becomes a web search. The first target in a
-passage wins. Quote paths containing spaces when they are part of a passage.
+passage wins. Quote paths containing spaces so their boundaries are explicit.
 Downloads open in the default browser. In the Library's Plugin Settings,
 configure search engines as one `Name | URL` per line, with `{query}` in the
 URL; the first is the default (Google initially). Running with no selection

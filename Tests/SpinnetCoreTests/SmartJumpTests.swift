@@ -250,6 +250,17 @@ final class SmartJumpTests: XCTestCase {
 /// Action seam with recording adapters.
 extension PluginRuntimeTests {
 
+    func testInstalledPluginsCannotPresentTheHostOwnedSmartJumpWindow() throws {
+        for selection in ["", "1+1"] {
+            var presented = false
+            let outcome = try smartJumpOutcome(selection: { selection }, open: { _ in XCTFail("No URL expected") },
+                                              present: { _ in presented = true }, origin: .installed)
+            guard case .failed(let failure) = outcome else { XCTFail("Installed Plugin must not present Host UI"); continue }
+            XCTAssertEqual(failure.category, .capabilityDenied)
+            XCTAssertFalse(presented)
+        }
+    }
+
     func testSmartJumpSharesConfiguredEnginesBetweenSelectionAndInput() throws {
         let settings: [String: JSONValue] = ["search_engines": .string("DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}")]
         var opened: [URL] = []
@@ -398,9 +409,11 @@ extension PluginRuntimeTests {
         },
         copy: @escaping (String) throws -> Void = { _ in XCTFail("The clipboard was written") },
         path: @escaping (URL) throws -> Void = { _ in XCTFail("A local path was opened") },
-        settings: [String: JSONValue] = [:]
+        settings: [String: JSONValue] = [:],
+        origin: PluginOrigin = .bundled
     ) throws -> ActionTerminalOutcome {
-        let package = try SmartJumpFixture.load()
+        let loaded = try SmartJumpFixture.load()
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: origin)
         let grants = PluginCapabilityGrantStore()
         grantStore(grants)
         if grant { SmartJumpFixture.grant(package, in: grants) }

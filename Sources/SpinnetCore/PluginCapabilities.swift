@@ -770,7 +770,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 }
             }
             switch try session.preview(text) {
-            case .input, .calculation: try smartJumpPresenter(session)
+            case .input, .calculation:
+                // This is a specialised Host-owned window, not the public
+                // declarative results vocabulary (ADR 0002).
+                guard package.mayPresentHostWindows else {
+                    throw PluginHostServiceError.capabilityDenied(.openURL)
+                }
+                try smartJumpPresenter(session)
             default: try session.submit(text)
             }
             return .null
