@@ -353,6 +353,27 @@ extension PluginRuntimeTests {
         XCTAssertEqual(opened.count, 1)
     }
 
+    func testSmartJumpPresentsInputWhenSelectedTextCannotBeRead() throws {
+        var session: SmartJumpSession?
+        var copyFallbackCalls = 0
+        let outcome = try smartJumpOutcome(
+            selection: {
+                XCTFail("The granted clipboard fallback should be used")
+                return ""
+            },
+            open: { _ in XCTFail("No link should open before the user enters text") },
+            present: { session = $0 },
+            copyFallback: {
+                copyFallbackCalls += 1
+                throw PluginHostServiceError.failed("Focused app has no readable selection")
+            }
+        )
+
+        guard case .succeeded = outcome else { return XCTFail("Input should open: \(outcome)") }
+        XCTAssertEqual(try XCTUnwrap(session).initialText, "")
+        XCTAssertEqual(copyFallbackCalls, 1)
+    }
+
     func testSmartJumpFindsAnAddressInASelectionThroughTheHostActionSeam() throws {
         var opened: [URL] = []
         let outcome = try smartJumpOutcome(selection: { "See github.com for the project" }, open: { opened.append($0) })

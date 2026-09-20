@@ -451,8 +451,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// the Host sends after the Action returns (ADR 0002). It needs what the
     /// requests need, `contact_https`, and tells the Plugin nothing back.
     case presentResults = "present_results"
-    /// Classifies text in the Host, then performs only the corresponding
-    /// Capability-checked operation. Empty text asks the Host for input.
+    /// Classifies supplied text or a best-effort selected-text read in the
+    /// Host, then performs only the corresponding Capability-checked operation.
+    /// Empty text asks the Host for input.
     case smartJump = "smart_jump"
     case openLocalPath = "open_local_path"
     /// Replaces the focused App's selection with the supplied text.
@@ -774,8 +775,31 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try focusedWindowFrameRestorer()
             return .null
         case .smartJump:
-            guard case .string(let text) = request.input else {
-                throw PluginHostServiceError.invalidInput("smart_jump expects text")
+            let text: String
+            switch request.input {
+            case .string(let suppliedText):
+                text = suppliedText
+            case .null:
+                // A missing selection is a normal Smart Jump entry point. Read
+                // it through the usual Capability checks, but let the Host
+                // input window open when no readable selection is available.
+                let readRequest = PluginRuntimeHostServiceRequest(
+                    invocationID: request.invocationID,
+                    actionID: request.actionID,
+                    service: .readSelectedText,
+                    input: .null
+                )
+                if case .string(let selectedText)? = try? execute(
+                    request: readRequest,
+                    for: package,
+                    action: action
+                ) {
+                    text = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                } else {
+                    text = ""
+                }
+            default:
+                throw PluginHostServiceError.invalidInput("smart_jump expects text or null")
             }
             let engines: [SmartJumpSearchEngine]
             if case .object(let values) = action.input, case .string(let configuration)? = values["search_engines"] {

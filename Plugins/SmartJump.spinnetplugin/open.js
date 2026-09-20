@@ -1,7 +1,7 @@
 (() => {
-  // Recognition and the input window share the Host's classifier. Every
-  // effect is separately authorized there; no page or file comes back.
-  const selection = String(requestHostService("read_selected_text", null)).trim();
-  requestHostService("smart_jump", selection);
+  // The Host reads the current selection when possible and otherwise presents
+  // its input window. Effects stay separately authorized; no page or file
+  // contents come back.
+  requestHostService("smart_jump", null);
   return null;
 })()

@@ -14,6 +14,15 @@ final class SmartJumpRecognitionTests: XCTestCase {
         XCTAssertEqual(try SmartJumpClassifier().classify("~/Download/ then github.com"), .localPath("~/Download/"))
     }
 
+    func testHiddenDirectoryPathsRemainLocalPathsAndPassValidation() throws {
+        let paths = ["/tmp/.agent/", "~/.agents/skills"]
+        for path in paths {
+            XCTAssertEqual(try SmartJumpClassifier().classify(path), .localPath(path))
+            let expanded = (path as NSString).expandingTildeInPath
+            XCTAssertEqual(try OpenableLocalPath.validate(path), URL(fileURLWithPath: expanded).standardizedFileURL)
+        }
+    }
+
     func testQuotedPathsKeepSpacesAndNumericPathsAreNotArithmetic() throws {
         let classifier = SmartJumpClassifier()
         XCTAssertEqual(try classifier.classify("\"/tmp/My Report.pdf\""), .localPath("/tmp/My Report.pdf"))
