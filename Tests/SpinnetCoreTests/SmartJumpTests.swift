@@ -24,6 +24,11 @@ final class SmartJumpTests: XCTestCase {
 
     func testSmartJumpDeclaresEachEffectSeparatelyWithoutNetworkFetch() throws {
         let manifest = try SmartJumpFixture.load().manifest
+        XCTAssertEqual(manifest.settingsFields.map(\.kind), [.searchEngines])
+        guard case .string(let searchEngines)? = manifest.defaultSettings["search_engines"] else {
+            return XCTFail("Search defaults should be an ordered string")
+        }
+        XCTAssertEqual(try SmartJumpSearchEngine.parse(searchEngines).map(\.name), ["Google", "Bing", "DuckDuckGo"])
         XCTAssertEqual(manifest.capabilities, [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertFalse(manifest.capabilities.contains(.contactHTTPS), "Opening a link grants no fetch")
         let command = manifest.commands[0]
@@ -271,8 +276,8 @@ extension PluginRuntimeTests {
         _ = try smartJumpOutcome(selection: { "" }, open: { opened.append($0) }, present: { session = $0 }, settings: settings)
         let input = try XCTUnwrap(session)
         XCTAssertEqual(input.searchEngines.map(\.name), ["DuckDuckGo", "Google"])
-        _ = try input.submit("cats & dogs", engineName: "Google")
-        XCTAssertEqual(opened.last, URL(string: "https://www.google.com/search?q=cats%20%26%20dogs"))
+        _ = try input.submit("cats & dogs")
+        XCTAssertEqual(opened.last, URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs"))
     }
 
     func testSmartJumpOpensPathsWithSeparateAuthorityAndDisclosure() throws {

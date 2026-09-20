@@ -712,6 +712,11 @@ public struct PluginManifest: Codable, Equatable {
             }
             var keys = Set<String>()
             for field in command.configurationFields {
+                guard !CommandDeclaration.settingsOnlyKinds.contains(field.kind) else {
+                    throw ConfigurationError.invalidManifest(
+                        "A \(field.kind.rawValue) field is only valid in settings_fields"
+                    )
+                }
                 guard let key = field.key, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       key.count <= 64, keys.insert(key).inserted,
                       CommandDeclaration.fieldSetKinds.contains(field.kind) else {
@@ -734,6 +739,11 @@ public struct PluginManifest: Codable, Equatable {
             }
         }
         guard let field = command.configurationField else { return }
+        guard !CommandDeclaration.settingsOnlyKinds.contains(field.kind) else {
+            throw ConfigurationError.invalidManifest(
+                "A \(field.kind.rawValue) field is only valid in settings_fields"
+            )
+        }
         guard field.kind != .orderedChoices else {
             throw ConfigurationError.invalidManifest("An ordered_choices field is only valid in settings_fields")
         }
@@ -758,13 +768,17 @@ public struct PluginManifest: Codable, Equatable {
         for field in settingsFields {
             guard let key = field.key, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   key.count <= 64, keys.insert(key).inserted,
-                  CommandDeclaration.fieldSetKinds.contains(field.kind) || field.kind == .orderedChoices else {
+                  CommandDeclaration.fieldSetKinds.contains(field.kind) || field.kind == .orderedChoices
+                    || CommandDeclaration.settingsOnlyKinds.contains(field.kind) else {
                 throw ConfigurationError.invalidManifest(
                     "Settings fields need unique keys and single-value or ordered_choices kinds"
                 )
             }
             guard !(field.kind == .orderedChoices && field.overridable) else {
                 throw ConfigurationError.invalidManifest("An ordered_choices setting cannot be overridable")
+            }
+            guard !(field.kind == .searchEngines && field.overridable) else {
+                throw ConfigurationError.invalidManifest("A search_engines setting cannot be overridable")
             }
             try validateFieldMetadata(field)
         }

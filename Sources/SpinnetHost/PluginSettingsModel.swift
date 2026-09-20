@@ -94,6 +94,9 @@ final class PluginSettingsModel: ObservableObject {
                         ? "\(field.displayTitle) must be an https address, such as https://api.example.com."
                         : "\(field.displayTitle) is not one of its offered values.")
                 }
+                if field.kind == .searchEngines, case .string(let text) = value {
+                    _ = try SmartJumpSearchEngine.parse(text)
+                }
             }
             let typed = secrets.filter { !$0.value.isEmpty }
             guard typed.values.allSatisfy(PluginCredentialReference.isValidSecret) else {

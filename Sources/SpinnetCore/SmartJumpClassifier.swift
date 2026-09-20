@@ -33,7 +33,8 @@ public struct SmartJumpClassifier {
             for match in rule.expression.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
                 guard let range = Range(match.range, in: text) else { continue }
                 let raw = String(text[range])
-                let value = Self.withoutTrailingPunctuation(raw)
+                let line = String(raw.prefix { !$0.isNewline })
+                let value = Self.withoutTrailingPunctuation(line)
                 let target: SmartJumpTarget?
                 switch rule.kind {
                 case .doi:
@@ -42,7 +43,7 @@ public struct SmartJumpClassifier {
                     let id = value.lowercased().hasPrefix("av") ? value.lowercased() : value
                     target = Self.link("https://www.bilibili.com/video/" + id, kind: .video)
                 case .path:
-                    let path = raw.hasPrefix("\"") ? String(raw.dropFirst().dropLast()) : value
+                    let path = line.hasPrefix("\"") ? String(line.dropFirst().dropLast()) : value
                     target = .localPath(path)
                 case .web:
                     // A function-shaped token such as Math.random() is text,

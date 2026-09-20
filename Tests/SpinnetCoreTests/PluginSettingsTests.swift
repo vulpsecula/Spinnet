@@ -58,6 +58,8 @@ final class PluginSettingsTests: XCTestCase {
             ("ordered choices overridable", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a"], "overridable": true}]"#, defaults: "{}") }),
             ("ordered choices default repeating a choice", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a", "b"]}]"#, defaults: #"{"s": ["a", "a"]}"#) }),
             ("ordered choices on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "ordered_choices", "choices": ["a"]}]"#) }),
+            ("search engines on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "search_engines"}]"#) }),
+            ("search engines as a Command's lone field", { try self.manifest(commandFields: #", "configuration_field": {"key": "s", "kind": "search_engines"}"#) }),
             ("default for an unknown key", { try self.manifest(defaults: #"{"other": "x"}"#) }),
             ("invalid default", { try self.manifest(defaults: #"{"target": "IT"}"#) }),
             ("clashes with a Command field", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "target", "kind": "text"}]"#) }),

@@ -48,7 +48,9 @@ final class SmartJumpRecognitionTests: XCTestCase {
         XCTAssertEqual(try classifier.classify("猫 & x#y"),
                        .search(URL(string: "https://example.com/search?q=%E7%8C%AB%20%26%20x%23y")!, "Example"))
         XCTAssertEqual(try classifier.classify("   "), .input)
-        for setting in ["", "Example | javascript:{query}", "Example | https://{query}.com/", "Example | https://example.com", "A | https://a.com/?q={query}\nA | https://b.com/?q={query}"] {
+        for setting in ["", "Example | javascript:{query}", "Example | http://example.com/search?q={query}",
+                        "Example | https://{query}.com/", "Example | https://example.com",
+                        "A | https://a.com/?q={query}\nA | https://b.com/?q={query}"] {
             XCTAssertThrowsError(try SmartJumpSearchEngine.parse(setting), setting)
         }
     }
@@ -69,6 +71,12 @@ final class SmartJumpRecognitionTests: XCTestCase {
         XCTAssertEqual(try SmartJumpClassifier().classify("10.1109/TMAG.2018.2810199 then github.com"), cases[0].1)
         XCTAssertEqual(try SmartJumpClassifier().classify("github.com then 10.1109/TMAG.2018.2810199"),
                        .link(URL(string: "https://github.com")!, .web))
+    }
+
+    func testLinkStopsAtLineBreakAndDoesNotAbsorbTheNextSection() throws {
+        let text = "rom any piece of writing.\n\nhttps://creatoreconomy.so/p/use-my-no-ai-slop-skill-to-remove-20-ai-slop-patterns\n\nResources\n\nhttps://github.com/petergyang/no-ai-slop#readme-ov-file"
+        XCTAssertEqual(try SmartJumpClassifier().classify(text),
+                       .link(URL(string: "https://creatoreconomy.so/p/use-my-no-ai-slop-skill-to-remove-20-ai-slop-patterns")!, .web))
     }
     func testAddressesInsideTextUseHTTPSAndTheFirstTargetWins() throws {
         let classifier = SmartJumpClassifier()

@@ -36,6 +36,9 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
     /// user put them, such as which translation sources run and in what
     /// order. Only in `settings_fields`, and never overridable.
     case orderedChoices = "ordered_choices"
+    /// An ordered set of search destinations rendered as named editable rows.
+    /// The first entry is the default engine. Only in Plugin Settings.
+    case searchEngines = "search_engines"
 
     public var title: String {
         switch self {
@@ -54,6 +57,7 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
         case .credential: return "Credential"
         case .httpsEndpoint: return "HTTPS Endpoint"
         case .orderedChoices: return "Ordered Choices"
+        case .searchEngines: return "Search Engines"
         }
     }
 }
@@ -240,6 +244,10 @@ public extension CommandDeclaration {
     static let fieldSetKinds: Set<CommandConfigurationFieldKind> = [
         .text, .multilineText, .toggle, .choice, .file, .folder, .url, .credential, .httpsEndpoint
     ]
+
+    /// Kinds that are Plugin Settings only and never belong to an Action's
+    /// configuration fields.
+    static let settingsOnlyKinds: Set<CommandConfigurationFieldKind> = [.searchEngines]
 
     /// Kinds that only make sense as a member of a field set: a credential
     /// reference and a network endpoint describe one part of a request.

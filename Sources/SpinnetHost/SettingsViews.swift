@@ -69,7 +69,7 @@ struct ConfigurationInputValueResolver {
             return encodedValue(for: value)
         case .size, .position:
             return encodedValue(for: value)
-        case .credential, .httpsEndpoint, .orderedChoices:
+        case .credential, .httpsEndpoint, .orderedChoices, .searchEngines:
             // Only members of a field set, never a lone field.
             return encodedValue(for: value)
         }
@@ -123,7 +123,7 @@ struct ConfigurationInputValueResolver {
         case .size, .position:
             // Kept as typed; the Host checks the grammar when the sheet saves.
             return .string(text)
-        case .credential, .httpsEndpoint, .orderedChoices:
+        case .credential, .httpsEndpoint, .orderedChoices, .searchEngines:
             // Only members of a field set, never a lone field.
             return .string(text)
         }
@@ -1408,7 +1408,7 @@ private struct SlotConfigurationSheet: View {
                 )
                 .accessibilityLabel("\(command.title) configuration input")
             }
-        case .url, .size, .position, .credential, .httpsEndpoint, .orderedChoices:
+        case .url, .size, .position, .credential, .httpsEndpoint, .orderedChoices, .searchEngines:
             ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)

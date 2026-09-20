@@ -69,6 +69,8 @@ struct PluginSettingsForm: View {
             ResourcePathField(kind: field.kind, value: text(key))
         case .multilineText:
             ConfigurationTextEditor(text: text(key), placeholder: field.placeholder ?? "")
+        case .searchEngines:
+            SmartJumpSearchEnginesEditor(value: text(key))
         case .credential:
             credential(reference: text(key).wrappedValue, placeholder: field.placeholder)
         case .orderedChoices:

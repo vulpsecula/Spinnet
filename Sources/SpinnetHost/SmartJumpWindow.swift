@@ -6,7 +6,6 @@ import SwiftUI
 final class SmartJumpWindowModel: ObservableObject {
     let session: SmartJumpSession
     @Published var text: String { didSet { refresh() } }
-    @Published var engineName: String { didSet { refresh() } }
     @Published private(set) var target: SmartJumpTarget?
     @Published private(set) var error: String?
     @Published private(set) var copied = false
@@ -16,7 +15,6 @@ final class SmartJumpWindowModel: ObservableObject {
         self.session = session
         self.didJump = didJump
         text = session.initialText
-        engineName = session.searchEngines[0].name
         refresh()
     }
 
@@ -24,7 +22,7 @@ final class SmartJumpWindowModel: ObservableObject {
 
     func submit() {
         do {
-            target = try session.submit(text, engineName: engineName)
+            target = try session.submit(text)
             error = nil
             if case .calculation = target { return }
             didJump()
@@ -42,7 +40,7 @@ final class SmartJumpWindowModel: ObservableObject {
     private func refresh() {
         copied = false
         do {
-            target = try session.preview(text, engineName: engineName)
+            target = try session.preview(text)
             error = nil
         } catch {
             target = nil
@@ -68,18 +66,8 @@ struct SmartJumpWindowView: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.canSubmit)
             }
-            if model.session.searchEngines.count > 1 {
-                Picker("Search engine", selection: $model.engineName) {
-                    ForEach(model.session.searchEngines, id: \.name) { engine in
-                        Text(engine.name).tag(engine.name)
-                    }
-                }
-            }
             if let target = model.target {
-                SmartJumpPreviewView(target: target)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                SmartJumpDestinationBadge(target: target)
                 if let result = target.resultText {
                     HStack {
                         Text(result).font(.title2.monospacedDigit()).textSelection(.enabled)
@@ -100,23 +88,82 @@ struct SmartJumpWindowView: View {
     }
 }
 
-private struct SmartJumpPreviewView: View {
+private struct SmartJumpDestinationBadge: View {
     let target: SmartJumpTarget
 
     var body: some View {
-        VStack(alignment: .leading) {
-            switch target {
-            case .input: Text("Enter text to see where it will go.")
-            case .search(_, let engine): Text("Search \(engine)")
-            case .localPath(let path): Text("Open local path: \(path)")
-            case .calculation: Text("Calculate")
-            case .link(let url, let kind):
-                switch kind {
-                case .web: Text("Open \(url.absoluteString)")
-                case .doi: Text("DOI → \(url.absoluteString)")
-                case .video: Text("Bilibili → \(url.absoluteString)")
-                case .download: Text("Download in browser: \(url.absoluteString)")
+        let style = StatusStyle(target: target)
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: style.symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(style.color)
+                .frame(width: 22, height: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(style.title).font(.callout.weight(.semibold))
+                if let detail = style.detail {
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(style.color.opacity(0.13), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(style.color.opacity(0.25), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct StatusStyle {
+    let title: String
+    let detail: String?
+    let symbol: String
+    let color: Color
+
+    init(target: SmartJumpTarget) {
+        switch target {
+        case .input:
+            title = "Type to preview a destination"
+            detail = nil
+            symbol = "text.cursor"
+            color = .secondary
+        case .search(let url, let engine):
+            title = "Search the web"
+            detail = "Using \(engine) · \(url.host ?? "")"
+            symbol = "magnifyingglass"
+            color = .teal
+        case .localPath(let path):
+            title = "Open a local file or folder"
+            detail = path
+            symbol = "folder"
+            color = .orange
+        case .calculation(let value):
+            title = "Calculate"
+            detail = String(format: "Result: %.15g", locale: Locale(identifier: "en_US_POSIX"), value)
+            symbol = "equal"
+            color = .green
+        case .link(let url, let kind):
+            detail = url.absoluteString
+            switch kind {
+            case .web:
+                title = "Open web address"
+                symbol = "arrow.up.right"
+                color = .blue
+            case .doi:
+                title = "Open DOI"
+                symbol = "text.book.closed"
+                color = .indigo
+            case .video:
+                title = "Open Bilibili video"
+                symbol = "play.rectangle"
+                color = .pink
+            case .download:
+                title = "Open download link in browser"
+                symbol = "arrow.down.circle"
+                color = .purple
             }
         }
     }

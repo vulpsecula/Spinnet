@@ -23,6 +23,7 @@ public struct SmartJumpSearchEngine: Equatable {
             }
             let probe = parts[1].replacingOccurrences(of: "{query}", with: "spinnet_query_probe")
             guard let url = try? OpenableURL.validate(probe),
+                  url.scheme?.lowercased() == "https",
                   url.user == nil, url.password == nil,
                   url.host?.contains("spinnet_query_probe") == false,
                   let components = URLComponents(url: url, resolvingAgainstBaseURL: false),

@@ -16,14 +16,13 @@ public final class SmartJumpSession {
         self.copy = copy
     }
 
-    public func preview(_ text: String, engineName: String? = nil) throws -> SmartJumpTarget {
-        let engine = engineName.flatMap { name in searchEngines.first { $0.name == name } } ?? searchEngines[0]
-        return try SmartJumpClassifier(searchEngines: [engine]).classify(text)
+    public func preview(_ text: String) throws -> SmartJumpTarget {
+        try SmartJumpClassifier(searchEngines: searchEngines).classify(text)
     }
 
     @discardableResult
-    public func submit(_ text: String, engineName: String? = nil) throws -> SmartJumpTarget {
-        let target = try preview(text, engineName: engineName)
+    public func submit(_ text: String) throws -> SmartJumpTarget {
+        let target = try preview(text)
         guard target != .input else { throw PluginHostServiceError.invalidInput("Enter text to jump") }
         try perform(target)
         return target

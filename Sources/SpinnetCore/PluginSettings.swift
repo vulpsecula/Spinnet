@@ -35,6 +35,8 @@ public extension PluginManifest {
             guard let key = field.key, let value = values[key], field.acceptsMemberValue(value) else { return true }
             switch (field.kind, value) {
             case (.credential, .string(let reference)): return !hasSecret(reference)
+            case (.searchEngines, .string(let text)):
+                return (try? SmartJumpSearchEngine.parse(text).isEmpty) ?? true
             case (_, .string(let text)): return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             case (_, .array(let items)): return items.isEmpty
             default: return false
