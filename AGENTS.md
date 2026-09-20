@@ -20,6 +20,6 @@ documents carry no version history. A documentation change cannot be reviewed
 as a diff; the budgets in `docs/adr/0007` and `docs/plugin-interface.md` are
 instead pinned by `DocumentedBudgetsTests`.
 
-### macOS development verification
+### Development verification
 
-For macOS build, run, test, or debugging work, use the relevant `build-macos-apps:*` skill. When Xcode is running with this package open, use the `xcode` MCP for Xcode-native validation such as builds, tests, Issue Navigator diagnostics, build logs, and previews; use SwiftPM shell commands for tight package-level checks.
+For build, run, test, or debugging work, use the relevant `build-macos-apps:*` skill. Use the `xcode` MCP for Xcode-native validation such as builds, tests, Issue Navigator diagnostics, build logs, and previews; use SwiftPM shell commands for tight package-level checks.

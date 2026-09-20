@@ -381,6 +381,27 @@ extension PluginRuntimeTests {
         XCTAssertEqual(opened, [URL(string: "https://github.com")!])
     }
 
+    func testSmartJumpUsesCopyFallbackTextFromItsHostSelectionRead() throws {
+        let selectedURL = "https://example.com/telegram-selection"
+        var opened: [URL] = []
+        var copyFallbackCalls = 0
+        var presentedInput = false
+        let outcome = try smartJumpOutcome(
+            selection: { "" },
+            open: { opened.append($0) },
+            present: { _ in presentedInput = true },
+            copyFallback: {
+                copyFallbackCalls += 1
+                return selectedURL
+            }
+        )
+
+        guard case .succeeded = outcome else { return XCTFail("The selected link should open: \(outcome)") }
+        XCTAssertEqual(copyFallbackCalls, 1)
+        XCTAssertEqual(opened, [URL(string: selectedURL)!])
+        XCTAssertFalse(presentedInput, "A readable selection must not open blank input")
+    }
+
     func testSmartJumpOpensTheSelectedLinkThroughTheHostActionSeam() throws {
         var opened: [URL] = []
         let outcome = try smartJumpOutcome(selection: { "  https://example.com/path?q=1 \n" }, open: { opened.append($0) })
