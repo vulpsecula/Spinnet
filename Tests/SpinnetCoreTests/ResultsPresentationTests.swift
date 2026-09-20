@@ -27,6 +27,11 @@ final class RoutedHTTPSTransport: HTTPSTransport {
         return response
     }
 
+    /// Replaces what a host answers from now on.
+    func answer(_ host: String, with route: Route) {
+        lock.withLock { routes[host] = route }
+    }
+
     static func json(_ body: String, status: Int = 200, delay: TimeInterval = 0) -> Route {
         Route(response: ScriptedHTTPSTransport.json(body, status: status), delay: delay)
     }
@@ -46,6 +51,9 @@ final class ResultsPresentationTests: XCTestCase {
     /// Plugin Settings as the Host stores them, and what the popup wrote.
     private var storedSettings: [String: JSONValue] = [:]
     private var reruns = 0
+    /// Answers kept for repeated requests, with a clock the test moves.
+    private var clock: TimeInterval = 0
+    private lazy var cache = ResultsResponseCache(lifetime: 60, limit: 2, now: { [unowned self] in clock })
     /// What the Host's language detector reports for the text being resolved.
     private var detected: String?
 
@@ -81,7 +89,8 @@ final class ResultsPresentationTests: XCTestCase {
             languageDetector: { [unowned self] _ in detected },
             pluginSettingsReader: { [unowned self] _ in storedSettings },
             pluginSettingsWriter: { [unowned self] _, values in storedSettings = values },
-            actionRerunner: { [unowned self] _, _ in reruns += 1 }
+            actionRerunner: { [unowned self] _, _ in reruns += 1 },
+            responseCache: cache
         )
     }
 
@@ -454,6 +463,72 @@ final class ResultsPresentationTests: XCTestCase {
       {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint"}
     ],
     """
+
+    // MARK: Asking the same question twice
+
+    /// A section the Plugin marks cacheable answers from the last answer, so
+    /// translating the same text again sends nothing.
+    func testARepeatedCacheableRequestIsAnsweredWithoutAskingAgain() throws {
+        let transport = RoutedHTTPSTransport(["api.example.com": RoutedHTTPSTransport.json(#"{"text":"Guten Morgen"}"#)])
+        _ = try present(presentation(sections: [section("Cached", extra: ["cache": .bool(true)]),
+                                                section("Fresh")]), transport: transport)
+        let session = try XCTUnwrap(presented.first)
+
+        XCTAssertEqual(resolve(session, text: "Good morning").count, 2)
+        XCTAssertEqual(transport.requests.count, 2)
+        XCTAssertEqual(resolve(session, text: "Good morning").map(\.1),
+                       [.succeeded("Guten Morgen"), .succeeded("Guten Morgen")])
+        XCTAssertEqual(transport.requests.count, 3, "Only the section that allows it answers from the cache")
+
+        _ = resolve(session, text: "Good evening")
+        XCTAssertEqual(transport.requests.count, 5, "Different text is a different question")
+    }
+
+    func testACachedAnswerExpiresAndOnlyASuccessIsKept() throws {
+        let transport = RoutedHTTPSTransport(["api.example.com": RoutedHTTPSTransport.json("Nope", status: 503)])
+        _ = try present(presentation(sections: [section("Cached", extra: ["cache": .bool(true)])]), transport: transport)
+        let session = try XCTUnwrap(presented.first)
+
+        _ = resolve(session, text: "Good morning")
+        _ = resolve(session, text: "Good morning")
+        XCTAssertEqual(transport.requests.count, 2, "A failed answer is not kept")
+
+        transport.answer("api.example.com", with: RoutedHTTPSTransport.json(#"{"text":"Guten Morgen"}"#))
+        _ = resolve(session, text: "Good morning")
+        _ = resolve(session, text: "Good morning")
+        XCTAssertEqual(transport.requests.count, 3)
+
+        clock += 61
+        XCTAssertEqual(resolve(session, text: "Good morning").first?.1, .succeeded("Guten Morgen"))
+        XCTAssertEqual(transport.requests.count, 4, "An answer older than its lifetime is asked again")
+    }
+
+    /// The cache is behind the grant, so withdrawing access stops cached
+    /// answers as well as new requests.
+    func testARevokedGrantIsNotAnsweredFromTheCache() throws {
+        let transport = RoutedHTTPSTransport(["api.example.com": RoutedHTTPSTransport.json(#"{"text":"Guten Morgen"}"#)])
+        _ = try present(presentation(sections: [section("Cached", extra: ["cache": .bool(true)])]), transport: transport)
+        let session = try XCTUnwrap(presented.first)
+        XCTAssertEqual(resolve(session, text: "Good morning").first?.1, .succeeded("Guten Morgen"))
+
+        grants.setDecision(.denied, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .contactHTTPS, scope: manifest.scope(for: .contactHTTPS))
+        guard case .failed? = resolve(session, text: "Good morning").first?.1 else {
+            return XCTFail("A withdrawn grant must not read the cache")
+        }
+    }
+
+    /// One Plugin never reads another's answers, and a credential is keyed by
+    /// its reference, never its secret.
+    func testAnswersAreKeptPerPluginAndPerRequest() throws {
+        let request: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/t")])
+        let mine = try XCTUnwrap(ResultsResponseCache.key(pluginID: PluginID("com.example.a"), request: request))
+        let theirs = try XCTUnwrap(ResultsResponseCache.key(pluginID: PluginID("com.example.b"), request: request))
+        XCTAssertNotEqual(mine, theirs)
+        let other: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/u")])
+        XCTAssertNotEqual(mine, ResultsResponseCache.key(pluginID: PluginID("com.example.a"), request: other))
+        XCTAssertFalse(mine.contains("secret"))
+    }
 
     func testJSONPointersFollowRFC6901() {
         let document: JSONValue = .object(["a": .array([.object(["b/c": .string("slash"), "d~e": .string("tilde")])]),

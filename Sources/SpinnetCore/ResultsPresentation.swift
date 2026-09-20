@@ -10,6 +10,12 @@ public enum ResultsPresentationBudgets {
     /// label, or `when_language` code, in characters.
     public static let maximumTitleLength = 256
 
+    /// How long a cached answer stays usable.
+    public static let cacheLifetime: TimeInterval = 10 * 60
+
+    /// Answers kept at once, across every popup.
+    public static let maximumCachedAnswers = 50
+
     /// Plugin Settings one popup may offer to change.
     public static let maximumSettings = 6
 
@@ -52,6 +58,10 @@ public struct ResultsPresentation: Equatable {
         let errorPointer: String?
         /// Messages for particular failed statuses, which win over `errorPointer`.
         let statusMessages: [Int: String]
+        /// Whether the same request may answer from the last answer it gave,
+        /// which a Plugin declares for a request that asks the same question
+        /// twice, such as translating the same text again.
+        let isCacheable: Bool
 
         /// The `https_request` input for `text`.
         func request(with text: String) throws -> JSONValue {
@@ -253,7 +263,8 @@ public struct ResultsPresentation: Equatable {
 
     private static func section(_ value: JSONValue) throws -> Section {
         guard case .object(let fields) = value,
-              Set(fields.keys).isSubset(of: ["title", "request", "result_pointer", "error_pointer", "status_messages"]),
+              Set(fields.keys).isSubset(of: ["title", "request", "result_pointer", "error_pointer",
+                                             "status_messages", "cache"]),
               case .object(let request)? = fields["request"],
               Set(request.keys).isSubset(of: ["method", "url", "headers", "json_body", "credential"]) else {
             throw PluginHostServiceError.invalidInput(
@@ -277,12 +288,20 @@ public struct ResultsPresentation: Equatable {
                 statusMessages[code] = text
             }
         }
+        var isCacheable = false
+        if let declared = fields["cache"] {
+            guard case .bool(let cacheable) = declared else {
+                throw PluginHostServiceError.invalidInput("cache is true or false")
+            }
+            isCacheable = cacheable
+        }
         return Section(
             title: try title(fields["title"], name: "section title"),
             request: request,
             resultPointer: try pointer(fields["result_pointer"], name: "result_pointer"),
             errorPointer: try fields["error_pointer"].map { try pointer($0, name: "error_pointer") },
-            statusMessages: statusMessages
+            statusMessages: statusMessages,
+            isCacheable: isCacheable
         )
     }
 
@@ -302,6 +321,79 @@ public struct ResultsPresentation: Equatable {
             throw PluginHostServiceError.invalidInput("\(name) must be a JSON pointer such as /data/0/text")
         }
         return text
+    }
+}
+
+/// Answers the Host may give again without asking the service, for requests
+/// a Plugin marked cacheable, such as translating the same text twice.
+///
+/// An answer is kept per Plugin and per request, so one Plugin never reads
+/// another's, and the key holds a credential's reference rather than its
+/// secret. Nothing is written to disk: a restart starts with none. Only a
+/// successful answer is kept, and a request is only asked of the cache after
+/// the Plugin's authority has been checked afresh, so revoking access stops
+/// cached answers too.
+public final class ResultsResponseCache {
+    private struct Entry {
+        let response: JSONValue
+        let storedAt: TimeInterval
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+    /// Keys in the order they were stored, oldest first.
+    private var order: [String] = []
+    private let lifetime: TimeInterval
+    private let limit: Int
+    private let now: () -> TimeInterval
+
+    public init(lifetime: TimeInterval = ResultsPresentationBudgets.cacheLifetime,
+                limit: Int = ResultsPresentationBudgets.maximumCachedAnswers,
+                now: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
+        self.lifetime = lifetime
+        self.limit = limit
+        self.now = now
+    }
+
+    /// The key of one request: which Plugin asked, and exactly what it asked.
+    static func key(pluginID: PluginID, request: JSONValue) -> String? {
+        let encoder = JSONEncoder()
+        // A dictionary has no order of its own, so the same request has to
+        // encode the same way twice or nothing would ever be found again.
+        encoder.outputFormatting = [.sortedKeys]
+        guard let encoded = try? encoder.encode(request) else { return nil }
+        return pluginID.rawValue + "\u{0}" + String(decoding: encoded, as: UTF8.self)
+    }
+
+    func response(for key: String) -> JSONValue? {
+        lock.withLock {
+            guard let entry = entries[key] else { return nil }
+            guard now() - entry.storedAt < lifetime else {
+                entries[key] = nil
+                order.removeAll { $0 == key }
+                return nil
+            }
+            return entry.response
+        }
+    }
+
+    func store(_ response: JSONValue, for key: String) {
+        lock.withLock {
+            if entries[key] == nil { order.append(key) }
+            entries[key] = Entry(response: response, storedAt: now())
+            while order.count > limit, let oldest = order.first {
+                order.removeFirst()
+                entries[oldest] = nil
+            }
+        }
+    }
+
+    /// Forgets everything, such as when a Plugin's access changes.
+    public func clear() {
+        lock.withLock {
+            entries = [:]
+            order = []
+        }
     }
 }
 
@@ -343,15 +435,19 @@ public final class ResultsPresentationSession {
     public var settings: [Setting] { readSettings() }
     /// The two settings the popup offers to swap, if any.
     public let swappableSettings: (String, String)?
-    private let send: (JSONValue) throws -> JSONValue
+    /// Performs one `https_request` input with the Plugin's current
+    /// authority, answering from the cache when the section allows it.
+    private let send: (JSONValue, _ mayAnswerFromCache: Bool) throws -> JSONValue
     private let detectLanguage: (String) -> String?
     private let changeSettings: (([String: JSONValue]) throws -> Void)?
 
     /// `send` performs one `https_request` input with the Plugin's current
-    /// authority. `detectLanguage` reports the language of a text as a BCP 47
-    /// code, which decides between the popup's directions; the text never
-    /// leaves the Host for it.
-    public init(presentation: ResultsPresentation, send: @escaping (JSONValue) throws -> JSONValue,
+    /// authority, and may answer from the cache when its second argument says
+    /// the section allows it. `detectLanguage` reports the language of a text
+    /// as a BCP 47 code, which decides between the popup's directions; the
+    /// text never leaves the Host for it.
+    public init(presentation: ResultsPresentation,
+                send: @escaping (JSONValue, _ mayAnswerFromCache: Bool) throws -> JSONValue,
                 detectLanguage: @escaping (String) -> String? = { _ in nil },
                 settings: @escaping () -> [Setting] = { [] },
                 swappableSettings: (String, String)? = nil,
@@ -404,7 +500,7 @@ public final class ResultsPresentationSession {
             DispatchQueue.global(qos: .userInitiated).async(group: group) { [send] in
                 let state: ResultsSectionState
                 do {
-                    state = section.state(for: try send(section.request(with: text)))
+                    state = section.state(for: try send(section.request(with: text), section.isCacheable))
                 } catch let error as PluginHostServiceError {
                     state = .failed(Self.message(for: error))
                 } catch {

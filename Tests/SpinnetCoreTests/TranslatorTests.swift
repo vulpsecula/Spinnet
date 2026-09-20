@@ -45,7 +45,7 @@ final class TranslatorTests: XCTestCase {
         let manifest = package.manifest
         XCTAssertEqual(manifest.preset.readiness, .readyToUse)
         XCTAssertEqual(manifest.settingsFields.map(\.key), [
-            "sources", "source_language", "target_language", "auto_detect",
+            "sources", "source_language", "target_language", "auto_detect", "google_endpoint",
             "deepl_endpoint", "deepl_credential", "formality",
             "openai_endpoint", "openai_model", "openai_credential"
         ])
@@ -182,8 +182,10 @@ extension PluginRuntimeTests {
     private func translatorSettings(sources: [String] = ["DeepL"], source: String = "EN-US", target: String = "DE",
                                     autoDetect: Bool = false, formality: String = "default",
                                     deepLEndpoint: String = "https://api-free.deepl.com",
+                                    googleEndpoint: String = "https://clients5.google.com",
                                     openAIEndpoint: String = "https://api.openai.com/v1") -> [String: JSONValue] {
         ["sources": .array(sources.map(JSONValue.string)), "source_language": .string(source),
+         "google_endpoint": .string(googleEndpoint),
          "target_language": .string(target), "auto_detect": .bool(autoDetect),
          "deepl_endpoint": .string(deepLEndpoint), "deepl_credential": .string("deepl"), "formality": .string(formality),
          "openai_endpoint": .string(openAIEndpoint), "openai_model": .string("gpt-test"), "openai_credential": .string("openai")]
@@ -281,7 +283,10 @@ extension PluginRuntimeTests {
         XCTAssertEqual(google.url.absoluteString,
                        "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=zh-CN&q=Good%20morning")
         XCTAssertNil(google.body)
-        XCTAssertEqual(google.headers, [:], "Nothing identifies the user to Google")
+        // Google turns away requests that look automated, so its web client's
+        // User-Agent is sent; nothing else identifies the user.
+        XCTAssertEqual(google.headers.keys.sorted(), ["User-Agent"])
+        XCTAssertTrue(try XCTUnwrap(google.headers["User-Agent"]).hasPrefix("Mozilla/5.0"))
 
         let openAI = try run.request(to: "api.openai.com")
         XCTAssertEqual(openAI.url.absoluteString, "https://api.openai.com/v1/chat/completions")
@@ -300,7 +305,33 @@ extension PluginRuntimeTests {
     func testGoogleTranslatesWithoutAKey() throws {
         let run = try runTranslator("translator.selection", settings: translatorSettings(sources: ["Google"]))
         XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen")])
-        XCTAssertEqual(try run.request(to: "clients5.google.com").headers, [:])
+        XCTAssertNil(try run.request(to: "clients5.google.com").headers["Authorization"])
+    }
+
+    /// Google refuses some networks outright, so its address is a setting and
+    /// an address of one's own is contacted once consented to.
+    func testGoogleSpeaksToTheAddressInItsSetting() throws {
+        var answers = Self.answers
+        answers["translate.example.org"] = answers["clients5.google.com"]
+        let settings = translatorSettings(sources: ["Google"], googleEndpoint: "https://translate.example.org")
+        let run = try runTranslator("translator.selection", settings: settings, answers: answers) { package, grants in
+            let declared = package.manifest.scope(for: .contactHTTPS)!
+            grants.setConsentedHTTPSHosts(["translate.example.org"], for: package.manifest.id,
+                                          pluginVersion: package.manifest.version, declaredScope: declared)
+        }
+        XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen")])
+        XCTAssertTrue(try run.request(to: "translate.example.org").url.path.hasSuffix("/translate_a/t"))
+    }
+
+    /// Translating the same text again asks no source a second time.
+    func testTranslatingTheSameTextAgainAsksNoSourceAgain() throws {
+        let run = try runTranslator("translator.selection", settings: translatorSettings(sources: ["Google", "DeepL"]))
+        XCTAssertEqual(try run.resolve("Good morning").count, 2)
+        XCTAssertEqual(run.transport.requests.count, 2)
+        XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen"), .succeeded("Guten Morgen")])
+        XCTAssertEqual(run.transport.requests.count, 2, "Both answers came from the last ones")
+        _ = try run.resolve("Good evening")
+        XCTAssertEqual(run.transport.requests.count, 4, "Different text is asked afresh")
     }
 
     /// The three language settings are controls in the popup, not just a

@@ -28,6 +28,8 @@
      "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"],
      "choice_titles": ["English (American)", "English (British)", "German", "French", "Spanish", "Italian", "Dutch", "Polish", "Brazilian Portuguese", "European Portuguese", "Russian", "Swedish", "Danish", "Finnish", "Czech", "Ukrainian", "Turkish", "Arabic", "Indonesian", "Japanese", "Korean", "Simplified Chinese", "Traditional Chinese"]},
     {"key": "auto_detect", "kind": "toggle", "title": "Detect Direction"},
+    {"key": "google_endpoint", "kind": "https_endpoint", "title": "Google Endpoint", "placeholder": "https://clients5.google.com",
+     "used_when": {"key": "sources", "values": ["Google"]}},
     {"key": "deepl_endpoint", "kind": "https_endpoint", "title": "DeepL Endpoint", "placeholder": "https://api-free.deepl.com",
      "used_when": {"key": "sources", "values": ["DeepL"]}},
     {"key": "deepl_credential", "kind": "credential", "title": "DeepL API Key", "placeholder": "DeepL authentication key",
@@ -43,6 +45,7 @@
   ],
   "default_settings": {
     "sources": ["Google"],
+    "google_endpoint": "https://clients5.google.com",
     "source_language": "EN-US",
     "target_language": "ZH-HANS",
     "auto_detect": true,

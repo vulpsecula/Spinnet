@@ -46,6 +46,11 @@
   // With both languages the same there is no other direction to turn to.
   const autoDetect = config.auto_detect === true && source.id !== target.id;
 
+  // Google turns away requests that look automated, so its own web client's
+  // User-Agent is sent instead of Spinnet's.
+  const browser = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
+    "Chrome/120.0.0.0 Safari/537.36";
+
   function baseURL(value, name) {
     const url = String(value || "").trim().replace(/\/+$/, "");
     if (!/^https:\/\//.test(url)) throw new Error("Configure an https address for " + name + " in Translator's Plugin Settings");
@@ -62,6 +67,7 @@
       if (config.formality && config.formality !== "default") body.formality = config.formality;
       return {
         title: "DeepL",
+        cache: true,
         request: {
           method: "POST",
           url: baseURL(config.deepl_endpoint, "DeepL") + "/v2/translate",
@@ -77,14 +83,18 @@
       };
     },
     // Google Translate's own endpoint, the one its Chrome dictionary uses:
-    // no API key, and the whole translation comes back as one string.
+    // no API key, and the whole translation comes back as one string. The
+    // address is a setting because Google refuses some networks, and a
+    // reverse proxy speaking the same shape then takes its place.
     Google(into) {
       return {
         title: "Google",
+        cache: true,
         request: {
           method: "GET",
-          url: "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=" +
-            into.google + "&q={{text}}"
+          url: baseURL(config.google_endpoint, "Google") + "/translate_a/t?client=dict-chrome-ex&sl=auto&tl=" +
+            into.google + "&q={{text}}",
+          headers: { "User-Agent": browser }
         },
         result_pointer: "/0/0",
         status_messages: {
@@ -101,6 +111,7 @@
         "Reply with the translation only, without quotes, notes, or explanations, and keep its line breaks and formatting.";
       return {
         title: "OpenAI · " + model,
+        cache: true,
         request: {
           method: "POST",
           url: baseURL(config.openai_endpoint, "OpenAI") + "/chat/completions",

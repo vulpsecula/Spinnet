@@ -160,12 +160,12 @@ final class PluginSettingsModelTests: XCTestCase {
     func testOnlyTheSettingsOfSourcesThatAreOnAreShownOrChecked() throws {
         let (model, store) = try translatorModel()
         let shared = ["sources", "source_language", "target_language", "auto_detect"]
-        XCTAssertEqual(model.visibleFields.compactMap(\.key), shared,
-                       "Google needs nothing of its own")
+        XCTAssertEqual(model.visibleFields.compactMap(\.key), shared + ["google_endpoint"],
+                       "Google needs only its address")
         model.values["openai_endpoint"] = .string("not an address")
         model.setChoice("DeepL", enabled: true, for: "sources")
         XCTAssertEqual(model.visibleFields.compactMap(\.key),
-                       shared + ["deepl_endpoint", "deepl_credential", "formality"])
+                       shared + ["google_endpoint", "deepl_endpoint", "deepl_credential", "formality"])
         model.secrets["deepl"] = "key"
         XCTAssertTrue(model.save(), model.error ?? "")
         XCTAssertEqual(store.values(for: model.manifest.id)["sources"],

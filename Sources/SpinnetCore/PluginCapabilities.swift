@@ -585,6 +585,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let pluginSettingsReader: (PluginManifest) -> [String: JSONValue]
     private let pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)?
     private let actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)?
+    /// Answers to repeated requests, for the popups of every Plugin.
+    public let responseCache: ResultsResponseCache
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
 
@@ -637,7 +639,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         languageDetector: @escaping (String) -> String? = { _ in nil },
         pluginSettingsReader: @escaping (PluginManifest) -> [String: JSONValue] = { $0.resolvedSettings(stored: [:]) },
         pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
-        actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil
+        actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil,
+        responseCache: ResultsResponseCache = ResultsResponseCache()
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -662,6 +665,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.pluginSettingsReader = pluginSettingsReader
         self.pluginSettingsWriter = pluginSettingsWriter
         self.actionRerunner = actionRerunner
+        self.responseCache = responseCache
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
     }
@@ -906,14 +910,24 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             let session = ResultsPresentationSession(
                 presentation: presentation,
-                send: { [self] input in
+                send: { [self] input, mayAnswerFromCache in
                     guard grantStore.decision(
                         for: package.manifest.id, pluginVersion: package.manifest.version,
                         capability: .contactHTTPS, scope: package.manifest.scope(for: .contactHTTPS)
                     ) == .granted else {
                         throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
                     }
-                    return try httpsPerformer(for: package).perform(input)
+                    // Asking the same question twice, such as translating the
+                    // same text again, is answered from the last answer. The
+                    // grant is checked first, so a withdrawn one stops these too.
+                    let key = mayAnswerFromCache ? ResultsResponseCache.key(pluginID: manifest.id, request: input) : nil
+                    if let key, let cached = responseCache.response(for: key) { return cached }
+                    let response = try httpsPerformer(for: package).perform(input)
+                    if let key, case .object(let fields) = response, case .number(let status)? = fields["status"],
+                       (200..<300).contains(Int(status)) {
+                        responseCache.store(response, for: key)
+                    }
+                    return response
                 },
                 // The Host reads the text it already holds; nothing is sent
                 // anywhere to tell one direction from the other.

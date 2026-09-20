@@ -25,6 +25,9 @@ final class ResultsPopupModel: ObservableObject {
     private let copyText: (String) -> Void
     /// What the popup could not do, such as a setting it could not store.
     @Published private(set) var error: String?
+    /// A pinned popup stays open when the user clicks elsewhere, so a
+    /// translation can be read beside the App it came from.
+    @Published var isPinned = false
     /// Answers for an older submission than this one are dropped.
     private var generation = 0
 
@@ -128,11 +131,21 @@ struct ResultsPopupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.presentation.title).font(.headline)
-                if let subtitle = model.subtitle {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.presentation.title).font(.headline)
+                    if let subtitle = model.subtitle {
+                        Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
+                Spacer(minLength: 8)
+                Button { model.isPinned.toggle() } label: {
+                    Image(systemName: model.isPinned ? "pin.fill" : "pin")
+                        .rotationEffect(.degrees(45))
+                }
+                .buttonStyle(.borderless)
+                .help(model.isPinned ? "Unpin" : "Keep this popup open")
+                .accessibilityLabel(model.isPinned ? "Unpin the popup" : "Pin the popup")
             }
             if !model.settings.isEmpty {
                 settingsRow
@@ -274,10 +287,12 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
     /// where the Plugin has none of its own.
     private var carriedText: String?
     private var carriedTopLeft: NSPoint?
+    private var carriedPin = false
 
     func present(_ session: ResultsPresentationSession) {
         carriedText = model?.shownText
         carriedTopLeft = panel.map { NSPoint(x: $0.frame.minX, y: $0.frame.maxY) }
+        carriedPin = model?.isPinned ?? false
         close()
         let model = ResultsPopupModel(session: session, copy: { text in
             let pasteboard = NSPasteboard.general
@@ -316,12 +331,14 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
             panel.setFrameTopLeftPoint(NSPoint(x: x, y: top))
         }
 
+        model.isPinned = carriedPin
         self.panel = panel
         self.model = model
         panel.makeKeyAndOrderFront(nil)
         model.start(carrying: carriedText)
         carriedText = nil
         carriedTopLeft = nil
+        carriedPin = false
     }
 
     func close() {
@@ -347,6 +364,8 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        // A pinned popup stays until the user closes it.
+        guard model?.isPinned != true else { return }
         close()
     }
 

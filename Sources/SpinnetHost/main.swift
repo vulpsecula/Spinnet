@@ -270,12 +270,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             settings.removePlugin = { [unowned self] pluginID in
                 try self.pluginInstallation.uninstall(pluginID)
+                self.clipboardBroker?.responseCache.clear()
                 if let configuration = self.currentConfiguration {
                     self.menu.reload(items: self.makeMenuSlots(from: configuration))
                 }
             }
             settings.onCapabilityGrantChanged = { [weak self] _ in
                 do {
+                    // Kept answers were fetched under the old decision.
+                    self?.clipboardBroker?.responseCache.clear()
                     try self?.saveCapabilityGrants()
                     if let self, let configuration = self.currentConfiguration {
                         self.menu.reload(items: self.makeMenuSlots(from: configuration))

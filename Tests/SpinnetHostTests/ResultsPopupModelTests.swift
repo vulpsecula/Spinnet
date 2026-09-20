@@ -17,7 +17,7 @@ final class ResultsPopupModelTests: XCTestCase {
             })
         ]
         if let original { fields["original"] = .string(original) } else { fields["input"] = .object([:]) }
-        return ResultsPresentationSession(presentation: try ResultsPresentation(serviceInput: .object(fields))) { request in
+        return ResultsPresentationSession(presentation: try ResultsPresentation(serviceInput: .object(fields))) { request, _ in
             guard case .object(let members) = request, case .string(let body)? = members["body"],
                   case .object(let sent) = try JSONDecoder().decode(JSONValue.self, from: Data(body.utf8)),
                   case .string(let text)? = sent["q"] else { throw PluginHostServiceError.failed("bad request") }
@@ -101,7 +101,7 @@ final class ResultsPopupModelTests: XCTestCase {
         ]))
         let session = ResultsPresentationSession(
             presentation: presentation,
-            send: { _ in throw PluginHostServiceError.failed("not asked here") },
+            send: { _, _ in throw PluginHostServiceError.failed("not asked here") },
             settings: { [ResultsPresentationSession.Setting(key: "into", title: "Into", kind: .choice,
                                                             value: stored["into"] ?? .null,
                                                             choices: [("DE", "German"), ("EN", "English")])] },
