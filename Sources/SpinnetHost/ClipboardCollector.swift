@@ -17,6 +17,7 @@ final class ClipboardCollector {
     private let changeCount: () -> Int
     private let readContents: () -> [ClipboardContent]
     private let sourceApplication: () -> (name: String, bundleID: String)
+    private let observationGate: ClipboardObservationGate
     var onError: ((Error) -> Void)?
 
     init(store: ClipboardHistoryStore,
@@ -26,11 +27,13 @@ final class ClipboardCollector {
          sourceApplication: @escaping () -> (name: String, bundleID: String) = {
              let app = NSWorkspace.shared.frontmostApplication
              return (app?.localizedName ?? "Unknown application", app?.bundleIdentifier ?? "")
-         }) {
+         },
+         observationGate: ClipboardObservationGate = ClipboardObservationGate()) {
         self.store = store
         self.changeCount = changeCount
         self.readContents = readContent.map { read in { read().map { [$0] } ?? [] } } ?? readContents
         self.sourceApplication = sourceApplication
+        self.observationGate = observationGate
     }
     deinit { timer?.invalidate() }
 
@@ -88,16 +91,35 @@ final class ClipboardCollector {
 
     func poll() throws {
         let session = store.observationSession
+        let pasteboardSample = observationGate.beginSample()
         stateLock.lock()
         let generation = baselineGeneration
         let previousCount = lastChangeCount
         stateLock.unlock()
         let count = changeCount()
+        switch observationGate.disposition(for: pasteboardSample, changeCount: count) {
+        case .discard:
+            return
+        case .suppressed:
+            recordSuppressedChangeCount(count, generation: generation)
+            return
+        case .accept:
+            break
+        }
         let settings = store.settings
         let app = sampleSourceApplication()
         let shouldRead = settings.enabled && !settings.paused && count != previousCount && !store.isApplicationExcluded(app.bundleID)
         let contents = shouldRead ? readContents() : []
         guard changeCount() == count else { return }
+        switch observationGate.disposition(for: pasteboardSample, changeCount: count) {
+        case .discard:
+            return
+        case .suppressed:
+            recordSuppressedChangeCount(count, generation: generation)
+            return
+        case .accept:
+            break
+        }
         let sourceIsStable = sampleSourceApplication().bundleID == app.bundleID
         stateLock.lock()
         let baselineIsStable = generation == baselineGeneration
@@ -110,6 +132,11 @@ final class ClipboardCollector {
         stateLock.lock()
         if generation == baselineGeneration { lastChangeCount = count }
         stateLock.unlock()
+    }
+
+    private func recordSuppressedChangeCount(_ count: Int, generation: Int) {
+        stateLock.lock(); defer { stateLock.unlock() }
+        if generation == baselineGeneration { lastChangeCount = count }
     }
 
     static func readAll(from board: NSPasteboard = .general) -> [ClipboardContent] {

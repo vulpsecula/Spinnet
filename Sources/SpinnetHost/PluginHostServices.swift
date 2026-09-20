@@ -6,6 +6,7 @@ import SpinnetCore
 final class AppKitPluginHostServiceProvider {
     private let windowLock = NSLock()
     private let closedWindowSweep = DispatchQueue(label: "com.vulpsecula.Spinnet.closed-window-sweep", qos: .utility)
+    private let selectedTextCopyFallback: SelectedTextCopyFallback<AppKitSelectedTextCopyClient>
     /// The window a Plugin last read. Setting a frame applies only to it, and
     /// only while it is still focused, so a layout computed for one window is
     /// never applied to another that took focus in between.
@@ -13,6 +14,13 @@ final class AppKitPluginHostServiceProvider {
     /// Where each window was before Spinnet last moved it, for Restore. Held
     /// in memory only and never persisted.
     private var rememberedFrames = RememberedWindowFrames<AXWindowKey>()
+
+    init(clipboardObservationGate: ClipboardObservationGate = ClipboardObservationGate()) {
+        selectedTextCopyFallback = SelectedTextCopyFallback(
+            client: AppKitSelectedTextCopyClient(),
+            observationGate: clipboardObservationGate
+        )
+    }
 
     func isGranted(_ permission: PluginSystemPermission) -> Bool {
         switch permission {
@@ -25,41 +33,15 @@ final class AppKitPluginHostServiceProvider {
         }
     }
 
-    func readSelectedText() throws -> String {
+    func readSelectedText(allowClipboardCopyFallback: Bool = true) throws -> String {
         guard isGranted(.accessibility) else {
             throw PluginHostServiceError.systemPermissionDenied(.accessibility)
         }
-
-        let systemWideElement = AXUIElementCreateSystemWide()
-        var focusedValue: CFTypeRef?
-        let focusedStatus = AXUIElementCopyAttributeValue(
-            systemWideElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedValue
+        return try SelectedTextReadResolver.readSelectedText(
+            allowClipboardCopyFallback: allowClipboardCopyFallback,
+            accessibilityRead: { try SelectedTextLookup().read(using: AppKitSelectedTextAXClient()) },
+            clipboardCopyFallback: { try selectedTextCopyFallback.readSelectedText() }
         )
-        if focusedStatus == .noValue || focusedStatus == .attributeUnsupported { return "" }
-        guard focusedStatus == .success,
-              let focusedValue,
-              CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else {
-            throw PluginHostServiceError.failed("Focused application has no accessible text selection")
-        }
-        let focusedElement = focusedValue as! AXUIElement
-
-        var selectedValue: CFTypeRef?
-        let selectedStatus = AXUIElementCopyAttributeValue(
-            focusedElement,
-            kAXSelectedTextAttribute as CFString,
-            &selectedValue
-        )
-        // A focused control without a selection is ordinary empty input.
-        // Missing Accessibility and actual AX failures still surface above
-        // or below, rather than being mistaken for an empty selection.
-        if selectedStatus == .noValue || selectedStatus == .attributeUnsupported { return "" }
-        guard selectedStatus == .success,
-              let selectedText = selectedValue as? String else {
-            throw PluginHostServiceError.failed("Focused application has no readable text selection")
-        }
-        return selectedText
     }
 
     func readFocusedWindow() throws -> FocusedWindow {

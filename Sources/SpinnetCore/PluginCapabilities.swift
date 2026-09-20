@@ -48,7 +48,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
             return "Lets the Plugin ask the Host for the current selected text."
         case .writeClipboard:
             return "Lets the Plugin ask the Host to replace the current clipboard text."
-        case .readCurrentClipboard: return "Read the declared data types from the current clipboard."
+        case .readCurrentClipboard:
+            return "Read the declared data types from the current clipboard. Smart Jump also uses this grant for its temporary Copy fallback when an app does not expose selected text through Accessibility."
         case .readClipboardHistory: return "Read declared data types, including retained entries collected before this grant."
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
@@ -544,6 +545,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let grantStore: PluginCapabilityGrantStore
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let selectedTextProvider: () throws -> String
+    private let selectedTextCopyFallbackProvider: (() throws -> String)?
     private let clipboardWriter: (String) throws -> Void
     private let currentClipboardProvider: () throws -> ClipboardContent?
     private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
@@ -566,6 +568,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         grantStore: PluginCapabilityGrantStore,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool,
         selectedTextProvider: @escaping () throws -> String,
+        selectedTextCopyFallbackProvider: (() throws -> String)? = nil,
         clipboardWriter: @escaping (String) throws -> Void,
         currentClipboardProvider: @escaping () throws -> ClipboardContent? = { nil },
         clipboardHistoryProvider: @escaping ([String], Int) throws -> ClipboardHistorySnapshot = { _, _ in
@@ -611,6 +614,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.selectedTextProvider = selectedTextProvider
+        self.selectedTextCopyFallbackProvider = selectedTextCopyFallbackProvider
         self.clipboardWriter = clipboardWriter
         self.currentClipboardProvider = currentClipboardProvider
         self.clipboardHistoryProvider = clipboardHistoryProvider
@@ -707,6 +711,18 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .readSelectedText:
             guard request.input == .null else {
                 throw PluginHostServiceError.invalidInput("read_selected_text expects null")
+            }
+            let clipboardScope = package.manifest.scope(for: .readCurrentClipboard)
+            let copyFallbackIsAuthorized = package.manifest.declares(.readCurrentClipboard, for: action.commandID)
+                && clipboardScope?.dataTypes.contains("text") == true
+                && grantStore.decision(
+                    for: package.manifest.id,
+                    pluginVersion: package.manifest.version,
+                    capability: .readCurrentClipboard,
+                    scope: clipboardScope
+                ) == .granted
+            if copyFallbackIsAuthorized, let selectedTextCopyFallbackProvider {
+                return .string(try selectedTextCopyFallbackProvider())
             }
             return .string(try selectedTextProvider())
         case .writeClipboard:

@@ -3,7 +3,15 @@
   "id": "com.spinnet.smart-jump",
   "name": "Smart Jump",
   "version": "2.0.0",
-  "capabilities": ["read_selected_text", "open_url", "write_clipboard", "open_local_path"],
+  "capabilities": ["read_selected_text", "read_current_clipboard", "open_url", "write_clipboard", "open_local_path"],
+  "capability_scopes": [{
+    "capability": "read_current_clipboard",
+    "command_ids": ["smart_jump.open_selection"],
+    "data_types": ["text"],
+    "includes_existing_host_data": false,
+    "https_hosts": [],
+    "external_apps": []
+  }],
   "settings_fields": [{
     "key": "search_engines", "kind": "search_engines",
     "title": "Search Engines (first is default)",

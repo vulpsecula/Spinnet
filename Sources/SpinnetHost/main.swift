@@ -39,7 +39,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var actions: [ActionID: ActionConfiguration] = [:]
     private var currentConfiguration: HostConfiguration?
     private let capabilityGrants = PluginCapabilityGrantStore()
-    private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
+    private let clipboardObservationGate = ClipboardObservationGate()
+    private lazy var pluginHostServiceProvider = AppKitPluginHostServiceProvider(
+        clipboardObservationGate: clipboardObservationGate
+    )
     /// Captures outlive their Action, so a post-capture failure is reported
     /// through Host feedback rather than the Action's outcome.
     private lazy var screenCapturer = NativeScreenCapturer(report: { [weak self] message in
@@ -112,6 +115,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     pluginHostServiceProvider.isGranted(permission)
                 },
                 selectedTextProvider: { [pluginHostServiceProvider] in
+                    try pluginHostServiceProvider.readSelectedText(allowClipboardCopyFallback: false)
+                },
+                selectedTextCopyFallbackProvider: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.readSelectedText()
                 },
                 clipboardWriter: { [pluginHostServiceProvider] text in
@@ -217,7 +223,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 credentialStore: pluginCredentials,
                 pluginSettingsStore: pluginSettings
             )
-            let collector = ClipboardCollector(store: clipboardStore)
+            let collector = ClipboardCollector(
+                store: clipboardStore,
+                observationGate: clipboardObservationGate
+            )
             collector.onError = { [weak self] error in self?.showConfigurationError(error) }
             settings.onClipboardSettingsWillChange = { [weak collector] in try collector?.resetBaseline() }
             settings.onClipboardHistoryChanged = { [weak self] in self?.clipboardWindow?.refreshIfVisible() }

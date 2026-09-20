@@ -51,69 +51,134 @@ final class SmartJumpWindowModel: ObservableObject {
 
 struct SmartJumpWindowView: View {
     @ObservedObject var model: SmartJumpWindowModel
-    @FocusState private var inputFocused: Bool
 
     var body: some View {
+        let status = StatusStyle(target: model.target, error: model.error)
         VStack(alignment: .leading, spacing: 12) {
             Text("Smart Jump").font(.headline)
-            HStack {
-                TextField("Text, link, path or calculation", text: $model.text)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($inputFocused)
-                    .onSubmit(model.submit)
-                    .accessibilityLabel("Smart Jump input")
-                Button("Jump", action: model.submit)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!model.canSubmit)
+            HStack(spacing: 10) {
+                SmartJumpInputCard(
+                    text: $model.text,
+                    status: status,
+                    onSubmit: model.submit
+                )
+                SmartJumpActionButton(
+                    title: status.actionTitle,
+                    symbol: status.actionSymbol,
+                    tint: status.actionTint,
+                    isEnabled: model.canSubmit,
+                    action: model.submit
+                )
             }
-            if let target = model.target {
-                SmartJumpDestinationBadge(target: target)
-                if let result = target.resultText {
-                    HStack {
-                        Text(result).font(.title2.monospacedDigit()).textSelection(.enabled)
-                        Spacer()
-                        Button(model.copied ? "Copied" : "Copy Result", action: model.copyResult)
-                            .accessibilityLabel("Copy calculation result")
-                    }
-                }
-            }
-            if let error = model.error {
-                Text(error).font(.callout).foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
+            if let result = model.target?.resultText {
+                SmartJumpResultRow(
+                    result: result,
+                    isCopied: model.copied,
+                    copyResult: model.copyResult
+                )
             }
         }
         .padding(16)
         .frame(width: 460, alignment: .leading)
+    }
+}
+
+private struct SmartJumpInputCard: View {
+    @Binding var text: String
+    let status: StatusStyle
+    let onSubmit: () -> Void
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: status.symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(status.color)
+                .frame(width: 22, height: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("Text, link, path or calculation", text: $text)
+                    .textFieldStyle(.plain)
+                    .focused($inputFocused)
+                    .onSubmit(onSubmit)
+                    .accessibilityLabel("Smart Jump input")
+                    .accessibilityHint(status.title)
+                HStack(spacing: 5) {
+                    Text(status.title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(status.color)
+                        .fixedSize(horizontal: true, vertical: false)
+                    if let detail = status.detail {
+                        Text("·")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(status.color.opacity(inputFocused ? 0.12 : 0.07),
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(status.color.opacity(inputFocused ? 0.78 : 0.42),
+                              lineWidth: inputFocused ? 1.8 : 1)
+        }
+        .shadow(color: status.color.opacity(inputFocused ? 0.22 : 0.09),
+                radius: inputFocused ? 9 : 4, x: 0, y: 0)
+        .animation(.easeInOut(duration: 0.18), value: status.title)
+        .animation(.easeInOut(duration: 0.18), value: inputFocused)
         .onAppear { inputFocused = true }
     }
 }
 
-private struct SmartJumpDestinationBadge: View {
-    let target: SmartJumpTarget
+private struct SmartJumpActionButton: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    let isEnabled: Bool
+    let action: () -> Void
 
     var body: some View {
-        let style = StatusStyle(target: target)
-        return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: style.symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(style.color)
-                .frame(width: 22, height: 22)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(style.title).font(.callout.weight(.semibold))
-                if let detail = style.detail {
-                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                }
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: symbol)
+                Text(title)
             }
+            .frame(minWidth: 76)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
-        .background(style.color.opacity(0.13), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(style.color.opacity(0.25), lineWidth: 1)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .tint(isEnabled ? tint : .secondary)
+        .keyboardShortcut(.defaultAction)
+        .disabled(!isEnabled)
+    }
+}
+
+private struct SmartJumpResultRow: View {
+    let result: String
+    let isCopied: Bool
+    let copyResult: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(result)
+                .font(.title2.monospacedDigit())
+                .textSelection(.enabled)
+            Spacer()
+            Button(isCopied ? "Copied" : "Copy Result", action: copyResult)
+                .buttonStyle(.bordered)
+                .accessibilityLabel(isCopied ? "Calculation result copied" : "Copy calculation result")
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -122,29 +187,55 @@ private struct StatusStyle {
     let detail: String?
     let symbol: String
     let color: Color
+    let actionTitle: String
+    let actionSymbol: String
+    let actionTint: Color
 
-    init(target: SmartJumpTarget) {
-        switch target {
+    init(target: SmartJumpTarget?, error: String?) {
+        if let error {
+            title = "Check this input"
+            detail = error
+            symbol = "exclamationmark.triangle.fill"
+            color = .red
+            actionTitle = "Jump"
+            actionSymbol = "arrow.up.right"
+            actionTint = .secondary
+            return
+        }
+
+        switch target ?? .input {
         case .input:
-            title = "Type to preview a destination"
-            detail = nil
+            title = "Type to preview"
+            detail = "Link, search, file or calculation"
             symbol = "text.cursor"
             color = .secondary
+            actionTitle = "Jump"
+            actionSymbol = "arrow.up.right"
+            actionTint = .secondary
         case .search(let url, let engine):
             title = "Search the web"
             detail = "Using \(engine) · \(url.host ?? "")"
             symbol = "magnifyingglass"
             color = .teal
+            actionTitle = "Search"
+            actionSymbol = "magnifyingglass"
+            actionTint = color
         case .localPath(let path):
-            title = "Open a local file or folder"
+            title = "Open local file"
             detail = path
             symbol = "folder"
             color = .orange
+            actionTitle = "Open"
+            actionSymbol = "folder"
+            actionTint = color
         case .calculation(let value):
             title = "Calculate"
             detail = String(format: "Result: %.15g", locale: Locale(identifier: "en_US_POSIX"), value)
             symbol = "equal"
             color = .green
+            actionTitle = "Calculate"
+            actionSymbol = "equal"
+            actionTint = color
         case .link(let url, let kind):
             detail = url.absoluteString
             switch kind {
@@ -152,19 +243,28 @@ private struct StatusStyle {
                 title = "Open web address"
                 symbol = "arrow.up.right"
                 color = .blue
+                actionTitle = "Open"
+                actionSymbol = "arrow.up.right"
             case .doi:
                 title = "Open DOI"
                 symbol = "text.book.closed"
                 color = .indigo
+                actionTitle = "Open"
+                actionSymbol = "text.book.closed"
             case .video:
                 title = "Open Bilibili video"
                 symbol = "play.rectangle"
                 color = .pink
+                actionTitle = "Watch"
+                actionSymbol = "play.fill"
             case .download:
                 title = "Open download link in browser"
                 symbol = "arrow.down.circle"
                 color = .purple
+                actionTitle = "Download"
+                actionSymbol = "arrow.down.circle"
             }
+            actionTint = color
         }
     }
 }

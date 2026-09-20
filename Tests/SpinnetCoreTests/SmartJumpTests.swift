@@ -29,10 +29,12 @@ final class SmartJumpTests: XCTestCase {
             return XCTFail("Search defaults should be an ordered string")
         }
         XCTAssertEqual(try SmartJumpSearchEngine.parse(searchEngines).map(\.name), ["Google", "Bing", "DuckDuckGo"])
-        XCTAssertEqual(manifest.capabilities, [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.capabilities, [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.dataTypes, ["text"])
+        XCTAssertFalse(manifest.scope(for: .readCurrentClipboard)?.includesExistingHostData ?? true)
         XCTAssertFalse(manifest.capabilities.contains(.contactHTTPS), "Opening a link grants no fetch")
         let command = manifest.commands[0]
-        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [.accessibility])
     }
 
@@ -52,7 +54,9 @@ final class SmartJumpTests: XCTestCase {
         let controls = disclosure.details(for: .controls)
         XCTAssertTrue(controls.contains("Open http and https links in the default browser"), controls)
         XCTAssertTrue(controls.contains("Open Selected Link"), controls)
-        XCTAssertTrue(disclosure.details(for: .reads).contains("Selected text"))
+        let reads = disclosure.details(for: .reads)
+        XCTAssertTrue(reads.contains("Selected text"), reads)
+        XCTAssertTrue(reads.contains("Read Current Clipboard"), reads)
         XCTAssertEqual(disclosure.details(for: .contacts), "None")
     }
 

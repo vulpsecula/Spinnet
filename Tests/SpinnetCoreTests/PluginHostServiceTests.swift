@@ -279,6 +279,61 @@ final class PluginHostServiceTests: XCTestCase {
         }
     }
 
+    func testSelectedTextCopyFallbackNeedsItsOwnCurrentClipboardGrant() throws {
+        let manifest = try PluginManifestLoader.decode(Data("""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.selection-reader",
+          "name": "Selection Reader",
+          "version": "1.0.0",
+          "capabilities": ["read_selected_text", "read_current_clipboard"],
+          "capability_scopes": [{
+            "capability": "read_current_clipboard",
+            "command_ids": ["selection.read"],
+            "data_types": ["text"],
+            "includes_existing_host_data": false,
+            "https_hosts": [],
+            "external_apps": []
+          }],
+          "commands": [{
+            "id": "selection.read", "title": "Read Selection", "execution": "javascript",
+            "is_configurable": false, "script": "selection.js"
+          }]
+        }
+        """.utf8))
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/selection-reader"), manifest: manifest)
+        let action = try ActionConfiguration(
+            id: ActionID("selection.read"), pluginID: manifest.id,
+            command: manifest.commands[0], input: .null
+        )
+        let grants = PluginCapabilityGrantStore()
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readSelectedText)
+        var fallbackReads = 0
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { "AX selection" },
+            selectedTextCopyFallbackProvider: {
+                fallbackReads += 1
+                return "temporary clipboard text"
+            },
+            clipboardWriter: { _ in }
+        )
+        let request = PluginRuntimeHostServiceRequest(
+            invocationID: "invocation-1", actionID: action.id,
+            requestID: "request-1", service: .readSelectedText, input: .null
+        )
+
+        XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .string("AX selection"))
+        XCTAssertEqual(fallbackReads, 0)
+
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readCurrentClipboard, scope: manifest.scope(for: .readCurrentClipboard))
+        XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .string("temporary clipboard text"))
+        XCTAssertEqual(fallbackReads, 1)
+    }
+
     func testBrokerRejectsAServiceThePluginDidNotDeclare() throws {
         let pluginID = PluginID("com.example.fixture")
         let command = CommandDeclaration(
