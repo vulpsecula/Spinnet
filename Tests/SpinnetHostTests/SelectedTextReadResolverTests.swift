@@ -52,6 +52,38 @@ final class SelectedTextReadResolverTests: XCTestCase {
         XCTAssertEqual(copyProbeCount, 0)
     }
 
+    func testEmptyAccessibilityResultFallsBackToSimulatedCopyWhenAuthorized() throws {
+        var copyProbeCount = 0
+
+        let text = try SelectedTextReadResolver.readSelectedText(
+            allowClipboardCopyFallback: true,
+            accessibilityRead: { "" },
+            clipboardCopyFallback: {
+                copyProbeCount += 1
+                return .selected("Codex Terminal selection")
+            }
+        )
+
+        XCTAssertEqual(text, "Codex Terminal selection")
+        XCTAssertEqual(copyProbeCount, 1)
+    }
+
+    func testEmptyAccessibilityResultDoesNotCopyWithoutClipboardAuthorization() throws {
+        var copyProbeCount = 0
+
+        let text = try SelectedTextReadResolver.readSelectedText(
+            allowClipboardCopyFallback: false,
+            accessibilityRead: { "" },
+            clipboardCopyFallback: {
+                copyProbeCount += 1
+                return .selected("Codex Terminal selection")
+            }
+        )
+
+        XCTAssertEqual(text, "")
+        XCTAssertEqual(copyProbeCount, 0)
+    }
+
     func testDisabledCopyFallbackPreservesTheAccessibilityError() {
         let expectedError = NSError(domain: "AX", code: 3)
         var copyProbeCount = 0
