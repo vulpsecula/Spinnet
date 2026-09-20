@@ -1305,19 +1305,20 @@ private struct SlotConfigurationSheet: View {
         }
     }
 
-    /// A credential field's value is its reference; the secret typed here goes
-    /// to the credential store on Save, shared by every Action naming it.
+    /// A credential field's value is its reference; the secret shown here is
+    /// the stored one, and an edit goes to the credential store on Save,
+    /// shared by every Action naming it.
     private func credentialField(reference: String, placeholder: String?) -> some View {
-        let stored = pluginID.map { credentialStore?.hasSecret(for: $0, reference: reference) ?? false } ?? false
-        return VStack(alignment: .leading, spacing: 3) {
-            SecureField(stored ? "Stored in the Keychain; type to replace" : placeholder ?? "Not set",
-                        text: Binding(get: { credentialSecrets[reference] ?? "" },
-                                      set: { credentialSecrets[reference] = $0 }))
-                .textFieldStyle(.roundedBorder)
-            Text("Spinnet keeps this secret and adds it to requests itself; the Plugin never reads it.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        CredentialField(secret: Binding(get: { storedSecret(reference) },
+                                        set: { credentialSecrets[reference] = $0 }),
+                        placeholder: placeholder)
+    }
+
+    /// What the user typed, or the secret already stored for this Plugin.
+    private func storedSecret(_ reference: String) -> String {
+        if let typed = credentialSecrets[reference] { return typed }
+        guard let pluginID else { return "" }
+        return ((try? credentialStore?.secret(for: pluginID, reference: reference)) ?? nil) ?? ""
     }
 
     private func fieldValues(for commandID: CommandID) -> [String: JSONValue] {

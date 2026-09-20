@@ -5,8 +5,8 @@ import XCTest
 /// Translator 2 replaced Translate Selection and Copy, and Translate
 /// Selection in Place, with Translate Selection and Translate Input. Their
 /// Actions move onto the new Commands at launch with their IDs, so every
-/// Slot, alias and override stays as the user arranged it, and a Menu Item
-/// made from the old default Preset becomes the new default one.
+/// Slot and alias stays as the user arranged it, and a Menu Item made from
+/// the old default Preset becomes the new default one.
 final class TranslatorCommandMigrationTests: XCTestCase {
     private func manifest() throws -> PluginManifest {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -25,7 +25,7 @@ final class TranslatorCommandMigrationTests: XCTestCase {
         let manifest = try manifest()
         let clipboardCommand = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == "translator.clipboard" })
         let clipboard = try ActionConfiguration(id: ActionID("clip"), pluginID: manifest.id, command: clipboardCommand,
-                                                input: .object([:]))
+                                                input: .null)
         let url = try ActionConfiguration(
             id: ActionID("url"), pluginID: BuiltInPresetCatalog.openURLPluginID,
             command: CommandDeclaration(id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL),
@@ -49,8 +49,8 @@ final class TranslatorCommandMigrationTests: XCTestCase {
         XCTAssertEqual(migrated.actions.map(\.id), configuration.actions.map(\.id))
         XCTAssertEqual(migrated.actions.map(\.commandID.rawValue),
                        ["translator.selection", "translator.input", "translator.clipboard", "builtin.open_url"])
-        XCTAssertEqual(migrated.actions[0].input, .object(["target_language": .string("FR")]), "An override is kept")
-        XCTAssertEqual(Array(migrated.actions[2...]), [clipboard, url])
+        XCTAssertEqual(migrated.actions[0].input, .null, "Nothing is configured on a Menu Item any more")
+        XCTAssertEqual(migrated.actions[3], url, "Another Plugin's Action is untouched")
 
         let grants = PluginCapabilityGrantStore()
         for capability in manifest.capabilities {
@@ -87,5 +87,22 @@ final class TranslatorCommandMigrationTests: XCTestCase {
         XCTAssertEqual(TranslatorCommandMigration.migrateSettings(["endpoint": .string("https://old.example"),
                                                                    "deepl_endpoint": .string("https://new.example")]),
                        ["deepl_endpoint": .string("https://new.example")], "A value saved by version 2 wins")
+    }
+
+    /// Version 2 let a Menu Item override the target language; version 2.1
+    /// keeps every value in Plugin Settings, so those Actions drop what they
+    /// carried and stay bound to their Commands.
+    func testAnOverrideLeftOnAnActionIsDropped() throws {
+        let manifest = try manifest()
+        let command = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == "translator.selection" })
+        let configuration = try HostConfiguration(
+            actions: [try ActionConfiguration(id: ActionID("a"), pluginID: manifest.id, command: command,
+                                              input: .object(["target_language": .string("FR")]))],
+            menu: MenuConfiguration(slots: [.occupied(try MenuItemConfiguration(primaryActionID: ActionID("a")))])
+        )
+        let migrated = try XCTUnwrap(TranslatorCommandMigration.migrate(configuration, manifest: manifest))
+        XCTAssertEqual(migrated.actions.map(\.input), [.null])
+        XCTAssertTrue(manifest.acceptsActionInput(.null, for: command))
+        XCTAssertNil(try TranslatorCommandMigration.migrate(migrated, manifest: manifest), "Nothing is left to move")
     }
 }

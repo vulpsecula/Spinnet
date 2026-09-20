@@ -581,6 +581,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
     private let resultsPresenter: (ResultsPresentationSession) throws -> Void
+    private let languageDetector: (String) -> String?
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
 
@@ -629,7 +630,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         localPathOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening local paths")
-        }
+        },
+        languageDetector: @escaping (String) -> String? = { _ in nil }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -650,6 +652,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.credentialStore = credentialStore
         self.focusedTextInserter = focusedTextInserter
         self.resultsPresenter = resultsPresenter
+        self.languageDetector = languageDetector
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
     }
@@ -869,20 +872,28 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             // Every section is checked now, so a popup never opens for a
             // request that could not be sent.
             let performer = try httpsPerformer(for: package)
-            for section in presentation.sections {
-                try performer.validate(section.request(with: presentation.original ?? ""))
+            for variant in presentation.variants {
+                for section in variant.sections {
+                    try performer.validate(section.request(with: presentation.original ?? ""))
+                }
             }
             // The popup outlives the Action, so each send checks the grant
             // and the consented hosts again rather than trusting this one.
-            let session = ResultsPresentationSession(presentation: presentation) { [self] input in
-                guard grantStore.decision(
-                    for: package.manifest.id, pluginVersion: package.manifest.version,
-                    capability: .contactHTTPS, scope: package.manifest.scope(for: .contactHTTPS)
-                ) == .granted else {
-                    throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
-                }
-                return try httpsPerformer(for: package).perform(input)
-            }
+            let session = ResultsPresentationSession(
+                presentation: presentation,
+                send: { [self] input in
+                    guard grantStore.decision(
+                        for: package.manifest.id, pluginVersion: package.manifest.version,
+                        capability: .contactHTTPS, scope: package.manifest.scope(for: .contactHTTPS)
+                    ) == .granted else {
+                        throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
+                    }
+                    return try httpsPerformer(for: package).perform(input)
+                },
+                // The Host reads the text it already holds; nothing is sent
+                // anywhere to tell one direction from the other.
+                detectLanguage: languageDetector
+            )
             try resultsPresenter(session)
             // The user reads the answers; the Plugin never sees them.
             return .null

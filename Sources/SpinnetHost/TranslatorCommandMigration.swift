@@ -22,10 +22,16 @@ enum TranslatorCommandMigration {
         guard let manifest, manifest.id == pluginID else { return nil }
         var changed = false
         let actions = try configuration.actions.map { action -> ActionConfiguration in
-            guard action.pluginID == pluginID, let replacement = replacements[action.commandID],
-                  let command = manifest.commands.first(where: { $0.id == replacement }) else { return action }
+            guard action.pluginID == pluginID else { return action }
+            let replacement = replacements[action.commandID] ?? action.commandID
+            guard let command = manifest.commands.first(where: { $0.id == replacement }) else { return action }
+            // Nothing is configured on a Menu Item any more, so an Action that
+            // still carries a target language or formality of its own drops it
+            // and follows Plugin Settings like every other one.
+            let input: JSONValue = command.isConfigurable ? action.input : .null
+            guard replacement != action.commandID || input != action.input else { return action }
             changed = true
-            return try ActionConfiguration(id: action.id, pluginID: pluginID, command: command, input: action.input)
+            return try ActionConfiguration(id: action.id, pluginID: pluginID, command: command, input: input)
         }
         return changed ? try HostConfiguration(actions: actions, menu: configuration.menu) : nil
     }

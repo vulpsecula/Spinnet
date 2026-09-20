@@ -11,8 +11,15 @@ final class ResultsPopupModel: ObservableObject {
     @Published var input = ""
     /// The text shown above the sections: the original, or the last submission.
     @Published private(set) var shownText: String?
-    /// Each section's state, or nil before anything was sent.
-    @Published private(set) var states: [ResultsSectionState]?
+    /// The direction chosen for the text being sent, and how far each of its
+    /// sections has got. Nil before anything is sent, so the two can never
+    /// disagree about how many sections there are.
+    @Published private(set) var shown: Shown?
+
+    struct Shown {
+        let variant: ResultsPresentation.Variant
+        var states: [ResultsSectionState]
+    }
 
     private let session: ResultsPresentationSession
     private let copyText: (String) -> Void
@@ -39,20 +46,39 @@ final class ResultsPopupModel: ObservableObject {
         resolve(input)
     }
 
+    /// The sections being shown, in the chosen direction.
+    var sections: [ResultsPresentation.Section] { shown?.variant.sections ?? [] }
+
+    /// Each section's state, or nil before anything was sent.
+    var states: [ResultsSectionState]? { shown?.states }
+
+    /// The line under the title: the direction in use, or the one the popup
+    /// starts with.
+    var subtitle: String? { (shown?.variant ?? presentation.main).subtitle }
+
     func copy(section index: Int) {
-        guard let states, states.indices.contains(index), case .succeeded(let text) = states[index] else { return }
+        guard let shown, shown.states.indices.contains(index),
+              case .succeeded(let text) = shown.states[index] else { return }
         copyText(text)
     }
 
     private func resolve(_ text: String) {
         generation += 1
         let current = generation
-        states = Array(repeating: .pending, count: presentation.sections.count)
+        shown = nil
         DispatchQueue.global(qos: .userInitiated).async { [session] in
-            session.resolve(text: text) { index, state in
+            session.resolve(text: text) { variant in
+                // The Host picks the direction from the text itself, so the
+                // popup learns which sections it is waiting for here.
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.generation == current else { return }
-                    self.states?[index] = state
+                    self.shown = Shown(variant: variant,
+                                       states: Array(repeating: .pending, count: variant.sections.count))
+                }
+            } update: { index, state in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.generation == current, self.shown?.states.indices.contains(index) == true else { return }
+                    self.shown?.states[index] = state
                 }
             }
         }
@@ -66,7 +92,12 @@ struct ResultsPopupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(model.presentation.title).font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.presentation.title).font(.headline)
+                if let subtitle = model.subtitle {
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }
+            }
             if model.asksForText {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField(model.presentation.inputPlaceholder ?? "", text: $model.input, axis: .vertical)
@@ -88,10 +119,10 @@ struct ResultsPopupView: View {
                     .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
                     .accessibilityLabel("Original text: \(text)")
             }
-            if let states = model.states {
+            if let shown = model.shown {
                 Divider()
                 ScrollView {
-                    sections(states)
+                    sections(shown.states)
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: SectionsHeightKey.self, value: proxy.size.height)
                         })
@@ -107,7 +138,7 @@ struct ResultsPopupView: View {
 
     private func sections(_ states: [ResultsSectionState]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(model.presentation.sections.enumerated()), id: \.offset) { index, section in
+            ForEach(Array(model.sections.enumerated()), id: \.offset) { index, section in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(section.title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)

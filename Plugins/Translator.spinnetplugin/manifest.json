@@ -2,34 +2,36 @@
   "protocol_version": "1.0",
   "id": "com.spinnet.translator",
   "name": "Translator",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "capabilities": ["read_selected_text", "read_current_clipboard", "contact_https"],
+  "optional_capabilities": ["read_current_clipboard"],
   "capability_scopes": [{
     "capability": "read_selected_text",
     "command_ids": ["translator.selection"],
     "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
   }, {
     "capability": "read_current_clipboard",
-    "command_ids": ["translator.clipboard"],
+    "command_ids": ["translator.selection", "translator.clipboard"],
     "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
   }, {
     "capability": "contact_https",
     "command_ids": ["translator.selection", "translator.input", "translator.clipboard"],
     "data_types": ["text"], "includes_existing_host_data": false,
-    "https_hosts": ["api-free.deepl.com", "api.deepl.com", "translation.googleapis.com", "api.openai.com"], "external_apps": []
+    "https_hosts": ["api-free.deepl.com", "api.deepl.com", "clients5.google.com", "api.openai.com"], "external_apps": []
   }],
   "settings_fields": [
-    {"key": "sources", "kind": "ordered_choices", "title": "Sources", "choices": ["DeepL", "Google", "OpenAI"]},
-    {"key": "target_language", "kind": "choice", "title": "Translate Into", "overridable": true,
+    {"key": "sources", "kind": "ordered_choices", "title": "Sources", "choices": ["Google", "DeepL", "OpenAI"]},
+    {"key": "source_language", "kind": "choice", "title": "Input Language",
      "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"]},
+    {"key": "target_language", "kind": "choice", "title": "Target Language",
+     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"]},
+    {"key": "auto_detect", "kind": "toggle", "title": "Detect Direction"},
     {"key": "deepl_endpoint", "kind": "https_endpoint", "title": "DeepL Endpoint", "placeholder": "https://api-free.deepl.com",
      "used_when": {"key": "sources", "values": ["DeepL"]}},
     {"key": "deepl_credential", "kind": "credential", "title": "DeepL API Key", "placeholder": "DeepL authentication key",
      "used_when": {"key": "sources", "values": ["DeepL"]}},
-    {"key": "formality", "kind": "choice", "title": "DeepL Formality", "overridable": true,
+    {"key": "formality", "kind": "choice", "title": "DeepL Formality",
      "choices": ["default", "prefer_more", "prefer_less"], "used_when": {"key": "sources", "values": ["DeepL"]}},
-    {"key": "google_credential", "kind": "credential", "title": "Google API Key", "placeholder": "Cloud Translation API key",
-     "used_when": {"key": "sources", "values": ["Google"]}},
     {"key": "openai_endpoint", "kind": "https_endpoint", "title": "OpenAI Base URL", "placeholder": "https://api.openai.com/v1",
      "used_when": {"key": "sources", "values": ["OpenAI"]}},
     {"key": "openai_model", "kind": "text", "title": "OpenAI Model", "placeholder": "gpt-4.1-mini",
@@ -38,12 +40,13 @@
      "used_when": {"key": "sources", "values": ["OpenAI"]}}
   ],
   "default_settings": {
-    "sources": ["DeepL"],
-    "target_language": "EN-US",
+    "sources": ["Google"],
+    "source_language": "EN-US",
+    "target_language": "ZH-HANS",
+    "auto_detect": true,
     "deepl_endpoint": "https://api-free.deepl.com",
     "deepl_credential": "deepl",
     "formality": "default",
-    "google_credential": "google",
     "openai_endpoint": "https://api.openai.com/v1",
     "openai_model": "gpt-4.1-mini",
     "openai_credential": "openai"
@@ -52,29 +55,28 @@
     "readiness": "ready_to_use",
     "is_configurable": true,
     "default_primary_command_id": "translator.selection",
-    "default_alternate_command_ids": ["translator.input", "translator.clipboard"],
-    "default_inputs": {"translator.selection": {}, "translator.input": {}, "translator.clipboard": {}}
+    "default_alternate_command_ids": ["translator.input", "translator.clipboard"]
   },
   "commands": [{
     "id": "translator.selection",
     "title": "Translate Selection",
     "description": "Translates the selected text with every source turned on and shows the results in a popup.",
     "execution": "javascript",
-    "is_configurable": true,
+    "is_configurable": false,
     "script": "translate.js"
   }, {
     "id": "translator.input",
     "title": "Translate Input",
     "description": "Opens the translation popup with a field to type in, then translates what you enter.",
     "execution": "javascript",
-    "is_configurable": true,
+    "is_configurable": false,
     "script": "translate.js"
   }, {
     "id": "translator.clipboard",
     "title": "Translate Clipboard",
     "description": "Translates the text on the clipboard with every source turned on and shows the results in a popup.",
     "execution": "javascript",
-    "is_configurable": true,
+    "is_configurable": false,
     "script": "translate.js"
   }]
 }

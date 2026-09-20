@@ -33,9 +33,9 @@ final class TranslatorTests: XCTestCase {
 
     // MARK: Package
 
-    /// The sources, their keys and endpoints, and the target language are
-    /// Plugin Settings shared by every Command. Out of the box only DeepL is
-    /// on, so only its key is missing, and the Preset is ready to place.
+    /// The sources, the two languages and each source's own settings are
+    /// Plugin Settings shared by every Command. Out of the box only Google is
+    /// on, which needs no key, so the Preset is ready to place as it is.
     func testTranslatorAppearsOnceWithItsSourcesInPluginSettings() throws {
         let package = try TranslatorFixture.load()
         let registry = PluginRegistry()
@@ -43,23 +43,28 @@ final class TranslatorTests: XCTestCase {
         let presets = registry.menuItemPresets().filter { $0.pluginID == package.manifest.id }
         XCTAssertEqual(presets.map(\.name), ["Translator"])
         let manifest = package.manifest
-        XCTAssertEqual(manifest.preset.readiness, .readyToUse, "The keys are entered in Plugin Settings")
+        XCTAssertEqual(manifest.preset.readiness, .readyToUse)
         XCTAssertEqual(manifest.settingsFields.map(\.key), [
-            "sources", "target_language", "deepl_endpoint", "deepl_credential", "formality",
-            "google_credential", "openai_endpoint", "openai_model", "openai_credential"
+            "sources", "source_language", "target_language", "auto_detect",
+            "deepl_endpoint", "deepl_credential", "formality",
+            "openai_endpoint", "openai_model", "openai_credential"
         ])
         let sources = try XCTUnwrap(manifest.settingsFields.first)
         XCTAssertEqual(sources.kind, .orderedChoices)
-        XCTAssertEqual(sources.choices, ["DeepL", "Google", "OpenAI"])
-        XCTAssertEqual(manifest.overridableSettingsFields.map(\.key), ["target_language", "formality"])
+        XCTAssertEqual(sources.choices, ["Google", "DeepL", "OpenAI"])
+        XCTAssertEqual(manifest.overridableSettingsFields, [], "Every value is the Plugin's, not a Menu Item's")
+
         let defaults = manifest.resolvedSettings(stored: [:])
-        XCTAssertEqual(defaults["sources"], .array([.string("DeepL")]))
-        XCTAssertEqual(manifest.missingSettings(in: defaults, hasSecret: { _ in false }).map(\.key), ["deepl_credential"],
-                       "Only the key of the one source that is on is missing out of the box")
+        XCTAssertEqual(defaults["sources"], .array([.string("Google")]))
+        XCTAssertEqual(defaults["source_language"], .string("EN-US"))
+        XCTAssertEqual(defaults["target_language"], .string("ZH-HANS"))
+        XCTAssertEqual(defaults["auto_detect"], .bool(true))
+        XCTAssertEqual(manifest.missingSettings(in: defaults, hasSecret: { _ in false }), [],
+                       "Google needs no key, so nothing is missing out of the box")
         var everySource = defaults
         everySource["sources"] = .array([.string("OpenAI"), .string("Google"), .string("DeepL")])
         XCTAssertEqual(manifest.missingSettings(in: everySource, hasSecret: { _ in false }).map(\.key),
-                       ["deepl_credential", "google_credential", "openai_credential"])
+                       ["deepl_credential", "openai_credential"], "Only the sources that are on need their keys")
 
         XCTAssertEqual(manifest.commands.map(\.id.rawValue), [selection, input, clipboard])
         XCTAssertEqual(manifest.commands.map(\.title), ["Translate Selection", "Translate Input", "Translate Clipboard"])
@@ -67,27 +72,37 @@ final class TranslatorTests: XCTestCase {
         XCTAssertEqual(manifest.preset.defaultAlternateCommandIDs.map(\.rawValue), [input, clipboard])
         for command in manifest.commands {
             XCTAssertNotNil(command.explanation, command.id.rawValue)
+            XCTAssertFalse(command.isConfigurable, "A Menu Item has nothing of its own to configure")
             XCTAssertEqual(command.configurationFields, [])
-            XCTAssertEqual(manifest.preset.defaultInputs[command.id], .object([:]))
         }
     }
 
-    func testReadingTheSelectionTheClipboardAndTheNetworkAreSeparateCapabilities() throws {
+    /// Reading the selection falls back to a copy, which the Host only does
+    /// for a Command that may also read the clipboard, so the selection
+    /// Command declares it too.
+    func testTheSelectionCommandMayAlsoReadTheClipboardForTheCopyFallback() throws {
         let manifest = try TranslatorFixture.load().manifest
         func required(_ id: String) throws -> Set<PluginCapability> {
             Set(try manifest.requiredCapabilities(for: XCTUnwrap(manifest.commands.first { $0.id.rawValue == id })))
         }
         XCTAssertEqual(try required(selection), [.readSelectedText, .contactHTTPS])
         XCTAssertEqual(try required(input), [.contactHTTPS], "Typed text needs no read Capability")
-        XCTAssertEqual(try required(clipboard), [.readCurrentClipboard, .contactHTTPS])
+        XCTAssertEqual(try required(clipboard), [.contactHTTPS])
+        XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard],
+                       "Refusing the clipboard leaves the selection working without the fallback")
+        // The Host only falls back to a copy for a Command that may read the
+        // clipboard, so the selection Command declares it as well.
+        XCTAssertTrue(manifest.declares(.readCurrentClipboard, for: CommandID(selection)))
+        XCTAssertFalse(manifest.declares(.readCurrentClipboard, for: CommandID(input)))
+        XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.commandIDs.map(\.rawValue), [selection, clipboard])
         XCTAssertEqual(manifest.scope(for: .contactHTTPS)?.httpsHosts,
-                       ["api-free.deepl.com", "api.deepl.com", "translation.googleapis.com", "api.openai.com"])
+                       ["api-free.deepl.com", "api.deepl.com", "clients5.google.com", "api.openai.com"])
         for id in [input, clipboard] {
             let command = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == id })
             XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [], "\(id) needs no Accessibility")
         }
         let disclosure = PluginPermissionDisclosure(manifest: manifest)
-        XCTAssertTrue(disclosure.details(for: .contacts).contains("translation.googleapis.com"))
+        XCTAssertTrue(disclosure.details(for: .contacts).contains("clients5.google.com"))
     }
 
     func testDenyingOneCapabilityDisablesOnlyTheCommandsThatNeedIt() throws {
@@ -112,7 +127,8 @@ final class TranslatorTests: XCTestCase {
         set(.granted, .readSelectedText)
 
         set(.denied, .readCurrentClipboard)
-        XCTAssertEqual(try availability(), [selection: .available, input: .available, clipboard: .unavailable(.capabilityDenied)])
+        XCTAssertEqual(try availability(), [selection: .available, input: .available, clipboard: .available],
+                       "The clipboard is optional, so refusing it disables no Command")
         set(.granted, .readCurrentClipboard)
 
         set(.denied, .contactHTTPS)
@@ -130,13 +146,24 @@ extension PluginRuntimeTests {
         let transport: RoutedHTTPSTransport
         let selectionReads: Int
 
-        /// Every section's state once all have answered, in section order.
+        /// Every section's state once all have answered, in section order,
+        /// for the direction the Host chose for this text.
         func resolve(_ text: String) throws -> [ResultsSectionState] {
+            try resolveDirection(text).states
+        }
+
+        /// The same, with the direction that answered.
+        func resolveDirection(_ text: String) throws -> (variant: ResultsPresentation.Variant,
+                                                         states: [ResultsSectionState]) {
             let session = try XCTUnwrap(self.session, "Nothing was presented")
             let lock = NSLock()
-            var states = Array(repeating: ResultsSectionState.pending, count: session.presentation.sections.count)
-            session.resolve(text: text) { index, state in lock.withLock { states[index] = state } }
-            return states
+            var states: [Int: ResultsSectionState] = [:]
+            var chosen: ResultsPresentation.Variant?
+            session.resolve(text: text, started: { variant in lock.withLock { chosen = variant } }) { index, state in
+                lock.withLock { states[index] = state }
+            }
+            let variant = try XCTUnwrap(chosen)
+            return (variant, (0..<variant.sections.count).compactMap { states[$0] })
         }
 
         /// The JSON body sent to `host`.
@@ -149,18 +176,19 @@ extension PluginRuntimeTests {
         }
     }
 
-    private func translatorSettings(sources: [String] = ["DeepL"], target: String = "DE", formality: String = "default",
+    private func translatorSettings(sources: [String] = ["DeepL"], source: String = "EN-US", target: String = "DE",
+                                    autoDetect: Bool = false, formality: String = "default",
                                     deepLEndpoint: String = "https://api-free.deepl.com",
                                     openAIEndpoint: String = "https://api.openai.com/v1") -> [String: JSONValue] {
-        ["sources": .array(sources.map(JSONValue.string)), "target_language": .string(target),
+        ["sources": .array(sources.map(JSONValue.string)), "source_language": .string(source),
+         "target_language": .string(target), "auto_detect": .bool(autoDetect),
          "deepl_endpoint": .string(deepLEndpoint), "deepl_credential": .string("deepl"), "formality": .string(formality),
-         "google_credential": .string("google"),
          "openai_endpoint": .string(openAIEndpoint), "openai_model": .string("gpt-test"), "openai_credential": .string("openai")]
     }
 
     private static let answers: [String: RoutedHTTPSTransport.Route] = [
         "api-free.deepl.com": RoutedHTTPSTransport.json(#"{"translations":[{"detected_source_language":"EN","text":"Guten Morgen"}]}"#),
-        "translation.googleapis.com": RoutedHTTPSTransport.json(#"{"data":{"translations":[{"translatedText":"Guten Morgen!"}]}}"#),
+        "clients5.google.com": RoutedHTTPSTransport.json(#"[["Guten Morgen","en"]]"#),
         "api.openai.com": RoutedHTTPSTransport.json(#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Guten Morgen."}}]}"#)
     ]
 
@@ -169,6 +197,7 @@ extension PluginRuntimeTests {
     private func runTranslator(_ commandID: String, settings: [String: JSONValue]? = nil, input: JSONValue = .object([:]),
                                selection: String = "Good morning", clipboardText: String? = nil,
                                answers: [String: RoutedHTTPSTransport.Route] = PluginRuntimeTests.answers,
+                               detected: String? = nil,
                                prepare: (PluginPackage, PluginCapabilityGrantStore) -> Void = { _, _ in }) throws -> TranslatorRun {
         let package = try TranslatorFixture.load()
         let grants = PluginCapabilityGrantStore()
@@ -177,7 +206,7 @@ extension PluginRuntimeTests {
         let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in true })
         try registry.register(package)
         let credentials = InMemoryPluginCredentialStore()
-        for reference in ["deepl", "google", "openai"] {
+        for reference in ["deepl", "openai"] {
             try credentials.setSecret("\(reference)-secret", for: package.manifest.id, reference: reference)
         }
         let transport = RoutedHTTPSTransport(answers)
@@ -188,7 +217,8 @@ extension PluginRuntimeTests {
             selectedTextProvider: { selectionReads += 1; return selection }, clipboardWriter: { _ in },
             currentClipboardProvider: { clipboardText.map { ClipboardContent(text: $0, type: .text) } },
             httpsTransport: transport, credentialStore: credentials,
-            resultsPresenter: { session = $0 }
+            resultsPresenter: { session = $0 },
+            languageDetector: { _ in detected }
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
@@ -216,12 +246,14 @@ extension PluginRuntimeTests {
         guard case .succeeded = run.outcome else { return XCTFail("\(run.outcome)") }
         XCTAssertEqual(run.transport.requests, [], "The Action returns before any source is asked")
         let presentation = try XCTUnwrap(run.session?.presentation)
-        XCTAssertEqual(presentation.title, "Translate into German")
+        XCTAssertEqual(presentation.title, "Translate")
+        XCTAssertEqual(presentation.main.subtitle, "Any language → German · Input English (American) · Detect Direction off")
         XCTAssertEqual(presentation.original, "Good morning")
-        XCTAssertEqual(presentation.sections.map(\.title), ["OpenAI · gpt-test", "DeepL", "Google"])
+        XCTAssertEqual(presentation.main.sections.map(\.title), ["OpenAI · gpt-test", "DeepL", "Google"])
 
         XCTAssertEqual(try run.resolve("Good morning"),
-                       [.succeeded("Guten Morgen."), .succeeded("Guten Morgen"), .succeeded("Guten Morgen!")])
+                       [.succeeded("Guten Morgen."), .succeeded("Guten Morgen"), .succeeded("Guten Morgen")],
+                       "OpenAI, DeepL and Google, in the order Plugin Settings put them")
     }
 
     func testEachSourceSpeaksItsOwnAPIWithTheHostHeldKey() throws {
@@ -239,12 +271,13 @@ extension PluginRuntimeTests {
                        .object(["text": .array([.string("Good morning")]), "target_lang": .string("ZH-HANS"),
                                 "formality": .string("prefer_more")]))
 
-        let google = try run.request(to: "translation.googleapis.com")
-        XCTAssertEqual(google.url.absoluteString, "https://translation.googleapis.com/language/translate/v2")
-        XCTAssertEqual(google.headers["X-Goog-Api-Key"], "google-secret")
-        XCTAssertNil(google.headers["Authorization"])
-        XCTAssertEqual(try run.body(to: "translation.googleapis.com"),
-                       .object(["q": .array([.string("Good morning")]), "target": .string("zh-CN"), "format": .string("text")]))
+        // Google Translate's own endpoint: no key, and the text rides in the query.
+        let google = try run.request(to: "clients5.google.com")
+        XCTAssertEqual(google.method, "GET")
+        XCTAssertEqual(google.url.absoluteString,
+                       "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=zh-CN&q=Good%20morning")
+        XCTAssertNil(google.body)
+        XCTAssertEqual(google.headers, [:], "Nothing identifies the user to Google")
 
         let openAI = try run.request(to: "api.openai.com")
         XCTAssertEqual(openAI.url.absoluteString, "https://api.openai.com/v1/chat/completions")
@@ -259,17 +292,63 @@ extension PluginRuntimeTests {
         XCTAssertEqual(messages[1], .object(["role": .string("user"), "content": .string("Good morning")]))
     }
 
+    /// Google needs no key of any kind.
+    func testGoogleTranslatesWithoutAKey() throws {
+        let run = try runTranslator("translator.selection", settings: translatorSettings(sources: ["Google"]))
+        XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen")])
+        XCTAssertEqual(try run.request(to: "clients5.google.com").headers, [:])
+    }
+
+    // MARK: Direction
+
+    /// With Detect Direction on, text already in the target language is
+    /// translated back into the input language instead, so the two languages
+    /// never have to be swapped by hand.
+    func testDetectedTargetLanguageTurnsTheDirectionAround() throws {
+        var answers = Self.answers
+        answers["clients5.google.com"] = RoutedHTTPSTransport.json(#"[["Good morning","zh-CN"]]"#)
+        let settings = translatorSettings(sources: ["Google"], source: "EN-US", target: "ZH-HANS", autoDetect: true)
+
+        let chinese = try runTranslator("translator.selection", settings: settings, selection: "早上好",
+                                        answers: answers, detected: "zh-Hans")
+        let presentation = try XCTUnwrap(chinese.session?.presentation)
+        XCTAssertEqual(presentation.main.subtitle, "English (American) → Simplified Chinese · Detect Direction on")
+        XCTAssertEqual(presentation.alternate?.variant.subtitle,
+                       "Simplified Chinese → English (American) · Detect Direction on")
+        let turned = try chinese.resolveDirection("早上好")
+        XCTAssertEqual(turned.variant.subtitle, "Simplified Chinese → English (American) · Detect Direction on")
+        XCTAssertEqual(turned.states, [.succeeded("Good morning")])
+        XCTAssertEqual(try chinese.request(to: "clients5.google.com").url.query?.contains("tl=en"), true)
+
+        let english = try runTranslator("translator.selection", settings: settings, detected: "en")
+        XCTAssertEqual(try english.resolveDirection("Good morning").variant.subtitle,
+                       "English (American) → Simplified Chinese · Detect Direction on")
+        XCTAssertEqual(try english.request(to: "clients5.google.com").url.query?.contains("tl=zh-CN"), true)
+    }
+
+    /// With it off there is one direction, and the popup says so.
+    func testWithoutDetectionEverythingGoesIntoTheTargetLanguage() throws {
+        let run = try runTranslator("translator.selection",
+                                    settings: translatorSettings(sources: ["Google"], target: "ZH-HANS", autoDetect: false),
+                                    selection: "早上好", detected: "zh-Hans")
+        let presentation = try XCTUnwrap(run.session?.presentation)
+        XCTAssertNil(presentation.alternate)
+        let subtitle = "Any language → Simplified Chinese · Input English (American) · Detect Direction off"
+        XCTAssertEqual(presentation.main.subtitle, subtitle, "All three language settings are shown")
+        XCTAssertEqual(try run.resolveDirection("早上好").variant.subtitle, subtitle)
+    }
+
     /// A source that fails shows its own error; the others still answer.
     func testOneSourceFailingLeavesTheOthersResults() throws {
         var answers = Self.answers
-        answers["translation.googleapis.com"] = RoutedHTTPSTransport.json(
-            #"{"error":{"code":400,"message":"API key not valid. Please pass a valid API key."}}"#, status: 400)
+        // Google refuses with a status and no JSON of its own.
+        answers["clients5.google.com"] = RoutedHTTPSTransport.json("Too Many Requests", status: 429)
         answers["api.openai.com"] = nil
         let run = try runTranslator("translator.selection", settings: translatorSettings(sources: ["DeepL", "Google", "OpenAI"]),
                                     answers: answers)
         let states = try run.resolve("Good morning")
         XCTAssertEqual(states[0], .succeeded("Guten Morgen"))
-        XCTAssertEqual(states[1], .failed("API key not valid. Please pass a valid API key."))
+        XCTAssertEqual(states[1], .failed("Google is refusing requests from this network for now; try again later"))
         guard case .failed(let message) = states[2] else { return XCTFail("\(states[2])") }
         XCTAssertTrue(message.contains("api.openai.com"), message)
     }
@@ -288,7 +367,7 @@ extension PluginRuntimeTests {
         let presentation = try XCTUnwrap(run.session?.presentation)
         XCTAssertNil(presentation.original)
         XCTAssertEqual(presentation.inputPlaceholder, "Text to translate")
-        XCTAssertEqual(try run.resolve("Thank you"), [.succeeded("Guten Morgen"), .succeeded("Guten Morgen!")])
+        XCTAssertEqual(try run.resolve("Thank you"), [.succeeded("Guten Morgen"), .succeeded("Guten Morgen")])
         guard case .object(let body) = try run.body(to: "api-free.deepl.com") else { return XCTFail() }
         XCTAssertEqual(body["text"], .array([.string("Thank you")]), "What the user typed is what is sent")
     }
@@ -300,23 +379,16 @@ extension PluginRuntimeTests {
         XCTAssertEqual(run.session?.presentation.original, "Thank you")
     }
 
-    func testNoTextToTranslateFailsWithoutAPopup() throws {
+    /// An App that keeps its selection to itself leaves nothing to translate,
+    /// so the popup asks for the text instead of failing, as Smart Jump does.
+    func testNothingToTranslateOpensThePopupForTyping() throws {
         let run = try runTranslator("translator.selection", selection: "  ")
-        guard case .failed(let failure) = run.outcome else { return XCTFail("\(run.outcome)") }
-        XCTAssertEqual(failure.category, .scriptedActionFailed)
-        XCTAssertNil(run.session)
-    }
-
-    /// One Menu Item translates into French while the Plugin Settings say
-    /// German; everything it does not override comes from the settings.
-    func testAMenuItemsOverrideReplacesThePluginSettingForThatItemOnly() throws {
-        let run = try runTranslator("translator.selection", settings: translatorSettings(target: "DE", formality: "prefer_less"),
-                                    input: .object(["target_language": .string("FR")]))
-        XCTAssertEqual(run.session?.presentation.title, "Translate into French")
-        _ = try run.resolve("Good morning")
-        XCTAssertEqual(try run.body(to: "api-free.deepl.com"),
-                       .object(["text": .array([.string("Good morning")]), "target_lang": .string("FR"),
-                                "formality": .string("prefer_less")]))
+        guard case .succeeded = run.outcome else { return XCTFail("\(run.outcome)") }
+        let presentation = try XCTUnwrap(run.session?.presentation)
+        XCTAssertNil(presentation.original)
+        XCTAssertEqual(presentation.inputPlaceholder, "Text to translate")
+        XCTAssertEqual(presentation.submitTitle, "Translate")
+        XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen")])
     }
 
     // MARK: Consent

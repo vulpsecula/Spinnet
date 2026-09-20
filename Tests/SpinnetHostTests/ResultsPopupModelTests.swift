@@ -39,7 +39,6 @@ final class ResultsPopupModelTests: XCTestCase {
         XCTAssertEqual(model.shownText, "Hello")
         XCTAssertFalse(model.asksForText)
         model.start()
-        XCTAssertEqual(model.states, [.pending, .pending])
         waitUntil { model.states == [.succeeded("Hello!"), .succeeded("Hello!")] }
     }
 
@@ -65,6 +64,7 @@ final class ResultsPopupModelTests: XCTestCase {
         }, copy: { _ in })
         model.input = "old"
         model.submit()
+        waitUntil { model.states == [.pending, .pending] }
         model.input = "new"
         model.submit()
         waitUntil { model.states == [.succeeded("new"), .succeeded("new")] }

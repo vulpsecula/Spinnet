@@ -6,7 +6,8 @@ public enum ResultsPresentationBudgets {
     /// Sections one popup may hold, each one HTTPS request.
     public static let maximumSections = 8
 
-    /// Longest title, section title, or input placeholder, in characters.
+    /// Longest title, subtitle, section title, input placeholder, button
+    /// label, or `when_language` code, in characters.
     public static let maximumTitleLength = 256
 
     /// Longest `result_pointer` or `error_pointer`, in characters.
@@ -17,8 +18,9 @@ public enum ResultsPresentationBudgets {
     /// `error_pointer` is cut short.
     public static let maximumMessageLength = 512
 
-    /// The placeholder a section's `json_body` names the text with. A JSON
-    /// string exactly equal to it is replaced by the text.
+    /// The placeholder a section's request names the text with: a JSON string
+    /// in `json_body` exactly equal to it, or this text inside the `url`,
+    /// where it is percent-encoded into one query value.
     public static let textPlaceholder = "{{text}}"
 }
 
@@ -51,6 +53,14 @@ public struct ResultsPresentation: Equatable {
         /// The `https_request` input for `text`.
         func request(with text: String) throws -> JSONValue {
             var fields = request
+            // A URL carries the text in a query value, so it is encoded down
+            // to unreserved characters and cannot reach the host or the path.
+            if case .string(let url)? = fields["url"], url.contains(ResultsPresentationBudgets.textPlaceholder) {
+                fields["url"] = .string(url.replacingOccurrences(
+                    of: ResultsPresentationBudgets.textPlaceholder,
+                    with: text.addingPercentEncoding(withAllowedCharacters: Self.unreserved) ?? ""
+                ))
+            }
             if let body = fields.removeValue(forKey: "json_body") {
                 let filled = Self.fill(body, with: text)
                 let encoded: Data
@@ -67,6 +77,10 @@ public struct ResultsPresentation: Equatable {
             }
             return .object(fields)
         }
+
+        /// RFC 3986 unreserved characters; everything else is encoded.
+        private static let unreserved = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 
         private static func fill(_ value: JSONValue, with text: String) -> JSONValue {
             switch value {
@@ -97,6 +111,22 @@ public struct ResultsPresentation: Equatable {
         }
     }
 
+    /// One direction of a popup: what it says it is doing, and the requests
+    /// that do it.
+    public struct Variant: Equatable {
+        /// A line under the title, such as the languages being translated.
+        public let subtitle: String?
+        public let sections: [Section]
+    }
+
+    /// What a popup does instead with text already in one language, such as
+    /// translating it back the other way.
+    public struct Alternate: Equatable {
+        /// The language it answers, as a BCP 47 code.
+        let language: String
+        public let variant: Variant
+    }
+
     public let title: String
     /// The text the sections work on, or nil when the popup asks for it.
     public let original: String?
@@ -104,14 +134,31 @@ public struct ResultsPresentation: Equatable {
     public let inputPlaceholder: String?
     /// The label of the button that sends typed text.
     public let submitTitle: String
-    public let sections: [Section]
+    /// What the popup does with text in any other language.
+    public let main: Variant
+    public let alternate: Alternate?
+
+    /// Every direction the popup may take, for checking them all before it opens.
+    public var variants: [Variant] { [main] + (alternate.map { [$0.variant] } ?? []) }
+
+    /// The variant for text the Host detected as `language`, a BCP 47 code or
+    /// nil when it could not tell. A primary subtag is enough to match, so
+    /// `zh` answers `zh-Hans`.
+    public func variant(forDetected language: String?) -> Variant {
+        guard let alternate, let language else { return main }
+        func primary(_ code: String) -> String {
+            code.lowercased().split(separator: "-").first.map(String.init) ?? code.lowercased()
+        }
+        return primary(alternate.language) == primary(language) ? alternate.variant : main
+    }
 
     /// Reads a `present_results` input:
-    /// `{title, original | input: {placeholder?, submit_title?}, sections: [{title, request,
-    /// result_pointer, error_pointer?, status_messages?}]}`.
+    /// `{title, subtitle?, original | input: {placeholder?, submit_title?},
+    /// sections: [{title, request, result_pointer, error_pointer?,
+    /// status_messages?}], alternate?: {when_language, subtitle?, sections}}`.
     public init(serviceInput: JSONValue) throws {
         guard case .object(let fields) = serviceInput,
-              Set(fields.keys).isSubset(of: ["title", "original", "input", "sections"]) else {
+              Set(fields.keys).isSubset(of: ["title", "subtitle", "original", "input", "sections", "alternate"]) else {
             throw PluginHostServiceError.invalidInput("present_results expects title, original or input, and sections")
         }
         title = try Self.title(fields["title"], name: "title")
@@ -130,13 +177,40 @@ public struct ResultsPresentation: Equatable {
         default:
             throw PluginHostServiceError.invalidInput("present_results expects either an original text or an input")
         }
-        guard case .array(let declared)? = fields["sections"], !declared.isEmpty,
+        main = Variant(
+            subtitle: try fields["subtitle"].map { try Self.title($0, name: "subtitle") },
+            sections: try Self.sections(fields["sections"])
+        )
+        guard let declared = fields["alternate"] else {
+            alternate = nil
+            return
+        }
+        guard case .object(let other) = declared,
+              Set(other.keys).isSubset(of: ["when_language", "subtitle", "sections"]),
+              case .string(let language)? = other["when_language"],
+              !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              language.count <= ResultsPresentationBudgets.maximumTitleLength else {
+            throw PluginHostServiceError.invalidInput(
+                "alternate expects when_language, its sections, and an optional subtitle"
+            )
+        }
+        alternate = Alternate(
+            language: language,
+            variant: Variant(
+                subtitle: try other["subtitle"].map { try Self.title($0, name: "alternate subtitle") },
+                sections: try Self.sections(other["sections"])
+            )
+        )
+    }
+
+    private static func sections(_ value: JSONValue?) throws -> [Section] {
+        guard case .array(let declared)? = value, !declared.isEmpty,
               declared.count <= ResultsPresentationBudgets.maximumSections else {
             throw PluginHostServiceError.invalidInput(
                 "present_results expects 1 to \(ResultsPresentationBudgets.maximumSections) sections"
             )
         }
-        sections = try declared.map(Self.section)
+        return try declared.map(section)
     }
 
     private static func section(_ value: JSONValue) throws -> Section {
@@ -199,21 +273,31 @@ public struct ResultsPresentation: Equatable {
 public final class ResultsPresentationSession {
     public let presentation: ResultsPresentation
     private let send: (JSONValue) throws -> JSONValue
+    private let detectLanguage: (String) -> String?
 
     /// `send` performs one `https_request` input with the Plugin's current
-    /// authority.
-    public init(presentation: ResultsPresentation, send: @escaping (JSONValue) throws -> JSONValue) {
+    /// authority. `detectLanguage` reports the language of a text as a BCP 47
+    /// code, which decides between the popup's directions; the text never
+    /// leaves the Host for it.
+    public init(presentation: ResultsPresentation, send: @escaping (JSONValue) throws -> JSONValue,
+                detectLanguage: @escaping (String) -> String? = { _ in nil }) {
         self.presentation = presentation
         self.send = send
+        self.detectLanguage = detectLanguage
     }
 
     /// Sends every section's request for `text` at once and reports each
     /// section as its answer arrives, so a slow or failing source never
-    /// holds back another. `update` is called from background threads, once
-    /// per section; `resolve` returns when all have been reported.
-    public func resolve(text: String, update: @escaping (Int, ResultsSectionState) -> Void) {
+    /// holds back another. `started` receives the direction chosen for this
+    /// text before anything is sent; `update` is called from background
+    /// threads, once per section. `resolve` returns when all have been
+    /// reported.
+    public func resolve(text: String, started: @escaping (ResultsPresentation.Variant) -> Void,
+                        update: @escaping (Int, ResultsSectionState) -> Void) {
+        let variant = presentation.variant(forDetected: detectLanguage(text))
+        started(variant)
         let group = DispatchGroup()
-        for (index, section) in presentation.sections.enumerated() {
+        for (index, section) in variant.sections.enumerated() {
             DispatchQueue.global(qos: .userInitiated).async(group: group) { [send] in
                 let state: ResultsSectionState
                 do {

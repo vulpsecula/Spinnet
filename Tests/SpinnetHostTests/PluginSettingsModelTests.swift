@@ -46,10 +46,9 @@ final class PluginSettingsModelTests: XCTestCase {
         let saves: () -> Int
     }
 
-    private func makeModel() throws -> Fixture {
+    private func makeModel(credentials: InMemoryPluginCredentialStore = InMemoryPluginCredentialStore()) throws -> Fixture {
         let manifest = try manifest()
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
-        let credentials = InMemoryPluginCredentialStore()
         let grants = PluginCapabilityGrantStore()
         var saves = 0
         let model = PluginSettingsModel(
@@ -143,34 +142,52 @@ final class PluginSettingsModelTests: XCTestCase {
 
     func testTurningASourceOnAddsItLastAndItCanBeMovedUp() throws {
         let (model, _) = try translatorModel()
-        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL"])
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google"])
         model.setChoice("OpenAI", enabled: true, for: "sources")
-        model.setChoice("Google", enabled: true, for: "sources")
-        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "OpenAI", "Google"])
-        model.moveChoice("Google", by: -1, for: "sources")
-        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "Google", "OpenAI"])
+        model.setChoice("DeepL", enabled: true, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google", "OpenAI", "DeepL"])
         model.moveChoice("DeepL", by: -1, for: "sources")
-        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "Google", "OpenAI"], "The first cannot move up")
-        model.setChoice("DeepL", enabled: false, for: "sources")
-        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google", "OpenAI"])
-        XCTAssertEqual(model.values["sources"], .array([.string("Google"), .string("OpenAI")]))
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google", "DeepL", "OpenAI"])
+        model.moveChoice("Google", by: -1, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["Google", "DeepL", "OpenAI"], "The first cannot move up")
+        model.setChoice("Google", enabled: false, for: "sources")
+        XCTAssertEqual(model.orderedChoices(for: "sources"), ["DeepL", "OpenAI"])
+        XCTAssertEqual(model.values["sources"], .array([.string("DeepL"), .string("OpenAI")]))
     }
 
     /// Only the settings of the sources that are on are shown, and a value
     /// left behind in one that is off does not stop the sheet saving.
     func testOnlyTheSettingsOfSourcesThatAreOnAreShownOrChecked() throws {
         let (model, store) = try translatorModel()
-        XCTAssertEqual(model.visibleFields.compactMap(\.key),
-                       ["sources", "target_language", "deepl_endpoint", "deepl_credential", "formality"])
+        let shared = ["sources", "source_language", "target_language", "auto_detect"]
+        XCTAssertEqual(model.visibleFields.compactMap(\.key), shared,
+                       "Google needs nothing of its own")
         model.values["openai_endpoint"] = .string("not an address")
-        model.setChoice("DeepL", enabled: false, for: "sources")
-        model.setChoice("Google", enabled: true, for: "sources")
-        XCTAssertEqual(model.visibleFields.compactMap(\.key), ["sources", "target_language", "google_credential"])
-        model.secrets["google"] = "key"
+        model.setChoice("DeepL", enabled: true, for: "sources")
+        XCTAssertEqual(model.visibleFields.compactMap(\.key),
+                       shared + ["deepl_endpoint", "deepl_credential", "formality"])
+        model.secrets["deepl"] = "key"
         XCTAssertTrue(model.save(), model.error ?? "")
-        XCTAssertEqual(store.values(for: model.manifest.id)["sources"], .array([.string("Google")]))
+        XCTAssertEqual(store.values(for: model.manifest.id)["sources"],
+                       .array([.string("Google"), .string("DeepL")]))
 
         model.setChoice("OpenAI", enabled: true, for: "sources")
         XCTAssertFalse(model.save(), "An address in use must be valid")
+    }
+
+    /// A key the user saved is shown again when the sheet reopens, so it can
+    /// be checked and corrected rather than only replaced.
+    func testAStoredKeyIsShownAgainAndCanBeEdited() throws {
+        let keychain = InMemoryPluginCredentialStore()
+        let fixture = try makeModel(credentials: keychain)
+        fixture.model.secrets["main"] = "sk-first"
+        XCTAssertTrue(fixture.model.save(), fixture.model.error ?? "")
+
+        let reopened = try makeModel(credentials: keychain)
+        XCTAssertEqual(reopened.model.secret(for: "main"), "sk-first")
+        XCTAssertEqual(reopened.model.secrets, [:], "Nothing is rewritten until the user edits it")
+        reopened.model.setSecret("sk-second", for: "main")
+        XCTAssertTrue(reopened.model.save(), reopened.model.error ?? "")
+        XCTAssertEqual(try makeModel(credentials: keychain).model.secret(for: "main"), "sk-second")
     }
 }

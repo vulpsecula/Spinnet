@@ -72,7 +72,10 @@ struct PluginSettingsForm: View {
         case .searchEngines:
             SmartJumpSearchEnginesEditor(value: text(key))
         case .credential:
-            credential(reference: text(key).wrappedValue, placeholder: field.placeholder)
+            let reference = text(key).wrappedValue
+            CredentialField(secret: Binding(get: { model.secret(for: reference) },
+                                            set: { model.setSecret($0, for: reference) }),
+                            placeholder: field.placeholder)
         case .orderedChoices:
             orderedChoices(field, key: key)
         default:
@@ -112,19 +115,6 @@ struct PluginSettingsForm: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A credential setting's value is its reference; the secret typed here
-    /// goes to the credential store when the settings save.
-    private func credential(reference: String, placeholder: String?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            SecureField(model.hasStoredSecret(reference) ? "Stored in the Keychain; type to replace" : placeholder ?? "Not set",
-                        text: Binding(get: { model.secrets[reference] ?? "" }, set: { model.secrets[reference] = $0 }))
-                .textFieldStyle(.roundedBorder)
-            Text("Spinnet keeps this secret and adds it to requests itself; the Plugin never reads it.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     private func text(_ key: String) -> Binding<String> {
         Binding(
             get: {
@@ -133,5 +123,36 @@ struct PluginSettingsForm: View {
             },
             set: { model.values[key] = .string($0) }
         )
+    }
+}
+
+/// One Host-rendered secret: the stored one, hidden until the user asks to
+/// see it, so a key can be checked and corrected instead of only replaced.
+/// The Plugin still never reads it.
+struct CredentialField: View {
+    @Binding var secret: String
+    let placeholder: String?
+    @State private var isRevealed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                if isRevealed {
+                    ConfigurationTextField(text: $secret, placeholder: placeholder ?? "Not set")
+                } else {
+                    SecureField(placeholder ?? "Not set", text: $secret)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Button { isRevealed.toggle() } label: {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.borderless)
+                .help(isRevealed ? "Hide" : "Show")
+                .accessibilityLabel(isRevealed ? "Hide the key" : "Show the key")
+            }
+            Text("Spinnet keeps this secret and adds it to requests itself; the Plugin never reads it.")
+                .font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

@@ -14,6 +14,8 @@ final class PluginSettingsModel: ObservableObject {
     @Published var allowedEndpointHosts: Set<String> = []
     @Published private(set) var error: String?
 
+    /// Secrets already read back from the credential store, by reference.
+    private var storedSecrets: [String: String] = [:]
     private let store: PluginSettingsStore
     private let credentialStore: PluginCredentialStore?
     private let approveConsent: (HTTPSEndpointConsent, Set<String>) throws -> Void
@@ -39,6 +41,22 @@ final class PluginSettingsModel: ObservableObject {
 
     func hasStoredSecret(_ reference: String) -> Bool {
         credentialStore?.hasSecret(for: manifest.id, reference: reference) ?? false
+    }
+
+    /// The secret as the sheet shows it: what the user has typed, or the one
+    /// already stored. The sheet reads back what it stored so a key can be
+    /// checked and corrected instead of only replaced; a Plugin still never
+    /// sees it. Each stored secret is read once, not on every redraw.
+    func secret(for reference: String) -> String {
+        if let typed = secrets[reference] { return typed }
+        if let read = storedSecrets[reference] { return read }
+        let stored = ((try? credentialStore?.secret(for: manifest.id, reference: reference)) ?? nil) ?? ""
+        storedSecrets[reference] = stored
+        return stored
+    }
+
+    func setSecret(_ secret: String, for reference: String) {
+        secrets[reference] = secret
     }
 
     /// The titles of fields that still need a value, a typed secret counting

@@ -167,7 +167,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)
-                }
+                },
+                languageDetector: { text in TextLanguage.detect(text) }
             )
             clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(
