@@ -81,6 +81,10 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     public let title: String?
     public let placeholder: String?
     public let choices: [String]
+    /// What to show for each of `choices`, in the same order, when the stored
+    /// value is a code such as `ZH-HANS`. Empty means the choices show
+    /// themselves. Written as `choice_titles`.
+    public let choiceTitles: [String]
     /// Names the field's member in the Action input when a Command declares
     /// several `configuration_fields`. A lone `configuration_field` has none.
     public let key: String?
@@ -95,6 +99,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         title: String? = nil,
         placeholder: String? = nil,
         choices: [String] = [],
+        choiceTitles: [String] = [],
         key: String? = nil,
         usedWhen: CommandConfigurationFieldCondition? = nil,
         overridable: Bool = false
@@ -103,6 +108,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         self.title = title
         self.placeholder = placeholder
         self.choices = choices
+        self.choiceTitles = choiceTitles
         self.key = key
         self.usedWhen = usedWhen
         self.overridable = overridable
@@ -128,6 +134,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case title
         case placeholder
         case choices
+        case choiceTitles = "choice_titles"
         case key
         case usedWhen = "used_when"
         case overridable
@@ -140,6 +147,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             title: container.decodeIfPresent(String.self, forKey: .title),
             placeholder: container.decodeIfPresent(String.self, forKey: .placeholder),
             choices: container.decodeIfPresent([String].self, forKey: .choices) ?? [],
+            choiceTitles: container.decodeIfPresent([String].self, forKey: .choiceTitles) ?? [],
             key: container.decodeIfPresent(String.self, forKey: .key),
             usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen),
             overridable: container.decodeIfPresent(Bool.self, forKey: .overridable) ?? false
@@ -154,12 +162,22 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         if !choices.isEmpty {
             try container.encode(choices, forKey: .choices)
         }
+        if !choiceTitles.isEmpty {
+            try container.encode(choiceTitles, forKey: .choiceTitles)
+        }
         try container.encodeIfPresent(key, forKey: .key)
         try container.encodeIfPresent(usedWhen, forKey: .usedWhen)
         if overridable { try container.encode(true, forKey: .overridable) }
     }
 
     public var displayTitle: String { title ?? kind.title }
+
+    /// What to show for one choice: its title when the field gives one, and
+    /// the choice itself otherwise.
+    public func displayTitle(forChoice choice: String) -> String {
+        guard let index = choices.firstIndex(of: choice), choiceTitles.indices.contains(index) else { return choice }
+        return choiceTitles[index]
+    }
 
     /// Whether the Host accepts this value for the field. Only kinds with a
     /// Host-checked grammar can reject a value; every other kind leaves

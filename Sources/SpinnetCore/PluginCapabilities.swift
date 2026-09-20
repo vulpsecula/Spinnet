@@ -582,6 +582,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let focusedTextInserter: (String) throws -> Void
     private let resultsPresenter: (ResultsPresentationSession) throws -> Void
     private let languageDetector: (String) -> String?
+    private let pluginSettingsReader: (PluginManifest) -> [String: JSONValue]
+    private let pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)?
+    private let actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)?
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
 
@@ -631,7 +634,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         localPathOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening local paths")
         },
-        languageDetector: @escaping (String) -> String? = { _ in nil }
+        languageDetector: @escaping (String) -> String? = { _ in nil },
+        pluginSettingsReader: @escaping (PluginManifest) -> [String: JSONValue] = { $0.resolvedSettings(stored: [:]) },
+        pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
+        actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -653,6 +659,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedTextInserter = focusedTextInserter
         self.resultsPresenter = resultsPresenter
         self.languageDetector = languageDetector
+        self.pluginSettingsReader = pluginSettingsReader
+        self.pluginSettingsWriter = pluginSettingsWriter
+        self.actionRerunner = actionRerunner
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
     }
@@ -879,6 +888,22 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             // The popup outlives the Action, so each send checks the grant
             // and the consented hosts again rather than trusting this one.
+            // Checked once, read afresh: the popup always shows what is stored.
+            let offeredFields = try popupSettingFields(presentation.settings, of: package.manifest)
+            let manifest = package.manifest
+            let offered = { [pluginSettingsReader] () -> [ResultsPresentationSession.Setting] in
+                let values = pluginSettingsReader(manifest)
+                return offeredFields.map { field in
+                    let key = field.key ?? ""
+                    return ResultsPresentationSession.Setting(
+                        key: key,
+                        title: field.displayTitle,
+                        kind: field.kind,
+                        value: values[key] ?? .null,
+                        choices: field.choices.map { ($0, field.displayTitle(forChoice: $0)) }
+                    )
+                }
+            }
             let session = ResultsPresentationSession(
                 presentation: presentation,
                 send: { [self] input in
@@ -892,7 +917,29 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 },
                 // The Host reads the text it already holds; nothing is sent
                 // anywhere to tell one direction from the other.
-                detectLanguage: languageDetector
+                detectLanguage: languageDetector,
+                settings: offered,
+                swappableSettings: presentation.settings.flatMap { declared in
+                    declared.swap.count == 2 ? (declared.swap[0], declared.swap[1]) : nil
+                },
+                changeSettings: offeredFields.isEmpty ? nil : { [self] values in
+                    // The user changed a setting in the popup, so it is stored
+                    // like any other Plugin Setting and the Action runs again:
+                    // only the Plugin can say what its requests look like now.
+                    guard let pluginSettingsWriter, let actionRerunner else {
+                        throw PluginHostServiceError.unavailable("Changing Plugin Settings")
+                    }
+                    var stored = pluginSettingsReader(package.manifest)
+                    for (key, value) in values {
+                        guard let field = package.manifest.settingsFields.first(where: { $0.key == key }),
+                              field.acceptsMemberValue(value) else {
+                            throw PluginHostServiceError.invalidInput("\(key) cannot hold that value")
+                        }
+                        stored[key] = value
+                    }
+                    try pluginSettingsWriter(package.manifest, stored)
+                    actionRerunner(package, action)
+                }
             )
             try resultsPresenter(session)
             // The user reads the answers; the Plugin never sees them.
@@ -904,6 +951,23 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             try focusedTextInserter(text)
             return .null
+        }
+    }
+
+    /// The Plugin Settings a popup may offer: its own, and only the kinds
+    /// the Host can render in one. A key that is not a setting, or holds a
+    /// secret or an address, is refused before the popup opens.
+    private func popupSettingFields(_ declared: ResultsPresentation.Settings?,
+                                    of manifest: PluginManifest) throws -> [CommandConfigurationField] {
+        guard let declared else { return [] }
+        return try declared.keys.map { key in
+            guard let field = manifest.settingsFields.first(where: { $0.key == key }),
+                  [.choice, .toggle].contains(field.kind) else {
+                throw PluginHostServiceError.invalidInput(
+                    "settings may only name the Plugin's own choice or toggle settings, and \(key) is not one"
+                )
+            }
+            return field
         }
     }
 

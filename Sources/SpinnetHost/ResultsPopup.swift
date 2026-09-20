@@ -23,6 +23,8 @@ final class ResultsPopupModel: ObservableObject {
 
     private let session: ResultsPresentationSession
     private let copyText: (String) -> Void
+    /// What the popup could not do, such as a setting it could not store.
+    @Published private(set) var error: String?
     /// Answers for an older submission than this one are dropped.
     private var generation = 0
 
@@ -35,9 +37,43 @@ final class ResultsPopupModel: ObservableObject {
 
     var asksForText: Bool { presentation.original == nil }
 
-    /// Sends the original text, if the popup has one.
-    func start() {
-        if let original = presentation.original { resolve(original) }
+    /// The Plugin Settings this popup offers to change.
+    var settings: [ResultsPresentationSession.Setting] { session.settings }
+    var canSwapSettings: Bool { session.swappableSettings != nil }
+
+    /// Stores one of them. The Host then runs the Action again, which
+    /// replaces this popup with one built from the new settings.
+    func change(_ key: String, to value: JSONValue) {
+        perform { try session.change(key, to: value) }
+    }
+
+    func swapSettings() {
+        perform { try session.swapSettings() }
+    }
+
+    private func perform(_ change: () throws -> Void) {
+        do {
+            try change()
+            error = nil
+        } catch {
+            self.error = (error as? PluginHostServiceError).map(Self.message) ?? error.localizedDescription
+        }
+    }
+
+    private static func message(for error: PluginHostServiceError) -> String {
+        switch error {
+        case .capabilityDenied, .systemPermissionDenied: return "\(error)"
+        case .invalidInput(let message), .unavailable(let message), .failed(let message): return message
+        }
+    }
+
+    /// Sends the original text, if the popup has one, or the text a popup
+    /// this one replaces was working on.
+    func start(carrying carried: String? = nil) {
+        if let original = presentation.original { return resolve(original) }
+        guard let carried, !carried.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        input = carried
+        submit()
     }
 
     func submit() {
@@ -98,6 +134,12 @@ struct ResultsPopupView: View {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if !model.settings.isEmpty {
+                settingsRow
+            }
+            if let error = model.error {
+                Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            }
             if model.asksForText {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField(model.presentation.inputPlaceholder ?? "", text: $model.input, axis: .vertical)
@@ -134,6 +176,45 @@ struct ResultsPopupView: View {
         .padding(14)
         .frame(width: 420, alignment: .leading)
         .onAppear { inputFocused = model.asksForText }
+    }
+
+    /// The Plugin Settings the popup offers, on one line: the choices it
+    /// takes, the swap between two of them, and any switches.
+    private var settingsRow: some View {
+        let choices = model.settings.filter { $0.kind == .choice }
+        let switches = model.settings.filter { $0.kind == .toggle }
+        return HStack(spacing: 6) {
+            ForEach(Array(choices.enumerated()), id: \.element.key) { index, setting in
+                if index > 0 {
+                    if model.canSwapSettings {
+                        Button { model.swapSettings() } label: { Image(systemName: "arrow.left.arrow.right") }
+                            .buttonStyle(.borderless)
+                            .help("Swap")
+                            .accessibilityLabel("Swap the languages")
+                    } else {
+                        Text("→").foregroundStyle(.secondary)
+                    }
+                }
+                Picker(setting.title, selection: Binding(
+                    get: { if case .string(let value) = setting.value { return value } else { return "" } },
+                    set: { model.change(setting.key, to: .string($0)) }
+                )) {
+                    ForEach(setting.choices, id: \.value) { Text($0.title).tag($0.value) }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(setting.title)
+            }
+            ForEach(switches, id: \.key) { setting in
+                Toggle(setting.title, isOn: Binding(
+                    get: { setting.value == .bool(true) },
+                    set: { model.change(setting.key, to: .bool($0)) }
+                ))
+                .toggleStyle(.checkbox)
+                .fixedSize()
+            }
+        }
+        .font(.caption)
     }
 
     private func sections(_ states: [ResultsSectionState]) -> some View {
@@ -188,8 +269,15 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
     private var model: ResultsPopupModel?
     /// The panel grows downwards from here as results arrive.
     private var top: CGFloat = 0
+    /// Text a replaced popup was working on. Changing a setting runs the
+    /// Action again, and the popup it opens carries on with the same text
+    /// where the Plugin has none of its own.
+    private var carriedText: String?
+    private var carriedTopLeft: NSPoint?
 
     func present(_ session: ResultsPresentationSession) {
+        carriedText = model?.shownText
+        carriedTopLeft = panel.map { NSPoint(x: $0.frame.minX, y: $0.frame.maxY) }
         close()
         let model = ResultsPopupModel(session: session, copy: { text in
             let pasteboard = NSPasteboard.general
@@ -214,18 +302,26 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
         panel.setAccessibilityLabel(session.presentation.title)
         panel.delegate = self
 
-        let pointer = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let size = panel.frame.size
-        let x = min(max(pointer.x - size.width / 2, visible.minX + 8), visible.maxX - size.width - 8)
-        top = min(pointer.y - 12, visible.maxY - 8)
-        panel.setFrameTopLeftPoint(NSPoint(x: x, y: top))
+        if let carried = carriedTopLeft {
+            // A popup the user changed a setting in stays where it was.
+            top = carried.y
+            panel.setFrameTopLeftPoint(carried)
+        } else {
+            let pointer = NSEvent.mouseLocation
+            let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
+            let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            let size = panel.frame.size
+            let x = min(max(pointer.x - size.width / 2, visible.minX + 8), visible.maxX - size.width - 8)
+            top = min(pointer.y - 12, visible.maxY - 8)
+            panel.setFrameTopLeftPoint(NSPoint(x: x, y: top))
+        }
 
         self.panel = panel
         self.model = model
         panel.makeKeyAndOrderFront(nil)
-        model.start()
+        model.start(carrying: carriedText)
+        carriedText = nil
+        carriedTopLeft = nil
     }
 
     func close() {

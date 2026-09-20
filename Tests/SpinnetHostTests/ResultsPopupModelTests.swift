@@ -84,4 +84,46 @@ final class ResultsPopupModelTests: XCTestCase {
         model.copy(section: 0)
         XCTAssertEqual(copied, ["Hello"])
     }
+
+    /// The popup's controls change Plugin Settings; the Host then runs the
+    /// Action again, which replaces the popup, so the model only reports
+    /// what it could not do.
+    func testThePopupChangesASettingOrSaysWhyItCannot() throws {
+        var written: [[String: JSONValue]] = []
+        var stored: [String: JSONValue] = ["into": .string("DE")]
+        let presentation = try ResultsPresentation(serviceInput: .object([
+            "title": .string("Translate"), "original": .string("Hello"),
+            "sections": .array([.object(["title": .string("One"),
+                                         "request": .object(["method": .string("GET"),
+                                                             "url": .string("https://api.example.com/t")]),
+                                         "result_pointer": .string("/text")])]),
+            "settings": .object(["keys": .array([.string("into")])])
+        ]))
+        let session = ResultsPresentationSession(
+            presentation: presentation,
+            send: { _ in throw PluginHostServiceError.failed("not asked here") },
+            settings: { [ResultsPresentationSession.Setting(key: "into", title: "Into", kind: .choice,
+                                                            value: stored["into"] ?? .null,
+                                                            choices: [("DE", "German"), ("EN", "English")])] },
+            changeSettings: { values in
+                guard values["into"] != .string("KLINGON") else {
+                    throw PluginHostServiceError.invalidInput("into cannot hold that value")
+                }
+                written.append(values)
+                stored.merge(values) { $1 }
+            }
+        )
+        let model = ResultsPopupModel(session: session, copy: { _ in })
+        XCTAssertEqual(model.settings.map(\.key), ["into"])
+        XCTAssertFalse(model.canSwapSettings)
+
+        model.change("into", to: .string("EN"))
+        XCTAssertEqual(written, [["into": .string("EN")]])
+        XCTAssertNil(model.error)
+        XCTAssertEqual(model.settings.first?.value, .string("EN"), "The control shows what is stored now")
+
+        model.change("into", to: .string("KLINGON"))
+        XCTAssertEqual(model.error, "into cannot hold that value")
+        XCTAssertEqual(written.count, 1)
+    }
 }

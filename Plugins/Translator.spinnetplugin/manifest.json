@@ -22,9 +22,11 @@
   "settings_fields": [
     {"key": "sources", "kind": "ordered_choices", "title": "Sources", "choices": ["Google", "DeepL", "OpenAI"]},
     {"key": "source_language", "kind": "choice", "title": "Input Language",
-     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"]},
+     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"],
+     "choice_titles": ["English (American)", "English (British)", "German", "French", "Spanish", "Italian", "Dutch", "Polish", "Brazilian Portuguese", "European Portuguese", "Russian", "Swedish", "Danish", "Finnish", "Czech", "Ukrainian", "Turkish", "Arabic", "Indonesian", "Japanese", "Korean", "Simplified Chinese", "Traditional Chinese"]},
     {"key": "target_language", "kind": "choice", "title": "Target Language",
-     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"]},
+     "choices": ["EN-US", "EN-GB", "DE", "FR", "ES", "IT", "NL", "PL", "PT-BR", "PT-PT", "RU", "SV", "DA", "FI", "CS", "UK", "TR", "AR", "ID", "JA", "KO", "ZH-HANS", "ZH-HANT"],
+     "choice_titles": ["English (American)", "English (British)", "German", "French", "Spanish", "Italian", "Dutch", "Polish", "Brazilian Portuguese", "European Portuguese", "Russian", "Swedish", "Danish", "Finnish", "Czech", "Ukrainian", "Turkish", "Arabic", "Indonesian", "Japanese", "Korean", "Simplified Chinese", "Traditional Chinese"]},
     {"key": "auto_detect", "kind": "toggle", "title": "Detect Direction"},
     {"key": "deepl_endpoint", "kind": "https_endpoint", "title": "DeepL Endpoint", "placeholder": "https://api-free.deepl.com",
      "used_when": {"key": "sources", "values": ["DeepL"]}},

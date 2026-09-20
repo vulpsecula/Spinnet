@@ -168,7 +168,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)
                 },
-                languageDetector: { text in TextLanguage.detect(text) }
+                languageDetector: { text in TextLanguage.detect(text) },
+                pluginSettingsReader: { [unowned self] manifest in self.resolvedPluginSettings(manifest) },
+                pluginSettingsWriter: { [unowned self] manifest, values in
+                    try self.pluginSettings?.setValues(values, for: manifest.id)
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self, let configuration = self.currentConfiguration else { return }
+                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    }
+                },
+                // A setting changed in a popup runs its Action again, so the
+                // Plugin describes its requests with the new value.
+                actionRerunner: { [weak self] _, action in
+                    DispatchQueue.main.async { [weak self] in self?.invoke(action) }
+                }
             )
             clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(

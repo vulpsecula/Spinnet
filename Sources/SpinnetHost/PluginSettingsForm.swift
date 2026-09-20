@@ -55,7 +55,7 @@ struct PluginSettingsForm: View {
         switch field.kind {
         case .choice:
             Picker(field.displayTitle, selection: text(key)) {
-                ForEach(field.choices, id: \.self) { Text($0).tag($0) }
+                ForEach(field.choices, id: \.self) { Text(field.displayTitle(forChoice: $0)).tag($0) }
             }
             .labelsHidden()
             .frame(maxWidth: .infinity, alignment: .leading)

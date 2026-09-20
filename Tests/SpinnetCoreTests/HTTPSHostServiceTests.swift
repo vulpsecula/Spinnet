@@ -28,7 +28,7 @@ final class ScriptedHTTPSTransport: HTTPSTransport {
 /// A Plugin that contacts one declared host from one Command and only copies
 /// from another, so a test can tell which Commands a decision reaches.
 enum NetworkPluginFixture {
-    static func manifest(hosts: [String] = ["api.example.com"]) throws -> PluginManifest {
+    static func manifest(hosts: [String] = ["api.example.com"], settings: String = "") throws -> PluginManifest {
         let hostList = hosts.map { "\"\($0)\"" }.joined(separator: ", ")
         return try PluginManifestLoader.decode(Data("""
         {
@@ -37,6 +37,7 @@ enum NetworkPluginFixture {
           "name": "Network Example",
           "version": "1.0.0",
           "capabilities": ["contact_https", "write_clipboard"],
+          \(settings)
           "capability_scopes": [{
             "capability": "contact_https", "command_ids": ["fetch"], "data_types": [],
             "includes_existing_host_data": false, "https_hosts": [\(hostList)], "external_apps": []

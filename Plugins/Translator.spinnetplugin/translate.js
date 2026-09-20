@@ -128,6 +128,12 @@
   const detection = config.auto_detect === true ? "Detect Direction on" : "Detect Direction off";
   const payload = {
     title: "Translate",
+    // The popup shows these three as controls, so the languages can be
+    // changed where the translation is read rather than in Settings.
+    settings: {
+      keys: ["source_language", "target_language", "auto_detect"],
+      swap: ["source_language", "target_language"]
+    },
     subtitle: autoDetect
       ? source.name + " → " + target.name + " · " + detection
       : "Any language → " + target.name + " · Input " + source.name + " · " + detection,

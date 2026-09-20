@@ -43,6 +43,9 @@ final class ResultsPresentationTests: XCTestCase {
     private var grants: PluginCapabilityGrantStore!
     private var credentials: InMemoryPluginCredentialStore!
     private var presented: [ResultsPresentationSession] = []
+    /// Plugin Settings as the Host stores them, and what the popup wrote.
+    private var storedSettings: [String: JSONValue] = [:]
+    private var reruns = 0
     /// What the Host's language detector reports for the text being resolved.
     private var detected: String?
 
@@ -59,13 +62,26 @@ final class ResultsPresentationTests: XCTestCase {
         presented = []
     }
 
+    /// Replaces the fixture with one declaring `settings`, granted afresh.
+    private func usePluginWithSettings() throws {
+        manifest = try NetworkPluginFixture.manifest(settings: Self.settingsFields)
+        package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/network"), manifest: manifest)
+        for capability in manifest.capabilities {
+            grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                               capability: capability, scope: manifest.scope(for: capability))
+        }
+    }
+
     private func broker(_ transport: HTTPSTransport) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
             selectedTextProvider: { "" }, clipboardWriter: { _ in },
             httpsTransport: transport, credentialStore: credentials,
             resultsPresenter: { [unowned self] session in presented.append(session) },
-            languageDetector: { [unowned self] _ in detected }
+            languageDetector: { [unowned self] _ in detected },
+            pluginSettingsReader: { [unowned self] _ in storedSettings },
+            pluginSettingsWriter: { [unowned self] _, values in storedSettings = values },
+            actionRerunner: { [unowned self] _, _ in reruns += 1 }
         )
     }
 
@@ -366,6 +382,78 @@ final class ResultsPresentationTests: XCTestCase {
         }
         XCTAssertTrue(presented.isEmpty)
     }
+
+    // MARK: Settings the popup offers
+
+    /// A popup may offer some of its Plugin's own settings. Changing one
+    /// stores it and runs the Action again, because only the Plugin can say
+    /// what its requests look like with the new value.
+    func testChangingASettingInThePopupStoresItAndRunsTheActionAgain() throws {
+        try usePluginWithSettings()
+        storedSettings = ["from": .string("EN"), "into": .string("DE"), "detect": .bool(true)]
+        _ = try present(.object([
+            "title": .string("Translate"), "original": .string("a"),
+            "sections": .array([section("One")]),
+            "settings": .object(["keys": .array([.string("from"), .string("into"), .string("detect")]),
+                                 "swap": .array([.string("from"), .string("into")])])
+        ]))
+        let session = try XCTUnwrap(presented.first)
+        XCTAssertEqual(session.settings.map(\.key), ["from", "into", "detect"])
+        XCTAssertEqual(session.settings.map(\.title), ["From", "Into", "Detect"])
+        XCTAssertEqual(session.settings.first?.choices.map(\.title), ["English", "German"],
+                       "A choice shows its title, not its code")
+        XCTAssertEqual(session.settings.last?.value, .bool(true))
+
+        try session.change("into", to: .string("EN"))
+        XCTAssertEqual(storedSettings["into"], .string("EN"))
+        XCTAssertEqual(reruns, 1)
+
+        try session.swapSettings()
+        XCTAssertEqual(storedSettings["from"], .string("EN"))
+        XCTAssertEqual(storedSettings["into"], .string("EN"))
+        XCTAssertEqual(reruns, 2, "A swap runs the Action once")
+    }
+
+    func testAPopupCannotChangeASettingItDoesNotOfferOrAValueTheFieldRefuses() throws {
+        try usePluginWithSettings()
+        storedSettings = ["from": .string("EN"), "into": .string("DE"), "detect": .bool(true)]
+        _ = try present(.object([
+            "title": .string("Translate"), "original": .string("a"),
+            "sections": .array([section("One")]),
+            "settings": .object(["keys": .array([.string("into")])])
+        ]))
+        let session = try XCTUnwrap(presented.first)
+        XCTAssertNil(session.swappableSettings)
+        XCTAssertThrowsError(try session.change("from", to: .string("DE")), "It was never offered")
+        XCTAssertThrowsError(try session.change("into", to: .string("KLINGON")), "Not one of its choices")
+        XCTAssertEqual(storedSettings, ["from": .string("EN"), "into": .string("DE"), "detect": .bool(true)])
+        XCTAssertEqual(reruns, 0)
+    }
+
+    /// A popup may only offer settings the Host can render in one, so a key
+    /// or an endpoint cannot be changed from it.
+    func testAPopupMayNotOfferASecretOrAnAddressOrAnotherPluginsSetting() throws {
+        try usePluginWithSettings()
+        for key in ["key", "endpoint", "unknown"] {
+            XCTAssertThrowsError(try present(.object([
+                "title": .string("T"), "original": .string("a"), "sections": .array([section("One")]),
+                "settings": .object(["keys": .array([.string(key)])])
+            ])), key) { error in
+                XCTAssertEqual((error as? PluginHostServiceError)?.runtimeFailureCategory, .hostServiceFailed, key)
+            }
+        }
+        XCTAssertTrue(presented.isEmpty)
+    }
+
+    private static let settingsFields = """
+    "settings_fields": [
+      {"key": "from", "kind": "choice", "title": "From", "choices": ["EN", "DE"], "choice_titles": ["English", "German"]},
+      {"key": "into", "kind": "choice", "title": "Into", "choices": ["EN", "DE"], "choice_titles": ["English", "German"]},
+      {"key": "detect", "kind": "toggle", "title": "Detect"},
+      {"key": "key", "kind": "credential", "title": "Key"},
+      {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint"}
+    ],
+    """
 
     func testJSONPointersFollowRFC6901() {
         let document: JSONValue = .object(["a": .array([.object(["b/c": .string("slash"), "d~e": .string("tilde")])]),

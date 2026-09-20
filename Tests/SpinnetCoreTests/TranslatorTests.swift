@@ -53,6 +53,9 @@ final class TranslatorTests: XCTestCase {
         XCTAssertEqual(sources.kind, .orderedChoices)
         XCTAssertEqual(sources.choices, ["Google", "DeepL", "OpenAI"])
         XCTAssertEqual(manifest.overridableSettingsFields, [], "Every value is the Plugin's, not a Menu Item's")
+        let languages = try XCTUnwrap(manifest.settingsFields.first { $0.key == "target_language" })
+        XCTAssertEqual(languages.displayTitle(forChoice: "ZH-HANS"), "Simplified Chinese",
+                       "A language shows its name, not its code")
 
         let defaults = manifest.resolvedSettings(stored: [:])
         XCTAssertEqual(defaults["sources"], .array([.string("Google")]))
@@ -210,6 +213,7 @@ extension PluginRuntimeTests {
             try credentials.setSecret("\(reference)-secret", for: package.manifest.id, reference: reference)
         }
         let transport = RoutedHTTPSTransport(answers)
+        let stored = settings ?? translatorSettings()
         var session: ResultsPresentationSession?
         var selectionReads = 0
         let broker = CapabilityCheckedHostServiceBroker(
@@ -218,11 +222,11 @@ extension PluginRuntimeTests {
             currentClipboardProvider: { clipboardText.map { ClipboardContent(text: $0, type: .text) } },
             httpsTransport: transport, credentialStore: credentials,
             resultsPresenter: { session = $0 },
-            languageDetector: { _ in detected }
+            languageDetector: { _ in detected },
+            pluginSettingsReader: { $0.resolvedSettings(stored: stored) }
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
         defer { supervisor.shutdown() }
-        let stored = settings ?? translatorSettings()
         let outcome = HostActionRunner(executor: TranslatorNoopExecutor(), scriptedExecutor: supervisor,
                                        hostServiceBroker: broker,
                                        pluginSettings: { $0.resolvedSettings(stored: stored) })
@@ -297,6 +301,21 @@ extension PluginRuntimeTests {
         let run = try runTranslator("translator.selection", settings: translatorSettings(sources: ["Google"]))
         XCTAssertEqual(try run.resolve("Good morning"), [.succeeded("Guten Morgen")])
         XCTAssertEqual(try run.request(to: "clients5.google.com").headers, [:])
+    }
+
+    /// The three language settings are controls in the popup, not just a
+    /// line of text, so they can be changed where the translation is read.
+    func testThePopupOffersTheThreeLanguageSettings() throws {
+        let run = try runTranslator("translator.selection",
+                                    settings: translatorSettings(sources: ["Google"], source: "EN-US", target: "ZH-HANS"))
+        let session = try XCTUnwrap(run.session)
+        XCTAssertEqual(session.settings.map(\.key), ["source_language", "target_language", "auto_detect"])
+        XCTAssertEqual(session.settings.map(\.title), ["Input Language", "Target Language", "Detect Direction"])
+        XCTAssertEqual(session.settings.map(\.value),
+                       [.string("EN-US"), .string("ZH-HANS"), .bool(false)])
+        XCTAssertEqual(session.settings.first?.choices.first?.title, "English (American)")
+        guard let swap = session.swappableSettings else { return XCTFail("The two languages swap") }
+        XCTAssertEqual([swap.0, swap.1], ["source_language", "target_language"])
     }
 
     // MARK: Direction

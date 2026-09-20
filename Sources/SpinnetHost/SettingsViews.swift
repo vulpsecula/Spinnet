@@ -1217,7 +1217,7 @@ private struct SlotConfigurationSheet: View {
                 )) {
                     Text("Plugin Setting (\(shared))").tag(String?.none)
                     Divider()
-                    ForEach(field.choices, id: \.self) { Text($0).tag(String?.some($0)) }
+                    ForEach(field.choices, id: \.self) { Text(field.displayTitle(forChoice: $0)).tag(String?.some($0)) }
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1283,7 +1283,7 @@ private struct SlotConfigurationSheet: View {
                     case .choice:
                         Picker(field.displayTitle, selection: binding) {
                             ForEach(field.choices, id: \.self) { choice in
-                                Text(choice).tag(choice)
+                                Text(field.displayTitle(forChoice: choice)).tag(choice)
                             }
                         }
                         .labelsHidden()

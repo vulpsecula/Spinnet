@@ -851,6 +851,11 @@ public struct PluginManifest: Codable, Equatable {
                 "Configuration field choices require the choice or ordered_choices kind"
             )
         }
+        guard field.choiceTitles.isEmpty || field.choiceTitles.count == field.choices.count else {
+            throw ConfigurationError.invalidManifest(
+                "Configuration field choice_titles must name every choice"
+            )
+        }
         if offersChoices {
             guard !field.choices.isEmpty,
                   Set(field.choices).count == field.choices.count,

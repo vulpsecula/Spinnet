@@ -10,6 +10,9 @@ public enum ResultsPresentationBudgets {
     /// label, or `when_language` code, in characters.
     public static let maximumTitleLength = 256
 
+    /// Plugin Settings one popup may offer to change.
+    public static let maximumSettings = 6
+
     /// Longest `result_pointer` or `error_pointer`, in characters.
     public static let maximumPointerLength = 512
 
@@ -127,6 +130,15 @@ public struct ResultsPresentation: Equatable {
         public let variant: Variant
     }
 
+    /// Plugin Settings the popup lets the user change, named by key. The
+    /// Host renders each one, writes a change to Plugin Settings, and runs
+    /// the Action again so the Plugin can describe its requests afresh.
+    public struct Settings: Equatable {
+        public let keys: [String]
+        /// Two of `keys` the popup offers to swap, such as two languages.
+        public let swap: [String]
+    }
+
     public let title: String
     /// The text the sections work on, or nil when the popup asks for it.
     public let original: String?
@@ -137,6 +149,8 @@ public struct ResultsPresentation: Equatable {
     /// What the popup does with text in any other language.
     public let main: Variant
     public let alternate: Alternate?
+    /// Plugin Settings the popup offers to change, or nil for none.
+    public let settings: Settings?
 
     /// Every direction the popup may take, for checking them all before it opens.
     public var variants: [Variant] { [main] + (alternate.map { [$0.variant] } ?? []) }
@@ -158,7 +172,7 @@ public struct ResultsPresentation: Equatable {
     /// status_messages?}], alternate?: {when_language, subtitle?, sections}}`.
     public init(serviceInput: JSONValue) throws {
         guard case .object(let fields) = serviceInput,
-              Set(fields.keys).isSubset(of: ["title", "subtitle", "original", "input", "sections", "alternate"]) else {
+              Set(fields.keys).isSubset(of: ["title", "subtitle", "original", "input", "sections", "alternate", "settings"]) else {
             throw PluginHostServiceError.invalidInput("present_results expects title, original or input, and sections")
         }
         title = try Self.title(fields["title"], name: "title")
@@ -177,6 +191,7 @@ public struct ResultsPresentation: Equatable {
         default:
             throw PluginHostServiceError.invalidInput("present_results expects either an original text or an input")
         }
+        settings = try Self.settings(fields["settings"])
         main = Variant(
             subtitle: try fields["subtitle"].map { try Self.title($0, name: "subtitle") },
             sections: try Self.sections(fields["sections"])
@@ -201,6 +216,29 @@ public struct ResultsPresentation: Equatable {
                 sections: try Self.sections(other["sections"])
             )
         )
+    }
+
+    /// `{"keys": […], "swap": [a, b]}`: which Plugin Settings the popup
+    /// offers, and which two of them it offers to swap.
+    private static func settings(_ value: JSONValue?) throws -> Settings? {
+        guard let value else { return nil }
+        guard case .object(let fields) = value, Set(fields.keys).isSubset(of: ["keys", "swap"]),
+              case .array(let declared)? = fields["keys"], !declared.isEmpty,
+              declared.count <= ResultsPresentationBudgets.maximumSettings,
+              let keys = JSONValue.array(declared).strings, Set(keys).count == keys.count else {
+            throw PluginHostServiceError.invalidInput(
+                "settings expects up to \(ResultsPresentationBudgets.maximumSettings) distinct setting keys"
+            )
+        }
+        var swap: [String] = []
+        if let declaredSwap = fields["swap"] {
+            guard let pair = declaredSwap.strings, pair.count == 2, Set(pair).count == 2,
+                  pair.allSatisfy(keys.contains) else {
+                throw PluginHostServiceError.invalidInput("settings swap expects two of its own keys")
+            }
+            swap = pair
+        }
+        return Settings(keys: keys, swap: swap)
     }
 
     private static func sections(_ value: JSONValue?) throws -> [Section] {
@@ -271,19 +309,84 @@ public struct ResultsPresentation: Equatable {
 /// the popup is open; every send reads the Plugin's authority again, so a
 /// grant revoked while the popup waits for input stops its requests.
 public final class ResultsPresentationSession {
+    /// One Plugin Setting as the popup shows it: what it is, what it holds,
+    /// and the values it may take.
+    public struct Setting: Equatable {
+        public let key: String
+        public let title: String
+        public let kind: CommandConfigurationFieldKind
+        public let value: JSONValue
+        /// For a `choice`, its values paired with what to show for each.
+        public let choices: [(value: String, title: String)]
+
+        public init(key: String, title: String, kind: CommandConfigurationFieldKind, value: JSONValue,
+                    choices: [(value: String, title: String)]) {
+            self.key = key
+            self.title = title
+            self.kind = kind
+            self.value = value
+            self.choices = choices
+        }
+
+        public static func == (lhs: Setting, rhs: Setting) -> Bool {
+            lhs.key == rhs.key && lhs.title == rhs.title && lhs.kind == rhs.kind && lhs.value == rhs.value
+                && lhs.choices.map(\.value) == rhs.choices.map(\.value)
+                && lhs.choices.map(\.title) == rhs.choices.map(\.title)
+        }
+    }
+
     public let presentation: ResultsPresentation
+    private let readSettings: () -> [Setting]
+
+    /// The Plugin Settings this popup offers, in the order it asked for them,
+    /// each holding what is stored for it now.
+    public var settings: [Setting] { readSettings() }
+    /// The two settings the popup offers to swap, if any.
+    public let swappableSettings: (String, String)?
     private let send: (JSONValue) throws -> JSONValue
     private let detectLanguage: (String) -> String?
+    private let changeSettings: (([String: JSONValue]) throws -> Void)?
 
     /// `send` performs one `https_request` input with the Plugin's current
     /// authority. `detectLanguage` reports the language of a text as a BCP 47
     /// code, which decides between the popup's directions; the text never
     /// leaves the Host for it.
     public init(presentation: ResultsPresentation, send: @escaping (JSONValue) throws -> JSONValue,
-                detectLanguage: @escaping (String) -> String? = { _ in nil }) {
+                detectLanguage: @escaping (String) -> String? = { _ in nil },
+                settings: @escaping () -> [Setting] = { [] },
+                swappableSettings: (String, String)? = nil,
+                changeSettings: (([String: JSONValue]) throws -> Void)? = nil) {
         self.presentation = presentation
         self.send = send
         self.detectLanguage = detectLanguage
+        readSettings = settings
+        self.swappableSettings = swappableSettings
+        self.changeSettings = changeSettings
+    }
+
+    /// Writes one of the popup's settings and runs the Action again, so the
+    /// Plugin describes its requests with the new value. The popup this
+    /// session belongs to is replaced by the new one.
+    public func change(_ key: String, to value: JSONValue) throws {
+        try change([key: value])
+    }
+
+    /// The same for several settings at once, so a swap runs the Action once.
+    public func change(_ values: [String: JSONValue]) throws {
+        guard let changeSettings, values.keys.allSatisfy({ key in settings.contains { $0.key == key } }) else {
+            throw PluginHostServiceError.invalidInput("This popup does not offer one of those settings")
+        }
+        try changeSettings(values)
+    }
+
+    /// Exchanges the values of the two settings the popup offers to swap.
+    public func swapSettings() throws {
+        guard let (first, second) = swappableSettings,
+              let left = settings.first(where: { $0.key == first }),
+              let right = settings.first(where: { $0.key == second }) else {
+            throw PluginHostServiceError.invalidInput("This popup swaps no settings")
+        }
+        try change([first: right.value, second: left.value])
     }
 
     /// Sends every section's request for `text` at once and reports each
