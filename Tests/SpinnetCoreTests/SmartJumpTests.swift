@@ -30,12 +30,12 @@ final class SmartJumpTests: XCTestCase {
         }
         XCTAssertEqual(try SmartJumpSearchEngine.parse(searchEngines).map(\.name), ["Google", "Bing", "DuckDuckGo"])
         XCTAssertEqual(manifest.capabilities, [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
-        XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard])
+        XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.dataTypes, ["text"])
         XCTAssertFalse(manifest.scope(for: .readCurrentClipboard)?.includesExistingHostData ?? true)
         XCTAssertFalse(manifest.capabilities.contains(.contactHTTPS), "Opening a link grants no fetch")
         let command = manifest.commands[0]
-        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL])
         XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [.accessibility])
     }
 
@@ -60,6 +60,11 @@ final class SmartJumpTests: XCTestCase {
         XCTAssertTrue(reads.contains("Read Current Clipboard"), reads)
         XCTAssertTrue(reads.contains("Optional for these Commands"), reads)
         XCTAssertTrue(reads.contains("Accessibility-only selection"), reads)
+        XCTAssertTrue(controls.contains("Open local files and folders"), controls)
+        XCTAssertTrue(controls.contains("Optional for Commands"), controls)
+        let changes = disclosure.details(for: .changes)
+        XCTAssertTrue(changes.contains("Replace current clipboard text"), changes)
+        XCTAssertTrue(changes.contains("Optional for Commands"), changes)
         XCTAssertEqual(disclosure.details(for: .contacts), "None")
     }
 
@@ -362,7 +367,7 @@ extension PluginRuntimeTests {
         XCTAssertEqual(opened, [URL(string: "https://example.com/path?q=1")!])
     }
 
-    func testSmartJumpUsesAccessibilitySelectionWithoutClipboardFallbackGrant() throws {
+    func testSmartJumpUsesAccessibilitySelectionWithoutOptionalEffectGrants() throws {
         let package = try SmartJumpFixture.load()
         var selections = 0
         var opened: [URL] = []
@@ -371,8 +376,12 @@ extension PluginRuntimeTests {
             selection: { selections += 1; return "https://example.com" },
             open: { opened.append($0) },
             grantStore: { grants in
-                for capability in package.manifest.capabilities where capability != .readCurrentClipboard {
+                for capability in [PluginCapability.readSelectedText, .openURL] {
                     grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                                       capability: capability, scope: package.manifest.scope(for: capability))
+                }
+                for capability in [PluginCapability.writeClipboard, .openLocalPath] {
+                    grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version,
                                        capability: capability, scope: package.manifest.scope(for: capability))
                 }
             },
