@@ -370,11 +370,12 @@ public final class PluginRegistry {
     public func availability(for action: ActionConfiguration) -> ActionAvailability {
         let identity = identityAvailability(for: action)
         guard identity.isAvailable, let grantStore, let package = package(for: action.pluginID) else { return identity }
-        // Resolve every new scope before activating this revision. Explicit
+        // Resolve every new required scope before activating this revision. Explicit
         // denial completes review while keeping only affected Commands off.
         if package.manifest.capabilities.contains(where: {
-            grantStore.decision(for: action.pluginID, pluginVersion: package.manifest.version,
-                capability: $0, scope: package.manifest.scope(for: $0)) == .notDetermined
+            !package.manifest.optionalCapabilities.contains($0)
+                && grantStore.decision(for: action.pluginID, pluginVersion: package.manifest.version,
+                    capability: $0, scope: package.manifest.scope(for: $0)) == .notDetermined
         }) { return .unavailable(.capabilityDenied) }
         let capabilities = package.manifest.requiredCapabilities(for: action.declaredCommand, input: action.input)
         if capabilities.contains(where: {
@@ -382,7 +383,9 @@ public final class PluginRegistry {
                 for: action.pluginID, pluginVersion: package.manifest.version, capability: $0, scope: package.manifest.scope(for: $0)
             ) != .granted
         }) { return .unavailable(.capabilityDenied) }
-        let targets = package.manifest.capabilityScopes.filter { $0.commandIDs.contains(action.commandID) }
+        let targets = package.manifest.capabilityScopes.filter {
+            capabilities.contains($0.capability) && $0.commandIDs.contains(action.commandID)
+        }
             .flatMap(\.externalApps)
         if targets.contains(where: { !externalAppExists($0.bundleID) }) { return .unavailable(.resourceMissing) }
         if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }

@@ -176,8 +176,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     systemPermissionCheck: { [pluginHostServiceProvider] permission in
                         pluginHostServiceProvider.isGranted(permission)
                     },
-                    selectedTextProvider: { [pluginHostServiceProvider] in
-                        try pluginHostServiceProvider.readSelectedText()
+                    selectedTextProvider: { [pluginHostServiceProvider] allowClipboardCopyFallback in
+                        try pluginHostServiceProvider.readSelectedText(
+                            allowClipboardCopyFallback: allowClipboardCopyFallback
+                        )
                     },
                     feedbackPresenter: { [weak self] message in
                         DispatchQueue.main.async { [weak self] in

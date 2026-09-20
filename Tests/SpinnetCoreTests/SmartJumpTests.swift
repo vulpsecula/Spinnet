@@ -30,11 +30,12 @@ final class SmartJumpTests: XCTestCase {
         }
         XCTAssertEqual(try SmartJumpSearchEngine.parse(searchEngines).map(\.name), ["Google", "Bing", "DuckDuckGo"])
         XCTAssertEqual(manifest.capabilities, [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard])
         XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.dataTypes, ["text"])
         XCTAssertFalse(manifest.scope(for: .readCurrentClipboard)?.includesExistingHostData ?? true)
         XCTAssertFalse(manifest.capabilities.contains(.contactHTTPS), "Opening a link grants no fetch")
         let command = manifest.commands[0]
-        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
+        XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [.accessibility])
     }
 
@@ -57,6 +58,8 @@ final class SmartJumpTests: XCTestCase {
         let reads = disclosure.details(for: .reads)
         XCTAssertTrue(reads.contains("Selected text"), reads)
         XCTAssertTrue(reads.contains("Read Current Clipboard"), reads)
+        XCTAssertTrue(reads.contains("Optional for these Commands"), reads)
+        XCTAssertTrue(reads.contains("Accessibility-only selection"), reads)
         XCTAssertEqual(disclosure.details(for: .contacts), "None")
     }
 
@@ -359,6 +362,33 @@ extension PluginRuntimeTests {
         XCTAssertEqual(opened, [URL(string: "https://example.com/path?q=1")!])
     }
 
+    func testSmartJumpUsesAccessibilitySelectionWithoutClipboardFallbackGrant() throws {
+        let package = try SmartJumpFixture.load()
+        var selections = 0
+        var opened: [URL] = []
+        let outcome = try smartJumpOutcome(
+            grant: false,
+            selection: { selections += 1; return "https://example.com" },
+            open: { opened.append($0) },
+            grantStore: { grants in
+                for capability in package.manifest.capabilities where capability != .readCurrentClipboard {
+                    grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+                                       capability: capability, scope: package.manifest.scope(for: capability))
+                }
+            },
+            copyFallback: {
+                XCTFail("An ungranted clipboard fallback must not run")
+                return ""
+            }
+        )
+
+        guard case .succeeded = outcome else {
+            return XCTFail("Accessibility selection should work without the optional clipboard fallback grant: \(outcome)")
+        }
+        XCTAssertEqual(selections, 1)
+        XCTAssertEqual(opened, [URL(string: "https://example.com")!])
+    }
+
     func testSmartJumpSearchesUnrecognisedTextWithoutOpeningUnsupportedSchemes() throws {
         var opened: [URL] = []
         for selection in ["mailto:someone@example.com", "javascript:alert(1)", "ordinary search text", "https://"] {
@@ -418,6 +448,7 @@ extension PluginRuntimeTests {
         },
         copy: @escaping (String) throws -> Void = { _ in XCTFail("The clipboard was written") },
         path: @escaping (URL) throws -> Void = { _ in XCTFail("A local path was opened") },
+        copyFallback: (() throws -> String)? = nil,
         settings: [String: JSONValue] = [:],
         origin: PluginOrigin = .bundled
     ) throws -> ActionTerminalOutcome {
@@ -432,7 +463,8 @@ extension PluginRuntimeTests {
                                              command: package.manifest.commands[0], input: .null)
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility },
-            selectedTextProvider: selection, clipboardWriter: copy,
+            selectedTextProvider: selection, selectedTextCopyFallbackProvider: copyFallback,
+            clipboardWriter: copy,
             urlOpener: open,
             smartJumpPresenter: present,
             localPathOpener: path

@@ -194,7 +194,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
     private let adapter: HostCommandAdapter
     private let grantStore: PluginCapabilityGrantStore?
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
-    private let selectedTextProvider: (() throws -> String)?
+    private let selectedTextProvider: ((Bool) throws -> String)?
     private let feedbackPresenter: (String) -> Void
     /// Starts a capture of the source a Screenshot Host Command names, as the
     /// Screenshot Plugin Settings say.
@@ -211,7 +211,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 return CGPreflightScreenCaptureAccess()
             }
         },
-        selectedTextProvider: (() throws -> String)? = nil,
+        selectedTextProvider: ((Bool) throws -> String)? = nil,
         feedbackPresenter: @escaping (String) -> Void = { _ in },
         screenCapture: @escaping (ScreenCaptureSource) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Screen capture")
@@ -331,7 +331,15 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                         "Selected text is unavailable from the Host"
                     )
                 }
-                text = try selectedTextProvider()
+                let copyFallbackIsAuthorized = package.map { package in
+                    grantStore?.isGranted(
+                        .readCurrentClipboard,
+                        for: action.commandID,
+                        in: package.manifest,
+                        dataType: "text"
+                    ) == true
+                } ?? false
+                text = try selectedTextProvider(copyFallbackIsAuthorized)
             } else {
                 text = try requiredString(
                     from: action.input,

@@ -49,7 +49,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .writeClipboard:
             return "Lets the Plugin ask the Host to replace the current clipboard text."
         case .readCurrentClipboard:
-            return "Read the declared data types from the current clipboard. Smart Jump also uses this grant for its temporary Copy fallback when an app does not expose selected text through Accessibility."
+            return "Read the declared data types from the current clipboard. Smart Jump uses this grant for its temporary Copy fallback when an app does not expose selected text through Accessibility. Without the grant, Smart Jump uses Accessibility-only selection."
         case .readClipboardHistory: return "Read declared data types, including retained entries collected before this grant."
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
@@ -189,6 +189,25 @@ public final class PluginCapabilityGrantStore {
         // Hosts the user added extend a scope without changing its decision.
         guard scopes[pluginID]?[pluginVersion]?[capability]?.declaredPart == scope?.declaredPart else { return .notDetermined }
         return decisions[pluginID]?[pluginVersion]?[capability] ?? .notDetermined
+    }
+
+    /// Whether the active decision authorizes a Capability for this declared
+    /// Command and, when requested, a concrete data type within its scope.
+    public func isGranted(
+        _ capability: PluginCapability,
+        for commandID: CommandID,
+        in manifest: PluginManifest,
+        dataType: String? = nil
+    ) -> Bool {
+        guard manifest.declares(capability, for: commandID) else { return false }
+        let scope = manifest.scope(for: capability)
+        if let dataType, scope?.dataTypes.contains(dataType) != true { return false }
+        return decision(
+            for: manifest.id,
+            pluginVersion: manifest.version,
+            capability: capability,
+            scope: scope
+        ) == .granted
     }
 
     public func setDecision(
@@ -648,7 +667,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         let capability = service.requiredCapability
         guard package.manifest.id == action.pluginID,
               package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) }),
-              package.manifest.requiredCapabilities(for: action.declaredCommand, input: action.input).contains(capability),
               package.manifest.declares(capability, for: action.commandID),
               grantStore.decision(
                   for: package.manifest.id,
@@ -712,15 +730,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             guard request.input == .null else {
                 throw PluginHostServiceError.invalidInput("read_selected_text expects null")
             }
-            let clipboardScope = package.manifest.scope(for: .readCurrentClipboard)
-            let copyFallbackIsAuthorized = package.manifest.declares(.readCurrentClipboard, for: action.commandID)
-                && clipboardScope?.dataTypes.contains("text") == true
-                && grantStore.decision(
-                    for: package.manifest.id,
-                    pluginVersion: package.manifest.version,
-                    capability: .readCurrentClipboard,
-                    scope: clipboardScope
-                ) == .granted
+            let copyFallbackIsAuthorized = grantStore.isGranted(
+                .readCurrentClipboard,
+                for: action.commandID,
+                in: package.manifest,
+                dataType: "text"
+            )
             if copyFallbackIsAuthorized, let selectedTextCopyFallbackProvider {
                 return .string(try selectedTextCopyFallbackProvider())
             }

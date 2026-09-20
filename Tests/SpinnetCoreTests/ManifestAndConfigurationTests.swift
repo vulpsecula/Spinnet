@@ -204,6 +204,57 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertNil(manifest.commands[0].hostCommand)
     }
 
+    func testOptionalCapabilitiesRoundTripAndRejectInvalidDeclarations() throws {
+        let command = CommandDeclaration(
+            id: CommandID("fixture.read"),
+            title: "Read",
+            execution: .javascript,
+            script: "read.js"
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.example.optional"),
+            name: "Optional Reader",
+            version: "1.0.0",
+            capabilities: [.readSelectedText],
+            optionalCapabilities: [.readSelectedText],
+            commands: [command]
+        )
+        let restored = try JSONDecoder().decode(PluginManifest.self, from: JSONEncoder().encode(manifest))
+        XCTAssertEqual(restored.optionalCapabilities, [.readSelectedText])
+        XCTAssertEqual(restored.requiredCapabilities(for: command), [])
+        XCTAssertTrue(PluginPermissionDisclosure(manifest: restored).details(for: .reads)
+            .contains("Optional for Commands"))
+        XCTAssertTrue(PluginPermissionDisclosure(manifest: restored).details(for: .systemAccess)
+            .contains("Accessibility"), "Optional selected-text access still discloses its separate System Permission")
+
+        XCTAssertThrowsError(try PluginManifest(
+            id: PluginID("com.example.optional"),
+            name: "Optional Reader",
+            version: "1.0.0",
+            capabilities: [.readSelectedText],
+            optionalCapabilities: [.writeClipboard],
+            commands: [command]
+        ), "An optional Capability must also be declared")
+        XCTAssertThrowsError(try PluginManifest(
+            id: PluginID("com.example.optional"),
+            name: "Optional Reader",
+            version: "1.0.0",
+            capabilities: [.readSelectedText],
+            optionalCapabilities: [.readSelectedText, .readSelectedText],
+            commands: [command]
+        ), "Optional Capability declarations must be unique")
+
+        let hostCommand = CommandDeclaration(id: CommandID("fixture.copy"), title: "Copy", hostCommand: .copyText)
+        XCTAssertThrowsError(try PluginManifest(
+            id: PluginID("com.example.optional"),
+            name: "Optional Reader",
+            version: "1.0.0",
+            capabilities: [.writeClipboard],
+            optionalCapabilities: [.writeClipboard],
+            commands: [hostCommand]
+        ), "Optional access is defined for JavaScript Commands only")
+    }
+
     func testManifestRejectsJavaScriptCommandWithoutAScriptReference() {
         let data = Data(#"""
         {

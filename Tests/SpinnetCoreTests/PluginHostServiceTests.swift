@@ -287,6 +287,7 @@ final class PluginHostServiceTests: XCTestCase {
           "name": "Selection Reader",
           "version": "1.0.0",
           "capabilities": ["read_selected_text", "read_current_clipboard"],
+          "optional_capabilities": ["read_current_clipboard"],
           "capability_scopes": [{
             "capability": "read_current_clipboard",
             "command_ids": ["selection.read"],
@@ -310,6 +311,7 @@ final class PluginHostServiceTests: XCTestCase {
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
                            capability: .readSelectedText)
         var fallbackReads = 0
+        var clipboardReads = 0
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
@@ -318,19 +320,33 @@ final class PluginHostServiceTests: XCTestCase {
                 fallbackReads += 1
                 return "temporary clipboard text"
             },
-            clipboardWriter: { _ in }
+            clipboardWriter: { _ in },
+            currentClipboardProvider: {
+                clipboardReads += 1
+                return .init(text: "current clipboard text", type: .text)
+            }
         )
-        let request = PluginRuntimeHostServiceRequest(
-            invocationID: "invocation-1", actionID: action.id,
-            requestID: "request-1", service: .readSelectedText, input: .null
-        )
+        func request(_ service: PluginHostService) -> PluginRuntimeHostServiceRequest {
+            PluginRuntimeHostServiceRequest(
+                invocationID: "invocation-1", actionID: action.id,
+                requestID: UUID().uuidString, service: service, input: .null
+            )
+        }
 
-        XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .string("AX selection"))
+        XCTAssertEqual(try broker.execute(request: request(.readSelectedText), for: package, action: action), .string("AX selection"))
         XCTAssertEqual(fallbackReads, 0)
+        XCTAssertThrowsError(try broker.execute(request: request(.readCurrentClipboard), for: package, action: action)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.readCurrentClipboard))
+        }
+        XCTAssertEqual(clipboardReads, 0)
 
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
                            capability: .readCurrentClipboard, scope: manifest.scope(for: .readCurrentClipboard))
-        XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .string("temporary clipboard text"))
+        XCTAssertEqual(try broker.execute(request: request(.readCurrentClipboard), for: package, action: action),
+                       .object(["text": .string("current clipboard text"), "type": .string("text")]))
+        XCTAssertEqual(clipboardReads, 1)
+        XCTAssertEqual(try broker.execute(request: request(.readSelectedText), for: package, action: action),
+                       .string("temporary clipboard text"))
         XCTAssertEqual(fallbackReads, 1)
     }
 

@@ -193,6 +193,43 @@ final class RegistryAndStoreTests: XCTestCase {
         )
     }
 
+    func testMissingExternalAppDoesNotBlockCommandWhenCapabilityIsOptional() throws {
+        let command = CommandDeclaration(
+            id: CommandID("selection.read"),
+            title: "Read Selection",
+            execution: .javascript,
+            scriptPath: "read.js"
+        )
+        let scope = PluginCapabilityScope(
+            capability: .controlExternalApp,
+            commandIDs: [command.id],
+            externalApps: [.init(bundleID: "com.example.helper", operationFamilies: ["read-selection"])]
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.example.optional-app"),
+            name: "Optional App Access",
+            version: "1.0.0",
+            capabilities: [.controlExternalApp],
+            optionalCapabilities: [.controlExternalApp],
+            capabilityScopes: [scope],
+            commands: [command]
+        )
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in false })
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/optional-app.spinnetplugin"),
+            manifest: manifest
+        ))
+        let action = try ActionConfiguration(
+            id: ActionID("read-selection"),
+            pluginID: manifest.id,
+            command: command,
+            input: .null
+        )
+
+        XCTAssertEqual(registry.availability(for: action), .available)
+    }
+
     func testRegistryMarksMissingFileResourceUnavailableWithoutDiscardingAction() throws {
         let registry = PluginRegistry()
         let manifest = try PluginManifest(

@@ -4,6 +4,7 @@
   "name": "Smart Jump",
   "version": "2.0.0",
   "capabilities": ["read_selected_text", "read_current_clipboard", "open_url", "write_clipboard", "open_local_path"],
+  "optional_capabilities": ["read_current_clipboard"],
   "capability_scopes": [{
     "capability": "read_current_clipboard",
     "command_ids": ["smart_jump.open_selection"],

@@ -428,7 +428,10 @@ final class HostServicesTests: XCTestCase {
             adapter: adapter,
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "selected from the focused app" }
+            selectedTextProvider: { allowClipboardCopyFallback in
+                XCTAssertFalse(allowClipboardCopyFallback)
+                return "selected from the focused app"
+            }
         )
         let action = try ActionConfiguration(
             id: ActionID("copy-selection"),
@@ -473,7 +476,10 @@ final class HostServicesTests: XCTestCase {
             adapter: adapter,
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "selection" }
+            selectedTextProvider: { allowClipboardCopyFallback in
+                XCTAssertFalse(allowClipboardCopyFallback)
+                return "selection"
+            }
         )
         let action = try ActionConfiguration(
             id: ActionID("copy-selection"),
@@ -489,6 +495,64 @@ final class HostServicesTests: XCTestCase {
         }
         XCTAssertEqual(failure.category, .capabilityDenied)
         XCTAssertTrue(adapter.copiedTexts.isEmpty)
+    }
+
+    func testCopyTextMayUseSimulatedFallbackOnlyWithTextScopedClipboardGrant() throws {
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let clipboardScope = PluginCapabilityScope(
+            capability: .readCurrentClipboard,
+            commandIDs: [command.id],
+            dataTypes: ["text"]
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("example.copy-fallback"),
+            name: "Copy Fallback",
+            version: "1",
+            capabilities: [.readSelectedText, .readCurrentClipboard, .writeClipboard],
+            capabilityScopes: [clipboardScope],
+            commands: [command]
+        )
+        let grants = PluginCapabilityGrantStore()
+        for capability in [PluginCapability.readSelectedText, .writeClipboard] {
+            grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: capability)
+        }
+        grants.setDecision(
+            .granted,
+            for: manifest.id,
+            pluginVersion: manifest.version,
+            capability: .readCurrentClipboard,
+            scope: clipboardScope
+        )
+        let registry = PluginRegistry(grantStore: grants)
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/copy-fallback.spinnetplugin"),
+            manifest: manifest
+        ))
+        let adapter = RecordingHostCommandAdapter()
+        var fallbackAuthorization: Bool?
+        let executor = AppKitHostCommandExecutor(
+            adapter: adapter,
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { allowClipboardCopyFallback in
+                fallbackAuthorization = allowClipboardCopyFallback
+                return allowClipboardCopyFallback ? "temporary clipboard selection" : "AX selection"
+            }
+        )
+        let action = try ActionConfiguration(
+            id: ActionID("copy"),
+            pluginID: manifest.id,
+            command: command,
+            input: .null
+        )
+
+        let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
+
+        guard case .succeeded = outcome.terminal else {
+            return XCTFail("The granted text-scoped clipboard fallback should be available")
+        }
+        XCTAssertEqual(fallbackAuthorization, true)
+        XCTAssertEqual(adapter.copiedTexts, ["temporary clipboard selection"])
     }
 
     func testBuiltInPresetCatalogExposesIndependentHostOperations() throws {

@@ -28,22 +28,27 @@ struct PluginAccessView: View {
             ForEach(manifest.capabilities.filter { capability in
                 commandIDs == nil || disclosure.commands.contains {
                     manifest.requiredCapabilities(for: $0, input: inputs[$0.id]).contains(capability)
+                        || manifest.optionalCapabilities(forCommand: $0).contains(capability)
                 }
             }, id: \.self) { capability in
                 HStack {
-                    Text(capability.title)
+                    let optional = disclosure.commands.contains {
+                        manifest.optionalCapabilities(forCommand: $0).contains(capability)
+                    }
+                    Text(optional ? "\(capability.title) · Optional" : capability.title)
                     Spacer()
-                    let granted = grants.first {
+                    let decision = grants.first {
                         $0.pluginID == manifest.id && $0.pluginVersion == manifest.version && $0.capability == capability
-                    }?.decision == .granted
-                    Text(granted ? "Granted" : "Unavailable").foregroundStyle(.secondary)
+                    }?.decision ?? .notDetermined
+                    let granted = decision == .granted
+                    Text(decision == .notDetermined ? "Not reviewed" : decision.title).foregroundStyle(.secondary)
                     Button(granted ? "Revoke Access" : "Grant Access") {
                         setDecision(granted ? .denied : .granted, manifest.id, manifest.version, capability)
                     }
                     .accessibilityLabel("\(granted ? "Revoke Access" : "Grant Access"): \(manifest.name), \(capability.title)")
                 }
             }
-            Text("Access applies Plugin-wide. Denied Commands remain unavailable; Menu Items are preserved.")
+            Text("Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(14)
@@ -125,6 +130,15 @@ struct MenuItemAccessSummary: View {
         }
     }
 
+    private var optionalCapabilities: [PluginCapability] {
+        manifest.capabilities.filter { capability in
+            manifest.commands.contains { command in
+                commandIDs.contains(command.id)
+                    && manifest.optionalCapabilities(forCommand: command).contains(capability)
+            }
+        }
+    }
+
     private var needsScreenRecording: Bool {
         !privacy.screenRecordingPermissionGranted && manifest.commands.contains { command in
             commandIDs.contains(command.id)
@@ -151,7 +165,13 @@ struct MenuItemAccessSummary: View {
                     Label("\(capability.title): \(granted(capability) ? "Granted" : "Not granted")",
                           systemImage: granted(capability) ? "checkmark.circle" : "lock")
                 }
-                if capabilities.isEmpty { Text("No Plugin access required for these Commands.") }
+                ForEach(optionalCapabilities, id: \.self) { capability in
+                    Label("\(capability.title) (Optional): \(granted(capability) ? "Granted" : "Not granted")",
+                          systemImage: granted(capability) ? "checkmark.circle" : "lock")
+                }
+                if capabilities.isEmpty && optionalCapabilities.isEmpty {
+                    Text("No Plugin access required for these Commands.")
+                }
                 if needsScreenRecording {
                     // The Screenshot Configuration Sheet is one of the two
                     // places the Screen Recording prompt may come from.

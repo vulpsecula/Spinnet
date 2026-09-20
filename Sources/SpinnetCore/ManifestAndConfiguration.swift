@@ -469,6 +469,9 @@ public struct PluginManifest: Codable, Equatable {
     public let name: String
     public let version: String
     public let capabilities: [PluginCapability]
+    /// Declared access that may be used when granted but does not prevent a
+    /// JavaScript Command from running when it is denied or unreviewed.
+    public let optionalCapabilities: [PluginCapability]
     public let capabilityScopes: [PluginCapabilityScope]
     public let commands: [CommandDeclaration]
     public let preset: MenuItemPresetDeclaration
@@ -484,6 +487,7 @@ public struct PluginManifest: Codable, Equatable {
         name: String,
         version: String,
         capabilities: [PluginCapability] = [],
+        optionalCapabilities: [PluginCapability] = [],
         capabilityScopes: [PluginCapabilityScope] = [],
         commands: [CommandDeclaration],
         preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration(),
@@ -495,6 +499,7 @@ public struct PluginManifest: Codable, Equatable {
         self.name = name
         self.version = version
         self.capabilities = capabilities
+        self.optionalCapabilities = optionalCapabilities
         self.capabilityScopes = capabilityScopes
         self.commands = commands
         self.preset = preset
@@ -509,6 +514,7 @@ public struct PluginManifest: Codable, Equatable {
         case name
         case version
         case capabilities
+        case optionalCapabilities = "optional_capabilities"
         case capabilityScopes = "capability_scopes"
         case commands
         case preset
@@ -523,6 +529,7 @@ public struct PluginManifest: Codable, Equatable {
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
         try container.encode(capabilities, forKey: .capabilities)
+        if !optionalCapabilities.isEmpty { try container.encode(optionalCapabilities, forKey: .optionalCapabilities) }
         try container.encode(capabilityScopes, forKey: .capabilityScopes)
         try container.encode(commands, forKey: .commands)
         try container.encode(preset, forKey: .preset)
@@ -539,6 +546,10 @@ public struct PluginManifest: Codable, Equatable {
         self.capabilities = try container.decodeIfPresent(
             [PluginCapability].self,
             forKey: .capabilities
+        ) ?? []
+        self.optionalCapabilities = try container.decodeIfPresent(
+            [PluginCapability].self,
+            forKey: .optionalCapabilities
         ) ?? []
         self.capabilityScopes = try container.decodeIfPresent([PluginCapabilityScope].self, forKey: .capabilityScopes) ?? []
         self.commands = try container.decode([CommandDeclaration].self, forKey: .commands)
@@ -562,6 +573,10 @@ public struct PluginManifest: Codable, Equatable {
         try validateText(version, name: "Plugin version")
         guard Set(capabilities).count == capabilities.count else {
             throw ConfigurationError.invalidManifest("Plugin declares a Capability more than once")
+        }
+        guard Set(optionalCapabilities).count == optionalCapabilities.count,
+              optionalCapabilities.allSatisfy(capabilities.contains) else {
+            throw ConfigurationError.invalidManifest("Optional Capabilities must be unique and declared")
         }
         guard !commands.isEmpty else {
             throw ConfigurationError.invalidManifest("Plugin declares no Commands")
@@ -620,6 +635,15 @@ public struct PluginManifest: Codable, Equatable {
         for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
+            }
+        }
+
+        for capability in optionalCapabilities {
+            let commandIDs = scope(for: capability)?.commandIDs ?? commands.map(\.id)
+            guard commandIDs.allSatisfy({ commandID in
+                commands.first(where: { $0.id == commandID })?.execution == .javascript
+            }) else {
+                throw ConfigurationError.invalidManifest("Optional Capabilities can only apply to JavaScript Commands")
             }
         }
 
