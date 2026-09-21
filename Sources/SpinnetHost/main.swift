@@ -72,6 +72,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if UIPreviewRenderer.renderIfRequested() { return }
+        #endif
         NSApp.setActivationPolicy(.accessory)
         // Never shown, but it is how editing shortcuts reach text fields.
         NSApp.mainMenu = HostEditMenu.make()

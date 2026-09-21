@@ -93,6 +93,10 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     /// Only in `settings_fields`: one Menu Item may set its own value in place
     /// of the Plugin's, such as a different target language.
     public let overridable: Bool
+    /// Only in `settings_fields`: the heading this setting sits under, so a
+    /// Plugin with many settings reads as a few short groups rather than one
+    /// long list. Settings with no group come first, in their declared order.
+    public let group: String?
 
     public init(
         kind: CommandConfigurationFieldKind,
@@ -102,7 +106,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         choiceTitles: [String] = [],
         key: String? = nil,
         usedWhen: CommandConfigurationFieldCondition? = nil,
-        overridable: Bool = false
+        overridable: Bool = false,
+        group: String? = nil
     ) {
         self.kind = kind
         self.title = title
@@ -112,6 +117,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         self.key = key
         self.usedWhen = usedWhen
         self.overridable = overridable
+        self.group = group
     }
 
     /// Whether an Action whose field values are `values` uses this field:
@@ -138,6 +144,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case key
         case usedWhen = "used_when"
         case overridable
+        case group
     }
 
     public init(from decoder: Decoder) throws {
@@ -150,7 +157,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             choiceTitles: container.decodeIfPresent([String].self, forKey: .choiceTitles) ?? [],
             key: container.decodeIfPresent(String.self, forKey: .key),
             usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen),
-            overridable: container.decodeIfPresent(Bool.self, forKey: .overridable) ?? false
+            overridable: container.decodeIfPresent(Bool.self, forKey: .overridable) ?? false,
+            group: container.decodeIfPresent(String.self, forKey: .group)
         )
     }
 
@@ -168,6 +176,7 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         try container.encodeIfPresent(key, forKey: .key)
         try container.encodeIfPresent(usedWhen, forKey: .usedWhen)
         if overridable { try container.encode(true, forKey: .overridable) }
+        try container.encodeIfPresent(group, forKey: .group)
     }
 
     public var displayTitle: String { title ?? kind.title }

@@ -142,6 +142,7 @@ struct ResultsPopupView: View {
                 Button { model.isPinned.toggle() } label: {
                     Image(systemName: model.isPinned ? "pin.fill" : "pin")
                         .rotationEffect(.degrees(45))
+                        .foregroundStyle(model.isPinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.borderless)
                 .help(model.isPinned ? "Unpin" : "Keep this popup open")
@@ -166,12 +167,14 @@ struct ResultsPopupView: View {
                 }
             } else if let text = model.shownText {
                 Text(text)
-                    .lineLimit(6)
+                    .font(.callout)
+                    .lineLimit(4)
                     .textSelection(.enabled)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
                     .accessibilityLabel("Original text: \(text)")
             }
             if let shown = model.shown {
@@ -182,7 +185,10 @@ struct ResultsPopupView: View {
                             Color.clear.preference(key: SectionsHeightKey.self, value: proxy.size.height)
                         })
                 }
-                .frame(height: min(sectionsHeight, 420))
+                // Before the first measurement arrives, a guess from the
+                // number of sections stands in, so the results are never
+                // given a height of zero and left invisible.
+                .frame(height: min(max(sectionsHeight, CGFloat(model.sections.count) * 56), 420))
                 .onPreferenceChange(SectionsHeightKey.self) { sectionsHeight = $0 }
             }
         }
@@ -196,7 +202,7 @@ struct ResultsPopupView: View {
     private var settingsRow: some View {
         let choices = model.settings.filter { $0.kind == .choice }
         let switches = model.settings.filter { $0.kind == .toggle }
-        return HStack(spacing: 6) {
+        return HStack(spacing: 4) {
             ForEach(Array(choices.enumerated()), id: \.element.key) { index, setting in
                 if index > 0 {
                     if model.canSwapSettings {
@@ -205,7 +211,7 @@ struct ResultsPopupView: View {
                             .help("Swap")
                             .accessibilityLabel("Swap the languages")
                     } else {
-                        Text("→").foregroundStyle(.secondary)
+                        Image(systemName: "arrow.right").foregroundStyle(.tertiary)
                     }
                 }
                 Picker(setting.title, selection: Binding(
@@ -215,31 +221,42 @@ struct ResultsPopupView: View {
                     ForEach(setting.choices, id: \.value) { Text($0.title).tag($0.value) }
                 }
                 .labelsHidden()
+                .pickerStyle(.menu)
                 .frame(maxWidth: .infinity)
+                .help(setting.title)
                 .accessibilityLabel(setting.title)
             }
             ForEach(switches, id: \.key) { setting in
-                Toggle(setting.title, isOn: Binding(
+                Toggle("Auto", isOn: Binding(
                     get: { setting.value == .bool(true) },
                     set: { model.change(setting.key, to: .bool($0)) }
                 ))
                 .toggleStyle(.checkbox)
                 .fixedSize()
+                .help(setting.title)
+                .accessibilityLabel(setting.title)
             }
         }
         .font(.caption)
+        .controlSize(.small)
     }
 
     private func sections(_ states: [ResultsSectionState]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(model.sections.enumerated()), id: \.offset) { index, section in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(section.title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Spacer()
+                if index > 0 { Divider().padding(.vertical, 8) }
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(section.title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .textCase(.uppercase)
+                        Spacer(minLength: 8)
                         if case .succeeded = states[index] {
                             Button { model.copy(section: index) } label: { Image(systemName: "doc.on.doc") }
                                 .buttonStyle(.borderless)
+                                .controlSize(.small)
+                                .foregroundStyle(.secondary)
                                 .help("Copy")
                                 .accessibilityLabel("Copy \(section.title) result")
                         }
@@ -248,10 +265,13 @@ struct ResultsPopupView: View {
                     case .pending:
                         ProgressView().controlSize(.small).accessibilityLabel("\(section.title) is working")
                     case .succeeded(let text):
-                        Text(text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(text)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     case .failed(let message):
                         Label(message, systemImage: "exclamationmark.triangle")
-                            .font(.callout)
+                            .font(.caption)
                             .foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }

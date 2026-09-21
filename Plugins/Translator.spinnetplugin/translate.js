@@ -136,7 +136,6 @@
 
   // The popup says which way it is translating and what the three language
   // settings are, so the direction is never a guess.
-  const detection = config.auto_detect === true ? "Detect Direction on" : "Detect Direction off";
   const payload = {
     title: "Translate",
     // The popup shows these three as controls, so the languages can be
@@ -145,9 +144,6 @@
       keys: ["source_language", "target_language", "auto_detect"],
       swap: ["source_language", "target_language"]
     },
-    subtitle: autoDetect
-      ? source.name + " → " + target.name + " · " + detection
-      : "Any language → " + target.name + " · Input " + source.name + " · " + detection,
     sections: sections(target)
   };
   if (autoDetect) {
@@ -155,7 +151,9 @@
     // languages never have to be swapped by hand.
     payload.alternate = {
       when_language: target.detected,
-      subtitle: target.name + " → " + source.name + " · " + detection,
+      // The controls show the settings; this says what they cannot, which is
+      // which way this particular text actually went.
+      subtitle: "Detected " + target.name + ", translating into " + source.name,
       sections: sections(source)
     };
   }

@@ -762,7 +762,13 @@ public struct PluginManifest: Codable, Equatable {
                 }
             }
         }
+        for field in command.configurationFields where field.group != nil {
+            throw ConfigurationError.invalidManifest("group is only valid inside settings_fields")
+        }
         guard let field = command.configurationField else { return }
+        guard field.group == nil else {
+            throw ConfigurationError.invalidManifest("group is only valid inside settings_fields")
+        }
         guard !CommandDeclaration.settingsOnlyKinds.contains(field.kind) else {
             throw ConfigurationError.invalidManifest(
                 "A \(field.kind.rawValue) field is only valid in settings_fields"

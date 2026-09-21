@@ -58,6 +58,8 @@ final class PluginSettingsTests: XCTestCase {
             ("ordered choices overridable", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a"], "overridable": true}]"#, defaults: "{}") }),
             ("ordered choices default repeating a choice", { try self.manifest(settings: #"[{"key": "s", "kind": "ordered_choices", "choices": ["a", "b"]}]"#, defaults: #"{"s": ["a", "a"]}"#) }),
             ("ordered choices on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "ordered_choices", "choices": ["a"]}]"#) }),
+            ("a group on a Command field", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "m", "kind": "text", "group": "Server"}]"#) }),
+            ("choice titles that miss a choice", { try self.manifest(settings: #"[{"key": "a", "kind": "choice", "choices": ["x", "y"], "choice_titles": ["Ex"]}]"#, defaults: "{}") }),
             ("search engines on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "search_engines"}]"#) }),
             ("search engines as a Command's lone field", { try self.manifest(commandFields: #", "configuration_field": {"key": "s", "kind": "search_engines"}"#) }),
             ("default for an unknown key", { try self.manifest(defaults: #"{"other": "x"}"#) }),
@@ -124,6 +126,25 @@ final class PluginSettingsTests: XCTestCase {
                                             grantStore: grants).newHosts, ["deepl.example.org"])
         XCTAssertEqual(HTTPSEndpointConsent(manifest: scoped, settings: selfHosted.merging(["sources": .array([.string("OpenAI")])]) { $1 },
                                             grantStore: grants).newHosts, [])
+    }
+
+    /// A Plugin with many settings reads as a few short groups, and a choice
+    /// may show a name in place of the code it stores.
+    func testSettingsCarryTheirGroupAndTheirChoiceTitles() throws {
+        let manifest = try manifest(settings: """
+        [{"key": "sources", "kind": "ordered_choices", "choices": ["DeepL"]},
+         {"key": "target", "kind": "choice", "title": "Target", "group": "Languages",
+          "choices": ["EN-US", "ZH-HANS"], "choice_titles": ["English", "Simplified Chinese"]},
+         {"key": "endpoint", "kind": "https_endpoint", "title": "Endpoint", "group": "DeepL"}]
+        """, defaults: "{}")
+        XCTAssertEqual(manifest.settingsFields.map(\.group), [nil, "Languages", "DeepL"])
+        let target = manifest.settingsFields[1]
+        XCTAssertEqual(target.displayTitle(forChoice: "ZH-HANS"), "Simplified Chinese")
+        XCTAssertEqual(target.displayTitle(forChoice: "DE"), "DE", "An unknown choice shows itself")
+        XCTAssertEqual(manifest.settingsFields[0].displayTitle(forChoice: "DeepL"), "DeepL",
+                       "Without titles a choice shows itself")
+        let decoded = try JSONDecoder().decode(PluginManifest.self, from: JSONEncoder().encode(manifest))
+        XCTAssertEqual(decoded, manifest)
     }
 
     // MARK: - Combining settings with an Action

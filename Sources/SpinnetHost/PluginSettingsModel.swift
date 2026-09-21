@@ -60,11 +60,14 @@ final class PluginSettingsModel: ObservableObject {
     }
 
     /// The titles of fields that still need a value, a typed secret counting
-    /// as one. The Plugin's Menu Items wait until this is empty.
+    /// as one. A grouped setting carries its group, since two groups may both
+    /// call a setting API Key. The Plugin's Menu Items wait until this is empty.
     var missingTitles: [String] {
         manifest.missingSettings(in: values, hasSecret: { reference in
             !(secrets[reference] ?? "").isEmpty || hasStoredSecret(reference)
-        }).map(\.displayTitle)
+        }).map { field in
+            field.group.map { "\($0) \(field.displayTitle)" } ?? field.displayTitle
+        }
     }
 
     /// The fields the values as edited use; a field whose `used_when` is not
@@ -72,6 +75,24 @@ final class PluginSettingsModel: ObservableObject {
     var visibleFields: [CommandConfigurationField] {
         manifest.settingsFields.filter { $0.isUsed(by: values) }
     }
+
+    /// Those fields under their headings, ungrouped ones first, each group in
+    /// the order its first setting was declared.
+    var visibleGroups: [(name: String?, fields: [CommandConfigurationField])] {
+        var groups: [(name: String?, fields: [CommandConfigurationField])] = []
+        for field in visibleFields {
+            if let index = groups.firstIndex(where: { $0.name == field.group }) {
+                groups[index].fields.append(field)
+            } else {
+                groups.append((field.group, [field]))
+            }
+        }
+        return groups.sorted { left, _ in left.name == nil }
+    }
+
+    /// Whether any field on show keeps a secret, for the one line that says
+    /// where secrets are kept.
+    var showsCredential: Bool { visibleFields.contains { $0.kind == .credential } }
 
     /// The choices an `ordered_choices` setting holds, in order.
     func orderedChoices(for key: String) -> [String] {

@@ -253,7 +253,7 @@ extension PluginRuntimeTests {
         XCTAssertEqual(run.transport.requests, [], "The Action returns before any source is asked")
         let presentation = try XCTUnwrap(run.session?.presentation)
         XCTAssertEqual(presentation.title, "Translate")
-        XCTAssertEqual(presentation.main.subtitle, "Any language → German · Input English (American) · Detect Direction off")
+        XCTAssertNil(presentation.main.subtitle, "The controls say what the languages are")
         XCTAssertEqual(presentation.original, "Good morning")
         XCTAssertEqual(presentation.main.sections.map(\.title), ["OpenAI · gpt-test", "DeepL", "Google"])
 
@@ -341,7 +341,7 @@ extension PluginRuntimeTests {
                                     settings: translatorSettings(sources: ["Google"], source: "EN-US", target: "ZH-HANS"))
         let session = try XCTUnwrap(run.session)
         XCTAssertEqual(session.settings.map(\.key), ["source_language", "target_language", "auto_detect"])
-        XCTAssertEqual(session.settings.map(\.title), ["Input Language", "Target Language", "Detect Direction"])
+        XCTAssertEqual(session.settings.map(\.title), ["Input", "Target", "Detect Direction"])
         XCTAssertEqual(session.settings.map(\.value),
                        [.string("EN-US"), .string("ZH-HANS"), .bool(false)])
         XCTAssertEqual(session.settings.first?.choices.first?.title, "English (American)")
@@ -362,17 +362,17 @@ extension PluginRuntimeTests {
         let chinese = try runTranslator("translator.selection", settings: settings, selection: "早上好",
                                         answers: answers, detected: "zh-Hans")
         let presentation = try XCTUnwrap(chinese.session?.presentation)
-        XCTAssertEqual(presentation.main.subtitle, "English (American) → Simplified Chinese · Detect Direction on")
-        XCTAssertEqual(presentation.alternate?.variant.subtitle,
-                       "Simplified Chinese → English (American) · Detect Direction on")
+        XCTAssertNil(presentation.main.subtitle)
+        let detected = "Detected Simplified Chinese, translating into English (American)"
+        XCTAssertEqual(presentation.alternate?.variant.subtitle, detected)
         let turned = try chinese.resolveDirection("早上好")
-        XCTAssertEqual(turned.variant.subtitle, "Simplified Chinese → English (American) · Detect Direction on")
+        XCTAssertEqual(turned.variant.subtitle, detected, "The popup says which way this text went")
         XCTAssertEqual(turned.states, [.succeeded("Good morning")])
         XCTAssertEqual(try chinese.request(to: "clients5.google.com").url.query?.contains("tl=en"), true)
 
         let english = try runTranslator("translator.selection", settings: settings, detected: "en")
-        XCTAssertEqual(try english.resolveDirection("Good morning").variant.subtitle,
-                       "English (American) → Simplified Chinese · Detect Direction on")
+        XCTAssertNil(try english.resolveDirection("Good morning").variant.subtitle,
+                     "Text going the usual way needs no explanation")
         XCTAssertEqual(try english.request(to: "clients5.google.com").url.query?.contains("tl=zh-CN"), true)
     }
 
@@ -383,9 +383,10 @@ extension PluginRuntimeTests {
                                     selection: "早上好", detected: "zh-Hans")
         let presentation = try XCTUnwrap(run.session?.presentation)
         XCTAssertNil(presentation.alternate)
-        let subtitle = "Any language → Simplified Chinese · Input English (American) · Detect Direction off"
-        XCTAssertEqual(presentation.main.subtitle, subtitle, "All three language settings are shown")
-        XCTAssertEqual(try run.resolveDirection("早上好").variant.subtitle, subtitle)
+        XCTAssertNil(presentation.main.subtitle)
+        XCTAssertEqual(try run.resolveDirection("早上好").variant.sections.count, 1,
+                       "Everything goes into the target language")
+        XCTAssertEqual(try run.request(to: "clients5.google.com").url.query?.contains("tl=zh-CN"), true)
     }
 
     /// A source that fails shows its own error; the others still answer.

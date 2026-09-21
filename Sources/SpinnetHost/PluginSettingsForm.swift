@@ -9,23 +9,37 @@ struct PluginSettingsForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Settings").font(.headline)
-            Text("Shared by every Menu Item made from \(model.manifest.name). A setting marked Per Menu Item can also be set in one Menu Item's Configuration Sheet.")
+            Text("Shared by every Menu Item made from \(model.manifest.name).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(model.visibleFields, id: \.key) { field in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(field.displayTitle)
-                        if field.overridable {
-                            Text("Per Menu Item").font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(width: 118, alignment: .leading)
-                    editor(for: field)
+            ForEach(Array(model.visibleGroups.enumerated()), id: \.offset) { _, group in
+                if let name = group.name {
+                    Text(name)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("\(model.manifest.name) \(field.displayTitle)")
+                ForEach(group.fields, id: \.key) { field in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(field.displayTitle)
+                            if field.overridable {
+                                Text("Per Menu Item").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(width: 104, alignment: .leading)
+                        editor(for: field)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("\(model.manifest.name) \(field.displayTitle)")
+                }
+            }
+            if model.showsCredential {
+                Text("Spinnet keeps each key in your Keychain and adds it to requests itself; the Plugin never reads it.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
             }
             if let consent = model.endpointConsent {
                 EndpointConsentBox(consent: consent, allowed: Binding(
@@ -60,11 +74,13 @@ struct PluginSettingsForm: View {
             .labelsHidden()
             .frame(maxWidth: .infinity, alignment: .leading)
         case .toggle:
-            Toggle("Enabled", isOn: Binding(
+            Toggle("", isOn: Binding(
                 get: { model.values[key] == .bool(true) },
                 set: { model.values[key] = .bool($0) }
             ))
+            .labelsHidden()
             .toggleStyle(.switch)
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .folder, .file:
             ResourcePathField(kind: field.kind, value: text(key))
         case .multilineText:
@@ -97,7 +113,7 @@ struct PluginSettingsForm: View {
                         set: { model.setChoice(choice, enabled: $0, for: key) }
                     ))
                     .toggleStyle(.checkbox)
-                    Spacer(minLength: 8)
+                    .frame(width: 92, alignment: .leading)
                     if let index {
                         Button { model.moveChoice(choice, by: -1, for: key) } label: { Image(systemName: "chevron.up") }
                             .disabled(index == 0)
@@ -106,13 +122,14 @@ struct PluginSettingsForm: View {
                             .disabled(index == chosen.count - 1)
                             .accessibilityLabel("Move \(choice) down")
                     }
+                    Spacer(minLength: 0)
                 }
                 .buttonStyle(.borderless)
             }
             Text("Checked ones are used, in this order.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: 250, alignment: .leading)
     }
 
     private func text(_ key: String) -> Binding<String> {
@@ -135,24 +152,20 @@ struct CredentialField: View {
     @State private var isRevealed = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                if isRevealed {
-                    ConfigurationTextField(text: $secret, placeholder: placeholder ?? "Not set")
-                } else {
-                    SecureField(placeholder ?? "Not set", text: $secret)
-                        .textFieldStyle(.roundedBorder)
-                }
-                Button { isRevealed.toggle() } label: {
-                    Image(systemName: isRevealed ? "eye.slash" : "eye")
-                }
-                .buttonStyle(.borderless)
-                .help(isRevealed ? "Hide" : "Show")
-                .accessibilityLabel(isRevealed ? "Hide the key" : "Show the key")
+        HStack(spacing: 6) {
+            if isRevealed {
+                ConfigurationTextField(text: $secret, placeholder: placeholder ?? "Not set")
+            } else {
+                SecureField(placeholder ?? "Not set", text: $secret)
+                    .textFieldStyle(.roundedBorder)
             }
-            Text("Spinnet keeps this secret and adds it to requests itself; the Plugin never reads it.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Button { isRevealed.toggle() } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+            }
+            .buttonStyle(.borderless)
+            .help(isRevealed ? "Hide" : "Show")
+            .accessibilityLabel(isRevealed ? "Hide the key" : "Show the key")
         }
+        .help("Spinnet keeps this key in your Keychain and adds it to requests itself; the Plugin never reads it.")
     }
 }

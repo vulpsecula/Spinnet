@@ -190,4 +190,24 @@ final class PluginSettingsModelTests: XCTestCase {
         XCTAssertTrue(reopened.model.save(), reopened.model.error ?? "")
         XCTAssertEqual(try makeModel(credentials: keychain).model.secret(for: "main"), "sk-second")
     }
+
+    /// The sheet shows each source's settings under its own heading, and says
+    /// which group a missing value belongs to, since two groups both have a key.
+    func testSettingsAreShownUnderTheirGroupsAndMissingOnesNameTheirs() throws {
+        let (model, _) = try translatorModel()
+        model.setChoice("DeepL", enabled: true, for: "sources")
+        model.setChoice("OpenAI", enabled: true, for: "sources")
+        XCTAssertEqual(model.visibleGroups.map(\.name), [nil, "Languages", "Google", "DeepL", "OpenAI"])
+        XCTAssertEqual(model.visibleGroups.first?.fields.compactMap(\.key), ["sources"],
+                       "Settings with no group come first")
+        XCTAssertEqual(model.visibleGroups.last?.fields.compactMap(\.key),
+                       ["openai_endpoint", "openai_model", "openai_credential"])
+        XCTAssertEqual(model.missingTitles, ["DeepL API Key", "OpenAI API Key"])
+        XCTAssertTrue(model.showsCredential)
+
+        model.setChoice("DeepL", enabled: false, for: "sources")
+        model.setChoice("OpenAI", enabled: false, for: "sources")
+        XCTAssertEqual(model.visibleGroups.map(\.name), [nil, "Languages", "Google"])
+        XCTAssertFalse(model.showsCredential, "Google keeps no key")
+    }
 }
