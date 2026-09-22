@@ -1,0 +1,165 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.spinnet.shottr",
+  "name": "Shottr",
+  "version": "1.0.0",
+  "capabilities": ["control_external_app"],
+  "capability_scopes": [{
+    "capability": "control_external_app",
+    "command_ids": [
+      "shottr.capture_area",
+      "shottr.capture_fullscreen",
+      "shottr.capture_window",
+      "shottr.capture_repeat_area",
+      "shottr.capture_scrolling",
+      "shottr.capture_scrolling_reverse",
+      "shottr.capture_delayed",
+      "shottr.append_capture"
+    ],
+    "data_types": [],
+    "includes_existing_host_data": false,
+    "https_hosts": [],
+    "external_apps": [{
+      "bundle_id": "cc.ffitch.shottr",
+      "operation_families": ["capture"]
+    }]
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "shottr.capture_area",
+    "default_alternate_command_ids": [
+      "shottr.capture_fullscreen",
+      "shottr.capture_window",
+      "shottr.capture_repeat_area",
+      "shottr.capture_scrolling",
+      "shottr.capture_scrolling_reverse",
+      "shottr.capture_delayed",
+      "shottr.append_capture"
+    ],
+    "default_inputs": {
+      "shottr.capture_area": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_fullscreen": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_window": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_repeat_area": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_scrolling": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_scrolling_reverse": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.capture_delayed": {"delay_seconds": "3", "copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false},
+      "shottr.append_capture": {"copy": false, "save": false, "edit": false, "pin": false, "thumbnail": false}
+    }
+  },
+  "commands": [{
+    "id": "shottr.capture_area",
+    "title": "Capture Area with Shottr",
+    "description": "Asks Shottr to capture an area; Shottr owns the capture and Screen Recording permission.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_fullscreen",
+    "title": "Capture Full Screen with Shottr",
+    "description": "Asks Shottr to capture the full screen; Shottr owns the capture and Screen Recording permission.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_window",
+    "title": "Capture Window with Shottr",
+    "description": "Asks Shottr to capture a window; Shottr owns the capture and Screen Recording permission.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_repeat_area",
+    "title": "Repeat Area Capture with Shottr",
+    "description": "Asks Shottr to capture the previous area again.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_scrolling",
+    "title": "Capture Scrolling Content with Shottr",
+    "description": "Asks Shottr to capture content while scrolling down.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_scrolling_reverse",
+    "title": "Capture Reverse Scrolling Content with Shottr",
+    "description": "Asks Shottr to capture content while scrolling up.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.capture_delayed",
+    "title": "Capture after a Delay with Shottr",
+    "description": "Asks Shottr to capture after a fixed, supported delay.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "delay_seconds", "kind": "choice", "title": "Delay", "choices": ["3", "5", "10"], "choice_titles": ["3 seconds", "5 seconds", "10 seconds"]},
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }, {
+    "id": "shottr.append_capture",
+    "title": "Append Capture with Shottr",
+    "description": "Asks Shottr to add another capture to the current screenshot.",
+    "execution": "javascript",
+    "is_configurable": true,
+    "script": "capture.js",
+    "configuration_fields": [
+      {"key": "copy", "kind": "toggle", "title": "Copy after capture"},
+      {"key": "save", "kind": "toggle", "title": "Save after capture"},
+      {"key": "edit", "kind": "toggle", "title": "Edit after capture"},
+      {"key": "pin", "kind": "toggle", "title": "Pin after capture"},
+      {"key": "thumbnail", "kind": "toggle", "title": "Show thumbnail after capture"}
+    ]
+  }]
+}

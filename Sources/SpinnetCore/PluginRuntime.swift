@@ -671,7 +671,7 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
     case capabilityDenied(String)
     case systemPermissionDenied(String)
     case automationPermissionDenied
-    case externalAppMissing
+    case externalAppMissing(String)
     case externalAppOperationUnsupported(String)
     case hostServiceFailed(String)
 
@@ -700,8 +700,8 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return "Required System Permission denied: \(message)"
         case .automationPermissionDenied:
             return "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"
-        case .externalAppMissing:
-            return "Install Bob to use Bob Commands"
+        case .externalAppMissing(let message):
+            return message
         case .externalAppOperationUnsupported(let message):
             return message
         case .hostServiceFailed(let message):
@@ -1235,7 +1235,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             case .automationPermissionDenied:
                 runtimeError = .automationPermissionDenied
             case .externalAppMissing:
-                runtimeError = .externalAppMissing
+                runtimeError = .externalAppMissing(failure.message)
             case .externalAppOperationUnsupported:
                 runtimeError = .externalAppOperationUnsupported(failure.message)
             case .hostServiceFailed:

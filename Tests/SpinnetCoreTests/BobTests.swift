@@ -261,7 +261,8 @@ extension PluginRuntimeTests {
         let failures: [(PluginHostServiceError, ActionFailureCategory, String)] = [
             (.automationPermissionDenied, .automationPermissionDenied,
              "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"),
-            (.externalAppMissing, .externalAppMissing, "Install Bob to use Bob Commands"),
+            (.externalAppMissing("Install Bob to use Bob Commands"),
+             .externalAppMissing, "Install Bob to use Bob Commands"),
             (.externalAppOperationUnsupported(
                 "This Bob version does not support the requested translation operation; update Bob and try again"
             ), .externalAppOperationUnsupported,

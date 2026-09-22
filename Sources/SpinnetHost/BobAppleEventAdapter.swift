@@ -27,7 +27,7 @@ struct BobAppleEventAdapter {
                 )
             }
             if number == -600 || number == -10814 {
-                throw PluginHostServiceError.externalAppMissing
+                throw PluginHostServiceError.externalAppMissing("Install Bob to use Bob Commands")
             }
             let message = ((errorInfo?["NSAppleScriptErrorMessage"] as? String) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
