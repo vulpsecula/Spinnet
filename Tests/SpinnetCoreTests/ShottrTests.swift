@@ -80,9 +80,9 @@ final class ShottrTests: XCTestCase {
         )
         let editor = HostConfigurationEditor(registry: registry, configuration: configuration)
 
-        XCTAssertEqual(editor.availability(for: action.id), .unavailable(.externalAppMissing))
-        XCTAssertEqual(ActionUnavailableReason.externalAppMissing.description,
-                       "Install the required External App, then try again")
+        XCTAssertEqual(editor.availability(for: action.id), .unavailable(.shottrMissing))
+        XCTAssertEqual(ActionUnavailableReason.shottrMissing.description,
+                       "Install Shottr to use Shottr Commands")
         XCTAssertEqual(configuration.actions, [action])
         XCTAssertEqual(action.input, input)
         XCTAssertTrue(checkedPermissions.isEmpty)

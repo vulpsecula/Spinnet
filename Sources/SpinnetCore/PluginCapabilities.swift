@@ -1039,7 +1039,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         guard case .object(let fields) = input, fields.count == 3,
               case .string(let bundleID) = fields["bundle_id"],
               case .string(let operationFamily) = fields["operation_family"],
-              let request = fields["request"], case .object = request else {
+              let unvalidatedRequest = fields["request"], case .object = unvalidatedRequest else {
             throw PluginHostServiceError.invalidInput(
                 "invoke_external_app expects bundle_id, operation_family, and a structured request"
             )
@@ -1052,11 +1052,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
         }
 
+        var request = unvalidatedRequest
         switch (bundleID, operationFamily) {
         case ("com.hezongyidev.Bob", "translate"):
             try validateBobRequest(request)
         case ("cc.ffitch.shottr", "capture"):
-            try validateShottrRequest(request, commandID: commandID)
+            request = try ShottrCaptureRequest(serviceInput: request, commandID: commandID).jsonValue
         default:
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "This External App operation is not supported by Spinnet"
@@ -1094,46 +1095,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "Bob does not support this translation operation"
             )
-        }
-    }
-
-    private func validateShottrRequest(_ request: JSONValue, commandID: CommandID) throws {
-        let declaredRoutes: [String: String] = [
-            "shottr.capture_area": "area",
-            "shottr.capture_fullscreen": "fullscreen",
-            "shottr.capture_window": "window",
-            "shottr.capture_repeat_area": "repeat",
-            "shottr.capture_scrolling": "scrolling",
-            "shottr.capture_scrolling_reverse": "scrolling/reverse",
-            "shottr.capture_delayed": "delayed",
-            "shottr.append_capture": "append"
-        ]
-        guard case .object(let fields) = request,
-              fields.count == (commandID.rawValue == "shottr.capture_delayed" ? 3 : 2),
-              case .string(let route) = fields["route"],
-              declaredRoutes[commandID.rawValue] == route,
-              case .array(let postCapture) = fields["post_capture"] else {
-            throw PluginHostServiceError.externalAppOperationUnsupported(
-                "Shottr does not support this capture route"
-            )
-        }
-        let allowedOptions = Set(["copy", "save", "edit", "pin", "thumbnail"])
-        let options = postCapture.compactMap { value -> String? in
-            guard case .string(let option) = value else { return nil }
-            return option
-        }
-        guard options.count == postCapture.count,
-              Set(options).count == options.count,
-              options.allSatisfy(allowedOptions.contains) else {
-            throw PluginHostServiceError.invalidInput(
-                "Shottr post_capture accepts copy, save, edit, pin, and thumbnail once each"
-            )
-        }
-        if route == "delayed" {
-            guard case .string(let delay)? = fields["delay_seconds"],
-                  ["3", "5", "10"].contains(delay) else {
-                throw PluginHostServiceError.invalidInput("Shottr delay_seconds must be 3, 5, or 10")
-            }
         }
     }
 

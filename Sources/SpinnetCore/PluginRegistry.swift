@@ -7,6 +7,7 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     case commandChanged = "command_changed"
     case resourceMissing = "resource_missing"
     case externalAppMissing = "external_app_missing"
+    case shottrMissing = "shottr_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
@@ -27,7 +28,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .commandMissing: return "Command is no longer registered"
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
-        case .externalAppMissing: return "Install the required External App, then try again"
+        case .externalAppMissing: return "Install Bob to use Bob Commands"
+        case .shottrMissing: return "Install Shottr to use Shottr Commands"
         case .externalAppOperationUnsupported: return "This External App operation is not supported by Spinnet"
         case .capabilityDenied: return "Grant Access in Plugin Settings"
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
@@ -399,7 +401,9 @@ public final class PluginRegistry {
             guard let operations = supportedExternalAppOperations[target.bundleID] else { return true }
             return !Set(target.operationFamilies).isSubset(of: operations)
         }) { return .unavailable(.externalAppOperationUnsupported) }
-        if targets.contains(where: { !externalAppExists($0.bundleID) }) { return .unavailable(.externalAppMissing) }
+        if let missingTarget = targets.first(where: { !externalAppExists($0.bundleID) }) {
+            return .unavailable(missingTarget.bundleID == "cc.ffitch.shottr" ? .shottrMissing : .externalAppMissing)
+        }
         if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
         if let missing = permissions.first(where: { !systemPermissionCheck($0) }) {

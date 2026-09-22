@@ -52,7 +52,7 @@ struct ShottrURLSchemeAdapter {
                 "Shottr 1.8 or later is required for URL Scheme Commands; update Shottr and try again"
             )
         }
-        let deepLink = try Self.deepLink(for: invocation.requestJSON)
+        let deepLink = try ShottrCaptureRequest(requestJSON: invocation.requestJSON).deepLink
         guard handlerBundleIdentifier(deepLink) == Self.bundleID else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "Enable Shottr's URL Scheme API in Shottr Settings > Advanced, then try again"
@@ -65,51 +65,4 @@ struct ShottrURLSchemeAdapter {
         }
     }
 
-    private static func deepLink(for requestJSON: String) throws -> URL {
-        let request: JSONValue
-        do {
-            request = try JSONDecoder().decode(JSONValue.self, from: Data(requestJSON.utf8))
-        } catch {
-            throw PluginHostServiceError.invalidInput("The Shottr request is not valid JSON")
-        }
-        guard case .object(let fields) = request,
-              case .string(let route) = fields["route"],
-              case .array(let rawOptions) = fields["post_capture"] else {
-            throw PluginHostServiceError.invalidInput("The Shottr request is not structured correctly")
-        }
-        let allowedRoutes = Set(["area", "fullscreen", "window", "repeat", "scrolling",
-                                 "scrolling/reverse", "delayed", "append"])
-        let allowedOptions = Set(["copy", "save", "edit", "pin", "thumbnail"])
-        let options = rawOptions.compactMap { value -> String? in
-            guard case .string(let option) = value else { return nil }
-            return option
-        }
-        guard allowedRoutes.contains(route), options.count == rawOptions.count,
-              Set(options).count == options.count, options.allSatisfy(allowedOptions.contains) else {
-            throw PluginHostServiceError.externalAppOperationUnsupported(
-                "Shottr does not support this capture route or post-capture option"
-            )
-        }
-
-        var path = "/" + route
-        if route == "delayed" {
-            guard case .string(let delay)? = fields["delay_seconds"],
-                  ["3", "5", "10"].contains(delay) else {
-                throw PluginHostServiceError.invalidInput("Shottr delay_seconds must be 3, 5, or 10")
-            }
-            path += "=" + delay
-        } else if fields["delay_seconds"] != nil {
-            throw PluginHostServiceError.invalidInput("Only Shottr delayed capture accepts delay_seconds")
-        }
-
-        var components = URLComponents()
-        components.scheme = "shottr"
-        components.host = "grab"
-        components.path = path
-        if !options.isEmpty { components.queryItems = [URLQueryItem(name: "then", value: options.joined(separator: ","))] }
-        guard let url = components.url else {
-            throw PluginHostServiceError.failed("The Shottr deep link could not be created")
-        }
-        return url
-    }
 }
