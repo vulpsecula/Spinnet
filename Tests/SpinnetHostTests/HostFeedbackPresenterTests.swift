@@ -40,4 +40,30 @@ final class HostFeedbackPresenterTests: XCTestCase {
         button.performClick(nil)
         XCTAssertEqual(retries, 1)
     }
+
+    func testExternalAppFailuresShowHostAuthoredRepairMessages() throws {
+        _ = NSApplication.shared
+        let action = try ActionConfiguration(id: ActionID("bob-action"), pluginID: PluginID("com.spinnet.bob"),
+            command: CommandDeclaration(id: CommandID("translate"), title: "Translate", execution: .javascript,
+                                        script: "translate.js"), input: .null)
+        let presenter = HostFeedbackPresenter()
+        defer { presenter.dismiss() }
+        let repairs: [(ActionFailureCategory, String)] = [
+            (.automationPermissionDenied,
+             "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"),
+            (.externalAppMissing, "Install Bob to use Bob Commands"),
+            (.externalAppOperationUnsupported,
+             "This Bob version does not support the requested translation operation; update Bob and try again")
+        ]
+        for (category, repair) in repairs {
+            let failure = ActionFailure(pluginID: action.pluginID, actionID: action.id,
+                                        category: category, message: repair)
+            presenter.showOutcome(ActionOutcome(actionID: action.id, pluginID: action.pluginID,
+                title: action.title, terminal: .failed(failure)))
+            XCTAssertEqual(
+                presenter.presentationSnapshot.message,
+                "com.spinnet.bob — Translate failed (\(category.rawValue)): \(repair)"
+            )
+        }
+    }
 }

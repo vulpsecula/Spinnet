@@ -15,6 +15,7 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_PLUGINS="$APP_RESOURCES/Plugins"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+HOST_ENTITLEMENTS="$ROOT_DIR/Resources/SpinnetHost.entitlements"
 ALLOW_ADHOC_SIGNING="${SPINNET_ALLOW_ADHOC_SIGNING:-0}"
 
 SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
@@ -86,15 +87,19 @@ cat >"$INFO_PLIST" <<PLIST
   <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Spinnet sends declared translation requests to Bob when you choose a Bob Command.</string>
 </dict>
 </plist>
 PLIST
 
 if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
-    codesign --force --deep --sign - "$APP_BUNDLE"
+    codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+    codesign --force --entitlements "$HOST_ENTITLEMENTS" --sign - "$APP_BUNDLE"
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
-    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+    codesign --force --options runtime --entitlements "$HOST_ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"

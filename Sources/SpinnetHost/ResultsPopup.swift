@@ -65,7 +65,9 @@ final class ResultsPopupModel: ObservableObject {
 
     private static func message(for error: PluginHostServiceError) -> String {
         switch error {
-        case .capabilityDenied, .systemPermissionDenied: return "\(error)"
+        case .capabilityDenied, .systemPermissionDenied, .automationPermissionDenied, .externalAppMissing:
+            return "\(error)"
+        case .externalAppOperationUnsupported(let message): return message
         case .invalidInput(let message), .unavailable(let message), .failed(let message): return message
         }
     }

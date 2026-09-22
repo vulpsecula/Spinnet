@@ -275,6 +275,41 @@ final class SettingsWindowControllerTests: XCTestCase {
         )
     }
 
+    func testRuntimeAlternateActionWaitsUntilMenuTrackingReturns() throws {
+        let primaryID = ActionID("primary")
+        let alternateID = ActionID("alternate")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(
+                primaryActionID: primaryID,
+                alternateActionIDs: [alternateID]
+            ),
+            primaryAction: MenuActionPresentation(
+                actionID: primaryID,
+                title: "Primary",
+                availability: .available
+            ),
+            alternateActions: [MenuActionPresentation(
+                actionID: alternateID,
+                title: "Capture",
+                availability: .available
+            )]
+        )
+        let controller = MenuPresentationController(items: [.occupied(item)])
+        let invoked = expectation(description: "Alternate Action invoked")
+        var invokedActionID: ActionID?
+        controller.onActionMenuSelection = { actionID in
+            invokedActionID = actionID
+            invoked.fulfill()
+        }
+        let menu = try XCTUnwrap(controller.makeActionMenu(for: 0))
+
+        menu.performActionForItem(at: 2)
+
+        XCTAssertNil(invokedActionID)
+        wait(for: [invoked], timeout: 1)
+        XCTAssertEqual(invokedActionID, alternateID)
+    }
+
     func testRuntimeActionMenuRefreshesStaleResourceAvailability() throws {
         let actionID = ActionID("resource-action")
         let configuration = try MenuItemConfiguration(primaryActionID: actionID)

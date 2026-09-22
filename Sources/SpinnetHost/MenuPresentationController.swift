@@ -228,7 +228,13 @@ final class MenuPresentationController {
         guard let rawID = sender.representedObject as? String else { return }
         let actionID = ActionID(rawID)
         dismiss()
-        onActionMenuSelection?(actionID)
+        // NSMenu sends its item action while the event-tracking run loop is
+        // still active. External capture Actions must wait for that mode to
+        // finish so the action menu and radial panel leave the screen before
+        // the target app freezes its capture frame.
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            self?.onActionMenuSelection?(actionID)
+        }
     }
 
     private func installDismissalMonitors() {

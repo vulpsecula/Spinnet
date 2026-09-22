@@ -143,6 +143,15 @@ final class HTTPSRequestBudgetsTests: XCTestCase {
     }
 }
 
+final class ExternalAppBudgetsTests: XCTestCase {
+
+    /// docs/plugin-interface.md, "External App requests"
+    func testRequestTextBudgetMatchesDocumentedInterface() {
+        // "translateText accepts non-empty body.text of at most 128 KiB of UTF-8 text."
+        XCTAssertEqual(ExternalAppBudgets.maximumRequestTextBytes, 128 * 1024)
+    }
+}
+
 final class ResultsPresentationBudgetsTests: XCTestCase {
 
     /// docs/plugin-interface.md, "Result popups"

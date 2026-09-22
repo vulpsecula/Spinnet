@@ -20,7 +20,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
-         .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS, .insertIntoFocusedApp].contains(self)
+         .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
+         .controlExternalApp, .insertIntoFocusedApp].contains(self)
     }
 
     public var title: String {
@@ -451,6 +452,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// the Host sends after the Action returns (ADR 0002). It needs what the
     /// requests need, `contact_https`, and tells the Plugin nothing back.
     case presentResults = "present_results"
+    /// Sends one validated, target-scoped request to an External App through
+    /// the Host. The Plugin cannot send arbitrary Apple Events or scripts.
+    case invokeExternalApp = "invoke_external_app"
     /// Classifies supplied text or a best-effort selected-text read in the
     /// Host, then performs only the corresponding Capability-checked operation.
     /// Empty text asks the Host for input.
@@ -477,6 +481,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .captureScreen
         case .httpsRequest, .presentResults:
             return .contactHTTPS
+        case .invokeExternalApp:
+            return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
         }
@@ -495,6 +501,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .screenRecording
         case .httpsRequest, .presentResults:
             return nil
+        case .invokeExternalApp:
+            return nil
         case .insertText:
             return .accessibility
         }
@@ -504,6 +512,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
 public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, LocalizedError {
     case capabilityDenied(PluginCapability)
     case systemPermissionDenied(PluginSystemPermission)
+    case automationPermissionDenied
+    case externalAppMissing
+    case externalAppOperationUnsupported(String)
     case invalidInput(String)
     case unavailable(String)
     case failed(String)
@@ -514,6 +525,12 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Capability \(capability.rawValue) is not granted"
         case .systemPermissionDenied(let permission):
             return "System Permission \(permission.rawValue) is not granted"
+        case .automationPermissionDenied:
+            return "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"
+        case .externalAppMissing:
+            return "Install Bob to use Bob Commands"
+        case .externalAppOperationUnsupported(let message):
+            return message
         case .invalidInput(let message):
             return "Host Service input is invalid: \(message)"
         case .unavailable(let message):
@@ -531,6 +548,12 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .capabilityDenied
         case .systemPermissionDenied:
             return .systemPermissionDenied
+        case .automationPermissionDenied:
+            return .automationPermissionDenied
+        case .externalAppMissing:
+            return .externalAppMissing
+        case .externalAppOperationUnsupported:
+            return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed:
             return .hostServiceFailed
         }
@@ -542,9 +565,36 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .capabilityDenied
         case .systemPermissionDenied:
             return .systemPermissionDenied
+        case .automationPermissionDenied:
+            return .automationPermissionDenied
+        case .externalAppMissing:
+            return .externalAppMissing
+        case .externalAppOperationUnsupported:
+            return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed:
             return .hostServiceFailed
         }
+    }
+}
+
+/// One Host-approved External App request after its manifest scope and
+/// supported operation have been checked. `requestJSON` is the target App's
+/// JSON API parameter; it never contains AppleScript source.
+public enum ExternalAppBudgets {
+    /// Maximum user text the Host copies into one External App request.
+    /// Structured JSON and AppleScript string encoding add bounded overhead.
+    public static let maximumRequestTextBytes = 128 * 1024
+}
+
+public struct ExternalAppInvocation: Equatable, Hashable {
+    public let bundleID: String
+    public let operationFamily: String
+    public let requestJSON: String
+
+    public init(bundleID: String, operationFamily: String, requestJSON: String) {
+        self.bundleID = bundleID
+        self.operationFamily = operationFamily
+        self.requestJSON = requestJSON
     }
 }
 
@@ -589,6 +639,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     public let responseCache: ResultsResponseCache
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
+    private let externalAppInvoker: (ExternalAppInvocation) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -640,7 +691,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         pluginSettingsReader: @escaping (PluginManifest) -> [String: JSONValue] = { $0.resolvedSettings(stored: [:]) },
         pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
         actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil,
-        responseCache: ResultsResponseCache = ResultsResponseCache()
+        responseCache: ResultsResponseCache = ResultsResponseCache(),
+        externalAppInvoker: @escaping (ExternalAppInvocation) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("External App requests")
+        }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -668,6 +722,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.responseCache = responseCache
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
+        self.externalAppInvoker = externalAppInvoker
     }
 
     public func execute(
@@ -880,6 +935,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             return .null
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
+        case .invokeExternalApp:
+            let invocation = try externalAppInvocation(from: request.input, manifest: package.manifest)
+            try externalAppInvoker(invocation)
+            return .null
         case .presentResults:
             let presentation = try ResultsPresentation(serviceInput: request.input)
             // Every section is checked now, so a popup never opens for a
@@ -966,6 +1025,72 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try focusedTextInserter(text)
             return .null
         }
+    }
+
+    private func externalAppInvocation(
+        from input: JSONValue,
+        manifest: PluginManifest
+    ) throws -> ExternalAppInvocation {
+        guard case .object(let fields) = input, fields.count == 3,
+              case .string(let bundleID) = fields["bundle_id"],
+              case .string(let operationFamily) = fields["operation_family"],
+              let request = fields["request"], case .object(let requestFields) = request,
+              requestFields.count == 2,
+              case .string(let path) = requestFields["path"],
+              case .object(let body) = requestFields["body"],
+              case .string(let operation) = body["action"] else {
+            throw PluginHostServiceError.invalidInput(
+                "invoke_external_app expects bundle_id, operation_family, and a structured request"
+            )
+        }
+
+        let isDeclared = manifest.scope(for: .controlExternalApp)?.externalApps.contains { target in
+            target.bundleID == bundleID && target.operationFamilies.contains(operationFamily)
+        } == true
+        guard isDeclared else {
+            throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
+        }
+
+        // Bob is the only External App Adapter currently supported. Keeping
+        // its API path and operation family fixed prevents this service from
+        // becoming a generic Apple Events or scripting tunnel.
+        guard bundleID == "com.hezongyidev.Bob", operationFamily == "translate", path == "translate" else {
+            throw PluginHostServiceError.externalAppOperationUnsupported(
+                "This External App operation is not supported by Spinnet"
+            )
+        }
+
+        let hasText = body["text"] != nil
+        guard body.count == (hasText ? 2 : 1) else {
+            throw PluginHostServiceError.invalidInput("Bob translation requests only accept action and optional text")
+        }
+        switch operation {
+        case "selectionTranslate", "snipTranslate", "inputTranslate", "pasteboardTranslate":
+            guard !hasText else {
+                throw PluginHostServiceError.invalidInput("This Bob translation operation does not accept text")
+            }
+        case "translateText":
+            guard case .string(let text)? = body["text"],
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  text.utf8.count <= ExternalAppBudgets.maximumRequestTextBytes else {
+                throw PluginHostServiceError.invalidInput("Bob translateText needs nonempty text up to 128 KiB")
+            }
+        default:
+            throw PluginHostServiceError.externalAppOperationUnsupported(
+                "Bob does not support this translation operation"
+            )
+        }
+
+        let data: Data
+        do {
+            data = try JSONSerialization.data(withJSONObject: request.foundationObject, options: [.sortedKeys])
+        } catch {
+            throw PluginHostServiceError.invalidInput("The Bob request could not be encoded as JSON")
+        }
+        guard let requestJSON = String(data: data, encoding: .utf8) else {
+            throw PluginHostServiceError.failed("The Bob request could not be encoded as UTF-8")
+        }
+        return ExternalAppInvocation(bundleID: bundleID, operationFamily: operationFamily, requestJSON: requestJSON)
     }
 
     /// The Plugin Settings a popup may offer: its own, and only the kinds

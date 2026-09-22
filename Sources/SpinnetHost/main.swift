@@ -184,6 +184,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 // Plugin describes its requests with the new value.
                 actionRerunner: { [weak self] _, action in
                     DispatchQueue.main.async { [weak self] in self?.invoke(action) }
+                },
+                externalAppInvoker: { invocation in
+                    try BobAppleEventAdapter().invoke(invocation)
                 }
             )
             clipboardBroker = hostServiceBroker

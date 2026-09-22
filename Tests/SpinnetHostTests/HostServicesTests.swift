@@ -64,7 +64,7 @@ final class HostServicesTests: XCTestCase {
     func testExternalAppScopeNamesOperationsAndRechecksDependency() throws {
         let command = CommandDeclaration(id: CommandID("capture"), title: "Capture", hostCommand: .presentFeedback)
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [
-            .init(bundleID: "com.example.capture", operationFamilies: ["capture-region"])
+            .init(bundleID: "com.hezongyidev.Bob", operationFamilies: ["translate"])
         ])
         let manifest = try PluginManifest(id: PluginID("example.adapter"), name: "Adapter", version: "1",
             capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
@@ -74,14 +74,14 @@ final class HostServicesTests: XCTestCase {
         let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in installed })
         try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/adapter.spinnetplugin"), manifest: manifest))
         let action = try ActionConfiguration(id: ActionID("capture"), pluginID: manifest.id, command: command, input: .string("capture"))
-        XCTAssertEqual(registry.availability(for: action), .unavailable(.resourceMissing))
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.externalAppMissing))
         let runner = HostActionRunner(executor: AppKitHostCommandExecutor(grantStore: grants))
         guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Missing dependency must fail") }
         installed = true
-        XCTAssertEqual(registry.availability(for: action), .unavailable(.hostServiceUnavailable))
+        XCTAssertEqual(registry.availability(for: action), .available)
         let disclosure = PluginPermissionDisclosure(manifest: manifest).details(for: .controls)
-        XCTAssertTrue(disclosure.contains("com.example.capture"))
-        XCTAssertTrue(disclosure.contains("capture-region"))
+        XCTAssertTrue(disclosure.contains("com.hezongyidev.Bob"))
+        XCTAssertTrue(disclosure.contains("translate"))
     }
 
     func testLiteralCopyDisclosesOnlyItsActualInputRequirements() throws {

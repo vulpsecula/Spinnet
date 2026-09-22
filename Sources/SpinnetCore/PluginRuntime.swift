@@ -425,6 +425,9 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case helperError = "helper_error"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
+    case automationPermissionDenied = "automation_permission_denied"
+    case externalAppMissing = "external_app_missing"
+    case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
 }
 
@@ -667,6 +670,9 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
     case scriptFailed(String)
     case capabilityDenied(String)
     case systemPermissionDenied(String)
+    case automationPermissionDenied
+    case externalAppMissing
+    case externalAppOperationUnsupported(String)
     case hostServiceFailed(String)
 
     public var description: String {
@@ -692,6 +698,12 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return "Plugin Capability denied: \(message)"
         case .systemPermissionDenied(let message):
             return "Required System Permission denied: \(message)"
+        case .automationPermissionDenied:
+            return "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"
+        case .externalAppMissing:
+            return "Install Bob to use Bob Commands"
+        case .externalAppOperationUnsupported(let message):
+            return message
         case .hostServiceFailed(let message):
             return "Plugin Host Service failed: \(message)"
         }
@@ -719,6 +731,12 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return .capabilityDenied
         case .systemPermissionDenied:
             return .systemPermissionDenied
+        case .automationPermissionDenied:
+            return .automationPermissionDenied
+        case .externalAppMissing:
+            return .externalAppMissing
+        case .externalAppOperationUnsupported:
+            return .externalAppOperationUnsupported
         case .hostServiceFailed:
             return .hostServiceFailed
         }
@@ -1214,6 +1232,12 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .capabilityDenied(failure.message)
             case .systemPermissionDenied:
                 runtimeError = .systemPermissionDenied(failure.message)
+            case .automationPermissionDenied:
+                runtimeError = .automationPermissionDenied
+            case .externalAppMissing:
+                runtimeError = .externalAppMissing
+            case .externalAppOperationUnsupported:
+                runtimeError = .externalAppOperationUnsupported(failure.message)
             case .hostServiceFailed:
                 runtimeError = .hostServiceFailed(failure.message)
             }

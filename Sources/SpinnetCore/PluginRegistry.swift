@@ -6,6 +6,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
     case commandMissing = "command_missing"
     case commandChanged = "command_changed"
     case resourceMissing = "resource_missing"
+    case externalAppMissing = "external_app_missing"
+    case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case hostServiceUnavailable = "host_service_unavailable"
@@ -25,6 +27,8 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .commandMissing: return "Command is no longer registered"
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
+        case .externalAppMissing: return "Install Bob to use Bob Commands"
+        case .externalAppOperationUnsupported: return "This External App operation is not supported by Spinnet"
         case .capabilityDenied: return "Grant Access in Plugin Settings"
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
         case .hostServiceUnavailable: return "Required Host Service is not available in this version"
@@ -387,7 +391,11 @@ public final class PluginRegistry {
             capabilities.contains($0.capability) && $0.commandIDs.contains(action.commandID)
         }
             .flatMap(\.externalApps)
-        if targets.contains(where: { !externalAppExists($0.bundleID) }) { return .unavailable(.resourceMissing) }
+        if targets.contains(where: { target in
+            target.bundleID != "com.hezongyidev.Bob"
+                || target.operationFamilies.contains { $0 != "translate" }
+        }) { return .unavailable(.externalAppOperationUnsupported) }
+        if targets.contains(where: { !externalAppExists($0.bundleID) }) { return .unavailable(.externalAppMissing) }
         if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
         if let missing = permissions.first(where: { !systemPermissionCheck($0) }) {

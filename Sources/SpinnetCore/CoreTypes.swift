@@ -128,6 +128,9 @@ public enum ActionFailureCategory: String, Codable, CaseIterable, Hashable {
     case runtimeProtocolFailed = "runtime_protocol_failed"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
+    case automationPermissionDenied = "automation_permission_denied"
+    case externalAppMissing = "external_app_missing"
+    case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
     case cancelled
     case timedOut = "timed_out"

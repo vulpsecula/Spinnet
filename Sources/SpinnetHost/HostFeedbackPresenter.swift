@@ -80,7 +80,15 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         case .succeeded:
             showMessage(outcome.title + " completed")
         case .failed(let failure):
-            showMessage("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue))")
+            if [.automationPermissionDenied, .externalAppMissing, .externalAppOperationUnsupported]
+                .contains(failure.category) {
+                showMessage(
+                    "\(outcome.pluginID.rawValue) — \(outcome.title) failed "
+                        + "(\(failure.category.rawValue)): \(failure.message)"
+                )
+            } else {
+                showMessage("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue))")
+            }
             if let retry {
                 configureButton("Retry", action: retry)
                 dismissalWorkItem?.cancel()
