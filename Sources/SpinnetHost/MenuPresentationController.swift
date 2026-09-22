@@ -19,6 +19,7 @@ final class MenuPresentationController {
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
+    private var spaceChangeObserver: NSObjectProtocol?
     private var actionMenu: NSMenu?
 
     private(set) var isOpen = false
@@ -50,7 +51,9 @@ final class MenuPresentationController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .popUpMenu
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // A Menu belongs to the Desktop it was invoked on. Joining every Space
+        // draws it on all of them and lets WindowServer park it on the wrong one.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
         panel.acceptsMouseMovedEvents = true
         panel.becomesKeyOnlyIfNeeded = true
@@ -273,6 +276,13 @@ final class MenuPresentationController {
             guard let self, self.isOpen, event.keyCode == UInt16(kVK_Escape) else { return }
             self.dismiss()
         }
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.dismiss()
+        }
     }
 
     private func removeDismissalMonitors() {
@@ -280,9 +290,11 @@ final class MenuPresentationController {
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         if let localKeyMonitor { NSEvent.removeMonitor(localKeyMonitor) }
         if let globalKeyMonitor { NSEvent.removeMonitor(globalKeyMonitor) }
+        if let spaceChangeObserver { NSWorkspace.shared.notificationCenter.removeObserver(spaceChangeObserver) }
         outsideClickMonitor = nil
         localMouseMonitor = nil
         localKeyMonitor = nil
         globalKeyMonitor = nil
+        spaceChangeObserver = nil
     }
 }
