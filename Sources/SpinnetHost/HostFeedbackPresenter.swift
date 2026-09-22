@@ -26,7 +26,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = .singleDesktop
         panel.setAccessibilityLabel("Spinnet feedback")
 
         label.font = NSFont.systemFont(ofSize: 14, weight: .medium)

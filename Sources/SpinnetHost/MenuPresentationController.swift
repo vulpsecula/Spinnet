@@ -51,9 +51,7 @@ final class MenuPresentationController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .popUpMenu
-        // A Menu belongs to the Desktop it was invoked on. Joining every Space
-        // draws it on all of them and lets WindowServer park it on the wrong one.
-        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .stationary]
+        panel.collectionBehavior = NSWindow.CollectionBehavior.singleDesktop.union(.stationary)
         panel.hidesOnDeactivate = false
         panel.acceptsMouseMovedEvents = true
         panel.becomesKeyOnlyIfNeeded = true

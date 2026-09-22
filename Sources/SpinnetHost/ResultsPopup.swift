@@ -335,7 +335,7 @@ final class ResultsPopupController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = .singleDesktop
         panel.setAccessibilityLabel(session.presentation.title)
         panel.delegate = self
 

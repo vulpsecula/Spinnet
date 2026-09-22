@@ -297,7 +297,7 @@ final class SmartJumpWindowController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = .singleDesktop
         panel.setAccessibilityLabel("Smart Jump")
         panel.delegate = self
         self.panel = panel
