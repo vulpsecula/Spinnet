@@ -5,7 +5,6 @@ import Foundation
 /// generated deep link cannot drift apart.
 public struct ShottrCaptureRequest: Equatable {
     public let route: String
-    public let postCapture: [String]
     public let delaySeconds: String?
 
     private static let routesByCommandID: [String: String] = [
@@ -18,7 +17,6 @@ public struct ShottrCaptureRequest: Equatable {
         "shottr.capture_delayed": "delayed",
         "shottr.append_capture": "append"
     ]
-    private static let allowedOptions = Set(["copy", "save", "edit", "pin", "thumbnail"])
     private static let allowedDelays = Set(["3", "5", "10"])
 
     public init(serviceInput: JSONValue, commandID: CommandID) throws {
@@ -39,48 +37,32 @@ public struct ShottrCaptureRequest: Equatable {
         guard case .object(let fields) = jsonValue,
               case .string(let route) = fields["route"],
               Self.routesByCommandID.values.contains(route),
-              commandID.map({ Self.routesByCommandID[$0.rawValue] == route }) ?? true,
-              case .array(let rawOptions) = fields["post_capture"] else {
+              commandID.map({ Self.routesByCommandID[$0.rawValue] == route }) ?? true else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "Shottr does not support this capture route"
-            )
-        }
-        let options = rawOptions.compactMap { value -> String? in
-            guard case .string(let option) = value else { return nil }
-            return option
-        }
-        guard options.count == rawOptions.count,
-              Set(options).count == options.count,
-              options.allSatisfy(Self.allowedOptions.contains) else {
-            throw PluginHostServiceError.invalidInput(
-                "Shottr post_capture accepts copy, save, edit, pin, and thumbnail once each"
             )
         }
 
         let delay: String?
         if route == "delayed" {
-            guard fields.count == 3,
+            guard fields.count == 2,
                   case .string(let value)? = fields["delay_seconds"],
                   Self.allowedDelays.contains(value) else {
                 throw PluginHostServiceError.invalidInput("Shottr delay_seconds must be 3, 5, or 10")
             }
             delay = value
         } else {
-            guard fields.count == 2, fields["delay_seconds"] == nil else {
+            guard fields.count == 1, fields["delay_seconds"] == nil else {
                 throw PluginHostServiceError.invalidInput("Only Shottr delayed capture accepts delay_seconds")
             }
             delay = nil
         }
         self.route = route
-        postCapture = options
         delaySeconds = delay
     }
 
     public var jsonValue: JSONValue {
-        var fields: [String: JSONValue] = [
-            "route": .string(route),
-            "post_capture": .array(postCapture.map(JSONValue.string))
-        ]
+        var fields: [String: JSONValue] = ["route": .string(route)]
         if let delaySeconds { fields["delay_seconds"] = .string(delaySeconds) }
         return .object(fields)
     }
@@ -91,11 +73,6 @@ public struct ShottrCaptureRequest: Equatable {
             components.scheme = "shottr"
             components.host = "grab"
             components.path = "/" + route + (delaySeconds.map { "=" + $0 } ?? "")
-            if !postCapture.isEmpty {
-                components.queryItems = [
-                    URLQueryItem(name: "then", value: postCapture.joined(separator: ","))
-                ]
-            }
             guard let url = components.url else {
                 throw PluginHostServiceError.failed("The Shottr deep link could not be created")
             }

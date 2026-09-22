@@ -12,9 +12,7 @@
   const route = routes[commandID];
   if (!route) throw new Error("Unknown Shottr Command " + commandID);
 
-  const options = ["copy", "save", "edit", "pin", "thumbnail"];
-  const postCapture = options.filter(option => input && input[option] === true);
-  const request = { route, post_capture: postCapture };
+  const request = { route };
   if (commandID === "shottr.capture_delayed") request.delay_seconds = input.delay_seconds;
 
   requestHostService("invoke_external_app", {

@@ -49,6 +49,12 @@ final class ShottrTests: XCTestCase {
                        CommandID("shottr.capture_area"))
         XCTAssertEqual(Set(package.manifest.preset.defaultAlternateCommandIDs),
                        Set(package.manifest.commands.dropFirst().map(\.id)))
+        XCTAssertEqual(
+            package.manifest.commands.filter(\.isConfigurable).map(\.id.rawValue),
+            ["shottr.capture_delayed"]
+        )
+        let delayed = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "shottr.capture_delayed" })
+        XCTAssertEqual(delayed.configurationFields.compactMap(\.key), ["delay_seconds"])
     }
 
     func testMissingShottrKeepsTheConfiguredActionWithInstallGuidance() throws {
@@ -68,10 +74,12 @@ final class ShottrTests: XCTestCase {
             externalAppExists: { _ in false }
         )
         try registry.register(package)
-        let command = try XCTUnwrap(package.manifest.commands.first)
+        let command = try XCTUnwrap(package.manifest.commands.first {
+            $0.id.rawValue == "shottr.capture_delayed"
+        })
         let input = try XCTUnwrap(package.manifest.preset.defaultInputs[command.id])
         let action = try ActionConfiguration(
-            id: ActionID("shottr-area"), pluginID: package.manifest.id,
+            id: ActionID("shottr-delayed"), pluginID: package.manifest.id,
             command: command, input: input
         )
         let configuration = try HostConfiguration(
@@ -90,7 +98,7 @@ final class ShottrTests: XCTestCase {
 }
 
 extension PluginRuntimeTests {
-    func testShottrCommandsSendOnlyDeclaredRoutesAndStructuredOptions() throws {
+    func testShottrCommandsSendOnlyDeclaredRoutesAndDelayedCaptureInput() throws {
         let package = try ShottrPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
         grants.setDecision(
@@ -125,13 +133,7 @@ extension PluginRuntimeTests {
             "shottr.append_capture": "append"
         ]
         for command in package.manifest.commands {
-            var input = try XCTUnwrap(package.manifest.preset.defaultInputs[command.id])
-            if command.id.rawValue == "shottr.capture_area" {
-                input = .object([
-                    "copy": .bool(true), "save": .bool(false), "edit": .bool(false),
-                    "pin": .bool(true), "thumbnail": .bool(false)
-                ])
-            }
+            let input = package.manifest.preset.defaultInputs[command.id] ?? .null
             let action = try ActionConfiguration(
                 id: ActionID(command.id.rawValue), pluginID: package.manifest.id,
                 command: command, input: input
@@ -151,16 +153,16 @@ extension PluginRuntimeTests {
             let command = try XCTUnwrap(package.manifest.commands.first {
                 expectedRoutes[$0.id.rawValue] == route
             })
-            if command.id.rawValue == "shottr.capture_area" {
-                XCTAssertEqual(fields["post_capture"], .array([.string("copy"), .string("pin")]))
-            }
             if command.id.rawValue == "shottr.capture_delayed" {
                 XCTAssertEqual(fields["delay_seconds"], .string("3"))
+                XCTAssertEqual(fields.count, 2)
+            } else {
+                XCTAssertEqual(fields.count, 1)
             }
         }
     }
 
-    func testShottrRejectsUndeclaredRoutesAndOptionsBeforeOpeningADeepLink() throws {
+    func testShottrRejectsUndeclaredRoutesAndParametersBeforeOpeningADeepLink() throws {
         let package = try ShottrPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
         grants.setDecision(
@@ -176,30 +178,36 @@ extension PluginRuntimeTests {
         let command = try XCTUnwrap(package.manifest.commands.first)
         let action = try ActionConfiguration(
             id: ActionID("shottr-area"), pluginID: package.manifest.id, command: command,
-            input: try XCTUnwrap(package.manifest.preset.defaultInputs[command.id])
+            input: .null
         )
-        func request(route: String, options: [String]) -> PluginRuntimeHostServiceRequest {
-            PluginRuntimeHostServiceRequest(
+        func request(route: String, extraFields: [String: JSONValue] = [:]) -> PluginRuntimeHostServiceRequest {
+            var requestFields: [String: JSONValue] = ["route": .string(route)]
+            requestFields.merge(extraFields) { _, replacement in replacement }
+            return PluginRuntimeHostServiceRequest(
                 invocationID: "shottr-test", actionID: action.id, service: .invokeExternalApp,
                 input: .object([
                     "bundle_id": .string(ShottrPluginFixture.bundleID),
                     "operation_family": .string(ShottrPluginFixture.operationFamily),
-                    "request": .object([
-                        "route": .string(route),
-                        "post_capture": .array(options.map(JSONValue.string))
-                    ])
+                    "request": .object(requestFields)
                 ])
             )
         }
 
         XCTAssertThrowsError(try broker.execute(
-            request: request(route: "fullscreen", options: []), for: package, action: action
+            request: request(route: "fullscreen"), for: package, action: action
         ))
         XCTAssertThrowsError(try broker.execute(
-            request: request(route: "settings", options: []), for: package, action: action
+            request: request(route: "settings"), for: package, action: action
         ))
         XCTAssertThrowsError(try broker.execute(
-            request: request(route: "area", options: ["upload"]), for: package, action: action
+            request: request(route: "area", extraFields: ["post_capture": .array([])]),
+            for: package,
+            action: action
+        ))
+        XCTAssertThrowsError(try broker.execute(
+            request: request(route: "area", extraFields: ["delay_seconds": .string("3")]),
+            for: package,
+            action: action
         ))
         XCTAssertTrue(invocations.isEmpty)
     }
@@ -223,7 +231,7 @@ extension PluginRuntimeTests {
         let command = try XCTUnwrap(package.manifest.commands.first)
         let action = try ActionConfiguration(
             id: ActionID("shottr-missing"), pluginID: package.manifest.id, command: command,
-            input: try XCTUnwrap(package.manifest.preset.defaultInputs[command.id])
+            input: .null
         )
 
         XCTAssertThrowsError(try supervisor.execute(action, in: package, using: broker)) { error in

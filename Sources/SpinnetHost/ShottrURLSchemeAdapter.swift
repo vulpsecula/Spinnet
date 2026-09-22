@@ -11,13 +11,13 @@ struct ShottrURLSchemeAdapter {
     private let applicationURL: (String) -> URL?
     private let applicationVersion: (URL) -> String?
     private let handlerBundleIdentifier: (URL) -> String?
-    private let open: (URL) -> Bool
+    private let open: (URL, _ activatesApplication: Bool) -> Bool
 
     init(
         applicationURL: @escaping (String) -> URL?,
         applicationVersion: @escaping (URL) -> String?,
         handlerBundleIdentifier: @escaping (URL) -> String?,
-        open: @escaping (URL) -> Bool
+        open: @escaping (URL, _ activatesApplication: Bool) -> Bool
     ) {
         self.applicationURL = applicationURL
         self.applicationVersion = applicationVersion
@@ -32,7 +32,18 @@ struct ShottrURLSchemeAdapter {
             handlerBundleIdentifier: { deepLink in
                 workspace.urlForApplication(toOpen: deepLink).flatMap { Bundle(url: $0)?.bundleIdentifier }
             },
-            open: { workspace.open($0) }
+            open: { deepLink, activatesApplication in
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = activatesApplication
+                workspace.open(deepLink, configuration: configuration) { _, error in
+                    if let error {
+                        NSLog("Spinnet: Shottr did not accept its deep link: \(error.localizedDescription)")
+                    }
+                }
+                // The modern NSWorkspace API reports launch failures asynchronously.
+                // Installation and handler identity were checked before this call.
+                return true
+            }
         )
     }
 
@@ -58,7 +69,9 @@ struct ShottrURLSchemeAdapter {
                 "Enable Shottr's URL Scheme API in Shottr Settings > Advanced, then try again"
             )
         }
-        guard open(deepLink) else {
+        // Preserve the frontmost application so capture routes that depend on
+        // its window or scroll context see the app that opened Runtime Mode.
+        guard open(deepLink, false) else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "Shottr did not accept its deep link; enable the URL Scheme API and try again"
             )
