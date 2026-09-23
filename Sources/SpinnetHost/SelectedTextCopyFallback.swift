@@ -136,6 +136,7 @@ final class ClipboardObservationGate {
 struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
     static var defaultClipboardWait: TimeInterval { 0.75 }
     static var defaultClipboardStabilityWait: TimeInterval { 0.025 }
+    static var defaultClipboardSettleLimit: TimeInterval { 0.25 }
     static var defaultLateCopyCleanupWait: TimeInterval { 1 }
     static var defaultPollingInterval: TimeInterval { 0.01 }
 
@@ -143,6 +144,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
     private let observationGate: ClipboardObservationGate
     private let clipboardWait: TimeInterval
     private let clipboardStabilityWait: TimeInterval
+    private let clipboardSettleLimit: TimeInterval
     private let lateCopyCleanupWait: TimeInterval
     private let pollingInterval: TimeInterval
     private let now: () -> TimeInterval
@@ -154,6 +156,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
         observationGate: ClipboardObservationGate,
         clipboardWait: TimeInterval = Self.defaultClipboardWait,
         clipboardStabilityWait: TimeInterval = Self.defaultClipboardStabilityWait,
+        clipboardSettleLimit: TimeInterval = Self.defaultClipboardSettleLimit,
         lateCopyCleanupWait: TimeInterval = Self.defaultLateCopyCleanupWait,
         pollingInterval: TimeInterval = Self.defaultPollingInterval,
         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
@@ -166,6 +169,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
         self.observationGate = observationGate
         self.clipboardWait = max(0, clipboardWait)
         self.clipboardStabilityWait = max(0, clipboardStabilityWait)
+        self.clipboardSettleLimit = max(0, clipboardSettleLimit)
         self.lateCopyCleanupWait = max(0, lateCopyCleanupWait)
         self.pollingInterval = max(0.001, pollingInterval)
         self.now = now
@@ -271,7 +275,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
             after: baselineChangeCount
         )
         scheduleLateCleanup { [client, observationGate, now, wait, pollingInterval,
-                               clipboardStabilityWait, lateCopyCleanupWait] in
+                               clipboardStabilityWait, clipboardSettleLimit, lateCopyCleanupWait] in
             Self.cleanupLateCopy(
                 client: client,
                 observationGate: observationGate,
@@ -282,6 +286,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
                 allowClipboardRestore: allowClipboardRestore,
                 watchDuration: lateCopyCleanupWait,
                 stabilityWait: clipboardStabilityWait,
+                settleLimit: clipboardSettleLimit,
                 pollingInterval: pollingInterval,
                 now: now,
                 wait: wait
@@ -291,7 +296,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
 
     /// NSPasteboard doesn't expose the process that wrote a general-pasteboard
     /// change. Keep the attribution window narrow by requiring the targeted app
-    /// to stay frontmost and the first changed count to remain stable briefly.
+    /// to stay frontmost while the pasteboard settles.
     private enum ClipboardChangeResponse {
         case changed(Int)
         case noChange
@@ -308,30 +313,21 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
             let currentChangeCount = client.pasteboardChangeCount()
             guard client.frontmostProcessIdentifier() == processIdentifier else { return .interrupted }
             if currentChangeCount != initialChangeCount {
-                guard let stableChangeCount = waitForStableClipboardChange(
-                    currentChangeCount,
-                    from: processIdentifier
+                guard let stableChangeCount = Self.settledChangeCount(
+                    after: currentChangeCount,
+                    from: processIdentifier,
+                    client: client,
+                    stabilityWait: clipboardStabilityWait,
+                    settleLimit: clipboardSettleLimit,
+                    pollingInterval: pollingInterval,
+                    now: now,
+                    wait: wait
                 ) else { return .interrupted }
                 return .changed(stableChangeCount)
             }
 
             let remaining = deadline - now()
             guard remaining > 0 else { return .noChange }
-            wait(min(pollingInterval, remaining))
-        }
-    }
-
-    private func waitForStableClipboardChange(_ expectedChangeCount: Int, from processIdentifier: pid_t) -> Int? {
-        let deadline = now() + clipboardStabilityWait
-        while true {
-            guard client.frontmostProcessIdentifier() == processIdentifier,
-                  client.pasteboardChangeCount() == expectedChangeCount,
-                  client.frontmostProcessIdentifier() == processIdentifier else {
-                return nil
-            }
-
-            let remaining = deadline - now()
-            guard remaining > 0 else { return expectedChangeCount }
             wait(min(pollingInterval, remaining))
         }
     }
@@ -346,6 +342,7 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
         allowClipboardRestore: Bool,
         watchDuration: TimeInterval,
         stabilityWait: TimeInterval,
+        settleLimit: TimeInterval,
         pollingInterval: TimeInterval,
         now: () -> TimeInterval,
         wait: (TimeInterval) -> Void
@@ -357,16 +354,17 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
                 var suppressedChangeCount: Int? = currentChangeCount
                 if allowClipboardRestore,
                    client.frontmostProcessIdentifier() == processIdentifier,
-                   isStable(
-                       currentChangeCount,
+                   let settledChangeCount = settledChangeCount(
+                       after: currentChangeCount,
                        from: processIdentifier,
                        client: client,
                        stabilityWait: stabilityWait,
+                       settleLimit: settleLimit,
                        pollingInterval: pollingInterval,
                        now: now,
                        wait: wait
                    ) {
-                    switch client.restoreClipboard(snapshot, onlyIfChangeCountIs: currentChangeCount) {
+                    switch client.restoreClipboard(snapshot, onlyIfChangeCountIs: settledChangeCount) {
                     case .restored(let restoredChangeCount):
                         suppressedChangeCount = restoredChangeCount
                     case .changedExternally:
@@ -388,25 +386,36 @@ struct SelectedTextCopyFallback<Client: SelectedTextCopyClient> {
         }
     }
 
-    private static func isStable(
-        _ expectedChangeCount: Int,
+    /// Waits until the pasteboard has gone `stabilityWait` without changing.
+    /// Some apps write one Copy in several steps (Telegram clears the board and
+    /// then adds each representation), so every further change restarts the
+    /// wait. The writer is ambiguous, and nil is returned, if the target app
+    /// leaves the front or the board is still changing after `settleLimit`.
+    private static func settledChangeCount(
+        after changeCount: Int,
         from processIdentifier: pid_t,
         client: Client,
         stabilityWait: TimeInterval,
+        settleLimit: TimeInterval,
         pollingInterval: TimeInterval,
         now: () -> TimeInterval,
         wait: (TimeInterval) -> Void
-    ) -> Bool {
-        let deadline = now() + stabilityWait
+    ) -> Int? {
+        let settleDeadline = now() + settleLimit
+        var settledChangeCount = changeCount
+        var stableDeadline = now() + stabilityWait
         while true {
-            guard client.frontmostProcessIdentifier() == processIdentifier,
-                  client.pasteboardChangeCount() == expectedChangeCount,
-                  client.frontmostProcessIdentifier() == processIdentifier else {
-                return false
+            guard client.frontmostProcessIdentifier() == processIdentifier else { return nil }
+            let currentChangeCount = client.pasteboardChangeCount()
+            guard client.frontmostProcessIdentifier() == processIdentifier else { return nil }
+            if currentChangeCount != settledChangeCount {
+                settledChangeCount = currentChangeCount
+                stableDeadline = now() + stabilityWait
             }
 
-            let remaining = deadline - now()
-            guard remaining > 0 else { return true }
+            let remaining = stableDeadline - now()
+            guard remaining > 0 else { return settledChangeCount }
+            guard now() < settleDeadline else { return nil }
             wait(min(pollingInterval, remaining))
         }
     }

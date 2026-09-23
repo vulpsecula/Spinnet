@@ -94,16 +94,53 @@ final class SelectedTextCopyFallbackTests: XCTestCase {
         XCTAssertEqual(client.changeCount, 12)
     }
 
-    func testRejectsSelectionIfClipboardChangesAgainBeforeTheCopyResponseStabilizes() throws {
+    func testWaitsForAMultiStepCopyToSettleBeforeReadingAndRestoring() throws {
+        // Telegram clears the board and then writes each representation, so
+        // one Copy bumps the change count several times in quick succession.
+        let client = FakeSelectedTextCopyClient()
+        client.clipboardText = "before"
+        client.changeCount = 10
+        client.selectionText = "selected Telegram text"
+        client.copyFollowUpWriteDelays = [0.01, 0.02, 0.03]
+        let fallback = makeFallback(client)
+
+        XCTAssertEqual(try fallback.readSelectedText(), .selected("selected Telegram text"))
+        XCTAssertEqual(client.clipboardText, "before")
+        XCTAssertEqual(client.changeCount, 15)
+    }
+
+    func testRejectsSelectionWhenTheClipboardNeverSettles() throws {
         let client = FakeSelectedTextCopyClient()
         client.clipboardText = "before"
         client.selectionText = "selected text"
-        client.scheduleClipboardWrite(after: 0.01, text: "new clipboard contents")
+        client.repeatingClipboardWrite = (interval: 0.01, text: "another app's contents")
         let fallback = makeFallback(client)
 
         XCTAssertEqual(try fallback.readSelectedText(), .unavailable)
-        XCTAssertEqual(client.clipboardText, "new clipboard contents")
-        XCTAssertEqual(client.changeCount, 2)
+        XCTAssertEqual(client.clipboardText, "another app's contents")
+        XCTAssertLessThan(client.clock, SelectedTextCopyFallback<FakeSelectedTextCopyClient>.defaultClipboardWait)
+    }
+
+    func testLateMultiStepCopyIsRestoredOnceItSettles() throws {
+        let client = FakeSelectedTextCopyClient()
+        client.clipboardText = "before"
+        client.changeCount = 10
+        client.selectionText = "late selected text"
+        client.copyDelay = 0.8
+        client.copyFollowUpWriteDelays = [0.01, 0.02]
+        var lateCleanup: (() -> Void)?
+        let fallback = SelectedTextCopyFallback(
+            client: client,
+            observationGate: ClipboardObservationGate(),
+            now: { client.clock },
+            wait: { client.advanceClock(by: $0) },
+            scheduleLateCleanup: { lateCleanup = $0 }
+        )
+
+        XCTAssertEqual(try fallback.readSelectedText(), .noSelection)
+        lateCleanup?()
+        XCTAssertEqual(client.clipboardText, "before")
+        XCTAssertEqual(client.changeCount, 14)
     }
 
     func testLateCopyAfterTimeoutIsRestoredAndExcludedFromHistory() throws {
@@ -264,9 +301,13 @@ private final class FakeSelectedTextCopyClient: SelectedTextCopyClient {
     var processIdentifierChangeAt: TimeInterval?
     var processIdentifierAfterDelay: pid_t?
     var copyDelay: TimeInterval = 0
+    /// Further writes of the selection after the first, relative to it.
+    var copyFollowUpWriteDelays: [TimeInterval] = []
+    var repeatingClipboardWrite: (interval: TimeInterval, text: String)?
     var clock: TimeInterval = 0
     private var pendingCopyAt: TimeInterval?
-    private var pendingClipboardWrite: (time: TimeInterval, text: String)?
+    private var pendingFollowUpWrites: [TimeInterval] = []
+    private var nextRepeatingWriteAt: TimeInterval?
     private(set) var commandCopyTargets: [pid_t] = []
 
     func frontmostProcessIdentifier() -> pid_t? { processIdentifier }
@@ -342,13 +383,11 @@ private final class FakeSelectedTextCopyClient: SelectedTextCopyClient {
         applyPendingClipboardWritesIfDue()
     }
 
-    func scheduleClipboardWrite(after delay: TimeInterval, text: String) {
-        pendingClipboardWrite = (clock + delay, text)
-    }
-
     private func writeSelectionToClipboard() {
         clipboardText = selectionText
         changeCount += 1
+        pendingFollowUpWrites = copyFollowUpWriteDelays.map { clock + $0 }
+        if let repeatingClipboardWrite { nextRepeatingWriteAt = clock + repeatingClipboardWrite.interval }
     }
 
     private func applyPendingClipboardWritesIfDue() {
@@ -356,9 +395,14 @@ private final class FakeSelectedTextCopyClient: SelectedTextCopyClient {
             self.pendingCopyAt = nil
             writeSelectionToClipboard()
         }
-        if let pendingClipboardWrite, clock >= pendingClipboardWrite.time {
-            self.pendingClipboardWrite = nil
-            clipboardText = pendingClipboardWrite.text
+        while let next = pendingFollowUpWrites.first, clock >= next {
+            pendingFollowUpWrites.removeFirst()
+            clipboardText = selectionText
+            changeCount += 1
+        }
+        while let repeatingClipboardWrite, let next = nextRepeatingWriteAt, clock >= next {
+            nextRepeatingWriteAt = next + repeatingClipboardWrite.interval
+            clipboardText = repeatingClipboardWrite.text
             changeCount += 1
         }
     }
