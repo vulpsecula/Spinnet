@@ -4,6 +4,8 @@ DerivedData/
 dist/
 /docs/
 /.codex/
+/.kilo/
+/.kilocode/
 /.agents/
 /.claude/skills/
 .DS_Store
