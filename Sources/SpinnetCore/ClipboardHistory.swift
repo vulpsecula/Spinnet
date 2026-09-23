@@ -100,6 +100,15 @@ public struct ClipboardHistoryContentChunk: Codable, Equatable {
     public let totalBytes: Int
 }
 
+/// One pasteboard item rebuilt from a retained copy, in its original formats.
+public struct ClipboardHistoryRestoredItem: Equatable {
+    public struct Representation: Equatable {
+        public let format: String
+        public let data: Data
+    }
+    public var representations: [Representation]
+}
+
 /// A user-visible copy; only authorized representations are included.
 public struct ClipboardHistoryCopy: Identifiable, Equatable {
     public let id: UUID
@@ -125,6 +134,14 @@ public struct ClipboardHistorySnapshot: Codable, Equatable {
     /// Only an exceptionally large single copy can exceed the metadata budget.
     /// Its stable copy ID continues on the next bounded representation page.
     public var continuingCopyID: UUID? = nil
+
+    /// Joins the page that follows this one, so a reader can browse several
+    /// pages as one list. A copy split across the boundary stays one copy.
+    public func appending(_ next: ClipboardHistorySnapshot) -> ClipboardHistorySnapshot {
+        ClipboardHistorySnapshot(state: next.state, entries: entries + next.entries, nextOffset: next.nextOffset,
+                                 expiresAt: [expiresAt, next.expiresAt].compactMap { $0 }.min(),
+                                 continuingCopyID: next.continuingCopyID)
+    }
 }
 
 public struct ClipboardHistorySettings {
@@ -137,6 +154,8 @@ public struct ClipboardHistorySettings {
 public enum ClipboardHistoryControl {
     case configure(enabled: Bool, paused: Bool, retentionDays: Int)
     case clear
+    /// Removes whole copies, every representation included, by copy ID.
+    case delete(copyIDs: Set<UUID>)
     case turnOff(deleteEntries: Bool)
     case excludeApplications([String])
 }
@@ -183,6 +202,7 @@ public final class ClipboardHistoryStore {
                 case .configure(let enabled, let paused, let retentionDays):
                     try performConfigure(enabled: enabled, paused: paused, retentionDays: retentionDays)
                 case .clear: try performClear()
+                case .delete(let copyIDs): try performDelete(copyIDs)
                 case .turnOff(let deleteEntries): try performTurnOff(deleteEntries: deleteEntries)
                 case .excludeApplications(let bundleIDs): try performExclusions(bundleIDs)
                 }
@@ -587,6 +607,46 @@ public final class ClipboardHistoryStore {
         return ClipboardHistoryContentChunk(data: data, offset: offset, nextOffset: end < total ? end : nil, totalBytes: total)
     }
 
+    /// Rebuilds one copy's pasteboard items from its retained payloads, limited
+    /// to `dataTypes`. File references come back as their source URL only while
+    /// the referenced file is still the one that was copied.
+    public func restoration(copyID: UUID, dataTypes: [String]) throws -> [ClipboardHistoryRestoredItem] {
+        try requirePreparedHistory()
+        return try transactions.sync { try performRestoration(copyID: copyID, dataTypes: dataTypes) }
+    }
+
+    private func performRestoration(copyID: UUID, dataTypes: [String]) throws -> [ClipboardHistoryRestoredItem] {
+        lock.lock(); defer { lock.unlock() }
+        try expire()
+        let members = archive.entries.filter { ($0.copyID ?? $0.id) == copyID && dataTypes.contains($0.contentType.rawValue) }
+        var items: [Int: ClipboardHistoryRestoredItem] = [:]
+        for entry in members {
+            var item = items[entry.itemIndex ?? 0] ?? ClipboardHistoryRestoredItem(representations: [])
+            if entry.contentType == .fileReference {
+                guard let reference = archive.references?[entry.id.uuidString], reference.unavailableReason == nil else { continue }
+                item.representations.append(.init(format: "public.file-url", data: Data(reference.url.absoluteString.utf8)))
+            } else {
+                let data: Data
+                if entry.byteCount != nil {
+                    guard let payload = try? Data(contentsOf: payloadURL(entry.id)) else { continue }
+                    data = payload
+                } else {
+                    data = Data(entry.text.utf8)
+                }
+                // Text flavors were all retained as UTF-8, so keep only the first.
+                let format = entry.format ?? "public.utf8-plain-text"
+                for format in entry.contentType == .url ? [format, "public.url"] : [format]
+                    where !item.representations.contains(where: { $0.format == format }) {
+                    item.representations.append(.init(format: format, data: data))
+                }
+            }
+            items[entry.itemIndex ?? 0] = item
+        }
+        let restored = items.sorted { $0.key < $1.key }.map(\.value).filter { !$0.representations.isEmpty }
+        guard !restored.isEmpty else { throw PluginHostServiceError.unavailable("Clipboard entry is unavailable") }
+        return restored
+    }
+
     public func query(dataTypes: [String], offset: Int = 0) throws -> ClipboardHistorySnapshot {
         try requirePreparedHistory()
         return try transactions.sync { try performQuery(dataTypes: dataTypes, offset: offset) }
@@ -658,6 +718,14 @@ public final class ClipboardHistoryStore {
         lock.lock(); defer { lock.unlock() }
         var next = archive
         next.entries = []
+        try persist(next)
+    }
+
+    private func performDelete(_ copyIDs: Set<UUID>) throws {
+        lock.lock(); defer { lock.unlock() }
+        var next = archive
+        next.entries.removeAll { copyIDs.contains($0.copyID ?? $0.id) }
+        guard next.entries.count != archive.entries.count else { return }
         try persist(next)
     }
 

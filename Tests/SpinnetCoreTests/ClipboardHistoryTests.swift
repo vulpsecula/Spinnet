@@ -22,6 +22,78 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(result.entries.first?.copiedAt, now)
         XCTAssertEqual(result.entries.first?.contentType, .url)
     }
+    func testRestorationRebuildsEveryShownItemInItsOriginalFormats() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        let rtf = Data(#"{\rtf1 Hello}"#.utf8)
+        try store.observe(changeCount: 1, contents: [
+            .init(text: "Hello", type: .richText, data: rtf, format: "public.rtf", itemIndex: 0),
+            .init(text: "Hello", type: .text, itemIndex: 0),
+            .init(text: "https://example.com", type: .url, itemIndex: 1)
+        ], sourceName: "TextEdit", sourceBundleID: "com.apple.TextEdit")
+        let copyID = try XCTUnwrap(store.query(dataTypes: ["text", "url", "rich_text"]).copies.first?.id)
+
+        let items = try store.restoration(copyID: copyID, dataTypes: ["text", "url", "rich_text"])
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(Set(items[0].representations.map(\.format)), ["public.rtf", "public.utf8-plain-text"])
+        XCTAssertEqual(items[0].representations.first { $0.format == "public.rtf" }?.data, rtf)
+        XCTAssertEqual(items[1].representations.map(\.format), ["public.utf8-plain-text", "public.url"])
+
+        // Types outside the Plugin's scope are never restored.
+        let plain = try store.restoration(copyID: copyID, dataTypes: ["text"])
+        XCTAssertEqual(plain.map { $0.representations.map(\.format) }, [["public.utf8-plain-text"]])
+        XCTAssertThrowsError(try store.restoration(copyID: copyID, dataTypes: ["image"]))
+        XCTAssertThrowsError(try store.restoration(copyID: UUID(), dataTypes: ["text"]))
+    }
+
+    func testDeleteRemovesWholeCopiesAndTheirPayloads() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        for (count, text) in ["one", "two", "three"].enumerated() {
+            try store.observe(changeCount: count + 1, contents: [
+                .init(text: text, type: .text, itemIndex: 0),
+                .init(text: text, type: .richText, data: Data(text.utf8), format: "public.html", itemIndex: 0)
+            ], sourceName: "Notes", sourceBundleID: "com.apple.Notes")
+        }
+        let copies = try store.query(dataTypes: ["text", "rich_text"]).copies
+        XCTAssertEqual(copies.count, 3)
+        let payloads = directory.appendingPathComponent("clipboard-payloads")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: payloads.path).count, 6)
+
+        try store.applyControl(.delete(copyIDs: [copies[0].id, copies[2].id]))
+        let remaining = try store.query(dataTypes: ["text", "rich_text"]).copies
+        XCTAssertEqual(remaining.map(\.id), [copies[1].id])
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: payloads.path).count, 2)
+        XCTAssertThrowsError(try store.restoration(copyID: copies[0].id, dataTypes: ["text"]))
+
+        // Copying a deleted value again records it as a new copy.
+        try store.observe(changeCount: 4, contents: [
+            .init(text: "three", type: .text, itemIndex: 0),
+            .init(text: "three", type: .richText, data: Data("three".utf8), format: "public.html", itemIndex: 0)
+        ], sourceName: "Notes", sourceBundleID: "com.apple.Notes")
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).copies.count, 2)
+    }
+
+    func testAppendedPagesBrowseAsOneList() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        for index in 0..<(ClipboardHistoryBudgets.maximumCopiesPerPage + 5) {
+            try store.observe(changeCount: index + 1, content: .init(text: "copy \(index)", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        }
+        let first = try store.query(dataTypes: ["text"])
+        let next = try store.query(dataTypes: ["text"], offset: XCTUnwrap(first.nextOffset))
+        let joined = first.appending(next)
+        XCTAssertEqual(joined.copies.count, ClipboardHistoryBudgets.maximumCopiesPerPage + 5)
+        XCTAssertNil(joined.nextOffset)
+        XCTAssertEqual(joined.expiresAt, [first.expiresAt, next.expiresAt].compactMap { $0 }.min())
+    }
+
     func testQueryRechecksGrantAndFiltersDataWithoutControllingCollection() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -571,6 +571,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 requestID: UUID().uuidString, service: .readClipboardHistory, input: .object(["offset": .number(Double(offset))]))
             let value = try self.clipboardBroker.execute(request: request, for: currentPackage, action: action)
             return try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(value))
+        }, restoration: { [weak self] copyID in
+            // The user pastes what the window shows: the same grant and data
+            // types that authorized the listing bound what is restored.
+            guard let self else { throw PluginHostServiceError.unavailable("Host closed") }
+            guard self.registry.availability(for: action).isAvailable,
+                  let currentPackage = self.registry.package(for: action.pluginID) else {
+                throw PluginHostServiceError.capabilityDenied(.readClipboardHistory)
+            }
+            let scope = currentPackage.manifest.scope(for: .readClipboardHistory)
+            guard self.capabilityGrants.decision(for: currentPackage.manifest.id, pluginVersion: currentPackage.manifest.version,
+                                                 capability: .readClipboardHistory, scope: scope) == .granted else {
+                throw PluginHostServiceError.capabilityDenied(.readClipboardHistory)
+            }
+            return try self.clipboardStore.restoration(copyID: copyID, dataTypes: scope?.dataTypes ?? [])
         }, openPrivacy: { [weak self] in
             self?.settings.select(page: .privacyAndPermissions)
             self?.settings.present()
@@ -579,7 +593,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         clearHistory: { [weak self] completion in
             guard let self else { completion("Host closed"); return }
             self.settings.clearClipboardHistory(completion: completion)
-        })
+        }, deleteCopies: { [weak self] copyIDs, completion in
+            guard let self else { completion("Host closed"); return }
+            self.settings.deleteClipboardHistory(copyIDs: copyIDs, completion: completion)
+        }, notify: { [weak self] message in self?.feedback.showMessage(message) })
         clipboardWindow?.present()
     }
 

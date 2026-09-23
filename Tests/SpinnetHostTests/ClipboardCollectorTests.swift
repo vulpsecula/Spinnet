@@ -95,7 +95,7 @@ final class ClipboardCollectorTests: XCTestCase {
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { Date().addingTimeInterval(-86_398.5) })
         try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
         try store.observe(changeCount: 1, content: .init(text: "expires soon", type: .text), sourceName: "Notes", sourceBundleID: "notes")
-        let window = ClipboardHistoryWindow(grants: PluginCapabilityGrantStore(), query: { try store.query(dataTypes: ["text"], offset: $0) }, openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {}, clearHistory: { $0(nil) })
+        let window = ClipboardHistoryWindow(grants: PluginCapabilityGrantStore(), query: { try store.query(dataTypes: ["text"], offset: $0) }, restoration: { try store.restoration(copyID: $0, dataTypes: ["text"]) }, openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {}, clearHistory: { $0(nil) }, deleteCopies: { $1(nil) }, notify: { _ in })
         let loaded = expectation(description: "history snapshot loaded")
         var delivered = false
         let subscription = window.model.$snapshot.sink { snapshot in

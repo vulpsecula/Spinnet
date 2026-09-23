@@ -100,6 +100,10 @@ final class ClipboardHistorySettingsModel: ObservableObject {
         submit(.clear, completion: completion)
     }
 
+    func delete(copyIDs: Set<UUID>, completion: ((String?) -> Void)? = nil) {
+        submit(.delete(copyIDs: copyIDs), completion: completion)
+    }
+
     /// Turning collection off is shown immediately so the switch does not sit
     /// in its old position while persistence runs.
     func turnOff(deleteEntries: Bool) {
