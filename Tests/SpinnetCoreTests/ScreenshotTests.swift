@@ -447,7 +447,7 @@ final class ScreenshotTests: XCTestCase {
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: permissions,
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             screenCapturer: capture
         )
     }

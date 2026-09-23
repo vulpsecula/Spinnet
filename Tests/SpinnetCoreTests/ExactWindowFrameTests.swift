@@ -133,7 +133,7 @@ extension PluginRuntimeTests {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
         )
         func run(_ commandID: String, _ value: String) throws {
@@ -183,7 +183,7 @@ extension PluginRuntimeTests {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: {
                 FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 300, height: 200),
                               visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875))

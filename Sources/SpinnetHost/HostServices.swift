@@ -331,15 +331,10 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                         "Selected text is unavailable from the Host"
                     )
                 }
-                let copyFallbackIsAuthorized = package.map { package in
-                    grantStore?.isGranted(
-                        .readCurrentClipboard,
-                        for: action.commandID,
-                        in: package.manifest,
-                        dataType: "text"
-                    ) == true
+                let copyFallbackIsAllowed = package.map { package in
+                    grantStore?.allowsSelectedTextCopyFallback(for: action.commandID, in: package.manifest) == true
                 } ?? false
-                text = try selectedTextProvider(copyFallbackIsAuthorized)
+                text = try selectedTextProvider(copyFallbackIsAllowed)
             } else {
                 text = try requiredString(
                     from: action.input,

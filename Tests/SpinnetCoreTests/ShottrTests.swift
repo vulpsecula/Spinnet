@@ -115,7 +115,7 @@ extension PluginRuntimeTests {
                 XCTFail("Shottr deep links must not request \(permission.rawValue)")
                 return false
             },
-            selectedTextProvider: { XCTFail("Shottr must not read selected text"); return "" },
+            selectedTextProvider: { _ in XCTFail("Shottr must not read selected text"); return "" },
             clipboardWriter: { _ in XCTFail("Shottr must not use Spinnet's clipboard access") },
             externalAppInvoker: { invocations.append($0) }
         )
@@ -172,7 +172,7 @@ extension PluginRuntimeTests {
         var invocations: [ExternalAppInvocation] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             externalAppInvoker: { invocations.append($0) }
         )
         let command = try XCTUnwrap(package.manifest.commands.first)
@@ -221,7 +221,7 @@ extension PluginRuntimeTests {
         )
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             externalAppInvoker: { _ in
                 throw PluginHostServiceError.externalAppMissing("Install Shottr to use Shottr Commands")
             }

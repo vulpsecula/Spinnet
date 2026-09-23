@@ -16,17 +16,41 @@ private enum BobPluginFixture {
         )
         return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
     }
+
+    static func grant(
+        _ capabilities: [PluginCapability],
+        to package: PluginPackage,
+        in grants: PluginCapabilityGrantStore
+    ) {
+        for capability in capabilities {
+            grants.setDecision(
+                .granted,
+                for: package.manifest.id,
+                pluginVersion: package.manifest.version,
+                capability: capability,
+                scope: package.manifest.scope(for: capability)
+            )
+        }
+    }
 }
 
 final class BobTests: XCTestCase {
-    func testBobIsAStandalonePluginScopedOnlyToBobTranslation() throws {
+    func testBobIsAStandalonePluginScopedToBobTranslationAndItsSelectionRead() throws {
         let package = try BobPluginFixture.load()
+        let selection = CommandID("bob.selection_translate")
 
         XCTAssertEqual(package.manifest.id.rawValue, "com.spinnet.bob")
         XCTAssertEqual(package.manifest.name, "Bob")
-        XCTAssertEqual(package.manifest.capabilities, [.controlExternalApp])
+        XCTAssertEqual(package.manifest.capabilities, [.controlExternalApp, .readSelectedText, .readCurrentClipboard])
+        XCTAssertEqual(package.manifest.optionalCapabilities, [.readCurrentClipboard])
         XCTAssertTrue(PluginCapability.controlExternalApp.isSupportedByHostServices)
-        XCTAssertEqual(package.manifest.capabilityScopes.map(\.capability), [.controlExternalApp])
+        XCTAssertEqual(package.manifest.capabilityScopes.map(\.capability),
+                       [.controlExternalApp, .readSelectedText, .readCurrentClipboard])
+        for command in package.manifest.commands {
+            let readsSelection = command.id == selection
+            XCTAssertEqual(package.manifest.declares(.readSelectedText, for: command.id), readsSelection)
+            XCTAssertEqual(package.manifest.declares(.readCurrentClipboard, for: command.id), readsSelection)
+        }
         XCTAssertEqual(
             package.manifest.scope(for: .controlExternalApp)?.externalApps,
             [.init(bundleID: BobPluginFixture.bundleID, operationFamilies: [BobPluginFixture.operationFamily])]
@@ -68,20 +92,14 @@ extension PluginRuntimeTests {
     func testBobPluginUsesOnlyDeclaredTranslationOperationsAndSendsBobJSON() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(
-            .granted,
-            for: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capability: .controlExternalApp,
-            scope: package.manifest.scope(for: .controlExternalApp)
-        )
+        BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
 
         var invocations: [ExternalAppInvocation] = []
         var selectedTextReads = 0
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { selectedTextReads += 1; return "not used" },
+            selectedTextProvider: { _ in selectedTextReads += 1; return "Selected text" },
             clipboardWriter: { _ in },
             externalAppInvoker: { invocations.append($0) }
         )
@@ -90,7 +108,7 @@ extension PluginRuntimeTests {
 
         let text = "Text with \"quotes\", a backslash \\, and a newline.\nNext line."
         let operations: [(String, String, JSONValue)] = [
-            ("bob.selection_translate", "selectionTranslate", .null),
+            ("bob.selection_translate", "translateText", .null),
             ("bob.snip_translate", "snipTranslate", .null),
             ("bob.input_translate", "inputTranslate", .null),
             ("bob.pasteboard_translate", "pasteboardTranslate", .null),
@@ -106,18 +124,65 @@ extension PluginRuntimeTests {
         }
 
         XCTAssertEqual(invocations.count, operations.count)
-        XCTAssertEqual(selectedTextReads, 0, "Bob owns selection capture; the Plugin never reads it")
+        XCTAssertEqual(selectedTextReads, 1, "Only the selection Command reads the selection")
         for (invocation, operation) in zip(invocations, operations) {
             XCTAssertEqual(invocation.bundleID, BobPluginFixture.bundleID)
             XCTAssertEqual(invocation.operationFamily, BobPluginFixture.operationFamily)
             let request = try JSONDecoder().decode(JSONValue.self, from: Data(invocation.requestJSON.utf8))
             var body: [String: JSONValue] = ["action": .string(operation.1)]
-            if operation.1 == "translateText" { body["text"] = .string(text) }
+            if operation.1 == "translateText" {
+                body["text"] = .string(operation.0 == "bob.selection_translate" ? "Selected text" : text)
+            }
             XCTAssertEqual(request, .object([
                 "path": .string("translate"),
                 "body": .object(body)
             ]))
         }
+    }
+
+    func testBobSelectionIsReadBySpinnetWithBobInputAndBobsOwnReadAsFallbacks() throws {
+        let package = try BobPluginFixture.load()
+        let grants = PluginCapabilityGrantStore()
+        BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
+
+        var selection: () throws -> String = { "" }
+        var copyFallbackAllowed: [Bool] = []
+        var actions: [String] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            selectedTextProvider: { allowingCopyFallback in
+                copyFallbackAllowed.append(allowingCopyFallback)
+                return try selection()
+            },
+            clipboardWriter: { _ in },
+            externalAppInvoker: { invocation in
+                let request = try JSONDecoder().decode(JSONValue.self, from: Data(invocation.requestJSON.utf8))
+                guard case .object(let fields) = request, case .object(let body)? = fields["body"],
+                      case .string(let action)? = body["action"] else { return XCTFail("Unexpected Bob request") }
+                actions.append(action)
+            }
+        )
+        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        defer { supervisor.shutdown() }
+        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "bob.selection_translate" })
+        let action = try ActionConfiguration(id: ActionID("bob-selection"), pluginID: package.manifest.id,
+                                             command: command, input: .null)
+
+        // Nothing selected: Bob's input window, as Smart Jump opens its own.
+        selection = { "  \n" }
+        XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+        // An unreadable selection is left to Bob's own reading.
+        selection = { throw PluginHostServiceError.failed("No readable selection") }
+        XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+        XCTAssertEqual(actions, ["inputTranslate", "selectionTranslate"])
+        XCTAssertEqual(copyFallbackAllowed, [false, false])
+
+        BobPluginFixture.grant([.readCurrentClipboard], to: package, in: grants)
+        selection = { "Copied from Telegram" }
+        XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+        XCTAssertEqual(actions.last, "translateText")
+        XCTAssertEqual(copyFallbackAllowed.last, true, "The clipboard grant lets the read fall back to a copy")
     }
 
     func testBobHostServiceChecksCapabilityTargetAndOperationFamilyBeforeSending() throws {
@@ -135,7 +200,7 @@ extension PluginRuntimeTests {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" },
+            selectedTextProvider: { _ in "" },
             clipboardWriter: { _ in },
             externalAppInvoker: { invocations.append($0) }
         )
@@ -238,18 +303,12 @@ extension PluginRuntimeTests {
     func testBobAdapterErrorsRemainDistinctThroughThePluginHelper() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(
-            .granted,
-            for: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capability: .controlExternalApp,
-            scope: package.manifest.scope(for: .controlExternalApp)
-        )
+        BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
         var nextError: PluginHostServiceError = .automationPermissionDenied
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" },
+            selectedTextProvider: { _ in "" },
             clipboardWriter: { _ in },
             externalAppInvoker: { _ in throw nextError }
         )
@@ -284,13 +343,7 @@ extension PluginRuntimeTests {
     func testMissingBobDisablesButKeepsTheConfiguredBobAction() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(
-            .granted,
-            for: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capability: .controlExternalApp,
-            scope: package.manifest.scope(for: .controlExternalApp)
-        )
+        BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
         let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in false })
         try registry.register(package)
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "bob.selection_translate" })

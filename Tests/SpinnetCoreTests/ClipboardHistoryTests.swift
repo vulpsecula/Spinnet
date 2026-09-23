@@ -33,7 +33,7 @@ final class ClipboardHistoryTests: XCTestCase {
         let package = PluginPackage(rootURL: directory, manifest: manifest)
         let action = try ActionConfiguration(id: ActionID("browse"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore()
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { "" }, clipboardWriter: { _ in }, clipboardHistoryProvider: { try store.query(dataTypes: $0, offset: $1) })
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, clipboardHistoryProvider: { try store.query(dataTypes: $0, offset: $1) })
         let request = PluginRuntimeHostServiceRequest(invocationID: "i", actionID: action.id, requestID: "r", service: .readClipboardHistory, input: .null)
         func query() throws -> ClipboardHistorySnapshot {
             try JSONDecoder().decode(ClipboardHistorySnapshot.self, from: JSONEncoder().encode(broker.execute(request: request, for: package, action: action)))
@@ -89,7 +89,7 @@ final class ClipboardHistoryTests: XCTestCase {
         let action = try ActionConfiguration(id: ActionID("read"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore()
         var reads = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { "" }, clipboardWriter: { _ in }, currentClipboardProvider: { reads += 1; return .init(text: "current", type: .text) })
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, currentClipboardProvider: { reads += 1; return .init(text: "current", type: .text) })
         func request(_ service: PluginHostService) throws -> JSONValue {
             try broker.execute(request: .init(invocationID: "i", actionID: action.id, requestID: "r", service: service, input: .null), for: package, action: action)
         }

@@ -2,8 +2,9 @@
   "protocol_version": "1.0",
   "id": "com.spinnet.bob",
   "name": "Bob",
-  "version": "1.0.0",
-  "capabilities": ["control_external_app"],
+  "version": "1.1.0",
+  "capabilities": ["control_external_app", "read_selected_text", "read_current_clipboard"],
+  "optional_capabilities": ["read_current_clipboard"],
   "capability_scopes": [{
     "capability": "control_external_app",
     "command_ids": [
@@ -20,6 +21,14 @@
       "bundle_id": "com.hezongyidev.Bob",
       "operation_families": ["translate"]
     }]
+  }, {
+    "capability": "read_selected_text",
+    "command_ids": ["bob.selection_translate"],
+    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }, {
+    "capability": "read_current_clipboard",
+    "command_ids": ["bob.selection_translate"],
+    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
   }],
   "preset": {
     "readiness": "ready_to_use",
@@ -34,7 +43,7 @@
   "commands": [{
     "id": "bob.selection_translate",
     "title": "Translate Selection with Bob",
-    "description": "Asks Bob to read the current selection and display its translation.",
+    "description": "Reads the selection and asks Bob to translate it. With nothing selected, opens Bob's input window; when Spinnet cannot read the selection, Bob reads it itself.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "translate.js"

@@ -40,7 +40,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var currentConfiguration: HostConfiguration?
     private let capabilityGrants = PluginCapabilityGrantStore()
     private let clipboardObservationGate = ClipboardObservationGate()
-    private lazy var pluginHostServiceProvider = AppKitPluginHostServiceProvider(
+    private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
+    private lazy var selectedTextReader = SelectedTextReader(
         clipboardObservationGate: clipboardObservationGate
     )
     /// Captures outlive their Action, so a post-capture failure is reported
@@ -117,11 +118,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 systemPermissionCheck: { [pluginHostServiceProvider] permission in
                     pluginHostServiceProvider.isGranted(permission)
                 },
-                selectedTextProvider: { [pluginHostServiceProvider] in
-                    try pluginHostServiceProvider.readSelectedText(allowClipboardCopyFallback: false)
-                },
-                selectedTextCopyFallbackProvider: { [pluginHostServiceProvider] in
-                    try pluginHostServiceProvider.readSelectedText()
+                selectedTextProvider: { [selectedTextReader] allowingCopyFallback in
+                    try selectedTextReader.read(allowingCopyFallback: allowingCopyFallback)
                 },
                 clipboardWriter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.writeClipboard(text)
@@ -205,10 +203,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     systemPermissionCheck: { [pluginHostServiceProvider] permission in
                         pluginHostServiceProvider.isGranted(permission)
                     },
-                    selectedTextProvider: { [pluginHostServiceProvider] allowClipboardCopyFallback in
-                        try pluginHostServiceProvider.readSelectedText(
-                            allowClipboardCopyFallback: allowClipboardCopyFallback
-                        )
+                    selectedTextProvider: { [selectedTextReader] allowingCopyFallback in
+                        try selectedTextReader.read(allowingCopyFallback: allowingCopyFallback)
                     },
                     feedbackPresenter: { [weak self] message in
                         DispatchQueue.main.async { [weak self] in

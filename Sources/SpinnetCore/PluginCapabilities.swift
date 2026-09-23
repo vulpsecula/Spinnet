@@ -211,6 +211,14 @@ public final class PluginCapabilityGrantStore {
         ) == .granted
     }
 
+    /// Reading a selection by a targeted Command-C lets the copied text pass
+    /// through the clipboard, so a Command may do it only with a text-scoped
+    /// `read_current_clipboard` grant. Without one the Host stays
+    /// Accessibility-only.
+    public func allowsSelectedTextCopyFallback(for commandID: CommandID, in manifest: PluginManifest) -> Bool {
+        isGranted(.readCurrentClipboard, for: commandID, in: manifest, dataType: "text")
+    }
+
     public func setDecision(
         _ decision: PluginCapabilityGrantDecision,
         for pluginID: PluginID,
@@ -614,8 +622,7 @@ public protocol PluginHostServiceBroker {
 public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let grantStore: PluginCapabilityGrantStore
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
-    private let selectedTextProvider: () throws -> String
-    private let selectedTextCopyFallbackProvider: (() throws -> String)?
+    private let selectedTextProvider: (_ allowingCopyFallback: Bool) throws -> String
     private let clipboardWriter: (String) throws -> Void
     private let currentClipboardProvider: () throws -> ClipboardContent?
     private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
@@ -644,8 +651,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     public init(
         grantStore: PluginCapabilityGrantStore,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool,
-        selectedTextProvider: @escaping () throws -> String,
-        selectedTextCopyFallbackProvider: (() throws -> String)? = nil,
+        selectedTextProvider: @escaping (_ allowingCopyFallback: Bool) throws -> String,
         clipboardWriter: @escaping (String) throws -> Void,
         currentClipboardProvider: @escaping () throws -> ClipboardContent? = { nil },
         clipboardHistoryProvider: @escaping ([String], Int) throws -> ClipboardHistorySnapshot = { _, _ in
@@ -699,7 +705,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.selectedTextProvider = selectedTextProvider
-        self.selectedTextCopyFallbackProvider = selectedTextCopyFallbackProvider
         self.clipboardWriter = clipboardWriter
         self.currentClipboardProvider = currentClipboardProvider
         self.clipboardHistoryProvider = clipboardHistoryProvider
@@ -799,19 +804,24 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("read_selected_text expects null")
+            let bestEffort: Bool
+            switch request.input {
+            case .null: bestEffort = false
+            case .object(["best_effort": .bool(true)]): bestEffort = true
+            default:
+                throw PluginHostServiceError.invalidInput("read_selected_text expects null or {\"best_effort\": true}")
             }
-            let copyFallbackIsAuthorized = grantStore.isGranted(
-                .readCurrentClipboard,
-                for: action.commandID,
-                in: package.manifest,
-                dataType: "text"
-            )
-            if copyFallbackIsAuthorized, let selectedTextCopyFallbackProvider {
-                return .string(try selectedTextCopyFallbackProvider())
+            let allowsCopyFallback = grantStore.allowsSelectedTextCopyFallback(for: action.commandID, in: package.manifest)
+            do {
+                return .string(try selectedTextProvider(allowsCopyFallback))
+            } catch {
+                // A failed Host Service ends the Plugin's Action, so a Plugin
+                // with its own fallback asks for null instead. Refusals were
+                // checked above and are never softened this way.
+                guard bestEffort else { throw error }
+                if case PluginHostServiceError.systemPermissionDenied = error { throw error }
+                return .null
             }
-            return .string(try selectedTextProvider())
         case .writeClipboard:
             guard case .string(let text) = request.input else {
                 throw PluginHostServiceError.invalidInput(

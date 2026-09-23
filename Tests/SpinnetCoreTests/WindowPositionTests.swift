@@ -286,7 +286,7 @@ final class WindowPositionTests: XCTestCase {
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility() },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: read, focusedWindowFrameSetter: set,
             focusedWindowFullScreenToggler: toggleFullScreen
         )

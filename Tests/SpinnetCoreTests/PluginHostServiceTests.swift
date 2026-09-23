@@ -53,7 +53,7 @@ final class PluginHostServiceTests: XCTestCase {
         var presentations = 0
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             clipboardHistoryProvider: { types, offset in try store.query(dataTypes: types, offset: offset) },
             clipboardHistoryPresenter: { _, _ in presentations += 1 }
         )
@@ -224,7 +224,7 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: store,
             systemPermissionCheck: { _ in accessibilityGranted },
-            selectedTextProvider: { "selected text" },
+            selectedTextProvider: { _ in "selected text" },
             clipboardWriter: { clipboardValue = $0 }
         )
 
@@ -315,8 +315,8 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "AX selection" },
-            selectedTextCopyFallbackProvider: {
+            selectedTextProvider: { allowingCopyFallback in
+                guard allowingCopyFallback else { return "AX selection" }
                 fallbackReads += 1
                 return "temporary clipboard text"
             },
@@ -348,6 +348,59 @@ final class PluginHostServiceTests: XCTestCase {
         XCTAssertEqual(try broker.execute(request: request(.readSelectedText), for: package, action: action),
                        .string("temporary clipboard text"))
         XCTAssertEqual(fallbackReads, 1)
+    }
+
+    func testBestEffortSelectedTextReadReturnsNullOnlyForAnUnreadableSelection() throws {
+        let command = CommandDeclaration(
+            id: CommandID("selection.read"), title: "Read Selection",
+            execution: .javascript, script: "selection.js"
+        )
+        let manifest = try PluginManifest(
+            id: PluginID("com.example.selection-reader"), name: "Selection Reader", version: "1.0.0",
+            capabilities: [.readSelectedText], commands: [command]
+        )
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/selection-reader"), manifest: manifest)
+        let action = try ActionConfiguration(id: ActionID("selection.read"), pluginID: manifest.id,
+                                             command: command, input: .null)
+        let grants = PluginCapabilityGrantStore()
+        var accessibilityGranted = true
+        var selection: () throws -> String = { "Selected" }
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in accessibilityGranted },
+            selectedTextProvider: { _ in try selection() },
+            clipboardWriter: { _ in }
+        )
+        func read(_ input: JSONValue) throws -> JSONValue {
+            try broker.execute(
+                request: PluginRuntimeHostServiceRequest(invocationID: "invocation-1", actionID: action.id,
+                                                         service: .readSelectedText, input: input),
+                for: package, action: action
+            )
+        }
+        let bestEffort: JSONValue = .object(["best_effort": .bool(true)])
+
+        // Refusals are never softened into "unreadable".
+        XCTAssertThrowsError(try read(bestEffort)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.readSelectedText))
+        }
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .readSelectedText)
+        accessibilityGranted = false
+        XCTAssertThrowsError(try read(bestEffort)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .systemPermissionDenied(.accessibility))
+        }
+        accessibilityGranted = true
+
+        XCTAssertEqual(try read(bestEffort), .string("Selected"))
+        selection = { "" }
+        XCTAssertEqual(try read(bestEffort), .string(""), "Nothing selected is still a successful read")
+        selection = { throw PluginHostServiceError.failed("No readable selection") }
+        XCTAssertEqual(try read(bestEffort), .null)
+        XCTAssertThrowsError(try read(.null), "Without best_effort an unreadable selection still fails")
+        XCTAssertThrowsError(try read(.object(["best_effort": .bool(false)]))) {
+            XCTAssertEqual($0 as? PluginHostServiceError,
+                           .invalidInput("read_selected_text expects null or {\"best_effort\": true}"))
+        }
     }
 
     func testBrokerRejectsAServiceThePluginDidNotDeclare() throws {
@@ -385,7 +438,7 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: store,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "selected text" },
+            selectedTextProvider: { _ in "selected text" },
             clipboardWriter: { _ in }
         )
         let request = PluginRuntimeHostServiceRequest(

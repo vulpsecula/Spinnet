@@ -36,7 +36,7 @@ final class PluginRuntimeTests: XCTestCase {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .readClipboardHistory, scope: package.manifest.scope(for: .readClipboardHistory))
         var queries = 0
         var presentations = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { "" }, clipboardWriter: { _ in },
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             clipboardHistoryProvider: { types, offset in queries += 1; return try store.query(dataTypes: types, offset: offset) },
             clipboardHistoryPresenter: { shownPackage, shownAction in
                 XCTAssertEqual(shownPackage.manifest.id, package.manifest.id)
@@ -69,7 +69,7 @@ final class PluginRuntimeTests: XCTestCase {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
         )
         func run(_ commandID: String) throws -> JSONValue {
@@ -109,7 +109,7 @@ final class PluginRuntimeTests: XCTestCase {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
         )
         func assertLayouts(_ expected: KeyValuePairs<String, WindowRect>, file: StaticString = #filePath, line: UInt = #line) throws {
@@ -196,7 +196,7 @@ final class PluginRuntimeTests: XCTestCase {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: { FocusedWindow(frame: current, visibleFrame: visible) },
             focusedWindowFrameSetter: { frames.append($0) }
         )
@@ -279,7 +279,7 @@ final class PluginRuntimeTests: XCTestCase {
                      set: @escaping (WindowRect) throws -> Void) throws -> ActionTerminalOutcome {
             let broker = CapabilityCheckedHostServiceBroker(
                 grantStore: grants, systemPermissionCheck: { _ in true },
-                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
                 focusedWindowProvider: read, focusedWindowFrameSetter: set
             )
             return HostActionRunner(
@@ -328,7 +328,7 @@ final class PluginRuntimeTests: XCTestCase {
         func outcome(toggle: @escaping () throws -> Void) throws -> ActionTerminalOutcome {
             let broker = CapabilityCheckedHostServiceBroker(
                 grantStore: grants, systemPermissionCheck: { _ in true },
-                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
                 focusedWindowProvider: {
                     reads += 1
                     return FocusedWindow(frame: WindowRect(x: 0, y: 0, width: 10, height: 10),
@@ -377,7 +377,7 @@ final class PluginRuntimeTests: XCTestCase {
         var frames: [WindowRect] = []
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
         )
         func move(_ frame: WindowRect, on index: Int, of displays: [WindowRect], _ commandID: String) throws -> WindowRect? {
@@ -440,7 +440,7 @@ final class PluginRuntimeTests: XCTestCase {
         func outcome(restore: @escaping () throws -> Void) throws -> ActionTerminalOutcome {
             let broker = CapabilityCheckedHostServiceBroker(
                 grantStore: grants, systemPermissionCheck: { _ in true },
-                selectedTextProvider: { "" }, clipboardWriter: { _ in },
+                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
                 focusedWindowProvider: { reads += 1; throw PluginHostServiceError.unavailable("No focused window") },
                 focusedWindowFrameSetter: { frames.append($0) },
                 focusedWindowFrameRestorer: restore
@@ -1003,7 +1003,7 @@ final class PluginRuntimeTests: XCTestCase {
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-            systemPermissionCheck: { _ in true }, selectedTextProvider: {
+            systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in
                 entered.signal()
                 _ = release.wait(timeout: .now() + 5)
                 return "late result"
@@ -1110,7 +1110,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "Spinnet Plugin fixture" },
+            selectedTextProvider: { _ in "Spinnet Plugin fixture" },
             clipboardWriter: { clipboardValue = $0 }
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: helperURL)
@@ -1162,7 +1162,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "Spinnet Plugin fixture" },
+            selectedTextProvider: { _ in "Spinnet Plugin fixture" },
             clipboardWriter: { clipboardValue = $0 }
         )
         let runner = HostActionRunner(
@@ -1222,7 +1222,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: {
+            selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
@@ -1276,7 +1276,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: {
+            selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
@@ -1329,7 +1329,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in false },
-            selectedTextProvider: {
+            selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
@@ -1381,7 +1381,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: {
+            selectedTextProvider: { _ in
                 grantStore.setDecision(
                     .denied,
                     for: package.manifest.id,
@@ -1443,7 +1443,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "selected text" },
+            selectedTextProvider: { _ in "selected text" },
             clipboardWriter: { _ in }
         )
 
@@ -2015,7 +2015,7 @@ final class PluginRuntimeTests: XCTestCase {
             }
             var writes = 0
             let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-                systemPermissionCheck: { _ in true }, selectedTextProvider: { "example" },
+                systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "example" },
                 clipboardWriter: { _ in writes += 1 })
             var processes: [Process] = []
             let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
@@ -2055,7 +2055,7 @@ final class PluginRuntimeTests: XCTestCase {
         let release = DispatchSemaphore(value: 1)
         defer { release.signal(); release.signal() }
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-            systemPermissionCheck: { _ in true }, selectedTextProvider: {
+            systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in
                 entered.signal()
                 guard release.wait(timeout: .now() + 3) == .success else {
                     throw PluginRuntimeError.timedOut

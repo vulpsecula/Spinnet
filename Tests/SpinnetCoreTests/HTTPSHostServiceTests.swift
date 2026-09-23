@@ -77,7 +77,7 @@ final class HTTPSHostServiceTests: XCTestCase {
     private var broker: CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             httpsTransport: transport, credentialStore: credentials
         )
     }

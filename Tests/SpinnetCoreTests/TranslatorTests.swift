@@ -220,7 +220,7 @@ extension PluginRuntimeTests {
         var selectionReads = 0
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { selectionReads += 1; return selection }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in selectionReads += 1; return selection }, clipboardWriter: { _ in },
             currentClipboardProvider: { clipboardText.map { ClipboardContent(text: $0, type: .text) } },
             httpsTransport: transport, credentialStore: credentials,
             resultsPresenter: { session = $0 },

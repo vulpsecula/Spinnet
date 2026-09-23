@@ -252,7 +252,7 @@ final class SmartJumpTests: XCTestCase {
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility() },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             urlOpener: open
         )
     }
@@ -514,7 +514,10 @@ extension PluginRuntimeTests {
                                              command: package.manifest.commands[0], input: .null)
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in accessibility },
-            selectedTextProvider: selection, selectedTextCopyFallbackProvider: copyFallback,
+            selectedTextProvider: { allowingCopyFallback in
+                if allowingCopyFallback, let copyFallback { return try copyFallback() }
+                return try selection()
+            },
             clipboardWriter: copy,
             urlOpener: open,
             smartJumpPresenter: present,

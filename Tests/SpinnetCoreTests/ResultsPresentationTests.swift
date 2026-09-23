@@ -83,7 +83,7 @@ final class ResultsPresentationTests: XCTestCase {
     private func broker(_ transport: HTTPSTransport) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
             grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { "" }, clipboardWriter: { _ in },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             httpsTransport: transport, credentialStore: credentials,
             resultsPresenter: { [unowned self] session in presented.append(session) },
             languageDetector: { [unowned self] _ in detected },
