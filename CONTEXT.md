@@ -13,12 +13,16 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary as an independently installed Plugin, even when its Commands rely on Host-owned services. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. What it may do follows from shipping inside the app bundle, so a copy of its package installed from anywhere else would come back weaker than the Plugin it copies; a removed one is brought back by Plugin Restoration instead.
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary and Documented Plugin Interface as an independently installed Plugin, with one exception: it may present a Host Surface. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. What it may do follows from shipping inside the app bundle, so a copy of its package installed from anywhere else would come back weaker than the Plugin it copies; a removed one is brought back by Plugin Restoration instead.
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:
 An operation the Host implements itself and exposes as its own Library entry. It has no Plugin package and cannot be removed, because it is part of the Host rather than something added to it.
 _Avoid_: Built-in Plugin, Bundled Plugin, native Action
+
+**Host Surface**:
+A window the Host owns and presents on behalf of a Bundled Plugin, which an installed Plugin cannot request.
+_Avoid_: Plugin window, privileged UI
 
 **Plugin Origin**:
 Where a Plugin's package came from — shipped with the app, or installed by the user — which is what decides whether an install may replace it and whether the user may remove it.
@@ -77,8 +81,24 @@ A modal settings surface for editing one Menu Item's instance-specific configura
 _Avoid_: Submenu, secondary window, inspector
 
 **Plugin Settings**:
-Configuration shared by a Plugin across the Menu Items created from its Presets, filled in from the Library before any is placed. A setting the Plugin marks overridable may be set again on one Menu Item.
+Configuration shared by a Plugin across the Menu Items created from its Presets, filled in from the Library before any is placed. A setting the Plugin marks overridable may be set again on one Menu Item, and a Plugin may offer some of its settings as controls in its Plugin Views.
 _Avoid_: Menu Item configuration, Preset defaults
+
+**Plugin View**:
+An interface a Plugin describes as data and the Host renders while one of its Actions runs, such as a form or a detail page. It never contains the Plugin's own markup or native UI.
+_Avoid_: Popup, plugin window, custom UI
+
+**View Session**:
+The span from a Plugin View appearing until it closes, during which the Host keeps the view's state and hands each user interaction to the Plugin as a View Event.
+_Avoid_: Long-running helper, view process
+
+**View Event**:
+One user interaction in a Plugin View, such as editing a field, submitting, or choosing an action, delivered to the Plugin, which answers with the next state of the view.
+_Avoid_: Callback, UI message
+
+**Host-Fetched Section**:
+A part of a Plugin View whose request the Host sends and whose answer the Host shows, so the Plugin need not see the answer; the Plugin declares whether the answer is also delivered to it.
+_Avoid_: Result popup, remote section
 
 **Appearance**:
 The global visual configuration shared by a Menu's Editor Mode and Runtime Mode, excluding Menu Item-specific aliases, icons, and Action parameters.
@@ -121,16 +141,28 @@ Authority a user grants to a Plugin to access a protected category of Host funct
 _Avoid_: System Permission, entitlement
 
 **Host Service**:
-A controlled operation provided by the Host, whose availability may depend on a Capability and a System Permission.
-_Avoid_: Capability, system API
+A controlled operation provided by the Host for any Plugin that is granted it, never shaped around one Plugin's feature. Its availability may depend on a Capability and a System Permission.
+_Avoid_: Capability, system API, Plugin-specific service
+
+**Credential Use**:
+A Plugin-declared way for the Host to place a stored credential into a request, or sign a request with it, as the request is sent. The Plugin never sees the credential or any value derived from it.
+_Avoid_: Signing oracle, credential digest, API key access
 
 **External App**:
 An application installed outside Spinnet that exposes an app-owned integration interface, such as a URL scheme or Apple Events API.
 _Avoid_: Plugin, dependency
 
 **External App Adapter**:
-A Plugin that maps its Commands to the documented integration interface of a specific External App without granting the Plugin general control over installed applications.
+A Plugin that maps its Commands to a specific External App's Reviewed App Interface or Deep Link Templates, without gaining general control over installed applications.
 _Avoid_: External App, universal app integration
+
+**Reviewed App Interface**:
+The Host's reviewed description of the Apple Events operations one External App accepts, from which an External App Adapter may choose. Adding one is a Host release.
+_Avoid_: Host adapter, AppleScript bridge
+
+**Deep Link Template**:
+A link into an External App's documented URL interface, declared by a Plugin with bounded parameters and consented to by the user.
+_Avoid_: URL action, custom scheme
 
 **Sensitive Data Collection**:
 An explicit Host-level opt-in that permits Spinnet to continuously collect and retain a named category of sensitive system data, such as clipboard history. It is separate from a Plugin's Capability to read collected data.
@@ -157,7 +189,7 @@ An independently deployed online service that analyzes a PopClip Extension and, 
 _Avoid_: Compatibility runtime, URL importer, marketplace
 
 **Spinnet-Owned Code**:
-Source and other material in the main repository that Spinnet has the right to license. It excludes third-party Plugins, converted Plugins, dependencies, and separately licensed assets.
+Source and other material in Spinnet's own repositories that Spinnet has the right to license. It excludes third-party Plugins, converted Plugins, dependencies, and separately licensed assets.
 _Avoid_: Entire repository, all bundled code, open-source code
 
 **Upstream Licence**:
@@ -165,9 +197,13 @@ The licence supplied by the rights holder of a third-party Plugin, PopClip Exten
 _Avoid_: Spinnet License, marketplace licence
 
 **Independent Plugin**:
-A Plugin that is not based on Spinnet-Owned Code and interacts with the Host exclusively through the Documented Plugin Interface. Its Upstream Licence is not replaced by the Host's GPL solely because of that interaction.
+A Plugin that interacts with the Host exclusively through the Documented Plugin Interface and uses no Spinnet-Owned Code beyond what Spinnet publishes under a permissive licence for Plugin authors. Its Upstream Licence is not replaced by the Host's GPL solely because of that interaction.
 _Avoid_: GPL Plugin, bundled code, Host module
 
 **Documented Plugin Interface**:
-The public manifest schemas, message protocols, Command interfaces, Host Services, and Plugin APIs expressly supported for third-party Plugin interoperability.
+The public manifest schemas, message protocols, Command interfaces, Host Services, and Plugin APIs expressly supported for third-party Plugin interoperability, versioned by Plugin API Level.
 _Avoid_: Host internals, private API, ABI
+
+**Plugin API Level**:
+The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level.
+_Avoid_: SDK version, protocol version
