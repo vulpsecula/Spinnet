@@ -1,0 +1,22 @@
+{
+  "com.spinnet.smart-jump": {
+    "search_engines": "DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}\nScholar | https://scholar.google.com/scholar?q={query}"
+  },
+  "com.spinnet.translator": {
+    "auto_detect": true,
+    "deepl_credential": "deepl",
+    "deepl_endpoint": "https://api.deepl.com",
+    "formality": "prefer_less",
+    "google_endpoint": "https://clients5.google.com",
+    "openai_credential": "openai-work",
+    "openai_endpoint": "https://llm.example.org/v1",
+    "openai_model": "gpt-4.1-mini",
+    "source_language": "EN-GB",
+    "sources": [
+      "DeepL",
+      "OpenAI",
+      "Google"
+    ],
+    "target_language": "ZH-HANS"
+  }
+}

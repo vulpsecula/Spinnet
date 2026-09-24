@@ -1,0 +1,740 @@
+{
+  "actions": [
+    {
+      "commandID": "translator.selection",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Selection"
+    },
+    {
+      "commandID": "translator.input",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000002",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Input"
+    },
+    {
+      "commandID": "translator.clipboard",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Clipboard"
+    },
+    {
+      "commandID": "smart_jump.open_selection",
+      "execution": "javascript",
+      "id": "5A000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.smart-jump",
+      "script": "open.js",
+      "title": "Open Selected Link"
+    },
+    {
+      "commandID": "window.center",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Centre Window"
+    },
+    {
+      "commandID": "window.maximize",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000002",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Maximise Window"
+    },
+    {
+      "commandID": "window.left_half",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Left Half"
+    },
+    {
+      "commandID": "window.right_half",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000004",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Right Half"
+    },
+    {
+      "commandID": "window.top_half",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000005",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Half"
+    },
+    {
+      "commandID": "window.bottom_half",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000006",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Half"
+    },
+    {
+      "commandID": "window.first_third",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000007",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "First Third"
+    },
+    {
+      "commandID": "window.center_third",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000008",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Centre Third"
+    },
+    {
+      "commandID": "window.last_third",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000009",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Last Third"
+    },
+    {
+      "commandID": "window.first_two_thirds",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000010",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "First Two Thirds"
+    },
+    {
+      "commandID": "window.last_two_thirds",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000011",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Last Two Thirds"
+    },
+    {
+      "commandID": "window.top_left_quarter",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000012",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Left Quarter"
+    },
+    {
+      "commandID": "window.top_right_quarter",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000013",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Right Quarter"
+    },
+    {
+      "commandID": "window.bottom_left_quarter",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000014",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Left Quarter"
+    },
+    {
+      "commandID": "window.bottom_right_quarter",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000015",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Right Quarter"
+    },
+    {
+      "commandID": "window.first_fourth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000016",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "First Fourth"
+    },
+    {
+      "commandID": "window.second_fourth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000017",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Second Fourth"
+    },
+    {
+      "commandID": "window.third_fourth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000018",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Third Fourth"
+    },
+    {
+      "commandID": "window.last_fourth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000019",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Last Fourth"
+    },
+    {
+      "commandID": "window.top_left_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000020",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Left Sixth"
+    },
+    {
+      "commandID": "window.top_center_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000021",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Centre Sixth"
+    },
+    {
+      "commandID": "window.top_right_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000022",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Top Right Sixth"
+    },
+    {
+      "commandID": "window.bottom_left_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000023",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Left Sixth"
+    },
+    {
+      "commandID": "window.bottom_center_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000024",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Centre Sixth"
+    },
+    {
+      "commandID": "window.bottom_right_sixth",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000025",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Bottom Right Sixth"
+    },
+    {
+      "commandID": "window.maximize_height",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000026",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Maximise Height"
+    },
+    {
+      "commandID": "window.maximize_width",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000027",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Maximise Width"
+    },
+    {
+      "commandID": "window.reasonable_size",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000028",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Reasonable Size"
+    },
+    {
+      "commandID": "window.move_up",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000029",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Move Up"
+    },
+    {
+      "commandID": "window.move_down",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000030",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Move Down"
+    },
+    {
+      "commandID": "window.move_left",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000031",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Move Left"
+    },
+    {
+      "commandID": "window.move_right",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000032",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "position.js",
+      "title": "Move Right"
+    },
+    {
+      "commandID": "window.toggle_full_screen",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000033",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "full-screen.js",
+      "title": "Toggle Full Screen"
+    },
+    {
+      "commandID": "window.previous_display",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000034",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "display.js",
+      "title": "Previous Display"
+    },
+    {
+      "commandID": "window.next_display",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000035",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "display.js",
+      "title": "Next Display"
+    },
+    {
+      "commandID": "window.restore",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000036",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.window-position",
+      "script": "restore.js",
+      "title": "Restore Window"
+    },
+    {
+      "commandID": "window.resize",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000037",
+      "input": "50%, 100%",
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.window-position",
+      "script": "exact.js",
+      "title": "Resize Window"
+    },
+    {
+      "commandID": "window.move",
+      "execution": "javascript",
+      "id": "3D000000-0000-4000-8000-000000000038",
+      "input": "0, 0",
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.window-position",
+      "script": "exact.js",
+      "title": "Move Window"
+    },
+    {
+      "commandID": "history.browse",
+      "execution": "javascript",
+      "id": "C1000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.clipboard-history",
+      "script": "browse.js",
+      "title": "Browse Clipboard History"
+    },
+    {
+      "commandID": "bob.selection_translate",
+      "execution": "javascript",
+      "id": "B0000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.bob",
+      "script": "translate.js",
+      "title": "Translate Selection with Bob"
+    },
+    {
+      "commandID": "bob.snip_translate",
+      "execution": "javascript",
+      "id": "B0000000-0000-4000-8000-000000000002",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.bob",
+      "script": "translate.js",
+      "title": "Capture and Translate with Bob"
+    },
+    {
+      "commandID": "bob.input_translate",
+      "execution": "javascript",
+      "id": "B0000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.bob",
+      "script": "translate.js",
+      "title": "Translate Input with Bob"
+    },
+    {
+      "commandID": "bob.pasteboard_translate",
+      "execution": "javascript",
+      "id": "B0000000-0000-4000-8000-000000000004",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.bob",
+      "script": "translate.js",
+      "title": "Translate Clipboard with Bob"
+    },
+    {
+      "commandID": "bob.translate_text",
+      "execution": "javascript",
+      "id": "B0000000-0000-4000-8000-000000000005",
+      "input": "Hello, world\n你好，世界",
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.bob",
+      "script": "translate.js",
+      "title": "Translate Configured Text with Bob"
+    },
+    {
+      "commandID": "shottr.capture_area",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture Area with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_fullscreen",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000002",
+      "input": {
+        "copy": false,
+        "edit": false,
+        "pin": false,
+        "save": false,
+        "thumbnail": false
+      },
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture Full Screen with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_window",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture Window with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_repeat_area",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000004",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Repeat Area Capture with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_scrolling",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000005",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture Scrolling Content with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_scrolling_reverse",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000006",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture Reverse Scrolling Content with Shottr"
+    },
+    {
+      "commandID": "shottr.capture_delayed",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000007",
+      "input": {
+        "delay_seconds": "5"
+      },
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Capture after a Delay with Shottr"
+    },
+    {
+      "commandID": "shottr.append_capture",
+      "execution": "javascript",
+      "id": "5B000000-0000-4000-8000-000000000008",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.shottr",
+      "script": "capture.js",
+      "title": "Append Capture with Shottr"
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "翻译",
+          "alternate_action_ids": [
+            "7A000000-0000-4000-8000-000000000002"
+          ],
+          "alternate_action_order": [
+            "7A000000-0000-4000-8000-000000000002",
+            "7A000000-0000-4000-8000-000000000003"
+          ],
+          "disabled_alternate_action_ids": [
+            "7A000000-0000-4000-8000-000000000003"
+          ],
+          "primary_action_id": "7A000000-0000-4000-8000-000000000001"
+        }
+      },
+      {
+        "item": {
+          "alias": "Jump",
+          "alternate_action_ids": [],
+          "primary_action_id": "5A000000-0000-4000-8000-000000000001"
+        }
+      },
+      {
+        "item": {
+          "alternate_action_ids": [
+            "3D000000-0000-4000-8000-000000000001",
+            "3D000000-0000-4000-8000-000000000003",
+            "3D000000-0000-4000-8000-000000000004"
+          ],
+          "alternate_action_order": [
+            "3D000000-0000-4000-8000-000000000001",
+            "3D000000-0000-4000-8000-000000000003",
+            "3D000000-0000-4000-8000-000000000005",
+            "3D000000-0000-4000-8000-000000000006",
+            "3D000000-0000-4000-8000-000000000007",
+            "3D000000-0000-4000-8000-000000000008",
+            "3D000000-0000-4000-8000-000000000009",
+            "3D000000-0000-4000-8000-000000000010",
+            "3D000000-0000-4000-8000-000000000011",
+            "3D000000-0000-4000-8000-000000000012",
+            "3D000000-0000-4000-8000-000000000013",
+            "3D000000-0000-4000-8000-000000000014",
+            "3D000000-0000-4000-8000-000000000015",
+            "3D000000-0000-4000-8000-000000000016",
+            "3D000000-0000-4000-8000-000000000017",
+            "3D000000-0000-4000-8000-000000000018",
+            "3D000000-0000-4000-8000-000000000019",
+            "3D000000-0000-4000-8000-000000000020",
+            "3D000000-0000-4000-8000-000000000021",
+            "3D000000-0000-4000-8000-000000000022",
+            "3D000000-0000-4000-8000-000000000023",
+            "3D000000-0000-4000-8000-000000000024",
+            "3D000000-0000-4000-8000-000000000025",
+            "3D000000-0000-4000-8000-000000000026",
+            "3D000000-0000-4000-8000-000000000027",
+            "3D000000-0000-4000-8000-000000000028",
+            "3D000000-0000-4000-8000-000000000029",
+            "3D000000-0000-4000-8000-000000000030",
+            "3D000000-0000-4000-8000-000000000031",
+            "3D000000-0000-4000-8000-000000000032",
+            "3D000000-0000-4000-8000-000000000033",
+            "3D000000-0000-4000-8000-000000000034",
+            "3D000000-0000-4000-8000-000000000035",
+            "3D000000-0000-4000-8000-000000000036",
+            "3D000000-0000-4000-8000-000000000037",
+            "3D000000-0000-4000-8000-000000000038",
+            "3D000000-0000-4000-8000-000000000004"
+          ],
+          "disabled_alternate_action_ids": [
+            "3D000000-0000-4000-8000-000000000005",
+            "3D000000-0000-4000-8000-000000000006",
+            "3D000000-0000-4000-8000-000000000007",
+            "3D000000-0000-4000-8000-000000000008",
+            "3D000000-0000-4000-8000-000000000009",
+            "3D000000-0000-4000-8000-000000000010",
+            "3D000000-0000-4000-8000-000000000011",
+            "3D000000-0000-4000-8000-000000000012",
+            "3D000000-0000-4000-8000-000000000013",
+            "3D000000-0000-4000-8000-000000000014",
+            "3D000000-0000-4000-8000-000000000015",
+            "3D000000-0000-4000-8000-000000000016",
+            "3D000000-0000-4000-8000-000000000017",
+            "3D000000-0000-4000-8000-000000000018",
+            "3D000000-0000-4000-8000-000000000019",
+            "3D000000-0000-4000-8000-000000000020",
+            "3D000000-0000-4000-8000-000000000021",
+            "3D000000-0000-4000-8000-000000000022",
+            "3D000000-0000-4000-8000-000000000023",
+            "3D000000-0000-4000-8000-000000000024",
+            "3D000000-0000-4000-8000-000000000025",
+            "3D000000-0000-4000-8000-000000000026",
+            "3D000000-0000-4000-8000-000000000027",
+            "3D000000-0000-4000-8000-000000000028",
+            "3D000000-0000-4000-8000-000000000029",
+            "3D000000-0000-4000-8000-000000000030",
+            "3D000000-0000-4000-8000-000000000031",
+            "3D000000-0000-4000-8000-000000000032",
+            "3D000000-0000-4000-8000-000000000033",
+            "3D000000-0000-4000-8000-000000000034",
+            "3D000000-0000-4000-8000-000000000035",
+            "3D000000-0000-4000-8000-000000000036",
+            "3D000000-0000-4000-8000-000000000037",
+            "3D000000-0000-4000-8000-000000000038"
+          ],
+          "primary_action_id": "3D000000-0000-4000-8000-000000000002"
+        }
+      },
+      {
+        "item": {
+          "alternate_action_ids": [],
+          "primary_action_id": "C1000000-0000-4000-8000-000000000001"
+        }
+      },
+      {
+        "item": {
+          "alternate_action_ids": [
+            "B0000000-0000-4000-8000-000000000003",
+            "B0000000-0000-4000-8000-000000000004",
+            "B0000000-0000-4000-8000-000000000002"
+          ],
+          "alternate_action_order": [
+            "B0000000-0000-4000-8000-000000000003",
+            "B0000000-0000-4000-8000-000000000004",
+            "B0000000-0000-4000-8000-000000000002"
+          ],
+          "primary_action_id": "B0000000-0000-4000-8000-000000000001"
+        }
+      },
+      {
+        "item": {
+          "alternate_action_ids": [
+            "5B000000-0000-4000-8000-000000000002",
+            "5B000000-0000-4000-8000-000000000003",
+            "5B000000-0000-4000-8000-000000000004",
+            "5B000000-0000-4000-8000-000000000005",
+            "5B000000-0000-4000-8000-000000000006",
+            "5B000000-0000-4000-8000-000000000007"
+          ],
+          "alternate_action_order": [
+            "5B000000-0000-4000-8000-000000000002",
+            "5B000000-0000-4000-8000-000000000003",
+            "5B000000-0000-4000-8000-000000000004",
+            "5B000000-0000-4000-8000-000000000005",
+            "5B000000-0000-4000-8000-000000000006",
+            "5B000000-0000-4000-8000-000000000007",
+            "5B000000-0000-4000-8000-000000000008"
+          ],
+          "disabled_alternate_action_ids": [
+            "5B000000-0000-4000-8000-000000000008"
+          ],
+          "primary_action_id": "5B000000-0000-4000-8000-000000000001"
+        }
+      },
+      {
+        "item": {
+          "alias": "Bob · Greeting",
+          "alternate_action_ids": [],
+          "primary_action_id": "B0000000-0000-4000-8000-000000000005"
+        }
+      },
+      {
+        "item": null
+      }
+    ]
+  }
+}

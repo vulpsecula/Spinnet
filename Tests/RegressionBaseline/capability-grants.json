@@ -1,0 +1,276 @@
+[
+  {
+    "capability": "control_external_app",
+    "decision": "granted",
+    "pluginID": "com.spinnet.bob",
+    "pluginVersion": "1.0.0",
+    "scope": {
+      "capability": "control_external_app",
+      "command_ids": [
+        "bob.selection_translate",
+        "bob.snip_translate",
+        "bob.input_translate",
+        "bob.pasteboard_translate",
+        "bob.translate_text"
+      ],
+      "data_types": [],
+      "external_apps": [
+        {
+          "bundle_id": "com.hezongyidev.Bob",
+          "operation_families": [
+            "translate"
+          ]
+        }
+      ],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "control_external_app",
+    "decision": "granted",
+    "pluginID": "com.spinnet.bob",
+    "pluginVersion": "1.1.0",
+    "scope": {
+      "capability": "control_external_app",
+      "command_ids": [
+        "bob.selection_translate",
+        "bob.snip_translate",
+        "bob.input_translate",
+        "bob.pasteboard_translate",
+        "bob.translate_text"
+      ],
+      "data_types": [],
+      "external_apps": [
+        {
+          "bundle_id": "com.hezongyidev.Bob",
+          "operation_families": [
+            "translate"
+          ]
+        }
+      ],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_current_clipboard",
+    "decision": "denied",
+    "pluginID": "com.spinnet.bob",
+    "pluginVersion": "1.1.0",
+    "scope": {
+      "capability": "read_current_clipboard",
+      "command_ids": [
+        "bob.selection_translate"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_selected_text",
+    "decision": "granted",
+    "pluginID": "com.spinnet.bob",
+    "pluginVersion": "1.1.0",
+    "scope": {
+      "capability": "read_selected_text",
+      "command_ids": [
+        "bob.selection_translate"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_selected_text",
+    "decision": "granted",
+    "pluginID": "com.spinnet.builtin.copy-selected-text",
+    "pluginVersion": "1.0.0"
+  },
+  {
+    "capability": "write_clipboard",
+    "decision": "granted",
+    "pluginID": "com.spinnet.builtin.copy-selected-text",
+    "pluginVersion": "1.0.0"
+  },
+  {
+    "capability": "capture_screen",
+    "decision": "granted",
+    "pluginID": "com.spinnet.builtin.screenshot",
+    "pluginVersion": "1.0.0"
+  },
+  {
+    "capability": "read_clipboard_history",
+    "decision": "granted",
+    "pluginID": "com.spinnet.clipboard-history",
+    "pluginVersion": "1.1.0",
+    "scope": {
+      "capability": "read_clipboard_history",
+      "command_ids": [
+        "history.browse"
+      ],
+      "data_types": [
+        "text",
+        "url",
+        "image",
+        "rich_text",
+        "file_reference",
+        "binary"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": true
+    }
+  },
+  {
+    "capability": "control_external_app",
+    "decision": "granted",
+    "pluginID": "com.spinnet.shottr",
+    "pluginVersion": "1.0.0",
+    "scope": {
+      "capability": "control_external_app",
+      "command_ids": [
+        "shottr.capture_area",
+        "shottr.capture_fullscreen",
+        "shottr.capture_window",
+        "shottr.capture_repeat_area",
+        "shottr.capture_scrolling",
+        "shottr.capture_scrolling_reverse",
+        "shottr.capture_delayed",
+        "shottr.append_capture"
+      ],
+      "data_types": [],
+      "external_apps": [
+        {
+          "bundle_id": "cc.ffitch.shottr",
+          "operation_families": [
+            "capture"
+          ]
+        }
+      ],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "open_local_path",
+    "decision": "denied",
+    "pluginID": "com.spinnet.smart-jump",
+    "pluginVersion": "2.0.0"
+  },
+  {
+    "capability": "open_url",
+    "decision": "granted",
+    "pluginID": "com.spinnet.smart-jump",
+    "pluginVersion": "2.0.0"
+  },
+  {
+    "capability": "read_current_clipboard",
+    "decision": "granted",
+    "pluginID": "com.spinnet.smart-jump",
+    "pluginVersion": "2.0.0",
+    "scope": {
+      "capability": "read_current_clipboard",
+      "command_ids": [
+        "smart_jump.open_selection"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_selected_text",
+    "decision": "granted",
+    "pluginID": "com.spinnet.smart-jump",
+    "pluginVersion": "2.0.0"
+  },
+  {
+    "capability": "write_clipboard",
+    "decision": "granted",
+    "pluginID": "com.spinnet.smart-jump",
+    "pluginVersion": "2.0.0"
+  },
+  {
+    "capability": "contact_https",
+    "decision": "granted",
+    "pluginID": "com.spinnet.translator",
+    "pluginVersion": "2.1.0",
+    "scope": {
+      "capability": "contact_https",
+      "command_ids": [
+        "translator.selection",
+        "translator.input",
+        "translator.clipboard"
+      ],
+      "consented_https_hosts": [
+        "llm.example.org"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [
+        "api-free.deepl.com",
+        "api.deepl.com",
+        "clients5.google.com",
+        "api.openai.com"
+      ],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_current_clipboard",
+    "decision": "not_determined",
+    "pluginID": "com.spinnet.translator",
+    "pluginVersion": "2.1.0",
+    "scope": {
+      "capability": "read_current_clipboard",
+      "command_ids": [
+        "translator.selection",
+        "translator.clipboard"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "read_selected_text",
+    "decision": "granted",
+    "pluginID": "com.spinnet.translator",
+    "pluginVersion": "2.1.0",
+    "scope": {
+      "capability": "read_selected_text",
+      "command_ids": [
+        "translator.selection"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "external_apps": [],
+      "https_hosts": [],
+      "includes_existing_host_data": false
+    }
+  },
+  {
+    "capability": "position_focused_window",
+    "decision": "granted",
+    "pluginID": "com.spinnet.window-position",
+    "pluginVersion": "1.0.0"
+  }
+]

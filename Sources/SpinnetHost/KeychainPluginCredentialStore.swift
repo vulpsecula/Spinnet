@@ -5,9 +5,17 @@ import SpinnetCore
 /// Keeps Plugin credentials as generic passwords in the user's Keychain, one
 /// item per Plugin and credential reference, readable only on this device.
 final class KeychainPluginCredentialStore: PluginCredentialStore {
+    static let defaultService = "com.vulpsecula.Spinnet.plugin-credential"
+
+    /// The Keychain item's account. Stored items are found by it, so it
+    /// cannot change without moving every secret a user already saved.
+    static func account(for pluginID: PluginID, reference: String) -> String {
+        "\(pluginID.rawValue)/\(reference)"
+    }
+
     private let service: String
 
-    init(service: String = "com.vulpsecula.Spinnet.plugin-credential") {
+    init(service: String = defaultService) {
         self.service = service
     }
 
@@ -15,7 +23,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: "\(pluginID.rawValue)/\(reference)"
+            kSecAttrAccount as String: Self.account(for: pluginID, reference: reference)
         ]
     }
 

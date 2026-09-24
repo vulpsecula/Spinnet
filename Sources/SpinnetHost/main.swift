@@ -91,23 +91,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let bundledPlugins = try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
-            // Before decisions for Plugins that are gone are discarded below.
-            ScreenshotPluginMigration.carryGrant(in: capabilityGrants)
-            let registeredManifests = registry.manifests()
-            for registeredManifest in registeredManifests {
-                capabilityGrants.register(
-                    pluginID: registeredManifest.id,
-                    pluginVersion: registeredManifest.version,
-                    capabilities: registeredManifest.capabilities
-                )
-            }
             // Discovery has finished, so anything still holding a decision is
             // a Plugin that is gone. A launch that read no Bundled Plugin
             // cannot tell those apart from the ones it never read, and its
             // decisions belong to the packaged Host that does read them.
-            if bundledPlugins.accountsForBundledPlugins {
-                capabilityGrants.discardGrants(outside: Set(registeredManifests.map(\.id)))
-            }
+            StoredDataMigration.reconcileCapabilityGrants(
+                capabilityGrants,
+                with: registry.manifests(),
+                discardingOthers: bundledPlugins.accountsForBundledPlugins
+            )
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)
@@ -355,29 +347,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// "never configured".
     private func loadConfiguration() throws -> HostConfiguration {
         if let storedConfiguration = try configurationStore.load() {
-            // Menu Items built from the retired Screenshot Plugin move onto
-            // the Host Commands once, and the result is kept.
-            ScreenshotPluginMigration.seedSettings(from: storedConfiguration, in: .standard)
-            var configuration = try ScreenshotPluginMigration.migrate(storedConfiguration) ?? storedConfiguration
-            // Translator 2 retired two Commands; their Actions move onto the new ones.
-            configuration = try TranslatorCommandMigration.migrate(
-                configuration, manifest: registry.package(for: TranslatorCommandMigration.pluginID)?.manifest
-            ) ?? configuration
-            // Actions from before their Plugin declared settings carried every
-            // value; those move into Plugin Settings once.
-            if let pluginSettings {
-                let translator = TranslatorCommandMigration.pluginID
-                if let renamed = TranslatorCommandMigration.migrateSettings(pluginSettings.values(for: translator)) {
-                    try pluginSettings.setValues(renamed, for: translator)
-                }
-                for manifest in registry.manifests() where manifest.hasSettings {
-                    let stored = pluginSettings.hasValues(for: manifest.id) ? pluginSettings.values(for: manifest.id) : nil
-                    guard let result = try PluginSettingsMigration.migrate(configuration, manifest: manifest,
-                                                                          storedSettings: stored) else { continue }
-                    if let seeded = result.settings { try pluginSettings.setValues(seeded, for: manifest.id) }
-                    configuration = result.configuration
-                }
-            }
+            let configuration = try StoredDataMigration.migrate(
+                storedConfiguration, registry: registry, pluginSettings: pluginSettings, defaults: .standard
+            )
             if configuration != storedConfiguration { try configurationStore.save(configuration) }
             return configuration
         }
@@ -702,17 +674,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let fileURL = capabilityGrantsFileURL()
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do {
-            let data = try Data(contentsOf: fileURL)
-            let grants = try JSONDecoder().decode([PluginCapabilityGrant].self, from: data)
-            for grant in grants {
-                capabilityGrants.setDecision(
-                    grant.decision,
-                    for: grant.pluginID,
-                    pluginVersion: grant.pluginVersion,
-                    capability: grant.capability,
-                    scope: grant.scope
-                )
-            }
+            try StoredDataMigration.restoreCapabilityGrants(from: Data(contentsOf: fileURL), into: capabilityGrants)
         } catch {
             throw ConfigurationError.persistence(
                 "Capability grants could not be loaded: \(error.localizedDescription)"
@@ -722,9 +684,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     private func saveCapabilityGrants() throws {
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(capabilityGrants.allGrants)
+            let data = try StoredDataMigration.encodeCapabilityGrants(capabilityGrants)
             let fileURL = capabilityGrantsFileURL()
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),

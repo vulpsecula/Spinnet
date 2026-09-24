@@ -1,0 +1,7 @@
+{
+  "service": "com.vulpsecula.Spinnet.plugin-credential",
+  "accounts": [
+    "com.spinnet.translator/deepl",
+    "com.spinnet.translator/openai-work"
+  ]
+}
