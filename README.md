@@ -159,9 +159,9 @@ Capability revocation, and Host shutdown retire helpers immediately.
 Clipboard History collection defaults off. While enabled, the Host retains
 copies locally in owner-only storage and exposes them to a Plugin only through
 a granted, type-scoped `read_clipboard_history` Capability. Opening the
-Host-rendered history window is a separate Host Service reserved for a Bundled
-Plugin, because it is a Host privilege rather than something the Capability
-grants.
+Host-rendered history window is a separate Host Service that the same grant
+allows, whichever Plugin asks: the user reads their own data there, and the
+Plugin learns nothing from it.
 
 The manifest shape, helper protocol, Host Command catalogue, and Clipboard
 History contract are documented in
