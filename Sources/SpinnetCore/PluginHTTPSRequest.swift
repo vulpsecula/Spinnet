@@ -34,6 +34,16 @@ public enum HTTPSRequestBudgets {
     /// Request headers a Plugin may set.
     public static let maximumHeaders = 32
 
+    /// Credential Uses one request may name.
+    public static let maximumCredentialUses = 4
+
+    /// Longest Credential Use placement template, HMAC key template, or HMAC
+    /// chain step, in characters.
+    public static let maximumCredentialTemplateLength = 1024
+
+    /// Steps an HMAC chain may sign before its message.
+    public static let maximumHMACChainSteps = 8
+
     /// Methods a Plugin may use.
     public static let methods: Set<String> = ["GET", "POST"]
 
@@ -92,28 +102,20 @@ public protocol HTTPSTransport {
 }
 
 /// Validates one `https_request` input and performs it within the consented
-/// hosts. The Plugin's input never carries a secret; the Host looks one up by
-/// reference and adds it to the request itself.
+/// hosts. The Plugin's input never carries a secret; it names one in its
+/// Credential Uses, and the Host looks it up by reference and applies it to
+/// the request itself.
 struct PluginHTTPSRequestPerformer {
     let transport: HTTPSTransport
     let consentedHosts: [String]
     let credential: (String) throws -> String?
     var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
-    private struct CredentialPlacement {
-        let reference: String
-        let header: String
-        let format: String
-    }
-
-    /// A request whose shape, destination, and headers have been checked,
-    /// before any secret is looked up or anything is sent.
+    /// A request whose shape, destination, headers, and Credential Uses have
+    /// been checked, before any secret is looked up or anything is sent.
     private struct Prepared {
-        let method: String
-        let url: URL
-        let headers: [String: String]
-        let body: Data?
-        let placement: CredentialPlacement?
+        let request: CredentialUse.Request
+        let credentialUses: [CredentialUse]
     }
 
     func perform(_ input: JSONValue) throws -> JSONValue {
@@ -128,8 +130,10 @@ struct PluginHTTPSRequestPerformer {
 
     private func prepare(_ input: JSONValue) throws -> Prepared {
         guard case .object(let fields) = input,
-              Set(fields.keys).isSubset(of: ["method", "url", "headers", "body", "credential"]) else {
-            throw PluginHostServiceError.invalidInput("https_request expects method, url, and optional headers, body, and credential")
+              Set(fields.keys).isSubset(of: ["method", "url", "headers", "body", "credential", "credential_uses"]) else {
+            throw PluginHostServiceError.invalidInput(
+                "https_request expects method, url, and optional headers, body, and credential_uses"
+            )
         }
         guard case .string(let method) = fields["method"], HTTPSRequestBudgets.methods.contains(method) else {
             throw PluginHostServiceError.invalidInput("https_request method must be GET or POST")
@@ -154,33 +158,37 @@ struct PluginHTTPSRequestPerformer {
         default:
             throw PluginHostServiceError.invalidInput("The request body must be a string")
         }
-        let placement = try parseCredential(fields["credential"], headers: headers)
-        return Prepared(method: method, url: url, headers: headers, body: body, placement: placement)
+        let request = CredentialUse.Request(method: method, url: url, headers: headers, body: body)
+        let uses = try parseCredentialUses(fields["credential_uses"], legacy: fields["credential"], for: request)
+        return Prepared(request: request, credentialUses: uses)
     }
 
     private func send(_ prepared: Prepared) throws -> JSONValue {
-        let (method, url, headers) = (prepared.method, prepared.url, prepared.headers)
-        var body = prepared.body
-        var secretHeader: (name: String, value: String)?
-        if let placement = prepared.placement {
-            guard let secret = try credential(placement.reference), !secret.isEmpty else {
+        // The request as the Plugin wrote it, and as it leaves with its
+        // Credential Uses applied. Only the original host ever sees the second.
+        let plain = prepared.request
+        var credentialed = plain
+        for use in prepared.credentialUses {
+            guard let secret = try credential(use.reference), !secret.isEmpty else {
                 throw PluginHostServiceError.failed(
-                    "No credential is stored for reference \(placement.reference); enter it in the Configuration Sheet"
+                    "No credential is stored for reference \(use.reference); enter it in the Configuration Sheet"
                 )
             }
-            secretHeader = (placement.header, placement.format.replacingOccurrences(of: "{credential}", with: secret))
+            try use.apply(use.value(with: secret), to: &credentialed)
         }
 
         let deadline = now() + HTTPSRequestBudgets.timeout
-        let originalHost = url.host?.lowercased()
-        var current = url
-        var currentMethod = method
+        let originalHost = plain.url.host?.lowercased()
+        var current = credentialed.url
+        var currentMethod = plain.method
+        var keepsBody = true
         var redirects = 0
         while true {
-            var sent = headers
-            if let secretHeader, current.host?.lowercased() == originalHost {
-                sent[secretHeader.name] = secretHeader.value
-            }
+            // A redirect to another host gets the request without any
+            // credential: no placed header, and the body as the Plugin wrote it.
+            let isOriginalHost = current.host?.lowercased() == originalHost
+            let sent = isOriginalHost ? credentialed.headers : plain.headers
+            let body = keepsBody ? (isOriginalHost ? credentialed.body : plain.body) : nil
             let remaining = deadline - now()
             guard remaining > 0 else { throw PluginHostServiceError.failed("The request timed out") }
             let response: HTTPSTransportResponse
@@ -208,7 +216,7 @@ struct PluginHTTPSRequestPerformer {
                 try requireConsented(next, isRedirect: true)
                 if response.status == 303 || (currentMethod == "POST" && [301, 302].contains(response.status)) {
                     currentMethod = "GET"
-                    body = nil
+                    keepsBody = false
                 }
                 current = next
                 continue
@@ -250,22 +258,6 @@ struct PluginHTTPSRequestPerformer {
         }
     }
 
-    /// Headers that carry identity, framing, or routing belong to the Host.
-    private static let reservedHeaders: Set<String> = [
-        "authorization", "proxy-authorization", "cookie", "cookie2", "set-cookie", "host",
-        "content-length", "connection", "transfer-encoding", "te", "trailer", "upgrade",
-        "expect", "keep-alive", "via", "forwarded"
-    ]
-
-    private static func isToken(_ name: String) -> Bool {
-        let allowed = CharacterSet(charactersIn: "!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        return !name.isEmpty && name.count <= 64 && name.unicodeScalars.allSatisfy { allowed.contains($0) }
-    }
-
-    private static func isSafeValue(_ value: String) -> Bool {
-        value.count <= 4096 && !value.unicodeScalars.contains { $0 == "\r" || $0 == "\n" || $0 == "\0" }
-    }
-
     private func parseHeaders(_ value: JSONValue?) throws -> [String: String] {
         guard let value, value != .null else { return [:] }
         guard case .object(let fields) = value, fields.count <= HTTPSRequestBudgets.maximumHeaders else {
@@ -275,9 +267,8 @@ struct PluginHTTPSRequestPerformer {
         var seen = Set<String>()
         for (name, value) in fields {
             let lowered = name.lowercased()
-            guard Self.isToken(name), seen.insert(lowered).inserted,
-                  !Self.reservedHeaders.contains(lowered), !lowered.hasPrefix("proxy-"), !lowered.hasPrefix("sec-"),
-                  case .string(let text) = value, Self.isSafeValue(text) else {
+            guard HTTPSHeaderRules.isToken(name), seen.insert(lowered).inserted, !HTTPSHeaderRules.isReserved(lowered),
+                  case .string(let text) = value, HTTPSHeaderRules.isSafeValue(text) else {
                 throw PluginHostServiceError.invalidInput("Header \(name) is not allowed; credentials are added by the Host")
             }
             headers[name] = text
@@ -285,36 +276,29 @@ struct PluginHTTPSRequestPerformer {
         return headers
     }
 
-    private func parseCredential(_ value: JSONValue?, headers: [String: String]) throws -> CredentialPlacement? {
-        guard let value, value != .null else { return nil }
-        guard case .object(let fields) = value,
-              Set(fields.keys).isSubset(of: ["reference", "header", "format"]),
-              case .string(let reference) = fields["reference"], PluginCredentialReference.isValid(reference) else {
-            throw PluginHostServiceError.invalidInput("credential expects a reference, and optional header and format")
-        }
-        var header = "Authorization"
-        if let named = fields["header"] {
-            guard case .string(let name) = named else {
-                throw PluginHostServiceError.invalidInput("credential header must be a string")
+    /// `credential_uses`, plus the single-header `credential` that came
+    /// before them, each checked against the request it applies to.
+    private func parseCredentialUses(_ value: JSONValue?, legacy: JSONValue?,
+                                     for request: CredentialUse.Request) throws -> [CredentialUse] {
+        var uses: [CredentialUse] = []
+        if let legacy, legacy != .null { uses.append(try CredentialUse(legacy: legacy)) }
+        if let value, value != .null {
+            guard case .array(let declared) = value else {
+                throw PluginHostServiceError.invalidInput("credential_uses must be an array of Credential Uses")
             }
-            header = name
+            uses += try declared.map { try CredentialUse($0) }
         }
-        let lowered = header.lowercased()
-        guard Self.isToken(header), !headers.keys.contains(where: { $0.lowercased() == lowered }),
-              lowered == "authorization" || !(Self.reservedHeaders.contains(lowered) || lowered.hasPrefix("proxy-") || lowered.hasPrefix("sec-")) else {
-            throw PluginHostServiceError.invalidInput("credential header \(header) is not allowed")
+        guard uses.count <= HTTPSRequestBudgets.maximumCredentialUses else {
+            throw PluginHostServiceError.invalidInput(
+                "A request names at most \(HTTPSRequestBudgets.maximumCredentialUses) Credential Uses"
+            )
         }
-        var format = "{credential}"
-        if let given = fields["format"] {
-            guard case .string(let text) = given else {
-                throw PluginHostServiceError.invalidInput("credential format must be a string")
-            }
-            format = text
+        // Each use is placed, with no value yet, on top of the ones before
+        // it, so two cannot claim the same header, parameter, or field.
+        var placed = request
+        for use in uses {
+            try use.apply("", to: &placed)
         }
-        guard format.count <= 256, Self.isSafeValue(format),
-              format.components(separatedBy: "{credential}").count == 2 else {
-            throw PluginHostServiceError.invalidInput("credential format must contain {credential} exactly once")
-        }
-        return CredentialPlacement(reference: reference, header: header, format: format)
+        return uses
     }
 }

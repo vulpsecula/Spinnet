@@ -49,7 +49,7 @@ public struct ResultsPresentation: Equatable {
     public struct Section: Equatable {
         public let title: String
         /// `method`, `url`, and optional `headers`, `json_body`, and
-        /// `credential`, as in `https_request` except that the body is a
+        /// `credential_uses`, as in `https_request` except that the body is a
         /// JSON value holding the text placeholder.
         let request: [String: JSONValue]
         /// RFC 6901 pointer to the answer, a string, in a 2xx JSON response.
@@ -270,9 +270,9 @@ public struct ResultsPresentation: Equatable {
               Set(fields.keys).isSubset(of: ["title", "request", "result_pointer", "error_pointer",
                                              "status_messages", "cache"]),
               case .object(let request)? = fields["request"],
-              Set(request.keys).isSubset(of: ["method", "url", "headers", "json_body", "credential"]) else {
+              Set(request.keys).isSubset(of: ["method", "url", "headers", "json_body", "credential", "credential_uses"]) else {
             throw PluginHostServiceError.invalidInput(
-                "A section expects title, request (method, url, headers, json_body, credential), and result_pointer"
+                "A section expects title, request (method, url, headers, json_body, credential_uses), and result_pointer"
             )
         }
         if request["json_body"] != nil, request["method"] != .string("POST") {

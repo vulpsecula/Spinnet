@@ -454,7 +454,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// copies and saves; the Plugin learns nothing about the image.
     case captureScreen = "capture_screen"
     /// One HTTPS request to a host in the Plugin's consented contact scope.
-    /// The Host owns the transport, redirects, and credential injection.
+    /// The Host owns the transport, redirects, and Credential Uses.
     case httpsRequest = "https_request"
     /// Opens a Host-rendered result popup whose sections are HTTPS requests
     /// the Host sends after the Action returns (ADR 0002). It needs what the

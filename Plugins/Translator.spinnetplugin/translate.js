@@ -72,7 +72,7 @@
           method: "POST",
           url: baseURL(config.deepl_endpoint, "DeepL") + "/v2/translate",
           json_body: body,
-          credential: { reference: config.deepl_credential, header: "Authorization", format: "DeepL-Auth-Key {credential}" }
+          credential_uses: [{ reference: config.deepl_credential, header: "Authorization", template: "DeepL-Auth-Key {credential}" }]
         },
         result_pointer: "/translations/0/text",
         error_pointer: "/message",
@@ -116,7 +116,7 @@
           method: "POST",
           url: baseURL(config.openai_endpoint, "OpenAI") + "/chat/completions",
           json_body: { model, messages: [{ role: "system", content: prompt }, { role: "user", content: "{{text}}" }] },
-          credential: { reference: config.openai_credential, header: "Authorization", format: "Bearer {credential}" }
+          credential_uses: [{ reference: config.openai_credential, header: "Authorization", template: "Bearer {credential}" }]
         },
         result_pointer: "/choices/0/message/content",
         error_pointer: "/error/message",

@@ -1,12 +1,13 @@
 import Foundation
 
-/// Host-held secrets a Plugin may have injected into its HTTPS requests.
+/// Host-held secrets a Plugin may have applied to its HTTPS requests.
 ///
 /// A Plugin never reads a secret. Its configuration holds only a credential
 /// reference, a short name such as `deepl`, and an `https_request` names that
-/// reference and where the Host should put the secret. Secrets are keyed by
-/// Plugin, so naming another Plugin's reference reaches nothing. Production
-/// keeps them in the Keychain; tests use `InMemoryPluginCredentialStore`.
+/// reference in a Credential Use, which says where the Host puts the secret or
+/// a signature made with it. Secrets are keyed by Plugin, so naming another
+/// Plugin's reference reaches nothing. Production keeps them in the Keychain;
+/// tests use `InMemoryPluginCredentialStore`.
 public protocol PluginCredentialStore: AnyObject {
     func secret(for pluginID: PluginID, reference: String) throws -> String?
     func setSecret(_ secret: String, for pluginID: PluginID, reference: String) throws
