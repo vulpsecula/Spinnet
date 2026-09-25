@@ -100,6 +100,10 @@ _Avoid_: Callback, UI message
 A part of a Plugin View whose request the Host sends and whose answer the Host shows, so the Plugin need not see the answer; the Plugin declares whether the answer is also delivered to it.
 _Avoid_: Result popup, remote section
 
+**Plugin Storage**:
+Data a Plugin keeps for itself between invocations and launches, which only that Plugin can reach and which is deleted when the Plugin is removed. It holds the Plugin's own data, never the user's choices or a secret.
+_Avoid_: LocalStorage, cache, Plugin data, Plugin Settings
+
 **Appearance**:
 The global visual configuration shared by a Menu's Editor Mode and Runtime Mode, excluding Menu Item-specific aliases, icons, and Action parameters.
 _Avoid_: Menu Item configuration, Plugin theme
