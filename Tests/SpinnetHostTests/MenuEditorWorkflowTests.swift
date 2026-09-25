@@ -103,6 +103,59 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertTrue(model.editor.configuration.actions.isEmpty)
     }
 
+    /// Dropping a Preset from the Library between Slots adds a Slot for it
+    /// there, and one undo takes the whole drop back.
+    func testDroppingAPresetAddsASlotForItThatOneUndoRemoves() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        let before = model.editor.configuration
+        let idsBefore = model.menuEditor.slotIDs
+
+        XCTAssertTrue(model.menuEditor.insertPreset(pluginID: "com.spinnet.fixture", at: 1))
+
+        let slots = model.editor.configuration.menu.slots
+        XCTAssertEqual(slots.count, before.menu.slots.count + 1)
+        XCTAssertNotNil(slots[1].item)
+        XCTAssertEqual(model.menuEditor.slotIDs.count, idsBefore.count + 1)
+        XCTAssertEqual(model.menuEditor.selectedMenuIndex, 1)
+        XCTAssertEqual(model.menuEditor.placementMessage, "Menu Item added in a new Slot 2.")
+
+        model.menuEditor.editingMenuIndex = nil
+        model.menuEditor.undoSlotEdit()
+        XCTAssertEqual(model.editor.configuration, before)
+        XCTAssertEqual(model.menuEditor.slotIDs, idsBefore)
+        XCTAssertFalse(model.menuEditor.canUndoSlotEdit)
+
+        model.menuEditor.redoSlotEdit()
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, before.menu.slots.count + 1)
+        XCTAssertEqual(model.menuEditor.slotIDs.count, idsBefore.count + 1)
+    }
+
+    /// A Setup-Required Preset gets its Slot only once its setup is saved;
+    /// cancelling the setup leaves the Menu as it was.
+    func testDroppingASetupRequiredPresetKeepsItsNewSlotOnlyIfTheSetupIsSaved() throws {
+        let registry = PluginRegistry()
+        let packages = try BuiltInPresetCatalog.makePackages()
+        for package in packages { try registry.register(package) }
+        let configuration = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(registry: registry, configuration: configuration),
+            metadata: .current,
+            accessibilityPermissionCheck: { true },
+            mouseInputConflictCheck: { _ in [] }
+        )
+        let applicationPreset = try XCTUnwrap(packages.first { $0.manifest.name == "Open Application" })
+
+        XCTAssertFalse(model.menuEditor.insertPreset(pluginID: applicationPreset.manifest.id.rawValue, at: 1))
+        XCTAssertEqual(model.menuEditor.pendingPresetSetup?.slotIndex, 1)
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 2)
+
+        model.menuEditor.cancelPresetSetup()
+
+        XCTAssertEqual(model.editor.configuration, configuration)
+        XCTAssertEqual(model.menuEditor.slotIDs.count, 1)
+        XCTAssertFalse(model.menuEditor.canUndoSlotEdit)
+    }
+
     func testRemovingAPluginFromTheLibraryConfirmsFirstAndKeepsTheMenuIntact() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         var removed: [PluginID] = []

@@ -14,6 +14,16 @@ struct PendingPresetSetup: Equatable {
     let pluginID: String
     let slotIndex: Int
     let replacing: Bool
+    /// Set when the setup is for a Slot the drop added, which goes again if
+    /// the setup is cancelled.
+    var insertion: PendingSlotInsertion? = nil
+}
+
+/// The Menu as it was before a drop added a Slot.
+struct PendingSlotInsertion: Equatable {
+    let configurationBefore: HostConfiguration
+    let slotIDsBefore: [UUID]
+    let selectedIndexBefore: Int
 }
 
 /// Keeps the editor's friendly field presentation separate from the JSON
@@ -530,6 +540,7 @@ struct SettingsRootView: View {
                     onEdit: menuEditor.requestEdit,
                     onSlotDelete: { _ = menuEditor.requestSlotDeletion(at: $0) },
                     onPresetDrop: menuEditor.placePreset,
+                    onPresetInsert: menuEditor.insertPreset,
                     onSlotDrop: { menuEditor.reorderSlots(ids: $0, selectedID: $1) }
                 )
                 .id(model.page)
@@ -849,6 +860,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
+    let onPresetInsert: (String, Int) -> Bool
     let onSlotDrop: ([UUID], UUID) -> Bool
 
     func makeNSView(context: Context) -> RadialMenuView {
@@ -878,6 +890,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             view.onEditorEditRequested = nil
             view.onEditorSlotDeleteRequested = nil
             view.onPresetDrop = nil
+            view.onPresetInsert = nil
             view.onSlotDrop = nil
             return
         }
@@ -885,6 +898,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
         view.onEditorEditRequested = onEdit
         view.onEditorSlotDeleteRequested = onSlotDelete
         view.onPresetDrop = onPresetDrop
+        view.onPresetInsert = onPresetInsert
         view.onSlotDrop = onSlotDrop
     }
 }

@@ -386,6 +386,54 @@ final class EditorModeMenuTests: XCTestCase {
         XCTAssertFalse(committed)
     }
 
+    /// A Library Preset dropped on an occupied Slot adds a new Slot beside
+    /// it, on the side the pointer is on; dropped on an Empty Slot it fills
+    /// that Slot.
+    func testALibraryPresetDroppedOnAnOccupiedSlotAddsASlotBesideIt() throws {
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: ActionID("kept")),
+            primaryAction: MenuActionPresentation(actionID: ActionID("kept"), title: "Kept", availability: .available),
+            alternateActions: []
+        )
+        let slots = [EditorMenuSlot(id: UUID(), presentation: .occupied(item)),
+                     EditorMenuSlot(id: UUID(), presentation: .occupied(item)),
+                     EditorMenuSlot(id: UUID(), presentation: .empty)]
+        let view = RadialMenuView(slots: slots.map(\.presentation), mode: .editor)
+        view.updateEditorSlots(slots, appearance: MenuAppearanceConfiguration())
+        let window = NSWindow(contentRect: view.bounds, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = view
+        let pasteboard = NSPasteboard(name: .init(UUID().uuidString))
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.setString("com.example.preset", forType: RadialMenuView.libraryPresetPasteboardType)
+        // Degrees clockwise from 12 o'clock; Slot 0 is centred there.
+        func point(_ degrees: CGFloat) -> NSPoint {
+            let radians = degrees * .pi / 180
+            let radius = view.geometryLayout.itemCenterRadius
+            return view.convert(NSPoint(x: view.bounds.midX + sin(radians) * radius,
+                                        y: view.bounds.midY + cos(radians) * radius), to: nil)
+        }
+        var inserted: [(String, Int)] = []
+        var placed: [(String, Int)] = []
+        view.onPresetInsert = { inserted.append(($0, $1)); return true }
+        view.onPresetDrop = { placed.append(($0, $1)); return true }
+
+        for (degrees, expected) in [(CGFloat(20), 1), (-20, 0), (140, 2)] {
+            let sender = SlotDraggingInfo(source: view, pasteboard: pasteboard, location: point(degrees))
+            XCTAssertEqual(view.draggingEntered(sender), .copy)
+            XCTAssertEqual(view.libraryInsertionIndex, expected)
+            XCTAssertTrue(view.performDragOperation(sender))
+            XCTAssertNil(view.libraryInsertionIndex, "The insertion mark goes with the drop")
+        }
+        XCTAssertEqual(inserted.map(\.1), [1, 0, 2])
+        XCTAssertTrue(inserted.allSatisfy { $0.0 == "com.example.preset" })
+
+        let empty = SlotDraggingInfo(source: view, pasteboard: pasteboard, location: point(240))
+        XCTAssertEqual(view.draggingEntered(empty), .copy)
+        XCTAssertNil(view.libraryInsertionIndex)
+        XCTAssertTrue(view.performDragOperation(empty))
+        XCTAssertEqual(placed.map(\.1), [2])
+    }
+
     func testNativeSlotDragDisplacesEmptySlotAndReservesGapWithoutReplacement() throws {
         let item = MenuItemPresentation(
             configuration: try MenuItemConfiguration(primaryActionID: ActionID("drag"), alias: "Moving"),
@@ -457,25 +505,26 @@ final class EditorModeMenuTests: XCTestCase {
         let board = NSPasteboard(name: .init(UUID().uuidString))
         defer { board.releaseGlobally() }
         board.setString(original[0].id.uuidString, forType: RadialMenuView.slotPasteboardType)
+        // Slot k is centred on position k, and position 0 is 12 o'clock.
         func point(_ position: CGFloat) -> NSPoint {
             let angle = CGFloat.pi / 2 - position * 2 * .pi / 8
             let radius = view.bounds.width * 0.38
             return view.convert(NSPoint(x: view.bounds.midX + cos(angle) * radius,
                                         y: view.bounds.midY + sin(angle) * radius), to: nil)
         }
-        let sender = SlotDraggingInfo(source: view, pasteboard: board, location: point(0.5))
+        let sender = SlotDraggingInfo(source: view, pasteboard: board, location: point(0))
         XCTAssertEqual(view.draggingEntered(sender), .move)
-        sender.draggingLocation = point(7.5)
+        sender.draggingLocation = point(7)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.editorSlots.map(\.id), [7, 1, 2, 3, 4, 5, 6, 0].map { original[$0].id })
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             XCTAssertEqual(view.displayedSlotPosition(at: 0), -1, accuracy: 0.01)
         }
-        sender.draggingLocation = point(4.5)
+        sender.draggingLocation = point(4)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         let oppositeOrder = [7, 1, 2, 3, 0, 4, 5, 6].map { original[$0].id }
         XCTAssertEqual(view.editorSlots.map(\.id), oppositeOrder)
-        sender.draggingLocation = point(3.95)
+        sender.draggingLocation = point(3.45)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.editorSlots.map(\.id), oppositeOrder, "Small boundary motion must not reverse the arc")
         view.onSlotDrop = { ids, selectedID in model.menuEditor.reorderSlots(ids: ids, selectedID: selectedID) }
@@ -490,17 +539,17 @@ final class EditorModeMenuTests: XCTestCase {
         XCTAssertEqual(model.menuEditor.slotIDs, oppositeOrder)
 
         view.updateEditorSlots(original, appearance: MenuAppearanceConfiguration())
-        sender.draggingLocation = point(0.5)
+        sender.draggingLocation = point(0)
         XCTAssertEqual(view.draggingEntered(sender), .move)
-        sender.draggingLocation = point(3.5)
+        sender.draggingLocation = point(3)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
-        sender.draggingLocation = point(4.5)
+        sender.draggingLocation = point(4)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.editorSlots.map(\.id), [1, 2, 3, 4, 0, 5, 6, 7].map { original[$0].id })
-        sender.draggingLocation = point(5.05)
+        sender.draggingLocation = point(4.55)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.slotDragPlaceholderIndex, 4)
-        sender.draggingLocation = point(5.2)
+        sender.draggingLocation = point(4.7)
         XCTAssertEqual(view.draggingUpdated(sender), .move)
         XCTAssertEqual(view.slotDragPlaceholderIndex, 5)
         XCTAssertEqual(view.editorSlots.map(\.id), [7, 1, 2, 3, 4, 0, 5, 6].map { original[$0].id })

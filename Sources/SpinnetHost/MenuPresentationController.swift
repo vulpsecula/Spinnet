@@ -8,6 +8,46 @@ struct MenuPresentationGeometrySnapshot: Equatable {
     let contentSize: CGSize
 }
 
+/// Frosted glass behind the Menu's disc, so the desktop shows through
+/// blurred, as it does behind a macOS menu. The glass is cut to the disc;
+/// everything else in the overlay stays clear.
+private final class MenuBackdropView: NSView {
+    let menuView: RadialMenuView
+    private let glass = NSVisualEffectView()
+
+    init(menuView: RadialMenuView) {
+        self.menuView = menuView
+        super.init(frame: menuView.frame)
+        glass.material = .popover
+        glass.blendingMode = .behindWindow
+        glass.state = .active
+        addSubview(glass)
+        addSubview(menuView)
+        menuView.drawsOverGlass = true
+        fitToMenu()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("MenuBackdropView is not decoded from a nib")
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        fitToMenu()
+    }
+
+    private func fitToMenu() {
+        menuView.frame = bounds
+        let disc = menuView.discRect
+        glass.frame = disc
+        glass.maskImage = NSImage(size: disc.size, flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            return true
+        }
+    }
+}
+
 final class MenuPresentationController {
     private var layout: RadialMenuLayout
     private let panel: NSPanel
@@ -46,10 +86,11 @@ final class MenuPresentationController {
             backing: .buffered,
             defer: false
         )
-        panel.contentView = menuView
+        panel.contentView = MenuBackdropView(menuView: menuView)
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // The Menu draws its own soft shadow inside the overlay's padding.
+        panel.hasShadow = false
         panel.level = .popUpMenu
         panel.collectionBehavior = NSWindow.CollectionBehavior.singleDesktop.union(.stationary)
         panel.hidesOnDeactivate = false
@@ -68,7 +109,7 @@ final class MenuPresentationController {
         menuView.applyAppearance(appearanceConfiguration)
         menuViewAppearanceNeedsSync = false
         panel.appearance = appearanceConfiguration.appearance
-        panel.contentView = menuView
+        panel.contentView = MenuBackdropView(menuView: menuView)
         configureMenuView()
     }
 

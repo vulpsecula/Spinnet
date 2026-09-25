@@ -1,10 +1,13 @@
 import CoreGraphics
 import Foundation
 
-/// The geometry contract for a Menu. Angles start at 12 o'clock and advance
-/// clockwise, matching the pointer semantics used by the Host's overlay.
+/// The geometry contract for a Menu. Angles advance clockwise from 12
+/// o'clock, matching the pointer semantics used by the Host's overlay, and
+/// the first Menu Item is centred on 12 o'clock.
 public struct RadialMenuLayout: Equatable {
-    public static let defaultOverlayPadding: CGFloat = 8
+    /// Room around the disc for the focused Menu Item, which rises past the
+    /// rim, and for the shadows beneath both.
+    public static let defaultOverlayPadding: CGFloat = 28
 
     public let itemCount: Int
     public let innerRadius: CGFloat
@@ -47,14 +50,14 @@ public struct RadialMenuLayout: Equatable {
         if clockwiseFromTop < 0 {
             clockwiseFromTop += 2 * .pi
         }
-        let itemIndex = Int(floor((clockwiseFromTop / (2 * .pi)) * CGFloat(itemCount)))
+        let itemIndex = Int(floor((clockwiseFromTop / (2 * .pi)) * CGFloat(itemCount) + 0.5))
         return itemIndex % itemCount
     }
 
     public func itemCenter(index: Int, center: CGPoint) -> CGPoint {
         precondition((0..<itemCount).contains(index), "Menu Item index is out of range")
         let step = (2 * CGFloat.pi) / CGFloat(itemCount)
-        let angle = (CGFloat.pi / 2) - (CGFloat(index) + 0.5) * step
+        let angle = (CGFloat.pi / 2) - CGFloat(index) * step
         return CGPoint(
             x: center.x + cos(angle) * itemCenterRadius,
             y: center.y + sin(angle) * itemCenterRadius

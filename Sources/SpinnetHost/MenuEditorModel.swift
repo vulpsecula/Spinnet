@@ -104,6 +104,10 @@ final class MenuEditorModel: ObservableObject {
         let after: HostConfiguration
         let selectedIndexBefore: Int
         let selectedIndexAfter: Int
+        /// Set when the edit also added or removed Slots, whose identities
+        /// have to follow the configuration.
+        var slotIDsBefore: [UUID]? = nil
+        var slotIDsAfter: [UUID]? = nil
     }
 
     private enum MenuHistoryEntry {
@@ -448,6 +452,7 @@ final class MenuEditorModel: ObservableObject {
         case .composition(let entry):
             let configuration = direction == .undo ? entry.before : entry.after
             editor.restore(configuration)
+            if let ids = direction == .undo ? entry.slotIDsBefore : entry.slotIDsAfter { slotIDs = ids }
             selectedMenuIndex = direction == .undo
                 ? entry.selectedIndexBefore
                 : entry.selectedIndexAfter
@@ -511,6 +516,59 @@ final class MenuEditorModel: ObservableObject {
         return applyPreset(pluginID: pluginID, at: index, replacing: false)
     }
 
+    /// Adds a new Slot at `index` holding the Preset: what dropping a Preset
+    /// from the Library onto an occupied Slot does. One undo takes it back.
+    @discardableResult
+    func insertPreset(pluginID: String, at index: Int) -> Bool {
+        guard (0...editor.configuration.menu.slots.count).contains(index) else { return false }
+        guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
+            placementMessage = "The selected Preset is unavailable."
+            return false
+        }
+        guard preset.isAvailable else {
+            placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
+            return false
+        }
+        let insertion = PendingSlotInsertion(
+            configurationBefore: editor.configuration,
+            slotIDsBefore: slotIDs,
+            selectedIndexBefore: selectedMenuIndex
+        )
+        do {
+            try editor.insertSlot(.empty, at: index)
+            slotIDs.insert(UUID(), at: index)
+            selectedMenuIndex = index
+            if preset.readiness == .setupRequired {
+                pendingPresetSetup = PendingPresetSetup(
+                    pluginID: pluginID, slotIndex: index, replacing: false, insertion: insertion
+                )
+                editingMenuIndex = index
+                placementMessage = "Invalid Action: Preset requires setup"
+                configurationDidChange(editor.configuration)
+                return false
+            }
+            _ = try editor.placePreset(pluginID: PluginID(pluginID), inSlotAt: index, replacing: false)
+        } catch {
+            editor.restore(insertion.configurationBefore)
+            slotIDs = insertion.slotIDsBefore
+            selectedMenuIndex = insertion.selectedIndexBefore
+            placementMessage = error.localizedDescription
+            return false
+        }
+        placementMessage = "Menu Item added in a new Slot \(index + 1)."
+        configurationDidChange(editor.configuration)
+        record(.composition(CompositionHistoryEntry(
+            before: insertion.configurationBefore,
+            after: editor.configuration,
+            selectedIndexBefore: insertion.selectedIndexBefore,
+            selectedIndexAfter: index,
+            slotIDsBefore: insertion.slotIDsBefore,
+            slotIDsAfter: slotIDs
+        )))
+        if preset.isConfigurable { editingMenuIndex = index }
+        return true
+    }
+
     func confirmPresetReplacement() {
         guard let pending = presetPendingReplacement else { return }
         presetPendingReplacement = nil
@@ -535,13 +593,21 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func cancelPresetSetup() {
+        let insertion = pendingPresetSetup?.insertion
         pendingPresetSetup = nil
         editingMenuIndex = nil
+        // A Slot added for the drop goes with the cancelled setup.
+        if let insertion {
+            editor.restore(insertion.configurationBefore)
+            slotIDs = insertion.slotIDsBefore
+            selectedMenuIndex = insertion.selectedIndexBefore
+            configurationDidChange(editor.configuration)
+        }
     }
 
     func savePresetSetup(_ configuration: HostConfiguration, for setup: PendingPresetSetup) {
-        let before = editor.configuration
-        let selectedIndexBefore = selectedMenuIndex
+        let before = setup.insertion?.configurationBefore ?? editor.configuration
+        let selectedIndexBefore = setup.insertion?.selectedIndexBefore ?? selectedMenuIndex
         editor.restore(configuration)
         pendingPresetSetup = nil
         editingMenuIndex = nil
@@ -550,7 +616,14 @@ final class MenuEditorModel: ObservableObject {
             ? "Menu Item in Slot \(setup.slotIndex + 1) replaced."
             : "Menu Item added to Slot \(setup.slotIndex + 1)."
         configurationDidChange(configuration)
-        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
+        record(.composition(CompositionHistoryEntry(
+            before: before,
+            after: editor.configuration,
+            selectedIndexBefore: selectedIndexBefore,
+            selectedIndexAfter: selectedMenuIndex,
+            slotIDsBefore: setup.insertion?.slotIDsBefore,
+            slotIDsAfter: setup.insertion == nil ? nil : slotIDs
+        )))
     }
 
     func saveMenuItemConfiguration(_ configuration: HostConfiguration) {

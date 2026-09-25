@@ -102,8 +102,17 @@ final class RadialMenuView: NSView {
     var onEditorSelection: ((Int) -> Void)?
     var onEditorEditRequested: ((Int) -> Void)?
     var onEditorSlotDeleteRequested: ((Int) -> Void)?
+    /// Fills an Empty Slot with a Library Preset dropped on it.
     var onPresetDrop: ((String, Int) -> Bool)?
+    /// Adds a new Slot at the index for a Library Preset dropped on an
+    /// occupied Slot.
+    var onPresetInsert: ((String, Int) -> Bool)?
     var onSlotDrop: (([UUID], UUID) -> Bool)?
+    /// Where a Library Preset being dragged over an occupied Slot would add
+    /// its new Slot: on the side of that Slot the pointer is on.
+    private(set) var libraryInsertionIndex: Int? {
+        didSet { if libraryInsertionIndex != oldValue { needsDisplay = true } }
+    }
     private(set) var editorSlots: [EditorMenuSlot] = []
     private var dragOriginalSlots: [EditorMenuSlot]?
     private var draggedSlotID: UUID?
@@ -663,6 +672,7 @@ final class RadialMenuView: NSView {
     override func draggingExited(_ sender: NSDraggingInfo?) {
         guard presentationMode == .editor, allowsEditing else { return }
         if let sender, bounds.contains(convert(sender.draggingLocation, from: nil)) { return }
+        libraryInsertionIndex = nil
         cancelSlotMovePreview()
         updateHover(at: nil)
     }
@@ -673,11 +683,16 @@ final class RadialMenuView: NSView {
               let index = updateDropTarget(sender) else {
             return false
         }
-        selectEditorItem(at: index)
-        onEditorSelection?(index)
         if let pluginID = Self.libraryPresetID(from: sender.draggingPasteboard) {
+            let insertion = libraryInsertionIndex
+            libraryInsertionIndex = nil
+            if let insertion { return onPresetInsert?(pluginID, insertion) ?? false }
+            selectEditorItem(at: index)
+            onEditorSelection?(index)
             return onPresetDrop?(pluginID, index) ?? false
         }
+        selectEditorItem(at: index)
+        onEditorSelection?(index)
         if sender.draggingSource as? RadialMenuView === self,
            let source = sender.draggingPasteboard.string(
             forType: Self.slotPasteboardType
@@ -691,8 +706,17 @@ final class RadialMenuView: NSView {
     }
 
     private func dropOperation(for sender: NSDraggingInfo) -> NSDragOperation {
-        guard let target = updateDropTarget(sender) else { return [] }
+        guard let target = updateDropTarget(sender) else {
+            libraryInsertionIndex = nil
+            return []
+        }
         if Self.libraryPresetID(from: sender.draggingPasteboard) != nil {
+            if slots[target].isEmpty {
+                libraryInsertionIndex = nil
+            } else {
+                libraryInsertionIndex = insertionIndex(beside: target, at: convert(sender.draggingLocation, from: nil))
+                updateHover(at: nil)
+            }
             return .copy
         }
         if sender.draggingSource as? RadialMenuView === self,
@@ -759,13 +783,22 @@ final class RadialMenuView: NSView {
         if isSlotDrag, let current = slotDragPlaceholderIndex, index != current {
             let step = 2 * CGFloat.pi / CGFloat(slots.count)
             let angle = CGFloat.pi / 2 - atan2(point.y - bounds.midY, point.x - bounds.midX)
-            let centerAngle = (CGFloat(current) + 0.5) * step
+            let centerAngle = CGFloat(current) * step
             let distance = abs(atan2(sin(angle - centerAngle), cos(angle - centerAngle)))
             // Require entering 12% of the next sector before moving the vacancy.
             if distance < step * 0.62 { return current }
         }
         updateHover(at: point)
         return index
+    }
+
+    /// The index a new Slot takes beside `target`: before it when the pointer
+    /// is on its counter-clockwise half, after it otherwise.
+    private func insertionIndex(beside target: Int, at point: CGPoint) -> Int {
+        let step = 2 * CGFloat.pi / CGFloat(slots.count)
+        let angle = CGFloat.pi / 2 - atan2(point.y - bounds.midY, point.x - bounds.midX)
+        let centre = CGFloat(target) * step
+        return atan2(sin(angle - centre), cos(angle - centre)) >= 0 ? target + 1 : target
     }
 
     private func slotIndex(at point: CGPoint) -> Int? {
@@ -951,7 +984,9 @@ final class RadialMenuView: NSView {
             .union(menuTitleRect(at: index))
         let button = editorEditButtonRect(at: index)
         if !button.isEmpty { rect = rect.union(button) }
-        return rect.insetBy(dx: -4, dy: -4)
+        // Room for the Slot rising out of the disc and its shadow.
+        let margin = raise(for: layout) + 20 * layout.outerRadius / 142
+        return rect.insetBy(dx: -margin, dy: -margin)
     }
 
     private func invalidateSlot(at index: Int?) {
@@ -1007,80 +1042,317 @@ final class RadialMenuView: NSView {
         needsDisplay = true
     }
 
+    /// The colours of the Menu's frosted disc, taken from the Menu's own
+    /// theme rather than the system's, so a Light Menu stays light in a Dark
+    /// session.
+    private struct MenuPalette {
+        let disc: NSColor
+        let discEdge: NSColor
+        let discShadow: NSColor
+        let separator: NSColor
+        let raised: NSColor
+        let raisedShadow: NSColor
+        let hover: NSColor
+        let empty: NSColor
+        let hubTop: NSColor
+        let hubBottom: NSColor
+        let hubEdge: NSColor
+        let label: NSColor
+        let secondaryLabel: NSColor
+
+        func withDisc(_ disc: NSColor) -> MenuPalette {
+            MenuPalette(disc: disc, discEdge: discEdge, discShadow: discShadow, separator: separator,
+                        raised: raised, raisedShadow: raisedShadow, hover: hover, empty: empty,
+                        hubTop: hubTop, hubBottom: hubBottom, hubEdge: hubEdge,
+                        label: label, secondaryLabel: secondaryLabel)
+        }
+
+        static let light = MenuPalette(
+            disc: NSColor(white: 0.985, alpha: 0.86),
+            discEdge: NSColor(white: 1, alpha: 0.9),
+            discShadow: NSColor(white: 0, alpha: 0.18),
+            separator: NSColor(white: 0, alpha: 0.07),
+            raised: NSColor(white: 1, alpha: 0.98),
+            raisedShadow: NSColor(white: 0, alpha: 0.16),
+            hover: NSColor(white: 1, alpha: 0.55),
+            empty: NSColor(white: 0, alpha: 0.03),
+            hubTop: NSColor(white: 1, alpha: 1),
+            hubBottom: NSColor(calibratedRed: 0.95, green: 0.94, blue: 0.92, alpha: 1),
+            hubEdge: NSColor(white: 1, alpha: 0.95),
+            label: NSColor(white: 0.12, alpha: 1),
+            secondaryLabel: NSColor(white: 0.12, alpha: 0.45)
+        )
+
+        static let dark = MenuPalette(
+            disc: NSColor(calibratedRed: 0.13, green: 0.14, blue: 0.16, alpha: 0.9),
+            discEdge: NSColor(white: 1, alpha: 0.12),
+            discShadow: NSColor(white: 0, alpha: 0.45),
+            separator: NSColor(white: 1, alpha: 0.08),
+            raised: NSColor(calibratedRed: 0.27, green: 0.28, blue: 0.31, alpha: 0.98),
+            raisedShadow: NSColor(white: 0, alpha: 0.4),
+            hover: NSColor(white: 1, alpha: 0.07),
+            empty: NSColor(white: 1, alpha: 0.03),
+            hubTop: NSColor(calibratedRed: 0.24, green: 0.25, blue: 0.28, alpha: 1),
+            hubBottom: NSColor(calibratedRed: 0.17, green: 0.18, blue: 0.2, alpha: 1),
+            hubEdge: NSColor(white: 1, alpha: 0.14),
+            label: NSColor(white: 0.96, alpha: 1),
+            secondaryLabel: NSColor(white: 0.96, alpha: 0.45)
+        )
+    }
+
+    private var palette: MenuPalette {
+        let palette: MenuPalette = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+        guard drawsOverGlass else { return palette }
+        // Over the frosted glass the disc only tints it, so the blur shows.
+        return palette.withDisc(palette.disc.withAlphaComponent(palette.disc.alphaComponent * 0.6))
+    }
+
+    /// Set when frosted glass sits behind the disc, as in the Runtime Mode
+    /// overlay.
+    var drawsOverGlass = false {
+        didSet { needsDisplay = true }
+    }
+
+    /// The disc, in this view's coordinates.
+    var discRect: NSRect {
+        NSRect(x: bounds.midX - layout.outerRadius, y: bounds.midY - layout.outerRadius,
+               width: layout.outerRadius * 2, height: layout.outerRadius * 2)
+    }
+
+    /// How far the focused Slot rises out of the disc, and the room its
+    /// shadow needs around the Menu.
+    private func raise(for menuLayout: RadialMenuLayout) -> CGFloat {
+        8 * menuLayout.outerRadius / 142
+    }
+
     private func drawMenuContents(
         using menuLayout: RadialMenuLayout,
         in canvas: NSRect,
         dirtyRect: NSRect
     ) {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        for index in slots.indices where slotDrawingBounds(at: index).intersects(dirtyRect) {
+        let palette = self.palette
+        let scale = menuLayout.outerRadius / 142
+
+        // The frosted disc, one piece, with a soft shadow beneath it.
+        let disc = NSBezierPath(ovalIn: NSRect(
+            x: center.x - menuLayout.outerRadius, y: center.y - menuLayout.outerRadius,
+            width: menuLayout.outerRadius * 2, height: menuLayout.outerRadius * 2
+        ))
+        NSGraphicsContext.saveGraphicsState()
+        let discShadow = NSShadow()
+        discShadow.shadowColor = palette.discShadow
+        discShadow.shadowBlurRadius = 18 * scale
+        discShadow.shadowOffset = NSSize(width: 0, height: -5 * scale)
+        discShadow.set()
+        palette.disc.setFill()
+        disc.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        palette.discEdge.setStroke()
+        disc.lineWidth = 1
+        disc.stroke()
+
+        let raised = slots.indices.filter { isRaised($0) && slotDragPlaceholderIndex != $0 }
+        for index in slots.indices where !raised.contains(index) && slotDrawingBounds(at: index).intersects(dirtyRect) {
             if slotDragPlaceholderIndex == index {
                 // This is an insertion gap, not an Empty Slot or a copy of the lifted Slot.
                 let path = slotPath(at: index, using: menuLayout, in: canvas)
-                editorAccentColor.withAlphaComponent(0.05).setFill()
+                editorAccentColor.withAlphaComponent(0.08).setFill()
                 path.fill()
-                editorAccentColor.withAlphaComponent(0.45).setStroke()
+                editorAccentColor.withAlphaComponent(0.55).setStroke()
                 path.lineWidth = 1
                 path.setLineDash([3, 5], count: 2, phase: 0)
                 path.stroke()
                 continue
             }
-            drawSlot(at: index, using: menuLayout, in: canvas)
+            drawSlotBackground(at: index, using: menuLayout, in: canvas)
+        }
+        drawSeparators(using: menuLayout, in: canvas, skipping: Set(raised))
+        for index in raised {
+            drawRaisedSlot(at: index, using: menuLayout, in: canvas)
+        }
+        if let insertion = libraryInsertionIndex {
+            drawInsertionMark(before: insertion, using: menuLayout, in: canvas)
+        }
+        for index in slots.indices where slotDragPlaceholderIndex != index
+            && slotDrawingBounds(at: index).intersects(dirtyRect) {
+            drawSlotLabel(at: index, using: menuLayout, in: canvas)
         }
 
-        let hubRect = NSRect(
-            x: center.x - menuLayout.innerRadius + 8,
-            y: center.y - menuLayout.innerRadius + 8,
-            width: (menuLayout.innerRadius - 8) * 2,
-            height: (menuLayout.innerRadius - 8) * 2
-        )
-        let hubPath = NSBezierPath(ovalIn: hubRect)
-        NSColor.windowBackgroundColor.setFill()
-        hubPath.fill()
-        NSColor.separatorColor.withAlphaComponent(0.75).setStroke()
-        hubPath.lineWidth = 1
-        hubPath.stroke()
-
+        drawHub(using: menuLayout, in: canvas)
         drawHubLabel(in: canvas)
     }
 
-    /// One Slot owns its wedge and text in the same canvas and drawing pass.
-    private func drawSlot(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+    /// The focused Slot rises out of the disc: the Slot under the pointer in
+    /// Runtime Mode, the focused one in Editor Mode.
+    private func isRaised(_ index: Int) -> Bool {
+        selectedIndex == index
+    }
+
+    private func drawSlotBackground(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
         let slot = slots[index]
-        let isFocused = selectedIndex == index
         let isHovered = presentationMode == .editor && hoveredIndex == index
         let path = slotPath(at: index, using: menuLayout, in: canvas)
-        let fillColor: NSColor
-        if slot.isEmpty {
-            fillColor = isFocused
-                ? editorAccentColor.withAlphaComponent(0.16)
-                : isHovered
-                ? editorAccentColor.withAlphaComponent(0.08)
-                : NSColor.controlBackgroundColor.withAlphaComponent(0.6)
-        } else if slot.item?.primaryAction.isAvailable == false {
-            fillColor = NSColor.systemGray.withAlphaComponent(0.55)
-        } else if isFocused {
-            fillColor = editorAccentColor.withAlphaComponent(0.88)
-        } else if isHovered {
-            fillColor = editorAccentColor.withAlphaComponent(0.1)
-        } else {
-            fillColor = NSColor.controlBackgroundColor
+        if isHovered {
+            palette.hover.setFill()
+            path.fill()
+        } else if slot.isEmpty {
+            palette.empty.setFill()
+            path.fill()
         }
-        fillColor.setFill()
-        path.fill()
-        (isFocused
-            ? editorAccentColor
-            : isHovered
-            ? editorAccentColor.withAlphaComponent(0.72)
-            : NSColor.separatorColor.withAlphaComponent(0.85)).setStroke()
-        path.lineWidth = isFocused ? 2.5 : (isHovered ? 1.5 : 1)
-        if slot.isEmpty {
-            let pattern: [CGFloat] = [6, 5]
-            path.setLineDash(pattern, count: pattern.count, phase: 0)
+        if slot.isEmpty, presentationMode == .editor {
+            let inset = wedgePath(
+                at: slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index),
+                from: menuLayout.innerRadius + 6, to: menuLayout.outerRadius - 6,
+                itemCount: menuLayout.itemCount, in: canvas
+            )
+            (isHovered ? editorAccentColor.withAlphaComponent(0.6) : palette.secondaryLabel.withAlphaComponent(0.35))
+                .setStroke()
+            inset.lineWidth = 1
+            inset.setLineDash([5, 4], count: 2, phase: 0)
+            inset.stroke()
         }
-        path.stroke()
+    }
 
+    /// Hairlines between neighbouring Slots, from the hub's edge to the rim.
+    /// The lines on either side of a raised Slot are covered by it.
+    private func drawSeparators(using menuLayout: RadialMenuLayout, in canvas: NSRect, skipping raised: Set<Int>) {
+        guard menuLayout.itemCount > 1 else { return }
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let step = 2 * CGFloat.pi / CGFloat(menuLayout.itemCount)
+        let path = NSBezierPath()
+        for index in slots.indices {
+            let position = slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index)
+            let angle = CGFloat.pi / 2 - (position - 0.5) * step
+            path.move(to: CGPoint(x: center.x + cos(angle) * menuLayout.innerRadius,
+                                  y: center.y + sin(angle) * menuLayout.innerRadius))
+            path.line(to: CGPoint(x: center.x + cos(angle) * menuLayout.outerRadius,
+                                  y: center.y + sin(angle) * menuLayout.outerRadius))
+        }
+        palette.separator.setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    private func drawRaisedSlot(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let slot = slots[index]
+        let path = raisedSlotPath(at: index, using: menuLayout, in: canvas)
+        let scale = menuLayout.outerRadius / 142
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = palette.raisedShadow
+        shadow.shadowBlurRadius = 14 * scale
+        shadow.shadowOffset = NSSize(width: 0, height: -3 * scale)
+        shadow.set()
+        // One layer, so the rounding stroke and the fill cast a single shadow.
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        let fill = slot.item?.primaryAction.isAvailable == false
+            ? palette.raised.withAlphaComponent(0.8)
+            : palette.raised
+        fill.setFill()
+        fill.setStroke()
+        path.fill()
+        path.lineWidth = 8 * scale
+        path.lineJoinStyle = .round
+        path.stroke()
+        context.endTransparencyLayer()
+        NSGraphicsContext.restoreGraphicsState()
+
+        if presentationMode == .editor {
+            let outline = raisedSlotPath(at: index, using: menuLayout, in: canvas)
+            editorAccentColor.withAlphaComponent(slot.isEmpty ? 0.9 : 0.75).setStroke()
+            outline.lineWidth = 1.5
+            outline.lineJoinStyle = .round
+            if slot.isEmpty { outline.setLineDash([5, 4], count: 2, phase: 0) }
+            outline.stroke()
+        }
+    }
+
+    /// The raised Slot: slightly narrower than its wedge, so the rounding
+    /// stroke keeps it inside its neighbours, and reaching past the rim.
+    private func raisedSlotPath(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSBezierPath {
+        let scale = menuLayout.outerRadius / 142
+        let position = displayedSlotPosition(at: index)
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let step = 360 / CGFloat(menuLayout.itemCount)
+        let inner = menuLayout.innerRadius + 4 * scale
+        let outer = menuLayout.outerRadius + raise(for: menuLayout) - 4 * scale
+        // Four points of rounding stroke on each side, in degrees at each radius.
+        let innerInset = min(4 * scale / inner * 180 / .pi, step / 4)
+        let outerInset = min(4 * scale / outer * 180 / .pi, step / 4)
+        let path = NSBezierPath()
+        path.appendArc(withCenter: center, radius: outer,
+                       startAngle: 90 - (position + 0.5) * step + outerInset,
+                       endAngle: 90 - (position - 0.5) * step - outerInset)
+        path.appendArc(withCenter: center, radius: inner,
+                       startAngle: 90 - (position - 0.5) * step - innerInset,
+                       endAngle: 90 - (position + 0.5) * step + innerInset,
+                       clockwise: true)
+        path.close()
+        return path
+    }
+
+    /// Where a dropped Library Preset would add its Slot: an accent line on
+    /// the boundary, with a plus at the rim.
+    private func drawInsertionMark(before insertion: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let scale = menuLayout.outerRadius / 142
+        let angle = CGFloat.pi / 2 - (CGFloat(insertion) - 0.5) * 2 * .pi / CGFloat(menuLayout.itemCount)
+        func at(_ radius: CGFloat) -> CGPoint {
+            CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
+        }
+        let knobRadius = 9 * scale
+        let knobCentre = at(menuLayout.outerRadius + raise(for: menuLayout))
+        let line = NSBezierPath()
+        line.move(to: at(menuLayout.innerRadius))
+        line.line(to: at(menuLayout.outerRadius + raise(for: menuLayout) - knobRadius))
+        line.lineWidth = 3 * scale
+        line.lineCapStyle = .round
+        editorAccentColor.setStroke()
+        line.stroke()
+        let knob = NSBezierPath(ovalIn: NSRect(x: knobCentre.x - knobRadius, y: knobCentre.y - knobRadius,
+                                               width: knobRadius * 2, height: knobRadius * 2))
+        editorAccentColor.setFill()
+        knob.fill()
+        let plus = NSBezierPath()
+        let arm = knobRadius * 0.5
+        plus.move(to: CGPoint(x: knobCentre.x - arm, y: knobCentre.y))
+        plus.line(to: CGPoint(x: knobCentre.x + arm, y: knobCentre.y))
+        plus.move(to: CGPoint(x: knobCentre.x, y: knobCentre.y - arm))
+        plus.line(to: CGPoint(x: knobCentre.x, y: knobCentre.y + arm))
+        plus.lineWidth = 2 * scale
+        plus.lineCapStyle = .round
+        NSColor.white.setStroke()
+        plus.stroke()
+    }
+
+    /// One Slot on its own, raised, as the image a drag lifts.
+    private func drawSlot(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        drawRaisedSlot(at: index, using: menuLayout, in: canvas)
         drawSlotLabel(at: index, using: menuLayout, in: canvas)
+    }
+
+    private func drawHub(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let scale = menuLayout.outerRadius / 142
+        let radius = max(menuLayout.innerRadius - 5 * scale, 4)
+        let hub = NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius,
+                                              width: radius * 2, height: radius * 2))
+        let palette = self.palette
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = palette.raisedShadow
+        shadow.shadowBlurRadius = 10 * scale
+        shadow.shadowOffset = NSSize(width: 0, height: -2 * scale)
+        shadow.set()
+        palette.hubBottom.setFill()
+        hub.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSGradient(starting: palette.hubTop, ending: palette.hubBottom)?.draw(in: hub, angle: -90)
+        palette.hubEdge.setStroke()
+        hub.lineWidth = 1
+        hub.stroke()
     }
 
     private func slotPath(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSBezierPath {
@@ -1090,31 +1362,39 @@ final class RadialMenuView: NSView {
             cachedPathCanvas = canvas
         }
         if let path = cachedSlotPaths[index] { return path }
-        let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        let step = 360 / CGFloat(menuLayout.itemCount)
         let position = slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index)
+        let path = wedgePath(at: position, from: menuLayout.innerRadius, to: menuLayout.outerRadius,
+                             itemCount: menuLayout.itemCount, in: canvas)
+        cachedSlotPaths[index] = path
+        return path
+    }
+
+    /// The wedge centred on a Slot position, which is fractional while Slots
+    /// move. Position 0 is centred on 12 o'clock.
+    private func wedgePath(at position: CGFloat, from innerRadius: CGFloat, to outerRadius: CGFloat,
+                           itemCount: Int, in canvas: NSRect) -> NSBezierPath {
+        let center = CGPoint(x: canvas.midX, y: canvas.midY)
+        let step = 360 / CGFloat(itemCount)
         let path = NSBezierPath()
         path.appendArc(
             withCenter: center,
-            radius: menuLayout.outerRadius,
-            startAngle: 90 - (position + 1) * step + 2,
-            endAngle: 90 - position * step - 2
+            radius: outerRadius,
+            startAngle: 90 - (position + 0.5) * step,
+            endAngle: 90 - (position - 0.5) * step
         )
         path.appendArc(
             withCenter: center,
-            radius: menuLayout.innerRadius,
-            startAngle: 90 - position * step - 2,
-            endAngle: 90 - (position + 1) * step + 2,
+            radius: innerRadius,
+            startAngle: 90 - (position - 0.5) * step,
+            endAngle: 90 - (position + 0.5) * step,
             clockwise: true
         )
         path.close()
-        cachedSlotPaths[index] = path
         return path
     }
 
     private func drawSlotLabel(at index: Int, using menuLayout: RadialMenuLayout, in canvas: NSRect) {
         let slot = slots[index]
-        let isFocused = selectedIndex == index
         let metrics = titleDrawingMetrics(
             at: index,
             using: menuLayout,
@@ -1128,9 +1408,9 @@ final class RadialMenuView: NSView {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: titleLayout.font,
             .paragraphStyle: paragraphStyle,
-            .foregroundColor: isFocused && slot.item?.primaryAction.isAvailable != false
-                ? NSColor.white
-                : (slot.isEmpty ? NSColor.secondaryLabelColor : NSColor.labelColor)
+            .foregroundColor: slot.isEmpty || slot.item?.primaryAction.isAvailable == false
+                ? palette.secondaryLabel
+                : palette.label
         ]
         titleLayout.text.draw(
             in: metrics.rect,
@@ -1159,7 +1439,7 @@ final class RadialMenuView: NSView {
         let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
             .font: appearanceConfiguration.titleFont(ofSize: 10, weight: .semibold),
-            .foregroundColor: NSColor.secondaryLabelColor
+            .foregroundColor: palette.secondaryLabel
         ]
         let size = centerLabel.size(withAttributes: centerAttributes)
         centerLabel.draw(
@@ -1183,7 +1463,7 @@ final class RadialMenuView: NSView {
     ) -> MenuTitleDrawingMetrics {
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
         let position = slotDragPlaceholderIndex == index ? CGFloat(index) : displayedSlotPosition(at: index)
-        let angle = CGFloat.pi / 2 - (position + 0.5) * 2 * .pi / CGFloat(menuLayout.itemCount)
+        let angle = CGFloat.pi / 2 - position * 2 * .pi / CGFloat(menuLayout.itemCount)
         let point = CGPoint(x: center.x + cos(angle) * menuLayout.itemCenterRadius,
                             y: center.y + sin(angle) * menuLayout.itemCenterRadius)
         let titleFontSize: CGFloat
