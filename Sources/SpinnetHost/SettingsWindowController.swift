@@ -26,17 +26,13 @@ final class SettingsWindowController: NSWindowController {
     var onEnabledChanged: ((Bool) -> Void)?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     var onCapabilityGrantChanged: (([PluginCapabilityGrant]) -> Void)?
-    var installPlugin: ((URL) throws -> PluginInstallationOutcome)? {
+    var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)? {
+        get { model.menuEditor.reviewPluginInstallation }
+        set { model.menuEditor.reviewPluginInstallation = newValue }
+    }
+    var installPlugin: ((URL) throws -> PluginManifest)? {
         get { model.menuEditor.installPlugin }
         set { model.menuEditor.installPlugin = newValue }
-    }
-    var restorablePlugins: (() throws -> [PluginManifest])? {
-        get { model.menuEditor.restorablePlugins }
-        set { model.menuEditor.restorablePlugins = newValue }
-    }
-    var restorePlugin: ((PluginID) throws -> PluginManifest)? {
-        get { model.menuEditor.restorePlugin }
-        set { model.menuEditor.restorePlugin = newValue }
     }
     var removePlugin: ((PluginID) throws -> Void)? {
         get { model.menuEditor.removePlugin }

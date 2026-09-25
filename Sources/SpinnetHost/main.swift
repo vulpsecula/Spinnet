@@ -254,18 +254,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
             }
+            settings.reviewPluginInstallation = { [unowned self] url in
+                try self.pluginInstallation.review(url)
+            }
             settings.installPlugin = { [unowned self] url in
-                let outcome = try self.pluginInstallation.install(from: url)
-                if let configuration = self.currentConfiguration {
-                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
-                }
-                return outcome
-            }
-            settings.restorablePlugins = { [unowned self] in
-                try self.pluginInstallation.restorablePlugins()
-            }
-            settings.restorePlugin = { [unowned self] pluginID in
-                let manifest = try self.pluginInstallation.reinstate(pluginID)
+                let manifest = try self.pluginInstallation.install(from: url)
                 if let configuration = self.currentConfiguration {
                     self.menu.reload(items: self.makeMenuSlots(from: configuration))
                 }

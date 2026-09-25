@@ -13,7 +13,7 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary and Documented Plugin Interface as an independently installed Plugin, with one exception: it may present a Host Surface. It is managed like any other Plugin and can be removed, although its files ship with the app and cannot be deleted. What it may do follows from shipping inside the app bundle, so a copy of its package installed from anywhere else would come back weaker than the Plugin it copies; a removed one is brought back by Plugin Restoration instead.
+A first-party Plugin distributed with Spinnet that follows the same Capability boundary and Documented Plugin Interface as an independently installed Plugin, with one exception: it may present a Host Surface. It is managed like any other Plugin: removing it removes it, and the user brings it back the way they would bring back any Plugin, by installing it. Its files ship with the app and cannot be deleted, and what it may do follows from shipping inside the app bundle, so installing a copy of a removed one is Plugin Restoration rather than a second, weaker copy.
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:
@@ -33,7 +33,7 @@ Dropping a Plugin the user no longer wants. Its access decisions are forgotten a
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Plugin Restoration**:
-Bringing a removed Bundled Plugin back from the copy the app carries, which is the only copy that holds the origin it shipped with. The Library offers every removed Bundled Plugin back, and pointing an install at a copy of one restores the shipped Plugin rather than adding a second, weaker copy of it. Access is not inherited: the removal forgot the user's decisions and the Plugin asks again.
+What installing a copy of a removed Bundled Plugin does: the Host registers the copy the app carries, which is the only copy that holds the origin it shipped with, rather than the copy the user pointed at. The Library offers no separate way back. Access is not inherited: the removal forgot the user's decisions and the install asks again.
 _Avoid_: Reinstall, re-enable, undo removal
 
 **Command**:

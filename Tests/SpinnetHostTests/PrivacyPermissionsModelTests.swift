@@ -72,7 +72,7 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         model.setCapabilityDecision(.granted, for: m.id, pluginVersion: m.version, capability: .readSelectedText)
 
         // Two notifications, from two paths that both have to stay: the model
-        // signals synchronously so finishPluginConsent can iterate freshly
+        // signals synchronously so grantRequestedAccess can iterate freshly
         // computed grants, and the grant store's observer signals again for
         // windows that did not make the edit. A looser assertion here would
         // pass even with one of them deleted.
@@ -96,46 +96,34 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertEqual(authorityChanges, 1)
     }
 
-    func testInstallationConsentOnlyOpensWhenSomethingIsUndecided() throws {
-        let m = try manifest()
-        let store = PluginCapabilityGrantStore()
-        let model = makeModel(manifests: [m], grantStore: store)
-
-        XCTAssertTrue(model.beginInstallationConsent(for: m))
-        XCTAssertTrue(model.installationConsentPresented)
-        XCTAssertEqual(model.pluginSettingsManifest?.id, m.id)
-
-        model.finishPluginConsent(grant: true)
-        XCTAssertFalse(model.installationConsentPresented)
-        XCTAssertNil(model.pluginSettingsManifest)
-
-        XCTAssertFalse(model.beginInstallationConsent(for: m),
-                       "Reinstalling the same version asks nothing again")
-        XCTAssertFalse(model.installationConsentPresented)
-    }
-
-    func testDenyingConsentAnswersEveryPendingRequest() throws {
+    func testAllowingAnInstallGrantsTheAccessItAskedFor() throws {
         let m = try manifest(capabilities: [.readSelectedText, .writeClipboard])
         let model = makeModel(manifests: [m])
-        model.beginInstallationConsent(for: m)
 
-        model.finishPluginConsent(grant: false)
+        model.grantRequestedAccess(m, [.readSelectedText, .writeClipboard])
 
-        XCTAssertTrue(model.capabilityGrants.allSatisfy { $0.decision == .denied })
         XCTAssertTrue(model.pendingCapabilityRequests(for: m).isEmpty)
+        XCTAssertTrue(model.capabilityGrants.allSatisfy { $0.decision == .granted })
     }
 
-    /// Reviewing access from the Library opens the same sheet, but it is not a
-    /// consent prompt and must not offer grant-everything buttons.
-    func testReviewingPluginSettingsIsNotAConsentPrompt() throws {
+    func testAllowingAnInstallLeavesADecisionAlreadyMade() throws {
+        let m = try manifest(capabilities: [.readSelectedText, .writeClipboard])
+        let store = PluginCapabilityGrantStore()
+        store.setDecision(.denied, for: m.id, pluginVersion: m.version, capability: .writeClipboard)
+        let model = makeModel(manifests: [m], grantStore: store)
+
+        model.grantRequestedAccess(m, [.readSelectedText, .writeClipboard])
+
+        XCTAssertEqual(store.decision(for: m.id, pluginVersion: m.version, capability: .readSelectedText), .granted)
+        XCTAssertEqual(store.decision(for: m.id, pluginVersion: m.version, capability: .writeClipboard), .denied)
+    }
+
+    func testPluginSettingsOpensForTheChosenPlugin() throws {
         let m = try manifest()
         let model = makeModel(manifests: [m])
-        model.beginInstallationConsent(for: m)
-        XCTAssertTrue(model.installationConsentPresented)
 
         model.showPluginSettings(m.id)
 
-        XCTAssertFalse(model.installationConsentPresented)
         XCTAssertEqual(model.pluginSettingsManifest?.id, m.id)
     }
 

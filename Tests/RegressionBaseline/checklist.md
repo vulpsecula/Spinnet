@@ -41,13 +41,19 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
   `used_when` is not met is hidden. A missing value the current sources need
   makes every Menu Item of the Plugin unavailable: "Complete this Plugin's
   Plugin Settings in the Library".
-- **Removal.** Library → Plugin → Remove Plugin (confirmed) removes it; its
-  Menu Items stay in their Slots and become unavailable ("Plugin is not
-  registered"). The removal survives a relaunch.
-- **Restoration.** The Library search offers "Restore Plugin: *name*" for a
-  removed Bundled Plugin. Restoring brings it back with its Menu Items working
-  again once access is granted: access is **not** inherited, and every
-  Capability asks again.
+- **Installation.** Library → Install or Update Plugin… asks "Install
+  *name*?" with the access it requests, before anything is copied. Install
+  grants that access; Cancel installs nothing. A Plugin that asks for no new
+  access installs at once. A refusal, such as a Plugin that needs a newer
+  Plugin API Level, is an alert.
+- **Removal.** Library → Plugin → Remove Plugin (confirmed) removes it. The
+  confirmation names the Slots whose Menu Items use it; those stay in their
+  Slots and become unavailable ("Plugin is not registered"). The removal
+  survives a relaunch.
+- **Restoration.** A removed Bundled Plugin has no separate way back.
+  Installing a copy of its package brings back the copy the app carries, with
+  its Menu Items working again: access is **not** inherited, and the install
+  asks for every Capability again.
 - **Updates.** A new Plugin version with an unchanged Capability scope keeps
   the user's decision; a changed scope asks again.
 

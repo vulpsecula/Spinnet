@@ -156,7 +156,24 @@ public final class PluginCapabilityGrantStore {
     /// Inherit decisions only for the same Plugin and identical Capability
     /// scope. Snapshot first because an update may reuse its version string.
     public func prepareInstallation(of manifest: PluginManifest, replacing previous: PluginManifest?) {
-        let inherited = manifest.capabilities.map { capability -> PluginCapabilityGrant in
+        for grant in inheritedGrants(for: manifest, replacing: previous) {
+            setDecision(grant.decision, for: grant.pluginID, pluginVersion: grant.pluginVersion,
+                        capability: grant.capability, scope: grant.scope)
+        }
+    }
+
+    /// The Capabilities nobody will have decided on once `manifest` is
+    /// installed over `previous`: what the user is asked to allow first.
+    public func requestsAfterInstallation(of manifest: PluginManifest,
+                                          replacing previous: PluginManifest?) -> [PluginCapability] {
+        inheritedGrants(for: manifest, replacing: previous)
+            .filter { $0.decision == .notDetermined }
+            .map(\.capability)
+    }
+
+    private func inheritedGrants(for manifest: PluginManifest,
+                                 replacing previous: PluginManifest?) -> [PluginCapabilityGrant] {
+        manifest.capabilities.map { capability -> PluginCapabilityGrant in
             var scope = manifest.scope(for: capability)
             let decision: PluginCapabilityGrantDecision
             if let previous, previous.id == manifest.id,
@@ -172,10 +189,6 @@ public final class PluginCapabilityGrantStore {
             }
             return PluginCapabilityGrant(pluginID: manifest.id, pluginVersion: manifest.version,
                                          capability: capability, decision: decision, scope: scope)
-        }
-        for grant in inherited {
-            setDecision(grant.decision, for: grant.pluginID, pluginVersion: grant.pluginVersion,
-                        capability: grant.capability, scope: grant.scope)
         }
     }
 

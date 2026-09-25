@@ -246,10 +246,9 @@ final class SettingsWindowModel: ObservableObject {
             self?.menuEditor.refreshMenuSlots()
             self?.onScreenshotSettingsChanged?()
         }
-        // A newly installed Plugin may declare Capabilities nobody has decided
-        // on yet; the consent sheet takes over from the install message.
-        menuEditor.onPluginInstalled = { [weak privacy] manifest in
-            privacy?.beginInstallationConsent(for: manifest) ?? false
+        // Allowing an install is the user's decision on the access it asked for.
+        menuEditor.grantRequestedAccess = { [weak privacy] manifest, requested in
+            privacy?.grantRequestedAccess(manifest, requested)
         }
     }
 
@@ -292,9 +291,6 @@ final class SettingsWindowModel: ObservableObject {
         if page == .menu {
             names.append(contentsOf: ["Built-in Presets", "Plugin Presets"])
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
-            for plugin in menuEditor.restorablePluginList {
-                names.append("Restore Plugin: \(plugin.name)")
-            }
             let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(menuEditor.selectedMenuIndex)
                 && editor.configuration.menu.slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
@@ -388,8 +384,24 @@ struct SettingsRootView: View {
                 PluginConsentSheet(privacy: privacy, manifest: manifest,
                                    onDone: model.closePluginSettings,
                                    screenshotSettings: manifest.id == BuiltInPresetCatalog.screenshotPluginID ? screenshots : nil,
-                                   pluginSettings: privacy.installationConsentPresented ? nil : model.pluginSettingsModel(for: manifest))
+                                   pluginSettings: model.pluginSettingsModel(for: manifest))
             }
+        }
+        .sheet(item: Binding(
+            get: { menuEditor.pendingInstallation },
+            set: { if $0 == nil { menuEditor.cancelPendingInstallation() } }
+        )) { installation in
+            PluginInstallSheet(installation: installation,
+                               onCancel: menuEditor.cancelPendingInstallation,
+                               onInstall: menuEditor.confirmPendingInstallation)
+        }
+        .alert("Plugin Not Installed", isPresented: Binding(
+            get: { menuEditor.installationFailure != nil },
+            set: { if !$0 { menuEditor.installationFailure = nil } }
+        )) {
+            Button("OK", role: .cancel) { menuEditor.installationFailure = nil }
+        } message: {
+            Text(menuEditor.installationFailure ?? "")
         }
         .alert(menuEditor.deletionTitle, isPresented: Binding(
             get: { menuEditor.slotPendingDeletion != nil },
@@ -407,7 +419,7 @@ struct SettingsRootView: View {
             Button("Cancel", role: .cancel, action: menuEditor.cancelPluginRemoval)
             Button("Remove Plugin", role: .destructive, action: menuEditor.confirmPluginRemoval)
         } message: {
-            Text("Its access is forgotten and it leaves the Library. Menu Items that used it are kept and marked unavailable.")
+            Text(menuEditor.removalMessage)
         }
         .alert(
             "Replace Menu Item in Slot \((menuEditor.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
@@ -720,10 +732,7 @@ struct SettingsRootView: View {
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
                     onPluginSettings: privacy.showPluginSettings,
-                    onRemovePlugin: menuEditor.requestPluginRemoval,
-                    restorablePluginsForQuery: menuEditor.restorablePlugins(matching:),
-                    restorableFailure: menuEditor.restorableFailure,
-                    onRestorePlugin: menuEditor.restoreRemovedPlugin
+                    onRemovePlugin: menuEditor.requestPluginRemoval
                 )
                 }
                 .id(menuEditor.refreshToken)

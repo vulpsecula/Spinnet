@@ -162,59 +162,77 @@ final class MenuEditorModelTests: XCTestCase {
         XCTAssertGreaterThan(model.refreshToken, token)
     }
 
-    func testTheLibraryOffersARemovedShippedPluginBackAndRestoresIt() throws {
-        let model = try makeModel()
-        let shipped = try PluginManifest(
-            id: PluginID("com.spinnet.clipboard-history"),
-            name: "Clipboard History",
-            version: "1.1.0",
-            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
-                                          hostCommand: .openURL)]
-        )
-        var removed: [PluginManifest] = [shipped]
-        model.restorablePlugins = { removed }
-        var restored: [PluginID] = []
-        model.restorePlugin = { pluginID in
-            restored.append(pluginID)
-            removed.removeAll { $0.id == pluginID }
-            return shipped
-        }
-
-        XCTAssertEqual(model.restorablePluginList.map(\.name), ["Clipboard History"])
-
-        model.restoreRemovedPlugin(shipped.id)
-
-        XCTAssertEqual(restored, [shipped.id])
-        XCTAssertTrue(model.restorablePluginList.isEmpty, "A restored Plugin is no longer on offer")
-        XCTAssertEqual(
-            model.placementMessage,
-            "Clipboard History restored from the copy that ships with Spinnet. It asks for access again."
+    private func makeManifest(_ id: String, name: String) throws -> PluginManifest {
+        try PluginManifest(
+            id: PluginID(id),
+            name: name,
+            version: "1.0.0",
+            capabilities: [.readSelectedText, .writeClipboard],
+            commands: [CommandDeclaration(id: CommandID("\(id).run"), title: "Run", hostCommand: .openURL)]
         )
     }
 
-    func testInstallingACopyOfAShippedPluginReportsItAsRestored() throws {
+    func testInstallingAsksTheUserToAllowTheRequestedAccessBeforeAnythingIsInstalled() throws {
         let model = try makeModel()
-        let shipped = try PluginManifest(
-            id: PluginID("com.spinnet.clipboard-history"),
-            name: "Clipboard History",
-            version: "1.1.0",
-            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
-                                          hostCommand: .openURL)]
-        )
-        model.installPlugin = { _ in .restored(shipped) }
+        let manifest = try makeManifest("com.example.uppercase", name: "Uppercase")
+        let source = URL(fileURLWithPath: "/tmp/Uppercase.spinnetplugin")
+        model.reviewPluginInstallation = { _ in
+            PluginInstallationReview(manifest: manifest, requestedAccess: [.readSelectedText, .writeClipboard])
+        }
+        var installed: [URL] = []
+        model.installPlugin = { installed.append($0); return manifest }
+        var granted: [(PluginID, [PluginCapability])] = []
+        model.grantRequestedAccess = { granted.append(($0.id, $1)) }
 
-        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"))
+        model.installPluginPackage(at: source)
 
-        XCTAssertEqual(
-            model.placementMessage,
-            "Clipboard History restored from the copy that ships with Spinnet. It asks for access again.",
-            "A Plugin the app carries comes back rather than being installed as a user copy"
-        )
+        XCTAssertEqual(model.pendingInstallation?.review.manifest, manifest)
+        XCTAssertTrue(installed.isEmpty, "Nothing is installed until the user allows it")
+
+        model.confirmPendingInstallation()
+
+        XCTAssertEqual(installed, [source])
+        XCTAssertEqual(granted.map(\.0), [manifest.id])
+        XCTAssertEqual(granted.first?.1, [.readSelectedText, .writeClipboard])
+        XCTAssertNil(model.pendingInstallation)
+        XCTAssertEqual(model.placementMessage, "Uppercase installed.")
+    }
+
+    func testCancellingAnInstallInstallsNothing() throws {
+        let model = try makeModel()
+        let manifest = try makeManifest("com.example.uppercase", name: "Uppercase")
+        model.reviewPluginInstallation = { _ in
+            PluginInstallationReview(manifest: manifest, requestedAccess: [.readSelectedText])
+        }
+        var installed: [URL] = []
+        model.installPlugin = { installed.append($0); return manifest }
+
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Uppercase.spinnetplugin"))
+        model.cancelPendingInstallation()
+        model.confirmPendingInstallation()
+
+        XCTAssertTrue(installed.isEmpty)
+        XCTAssertNil(model.pendingInstallation)
+    }
+
+    func testAPluginThatAsksForNoNewAccessInstallsStraightAway() throws {
+        let model = try makeModel()
+        let manifest = try makeManifest("com.example.uppercase", name: "Uppercase")
+        model.reviewPluginInstallation = { _ in PluginInstallationReview(manifest: manifest, requestedAccess: []) }
+        var installed: [URL] = []
+        model.installPlugin = { installed.append($0); return manifest }
+
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Uppercase.spinnetplugin"))
+
+        XCTAssertEqual(installed.count, 1)
+        XCTAssertNil(model.pendingInstallation)
+        XCTAssertEqual(model.placementMessage, "Uppercase installed. Existing access decisions retained.")
     }
 
     /// Installing from the Library goes through the real installation store,
     /// so the message is the one a user sees for a Plugin written against a
-    /// newer Documented Plugin Interface.
+    /// newer Documented Plugin Interface. A failure is shown as an alert,
+    /// because the Library's own message sits below the fold.
     func testInstallingAPluginThatNeedsANewerPluginAPILevelTellsTheUserToUpdateSpinnet() throws {
         let model = try makeModel()
         let directory = FileManager.default.temporaryDirectory
@@ -224,6 +242,7 @@ final class MenuEditorModelTests: XCTestCase {
             directory: directory.appendingPathComponent("Plugins"), registry: PluginRegistry(),
             grants: PluginCapabilityGrantStore(), persistGrants: {}
         )
+        model.reviewPluginInstallation = { try installer.review($0) }
         model.installPlugin = { try installer.install(from: $0) }
         let source = directory.appendingPathComponent("Newer.spinnetplugin")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
@@ -236,50 +255,55 @@ final class MenuEditorModelTests: XCTestCase {
 
         model.installPluginPackage(at: source)
 
+        XCTAssertNil(model.pendingInstallation)
         XCTAssertEqual(
-            model.placementMessage,
-            "Installation failed: Newer needs Plugin API Level 2, but this version of Spinnet "
+            model.installationFailure,
+            "Newer needs Plugin API Level 2, but this version of Spinnet "
                 + "supports up to Level 1. Update Spinnet to install it."
         )
     }
 
-    func testAnUnreadableRemovedPluginRecordIsReportedWhereTheOfferWouldBe() throws {
+    func testTheRemovalConfirmationNamesTheSlotsWhoseMenuItemsUseThePlugin() throws {
         let model = try makeModel()
-        struct ReadFailure: LocalizedError {
-            var errorDescription: String? { "the record is unreadable" }
-        }
-        model.restorablePlugins = { throw ReadFailure() }
-        model.placementMessage = "Menu Item added to Slot 3."
+        let used = try XCTUnwrap(model.editor.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
 
-        model.refreshMenuSlots()
+        model.requestPluginRemoval(used)
 
         XCTAssertEqual(
-            model.placementMessage,
-            "Menu Item added to Slot 3.",
-            "A refresh riding along with an edit must not overwrite what that edit reported"
+            model.removalMessage,
+            "Its access is forgotten and it leaves the Library. "
+                + "The Menu Item in Slot 1 uses it; it stays in the Menu and is marked unavailable."
         )
-        XCTAssertEqual(
-            model.restorableFailure,
-            "Removed Plugins could not be read: the record is unreadable"
-        )
-        XCTAssertTrue(model.restorablePluginList.isEmpty)
     }
 
-    func testTheRestoreOfferIsSearchedAlongsideTheLibrary() throws {
+    func testTheRemovalConfirmationListsEverySlotThatUsesThePlugin() throws {
         let model = try makeModel()
-        let shipped = try PluginManifest(
-            id: PluginID("com.spinnet.clipboard-history"),
-            name: "Clipboard History",
-            version: "1.1.0",
-            commands: [CommandDeclaration(id: CommandID("history.browse"), title: "Browse History",
-                                          hostCommand: .openURL)]
-        )
-        model.restorablePlugins = { [shipped] }
+        XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
+        let used = try XCTUnwrap(model.editor.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
 
-        XCTAssertEqual(model.restorablePlugins(matching: "clipboard").map(\.name), ["Clipboard History"])
-        XCTAssertEqual(model.restorablePlugins(matching: "browse").map(\.name), ["Clipboard History"],
-                       "A Command title matches, as it does for a Preset")
-        XCTAssertTrue(model.restorablePlugins(matching: "no such plugin").isEmpty)
+        model.requestPluginRemoval(used)
+
+        XCTAssertEqual(
+            model.removalMessage,
+            "Its access is forgotten and it leaves the Library. "
+                + "The Menu Items in Slots 1 and 3 use it; they stay in the Menu and are marked unavailable."
+        )
+    }
+
+    func testTheRemovalConfirmationSaysNothingAboutTheMenuWhenNoMenuItemUsesThePlugin() throws {
+        let model = try makeModel()
+        let unused = MenuItemPreset(
+            pluginID: PluginID("com.example.unused"),
+            name: "Unused",
+            commands: [],
+            source: .plugin,
+            declaration: MenuItemPresetDeclaration(readiness: .readyToUse),
+            canBeRemoved: true
+        )
+
+        model.requestPluginRemoval(unused)
+
+        XCTAssertEqual(model.removalMessage, "Its access is forgotten and it leaves the Library.")
     }
 
     func testLibrarySearchMatchesPresetAndCommandTitles() throws {

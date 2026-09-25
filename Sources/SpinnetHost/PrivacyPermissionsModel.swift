@@ -24,7 +24,6 @@ final class PrivacyPermissionsModel: ObservableObject {
     @Published var pluginSettingsManifest: PluginManifest?
     /// True when that sheet is an install-time consent prompt rather than a
     /// review of decisions already made.
-    @Published var installationConsentPresented = false
 
     @Published var permissionGuidePresented: Bool {
         didSet {
@@ -201,33 +200,19 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     // MARK: Consent and review sheets
 
-    /// Opens the consent sheet for a freshly installed or updated Plugin.
-    /// Returns false when nothing needs consent, so the caller can report a
-    /// plain success instead.
-    @discardableResult
-    func beginInstallationConsent(for manifest: PluginManifest) -> Bool {
+    /// Grants what the user allowed by installing the Plugin: the access it
+    /// asked for that is still undecided now that it is installed. A decision
+    /// made in between is left as it is.
+    func grantRequestedAccess(_ manifest: PluginManifest, _ requested: [PluginCapability]) {
         refreshCapabilityGrants()
-        installationConsentPresented = !pendingCapabilityRequests(for: manifest).isEmpty
-        pluginSettingsManifest = installationConsentPresented ? manifest : nil
-        return installationConsentPresented
+        for capability in pendingCapabilityRequests(for: manifest) where requested.contains(capability) {
+            setCapabilityDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: capability)
+        }
     }
 
-    /// Opens the same sheet for review, from the Library or a Menu Slot.
+    /// Opens the Plugin Settings sheet, from the Library or a Menu Slot.
     func showPluginSettings(_ pluginID: PluginID) {
-        installationConsentPresented = false
         refreshCapabilityGrants()
         pluginSettingsManifest = manifests().first { $0.id == pluginID }
-    }
-
-    /// Answers every outstanding request at once. Denying leaves decisions
-    /// already granted untouched.
-    func finishPluginConsent(grant: Bool) {
-        guard let manifest = pluginSettingsManifest else { return }
-        for capability in pendingCapabilityRequests(for: manifest) {
-            setCapabilityDecision(grant ? .granted : .denied, for: manifest.id,
-                                  pluginVersion: manifest.version, capability: capability)
-        }
-        pluginSettingsManifest = nil
-        installationConsentPresented = false
     }
 }

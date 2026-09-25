@@ -50,9 +50,8 @@ final class HostServicesTests: XCTestCase {
         let model = SettingsWindowModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration),
             metadata: .current, capabilityGrantStore: grants, defaults: defaults, accessibilityPermissionCheck: { true })
         XCTAssertEqual(model.privacy.pendingCapabilityRequests(for: expanded), [.readSelectedText])
-        model.privacy.pluginSettingsManifest = expanded
-        model.privacy.installationConsentPresented = true
-        model.privacy.finishPluginConsent(grant: false)
+        model.privacy.setCapabilityDecision(.denied, for: original.id, pluginVersion: "3",
+                                            capability: .readSelectedText)
         XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .writeClipboard), .granted)
         XCTAssertEqual(grants.decision(for: original.id, pluginVersion: "3", capability: .readSelectedText), .denied)
         let updatedRunner = HostActionRunner(executor: AppKitHostCommandExecutor(adapter: adapter, grantStore: grants))

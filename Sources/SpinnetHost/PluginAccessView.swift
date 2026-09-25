@@ -12,6 +12,8 @@ struct PluginAccessView: View {
     let setDecision: (PluginCapabilityGrantDecision, PluginID, String, PluginCapability) -> Void
     /// Hosts the user added to the contact scope, such as a self-hosted endpoint.
     var consentedHTTPSHosts: [String] = []
+    /// Before an install there are no decisions yet, only what is asked for.
+    var showsDecisions = true
 
     var body: some View {
         let disclosure = PluginPermissionDisclosure(manifest: manifest, commandIDs: commandIDs, inputs: inputs,
@@ -25,59 +27,98 @@ struct PluginAccessView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            ForEach(manifest.capabilities.filter { capability in
-                commandIDs == nil || disclosure.commands.contains {
-                    manifest.requiredCapabilities(for: $0, input: inputs[$0.id]).contains(capability)
-                        || manifest.optionalCapabilities(forCommand: $0).contains(capability)
-                }
-            }, id: \.self) { capability in
-                HStack {
-                    let optional = disclosure.commands.contains {
-                        manifest.optionalCapabilities(forCommand: $0).contains(capability)
+            if showsDecisions {
+                ForEach(manifest.capabilities.filter { capability in
+                    commandIDs == nil || disclosure.commands.contains {
+                        manifest.requiredCapabilities(for: $0, input: inputs[$0.id]).contains(capability)
+                            || manifest.optionalCapabilities(forCommand: $0).contains(capability)
                     }
-                    Text(optional ? "\(capability.title) · Optional" : capability.title)
-                    Spacer()
-                    let decision = grants.first {
-                        $0.pluginID == manifest.id && $0.pluginVersion == manifest.version && $0.capability == capability
-                    }?.decision ?? .notDetermined
-                    let granted = decision == .granted
-                    Text(decision == .notDetermined ? "Not reviewed" : decision.title).foregroundStyle(.secondary)
-                    Button(granted ? "Revoke Access" : "Grant Access") {
-                        setDecision(granted ? .denied : .granted, manifest.id, manifest.version, capability)
+                }, id: \.self) { capability in
+                    HStack {
+                        let optional = disclosure.commands.contains {
+                            manifest.optionalCapabilities(forCommand: $0).contains(capability)
+                        }
+                        Text(optional ? "\(capability.title) · Optional" : capability.title)
+                        Spacer()
+                        let decision = grants.first {
+                            $0.pluginID == manifest.id && $0.pluginVersion == manifest.version && $0.capability == capability
+                        }?.decision ?? .notDetermined
+                        let granted = decision == .granted
+                        Text(decision == .notDetermined ? "Not reviewed" : decision.title).foregroundStyle(.secondary)
+                        Button(granted ? "Revoke Access" : "Grant Access") {
+                            setDecision(granted ? .denied : .granted, manifest.id, manifest.version, capability)
+                        }
+                        .accessibilityLabel("\(granted ? "Revoke Access" : "Grant Access"): \(manifest.name), \(capability.title)")
                     }
-                    .accessibilityLabel("\(granted ? "Revoke Access" : "Grant Access"): \(manifest.name), \(capability.title)")
                 }
+                Text("Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text("Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved.")
-                .font(.caption).foregroundStyle(.secondary)
         }
         .padding(14)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
+/// Asks the user to allow an install before anything is copied. Installing
+/// grants the access listed; each grant can be revoked later in Plugin
+/// Settings.
+struct PluginInstallSheet: View {
+    let installation: PendingPluginInstallation
+    let onCancel: () -> Void
+    let onInstall: () -> Void
+
+    private var manifest: PluginManifest { installation.review.manifest }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Install \(manifest.name)?")
+                .font(.title2.weight(.semibold))
+            Text("Installing allows \(manifest.name) to use:")
+                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(installation.review.requestedAccess, id: \.self) { capability in
+                    Label(capability.title, systemImage: "checkmark.shield")
+                }
+            }
+            ScrollView {
+                PluginAccessView(manifest: manifest, grants: [], setDecision: { _, _, _, _ in },
+                                 showsDecisions: false)
+            }
+            Text("You can revoke access later in Plugin Settings.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Install", action: onInstall)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 600, height: 560)
+    }
+}
+
 struct PluginConsentSheet: View {
     @ObservedObject var privacy: PrivacyPermissionsModel
     let manifest: PluginManifest
-    var reviewInstallation: Bool? = nil
     var onDone: (() -> Void)? = nil
     /// The Screenshot entry's own options, shown above its access.
     var screenshotSettings: ScreenshotSettingsModel? = nil
     /// The Plugin's declared settings, saved by Done.
     var pluginSettings: PluginSettingsModel? = nil
 
-    private var isInstallation: Bool { reviewInstallation ?? privacy.installationConsentPresented }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isInstallation ? "Plugin Installed — Review Access" : "Plugin Settings")
+            Text("Plugin Settings")
                 .font(.title2.weight(.semibold))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let screenshotSettings, !isInstallation {
+                    if let screenshotSettings {
                         ScreenshotSettingsView(model: screenshotSettings)
                     }
-                    if let pluginSettings, !isInstallation {
+                    if let pluginSettings {
                         PluginSettingsForm(model: pluginSettings)
                     }
                     PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
@@ -86,23 +127,17 @@ struct PluginConsentSheet: View {
                 }
             }
             HStack {
-                if isInstallation {
-                    Button("Deny New Requests") { privacy.finishPluginConsent(grant: false) }
-                    Spacer()
-                    Button("Grant New Requests") { privacy.finishPluginConsent(grant: true) }
-                } else {
-                    if pluginSettings != nil {
-                        Button("Cancel", action: close)
-                            .keyboardShortcut(.cancelAction)
-                    }
-                    Spacer()
-                    Button(pluginSettings == nil ? "Done" : "Save") {
-                        // Settings that do not save keep the sheet open with the reason.
-                        if let pluginSettings, !pluginSettings.save() { return }
-                        close()
-                    }
-                        .keyboardShortcut(.defaultAction)
+                if pluginSettings != nil {
+                    Button("Cancel", action: close)
+                        .keyboardShortcut(.cancelAction)
                 }
+                Spacer()
+                Button(pluginSettings == nil ? "Done" : "Save") {
+                    // Settings that do not save keep the sheet open with the reason.
+                    if let pluginSettings, !pluginSettings.save() { return }
+                    close()
+                }
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
@@ -195,7 +230,7 @@ struct MenuItemAccessSummary: View {
             .padding(.top, 8)
         }
         .sheet(isPresented: $showingPluginSettings) {
-            PluginConsentSheet(privacy: privacy, manifest: manifest, reviewInstallation: false,
+            PluginConsentSheet(privacy: privacy, manifest: manifest,
                                onDone: { showingPluginSettings = false })
         }
     }

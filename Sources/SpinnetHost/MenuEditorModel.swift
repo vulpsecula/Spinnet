@@ -5,15 +5,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SpinnetCore
 
-/// A Plugin that ships with Spinnet and was removed. Its package is still in
-/// the app bundle, so the Library can offer it back instead of leaving the
-/// user to find a copy of a Plugin they already have.
-struct RestorablePlugin: Identifiable, Equatable {
-    let pluginID: PluginID
-    let name: String
-    let commandTitles: [String]
+/// A package the user chose to install, waiting for them to allow the access
+/// it asks for. Nothing is copied or registered until they do.
+struct PendingPluginInstallation: Identifiable, Equatable {
+    let source: URL
+    let review: PluginInstallationReview
 
-    var id: String { pluginID.rawValue }
+    var id: URL { source }
 }
 
 /// Drives the Menu Editor: which Menu Slot is selected, what each one presents,
@@ -36,20 +34,15 @@ final class MenuEditorModel: ObservableObject {
     @Published private(set) var pendingPresetSetup: PendingPresetSetup?
     @Published private(set) var refreshToken = 0
     @Published private(set) var menuSlots: [MenuSlotPresentation]
-    /// The Plugins the Library can bring back: shipped ones the user removed.
-    @Published private(set) var restorablePluginList: [RestorablePlugin] = []
-    /// Why that offer is missing, when reading it failed. It is reported where
-    /// the offer would have been rather than in the Menu Editor's own message,
-    /// which belongs to the edit the user just made.
-    @Published private(set) var restorableFailure: String?
-    var installPlugin: ((URL) throws -> PluginInstallationOutcome)?
+    @Published private(set) var pendingInstallation: PendingPluginInstallation?
+    /// Why the last install did not happen, shown as an alert: the Library's
+    /// own message sits below the fold, where a refusal goes unseen.
+    @Published var installationFailure: String?
+    var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
+    var installPlugin: ((URL) throws -> PluginManifest)?
+    /// Records the user's allowing an install as granting the access it asked for.
+    var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
     var removePlugin: ((PluginID) throws -> Void)?
-    /// Wiring this from the Host is what first fills the Library's offer to
-    /// bring a removed Plugin back; edits to the set refresh it from there.
-    var restorablePlugins: (() throws -> [PluginManifest])? {
-        didSet { refreshRestorablePlugins() }
-    }
-    var restorePlugin: ((PluginID) throws -> PluginManifest)?
     @Published private(set) var presetPendingRemoval: MenuItemPreset?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
@@ -75,11 +68,6 @@ final class MenuEditorModel: ObservableObject {
     /// surface. A drag or a delete arriving from a stale view would otherwise
     /// mutate the Menu while the user is looking at another page.
     var acceptsEdits = true
-
-    /// Asked after a Plugin is installed. Returning true means the install
-    /// needs consent, so the Library shows that sheet rather than a plain
-    /// success message.
-    var onPluginInstalled: ((PluginManifest) -> Bool)?
 
     init(editor: HostConfigurationEditor) {
         self.editor = editor
@@ -134,6 +122,33 @@ final class MenuEditorModel: ObservableObject {
         return "Remove \(preset.name)?"
     }
 
+    /// Names the Menu Slots whose Menu Items use the Plugin, since those stay
+    /// in the Menu and stop working.
+    var removalMessage: String {
+        let base = "Its access is forgotten and it leaves the Library."
+        guard let preset = presetPendingRemoval else { return base }
+        let slots = slotNumbers(usingPlugin: preset.pluginID)
+        switch slots.count {
+        case 0:
+            return base
+        case 1:
+            return base + " The Menu Item in Slot \(slots[0]) uses it; it stays in the Menu and is marked unavailable."
+        default:
+            let listed = slots.dropLast().map(String.init).joined(separator: ", ") + " and \(slots[slots.count - 1])"
+            return base + " The Menu Items in Slots \(listed) use it; they stay in the Menu and are marked unavailable."
+        }
+    }
+
+    private func slotNumbers(usingPlugin pluginID: PluginID) -> [Int] {
+        let configuration = editor.configuration
+        let pluginActions = Set(configuration.actions.filter { $0.pluginID == pluginID }.map(\.id))
+        return configuration.menu.slots.enumerated().compactMap { index, slot in
+            guard let item = slot.item else { return nil }
+            let actions = [item.primaryActionID] + item.alternateActionIDs + item.disabledAlternateActionIDs
+            return actions.contains(where: pluginActions.contains) ? index + 1 : nil
+        }
+    }
+
     func requestPluginRemoval(_ preset: MenuItemPreset) {
         guard preset.canBeRemoved else { return }
         presetPendingRemoval = preset
@@ -156,78 +171,46 @@ final class MenuEditorModel: ObservableObject {
         }
     }
 
-    /// The native picker and automated Settings workflow enter the same install intent.
+    /// The native picker and automated Settings workflow enter the same install
+    /// intent. A Plugin that asks for access nobody has decided on waits for
+    /// the user to allow it; one that asks for nothing new installs at once.
     func installPluginPackage(at url: URL) {
+        guard let reviewPluginInstallation else { return }
         do {
-            guard let installPlugin else { return }
-            let outcome = try installPlugin(url)
-            refreshMenuSlots()
-            refreshToken += 1
-            guard onPluginInstalled?(outcome.manifest) != true else { return }
-            switch outcome {
-            case let .installed(manifest):
-                placementMessage = "\(manifest.name) installed. Existing access decisions retained."
-            case let .restored(manifest):
-                placementMessage = restorationMessage(for: manifest)
+            let review = try reviewPluginInstallation(url)
+            if review.requestedAccess.isEmpty {
+                try install(url, granting: [])
+            } else {
+                pendingInstallation = PendingPluginInstallation(source: url, review: review)
             }
         } catch {
-            placementMessage = "Installation failed: \(error.localizedDescription)"
+            installationFailure = error.localizedDescription
         }
     }
 
-    /// Reads the shipped packages from disk, so the Library asks for them when
-    /// the set can have changed rather than on every pass over its body.
-    ///
-    func refreshRestorablePlugins() {
-        guard let restorablePlugins else {
-            restorablePluginList = []
-            restorableFailure = nil
-            return
-        }
+    func confirmPendingInstallation() {
+        guard let pending = pendingInstallation else { return }
+        pendingInstallation = nil
         do {
-            restorablePluginList = try restorablePlugins().map {
-                RestorablePlugin(
-                    pluginID: $0.id,
-                    name: $0.name,
-                    commandTitles: $0.commands.map(\.title)
-                )
-            }
-            restorableFailure = nil
+            try install(pending.source, granting: pending.review.requestedAccess)
         } catch {
-            restorablePluginList = []
-            restorableFailure = "Removed Plugins could not be read: \(error.localizedDescription)"
+            installationFailure = error.localizedDescription
         }
     }
 
-    func restorablePlugins(matching query: String) -> [RestorablePlugin] {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return restorablePluginList }
-        return restorablePluginList.filter { plugin in
-            plugin.name.localizedCaseInsensitiveContains(trimmedQuery)
-                || plugin.commandTitles.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
-        }
+    func cancelPendingInstallation() {
+        pendingInstallation = nil
     }
 
-    func restoreRemovedPlugin(_ pluginID: PluginID) {
-        // A second click on a Restore button whose Plugin is already back
-        // would report a failure for work that is done.
-        guard let restorePlugin,
-              restorablePluginList.contains(where: { $0.pluginID == pluginID }) else { return }
-        do {
-            let manifest = try restorePlugin(pluginID)
-            refreshMenuSlots()
-            refreshToken += 1
-            if onPluginInstalled?(manifest) != true {
-                placementMessage = restorationMessage(for: manifest)
-            }
-        } catch {
-            placementMessage = "Restore failed: \(error.localizedDescription)"
-        }
-    }
-
-    private func restorationMessage(for manifest: PluginManifest) -> String {
-        "\(manifest.name) restored from the copy that ships with Spinnet. "
-            + "It asks for access again."
+    private func install(_ url: URL, granting requested: [PluginCapability]) throws {
+        guard let installPlugin else { return }
+        let manifest = try installPlugin(url)
+        if !requested.isEmpty { grantRequestedAccess?(manifest, requested) }
+        refreshMenuSlots()
+        refreshToken += 1
+        placementMessage = requested.isEmpty
+            ? "\(manifest.name) installed. Existing access decisions retained."
+            : "\(manifest.name) installed."
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {
@@ -250,7 +233,6 @@ final class MenuEditorModel: ObservableObject {
     /// it to every Appearance sample from the size Slider.
     func refreshMenuSlots() {
         menuSlots = makeMenuSlots()
-        refreshRestorablePlugins()
     }
 
     func librarySections(matching query: String) -> [MenuItemPresetSection] {

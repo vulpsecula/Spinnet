@@ -112,13 +112,12 @@ the deterministic classifier and Host Action tests.
     and copy the exact title from that app's Services menu into the
     Configuration Sheet. Use the full menu path with `/` separators when the
     service is nested.
-12. Remove `Clipboard History` from the Library and confirm. It leaves the
-    Library, the Menu Items built from it stay in their Slots and report as
-    unavailable, and a `Removed Plugins` section offers it back. Restart the
-    app and confirm it is still gone and still offered. Restore it, grant its
-    Capabilities again, and run it: a Plugin that ships with Spinnet comes back
-    from the copy the app carries, so installing a copy of its package restores
-    that one instead of adding a second.
+12. Remove `Clipboard History` from the Library. The confirmation names the
+    Slots whose Menu Items use it; those stay in their Slots and report as
+    unavailable. Restart the app and confirm it is still gone. Bring it back
+    with `Install or Update Plugin…` and a copy of its package, allow the
+    access it asks for, and run it: a Plugin that ships with Spinnet comes back
+    from the copy the app carries, not as a second copy.
 13. If an application, file, or folder used by a Menu Item is later removed,
     the Menu Item remains in its Slot and only that Action is disabled. Its
     Slot keeps the Preset name (or your Alias), while the unavailable reason

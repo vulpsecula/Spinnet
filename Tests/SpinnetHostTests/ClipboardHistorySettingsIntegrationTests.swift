@@ -161,7 +161,7 @@ final class ClipboardHistorySettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(try h.query(package).entries.map(\.text), ["after Clear"])
     }
 
-    func testSettingsHistoryUpgradeDenialReauthorizationAndRestartUsePersistedScope() throws {
+    func testSettingsHistoryUpgradeRevocationReauthorizationAndRestartUsePersistedScope() throws {
         let h = try RichClipboardHistoryTests.Harness()
         let suite = "HistoryUpgrade." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -179,6 +179,7 @@ final class ClipboardHistorySettingsIntegrationTests: XCTestCase {
             let model = SettingsWindowModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration),
                 metadata: .current, capabilityGrantStore: grants, defaults: defaults, clipboardHistoryStore: h.store,
                 accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
+            model.menuEditor.reviewPluginInstallation = { try installer.review($0) }
             model.menuEditor.installPlugin = { try installer.install(from: $0) }
             model.privacy.onGrantsChanged = { values in
                 do { try JSONEncoder().encode(values).write(to: grantsURL, options: .atomic) }
@@ -202,15 +203,20 @@ final class ClipboardHistorySettingsIntegrationTests: XCTestCase {
         try h.collector.poll()
         let (settings, registry) = try session()
         settings.menuEditor.installPluginPackage(at: try source(types: ["text"], version: "1"))
-        XCTAssertTrue(settings.privacy.installationConsentPresented)
-        settings.privacy.finishPluginConsent(grant: true)
+        XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readClipboardHistory])
+        settings.menuEditor.confirmPendingInstallation()
         XCTAssertEqual(try h.query(XCTUnwrap(registry.package(for: PluginID("reader")))) .entries.map(\.text), ["pre-grant text"])
+        // A widened scope is asked for again; cancelling keeps the version the user had.
         settings.menuEditor.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
+        XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readClipboardHistory])
+        settings.menuEditor.cancelPendingInstallation()
+        XCTAssertEqual(registry.package(for: PluginID("reader"))?.manifest.version, "1")
+        settings.menuEditor.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
+        settings.menuEditor.confirmPendingInstallation()
         let updated = try XCTUnwrap(registry.package(for: PluginID("reader")))
-        XCTAssertTrue(settings.privacy.installationConsentPresented)
-        XCTAssertEqual(settings.privacy.pendingCapabilityRequests(for: updated.manifest), [.readClipboardHistory])
-        XCTAssertThrowsError(try h.query(updated))
-        settings.privacy.finishPluginConsent(grant: false)
+        XCTAssertEqual(Set(try h.query(updated).entries.map(\.contentType)), [.text, .image])
+        settings.privacy.setCapabilityDecision(.denied, for: updated.manifest.id, pluginVersion: "2",
+                                               capability: .readClipboardHistory)
         XCTAssertThrowsError(try h.query(updated))
         try restart()
         let (deniedSettings, deniedRegistry) = try session()
