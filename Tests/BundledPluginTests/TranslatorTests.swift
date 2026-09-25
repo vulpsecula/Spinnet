@@ -473,6 +473,40 @@ final class TranslatorScriptTests: XCTestCase {
         XCTAssertNil(run.session)
         XCTAssertEqual(run.transport.requests, [])
     }
+
+    // MARK: Keys
+
+    /// Pins what the keyed sources put on the wire, byte for byte, so moving
+    /// their keys onto Credential Uses cannot change a request. Body members
+    /// once followed a Swift dictionary's order, which changed between
+    /// launches; they are sorted now, and every other byte is what it was.
+    func testDeepLAndOpenAIRequestsAreUnchanged() throws {
+        let run = try runTranslator("translator.selection",
+                                    settings: translatorSettings(sources: ["DeepL", "OpenAI"], formality: "prefer_more"))
+        guard case .succeeded = run.outcome else { return XCTFail("\(run.outcome)") }
+        _ = try run.resolve("Good morning")
+        XCTAssertEqual(run.transport.requests.count, 2)
+
+        let deepL = try run.request(to: "api-free.deepl.com")
+        XCTAssertEqual(deepL.method, "POST")
+        XCTAssertEqual(deepL.url.absoluteString, "https://api-free.deepl.com/v2/translate")
+        XCTAssertEqual(deepL.headers, ["Authorization": "DeepL-Auth-Key deepl-secret",
+                                       "Content-Type": "application/json"])
+        XCTAssertEqual(String(decoding: try XCTUnwrap(deepL.body), as: UTF8.self),
+                       #"{"formality":"prefer_more","target_lang":"DE","text":["Good morning"]}"#)
+        XCTAssertEqual(deepL.maximumResponseBytes, HTTPSRequestBudgets.maximumResponseBodyBytes)
+
+        let openAI = try run.request(to: "api.openai.com")
+        XCTAssertEqual(openAI.method, "POST")
+        XCTAssertEqual(openAI.url.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertEqual(openAI.headers, ["Authorization": "Bearer openai-secret",
+                                        "Content-Type": "application/json"])
+        XCTAssertEqual(String(decoding: try XCTUnwrap(openAI.body), as: UTF8.self),
+                       #"{"messages":[{"content":"You are a translation engine. "#
+            + #"Translate the text the user sends into German. Reply with the translation only, without quotes, "#
+            + #"notes, or explanations, and keep its line breaks and formatting.","role":"system"},"#
+            + #"{"content":"Good morning","role":"user"}],"model":"gpt-test"}"#)
+    }
 }
 
 private struct TranslatorNoopExecutor: HostCommandExecutor {

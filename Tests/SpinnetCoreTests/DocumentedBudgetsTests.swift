@@ -141,6 +141,16 @@ final class HTTPSRequestBudgetsTests: XCTestCase {
         XCTAssertEqual(HTTPSRequestBudgets.timeout, 3)
         XCTAssertLessThan(HTTPSRequestBudgets.timeout, ScriptedActionBudgets.actionDeadline)
     }
+
+    /// docs/plugin-interface.md, "Credential Uses"
+    func testCredentialUseBudgetsMatchDocumentedInterface() {
+        // "an array of at most 4 Credential Uses"
+        XCTAssertEqual(HTTPSRequestBudgets.maximumCredentialUses, 4)
+        // "Templates, HMAC keys, and chain steps are at most 1024 characters."
+        XCTAssertEqual(HTTPSRequestBudgets.maximumCredentialTemplateLength, 1024)
+        // "An optional `chain` of at most 8 texts"
+        XCTAssertEqual(HTTPSRequestBudgets.maximumHMACChainSteps, 8)
+    }
 }
 
 final class ExternalAppBudgetsTests: XCTestCase {

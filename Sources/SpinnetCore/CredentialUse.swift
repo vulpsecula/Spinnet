@@ -107,26 +107,6 @@ struct CredentialUse: Equatable {
         self.template = template
     }
 
-    /// Today's single-header `credential`: `{reference, header?, format?}`,
-    /// a header placement by another name.
-    init(legacy value: JSONValue) throws {
-        guard case .object(let fields) = value,
-              Set(fields.keys).isSubset(of: ["reference", "header", "format"]),
-              case .string(let reference) = fields["reference"], PluginCredentialReference.isValid(reference) else {
-            throw Self.invalid("credential expects a reference, and optional header and format")
-        }
-        var translated: [String: JSONValue] = ["reference": .string(reference), "header": .string("Authorization")]
-        if let header = fields["header"] {
-            guard case .string = header else { throw Self.invalid("credential header must be a string") }
-            translated["header"] = header
-        }
-        if let format = fields["format"] {
-            guard case .string = format else { throw Self.invalid("credential format must be a string") }
-            translated["template"] = format
-        }
-        try self.init(.object(translated))
-    }
-
     /// The text to place: the template filled with the credential, or with
     /// the signature made with it.
     func value(with secret: String) -> String {

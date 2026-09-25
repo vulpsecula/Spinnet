@@ -111,7 +111,8 @@ final class ResultsPresentationTests: XCTestCase {
                 "method": .string("POST"),
                 "url": .string("https://\(host)/translate"),
                 "json_body": .object(["q": .array([.string("{{text}}")]), "target": .string("DE")]),
-                "credential": .object(["reference": .string("key"), "format": .string("Key {credential}")])
+                "credential_uses": .array([.object(["reference": .string("key"), "header": .string("Authorization"),
+                                                    "template": .string("Key {credential}")])])
             ]),
             "result_pointer": .string(pointer)
         ]
@@ -284,7 +285,8 @@ final class ResultsPresentationTests: XCTestCase {
         let transport = RoutedHTTPSTransport(["api.example.com": RoutedHTTPSTransport.json(#"{"text":"ok"}"#)])
         var noKey = section("No Key")
         if case .object(var fields) = noKey, case .object(var request)? = fields["request"] {
-            request["credential"] = .object(["reference": .string("absent")])
+            request["credential_uses"] = .array([.object(["reference": .string("absent"),
+                                                          "header": .string("Authorization")])])
             fields["request"] = .object(request)
             noKey = .object(fields)
         }

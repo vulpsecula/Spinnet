@@ -130,7 +130,7 @@ struct PluginHTTPSRequestPerformer {
 
     private func prepare(_ input: JSONValue) throws -> Prepared {
         guard case .object(let fields) = input,
-              Set(fields.keys).isSubset(of: ["method", "url", "headers", "body", "credential", "credential_uses"]) else {
+              Set(fields.keys).isSubset(of: ["method", "url", "headers", "body", "credential_uses"]) else {
             throw PluginHostServiceError.invalidInput(
                 "https_request expects method, url, and optional headers, body, and credential_uses"
             )
@@ -159,7 +159,7 @@ struct PluginHTTPSRequestPerformer {
             throw PluginHostServiceError.invalidInput("The request body must be a string")
         }
         let request = CredentialUse.Request(method: method, url: url, headers: headers, body: body)
-        let uses = try parseCredentialUses(fields["credential_uses"], legacy: fields["credential"], for: request)
+        let uses = try parseCredentialUses(fields["credential_uses"], for: request)
         return Prepared(request: request, credentialUses: uses)
     }
 
@@ -276,12 +276,10 @@ struct PluginHTTPSRequestPerformer {
         return headers
     }
 
-    /// `credential_uses`, plus the single-header `credential` that came
-    /// before them, each checked against the request it applies to.
-    private func parseCredentialUses(_ value: JSONValue?, legacy: JSONValue?,
+    /// `credential_uses`, each checked against the request it applies to.
+    private func parseCredentialUses(_ value: JSONValue?,
                                      for request: CredentialUse.Request) throws -> [CredentialUse] {
         var uses: [CredentialUse] = []
-        if let legacy, legacy != .null { uses.append(try CredentialUse(legacy: legacy)) }
         if let value, value != .null {
             guard case .array(let declared) = value else {
                 throw PluginHostServiceError.invalidInput("credential_uses must be an array of Credential Uses")

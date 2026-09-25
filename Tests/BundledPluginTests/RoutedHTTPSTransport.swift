@@ -4,9 +4,10 @@ import Foundation
 /// Answers by host, from any thread, so the sections of one presentation can
 /// run at once. A host may answer late or not at all.
 ///
-/// Translator's popup is still sent by the Host, so its tests need the Host's
-/// transport answered as `ResultsPresentationTests` answers it; this copy goes
-/// once the popup is a Plugin View whose sections the kit can answer.
+/// Translator's results are still Host-Fetched Sections sent by the Host, so
+/// its tests need the Host's transport answered as `ResultsPresentationTests`
+/// answers it; this copy goes once they belong to a Plugin View whose sections
+/// the kit can answer.
 final class RoutedHTTPSTransport: HTTPSTransport {
     struct Route {
         var response: HTTPSTransportResponse?

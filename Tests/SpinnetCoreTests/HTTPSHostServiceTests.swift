@@ -199,8 +199,8 @@ final class HTTPSHostServiceTests: XCTestCase {
             "method": .string("POST"), "url": .string("https://api.example.com/v2/translate"),
             "headers": .object(["Content-Type": .string("application/json")]),
             "body": .string(#"{"text":["Hello"]}"#),
-            "credential": .object(["reference": .string("primary"), "header": .string("Authorization"),
-                                   "format": .string("DeepL-Auth-Key {credential}")])
+            "credential_uses": .array([.object(["reference": .string("primary"), "header": .string("Authorization"),
+                                                "template": .string("DeepL-Auth-Key {credential}")])])
         ]))
 
         XCTAssertEqual(transport.requests.first?.headers["Authorization"], "DeepL-Auth-Key s3cr3t-key")
@@ -211,18 +211,18 @@ final class HTTPSHostServiceTests: XCTestCase {
     func testAMissingCredentialFailsWithoutSendingAndNeverEchoesTheSecret() throws {
         let credential: JSONValue = .object(["reference": .string("primary"), "header": .string("Authorization")])
         XCTAssertThrowsError(try request(.object(["method": .string("GET"), "url": .string("https://api.example.com/"),
-                                                  "credential": credential])))
+                                                  "credential_uses": .array([credential])])))
         XCTAssertEqual(transport.requests, [])
 
         // Another Plugin's credential is not reachable by naming its reference.
         try credentials.setSecret("other-plugin-secret", for: PluginID("com.example.other"), reference: "primary")
         XCTAssertThrowsError(try request(.object(["method": .string("GET"), "url": .string("https://api.example.com/"),
-                                                  "credential": credential])))
+                                                  "credential_uses": .array([credential])])))
 
         try credentials.setSecret("s3cr3t-key", for: manifest.id, reference: "primary")
         transport.responses = []
         XCTAssertThrowsError(try request(.object(["method": .string("GET"), "url": .string("https://api.example.com/"),
-                                                  "credential": credential]))) { error in
+                                                  "credential_uses": .array([credential])]))) { error in
             XCTAssertFalse(String(describing: error).contains("s3cr3t-key"))
         }
     }
@@ -239,7 +239,8 @@ final class HTTPSHostServiceTests: XCTestCase {
             ScriptedHTTPSTransport.json("{}")
         ]
         _ = try request(.object(["method": .string("GET"), "url": .string("https://api.example.com/"),
-                                 "credential": .object(["reference": .string("primary"), "header": .string("Authorization")])]))
+                                 "credential_uses": .array([.object(["reference": .string("primary"),
+                                                                     "header": .string("Authorization")])])]))
         XCTAssertEqual(transport.requests.first?.headers["Authorization"], "s3cr3t-key")
         XCTAssertNil(transport.requests.last?.headers["Authorization"])
     }

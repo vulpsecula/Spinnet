@@ -270,7 +270,7 @@ public struct ResultsPresentation: Equatable {
               Set(fields.keys).isSubset(of: ["title", "request", "result_pointer", "error_pointer",
                                              "status_messages", "cache"]),
               case .object(let request)? = fields["request"],
-              Set(request.keys).isSubset(of: ["method", "url", "headers", "json_body", "credential", "credential_uses"]) else {
+              Set(request.keys).isSubset(of: ["method", "url", "headers", "json_body", "credential_uses"]) else {
             throw PluginHostServiceError.invalidInput(
                 "A section expects title, request (method, url, headers, json_body, credential_uses), and result_pointer"
             )
