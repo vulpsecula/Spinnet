@@ -395,13 +395,13 @@ struct SettingsRootView: View {
                                onCancel: menuEditor.cancelPendingInstallation,
                                onInstall: menuEditor.confirmPendingInstallation)
         }
-        .alert("Plugin Not Installed", isPresented: Binding(
-            get: { menuEditor.installationFailure != nil },
-            set: { if !$0 { menuEditor.installationFailure = nil } }
+        .alert(menuEditor.installationResult?.title ?? "", isPresented: Binding(
+            get: { menuEditor.installationResult != nil },
+            set: { if !$0 { menuEditor.installationResult = nil } }
         )) {
-            Button("OK", role: .cancel) { menuEditor.installationFailure = nil }
+            Button("OK", role: .cancel) { menuEditor.installationResult = nil }
         } message: {
-            Text(menuEditor.installationFailure ?? "")
+            Text(menuEditor.installationResult?.message ?? "")
         }
         .alert(menuEditor.deletionTitle, isPresented: Binding(
             get: { menuEditor.slotPendingDeletion != nil },

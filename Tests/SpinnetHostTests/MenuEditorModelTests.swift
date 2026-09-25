@@ -195,7 +195,8 @@ final class MenuEditorModelTests: XCTestCase {
         XCTAssertEqual(granted.map(\.0), [manifest.id])
         XCTAssertEqual(granted.first?.1, [.readSelectedText, .writeClipboard])
         XCTAssertNil(model.pendingInstallation)
-        XCTAssertEqual(model.placementMessage, "Uppercase installed.")
+        XCTAssertEqual(model.installationResult,
+                       PluginInstallationResult(title: "Plugin Installed", message: "Uppercase 1.0.0 is installed."))
     }
 
     func testCancellingAnInstallInstallsNothing() throws {
@@ -226,13 +227,55 @@ final class MenuEditorModelTests: XCTestCase {
 
         XCTAssertEqual(installed.count, 1)
         XCTAssertNil(model.pendingInstallation)
-        XCTAssertEqual(model.placementMessage, "Uppercase installed. Existing access decisions retained.")
+        XCTAssertEqual(model.installationResult,
+                       PluginInstallationResult(title: "Plugin Installed", message: "Uppercase 1.0.0 is installed."))
+    }
+
+    private func fixtureManifest(version: String) throws -> PluginManifest {
+        try PluginManifest(
+            id: PluginID("com.spinnet.fixture"),
+            name: "Fixture",
+            version: version,
+            commands: [CommandDeclaration(id: CommandID("fixture.open"), title: "Open URL", hostCommand: .openURL)]
+        )
+    }
+
+    func testUpdatingAPluginSaysWhichVersionReplacedWhich() throws {
+        let model = try makeModel()
+        let update = try fixtureManifest(version: "2.0.0")
+        model.reviewPluginInstallation = { _ in PluginInstallationReview(manifest: update, requestedAccess: []) }
+        model.installPlugin = { _ in update }
+
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Fixture.spinnetplugin"))
+
+        XCTAssertEqual(model.installationResult, PluginInstallationResult(
+            title: "Plugin Updated", message: "Fixture is updated from 1.0.0 to 2.0.0. Its access decisions are kept."
+        ))
+    }
+
+    /// Installing the same version again changes nothing a user can see, so
+    /// the result is the only sign it happened, and it shows every time.
+    func testInstallingTheSameVersionAgainIsReportedEveryTime() throws {
+        let model = try makeModel()
+        let same = try fixtureManifest(version: "1.0.0")
+        model.reviewPluginInstallation = { _ in PluginInstallationReview(manifest: same, requestedAccess: []) }
+        model.installPlugin = { _ in same }
+        let expected = PluginInstallationResult(
+            title: "Plugin Reinstalled", message: "Fixture 1.0.0 is installed again. Its access decisions are kept."
+        )
+
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Fixture.spinnetplugin"))
+        XCTAssertEqual(model.installationResult, expected)
+        model.installationResult = nil
+        model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Fixture.spinnetplugin"))
+
+        XCTAssertEqual(model.installationResult, expected)
     }
 
     /// Installing from the Library goes through the real installation store,
     /// so the message is the one a user sees for a Plugin written against a
-    /// newer Documented Plugin Interface. A failure is shown as an alert,
-    /// because the Library's own message sits below the fold.
+    /// newer Documented Plugin Interface. Every result is an alert, because
+    /// the Library's own message sits below the fold.
     func testInstallingAPluginThatNeedsANewerPluginAPILevelTellsTheUserToUpdateSpinnet() throws {
         let model = try makeModel()
         let directory = FileManager.default.temporaryDirectory
@@ -256,11 +299,11 @@ final class MenuEditorModelTests: XCTestCase {
         model.installPluginPackage(at: source)
 
         XCTAssertNil(model.pendingInstallation)
-        XCTAssertEqual(
-            model.installationFailure,
-            "Newer needs Plugin API Level 2, but this version of Spinnet "
+        XCTAssertEqual(model.installationResult, PluginInstallationResult(
+            title: "Plugin Not Installed",
+            message: "Newer needs Plugin API Level 2, but this version of Spinnet "
                 + "supports up to Level 1. Update Spinnet to install it."
-        )
+        ))
     }
 
     func testTheRemovalConfirmationNamesTheSlotsWhoseMenuItemsUseThePlugin() throws {

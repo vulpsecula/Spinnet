@@ -14,6 +14,14 @@ struct PendingPluginInstallation: Identifiable, Equatable {
     var id: URL { source }
 }
 
+/// What became of an install, reported as an alert every time: the Library's
+/// own message sits below the fold, and installing the same version again
+/// changes nothing else the user can see.
+struct PluginInstallationResult: Equatable {
+    let title: String
+    let message: String
+}
+
 /// Drives the Menu Editor: which Menu Slot is selected, what each one presents,
 /// and every edit that can be made to the Menu from Settings.
 ///
@@ -35,9 +43,7 @@ final class MenuEditorModel: ObservableObject {
     @Published private(set) var refreshToken = 0
     @Published private(set) var menuSlots: [MenuSlotPresentation]
     @Published private(set) var pendingInstallation: PendingPluginInstallation?
-    /// Why the last install did not happen, shown as an alert: the Library's
-    /// own message sits below the fold, where a refusal goes unseen.
-    @Published var installationFailure: String?
+    @Published var installationResult: PluginInstallationResult?
     var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
     var installPlugin: ((URL) throws -> PluginManifest)?
     /// Records the user's allowing an install as granting the access it asked for.
@@ -179,12 +185,12 @@ final class MenuEditorModel: ObservableObject {
         do {
             let review = try reviewPluginInstallation(url)
             if review.requestedAccess.isEmpty {
-                try install(url, granting: [])
+                try install(url, as: review)
             } else {
                 pendingInstallation = PendingPluginInstallation(source: url, review: review)
             }
         } catch {
-            installationFailure = error.localizedDescription
+            reportInstallationFailure(error)
         }
     }
 
@@ -192,25 +198,42 @@ final class MenuEditorModel: ObservableObject {
         guard let pending = pendingInstallation else { return }
         pendingInstallation = nil
         do {
-            try install(pending.source, granting: pending.review.requestedAccess)
+            try install(pending.source, as: pending.review)
         } catch {
-            installationFailure = error.localizedDescription
+            reportInstallationFailure(error)
         }
+    }
+
+    private func reportInstallationFailure(_ error: Error) {
+        installationResult = PluginInstallationResult(title: "Plugin Not Installed",
+                                                      message: error.localizedDescription)
     }
 
     func cancelPendingInstallation() {
         pendingInstallation = nil
     }
 
-    private func install(_ url: URL, granting requested: [PluginCapability]) throws {
+    private func install(_ url: URL, as review: PluginInstallationReview) throws {
         guard let installPlugin else { return }
+        let previous = editor.pluginManifests.first { $0.id == review.manifest.id }?.version
         let manifest = try installPlugin(url)
+        let requested = review.requestedAccess
         if !requested.isEmpty { grantRequestedAccess?(manifest, requested) }
         refreshMenuSlots()
         refreshToken += 1
-        placementMessage = requested.isEmpty
-            ? "\(manifest.name) installed. Existing access decisions retained."
-            : "\(manifest.name) installed."
+        let kept = requested.isEmpty ? " Its access decisions are kept." : ""
+        switch previous {
+        case nil:
+            installationResult = PluginInstallationResult(
+                title: "Plugin Installed", message: "\(manifest.name) \(manifest.version) is installed.")
+        case manifest.version:
+            installationResult = PluginInstallationResult(
+                title: "Plugin Reinstalled", message: "\(manifest.name) \(manifest.version) is installed again.\(kept)")
+        case let previous?:
+            installationResult = PluginInstallationResult(
+                title: "Plugin Updated",
+                message: "\(manifest.name) is updated from \(previous) to \(manifest.version).\(kept)")
+        }
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {
