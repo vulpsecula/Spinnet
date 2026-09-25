@@ -464,7 +464,10 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
 public struct PluginManifest: Codable, Equatable {
     public static let supportedProtocolVersion = "1.0"
 
+    /// Frames helper messages only; compatibility is `apiLevel`'s job.
     public let protocolVersion: String
+    /// The lowest Plugin API Level the Plugin needs, written as `api_level`.
+    public let apiLevel: Int
     public let id: PluginID
     public let name: String
     public let version: String
@@ -483,6 +486,7 @@ public struct PluginManifest: Codable, Equatable {
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
+        apiLevel: Int = PluginAPILevel.undeclared,
         id: PluginID,
         name: String,
         version: String,
@@ -495,6 +499,7 @@ public struct PluginManifest: Codable, Equatable {
         defaultSettings: [String: JSONValue] = [:]
     ) throws {
         self.protocolVersion = protocolVersion
+        self.apiLevel = apiLevel
         self.id = id
         self.name = name
         self.version = version
@@ -510,6 +515,7 @@ public struct PluginManifest: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case protocolVersion = "protocol_version"
+        case apiLevel = "api_level"
         case id
         case name
         case version
@@ -525,6 +531,7 @@ public struct PluginManifest: Codable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(protocolVersion, forKey: .protocolVersion)
+        try container.encode(apiLevel, forKey: .apiLevel)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
@@ -540,6 +547,9 @@ public struct PluginManifest: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.protocolVersion = try container.decode(String.self, forKey: .protocolVersion)
+        self.apiLevel = container.contains(.apiLevel)
+            ? try container.decode(Int.self, forKey: .apiLevel)
+            : PluginAPILevel.undeclared
         self.id = try container.decode(PluginID.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
         self.version = try container.decode(String.self, forKey: .version)
@@ -567,6 +577,9 @@ public struct PluginManifest: Codable, Equatable {
             throw ConfigurationError.invalidManifest(
                 "Unsupported protocol version \(protocolVersion)"
             )
+        }
+        guard apiLevel >= 1 else {
+            throw ConfigurationError.invalidManifest("Plugin API Level \(apiLevel) does not exist")
         }
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")

@@ -188,7 +188,10 @@ A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 `Sources/SpinnetCore`, `Sources/SpinnetHost`, `Sources/SpinnetPluginHelper`,
 the remaining first-party application source, and the first-party Plugins
 maintained in this repository are covered by that licence unless a file states
-otherwise.
+otherwise. The exception is [`PluginAPI/`](PluginAPI/), the versioned
+Documented Plugin Interface, which is published under the MIT licence in
+[`PluginAPI/LICENSE`](PluginAPI/LICENSE) so that Plugins can copy its schemas
+and type definitions.
 
 ### Source and binaries
 
@@ -207,7 +210,7 @@ of those rights away.
 ### Plugins
 
 A Plugin that is not based on Spinnet-Owned Code and reaches Spinnet only
-through the Documented Plugin Interface in
+through the Documented Plugin Interface in [`PluginAPI/`](PluginAPI/) and
 [`docs/plugin-interface.md`](docs/plugin-interface.md) keeps its own licence;
 running inside Spinnet does not place it under the GPL. Community Plugins may
 use any OSI-approved open-source licence, and their authors keep their

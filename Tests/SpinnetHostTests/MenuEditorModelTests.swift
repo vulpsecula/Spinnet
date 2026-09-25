@@ -212,6 +212,37 @@ final class MenuEditorModelTests: XCTestCase {
         )
     }
 
+    /// Installing from the Library goes through the real installation store,
+    /// so the message is the one a user sees for a Plugin written against a
+    /// newer Documented Plugin Interface.
+    func testInstallingAPluginThatNeedsANewerPluginAPILevelTellsTheUserToUpdateSpinnet() throws {
+        let model = try makeModel()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let installer = PluginInstallationStore(
+            directory: directory.appendingPathComponent("Plugins"), registry: PluginRegistry(),
+            grants: PluginCapabilityGrantStore(), persistGrants: {}
+        )
+        model.installPlugin = { try installer.install(from: $0) }
+        let source = directory.appendingPathComponent("Newer.spinnetplugin")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try Data("""
+        {"protocol_version": "1.0", "api_level": 2, "id": "com.example.newer", "name": "Newer",
+         "version": "1.0.0",
+         "commands": [{"id": "newer.run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
+        """.utf8).write(to: source.appendingPathComponent("manifest.json"))
+        try Data("null".utf8).write(to: source.appendingPathComponent("run.js"))
+
+        model.installPluginPackage(at: source)
+
+        XCTAssertEqual(
+            model.placementMessage,
+            "Installation failed: Newer needs Plugin API Level 2, but this version of Spinnet "
+                + "supports up to Level 1. Update Spinnet to install it."
+        )
+    }
+
     func testAnUnreadableRemovedPluginRecordIsReportedWhereTheOfferWouldBe() throws {
         let model = try makeModel()
         struct ReadFailure: LocalizedError {

@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
+  "api_level": 1,
   "id": "com.spinnet.shottr",
   "name": "Shottr",
   "version": "1.0.0",

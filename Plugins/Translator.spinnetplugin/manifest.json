@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
+  "api_level": 1,
   "id": "com.spinnet.translator",
   "name": "Translator",
   "version": "2.1.0",

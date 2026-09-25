@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
+  "api_level": 1,
   "id": "com.spinnet.clipboard-history",
   "name": "Clipboard History",
   "version": "1.1.0",

@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
+  "api_level": 1,
   "id": "com.spinnet.smart-jump",
   "name": "Smart Jump",
   "version": "2.0.0",

@@ -203,6 +203,9 @@ public final class PluginInstallationStore {
            try shippedPackage(candidate.manifest.id) != nil {
             return .restored(try reinstate(candidate.manifest.id))
         }
+        guard candidate.manifest.apiLevel <= PluginAPILevel.highestSupported else {
+            throw UnsupportedPluginAPILevel(requiredBy: candidate.manifest)
+        }
         if let existing = registry.package(for: candidate.manifest.id),
            !existing.canBeReplacedByInstall {
             throw ConfigurationError.invalidManifest("Cannot replace a Host-provided Plugin")

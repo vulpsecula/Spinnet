@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Plugin manifest",
+  "description": "The manifest.json at the root of a .spinnetplugin package, as of Plugin API Level 1. The schema checks the shape of each member; the Host additionally checks how members refer to each other, such as that a Preset names declared Commands and every scoped Capability is declared.",
+  "type": "object",
+  "required": ["protocol_version", "api_level", "id", "name", "version", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "description": "Frames the messages between the Host and the Plugin's helper. It says nothing about which Host features the Plugin needs; api_level does.",
+      "const": "1.0"
+    },
+    "api_level": {
+      "description": "The lowest Plugin API Level the Plugin needs. A Host that supports only lower levels refuses to install the Plugin and asks the user to update Spinnet.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "description": "The Plugin's identity, stable across versions, such as com.example.plugin.",
+      "$ref": "#/$defs/text"
+    },
+    "name": { "$ref": "#/$defs/text" },
+    "version": { "$ref": "#/$defs/text" },
+    "capabilities": {
+      "description": "The protected Host functionality the Plugin may request. A declaration is not a grant: the user decides each one.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" },
+      "uniqueItems": true
+    },
+    "optional_capabilities": {
+      "description": "Declared Capabilities whose denial does not stop a JavaScript Command from starting.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" },
+      "uniqueItems": true
+    },
+    "capability_scopes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capabilityScope" }
+    },
+    "settings_fields": {
+      "description": "Plugin Settings: fields shared by every Menu Item made from this Plugin.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/field" }
+    },
+    "default_settings": {
+      "description": "Starting values for settings_fields, keyed by field key.",
+      "type": "object"
+    },
+    "preset": { "$ref": "#/$defs/preset" },
+    "commands": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/command" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "text": {
+      "description": "Display or identity text: not blank, at most 256 characters.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "\\S"
+    },
+    "capability": {
+      "enum": [
+        "read_selected_text",
+        "write_clipboard",
+        "read_current_clipboard",
+        "read_clipboard_history",
+        "monitor_clipboard",
+        "contact_https",
+        "control_external_app",
+        "position_focused_window",
+        "open_url",
+        "open_local_path",
+        "capture_screen",
+        "insert_into_focused_app"
+      ]
+    },
+    "capabilityScope": {
+      "description": "Concrete disclosure for one declared Capability. Every member is required; use empty arrays for those that do not apply.",
+      "type": "object",
+      "required": [
+        "capability",
+        "command_ids",
+        "data_types",
+        "includes_existing_host_data",
+        "https_hosts",
+        "external_apps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "capability": { "$ref": "#/$defs/capability" },
+        "command_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/text" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "data_types": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "includes_existing_host_data": { "type": "boolean" },
+        "https_hosts": {
+          "description": "Exact host names, without a scheme, path, port, credentials, or wildcard.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[^\\s/:@*?#]+$" }
+        },
+        "external_apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["bundle_id", "operation_families"],
+            "additionalProperties": false,
+            "properties": {
+              "bundle_id": { "type": "string", "minLength": 1 },
+              "operation_families": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "preset": {
+      "description": "The Plugin's single Library entry.",
+      "type": "object",
+      "required": ["readiness", "is_configurable"],
+      "additionalProperties": false,
+      "properties": {
+        "readiness": { "enum": ["ready_to_use", "setup_required"] },
+        "is_configurable": { "type": "boolean" },
+        "default_primary_command_id": { "$ref": "#/$defs/text" },
+        "default_alternate_command_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/text" },
+          "uniqueItems": true
+        },
+        "default_inputs": {
+          "description": "Starting Action inputs, keyed by Command ID.",
+          "type": "object"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "required": ["id", "title", "execution"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "title": { "$ref": "#/$defs/text" },
+        "description": {
+          "description": "One sentence saying what the Command does.",
+          "$ref": "#/$defs/text"
+        },
+        "execution": { "enum": ["host", "javascript"] },
+        "is_configurable": { "type": "boolean" },
+        "host_command": { "$ref": "#/$defs/hostCommand" },
+        "script": { "$ref": "#/$defs/scriptPath" },
+        "configuration_field": { "$ref": "#/$defs/field" },
+        "configuration_fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/field" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["execution"], "properties": { "execution": { "const": "host" } } },
+          "then": { "required": ["host_command"], "properties": { "script": false } }
+        },
+        {
+          "if": { "required": ["execution"], "properties": { "execution": { "const": "javascript" } } },
+          "then": { "required": ["script"], "properties": { "host_command": false } }
+        }
+      ]
+    },
+    "hostCommand": {
+      "description": "A declarative operation the Host performs itself.",
+      "enum": [
+        "url.open",
+        "application.open",
+        "file.open",
+        "folder.open",
+        "keyboard_shortcut.invoke",
+        "service.invoke",
+        "shortcut.invoke",
+        "clipboard.copy",
+        "clipboard.paste",
+        "clipboard.cut",
+        "feedback.present",
+        "screen.capture_area",
+        "screen.capture_full_screen",
+        "screen.capture_window"
+      ]
+    },
+    "scriptPath": {
+      "description": "A path relative to the package root that does not leave it.",
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^(?!/)(?!.*\\\\)(?!(?:.*/)?\\.\\.?(?:/|$))\\S"
+    },
+    "field": {
+      "description": "One Host-rendered field. key is needed inside configuration_fields and settings_fields; overridable and group only inside settings_fields; used_when only inside a field set.",
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "#/$defs/fieldKind" },
+        "title": { "$ref": "#/$defs/text" },
+        "placeholder": { "type": "string", "maxLength": 512 },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "\\S" },
+          "uniqueItems": true
+        },
+        "choice_titles": {
+          "description": "What to show for each choice, in the same order.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "key": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+        "used_when": {
+          "description": "Another choice field in the same set, and the choices of it that use this field.",
+          "type": "object",
+          "required": ["key", "values"],
+          "additionalProperties": false,
+          "properties": {
+            "key": { "type": "string" },
+            "values": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        },
+        "overridable": { "type": "boolean" },
+        "group": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "enum": ["choice", "ordered_choices"] } } },
+          "then": { "required": ["choices"], "properties": { "choices": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "fieldKind": {
+      "enum": [
+        "text",
+        "multiline_text",
+        "toggle",
+        "choice",
+        "application",
+        "file",
+        "folder",
+        "shortcut",
+        "keyboard_shortcut",
+        "url",
+        "size",
+        "position",
+        "credential",
+        "https_endpoint",
+        "ordered_choices",
+        "search_engines"
+      ]
+    }
+  }
+}
