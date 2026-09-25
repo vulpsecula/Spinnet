@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.cut",
+  "name": "Cut",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "builtin.cut"
+  },
+  "commands": [
+    {
+      "id": "builtin.cut",
+      "title": "Cut",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "clipboard.cut"
+    }
+  ]
+}

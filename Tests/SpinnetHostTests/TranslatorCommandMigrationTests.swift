@@ -27,7 +27,7 @@ final class TranslatorCommandMigrationTests: XCTestCase {
         let clipboard = try ActionConfiguration(id: ActionID("clip"), pluginID: manifest.id, command: clipboardCommand,
                                                 input: .null)
         let url = try ActionConfiguration(
-            id: ActionID("url"), pluginID: BuiltInPresetCatalog.openURLPluginID,
+            id: ActionID("url"), pluginID: PluginID("com.spinnet.builtin.open-url"),
             command: CommandDeclaration(id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL),
             input: .string("https://example.com")
         )

@@ -1,0 +1,24 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.open-url",
+  "name": "Open URL",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.open_url",
+    "default_inputs": {
+      "builtin.open_url": "https://github.com/vulpsecula/Spinnet"
+    }
+  },
+  "commands": [
+    {
+      "id": "builtin.open_url",
+      "title": "Open URL",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "url.open"
+    }
+  ]
+}

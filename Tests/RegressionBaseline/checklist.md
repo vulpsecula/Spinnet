@@ -347,7 +347,7 @@ adds its migration and keeps this test passing on these files unchanged.
 | --- | --- |
 | `configuration.json` | One Action for every Command of the six Plugins (56); aliases (including non-ASCII); enabled, disabled and interleaved Alternate Actions; an empty Slot; Command inputs for `bob.translate_text` (multi-line), `shottr.capture_delayed` (non-default), `window.resize` and `window.move`; a legacy input still held by a `shottr.capture_fullscreen` Action |
 | `PluginSettings.json` | Non-default Translator settings (reordered sources, Pro DeepL endpoint, self-hosted OpenAI base URL, a renamed credential reference) and a custom Smart Jump engine list |
-| `capability-grants.json` | Granted, denied and undecided decisions; declared scopes; a user-allowed host on `contact_https`; a decision kept for an older Bob version; the built-in Host Commands' decisions |
+| `capability-grants.json` | Granted, denied and undecided decisions; declared scopes; a user-allowed host on `contact_https`; a decision kept for an older Bob version; the Host Command Plugins' decisions |
 | `keychain-items.json` | The Keychain items the credential references name (service and account; never a secret) |
 
 Not covered, because no planned ticket changes them: the Clipboard History

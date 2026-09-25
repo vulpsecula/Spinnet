@@ -4,11 +4,8 @@ import AppKit
 @testable import SpinnetCore
 
 
-/// A test package always has a directory to clean up, but `rootURL` is optional
-/// because a Host Command has none.
 private func removePackageDirectory(_ package: PluginPackage) {
-    guard let rootURL = package.rootURL else { return }
-    try? FileManager.default.removeItem(at: rootURL)
+    try? FileManager.default.removeItem(at: package.rootURL)
 }
 
 final class PluginRuntimeTests: XCTestCase {

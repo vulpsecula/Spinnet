@@ -5,7 +5,7 @@ struct MenuEditorView: View {
     let editor: HostConfigurationEditor
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
-    let librarySectionsForQuery: (String) -> [MenuItemPresetSection]
+    let libraryPresetsForQuery: (String) -> [MenuItemPreset]
     let onPresetPlacement: (String, Int) -> Bool
     var onInstallPlugin: () -> Void = {}
     var onPluginSettings: (PluginID) -> Void = { _ in }
@@ -17,8 +17,8 @@ struct MenuEditorView: View {
         NSItemProvider(object: NSString(string: pluginID))
     }
 
-    private var librarySections: [MenuItemPresetSection] {
-        librarySectionsForQuery(searchText)
+    private var libraryPresets: [MenuItemPreset] {
+        libraryPresetsForQuery(searchText)
     }
 
     private var selectedSlotIsOccupied: Bool {
@@ -46,7 +46,8 @@ struct MenuEditorView: View {
                     .accessibilityLabel("Search Library")
                 Button("Install or Update Plugin…", action: onInstallPlugin)
 
-                if librarySections.allSatisfy({ $0.presets.isEmpty }) {
+                let presets = libraryPresets
+                if presets.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
@@ -59,24 +60,9 @@ struct MenuEditorView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
                 } else {
-                    VStack(alignment: .leading, spacing: 18) {
-                        ForEach(librarySections, id: \.source) { section in
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("\(section.source.title) Presets")
-                                    .font(.headline)
-                                    .accessibilityAddTraits(.isHeader)
-                                if section.presets.isEmpty {
-                                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                        ? "No \(section.source.title) Presets available"
-                                        : "No matching Presets")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
-                                } else {
-                                    ForEach(section.presets, id: \.id) { preset in
-                                        draggableLibraryCard(preset)
-                                    }
-                                }
-                            }
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(presets, id: \.id) { preset in
+                            draggableLibraryCard(preset)
                         }
                     }
                 }
@@ -111,9 +97,7 @@ struct MenuEditorView: View {
                 .onDrag {
                     Self.libraryPresetDragProvider(for: preset.id)
                 } preview: {
-                    Label(preset.name, systemImage: preset.source == .builtIn
-                        ? "sparkles"
-                        : "puzzlepiece.extension.fill")
+                    Label(preset.name, systemImage: "puzzlepiece.extension.fill")
                         .padding(10)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                 }
@@ -128,9 +112,7 @@ struct MenuEditorView: View {
                 .fill(Color.accentColor.opacity(0.14))
                 .frame(width: 42, height: 42)
                 .overlay {
-                    Image(systemName: preset.source == .builtIn
-                        ? "sparkles"
-                        : "puzzlepiece.extension.fill")
+                    Image(systemName: "puzzlepiece.extension.fill")
                         .foregroundStyle(Color.accentColor)
                 }
 
@@ -163,14 +145,12 @@ struct MenuEditorView: View {
             .help("Plugin Settings — Grant Access")
             .accessibilityLabel("Plugin Settings: \(preset.name)")
 
-            if preset.canBeRemoved {
-                Button { onRemovePlugin(preset) } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-                .help("Remove this Plugin from the Library")
-                .accessibilityLabel("Remove Plugin: \(preset.name)")
+            Button { onRemovePlugin(preset) } label: {
+                Image(systemName: "trash")
             }
+            .buttonStyle(.borderless)
+            .help("Remove this Plugin from the Library")
+            .accessibilityLabel("Remove Plugin: \(preset.name)")
 
             if !selectedSlotIsOccupied {
                 Button {

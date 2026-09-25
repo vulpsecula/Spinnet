@@ -62,12 +62,7 @@ public final class PluginInstallationStore {
     /// a crash in between leaves the removal done rather than half done.
     public func uninstall(_ pluginID: PluginID) throws {
         guard let package = registry.package(for: pluginID) else { return }
-        guard package.canBeRemovedByUser else {
-            throw ConfigurationError.invalidManifest("A Host Command cannot be removed")
-        }
         switch package.origin {
-        case .hostCommand:
-            return
         case .bundled:
             try writeRemoved(try removedPluginIDs().union([pluginID]))
             // A user copy left underneath the shipped one by an older Host is

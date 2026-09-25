@@ -339,9 +339,7 @@ final class MenuEditorModelTests: XCTestCase {
             pluginID: PluginID("com.example.unused"),
             name: "Unused",
             commands: [],
-            source: .plugin,
-            declaration: MenuItemPresetDeclaration(readiness: .readyToUse),
-            canBeRemoved: true
+            declaration: MenuItemPresetDeclaration(readiness: .readyToUse)
         )
 
         model.requestPluginRemoval(unused)
@@ -351,9 +349,9 @@ final class MenuEditorModelTests: XCTestCase {
 
     func testLibrarySearchMatchesPresetAndCommandTitles() throws {
         let model = try makeModel()
-        XCTAssertFalse(model.librarySections(matching: "").isEmpty)
-        XCTAssertFalse(model.librarySections(matching: "fixture").isEmpty, "Matches the Preset name")
-        XCTAssertFalse(model.librarySections(matching: "open url").isEmpty, "Matches a Command title")
-        XCTAssertTrue(model.librarySections(matching: "no such preset").allSatisfy { $0.presets.isEmpty })
+        XCTAssertFalse(model.libraryPresets(matching: "").isEmpty)
+        XCTAssertFalse(model.libraryPresets(matching: "fixture").isEmpty, "Matches the Preset name")
+        XCTAssertFalse(model.libraryPresets(matching: "open url").isEmpty, "Matches a Command title")
+        XCTAssertTrue(model.libraryPresets(matching: "no such preset").isEmpty)
     }
 }

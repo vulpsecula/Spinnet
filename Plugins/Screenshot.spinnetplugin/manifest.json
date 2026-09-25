@@ -1,0 +1,45 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.screenshot",
+  "name": "Screenshot",
+  "version": "1.0.0",
+  "capabilities": [
+    "capture_screen"
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.capture_area",
+    "default_alternate_command_ids": [
+      "builtin.capture_full_screen",
+      "builtin.capture_window"
+    ]
+  },
+  "commands": [
+    {
+      "id": "builtin.capture_area",
+      "title": "Capture Area",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture_area",
+      "description": "Captures the part of the screen you drag across; press Esc to cancel."
+    },
+    {
+      "id": "builtin.capture_full_screen",
+      "title": "Capture Full Screen",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture_full_screen",
+      "description": "Captures the whole main display at once."
+    },
+    {
+      "id": "builtin.capture_window",
+      "title": "Capture Window",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture_window",
+      "description": "Captures the window you click; press Esc to cancel."
+    }
+  ]
+}

@@ -95,7 +95,7 @@ final class PluginRemovalTests: XCTestCase {
 
         let installed = try XCTUnwrap(registry.package(for: shipped.manifest.id))
         XCTAssertEqual(installed.origin, .installed)
-        XCTAssertEqual(installed.rootURL?.deletingLastPathComponent().standardizedFileURL,
+        XCTAssertEqual(installed.rootURL.deletingLastPathComponent().standardizedFileURL,
                        directory.standardizedFileURL, "The copy the user chose is the one installed")
         XCTAssertEqual(
             grants.decision(for: shipped.manifest.id,
@@ -218,7 +218,9 @@ final class PluginRemovalTests: XCTestCase {
                        "A refused package must not be left in the install directory")
     }
 
-    func testAHostCommandCannotBeRemoved() throws {
+    /// A Plugin whose Commands are Host Commands, such as Open URL, is a
+    /// Plugin like any other, and the user may remove it.
+    func testABundledPluginRunningHostCommandsCanBeRemoved() throws {
         let (_, registry, _, store) = try makeStore()
         let command = CommandDeclaration(
             id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL
@@ -229,13 +231,13 @@ final class PluginRemovalTests: XCTestCase {
             preset: MenuItemPresetDeclaration(readiness: .setupRequired, defaultPrimaryCommandID: command.id)
         )
         try registry.register(PluginPackage(
-            rootURL: nil, manifest: manifest, origin: .hostCommand
+            rootURL: URL(fileURLWithPath: "/tmp/OpenURL.spinnetplugin"), manifest: manifest, origin: .bundled
         ))
-        XCTAssertNil(registry.package(for: manifest.id)?.rootURL,
-                     "A Host Command has no package directory to name")
 
-        XCTAssertThrowsError(try store.uninstall(manifest.id))
-        XCTAssertNotNil(registry.package(for: manifest.id))
+        try store.uninstall(manifest.id)
+
+        XCTAssertNil(registry.package(for: manifest.id))
+        XCTAssertTrue(try store.removedPluginIDs().contains(manifest.id))
     }
 
     func testRemovingAPluginLeavesTheMenuItemsThatUsedItInPlace() throws {

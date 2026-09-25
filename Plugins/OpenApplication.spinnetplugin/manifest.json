@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.open-application",
+  "name": "Open Application",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "setup_required",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.open_application"
+  },
+  "commands": [
+    {
+      "id": "builtin.open_application",
+      "title": "Open Application",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "application.open"
+    }
+  ]
+}

@@ -346,12 +346,10 @@ public final class PluginRegistry {
                     pluginID: package.manifest.id,
                     name: package.manifest.name,
                     commands: package.manifest.commands,
-                    source: package.presetSource,
                     declaration: package.manifest.preset,
                     unavailableReason: disabledPluginIDs.contains(package.manifest.id)
                         ? .pluginDisabled
                         : nil,
-                    canBeRemoved: package.canBeRemovedByUser,
                     needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest)
                 )
             }

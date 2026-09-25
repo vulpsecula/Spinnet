@@ -164,17 +164,14 @@ final class RegressionBaselineTests: XCTestCase {
         )).accounts)
     }
 
-    /// What a launch registers: the built-in Host Commands, then every
-    /// shipped Plugin, read from the repository as a development run reads it.
+    /// What a launch registers: every shipped Plugin, read from the
+    /// repository as a development run reads it.
     private func registry(
         grantStore: PluginCapabilityGrantStore? = nil,
         pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
     ) throws -> PluginRegistry {
         let registry = PluginRegistry(grantStore: grantStore, externalAppExists: { _ in true },
                                       pluginSettingsComplete: pluginSettingsComplete)
-        for package in try BuiltInPresetCatalog.makePackages() {
-            try registry.register(package)
-        }
         let plugins = Self.repository.appendingPathComponent("Plugins")
         for url in try FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil)
             .filter({ $0.pathExtension == "spinnetplugin" })

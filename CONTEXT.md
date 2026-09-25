@@ -17,8 +17,8 @@ A first-party Plugin distributed with Spinnet. It follows the same Capability bo
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:
-An operation the Host implements itself and exposes as its own Library entry. It has no Plugin package and cannot be removed, because it is part of the Host rather than something added to it.
-_Avoid_: Built-in Plugin, Bundled Plugin, native Action
+An operation the Host implements itself, such as opening a URL or capturing the screen, which a Plugin's Command runs by naming it in its manifest instead of running a script. The Host has no Library entries of its own: Open URL, Screenshot and the rest are Bundled Plugins that run Host Commands, and the user may remove them like any other Plugin.
+_Avoid_: Built-in Plugin, Built-in Preset, native Action
 
 **Host Surface**:
 A window the Host owns and presents on behalf of a Plugin, because the public view vocabulary cannot express it. Any Plugin granted the Capability it shows data from may request it; where the Plugin came from grants nothing.
@@ -57,11 +57,11 @@ The executable presentation of a Menu when the user invokes it outside Settings.
 _Avoid_: Live preview, actual Menu
 
 **Library**:
-The settings collection of Menu Item Presets available to add to a Menu, grouped by built-in and Plugin-provided sources.
+The settings collection of Menu Item Presets available to add to a Menu, one per registered Plugin, in a single list.
 _Avoid_: Plugin list, Action list
 
 **Menu Item Preset**:
-A recipe exposed as one Library entry for creating a Menu Item. A built-in Preset describes one Host-provided function; a Plugin exposes one Preset that selects default Primary and Alternate Commands from those it provides.
+A recipe exposed as one Library entry for creating a Menu Item. Each Plugin exposes one Preset that selects default Primary and Alternate Commands from those it provides.
 _Avoid_: Plugin, template Menu Item, default Action
 
 **Ready-to-Use Preset**:

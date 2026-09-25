@@ -1,17 +1,5 @@
 import Foundation
 
-public enum MenuItemPresetSource: String, Codable, CaseIterable, Equatable, Hashable {
-    case builtIn = "built_in"
-    case plugin
-
-    public var title: String {
-        switch self {
-        case .builtIn: return "Built-in"
-        case .plugin: return "Plugin"
-        }
-    }
-}
-
 public enum MenuItemPresetReadiness: String, Codable, Equatable, Hashable {
     case readyToUse = "ready_to_use"
     case setupRequired = "setup_required"
@@ -93,12 +81,8 @@ public struct MenuItemPreset: Equatable {
     public let pluginID: PluginID
     public let name: String
     public let commands: [CommandDeclaration]
-    public let source: MenuItemPresetSource
     public let declaration: MenuItemPresetDeclaration
     public let unavailableReason: ActionUnavailableReason?
-    /// A Host Command is part of the Host, so the Library offers no way to
-    /// remove it. Every other entry comes from a Plugin the user may drop.
-    public let canBeRemoved: Bool
     /// The Plugin declares Plugin Settings and one has no usable value yet.
     /// The Preset can still be placed; its Menu Items wait for the settings.
     public let needsPluginSettings: Bool
@@ -127,29 +111,15 @@ public struct MenuItemPreset: Equatable {
         pluginID: PluginID,
         name: String,
         commands: [CommandDeclaration],
-        source: MenuItemPresetSource,
         declaration: MenuItemPresetDeclaration,
         unavailableReason: ActionUnavailableReason? = nil,
-        canBeRemoved: Bool = false,
         needsPluginSettings: Bool = false
     ) {
         self.pluginID = pluginID
         self.name = name
         self.commands = commands
-        self.source = source
         self.declaration = declaration
         self.unavailableReason = unavailableReason
-        self.canBeRemoved = canBeRemoved
         self.needsPluginSettings = needsPluginSettings
-    }
-}
-
-public struct MenuItemPresetSection: Equatable {
-    public let source: MenuItemPresetSource
-    public let presets: [MenuItemPreset]
-
-    public init(source: MenuItemPresetSource, presets: [MenuItemPreset]) {
-        self.source = source
-        self.presets = presets
     }
 }

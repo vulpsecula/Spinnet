@@ -1,25 +1,33 @@
 import Foundation
 import SpinnetCore
 
-/// Screenshots were a Bundled Plugin, `com.spinnet.screenshot`, before they
-/// became Host Commands. Its Actions move onto the Host Commands with their
-/// IDs unchanged, so every Menu Slot, alias and Alternate Action stays as the user
-/// arranged it. The Screenshot Plugin Settings apply to all of its captures now, so the
-/// first Menu Item's after-capture values seed them once.
+/// Screenshots were a scripted Bundled Plugin, `com.spinnet.screenshot`,
+/// before the Screenshot Plugin that runs the capture Host Commands replaced
+/// it. Its Actions move onto that Plugin with their IDs unchanged, so every
+/// Menu Slot, alias and Alternate Action stays as the user arranged it. The
+/// Screenshot Plugin Settings apply to all of its captures now, so the first
+/// Menu Item's after-capture values seed them once.
 enum ScreenshotPluginMigration {
     static let retiredPluginID = PluginID("com.spinnet.screenshot")
     static let retiredPluginVersion = "1.0.0"
+    static let replacementPluginID = PluginID("com.spinnet.builtin.screenshot")
+    static let replacementPluginVersion = "1.0.0"
 
-    private static let replacements: [CommandID: CommandDeclaration] = {
-        let retired: [String: HostCommand] = [
-            "screenshot.capture_area": .captureArea,
-            "screenshot.capture_full_screen": .captureFullScreen,
-            "screenshot.capture_window": .captureWindow
-        ]
-        return Dictionary(uniqueKeysWithValues: retired.compactMap { id, hostCommand in
-            BuiltInPresetCatalog.screenshotCommands.first { $0.hostCommand == hostCommand }.map { (CommandID(id), $0) }
-        })
-    }()
+    /// The replacement Plugin's Commands, as its manifest declares them.
+    private static let replacements: [CommandID: CommandDeclaration] = [
+        CommandID("screenshot.capture_area"): CommandDeclaration(
+            id: CommandID("builtin.capture_area"), title: "Capture Area", isConfigurable: false,
+            hostCommand: .captureArea
+        ),
+        CommandID("screenshot.capture_full_screen"): CommandDeclaration(
+            id: CommandID("builtin.capture_full_screen"), title: "Capture Full Screen", isConfigurable: false,
+            hostCommand: .captureFullScreen
+        ),
+        CommandID("screenshot.capture_window"): CommandDeclaration(
+            id: CommandID("builtin.capture_window"), title: "Capture Window", isConfigurable: false,
+            hostCommand: .captureWindow
+        )
+    ]
 
     /// The configuration with the retired Plugin's Actions replaced, or nil
     /// when it has none. A Command the Plugin never shipped is left for the
@@ -30,7 +38,7 @@ enum ScreenshotPluginMigration {
             guard action.pluginID == retiredPluginID, let command = replacements[action.commandID] else { return action }
             changed = true
             return try ActionConfiguration(
-                id: action.id, pluginID: BuiltInPresetCatalog.screenshotPluginID, command: command, input: .null
+                id: action.id, pluginID: replacementPluginID, command: command, input: .null
             )
         }
         return changed ? try HostConfiguration(actions: actions, menu: configuration.menu) : nil
@@ -60,11 +68,11 @@ enum ScreenshotPluginMigration {
     }
 
     /// Carries a screen capture grant the user gave the retired Plugin over
-    /// to the Host Commands, unless the user already decided for those. Run
+    /// to the replacement Plugin, unless the user already decided for it. Run
     /// before decisions for Plugins that are gone are discarded.
     static func carryGrant(in grants: PluginCapabilityGrantStore) {
-        let target = BuiltInPresetCatalog.screenshotPluginID
-        let version = BuiltInPresetCatalog.screenshotPluginVersion
+        let target = replacementPluginID
+        let version = replacementPluginVersion
         guard grants.decision(for: retiredPluginID, pluginVersion: retiredPluginVersion, capability: .captureScreen) == .granted,
               grants.decision(for: target, pluginVersion: version, capability: .captureScreen) == .notDetermined else { return }
         grants.setDecision(.granted, for: target, pluginVersion: version, capability: .captureScreen)

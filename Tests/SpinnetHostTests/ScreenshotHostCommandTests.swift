@@ -2,24 +2,23 @@ import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
-/// Screenshots are a Host feature: one built-in Preset of three capture Host
-/// Commands, a Host setting for what happens afterwards, and a migration for
-/// Menu Items built from the retired Screenshot Bundled Plugin. The capture
+/// Screenshots are a Host feature: three capture Host Commands, run by the
+/// Screenshot Plugin's one Preset, a Host setting for what happens
+/// afterwards, and a migration for Menu Items built from the retired scripted
+/// Screenshot Plugin. The capture
 /// adapter is a closure here; `NativeScreenCaptureTests` covers the real one.
 final class ScreenshotHostCommandTests: XCTestCase {
 
-    // MARK: - The built-in Preset
+    // MARK: - The Screenshot Plugin
 
-    func testScreenshotIsOneBuiltInPresetWithSiblingCaptureCommands() throws {
+    func testScreenshotIsOnePluginWithSiblingCaptureCommands() throws {
         let registry = PluginRegistry()
-        for package in try BuiltInPresetCatalog.makePackages() { try registry.register(package) }
+        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
 
         let presets = registry.menuItemPresets().filter { $0.name == "Screenshot" }
         XCTAssertEqual(presets.count, 1)
         let preset = try XCTUnwrap(presets.first)
-        XCTAssertEqual(preset.pluginID, BuiltInPresetCatalog.screenshotPluginID)
-        XCTAssertEqual(preset.source, .builtIn)
-        XCTAssertFalse(preset.canBeRemoved)
+        XCTAssertEqual(preset.pluginID, PluginID("com.spinnet.builtin.screenshot"))
         XCTAssertEqual(preset.commands.map(\.id.rawValue),
                        ["builtin.capture_area", "builtin.capture_full_screen", "builtin.capture_window"])
         XCTAssertEqual(preset.commands.map(\.hostCommand), [.captureArea, .captureFullScreen, .captureWindow])
@@ -33,9 +32,6 @@ final class ScreenshotHostCommandTests: XCTestCase {
                        ["builtin.capture_full_screen", "builtin.capture_window"])
         let manifest = try XCTUnwrap(registry.package(for: preset.pluginID)).manifest
         XCTAssertEqual(manifest.capabilities, [.captureScreen])
-        for command in [HostCommand.captureArea, .captureFullScreen, .captureWindow] {
-            XCTAssertEqual(BuiltInPresetCatalog.pluginID(for: command), BuiltInPresetCatalog.screenshotPluginID)
-        }
     }
 
     // MARK: - Running the Host Commands
@@ -117,7 +113,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
             )
         }
         let url = try ActionConfiguration(
-            id: ActionID("url"), pluginID: BuiltInPresetCatalog.openURLPluginID,
+            id: ActionID("url"), pluginID: PluginID("com.spinnet.builtin.open-url"),
             command: CommandDeclaration(id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL),
             input: .string("https://example.com")
         )
@@ -138,12 +134,12 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(migrated.menu, configuration.menu, "Slots, aliases and bindings are kept")
         XCTAssertEqual(migrated.actions.map(\.id), configuration.actions.map(\.id))
         let captures = Array(migrated.actions.prefix(3))
-        XCTAssertTrue(captures.allSatisfy { $0.pluginID == BuiltInPresetCatalog.screenshotPluginID && $0.execution == .host && $0.input == .null })
+        XCTAssertTrue(captures.allSatisfy { $0.pluginID == PluginID("com.spinnet.builtin.screenshot") && $0.execution == .host && $0.input == .null })
         XCTAssertEqual(captures.map(\.hostCommand), [.captureArea, .captureFullScreen, .captureWindow])
         XCTAssertEqual(migrated.actions[3], url)
 
         let registry = PluginRegistry()
-        for package in try BuiltInPresetCatalog.makePackages() { try registry.register(package) }
+        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
         for action in captures {
             XCTAssertEqual(registry.availability(for: action), .available, "\(action.commandID) matches its Host Command")
         }
@@ -256,8 +252,8 @@ final class ScreenshotHostCommandTests: XCTestCase {
     // MARK: - Support
 
     private func screenshotPackage() throws -> (PluginPackage, PluginRegistry, PluginCapabilityGrantStore) {
-        let package = try XCTUnwrap(try BuiltInPresetCatalog.makePackages().first {
-            $0.manifest.id == BuiltInPresetCatalog.screenshotPluginID
+        let package = try XCTUnwrap(try ShippedPluginPackages.hostCommandPlugins().first {
+            $0.manifest.id == PluginID("com.spinnet.builtin.screenshot")
         })
         let registry = PluginRegistry()
         try registry.register(package)

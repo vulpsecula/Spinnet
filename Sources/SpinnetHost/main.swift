@@ -83,9 +83,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             pluginSettings = try PluginSettingsStore(
                 fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginSettings.json")
             )
-            for package in try BuiltInPresetCatalog.makePackages() {
-                try registry.register(package)
-            }
             clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
             let bundledPlugins = try registerBundledPlugins()
             try loadCapabilityGrants()

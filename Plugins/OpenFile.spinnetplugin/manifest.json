@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.open-file",
+  "name": "Open File",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "setup_required",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.open_file"
+  },
+  "commands": [
+    {
+      "id": "builtin.open_file",
+      "title": "Open File",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "file.open"
+    }
+  ]
+}

@@ -26,7 +26,7 @@ final class ManifestSchemaTests: XCTestCase {
     func testEveryBundledManifestValidatesAndDeclaresItsLevel() throws {
         let validator = try validator()
         let urls = try bundledManifestURLs()
-        XCTAssertEqual(urls.count, 6, "Six Bundled Plugins ship with Spinnet")
+        XCTAssertEqual(urls.count, 17, "Seventeen Bundled Plugins ship with Spinnet")
 
         for url in urls {
             let name = url.deletingLastPathComponent().lastPathComponent

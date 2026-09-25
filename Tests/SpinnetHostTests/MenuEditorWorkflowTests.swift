@@ -17,7 +17,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testSetupRequiredPresetStaysEmptyUntilValidConfigurationIsSaved() throws {
         let registry = PluginRegistry()
-        let packages = try BuiltInPresetCatalog.makePackages()
+        let packages = try ShippedPluginPackages.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let configuration = try HostConfiguration(
             actions: [],
@@ -74,7 +74,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testCancellingSetupRequiredPresetLeavesItsSlotEmpty() throws {
         let registry = PluginRegistry()
-        let packages = try BuiltInPresetCatalog.makePackages()
+        let packages = try ShippedPluginPackages.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let model = SettingsWindowModel(
             editor: HostConfigurationEditor(
@@ -134,7 +134,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
     /// cancelling the setup leaves the Menu as it was.
     func testDroppingASetupRequiredPresetKeepsItsNewSlotOnlyIfTheSetupIsSaved() throws {
         let registry = PluginRegistry()
-        let packages = try BuiltInPresetCatalog.makePackages()
+        let packages = try ShippedPluginPackages.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let configuration = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
         let model = SettingsWindowModel(
@@ -161,7 +161,6 @@ final class MenuEditorWorkflowTests: XCTestCase {
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
         let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
-        XCTAssertTrue(preset.canBeRemoved)
         let menuBefore = model.editor.configuration.menu
 
         model.menuEditor.requestPluginRemoval(preset)
@@ -189,23 +188,25 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertNil(model.menuEditor.presetPendingRemoval)
     }
 
-    func testTheLibraryOffersNoRemovalForAHostCommand() throws {
-        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+    /// Open URL runs a Host Command, and is still a Plugin the user may remove.
+    func testThePluginsThatRunHostCommandsCanBeRemovedLikeAnyOther() throws {
+        let registry = PluginRegistry()
+        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
+        let model = SettingsWindowModel(
+            editor: HostConfigurationEditor(
+                registry: registry,
+                configuration: try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
+            ),
+            metadata: .current
+        )
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let hostCommand = MenuItemPreset(
-            pluginID: PluginID("com.spinnet.builtin.open-url"),
-            name: "Open URL",
-            commands: [],
-            source: .builtIn,
-            declaration: MenuItemPresetDeclaration(readiness: .readyToUse),
-            canBeRemoved: false
-        )
+        let openURL = try XCTUnwrap(model.editor.menuItemPresets.first { $0.name == "Open URL" })
 
-        model.menuEditor.requestPluginRemoval(hostCommand)
+        model.menuEditor.requestPluginRemoval(openURL)
+        model.menuEditor.confirmPluginRemoval()
 
-        XCTAssertNil(model.menuEditor.presetPendingRemoval)
-        XCTAssertTrue(removed.isEmpty)
+        XCTAssertEqual(removed, [PluginID("com.spinnet.builtin.open-url")])
     }
 
     func testAddingTheSamePresetTwiceKeepsMenuItemActionsIndependent() throws {
@@ -394,7 +395,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
             manifest: builtIn,
-            origin: .hostCommand
+            origin: .bundled
         ))
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/search.spinnetplugin"),
@@ -409,17 +410,16 @@ final class MenuEditorWorkflowTests: XCTestCase {
             metadata: .current
         )
 
-        let sections = model.menuEditor.librarySections(matching: "")
+        let presets = model.menuEditor.libraryPresets(matching: "")
 
-        XCTAssertEqual(sections.map(\.source), [.builtIn, .plugin])
-        XCTAssertEqual(sections.map { $0.presets.count }, [1, 1])
-        XCTAssertEqual(sections[1].presets[0].commands.count, 2)
-        XCTAssertEqual(sections[0].presets[0].stateLabel, "Ready to Use")
-        XCTAssertEqual(sections[0].presets[0].configurationLabel, "No Configuration")
-        XCTAssertEqual(sections[1].presets[0].stateLabel, "Setup Required")
-        XCTAssertEqual(sections[1].presets[0].configurationLabel, "Configurable")
+        XCTAssertEqual(presets.map(\.name), ["Copy", "Search Tools"], "One list, by name")
+        XCTAssertEqual(presets[1].commands.count, 2)
+        XCTAssertEqual(presets[0].stateLabel, "Ready to Use")
+        XCTAssertEqual(presets[0].configurationLabel, "No Configuration")
+        XCTAssertEqual(presets[1].stateLabel, "Setup Required")
+        XCTAssertEqual(presets[1].configurationLabel, "Configurable")
         XCTAssertEqual(
-            model.menuEditor.librarySections(matching: "documentation").flatMap(\.presets).map(\.name),
+            model.menuEditor.libraryPresets(matching: "documentation").map(\.name),
             ["Search Tools"]
         )
         let emptyConfiguration = model.editor.configuration
@@ -427,8 +427,6 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, emptyConfiguration)
         XCTAssertEqual(model.menuEditor.placementMessage, "Invalid Action: Preset requires setup")
         for accessibleName in [
-            "Built-in Presets",
-            "Plugin Presets",
             "Copy, Ready to Use, No Configuration, Commands: Copy Selected Text",
             "Search Tools, Setup Required, Configurable, Commands: Search the Web, Search Documentation"
         ] {
@@ -437,7 +435,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
         try registry.setEnabled(false, for: plugin.id)
         let unavailablePreset = try XCTUnwrap(
-            model.menuEditor.librarySections(matching: "Search Tools").flatMap(\.presets).first
+            model.menuEditor.libraryPresets(matching: "Search Tools").first
         )
         XCTAssertEqual(unavailablePreset.stateLabel, "Unavailable")
         XCTAssertTrue(unavailablePreset.accessibilityLabel.contains("Plugin is disabled"))

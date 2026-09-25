@@ -195,7 +195,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .copyText:
             // A null input means “copy the current selected text”. The
             // string/object forms remain accepted for backwards compatibility
-            // with persisted Actions created before the Built-in Preset.
+            // with persisted Actions created before the Copy Selected Text Preset.
             return input == .null || containsStringValue(from: input, keys: ["text"])
         case .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow:
             return input == .null
@@ -920,14 +920,10 @@ public struct PluginManifest: Codable, Equatable {
     }
 }
 
-/// Where a package came from, which is what decides who may act on it. This
-/// used to be spread across three independent flags, so combinations with no
-/// meaning were representable, and questions with different answers — may an
-/// install overwrite this, may the user remove it — collapsed into one.
+/// Where a package came from, which decides whether an install may replace
+/// it and how its removal is recorded. It grants no access: every Plugin may
+/// be removed, and a shipped one may do nothing an installed one cannot.
 public enum PluginOrigin: String, Equatable, Hashable, CaseIterable {
-    /// A Host Command surfaced as its own Library entry. It has no package on
-    /// disk, so there is nothing to replace or remove.
-    case hostCommand
     /// A first-party Plugin package delivered inside the app bundle.
     case bundled
     /// A Plugin package the user installed into Application Support.
@@ -935,10 +931,8 @@ public enum PluginOrigin: String, Equatable, Hashable, CaseIterable {
 }
 
 public struct PluginPackage {
-    /// The package directory on disk. A Host Command has none — it is Swift in
-    /// the Host, not a package — and says so rather than naming a path that
-    /// does not exist.
-    public let rootURL: URL?
+    /// The package directory on disk.
+    public let rootURL: URL
     public let manifest: PluginManifest
     /// Set only by the Host when it loads a package, never by a manifest.
     /// Defaults to the least privileged origin, so a caller that forgets to
@@ -951,16 +945,8 @@ public struct PluginPackage {
     /// Only the user's own copies may be overwritten by an install.
     public var canBeReplacedByInstall: Bool { origin == .installed }
 
-    /// A Host Command is part of the Host. Every Plugin, shipped or installed,
-    /// is something the user may remove.
-    public var canBeRemovedByUser: Bool { origin != .hostCommand }
-
-    public var presetSource: MenuItemPresetSource {
-        origin == .hostCommand ? .builtIn : .plugin
-    }
-
     public init(
-        rootURL: URL?,
+        rootURL: URL,
         manifest: PluginManifest,
         origin: PluginOrigin = .installed,
         isVisibleInLibrary: Bool = true

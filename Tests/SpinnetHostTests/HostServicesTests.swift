@@ -409,7 +409,7 @@ final class HostServicesTests: XCTestCase {
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/System/Library/CoreServices/SpinnetBuiltInPresets"),
             manifest: manifest,
-            origin: .hostCommand
+            origin: .bundled
         )
         let registry = PluginRegistry()
         try registry.register(package)
@@ -464,7 +464,7 @@ final class HostServicesTests: XCTestCase {
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
             manifest: manifest,
-            origin: .hostCommand
+            origin: .bundled
         )
         let registry = PluginRegistry()
         try registry.register(package)
@@ -554,13 +554,13 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(adapter.copiedTexts, ["temporary clipboard selection"])
     }
 
-    func testBuiltInPresetCatalogExposesIndependentHostOperations() throws {
-        let packages = try BuiltInPresetCatalog.makePackages()
+    func testTheHostCommandPluginsExposeIndependentHostOperations() throws {
+        let packages = try ShippedPluginPackages.hostCommandPlugins()
         let registry = PluginRegistry()
         for package in packages { try registry.register(package) }
 
         let presets = registry.menuItemPresets()
-        XCTAssertEqual(presets.map(\.source).filter { $0 == .builtIn }.count, packages.count)
+        XCTAssertEqual(presets.count, packages.count, "One Preset per Plugin")
         XCTAssertTrue(presets.contains { $0.name == "Open URL" && $0.readiness == .readyToUse })
         XCTAssertTrue(presets.contains { $0.name == "Open Application" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Open File" && $0.readiness == .setupRequired })
@@ -574,7 +574,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testPasteAndCutPresetsRequireAccessibilityBeforeSendingTheEdit() throws {
-        let packages = try BuiltInPresetCatalog.makePackages()
+        let packages = try ShippedPluginPackages.hostCommandPlugins()
         let registry = PluginRegistry()
         for package in packages { try registry.register(package) }
         let adapter = RecordingHostCommandAdapter()

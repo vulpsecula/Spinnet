@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.copy-selected-text",
+  "name": "Copy Selected Text",
+  "version": "1.0.0",
+  "capabilities": [
+    "read_selected_text",
+    "write_clipboard"
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "builtin.copy_selected_text"
+  },
+  "commands": [
+    {
+      "id": "builtin.copy_selected_text",
+      "title": "Copy Selected Text",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "clipboard.copy"
+    }
+  ]
+}

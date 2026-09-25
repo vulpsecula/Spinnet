@@ -299,7 +299,6 @@ final class SettingsWindowModel: ObservableObject {
         if page.showsEditorMode { names.append("Editor Mode") }
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
-            names.append(contentsOf: ["Built-in Presets", "Plugin Presets"])
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
             let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(menuEditor.selectedMenuIndex)
                 && editor.configuration.menu.slots[menuEditor.selectedMenuIndex].item == nil
@@ -393,7 +392,7 @@ struct SettingsRootView: View {
             if let manifest = privacy.pluginSettingsManifest {
                 PluginConsentSheet(privacy: privacy, manifest: manifest,
                                    onDone: model.closePluginSettings,
-                                   screenshotSettings: manifest.id == BuiltInPresetCatalog.screenshotPluginID ? screenshots : nil,
+                                   screenshotSettings: manifest.commands.contains { $0.hostCommand?.captureSource != nil } ? screenshots : nil,
                                    pluginSettings: model.pluginSettingsModel(for: manifest))
             }
         }
@@ -739,7 +738,7 @@ struct SettingsRootView: View {
                     editor: model.editor,
                     selectedMenuIndex: $menuEditor.selectedMenuIndex,
                     placementMessage: menuEditor.placementMessage,
-                    librarySectionsForQuery: menuEditor.librarySections,
+                    libraryPresetsForQuery: menuEditor.libraryPresets(matching:),
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
                     onPluginSettings: privacy.showPluginSettings,

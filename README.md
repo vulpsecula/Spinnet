@@ -1,9 +1,8 @@
 # Spinnet
 
-Spinnet is a native macOS Host for mouse-first radial Menus. Host-owned
-Built-in Presets are the user-facing entry points, configuration stays in the
-Settings window, and Plugins extend the Host through the Documented Plugin
-Interface. The current slice covers the Menu-first Settings workflow, scripted
+Spinnet is a native macOS Host for mouse-first radial Menus. Everything in
+the Library is a Plugin, reached through the Documented Plugin Interface, and
+configuration stays in the Settings window. The current slice covers the Menu-first Settings workflow, scripted
 Actions in per-Plugin helpers, and local Clipboard History collection.
 
 ## Run
@@ -20,7 +19,7 @@ SPINNET_BUNDLED_PLUGINS_DIR=Plugins swift run SpinnetHost
 
 Bundled Plugins ship inside the app bundle, so a `swift run` has none unless
 `SPINNET_BUNDLED_PLUGINS_DIR` points at the repository's `Plugins` directory.
-Without it the Host still starts, with the Built-in Presets only, and it leaves
+Without it the Host still starts, with an empty Library, and it leaves
 the access decisions alone rather than reading a launch that saw no Bundled
 Plugin as a sign that they are gone. A Host running from an app bundle reads
 the Plugins that bundle carries and ignores the variable: Bundled authority is
@@ -40,11 +39,11 @@ SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
 Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
 permission again after rebuilding them.
 
-The Host registers a standalone Built-in Preset for each entry in the Host
-Command catalogue in [`docs/plugin-interface.md`](docs/plugin-interface.md),
-and reads every Plugin package it finds in `Plugins` through the public
-manifest loader — Clipboard History today, anything added to that directory
-later. A Bundled Plugin is delivered into
+The Host reads every Plugin package it finds in `Plugins` through the public
+manifest loader. Open URL, Screenshot and the other Plugins whose Commands are
+Host Commands (see the Host Command catalogue in
+[`docs/plugin-interface.md`](docs/plugin-interface.md)) are packages there like
+Clipboard History, and can be removed like it. A Bundled Plugin is delivered into
 `SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
 Application Support, and the Host discovers both by reading a directory.
 

@@ -40,7 +40,11 @@ final class ArchitectureGuardTests: XCTestCase {
         // Translator's version 1 to 2 migration becomes manifest `migrations`.
         .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "com.spinnet.translator", .removedBy("W5 #52")),
         .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "translator.selection", .removedBy("W5 #52")),
-        .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "translator.input", .removedBy("W5 #52"))
+        .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "translator.input", .removedBy("W5 #52")),
+        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "com.spinnet.builtin.screenshot", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_area", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_full_screen", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_window", .retiredPluginMigration)
     ]
 
     func testHostModulesNameNoPluginSpecificLiteralsBeyondTheExceptions() throws {

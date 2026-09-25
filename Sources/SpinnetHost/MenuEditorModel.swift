@@ -160,7 +160,6 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func requestPluginRemoval(_ preset: MenuItemPreset) {
-        guard preset.canBeRemoved else { return }
         presetPendingRemoval = preset
     }
 
@@ -262,20 +261,14 @@ final class MenuEditorModel: ObservableObject {
         menuSlots = makeMenuSlots()
     }
 
-    func librarySections(matching query: String) -> [MenuItemPresetSection] {
+    func libraryPresets(matching query: String) -> [MenuItemPreset] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let presets = editor.menuItemPresets.filter { preset in
+        return editor.menuItemPresets.filter { preset in
             trimmedQuery.isEmpty
                 || preset.name.localizedCaseInsensitiveContains(trimmedQuery)
                 || preset.commands.contains {
                     $0.title.localizedCaseInsensitiveContains(trimmedQuery)
                 }
-        }
-        return MenuItemPresetSource.allCases.map { source in
-            MenuItemPresetSection(
-                source: source,
-                presets: presets.filter { $0.source == source }
-            )
         }
     }
 

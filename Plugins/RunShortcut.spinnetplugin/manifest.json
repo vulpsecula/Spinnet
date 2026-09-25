@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.run-shortcut",
+  "name": "Run Shortcut",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "setup_required",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.run_shortcut"
+  },
+  "commands": [
+    {
+      "id": "builtin.run_shortcut",
+      "title": "Run Shortcut",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "shortcut.invoke"
+    }
+  ]
+}

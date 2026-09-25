@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.spinnet.builtin.open-folder",
+  "name": "Open Folder",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "setup_required",
+    "is_configurable": true,
+    "default_primary_command_id": "builtin.open_folder"
+  },
+  "commands": [
+    {
+      "id": "builtin.open_folder",
+      "title": "Open Folder",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "folder.open"
+    }
+  ]
+}
