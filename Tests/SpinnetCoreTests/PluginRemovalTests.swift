@@ -5,9 +5,7 @@ import XCTest
 final class PluginRemovalTests: XCTestCase {
     private var storeDirectory: URL?
 
-    private func makeStore(
-        shipping shipped: PluginPackage? = nil
-    ) throws -> (URL, PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
+    private func makeStore() throws -> (URL, PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         storeDirectory = directory
@@ -15,8 +13,7 @@ final class PluginRemovalTests: XCTestCase {
         let registry = PluginRegistry()
         let grants = PluginCapabilityGrantStore()
         return (directory, registry, grants, PluginInstallationStore(
-            directory: directory, registry: registry, grants: grants, persistGrants: {},
-            shippedPackages: { [shipped].compactMap { $0 } }
+            directory: directory, registry: registry, grants: grants, persistGrants: {}
         ))
     }
 
@@ -82,23 +79,24 @@ final class PluginRemovalTests: XCTestCase {
         XCTAssertTrue(try relaunched.removedPluginIDs().contains(loaded.manifest.id))
     }
 
-    func testInstallingACopyOfARemovedShippedPluginRestoresTheShippedOne() throws {
-        // A removed Bundled Plugin comes back like any other Plugin, by
-        // installing a copy of its package. Registering that copy would put
-        // the Plugin back with the weaker origin of a user install, and its
-        // Host Surface would be refused from then on.
+    /// A Bundled Plugin is removed like any other, and comes back like any
+    /// other: installing a copy of it installs that copy. The shipped one
+    /// stays removed underneath, across launches.
+    func testInstallingACopyOfARemovedBundledPluginInstallsThatCopy() throws {
         let shipped = try makeShippedPackage()
-        let (directory, registry, grants, store) = try makeStore(shipping: shipped)
+        let (directory, registry, grants, store) = try makeStore()
         try registry.register(shipped)
         grants.setDecision(.granted, for: shipped.manifest.id,
                            pluginVersion: shipped.manifest.version,
                            capability: .readSelectedText)
         try store.uninstall(shipped.manifest.id)
 
-        let manifest = try store.install(from: try ScriptedPackageFixture.write())
+        try store.install(from: try ScriptedPackageFixture.write())
 
-        XCTAssertEqual(manifest, shipped.manifest)
-        XCTAssertEqual(registry.package(for: shipped.manifest.id)?.origin, .bundled)
+        let installed = try XCTUnwrap(registry.package(for: shipped.manifest.id))
+        XCTAssertEqual(installed.origin, .installed)
+        XCTAssertEqual(installed.rootURL?.deletingLastPathComponent().standardizedFileURL,
+                       directory.standardizedFileURL, "The copy the user chose is the one installed")
         XCTAssertEqual(
             grants.decision(for: shipped.manifest.id,
                             pluginVersion: shipped.manifest.version,
@@ -106,64 +104,30 @@ final class PluginRemovalTests: XCTestCase {
             .notDetermined,
             "A Plugin coming back asks for access again"
         )
-        XCTAssertFalse(try store.removedPluginIDs().contains(shipped.manifest.id))
-        let copies = try FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil
-        ).filter { $0.pathExtension == "spinnetplugin" }
-        XCTAssertTrue(copies.isEmpty, "The Plugin the app carries needs no second copy")
-    }
+        XCTAssertTrue(try store.removedPluginIDs().contains(shipped.manifest.id),
+                      "The shipped copy stays removed underneath the installed one")
 
-    func testInstallingAPluginTheAppNoLongerShipsClearsItsRemovalRecord() throws {
-        // An app update can drop a Bundled Plugin the user had removed. The
-        // record of that removal only exists to suppress a shipped copy, and
-        // left behind it would make the next launch drop the copy the user
-        // installed themselves.
-        let shipped = try makeShippedPackage()
-        let (_, registry, grants, store) = try makeStore(shipping: shipped)
-        try registry.register(shipped)
-        try store.uninstall(shipped.manifest.id)
-
-        let laterRegistry = PluginRegistry()
-        let laterStore = PluginInstallationStore(
-            directory: try XCTUnwrap(storeDirectory), registry: laterRegistry,
-            grants: grants, persistGrants: {}
-        )
-        let manifest = try laterStore.install(from: try ScriptedPackageFixture.write())
-
-        XCTAssertEqual(manifest.id, shipped.manifest.id)
-        XCTAssertEqual(laterRegistry.package(for: shipped.manifest.id)?.origin, .installed)
-        XCTAssertFalse(try laterStore.removedPluginIDs().contains(shipped.manifest.id))
-
-        // A relaunch reads the index back and keeps the copy the user chose.
-        let relaunchedRegistry = PluginRegistry()
-        let relaunched = PluginInstallationStore(
-            directory: try XCTUnwrap(storeDirectory), registry: relaunchedRegistry,
-            grants: grants, persistGrants: {}
-        )
-        try relaunched.restore()
-        XCTAssertNotNil(relaunchedRegistry.package(for: shipped.manifest.id))
-    }
-
-    func testRestoringAShippedPluginDropsTheUserCopyLeftUnderneathIt() throws {
-        let shipped = try makeShippedPackage()
-        let (directory, registry, _, store) = try makeStore(shipping: shipped)
-        try store.install(from: try ScriptedPackageFixture.write())
-        registry.unregister(shipped.manifest.id)
-        try registry.register(shipped)
-        try store.uninstall(shipped.manifest.id)
-
-        try store.install(from: try ScriptedPackageFixture.write())
-
-        XCTAssertEqual(registry.package(for: shipped.manifest.id)?.origin, .bundled)
-        let copies = try FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil
-        ).filter { $0.pathExtension == "spinnetplugin" }
-        XCTAssertTrue(copies.isEmpty, "The shipped copy owns the identity again")
-        // A later launch must not find a user copy to register in its place.
+        // A relaunch registers the installed copy, not the shipped one.
         let relaunchedRegistry = PluginRegistry()
         try PluginInstallationStore(
-            directory: directory, registry: relaunchedRegistry,
-            grants: PluginCapabilityGrantStore(), persistGrants: {}
+            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
+        ).restore()
+        XCTAssertEqual(relaunchedRegistry.package(for: shipped.manifest.id)?.origin, .installed)
+    }
+
+    func testRemovingAReinstalledCopyKeepsTheBundledPluginRemoved() throws {
+        let shipped = try makeShippedPackage()
+        let (directory, registry, grants, store) = try makeStore()
+        try registry.register(shipped)
+        try store.uninstall(shipped.manifest.id)
+        try store.install(from: try ScriptedPackageFixture.write())
+
+        try store.uninstall(shipped.manifest.id)
+
+        XCTAssertTrue(try store.removedPluginIDs().contains(shipped.manifest.id))
+        let relaunchedRegistry = PluginRegistry()
+        try PluginInstallationStore(
+            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
         ).restore()
         XCTAssertNil(relaunchedRegistry.package(for: shipped.manifest.id))
     }

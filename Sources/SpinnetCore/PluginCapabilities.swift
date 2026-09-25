@@ -797,10 +797,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             guard request.input == .null else {
                 throw PluginHostServiceError.invalidInput("present_clipboard_history expects null")
             }
-            // A granted Capability buys the history, not the Host's window.
-            guard package.mayPresentHostWindows else {
-                throw PluginHostServiceError.capabilityDenied(capability)
-            }
+            // The Host Surface: the granted Capability decides, not where the
+            // Plugin came from.
             clipboardHistoryPresenter(package, action)
             // The Plugin learns nothing from presenting; the user reads the window.
             return .null
@@ -920,11 +918,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             switch try session.preview(text) {
             case .input, .calculation:
-                // This is a specialised Host-owned window, not the public
-                // declarative results vocabulary (ADR 0002).
-                guard package.mayPresentHostWindows else {
-                    throw PluginHostServiceError.capabilityDenied(.openURL)
-                }
+                // A specialised Host-owned window until Smart Jump moves onto
+                // Plugin Views (#61), open to any Plugin granted the service.
                 try smartJumpPresenter(session)
             default: try session.submit(text)
             }

@@ -31,7 +31,7 @@ export type HostServiceName =
   | "restore_focused_window_frame"
   | "capture_screen"
   | "https_request"
-  /** Bundled Plugins only: presents the Host Surface for Clipboard History. */
+  /** Presents the Host Surface for Clipboard History; needs `read_clipboard_history`. */
   | "present_clipboard_history"
   // Removed before Level 1 is published; their behaviour moves into Plugins.
   | "present_results"

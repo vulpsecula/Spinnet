@@ -7,17 +7,14 @@ import XCTest
 /// Plugin would be registered, and which access it would ask for.
 final class PluginInstallationReviewTests: XCTestCase {
 
-    private func makeStore(
-        shipping shipped: PluginPackage? = nil
-    ) -> (URL, PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
+    private func makeStore() -> (URL, PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         let registry = PluginRegistry()
         let grants = PluginCapabilityGrantStore()
         return (directory, registry, grants, PluginInstallationStore(
-            directory: directory, registry: registry, grants: grants, persistGrants: {},
-            shippedPackages: { [shipped].compactMap { $0 } }
+            directory: directory, registry: registry, grants: grants, persistGrants: {}
         ))
     }
 
@@ -71,14 +68,12 @@ final class PluginInstallationReviewTests: XCTestCase {
         }
     }
 
-    /// A removed Bundled Plugin comes back by installing a copy of it, like
-    /// any other Plugin. The Host registers the copy the app carries, since
-    /// only that one keeps the Host Surface it shipped with, and the user is
-    /// asked again for the access its removal forgot.
-    func testACopyOfARemovedBundledPluginIsReviewedAsTheShippedOne() throws {
+    /// Removing a Bundled Plugin forgot its access, so installing a copy of
+    /// it asks for all of it again.
+    func testACopyOfARemovedBundledPluginAsksForEverythingAgain() throws {
         let loaded = try ScriptedPackageFixture.load()
         let shipped = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
-        let (_, registry, grants, store) = makeStore(shipping: shipped)
+        let (_, registry, grants, store) = makeStore()
         try registry.register(shipped)
         grants.setDecision(.granted, for: shipped.manifest.id, pluginVersion: shipped.manifest.version,
                            capability: .readSelectedText)
@@ -86,9 +81,7 @@ final class PluginInstallationReviewTests: XCTestCase {
 
         let review = try store.review(ScriptedPackageFixture.write())
 
-        XCTAssertEqual(review.manifest, shipped.manifest)
         XCTAssertEqual(review.requestedAccess, [.readSelectedText, .writeClipboard])
-        XCTAssertTrue(try store.removedPluginIDs().contains(shipped.manifest.id), "Reviewing changes nothing")
-        XCTAssertNil(registry.package(for: shipped.manifest.id))
+        XCTAssertNil(registry.package(for: shipped.manifest.id), "Reviewing changes nothing")
     }
 }

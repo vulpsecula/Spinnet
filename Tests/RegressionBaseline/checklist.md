@@ -50,10 +50,12 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
   confirmation names the Slots whose Menu Items use it; those stay in their
   Slots and become unavailable ("Plugin is not registered"). The removal
   survives a relaunch.
-- **Restoration.** A removed Bundled Plugin has no separate way back.
-  Installing a copy of its package brings back the copy the app carries, with
-  its Menu Items working again: access is **not** inherited, and the install
-  asks for every Capability again.
+- **Coming back.** A removed Bundled Plugin has no separate way back.
+  Installing a copy of its package installs that copy, like any other Plugin,
+  with its Menu Items working again: access is **not** inherited, and the
+  install asks for every Capability again. Every install ends in an alert:
+  Plugin Installed, Plugin Updated (from which version), Plugin Reinstalled,
+  or Plugin Not Installed.
 - **Updates.** A new Plugin version with an unchanged Capability scope keeps
   the user's decision; a changed scope asks again.
 
@@ -255,8 +257,8 @@ Settings.
 ### Errors and repair routes
 
 - Access denied → the window shows the error and "Manage Access in Library…".
-- Only a Bundled Plugin may open this window; an installed Plugin asking for
-  it is refused.
+- Any Plugin granted `read_clipboard_history` may open this window, installed
+  or Bundled; without the grant it is refused.
 
 ### Permission prompts
 

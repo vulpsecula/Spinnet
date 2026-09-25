@@ -955,10 +955,6 @@ public struct PluginPackage {
     /// is something the user may remove.
     public var canBeRemovedByUser: Bool { origin != .hostCommand }
 
-    /// Asking the Host to present a window it owns outright is a Host-internal
-    /// privilege (ADR 0002), not something a granted Capability buys.
-    public var mayPresentHostWindows: Bool { origin != .installed }
-
     public var presetSource: MenuItemPresetSource {
         origin == .hostCommand ? .builtIn : .plugin
     }

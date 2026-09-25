@@ -3,11 +3,10 @@ import XCTest
 
 final class PluginHostServiceTests: XCTestCase {
 
-    /// ADR 0002 states that presenting the Host's own Clipboard History window
-    /// is a Host-internal privilege a third-party Plugin cannot reach. Only a
-    /// Bundled Plugin may ask for it; a granted Capability buys the data, not
-    /// the window.
-    func testPresentingClipboardHistoryIsRefusedToAThirdPartyPlugin() throws {
+    /// The Clipboard History window is a Host Surface: the user reads their
+    /// own history in it and the Plugin learns nothing. Where a Plugin came
+    /// from does not decide who may present it; the granted Capability does.
+    func testAnInstalledPluginWithTheGrantPresentsTheClipboardHistoryWindow() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
           "protocol_version": "1.0",
@@ -64,24 +63,34 @@ final class PluginHostServiceTests: XCTestCase {
             )
         }
 
-        XCTAssertThrowsError(
-            try broker.execute(request: request(.presentClipboardHistory, .null),
-                               for: package, action: action)
+        XCTAssertEqual(package.origin, .installed)
+        XCTAssertEqual(
+            try broker.execute(request: request(.presentClipboardHistory, .null), for: package, action: action),
+            .null, "Presenting returns nothing to the Plugin"
         )
-        XCTAssertEqual(presentations, 0, "A third-party Plugin opened a Host-owned window")
+        XCTAssertEqual(presentations, 1)
 
         // Reading is what the Capability bought, and it still works.
         XCTAssertNoThrow(
             try broker.execute(request: request(.readClipboardHistory, .null),
                                for: package, action: action)
         )
-        // The privilege is no longer reachable through the reading service.
+        // Presenting is its own service, not an option of the reading one.
         XCTAssertThrowsError(
             try broker.execute(request: request(.readClipboardHistory,
                                                 .object(["present": .bool(true)])),
                                for: package, action: action)
         )
-        XCTAssertEqual(presentations, 0)
+        XCTAssertEqual(presentations, 1)
+
+        // Without the grant, nothing is presented.
+        grants.setDecision(.denied, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readClipboardHistory,
+                           scope: manifest.scope(for: .readClipboardHistory))
+        XCTAssertThrowsError(
+            try broker.execute(request: request(.presentClipboardHistory, .null), for: package, action: action)
+        )
+        XCTAssertEqual(presentations, 1)
     }
     func testCapabilityGrantStoreKeepsAnExplicitDecisionForEachDeclaredCapability() throws {
         let pluginID = PluginID("com.example.fixture")

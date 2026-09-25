@@ -21,8 +21,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var pluginInstallation = PluginInstallationStore(
         directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
         registry: registry, grants: capabilityGrants,
-        persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
-        shippedPackages: { [unowned self] in try self.shippedPackages() }
+        persistGrants: { [unowned self] in try self.saveCapabilityGrants() }
     )
     private var clipboardStore: ClipboardHistoryStore!
     private var clipboardCollector: ClipboardCollector?
@@ -582,12 +581,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return source
     }
 
-    /// Every Plugin this launch ships, removed ones included: a removal is
-    /// undone by registering the shipped copy, so it has to stay findable.
-    private func shippedPackages(
-        in source: BundledPluginSource? = nil
-    ) throws -> [PluginPackage] {
-        guard let directory = try (source ?? bundledPluginSource()).directory else { return [] }
+    /// Every Plugin this launch ships, removed ones included; the caller skips
+    /// those the user removed.
+    private func shippedPackages(in source: BundledPluginSource) throws -> [PluginPackage] {
+        guard let directory = source.directory else { return [] }
         let contents = try FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil

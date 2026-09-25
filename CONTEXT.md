@@ -13,7 +13,7 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet that follows the same Capability boundary and Documented Plugin Interface as an independently installed Plugin, with one exception: it may present a Host Surface. It is managed like any other Plugin: removing it removes it, and the user brings it back the way they would bring back any Plugin, by installing it. Its files ship with the app and cannot be deleted, and what it may do follows from shipping inside the app bundle, so installing a copy of a removed one is Plugin Restoration rather than a second, weaker copy.
+A first-party Plugin distributed with Spinnet. It follows the same Capability boundary and Documented Plugin Interface as an independently installed Plugin and may do nothing an installed one cannot. It is managed like any other Plugin: removing it removes it, and the user brings it back the way they would bring back any Plugin, by installing a copy of it, which is then an installed Plugin. Its files ship with the app and cannot be deleted, so a removed one stays suppressed underneath.
 _Avoid_: Built-in Command, trusted Host code
 
 **Host Command**:
@@ -21,20 +21,16 @@ An operation the Host implements itself and exposes as its own Library entry. It
 _Avoid_: Built-in Plugin, Bundled Plugin, native Action
 
 **Host Surface**:
-A window the Host owns and presents on behalf of a Bundled Plugin, which an installed Plugin cannot request.
+A window the Host owns and presents on behalf of a Plugin, because the public view vocabulary cannot express it. Any Plugin granted the Capability it shows data from may request it; where the Plugin came from grants nothing.
 _Avoid_: Plugin window, privileged UI
 
 **Plugin Origin**:
-Where a Plugin's package came from — shipped with the app, or installed by the user — which is what decides whether an install may replace it and whether the user may remove it.
+Where a Plugin's package came from — shipped with the app, or installed by the user — which decides whether an install may replace it and how a removal is recorded. It grants no access.
 _Avoid_: Plugin type, plugin kind, trust level
 
 **Plugin Removal**:
 Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable, exactly as a disabled Plugin's are. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
-
-**Plugin Restoration**:
-What installing a copy of a removed Bundled Plugin does: the Host registers the copy the app carries, which is the only copy that holds the origin it shipped with, rather than the copy the user pointed at. The Library offers no separate way back. Access is not inherited: the removal forgot the user's decisions and the install asks again.
-_Avoid_: Reinstall, re-enable, undo removal
 
 **Command**:
 A callable operation declared by the Host or a Plugin, before user-specific configuration is applied.

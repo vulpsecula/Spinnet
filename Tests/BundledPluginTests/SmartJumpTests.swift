@@ -268,14 +268,15 @@ final class SmartJumpTests: XCTestCase {
 /// Action seam with recording adapters.
 final class SmartJumpScriptTests: XCTestCase {
 
-    func testInstalledPluginsCannotPresentTheHostOwnedSmartJumpWindow() throws {
+    /// Smart Jump installed from a file presents its window like the copy
+    /// the app ships: where a Plugin came from grants it nothing.
+    func testAnInstalledSmartJumpPresentsItsWindowLikeTheShippedOne() throws {
         for selection in ["", "1+1"] {
             var presented = false
             let outcome = try smartJumpOutcome(selection: { selection }, open: { _ in XCTFail("No URL expected") },
                                               present: { _ in presented = true }, origin: .installed)
-            guard case .failed(let failure) = outcome else { XCTFail("Installed Plugin must not present Host UI"); continue }
-            XCTAssertEqual(failure.category, .capabilityDenied)
-            XCTAssertFalse(presented)
+            guard case .succeeded = outcome else { XCTFail("\(outcome)"); continue }
+            XCTAssertTrue(presented)
         }
     }
 

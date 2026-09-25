@@ -116,8 +116,8 @@ the deterministic classifier and Host Action tests.
     Slots whose Menu Items use it; those stay in their Slots and report as
     unavailable. Restart the app and confirm it is still gone. Bring it back
     with `Install or Update Plugin…` and a copy of its package, allow the
-    access it asks for, and run it: a Plugin that ships with Spinnet comes back
-    from the copy the app carries, not as a second copy.
+    access it asks for, and run it, window included: the copy you chose is
+    installed like any other Plugin.
 13. If an application, file, or folder used by a Menu Item is later removed,
     the Menu Item remains in its Slot and only that Action is disabled. Its
     Slot keeps the Preset name (or your Alias), while the unavailable reason
