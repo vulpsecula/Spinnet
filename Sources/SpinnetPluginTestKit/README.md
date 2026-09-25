@@ -1,0 +1,85 @@
+# Spinnet Plugin test kit
+
+`SpinnetPluginTestKit` runs a Plugin's Command scripts in the real
+`SpinnetPluginHelper`, the JavaScriptCore helper the Host uses, and answers the
+script's Host Service requests from answers the test records. A test checks
+what the script evaluated to and which Host Services it asked for. The kit
+does not depend on the Host's AppKit code, so a Plugin can be tested from its
+own repository.
+
+## Setting up
+
+Add Spinnet as a package dependency and give the test target both the kit and
+the helper. The helper dependency makes SwiftPM build `SpinnetPluginHelper`
+next to the test bundle, where the kit looks for it.
+
+```swift
+.testTarget(
+    name: "MyPluginTests",
+    dependencies: [
+        .product(name: "SpinnetPluginTestKit", package: "Spinnet"),
+        .product(name: "SpinnetPluginHelper", package: "Spinnet")
+    ]
+)
+```
+
+If the helper is somewhere else, set `SPINNET_PLUGIN_HELPER_URL` to its path.
+
+## Writing a test
+
+```swift
+import XCTest
+import SpinnetCore
+import SpinnetPluginTestKit
+
+final class UppercaseTests: XCTestCase {
+    func testCopiesTheSelectionInUpperCase() throws {
+        // Finds Uppercase.spinnetplugin beside this file, in a parent
+        // directory, or in a Plugins directory of one.
+        let plugin = try PluginUnderTest(named: "Uppercase.spinnetplugin")
+        let helper = try PluginTestHelper()
+        defer { helper.shutdown() }
+
+        let run = helper.run(PluginTestInvocation("uppercase.copy"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .value(.string("hello")),
+            .writeClipboard: .value(.null)
+        ]))
+
+        XCTAssertEqual(try run.result.get(), .null)
+        XCTAssertEqual(run.inputs(to: .writeClipboard), [.string("HELLO")])
+    }
+}
+```
+
+`PluginTestInvocation` takes the Command ID and the Action's `input`, already
+merged from Plugin Settings, Menu Item overrides and the Command's own fields.
+View Session inputs, `event` and `state`, will be added to it once Plugin
+Views ship.
+
+## Recorded answers
+
+Each Host Service answers every request the same way:
+
+- `.value(json)` returns a value.
+- `.failure(error)` fails with a `PluginHostServiceError`, which ends the run
+  as the Host's failure would.
+- `.answer { input in ... }` computes the answer from the request's input.
+- `try .encoding(value)` returns an `Encodable` value, such as a
+  `FocusedWindow`, encoded as the Host encodes it.
+
+The recordings stand in for the user's grants and the Host, not for the
+manifest. A request for a service whose Capability the Command does not
+declare is refused with `capabilityDenied`, as the Host refuses it, and a
+service with no recorded answer fails the run naming the service.
+
+`run.result` holds what the script evaluated to, or the `PluginRuntimeError`
+the Host would have seen. `run.requests` lists every Host Service request in
+order, answered or not.
+
+## Using the Host's own services
+
+`run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and
+`PluginTestHelper` is also a `ScriptedActionExecutor`. Tests inside the Spinnet
+repository use this to run a Bundled Plugin through the Host's broker and
+Action runner while part of its behaviour still lives in the Host. A Plugin in
+its own repository should use recorded answers.

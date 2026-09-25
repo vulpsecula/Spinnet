@@ -1,20 +1,14 @@
 import Foundation
 import XCTest
 @testable import SpinnetCore
+import SpinnetPluginTestKit
 
 private enum BobPluginFixture {
     static let bundleID = "com.hezongyidev.Bob"
     static let operationFamily = "translate"
 
     static func load() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(
-            packageAt: root.appendingPathComponent("Plugins/Bob.spinnetplugin")
-        )
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        try PluginUnderTest(named: "Bob.spinnetplugin", origin: .bundled).package
     }
 
     static func grant(
@@ -88,7 +82,7 @@ final class BobTests: XCTestCase {
     }
 }
 
-extension PluginRuntimeTests {
+final class BobScriptTests: XCTestCase {
     func testBobPluginUsesOnlyDeclaredTranslationOperationsAndSendsBobJSON() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
@@ -103,7 +97,7 @@ extension PluginRuntimeTests {
             clipboardWriter: { _ in },
             externalAppInvoker: { invocations.append($0) }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
 
         let text = "Text with \"quotes\", a backslash \\, and a newline.\nNext line."
@@ -163,7 +157,7 @@ extension PluginRuntimeTests {
                 actions.append(action)
             }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "bob.selection_translate" })
         let action = try ActionConfiguration(id: ActionID("bob-selection"), pluginID: package.manifest.id,
@@ -312,7 +306,7 @@ extension PluginRuntimeTests {
             clipboardWriter: { _ in },
             externalAppInvoker: { _ in throw nextError }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
         let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "bob.selection_translate" })
         let action = try ActionConfiguration(id: ActionID("bob-errors"), pluginID: package.manifest.id,

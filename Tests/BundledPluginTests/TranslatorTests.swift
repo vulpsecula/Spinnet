@@ -1,13 +1,12 @@
 import XCTest
 @testable import SpinnetCore
+import SpinnetPluginTestKit
 
 /// The repository's Translator package, registered the way the Host
 /// registers a Plugin that ships with the app.
 enum TranslatorFixture {
     static func load() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/Translator.spinnetplugin"))
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        try PluginUnderTest(named: "Translator.spinnetplugin", origin: .bundled).package
     }
 
     static func grantAll(_ package: PluginPackage, in grants: PluginCapabilityGrantStore) {
@@ -142,7 +141,7 @@ final class TranslatorTests: XCTestCase {
 /// Translator runs through the real helper and the real broker; the popup
 /// the Host would show is captured and filled in with a deterministic
 /// transport in place of the network.
-extension PluginRuntimeTests {
+final class TranslatorScriptTests: XCTestCase {
     private struct TranslatorRun {
         let outcome: ActionTerminalOutcome
         let session: ResultsPresentationSession?
@@ -201,7 +200,7 @@ extension PluginRuntimeTests {
     /// own overrides.
     private func runTranslator(_ commandID: String, settings: [String: JSONValue]? = nil, input: JSONValue = .object([:]),
                                selection: String = "Good morning", clipboardText: String? = nil,
-                               answers: [String: RoutedHTTPSTransport.Route] = PluginRuntimeTests.answers,
+                               answers: [String: RoutedHTTPSTransport.Route] = TranslatorScriptTests.answers,
                                detected: String? = nil,
                                prepare: (PluginPackage, PluginCapabilityGrantStore) -> Void = { _, _ in }) throws -> TranslatorRun {
         let package = try TranslatorFixture.load()
@@ -227,7 +226,7 @@ extension PluginRuntimeTests {
             languageDetector: { _ in detected },
             pluginSettingsReader: { $0.resolvedSettings(stored: stored) }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
         let outcome = HostActionRunner(executor: TranslatorNoopExecutor(), scriptedExecutor: supervisor,
                                        hostServiceBroker: broker,

@@ -5,7 +5,7 @@ import XCTest
 /// structured Host Services, and toggles its full screen through a third.
 /// These tests pin its package shape and the authorization in front of those
 /// services; the scripts' requests run through the real helper in
-/// `PluginRuntimeTests`.
+/// `WindowPositionScriptTests`.
 final class WindowPositionTests: XCTestCase {
 
     private let windowPositionCommands = [

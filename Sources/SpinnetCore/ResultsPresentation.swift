@@ -76,8 +76,12 @@ public struct ResultsPresentation: Equatable {
             }
             if let body = fields.removeValue(forKey: "json_body") {
                 let filled = Self.fill(body, with: text)
+                // The body is part of the cache key, so the same request has
+                // to encode the same way every time.
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
                 let encoded: Data
-                do { encoded = try JSONEncoder().encode(filled) } catch {
+                do { encoded = try encoder.encode(filled) } catch {
                     throw PluginHostServiceError.invalidInput("json_body must hold finite numbers")
                 }
                 fields["body"] = .string(String(decoding: encoded, as: UTF8.self))

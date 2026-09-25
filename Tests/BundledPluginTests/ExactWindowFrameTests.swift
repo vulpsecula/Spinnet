@@ -1,11 +1,12 @@
 import XCTest
 @testable import SpinnetCore
+import SpinnetPluginTestKit
 
 /// Resize Window and Move Window carry their values on each Action. These
 /// tests pin the `size` and `position` Configuration fields, the Host's
 /// validation of what the Configuration Sheet saves, and the package shape.
-/// The scripts' requested bounds run through the real helper in the
-/// `PluginRuntimeTests` extension below.
+/// The scripts' requested bounds run through the real helper in
+/// `ExactWindowFrameScriptTests` below.
 final class ExactWindowFrameConfigurationTests: XCTestCase {
 
     private let pluginID = PluginID("com.spinnet.window-position")
@@ -118,29 +119,22 @@ final class ExactWindowFrameConfigurationTests: XCTestCase {
 
 }
 
-extension PluginRuntimeTests {
+final class ExactWindowFrameScriptTests: XCTestCase {
 
     func testBundledWindowPositionResizesAndMovesToExactValuesWithinTheVisibleFrame() throws {
-        let package = try WindowPositionFixture.load()
-        let grants = PluginCapabilityGrantStore()
-        WindowPositionFixture.grant(package, in: grants)
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
-        defer { supervisor.shutdown() }
+        let plugin = try WindowPositionFixture.plugin()
+        let helper = try PluginTestHelper()
+        defer { helper.shutdown() }
 
         // A secondary display left of the primary one, below its menu bar.
         let visible = WindowRect(x: -1500, y: 25, width: 1500, height: 875)
         var window = FocusedWindow(frame: WindowRect(x: -1400, y: 300, width: 600, height: 400), visibleFrame: visible)
         var frames: [WindowRect] = []
-        let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            focusedWindowProvider: { window }, focusedWindowFrameSetter: { frames.append($0) }
-        )
         func run(_ commandID: String, _ value: String) throws {
-            let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID })
-            let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id,
-                                                 command: command, input: .string(value))
-            XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
+            let run = helper.run(PluginTestInvocation(commandID, input: .string(value)), of: plugin,
+                                 answering: try WindowPositionFixture.services(for: window))
+            frames += try run.frames()
+            XCTAssertEqual(try run.result.get(), .null)
         }
 
         // Resize keeps the top-left corner.
@@ -175,27 +169,18 @@ extension PluginRuntimeTests {
     }
 
     func testBundledExactWindowCommandsRefuseAMalformedValueWithoutMovingTheWindow() throws {
-        let package = try WindowPositionFixture.load()
-        let grants = PluginCapabilityGrantStore()
-        WindowPositionFixture.grant(package, in: grants)
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
-        defer { supervisor.shutdown() }
+        let plugin = try WindowPositionFixture.plugin()
+        let helper = try PluginTestHelper()
+        defer { helper.shutdown() }
         var frames: [WindowRect] = []
-        let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            focusedWindowProvider: {
-                FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 300, height: 200),
-                              visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875))
-            },
-            focusedWindowFrameSetter: { frames.append($0) }
-        )
+        let window = FocusedWindow(frame: WindowRect(x: 10, y: 40, width: 300, height: 200),
+                                   visibleFrame: WindowRect(x: 0, y: 25, width: 1440, height: 875))
         for (commandID, input) in [("window.resize", JSONValue.string("0, 600")), ("window.move", .string("-5, 0")),
                                    ("window.resize", .null)] {
-            let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == commandID })
-            let action = try ActionConfiguration(id: ActionID(commandID), pluginID: package.manifest.id,
-                                                 command: command, input: input)
-            XCTAssertThrowsError(try supervisor.execute(action, in: package, using: broker), "\(commandID) \(input)")
+            let run = helper.run(PluginTestInvocation(commandID, input: input), of: plugin,
+                                 answering: try WindowPositionFixture.services(for: window))
+            frames += try run.frames()
+            XCTAssertThrowsError(try run.result.get(), "\(commandID) \(input)")
         }
         XCTAssertEqual(frames, [])
     }

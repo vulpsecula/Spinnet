@@ -1,20 +1,14 @@
 import Foundation
 import XCTest
 @testable import SpinnetCore
+import SpinnetPluginTestKit
 
 private enum ShottrPluginFixture {
     static let bundleID = "cc.ffitch.shottr"
     static let operationFamily = "capture"
 
     static func load() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(
-            packageAt: root.appendingPathComponent("Plugins/Shottr.spinnetplugin")
-        )
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        try PluginUnderTest(named: "Shottr.spinnetplugin", origin: .bundled).package
     }
 }
 
@@ -97,7 +91,7 @@ final class ShottrTests: XCTestCase {
     }
 }
 
-extension PluginRuntimeTests {
+final class ShottrScriptTests: XCTestCase {
     func testShottrCommandsSendOnlyDeclaredRoutesAndDelayedCaptureInput() throws {
         let package = try ShottrPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
@@ -119,7 +113,7 @@ extension PluginRuntimeTests {
             clipboardWriter: { _ in XCTFail("Shottr must not use Spinnet's clipboard access") },
             externalAppInvoker: { invocations.append($0) }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
 
         let expectedRoutes = [
@@ -226,7 +220,7 @@ extension PluginRuntimeTests {
                 throw PluginHostServiceError.externalAppMissing("Install Shottr to use Shottr Commands")
             }
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
         let command = try XCTUnwrap(package.manifest.commands.first)
         let action = try ActionConfiguration(

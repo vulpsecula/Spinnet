@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+import SpinnetPluginTestKit
 
 /// The Smart Jump Bundled Plugin reads the selected text and asks the Host to
 /// recognise and act on it in the Host. These tests pin its package shape,
@@ -265,7 +266,7 @@ final class SmartJumpTests: XCTestCase {
 
 /// Smart Jump's script runs in the real helper, driven through the Host
 /// Action seam with recording adapters.
-extension PluginRuntimeTests {
+final class SmartJumpScriptTests: XCTestCase {
 
     func testInstalledPluginsCannotPresentTheHostOwnedSmartJumpWindow() throws {
         for selection in ["", "1+1"] {
@@ -523,7 +524,7 @@ extension PluginRuntimeTests {
             smartJumpPresenter: present,
             localPathOpener: path
         )
-        let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()))
+        let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
         return HostActionRunner(
             executor: SmartJumpNoopExecutor(),
@@ -545,9 +546,7 @@ private struct SmartJumpNoopExecutor: HostCommandExecutor {
 /// a Plugin that ships with the app.
 enum SmartJumpFixture {
     static func load() throws -> PluginPackage {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/SmartJump.spinnetplugin"))
-        return PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        try PluginUnderTest(named: "SmartJump.spinnetplugin", origin: .bundled).package
     }
 
     /// Grants the package's Capabilities with their current scopes.
