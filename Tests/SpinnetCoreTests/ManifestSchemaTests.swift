@@ -126,6 +126,27 @@ final class ManifestSchemaTests: XCTestCase {
             ("unknown field kind", changed("settings_fields", 0) { $0["kind"] = .string("slider") },
              "/settings_fields/0/kind"),
             ("choice without choices", changed("settings_fields", 0) { $0["choices"] = nil }, "/settings_fields/0"),
+            ("list without columns", changed("settings_fields", 0) {
+                $0["kind"] = .string("list")
+                $0["choices"] = nil
+            }, "/settings_fields/0"),
+            ("list column of an unknown kind", changed("settings_fields", 0) {
+                $0["kind"] = .string("list")
+                $0["choices"] = nil
+                $0["columns"] = .array([.object(["key": .string("n"), "kind": .string("toggle")])])
+            }, "/settings_fields/0/columns/0/kind"),
+            ("list of over 100 rows", changed("settings_fields", 0) {
+                $0["kind"] = .string("list")
+                $0["choices"] = nil
+                $0["columns"] = .array([.object(["key": .string("n"), "kind": .string("text")])])
+                $0["max_rows"] = .number(101)
+            }, "/settings_fields/0/max_rows"),
+            ("max_length on a URL template column", changed("settings_fields", 0) {
+                $0["kind"] = .string("list")
+                $0["choices"] = nil
+                $0["columns"] = .array([.object(["key": .string("u"), "kind": .string("url_template"),
+                                                 "max_length": .number(20)])])
+            }, "/settings_fields/0/columns/0/kind"),
             ("field key over 64 characters", changed("settings_fields", 0) {
                 $0["key"] = .string(String(repeating: "k", count: 65))
             }, "/settings_fields/0/key"),
@@ -215,11 +236,11 @@ final class DocumentedManifestSchemaTests: XCTestCase {
         //  `keyboard_shortcut`, `url`, `size`, or `position`." Then
         //  "`configuration_fields` may also hold `multiline_text`, `credential`,
         //  and `https_endpoint`", and Plugin Settings "take the same kinds as
-        //  `configuration_fields`, plus `ordered_choices` and `search_engines`".
+        //  `configuration_fields`, plus `ordered_choices` and `list`".
         XCTAssertEqual(try allowedValues(of: "fieldKind"), [
             "text", "multiline_text", "toggle", "choice", "application", "file", "folder", "shortcut",
             "keyboard_shortcut", "url", "size", "position", "credential", "https_endpoint",
-            "ordered_choices", "search_engines"
+            "ordered_choices", "list"
         ])
 
         // "The supported Host Command catalogue is:"

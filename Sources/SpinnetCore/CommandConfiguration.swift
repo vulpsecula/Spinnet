@@ -36,9 +36,10 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
     /// user put them, such as which translation sources run and in what
     /// order. Only in `settings_fields`, and never overridable.
     case orderedChoices = "ordered_choices"
-    /// An ordered set of search destinations rendered as named editable rows.
-    /// The first entry is the default engine. Only in Plugin Settings.
-    case searchEngines = "search_engines"
+    /// Rows of typed cells in the order the user put them, such as named
+    /// search addresses: a JSON array of objects holding one string per
+    /// declared column. Only in `settings_fields`, and never overridable.
+    case list
 
     public var title: String {
         switch self {
@@ -57,7 +58,7 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
         case .credential: return "Credential"
         case .httpsEndpoint: return "HTTPS Endpoint"
         case .orderedChoices: return "Ordered Choices"
-        case .searchEngines: return "Search Engines"
+        case .list: return "List"
         }
     }
 }
@@ -97,6 +98,11 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
     /// Plugin with many settings reads as a few short groups rather than one
     /// long list. Settings with no group come first, in their declared order.
     public let group: String?
+    /// Only on a `list`: the typed columns each row holds a cell for.
+    public let columns: [ListFieldColumn]
+    /// Only on a `list`: the most rows it may hold. Written as `max_rows`;
+    /// without it the limit is `listRowLimit`.
+    public let maxRows: Int?
 
     public init(
         kind: CommandConfigurationFieldKind,
@@ -107,7 +113,9 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         key: String? = nil,
         usedWhen: CommandConfigurationFieldCondition? = nil,
         overridable: Bool = false,
-        group: String? = nil
+        group: String? = nil,
+        columns: [ListFieldColumn] = [],
+        maxRows: Int? = nil
     ) {
         self.kind = kind
         self.title = title
@@ -118,6 +126,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         self.usedWhen = usedWhen
         self.overridable = overridable
         self.group = group
+        self.columns = columns
+        self.maxRows = maxRows
     }
 
     /// Whether an Action whose field values are `values` uses this field:
@@ -145,6 +155,8 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         case usedWhen = "used_when"
         case overridable
         case group
+        case columns
+        case maxRows = "max_rows"
     }
 
     public init(from decoder: Decoder) throws {
@@ -158,7 +170,9 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
             key: container.decodeIfPresent(String.self, forKey: .key),
             usedWhen: container.decodeIfPresent(CommandConfigurationFieldCondition.self, forKey: .usedWhen),
             overridable: container.decodeIfPresent(Bool.self, forKey: .overridable) ?? false,
-            group: container.decodeIfPresent(String.self, forKey: .group)
+            group: container.decodeIfPresent(String.self, forKey: .group),
+            columns: container.decodeIfPresent([ListFieldColumn].self, forKey: .columns) ?? [],
+            maxRows: container.decodeIfPresent(Int.self, forKey: .maxRows)
         )
     }
 
@@ -177,6 +191,10 @@ public struct CommandConfigurationField: Codable, Equatable, Hashable {
         try container.encodeIfPresent(usedWhen, forKey: .usedWhen)
         if overridable { try container.encode(true, forKey: .overridable) }
         try container.encodeIfPresent(group, forKey: .group)
+        if !columns.isEmpty {
+            try container.encode(columns, forKey: .columns)
+        }
+        try container.encodeIfPresent(maxRows, forKey: .maxRows)
     }
 
     public var displayTitle: String { title ?? kind.title }
@@ -220,7 +238,8 @@ public extension CommandConfigurationField {
     /// Whether a value has this field's shape as a member of a field set: a
     /// boolean for a `toggle`, one of the choices for a `choice`, distinct
     /// choices for `ordered_choices`, a valid reference for a `credential`,
-    /// an https base URL for an `https_endpoint`, and a string otherwise.
+    /// an https base URL for an `https_endpoint`, rows that fit the columns
+    /// for a `list`, and a string otherwise.
     func acceptsMemberValue(_ value: JSONValue) -> Bool {
         switch (kind, value) {
         case (.toggle, .bool): return true
@@ -230,6 +249,7 @@ public extension CommandConfigurationField {
         case (.orderedChoices, _):
             guard let chosen = value.strings else { return false }
             return chosen.allSatisfy(choices.contains) && Set(chosen).count == chosen.count
+        case (.list, _): return listProblem(value) == nil
         case (.toggle, _), (.choice, _), (.credential, _): return false
         case (_, .string): return true
         default: return false
@@ -274,7 +294,7 @@ public extension CommandDeclaration {
 
     /// Kinds that are Plugin Settings only and never belong to an Action's
     /// configuration fields.
-    static let settingsOnlyKinds: Set<CommandConfigurationFieldKind> = [.searchEngines]
+    static let settingsOnlyKinds: Set<CommandConfigurationFieldKind> = [.list]
 
     /// Kinds that only make sense as a member of a field set: a credential
     /// reference and a network endpoint describe one part of a request.

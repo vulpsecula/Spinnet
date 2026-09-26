@@ -52,15 +52,24 @@ final class SmartJumpRecognitionTests: XCTestCase {
     func testSearchUsesTheFirstConfiguredEngineAndEncodesTextAsData() throws {
         XCTAssertEqual(try SmartJumpClassifier().classify("cats & dogs"),
                        .search(URL(string: "https://www.google.com/search?q=cats%20%26%20dogs")!, "Google"))
-        let engines = try SmartJumpSearchEngine.parse("Example | https://example.com/search?q={query}\nGoogle | https://www.google.com/search?q={query}")
+        func engine(_ name: String, _ url: String) -> JSONValue { .object(["name": .string(name), "url": .string(url)]) }
+        let engines = try SmartJumpSearchEngine.engines(from: .array([
+            engine("Example", "https://example.com/search?q={query}"), engine("Google", "https://www.google.com/search?q={query}")
+        ]))
         let classifier = SmartJumpClassifier(searchEngines: engines)
         XCTAssertEqual(try classifier.classify("猫 & x#y"),
                        .search(URL(string: "https://example.com/search?q=%E7%8C%AB%20%26%20x%23y")!, "Example"))
         XCTAssertEqual(try classifier.classify("   "), .input)
-        for setting in ["", "Example | javascript:{query}", "Example | http://example.com/search?q={query}",
-                        "Example | https://{query}.com/", "Example | https://example.com",
-                        "A | https://a.com/?q={query}\nA | https://b.com/?q={query}"] {
-            XCTAssertThrowsError(try SmartJumpSearchEngine.parse(setting), setting)
+        XCTAssertEqual(try SmartJumpSearchEngine.engines(from: nil), [.google])
+        XCTAssertEqual(try SmartJumpSearchEngine.engines(from: .array([])), [.google])
+        for rows: JSONValue in [.string("Example | https://example.com/search?q={query}"),
+                                .array([engine("Example", "javascript:{query}")]),
+                                .array([engine("Example", "http://example.com/search?q={query}")]),
+                                .array([engine("Example", "https://{query}.com/")]),
+                                .array([engine("Example", "https://example.com")]),
+                                .array([engine("A", "https://a.com/?q={query}"), engine("A", "https://b.com/?q={query}")]),
+                                .array([.object(["name": .string("A")])])] {
+            XCTAssertThrowsError(try SmartJumpSearchEngine.engines(from: rows), "\(rows)")
         }
     }
     func testSpecialTargetsAreRecognisedAloneAndInPassages() throws {

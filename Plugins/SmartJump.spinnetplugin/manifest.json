@@ -15,12 +15,20 @@
     "external_apps": []
   }],
   "settings_fields": [{
-    "key": "search_engines", "kind": "search_engines",
+    "key": "search_engines", "kind": "list",
     "title": "Search Engines (first is default)",
-    "placeholder": "One per line: Name | https://example.com/search?q={query}"
+    "max_rows": 10,
+    "columns": [
+      {"key": "name", "kind": "text", "title": "Name", "placeholder": "Engine name", "unique": true, "max_length": 50},
+      {"key": "url", "kind": "url_template", "title": "Search URL", "placeholder": "https://example.com/search?q={query}"}
+    ]
   }],
   "default_settings": {
-    "search_engines": "Google | https://www.google.com/search?q={query}\nBing | https://www.bing.com/search?q={query}\nDuckDuckGo | https://duckduckgo.com/?q={query}"
+    "search_engines": [
+      {"name": "Google", "url": "https://www.google.com/search?q={query}"},
+      {"name": "Bing", "url": "https://www.bing.com/search?q={query}"},
+      {"name": "DuckDuckGo", "url": "https://duckduckgo.com/?q={query}"}
+    ]
   },
   "preset": {
     "readiness": "ready_to_use",

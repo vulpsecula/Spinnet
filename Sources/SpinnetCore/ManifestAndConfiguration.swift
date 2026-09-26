@@ -822,14 +822,14 @@ public struct PluginManifest: Codable, Equatable {
                   CommandDeclaration.fieldSetKinds.contains(field.kind) || field.kind == .orderedChoices
                     || CommandDeclaration.settingsOnlyKinds.contains(field.kind) else {
                 throw ConfigurationError.invalidManifest(
-                    "Settings fields need unique keys and single-value or ordered_choices kinds"
+                    "Settings fields need unique keys and single-value, ordered_choices or list kinds"
                 )
             }
             guard !(field.kind == .orderedChoices && field.overridable) else {
                 throw ConfigurationError.invalidManifest("An ordered_choices setting cannot be overridable")
             }
-            guard !(field.kind == .searchEngines && field.overridable) else {
-                throw ConfigurationError.invalidManifest("A search_engines setting cannot be overridable")
+            guard !(field.kind == .list && field.overridable) else {
+                throw ConfigurationError.invalidManifest("A list setting cannot be overridable")
             }
             try validateFieldMetadata(field)
         }
@@ -889,6 +889,48 @@ public struct PluginManifest: Codable, Equatable {
                   field.choices.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
                 throw ConfigurationError.invalidManifest(
                     "Choice Configuration field must declare unique non-empty choices"
+                )
+            }
+        }
+        try validateListColumns(field)
+    }
+
+    private func validateListColumns(_ field: CommandConfigurationField) throws {
+        guard field.kind == .list else {
+            guard field.columns.isEmpty, field.maxRows == nil else {
+                throw ConfigurationError.invalidManifest("columns and max_rows are only valid on a list field")
+            }
+            return
+        }
+        guard (1...CommandConfigurationField.listColumnLimit).contains(field.columns.count) else {
+            throw ConfigurationError.invalidManifest(
+                "A list field needs one to \(CommandConfigurationField.listColumnLimit) columns"
+            )
+        }
+        var keys = Set<String>()
+        for column in field.columns {
+            guard !column.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, column.key.count <= 64,
+                  keys.insert(column.key).inserted else {
+                throw ConfigurationError.invalidManifest("List columns need unique keys")
+            }
+            if let title = column.title {
+                try validateText(title, name: "List column title")
+            }
+            guard (column.placeholder?.count ?? 0) <= 512 else {
+                throw ConfigurationError.invalidManifest("List column placeholder is too long")
+            }
+            if let maxLength = column.maxLength {
+                guard column.kind == .text, (1...ListFieldColumn.textLengthLimit).contains(maxLength) else {
+                    throw ConfigurationError.invalidManifest(
+                        "max_length is only valid on a text column, from 1 to \(ListFieldColumn.textLengthLimit)"
+                    )
+                }
+            }
+        }
+        if let maxRows = field.maxRows {
+            guard (1...CommandConfigurationField.listRowLimit).contains(maxRows) else {
+                throw ConfigurationError.invalidManifest(
+                    "max_rows must be from 1 to \(CommandConfigurationField.listRowLimit)"
                 )
             }
         }

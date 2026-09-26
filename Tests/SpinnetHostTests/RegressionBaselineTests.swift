@@ -128,11 +128,32 @@ final class RegressionBaselineTests: XCTestCase {
         for manifest in bundledManifests(in: registry) where manifest.hasSettings {
             let stored = settings.values(for: manifest.id)
             // A stored value a field no longer accepts would be silently
-            // replaced by its default.
-            XCTAssertEqual(manifest.resolvedSettings(stored: stored), stored, manifest.id.rawValue)
+            // replaced by its default. A `list` saved as text before that
+            // kind existed loads as its rows instead (#53).
+            var expected = stored
+            for field in manifest.settingsFields where field.kind == .list {
+                guard let key = field.key, case .string(let text)? = stored[key] else { continue }
+                expected[key] = try XCTUnwrap(field.listRows(fromText: text), "\(manifest.name) \(key) does not load")
+            }
+            XCTAssertEqual(manifest.resolvedSettings(stored: stored), expected, manifest.id.rawValue)
             try settings.setValues(stored, for: manifest.id)
         }
         try assertSameJSON(settings.fileURL, "PluginSettings.json")
+    }
+
+    /// Smart Jump's engines were stored as text before the `list` kind (#53).
+    /// They load as rows in their order, so the first is still the default.
+    func testStoredSearchEnginesLoadInTheirOrder() throws {
+        let registry = try registry()
+        let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
+        let smartJump = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.smart-jump"))?.manifest)
+        let values = smartJump.resolvedSettings(stored: settings.values(for: smartJump.id))
+        let engines = try SmartJumpSearchEngine.engines(from: values["search_engines"])
+        XCTAssertEqual(engines.map(\.name), ["DuckDuckGo", "Google", "Scholar"])
+        XCTAssertEqual(engines.map(\.template), [
+            "https://duckduckgo.com/?q={query}", "https://www.google.com/search?q={query}",
+            "https://scholar.google.com/scholar?q={query}"
+        ])
     }
 
     func testCapabilityGrantsReconcileWithTheRegisteredPluginsUnchanged() throws {

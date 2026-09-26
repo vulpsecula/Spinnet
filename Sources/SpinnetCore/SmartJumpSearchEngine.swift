@@ -8,32 +8,33 @@ public struct SmartJumpSearchEngine: Equatable {
 
     public static let google = SmartJumpSearchEngine(name: "Google", template: "https://www.google.com/search?q={query}")
 
-    public static func parse(_ text: String) throws -> [SmartJumpSearchEngine] {
-        let message = "Enter one search engine per line as Name | https://example.com/search?q={query}. The first is the default; use up to 10 unique names."
-        guard text.utf8.count <= 8192 else { throw PluginHostServiceError.invalidInput(message) }
-        let lines = text.split(whereSeparator: \.isNewline).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        guard !lines.isEmpty, lines.count <= 10 else { throw PluginHostServiceError.invalidInput(message) }
-        var engines: [SmartJumpSearchEngine] = []
-        for line in lines {
-            let parts = line.split(separator: "|", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-            guard parts.count == 2, !parts[0].isEmpty, parts[0].count <= 50,
-                  !engines.contains(where: { $0.name == parts[0] }),
-                  parts[1].components(separatedBy: "{query}").count == 2 else {
-                throw PluginHostServiceError.invalidInput(message)
-            }
-            let probe = parts[1].replacingOccurrences(of: "{query}", with: "spinnet_query_probe")
-            guard let url = try? OpenableURL.validate(probe),
-                  url.scheme?.lowercased() == "https",
-                  url.user == nil, url.password == nil,
-                  url.host?.contains("spinnet_query_probe") == false,
-                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                  components.path.contains("spinnet_query_probe") || components.query?.contains("spinnet_query_probe") == true else {
-                throw PluginHostServiceError.invalidInput(message)
-            }
-            engines.append(SmartJumpSearchEngine(name: parts[0], template: parts[1]))
+    /// The rows a `smart_jump` request names as `engines`, each a `name` and
+    /// a `url` template, as a `list` setting holds them. The first is the
+    /// default. No rows means Google.
+    public static func engines(from rows: JSONValue?) throws -> [SmartJumpSearchEngine] {
+        guard let rows, rows != .null else { return [.google] }
+        guard Self.engineRows.listProblem(rows) == nil, case .array(let items) = rows else {
+            throw PluginHostServiceError.invalidInput(
+                "smart_jump expects engines as up to 10 rows of a unique name and an https url with {query} once in its path or query"
+            )
         }
-        return engines
+        let engines = items.compactMap { item -> SmartJumpSearchEngine? in
+            guard case .object(let cells) = item, case .string(let name)? = cells["name"],
+                  case .string(let template)? = cells["url"] else { return nil }
+            return SmartJumpSearchEngine(name: name.trimmingCharacters(in: .whitespaces),
+                                         template: template.trimmingCharacters(in: .whitespaces))
+        }
+        return engines.isEmpty ? [.google] : engines
     }
+
+    /// What an engine row must be: the checks a `list` setting's columns
+    /// make, so the Host accepts here what the Plugin Settings sheet saves.
+    private static let engineRows = CommandConfigurationField(
+        kind: .list, title: "engines",
+        columns: [ListFieldColumn(key: "name", kind: .text, title: "name", unique: true, maxLength: 50),
+                  ListFieldColumn(key: "url", kind: .urlTemplate, title: "url")],
+        maxRows: 10
+    )
 
     public func url(for text: String) throws -> URL {
         // RFC 3986 unreserved characters only, including for a path template.

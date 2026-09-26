@@ -85,8 +85,8 @@ struct PluginSettingsForm: View {
             ResourcePathField(kind: field.kind, value: text(key))
         case .multilineText:
             ConfigurationTextEditor(text: text(key), placeholder: field.placeholder ?? "")
-        case .searchEngines:
-            SmartJumpSearchEnginesEditor(value: text(key))
+        case .list:
+            listRows(field, key: key)
         case .credential:
             let reference = text(key).wrappedValue
             CredentialField(secret: Binding(get: { model.secret(for: reference) },
@@ -130,6 +130,69 @@ struct PluginSettingsForm: View {
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: 250, alignment: .leading)
+    }
+
+    /// Each row as one field per column, with buttons to move it within the
+    /// list or remove it, then one to add a row, and what a URL template
+    /// column needs.
+    private func listRows(_ field: CommandConfigurationField, key: String) -> some View {
+        let rows = model.rows(for: key)
+        return VStack(alignment: .leading, spacing: 8) {
+            if rows.isEmpty {
+                Text(field.placeholder ?? "No rows yet.").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(rows.indices, id: \.self) { index in
+                let name = rowName(rows[index], field: field, index: index)
+                HStack(alignment: .top, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(field.columns, id: \.key) { column in
+                            ConfigurationTextField(text: cell(column.key, row: index, key: key),
+                                                   placeholder: column.placeholder ?? column.displayTitle)
+                                .accessibilityLabel("\(column.displayTitle) of \(name)")
+                        }
+                    }
+                    Button { model.moveRow(at: index, by: -1, in: key) } label: { Image(systemName: "chevron.up") }
+                        .disabled(index == 0)
+                        .accessibilityLabel("Move \(name) up")
+                    Button { model.moveRow(at: index, by: 1, in: key) } label: { Image(systemName: "chevron.down") }
+                        .disabled(index == rows.count - 1)
+                        .accessibilityLabel("Move \(name) down")
+                    Button(role: .destructive) { model.removeRow(at: index, from: key) } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .accessibilityLabel("Remove \(name)")
+                }
+                .buttonStyle(.borderless)
+                .padding(8)
+                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 9))
+            }
+            Button { model.addRow(to: key) } label: { Label("Add Row", systemImage: "plus") }
+                .buttonStyle(.borderless)
+                .disabled(rows.count >= field.maxRows ?? CommandConfigurationField.listRowLimit)
+                .accessibilityLabel("Add a row to \(field.displayTitle)")
+            ForEach(field.columns.filter { $0.kind == .urlTemplate }, id: \.key) { column in
+                Text("\(column.displayTitle) must use https and hold {query} once, in its path or query.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// What a row is called to assistive technologies: its first filled-in
+    /// text cell, or its position.
+    private func rowName(_ row: [String: String], field: CommandConfigurationField, index: Int) -> String {
+        field.columns.lazy.filter { $0.kind == .text }.compactMap { row[$0.key] }
+            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? "row \(index + 1)"
+    }
+
+    private func cell(_ column: String, row index: Int, key: String) -> Binding<String> {
+        Binding(
+            get: {
+                let rows = model.rows(for: key)
+                return rows.indices.contains(index) ? rows[index][column] ?? "" : ""
+            },
+            set: { model.setCell($0, column: column, row: index, in: key) }
+        )
     }
 
     private func text(_ key: String) -> Binding<String> {

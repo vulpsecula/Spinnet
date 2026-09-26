@@ -25,11 +25,9 @@ final class SmartJumpTests: XCTestCase {
 
     func testSmartJumpDeclaresEachEffectSeparatelyWithoutNetworkFetch() throws {
         let manifest = try SmartJumpFixture.load().manifest
-        XCTAssertEqual(manifest.settingsFields.map(\.kind), [.searchEngines])
-        guard case .string(let searchEngines)? = manifest.defaultSettings["search_engines"] else {
-            return XCTFail("Search defaults should be an ordered string")
-        }
-        XCTAssertEqual(try SmartJumpSearchEngine.parse(searchEngines).map(\.name), ["Google", "Bing", "DuckDuckGo"])
+        XCTAssertEqual(manifest.settingsFields.map(\.kind), [.list])
+        XCTAssertEqual(try SmartJumpSearchEngine.engines(from: manifest.defaultSettings["search_engines"]).map(\.name),
+                       ["Google", "Bing", "DuckDuckGo"])
         XCTAssertEqual(manifest.capabilities, [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.dataTypes, ["text"])
@@ -38,6 +36,36 @@ final class SmartJumpTests: XCTestCase {
         let command = manifest.commands[0]
         XCTAssertEqual(manifest.requiredCapabilities(for: command), [.readSelectedText, .openURL])
         XCTAssertEqual(manifest.requiredSystemPermissions(for: command), [.accessibility])
+    }
+
+    /// The engines setting refuses what the text setting before it refused:
+    /// no engine, more than ten, a blank, long or repeated name, and a URL
+    /// that is not https or does not hold `{query}` once in its path or query.
+    func testTheEnginesSettingRefusesWhatItRefusedAsText() throws {
+        let manifest = try SmartJumpFixture.load().manifest
+        let field = try XCTUnwrap(manifest.settingsFields.first)
+        func engine(_ name: String, _ url: String) -> JSONValue { .object(["name": .string(name), "url": .string(url)]) }
+        let good = "https://example.com/search?q={query}"
+        XCTAssertTrue(field.acceptsMemberValue(.array([engine(String(repeating: "n", count: 50), good)])))
+        XCTAssertTrue(field.acceptsMemberValue(.array((1...10).map { engine("E\($0)", good) })))
+        XCTAssertEqual(manifest.missingSettings(in: ["search_engines": .array([])], hasSecret: { _ in true }).count, 1,
+                       "no engine leaves Smart Jump unavailable")
+        for rows in [
+            (1...11).map { engine("E\($0)", good) },
+            [engine(" ", good)],
+            [engine(String(repeating: "n", count: 51), good)],
+            [engine("A", good), engine("A", "https://b.example/?q={query}")],
+            [engine("A", "")],
+            [engine("A", "javascript:{query}")],
+            [engine("A", "http://example.com/search?q={query}")],
+            [engine("A", "https://{query}.com/")],
+            [engine("A", "https://user:secret@example.com/?q={query}")],
+            [engine("A", "https://example.com")],
+            [engine("A", "https://example.com/?q={query}&r={query}")],
+            [engine("A", "https://example.com/#{query}")]
+        ] {
+            XCTAssertFalse(field.acceptsMemberValue(.array(rows)), "\(rows)")
+        }
     }
 
     func testOpeningALinkIsItsOwnServiceWithoutASystemPermission() {
@@ -281,7 +309,10 @@ final class SmartJumpScriptTests: XCTestCase {
     }
 
     func testSmartJumpSharesConfiguredEnginesBetweenSelectionAndInput() throws {
-        let settings: [String: JSONValue] = ["search_engines": .string("DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}")]
+        let settings: [String: JSONValue] = ["search_engines": .array([
+            .object(["name": .string("DuckDuckGo"), "url": .string("https://duckduckgo.com/?q={query}")]),
+            .object(["name": .string("Google"), "url": .string("https://www.google.com/search?q={query}")])
+        ])]
         var opened: [URL] = []
         let search = try smartJumpOutcome(selection: { "cats & dogs" }, open: { opened.append($0) }, settings: settings)
         guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }
@@ -292,6 +323,18 @@ final class SmartJumpScriptTests: XCTestCase {
         XCTAssertEqual(input.searchEngines.map(\.name), ["DuckDuckGo", "Google"])
         _ = try input.submit("cats & dogs")
         XCTAssertEqual(opened.last, URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs"))
+    }
+
+    /// Engines a user saved before the `list` kind, as text, still search in
+    /// their order: the first stays the default.
+    func testEnginesSavedAsTextStillSearchWithTheFirst() throws {
+        let settings: [String: JSONValue] = ["search_engines": .string(
+            "DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}"
+        )]
+        var opened: [URL] = []
+        let search = try smartJumpOutcome(selection: { "cats" }, open: { opened.append($0) }, settings: settings)
+        guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }
+        XCTAssertEqual(opened, [URL(string: "https://duckduckgo.com/?q=cats")!])
     }
 
     func testSmartJumpOpensPathsWithSeparateAuthorityAndDisclosure() throws {

@@ -176,10 +176,14 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
 
 | Key | Control | Default |
 | --- | --- | --- |
-| `search_engines` | Structured list: name, search URL, move up/down, remove, "Add Search Engine"; the first is marked Default | Google, Bing, DuckDuckGo |
+| `search_engines` | "Search Engines (first is default)": the generic list editor (#53), one row per engine with a Name and a Search URL field, move up/down, remove, "Add Row" | Google, Bing, DuckDuckGo |
 
-- Search URLs must be https and contain `{query}`; at most 10 engines. An
-  invalid or empty list → unavailable.
+- Search URLs must be https and contain `{query}` once, in the path or query;
+  names are unique, at most 50 characters; at most 10 engines. Saving an
+  invalid row names the row and refuses; an empty list → unavailable ("Still
+  needed: Search Engines (first is default)").
+- Engines saved before #53, as text, open as rows in their order and are
+  written as a list the next time the sheet saves.
 
 ### Permission prompts
 

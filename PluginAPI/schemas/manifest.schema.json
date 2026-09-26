@@ -227,7 +227,7 @@
       "pattern": "^(?!/)(?!.*\\\\)(?!(?:.*/)?\\.\\.?(?:/|$))\\S"
     },
     "field": {
-      "description": "One Host-rendered field. key is needed inside configuration_fields and settings_fields; overridable and group only inside settings_fields; used_when only inside a field set.",
+      "description": "One Host-rendered field. key is needed inside configuration_fields and settings_fields; overridable and group only inside settings_fields; used_when only inside a field set; columns and max_rows only on a list.",
       "type": "object",
       "required": ["kind"],
       "additionalProperties": false,
@@ -257,12 +257,52 @@
           }
         },
         "overridable": { "type": "boolean" },
-        "group": { "type": "string" }
+        "group": { "type": "string" },
+        "columns": {
+          "description": "The typed columns of a list; each row holds one string per column.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/listColumn" },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "max_rows": {
+          "description": "The most rows a list may hold; 100 when absent.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
       },
       "allOf": [
         {
           "if": { "required": ["kind"], "properties": { "kind": { "enum": ["choice", "ordered_choices"] } } },
           "then": { "required": ["choices"], "properties": { "choices": { "minItems": 1 } } }
+        },
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "list" } } },
+          "then": { "required": ["columns"] }
+        }
+      ]
+    },
+    "listColumn": {
+      "description": "One column of a list. A text cell is one non-blank line of at most max_length characters (256 when absent); a url_template cell is an https address holding {query} exactly once, in its path or query.",
+      "type": "object",
+      "required": ["key", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+        "kind": { "enum": ["text", "url_template"] },
+        "title": { "$ref": "#/$defs/text" },
+        "placeholder": { "type": "string", "maxLength": 512 },
+        "unique": {
+          "description": "No two rows hold the same cell in this column, ignoring surrounding whitespace.",
+          "type": "boolean"
+        },
+        "max_length": { "type": "integer", "minimum": 1, "maximum": 256 }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["max_length"] },
+          "then": { "properties": { "kind": { "const": "text" } } }
         }
       ]
     },
@@ -283,7 +323,7 @@
         "credential",
         "https_endpoint",
         "ordered_choices",
-        "search_engines"
+        "list"
       ]
     }
   }

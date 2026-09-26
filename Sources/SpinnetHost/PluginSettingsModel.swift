@@ -115,6 +115,47 @@ final class PluginSettingsModel: ObservableObject {
         values[key] = .array(chosen.map(JSONValue.string))
     }
 
+    /// The rows a `list` setting holds, in order, each cell by column key.
+    func rows(for key: String) -> [[String: String]] {
+        guard case .array(let rows)? = values[key] else { return [] }
+        return rows.map { row in
+            guard case .object(let cells) = row else { return [:] }
+            return cells.compactMapValues { if case .string(let text) = $0 { return text }; return nil }
+        }
+    }
+
+    /// Adds a row of empty cells, last.
+    func addRow(to key: String) {
+        guard let field = manifest.settingsFields.first(where: { $0.key == key }) else { return }
+        setRows(rows(for: key) + [Dictionary(uniqueKeysWithValues: field.columns.map { ($0.key, "") })], for: key)
+    }
+
+    func removeRow(at index: Int, from key: String) {
+        var rows = rows(for: key)
+        guard rows.indices.contains(index) else { return }
+        rows.remove(at: index)
+        setRows(rows, for: key)
+    }
+
+    /// Moves a row `offset` places earlier (negative) or later.
+    func moveRow(at index: Int, by offset: Int, in key: String) {
+        var rows = rows(for: key)
+        guard rows.indices.contains(index), rows.indices.contains(index + offset) else { return }
+        rows.insert(rows.remove(at: index), at: index + offset)
+        setRows(rows, for: key)
+    }
+
+    func setCell(_ text: String, column: String, row index: Int, in key: String) {
+        var rows = rows(for: key)
+        guard rows.indices.contains(index) else { return }
+        rows[index][column] = text
+        setRows(rows, for: key)
+    }
+
+    private func setRows(_ rows: [[String: String]], for key: String) {
+        values[key] = .array(rows.map { .object($0.mapValues(JSONValue.string)) })
+    }
+
     /// Consent needed for the endpoint as edited, or nil when none is.
     var endpointConsent: HTTPSEndpointConsent? {
         let needed = consent(values)
@@ -129,12 +170,15 @@ final class PluginSettingsModel: ObservableObject {
             for field in visibleFields {
                 guard let key = field.key, let value = values[key] else { continue }
                 guard field.acceptsMemberValue(value) else {
-                    throw ConfigurationError.invalidAction(field.kind == .httpsEndpoint
-                        ? "\(field.displayTitle) must be an https address, such as https://api.example.com."
-                        : "\(field.displayTitle) is not one of its offered values.")
-                }
-                if field.kind == .searchEngines, case .string(let text) = value {
-                    _ = try SmartJumpSearchEngine.parse(text)
+                    switch field.kind {
+                    case .httpsEndpoint:
+                        throw ConfigurationError.invalidAction(
+                            "\(field.displayTitle) must be an https address, such as https://api.example.com.")
+                    case .list:
+                        throw ConfigurationError.invalidAction(field.listProblem(value) ?? "")
+                    default:
+                        throw ConfigurationError.invalidAction("\(field.displayTitle) is not one of its offered values.")
+                    }
                 }
             }
             let typed = secrets.filter { !$0.value.isEmpty }

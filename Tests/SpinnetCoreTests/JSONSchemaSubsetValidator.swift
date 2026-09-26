@@ -14,7 +14,7 @@ struct JSONSchemaSubsetValidator {
     ]
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
-        "items", "minItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum",
+        "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
         "allOf", "if", "then"
     ]
 
@@ -99,6 +99,9 @@ struct JSONSchemaSubsetValidator {
         case ("minItems", .number(let minimum)):
             guard case .array(let elements) = instance else { return [] }
             return Double(elements.count) >= minimum ? [] : fail("has fewer than \(Int(minimum)) items")
+        case ("maxItems", .number(let maximum)):
+            guard case .array(let elements) = instance else { return [] }
+            return Double(elements.count) <= maximum ? [] : fail("has more than \(Int(maximum)) items")
         case ("uniqueItems", .bool(let unique)):
             guard unique, case .array(let elements) = instance else { return [] }
             return Set(elements).count == elements.count ? [] : fail("repeats an item")
@@ -118,6 +121,9 @@ struct JSONSchemaSubsetValidator {
         case ("minimum", .number(let minimum)):
             guard case .number(let number) = instance else { return [] }
             return number >= minimum ? [] : fail("is less than \(minimum)")
+        case ("maximum", .number(let maximum)):
+            guard case .number(let number) = instance else { return [] }
+            return number <= maximum ? [] : fail("is greater than \(maximum)")
         case ("allOf", .array(let schemas)):
             return schemas.flatMap { errors(for: instance, against: $0, at: path) }
         case ("if", _):

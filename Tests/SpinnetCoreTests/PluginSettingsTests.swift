@@ -60,8 +60,22 @@ final class PluginSettingsTests: XCTestCase {
             ("ordered choices on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "ordered_choices", "choices": ["a"]}]"#) }),
             ("a group on a Command field", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "m", "kind": "text", "group": "Server"}]"#) }),
             ("choice titles that miss a choice", { try self.manifest(settings: #"[{"key": "a", "kind": "choice", "choices": ["x", "y"], "choice_titles": ["Ex"]}]"#, defaults: "{}") }),
-            ("search engines on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "search_engines"}]"#) }),
-            ("search engines as a Command's lone field", { try self.manifest(commandFields: #", "configuration_field": {"key": "s", "kind": "search_engines"}"#) }),
+            ("a list on a Command", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}]}]"#) }),
+            ("a list as a Command's lone field", { try self.manifest(commandFields: #", "configuration_field": {"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}]}"#) }),
+            ("a list overridable", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}], "overridable": true}]"#, defaults: "{}") }),
+            ("a list without columns", { try self.manifest(settings: #"[{"key": "s", "kind": "list"}]"#, defaults: "{}") }),
+            ("a list with no columns", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": []}]"#, defaults: "{}") }),
+            ("a list repeating a column key", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}, {"key": "n", "kind": "url_template"}]}]"#, defaults: "{}") }),
+            ("a list column without a key", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": " ", "kind": "text"}]}]"#, defaults: "{}") }),
+            ("a list column of an unknown kind", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "toggle"}]}]"#, defaults: "{}") }),
+            ("a length on a URL template column", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "u", "kind": "url_template", "max_length": 20}]}]"#, defaults: "{}") }),
+            ("a text column length of 0", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text", "max_length": 0}]}]"#, defaults: "{}") }),
+            ("a list of 0 rows at most", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}], "max_rows": 0}]"#, defaults: "{}") }),
+            ("a list of over 100 rows", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}], "max_rows": 101}]"#, defaults: "{}") }),
+            ("columns on a text field", { try self.manifest(settings: #"[{"key": "s", "kind": "text", "columns": [{"key": "n", "kind": "text"}]}]"#, defaults: "{}") }),
+            ("max_rows on a text field", { try self.manifest(settings: #"[{"key": "s", "kind": "text", "max_rows": 3}]"#, defaults: "{}") }),
+            ("a list default that breaks its columns", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "u", "kind": "url_template"}]}]"#, defaults: #"{"s": [{"u": "http://example.com/?q={query}"}]}"#) }),
+            ("a list default written as text", { try self.manifest(settings: #"[{"key": "s", "kind": "list", "columns": [{"key": "n", "kind": "text"}]}]"#, defaults: #"{"s": "a"}"#) }),
             ("default for an unknown key", { try self.manifest(defaults: #"{"other": "x"}"#) }),
             ("invalid default", { try self.manifest(defaults: #"{"target": "IT"}"#) }),
             ("clashes with a Command field", { try self.manifest(commandFields: #", "configuration_fields": [{"key": "target", "kind": "text"}]"#) }),
@@ -145,6 +159,110 @@ final class PluginSettingsTests: XCTestCase {
                        "Without titles a choice shows itself")
         let decoded = try JSONDecoder().decode(PluginManifest.self, from: JSONEncoder().encode(manifest))
         XCTAssertEqual(decoded, manifest)
+    }
+
+    // MARK: - Lists
+
+    private static let listSettings = """
+    [{"key": "sites", "kind": "list", "title": "Sites", "max_rows": 3, "columns": [
+       {"key": "name", "kind": "text", "title": "Name", "unique": true, "max_length": 10},
+       {"key": "url", "kind": "url_template", "title": "URL", "placeholder": "https://example.com/?q={query}"}]}]
+    """
+
+    private func row(_ name: String, _ url: String) -> JSONValue {
+        .object(["name": .string(name), "url": .string(url)])
+    }
+
+    /// A `list` setting holds rows of typed cells in the order the user put
+    /// them: a JSON array of objects holding one string per column.
+    func testAListSettingHoldsRowsOfTypedCellsInOrder() throws {
+        let manifest = try manifest(settings: Self.listSettings,
+                                    defaults: #"{"sites": [{"name": "A", "url": "https://a.example/?q={query}"}]}"#)
+        let field = manifest.settingsFields[0]
+        XCTAssertEqual(field.kind, .list)
+        XCTAssertEqual(field.columns.map(\.key), ["name", "url"])
+        XCTAssertEqual(field.columns.map(\.kind), [.text, .urlTemplate])
+        XCTAssertEqual(field.columns.map(\.unique), [true, false])
+        XCTAssertEqual(field.columns.map(\.maxLength), [10, nil])
+        XCTAssertEqual(field.columns[1].placeholder, "https://example.com/?q={query}")
+        XCTAssertEqual(field.maxRows, 3)
+
+        let rows: JSONValue = .array([row("B", "https://b.example/search/{query}"), row("A", "https://a.example/?q={query}")])
+        XCTAssertTrue(field.acceptsMemberValue(rows))
+        XCTAssertTrue(field.acceptsMemberValue(.array([])), "an empty list is a list, though it is missing")
+        XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": rows])["sites"], rows)
+        XCTAssertEqual(manifest.missingSettings(in: ["sites": .array([])], hasSecret: { _ in true }).map(\.key), ["sites"])
+        XCTAssertEqual(manifest.missingSettings(in: ["sites": rows], hasSecret: { _ in true }), [])
+
+        let decoded = try JSONDecoder().decode(PluginManifest.self, from: JSONEncoder().encode(manifest))
+        XCTAssertEqual(decoded, manifest)
+    }
+
+    /// Each cell is checked against its column. A stored list that fails is
+    /// not used and the default stands in, as for any other invalid value.
+    func testAListRefusesRowsThatBreakItsColumns() throws {
+        let manifest = try manifest(settings: Self.listSettings,
+                                    defaults: #"{"sites": [{"name": "D", "url": "https://d.example/?q={query}"}]}"#)
+        let field = manifest.settingsFields[0]
+        let good = "https://a.example/?q={query}"
+        let cases: [(String, JSONValue)] = [
+            ("a row that is not an object", .array([.string("A")])),
+            ("a missing cell", .array([.object(["name": .string("A")])])),
+            ("an extra cell", .array([.object(["name": .string("A"), "url": .string(good), "x": .string("")])])),
+            ("a cell that is not text", .array([.object(["name": .number(1), "url": .string(good)])])),
+            ("a blank text cell", .array([row("  ", good)])),
+            ("a text cell over its length", .array([row(String(repeating: "n", count: 11), good)])),
+            ("a text cell of two lines", .array([row("A\nB", good)])),
+            ("a repeated unique cell", .array([row("A", good), row(" A ", "https://b.example/?q={query}")])),
+            ("more rows than max_rows", .array((1...4).map { row("N\($0)", good) })),
+            ("an invalid URL template", .array([row("A", "https://example.com")]))
+        ]
+        for (name, value) in cases {
+            XCTAssertFalse(field.acceptsMemberValue(value), name)
+            XCTAssertNotNil(field.listProblem(value), name)
+            XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": value])["sites"],
+                           .array([row("D", "https://d.example/?q={query}")]), name)
+        }
+        XCTAssertNil(field.listProblem(.array([row("A", good)])))
+        XCTAssertEqual(field.listProblem(.array([row("A", good), row("A", "https://b.example/?q={query}")])),
+                       "Row 2 of Sites repeats the Name of row 1.")
+        XCTAssertEqual(field.listProblem(.array([row("A", "http://a.example/?q={query}")])),
+                       "Row 1 of Sites: URL must be an https address with {query} once in its path or query, such as https://example.com/search?q={query}.")
+    }
+
+    /// A `url_template` cell is an https address holding `{query}` exactly
+    /// once, in its path or query, never where it could change the host.
+    func testAURLTemplateCellHoldsOneQueryInAnHTTPSPathOrQuery() throws {
+        let column = try manifest(settings: Self.listSettings, defaults: "{}").settingsFields[0].columns[1]
+        for template in ["https://example.com/search?q={query}", "https://example.com/wiki/{query}",
+                         "https://example.com/?a=1&q={query}&b=2", "HTTPS://Example.com/{query}"] {
+            XCTAssertTrue(column.accepts(template), template)
+        }
+        for template in ["", "https://example.com", "https://example.com/?q={query}&r={query}",
+                         "javascript:{query}", "http://example.com/search?q={query}", "https://{query}.com/",
+                         "https://example.com:{query}/", "https://user:secret@example.com/?q={query}",
+                         "https://example.com/#{query}", "https://example.com/?q={query} x",
+                         "https://example.com/?q={QUERY}",
+                         "https://example.com/?q=" + String(repeating: "x", count: 2048) + "{query}"] {
+            XCTAssertFalse(column.accepts(template), template)
+        }
+    }
+
+    /// Settings saved before `list` existed held the rows as text, one per
+    /// line with cells separated by `|`. They load as rows in their order,
+    /// and are written as a list the next time the settings save.
+    func testAListStoredAsTextLoadsAsRowsInItsOrder() throws {
+        let manifest = try manifest(settings: Self.listSettings,
+                                    defaults: #"{"sites": [{"name": "D", "url": "https://d.example/?q={query}"}]}"#)
+        let stored: JSONValue = .string("B | https://b.example/search/{query}\n\n  A|https://a.example/?q={query}  \n")
+        XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": stored])["sites"], .array([
+            row("B", "https://b.example/search/{query}"), row("A", "https://a.example/?q={query}")
+        ]))
+        for invalid in ["", "A", "A | http://a.example/?q={query}", "A | https://a.example/?q={query} | x",
+                        "A | https://a.example/?q={query}\nA | https://b.example/?q={query}"] {
+            XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": .string(invalid)])["sites"],
+                           .array([row("D", "https://d.example/?q={query}")]), invalid)
+        }
     }
 
     // MARK: - Combining settings with an Action

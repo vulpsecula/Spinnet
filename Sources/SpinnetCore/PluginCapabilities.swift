@@ -867,8 +867,15 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try focusedWindowFrameRestorer()
             return .null
         case .smartJump:
+            // `{"text": …, "engines": […]}`: the Plugin hands over its own
+            // search engines, such as the rows of a `list` setting.
+            guard case .object(let members) = request.input,
+                  Set(members.keys).isSubset(of: ["text", "engines"]) else {
+                throw PluginHostServiceError.invalidInput("smart_jump expects an object with text and engines")
+            }
+            let engines = try SmartJumpSearchEngine.engines(from: members["engines"])
             let text: String
-            switch request.input {
+            switch members["text"] ?? .null {
             case .string(let suppliedText):
                 text = suppliedText
             case .null:
@@ -893,10 +900,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             default:
                 throw PluginHostServiceError.invalidInput("smart_jump expects text or null")
             }
-            let engines: [SmartJumpSearchEngine]
-            if case .object(let values) = action.input, case .string(let configuration)? = values["search_engines"] {
-                engines = try SmartJumpSearchEngine.parse(configuration)
-            } else { engines = [.google] }
             let session = SmartJumpSession(initialText: text, searchEngines: engines, copy: { [self] text in
                 let copy = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
                                                           service: .writeClipboard, input: .string(text))

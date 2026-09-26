@@ -210,4 +210,78 @@ final class PluginSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.visibleGroups.map(\.name), [nil, "Languages", "Google"])
         XCTAssertFalse(model.showsCredential, "Google keeps no key")
     }
+
+    // MARK: - Rows of a list setting
+
+    private func smartJumpModel(stored: [String: JSONValue]? = nil) throws -> (PluginSettingsModel, PluginSettingsStore) {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/SmartJump.spinnetplugin")).manifest
+        let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
+        if let stored { try store.setValues(stored, for: manifest.id) }
+        let grants = PluginCapabilityGrantStore()
+        let model = PluginSettingsModel(
+            manifest: manifest, store: store, credentialStore: nil,
+            approveConsent: { consent, allowed in try consent.approve(allowedHosts: allowed, grantStore: grants) },
+            consent: { HTTPSEndpointConsent(manifest: manifest, settings: $0, grantStore: grants) },
+            onSaved: {}
+        )
+        return (model, store)
+    }
+
+    /// Engines saved as text before the `list` kind open as rows in their
+    /// order, the first still the default, and save back as a list.
+    func testEnginesStoredAsTextOpenAsRowsAndSaveAsAList() throws {
+        let (model, store) = try smartJumpModel(stored: ["search_engines": .string(
+            "DuckDuckGo | https://duckduckgo.com/?q={query}\nScholar | https://scholar.google.com/scholar?q={query}"
+        )])
+        XCTAssertEqual(model.rows(for: "search_engines"), [
+            ["name": "DuckDuckGo", "url": "https://duckduckgo.com/?q={query}"],
+            ["name": "Scholar", "url": "https://scholar.google.com/scholar?q={query}"]
+        ])
+        XCTAssertTrue(model.save(), model.error ?? "")
+        XCTAssertEqual(store.values(for: model.manifest.id)["search_engines"], .array([
+            .object(["name": .string("DuckDuckGo"), "url": .string("https://duckduckgo.com/?q={query}")]),
+            .object(["name": .string("Scholar"), "url": .string("https://scholar.google.com/scholar?q={query}")])
+        ]))
+    }
+
+    /// The generic row editor adds an empty row last, edits one cell, moves a
+    /// row within the list, and removes one.
+    func testRowsAreAddedEditedMovedAndRemoved() throws {
+        let (model, store) = try smartJumpModel()
+        XCTAssertEqual(model.rows(for: "search_engines").map { $0["name"] }, ["Google", "Bing", "DuckDuckGo"])
+        model.addRow(to: "search_engines")
+        XCTAssertEqual(model.rows(for: "search_engines").last, ["name": "", "url": ""])
+        XCTAssertEqual(model.missingTitles, ["Search Engines (first is default)"], "an empty row is not yet usable")
+        model.setCell("Wiki", column: "name", row: 3, in: "search_engines")
+        model.setCell("https://en.wikipedia.org/wiki/{query}", column: "url", row: 3, in: "search_engines")
+        XCTAssertEqual(model.missingTitles, [])
+        model.moveRow(at: 3, by: -1, in: "search_engines")
+        model.moveRow(at: 0, by: -1, in: "search_engines")
+        XCTAssertEqual(model.rows(for: "search_engines").map { $0["name"] }, ["Google", "Bing", "Wiki", "DuckDuckGo"],
+                       "the first cannot move up")
+        model.moveRow(at: 2, by: -2, in: "search_engines")
+        model.removeRow(at: 1, from: "search_engines")
+        XCTAssertEqual(model.rows(for: "search_engines").map { $0["name"] }, ["Wiki", "Bing", "DuckDuckGo"])
+        XCTAssertTrue(model.save(), model.error ?? "")
+        guard case .array(let saved)? = store.values(for: model.manifest.id)["search_engines"] else {
+            return XCTFail("the engines are saved as a list")
+        }
+        XCTAssertEqual(saved.first, .object(["name": .string("Wiki"), "url": .string("https://en.wikipedia.org/wiki/{query}")]),
+                       "the first row is the default")
+    }
+
+    /// A row the columns refuse stops the save and says which row is at fault.
+    func testAnInvalidRowIsRefusedByRow() throws {
+        let (model, store) = try smartJumpModel()
+        model.setCell("http://www.bing.com/search?q={query}", column: "url", row: 1, in: "search_engines")
+        XCTAssertFalse(model.save())
+        XCTAssertEqual(model.error, "Invalid Action: Row 2 of Search Engines (first is default): Search URL must be an https address "
+                       + "with {query} once in its path or query, such as https://example.com/search?q={query}.")
+        XCTAssertFalse(store.hasValues(for: model.manifest.id))
+        model.setCell("https://www.bing.com/search?q={query}", column: "url", row: 1, in: "search_engines")
+        model.setCell("Google", column: "name", row: 1, in: "search_engines")
+        XCTAssertFalse(model.save())
+        XCTAssertEqual(model.error, "Invalid Action: Row 2 of Search Engines (first is default) repeats the Name of row 1.")
+    }
 }

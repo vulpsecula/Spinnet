@@ -9,14 +9,17 @@ public extension PluginManifest {
     var hasSettings: Bool { !settingsFields.isEmpty }
 
     /// The settings the Host uses: the defaults, replaced by each stored value
-    /// that is still a valid value of a declared field. Anything else stored,
-    /// such as a value from an older version, is ignored.
+    /// that is still a valid value of a declared field. A `list` stored as
+    /// text, as settings saved before that kind held it, loads as its rows.
+    /// Anything else stored, such as a value from an older version, is ignored.
     func resolvedSettings(stored: [String: JSONValue]) -> [String: JSONValue] {
         var values: [String: JSONValue] = [:]
         for field in settingsFields {
             guard let key = field.key else { continue }
             if let value = stored[key], field.acceptsMemberValue(value) {
                 values[key] = value
+            } else if case .string(let text)? = stored[key], let rows = field.listRows(fromText: text) {
+                values[key] = rows
             } else if let value = defaultSettings[key] {
                 values[key] = value
             }
@@ -25,8 +28,8 @@ public extension PluginManifest {
     }
 
     /// Settings fields the current values use that have no usable value:
-    /// absent, blank text, no choice in an `ordered_choices`, or a
-    /// credential whose secret is not stored. A field whose `used_when` is
+    /// absent, blank text, no choice in an `ordered_choices`, no row in a
+    /// `list`, or a credential whose secret is not stored. A field whose `used_when` is
     /// not met is never missing. Until none are, the Plugin's Menu Items are
     /// unavailable.
     func missingSettings(in values: [String: JSONValue], hasSecret: (String) -> Bool) -> [CommandConfigurationField] {
@@ -35,8 +38,6 @@ public extension PluginManifest {
             guard let key = field.key, let value = values[key], field.acceptsMemberValue(value) else { return true }
             switch (field.kind, value) {
             case (.credential, .string(let reference)): return !hasSecret(reference)
-            case (.searchEngines, .string(let text)):
-                return (try? SmartJumpSearchEngine.parse(text).isEmpty) ?? true
             case (_, .string(let text)): return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             case (_, .array(let items)): return items.isEmpty
             default: return false
