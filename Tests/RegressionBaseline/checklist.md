@@ -107,6 +107,15 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
 | `openai_model` | Model (OpenAI) | gpt-4.1-mini | Blank → unavailable |
 | `openai_credential` | API Key (OpenAI) | reference `openai` | Keychain |
 
+### Version 1 data
+
+- Launched with `TranslatorVersion1/` as the saved data, the "翻译" Menu Item
+  keeps its alias and Alternate Actions, its Actions are Translate Selection,
+  Translate Input and Translate Clipboard, and each still translates. The
+  Translate Selection and Copy Action's own `target_language` is dropped;
+  Plugin Settings show the DeepL endpoint `https://api.deepl.com` and key
+  reference `deepl` carried over.
+
 ### Errors and repair routes
 
 - Endpoint on a host the Plugin did not declare → the sheet shows "New
@@ -349,6 +358,7 @@ adds its migration and keeps this test passing on these files unchanged.
 | `PluginSettings.json` | Non-default Translator settings (reordered sources, Pro DeepL endpoint, self-hosted OpenAI base URL, a renamed credential reference) and a custom Smart Jump engine list |
 | `capability-grants.json` | Granted, denied and undecided decisions; declared scopes; a user-allowed host on `contact_https`; a decision kept for an older Bob version; the Host Command Plugins' decisions |
 | `keychain-items.json` | The Keychain items the credential references name (service and account; never a secret) |
+| `TranslatorVersion1/` | The Translator Menu Item and Plugin Settings as Translator 1 wrote them: `translator.copy` and `translator.replace` Actions, configurable Actions with inputs (one overriding `target_language`), and DeepL's `endpoint` and `credential` under their old keys. Translator's manifest `migrations` must turn them into exactly the Translator Actions of `configuration.json`, and a second launch must change nothing |
 
 Not covered, because no planned ticket changes them: the Clipboard History
 archive (`ClipboardHistory/`), Menu appearance, triggers, and Screenshot

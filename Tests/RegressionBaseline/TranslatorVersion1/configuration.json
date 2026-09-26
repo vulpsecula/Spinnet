@@ -1,0 +1,56 @@
+{
+  "actions": [
+    {
+      "commandID": "translator.copy",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000001",
+      "input": {
+        "target_language": "FR"
+      },
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Selection and Copy"
+    },
+    {
+      "commandID": "translator.replace",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000002",
+      "input": {},
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Selection in Place"
+    },
+    {
+      "commandID": "translator.clipboard",
+      "execution": "javascript",
+      "id": "7A000000-0000-4000-8000-000000000003",
+      "input": {},
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.translator",
+      "script": "translate.js",
+      "title": "Translate Clipboard"
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "翻译",
+          "alternate_action_ids": [
+            "7A000000-0000-4000-8000-000000000002"
+          ],
+          "alternate_action_order": [
+            "7A000000-0000-4000-8000-000000000002",
+            "7A000000-0000-4000-8000-000000000003"
+          ],
+          "disabled_alternate_action_ids": [
+            "7A000000-0000-4000-8000-000000000003"
+          ],
+          "primary_action_id": "7A000000-0000-4000-8000-000000000001"
+        }
+      }
+    ]
+  }
+}

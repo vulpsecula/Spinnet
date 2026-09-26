@@ -59,6 +59,47 @@ final class RegressionBaselineTests: XCTestCase {
         try assertSameJSON(directory.appendingPathComponent("configuration.json"), "configuration.json")
     }
 
+    /// `TranslatorVersion1/` holds the baseline's Translator Menu Item and
+    /// Plugin Settings as Translator 1 wrote them. The launch steps apply the
+    /// Translator manifest's `migrations` and must turn them into exactly the
+    /// baseline's Translator Actions, and a second launch must change nothing.
+    func testTranslatorVersionOneDataMigratesToTheBaselineAndStaysThere() throws {
+        let version1 = Self.baseline.appendingPathComponent("TranslatorVersion1")
+        for name in ["configuration.json", "PluginSettings.json"] {
+            try FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+            try FileManager.default.copyItem(at: version1.appendingPathComponent(name),
+                                             to: directory.appendingPathComponent(name))
+        }
+        let translator = PluginID("com.spinnet.translator")
+        let registry = try registry(grantStore: try restoredGrants())
+        let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
+        let stored = try XCTUnwrap(HostConfigurationStore(
+            fileURL: directory.appendingPathComponent("configuration.json")
+        ).load())
+        let baseline = try XCTUnwrap(HostConfigurationStore(
+            fileURL: Self.baseline.appendingPathComponent("configuration.json")
+        ).load())
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
+
+        let migrated = try StoredDataMigration.migrate(stored, registry: registry, pluginSettings: settings,
+                                                       defaults: defaults)
+
+        XCTAssertEqual(migrated.actions, baseline.actions.filter { $0.pluginID == translator })
+        XCTAssertEqual(migrated.menu, stored.menu, "Slots, aliases and Alternate Actions are kept")
+        XCTAssertEqual(settings.values(for: translator), [
+            "deepl_credential": .string("deepl"), "deepl_endpoint": .string("https://api.deepl.com"),
+            "formality": .string("prefer_less"), "target_language": .string("ZH-HANS")
+        ], "Version 1's DeepL endpoint and key reference carry over, and the target language stays in Plugin Settings")
+        for action in migrated.actions {
+            XCTAssertEqual(registry.availability(for: action), .available, action.commandID.rawValue)
+        }
+
+        let settingsAfterOneLaunch = try Data(contentsOf: settings.fileURL)
+        XCTAssertEqual(try StoredDataMigration.migrate(migrated, registry: registry, pluginSettings: settings,
+                                                       defaults: defaults), migrated)
+        XCTAssertEqual(try Data(contentsOf: settings.fileURL), settingsAfterOneLaunch)
+    }
+
     func testConfigurationHoldsAnActionForEveryCommandAndEveryOneIsAvailable() throws {
         let grants = try restoredGrants()
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))

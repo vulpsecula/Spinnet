@@ -37,10 +37,8 @@ final class ArchitectureGuardTests: XCTestCase {
         .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_delayed", .removedBy("W8 #55")),
         .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.append_capture", .removedBy("W8 #55")),
 
-        // Translator's version 1 to 2 migration becomes manifest `migrations`.
-        .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "com.spinnet.translator", .removedBy("W5 #52")),
-        .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "translator.selection", .removedBy("W5 #52")),
-        .init("Sources/SpinnetHost/TranslatorCommandMigration.swift", "translator.input", .removedBy("W5 #52")),
+        // The retired Screenshot Plugin's Menu Items and grant move onto
+        // another Plugin, which no manifest's `migrations` can declare.
         .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "com.spinnet.builtin.screenshot", .retiredPluginMigration),
         .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_area", .retiredPluginMigration),
         .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_full_screen", .retiredPluginMigration),

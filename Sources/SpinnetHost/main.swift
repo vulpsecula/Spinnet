@@ -256,7 +256,24 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.installPlugin = { [unowned self] url in
                 let manifest = try self.pluginInstallation.install(from: url)
                 if let configuration = self.currentConfiguration {
-                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    // An update's migrations move the data its earlier
+                    // version left, as they would at the next launch. The
+                    // Plugin is installed either way.
+                    let migrated: HostConfiguration
+                    do {
+                        migrated = try StoredDataMigration.applyMigrations(
+                            declaredBy: manifest, to: configuration, pluginSettings: self.pluginSettings
+                        )
+                    } catch {
+                        migrated = configuration
+                        self.showConfigurationError(error)
+                    }
+                    if migrated != configuration {
+                        editor.restore(migrated)
+                        self.configurationDidChange(migrated)
+                    } else {
+                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    }
                 }
                 return manifest
             }

@@ -483,6 +483,8 @@ public struct PluginManifest: Codable, Equatable {
     public let settingsFields: [CommandConfigurationField]
     /// Starting values for `settingsFields`, written as `default_settings`.
     public let defaultSettings: [String: JSONValue]
+    /// How data an earlier version left behind maps onto this one.
+    public let migrations: PluginMigrations
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
@@ -496,7 +498,8 @@ public struct PluginManifest: Codable, Equatable {
         commands: [CommandDeclaration],
         preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration(),
         settingsFields: [CommandConfigurationField] = [],
-        defaultSettings: [String: JSONValue] = [:]
+        defaultSettings: [String: JSONValue] = [:],
+        migrations: PluginMigrations = PluginMigrations()
     ) throws {
         self.protocolVersion = protocolVersion
         self.apiLevel = apiLevel
@@ -510,6 +513,7 @@ public struct PluginManifest: Codable, Equatable {
         self.preset = preset
         self.settingsFields = settingsFields
         self.defaultSettings = defaultSettings
+        self.migrations = migrations
         try validate()
     }
 
@@ -526,6 +530,7 @@ public struct PluginManifest: Codable, Equatable {
         case preset
         case settingsFields = "settings_fields"
         case defaultSettings = "default_settings"
+        case migrations
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -542,6 +547,7 @@ public struct PluginManifest: Codable, Equatable {
         try container.encode(preset, forKey: .preset)
         if !settingsFields.isEmpty { try container.encode(settingsFields, forKey: .settingsFields) }
         if !defaultSettings.isEmpty { try container.encode(defaultSettings, forKey: .defaultSettings) }
+        if !migrations.isEmpty { try container.encode(migrations, forKey: .migrations) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -569,6 +575,7 @@ public struct PluginManifest: Codable, Equatable {
         ) ?? MenuItemPresetDeclaration()
         self.settingsFields = try container.decodeIfPresent([CommandConfigurationField].self, forKey: .settingsFields) ?? []
         self.defaultSettings = try container.decodeIfPresent([String: JSONValue].self, forKey: .defaultSettings) ?? [:]
+        self.migrations = try container.decodeIfPresent(PluginMigrations.self, forKey: .migrations) ?? PluginMigrations()
         try validate()
     }
 
@@ -676,6 +683,7 @@ public struct PluginManifest: Codable, Equatable {
             try validateConfigurationField(command)
         }
         try validateSettings()
+        try migrations.validate(commands: commands, settingsKeys: Set(settingsFields.compactMap(\.key)))
 
         let primaryCommandID = preset.defaultPrimaryCommandID ?? commands[0].id
         guard commandIDs.contains(primaryCommandID) else {

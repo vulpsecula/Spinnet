@@ -38,8 +38,8 @@ final class ManifestSchemaTests: XCTestCase {
     }
 
     /// A small manifest using a Host Command, a JavaScript Command, a scoped
-    /// Capability and a Plugin Setting, so each invalid case below changes one
-    /// thing about something the schema otherwise accepts.
+    /// Capability, a Plugin Setting and a migration, so each invalid case below
+    /// changes one thing about something the schema otherwise accepts.
     private static let valid: JSONValue = try! JSONDecoder().decode(JSONValue.self, from: Data("""
     {
       "protocol_version": "1.0",
@@ -58,7 +58,12 @@ final class ManifestSchemaTests: XCTestCase {
       "commands": [
         {"id": "example.open", "title": "Open", "execution": "host", "is_configurable": true, "host_command": "url.open"},
         {"id": "example.fetch", "title": "Fetch", "execution": "javascript", "is_configurable": false, "script": "fetch.js"}
-      ]
+      ],
+      "migrations": {
+        "rename_commands": {"example.download": "example.fetch"},
+        "rename_settings": {"speed": "mode"},
+        "drop_input": ["example.fetch"]
+      }
     }
     """.utf8))
 
@@ -134,7 +139,19 @@ final class ManifestSchemaTests: XCTestCase {
             }, "/capability_scopes/0/https_hosts/0"),
             ("unknown readiness", changed { $0["preset"] = .object([
                 "readiness": .string("sometimes"), "is_configurable": .bool(true)
-            ]) }, "/preset/readiness")
+            ]) }, "/preset/readiness"),
+            ("migration granting a Capability", changed { $0["migrations"] = .object([
+                "grant_capabilities": .array([.string("read_selected_text")])
+            ]) }, "/migrations/grant_capabilities"),
+            ("Command renamed to a non-string", changed { $0["migrations"] = .object([
+                "rename_commands": .object(["example.download": .bool(true)])
+            ]) }, "/migrations/rename_commands/example.download"),
+            ("blank settings key rename", changed { $0["migrations"] = .object([
+                "rename_settings": .object(["speed": .string(" ")])
+            ]) }, "/migrations/rename_settings/speed"),
+            ("drop_input as one Command ID", changed { $0["migrations"] = .object([
+                "drop_input": .string("example.fetch")
+            ]) }, "/migrations/drop_input")
         ]
 
         for (name, manifest, pointer) in cases {

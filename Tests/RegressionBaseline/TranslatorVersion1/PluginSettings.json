@@ -1,0 +1,8 @@
+{
+  "com.spinnet.translator": {
+    "credential": "deepl",
+    "endpoint": "https://api.deepl.com",
+    "formality": "prefer_less",
+    "target_language": "ZH-HANS"
+  }
+}

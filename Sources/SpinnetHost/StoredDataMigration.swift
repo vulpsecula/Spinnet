@@ -2,8 +2,9 @@ import Foundation
 import SpinnetCore
 
 /// What a launch does to the data an earlier Spinnet saved, before anything
-/// runs: Actions move off retired Commands and into Plugin Settings, and
-/// capability decisions line up with the Plugins this launch registered.
+/// runs: Actions move off retired Commands as each Plugin's manifest declares
+/// and into Plugin Settings, and capability decisions line up with the Plugins
+/// this launch registered.
 ///
 /// It lives apart from the application delegate so the regression baseline's
 /// fixtures go through exactly the steps a launch takes.
@@ -20,17 +21,14 @@ enum StoredDataMigration {
         // the Host Commands once, and the result is kept.
         ScreenshotPluginMigration.seedSettings(from: stored, in: defaults)
         var configuration = try ScreenshotPluginMigration.migrate(stored) ?? stored
-        // Translator 2 retired two Commands; their Actions move onto the new ones.
-        configuration = try TranslatorCommandMigration.migrate(
-            configuration, manifest: registry.package(for: TranslatorCommandMigration.pluginID)?.manifest
-        ) ?? configuration
+        // Before Plugin Settings take anything from an Action, so an input a
+        // Plugin drops is not moved into its settings instead.
+        for manifest in registry.manifests() {
+            configuration = try applyMigrations(declaredBy: manifest, to: configuration, pluginSettings: pluginSettings)
+        }
         // Actions from before their Plugin declared settings carried every
         // value; those move into Plugin Settings once.
         if let pluginSettings {
-            let translator = TranslatorCommandMigration.pluginID
-            if let renamed = TranslatorCommandMigration.migrateSettings(pluginSettings.values(for: translator)) {
-                try pluginSettings.setValues(renamed, for: translator)
-            }
             for manifest in registry.manifests() where manifest.hasSettings {
                 let stored = pluginSettings.hasValues(for: manifest.id) ? pluginSettings.values(for: manifest.id) : nil
                 guard let result = try PluginSettingsMigration.migrate(configuration, manifest: manifest,
@@ -40,6 +38,21 @@ enum StoredDataMigration {
             }
         }
         return configuration
+    }
+
+    /// The configuration with one Plugin's manifest `migrations` applied, and
+    /// its stored Plugin Settings renamed as they declare. It runs whenever
+    /// the Host registers or updates the Plugin, and changes nothing the
+    /// second time.
+    static func applyMigrations(
+        declaredBy manifest: PluginManifest,
+        to configuration: HostConfiguration,
+        pluginSettings: PluginSettingsStore?
+    ) throws -> HostConfiguration {
+        if let pluginSettings, let renamed = manifest.migrateSettings(pluginSettings.values(for: manifest.id)) {
+            try pluginSettings.setValues(renamed, for: manifest.id)
+        }
+        return try manifest.migrate(configuration) ?? configuration
     }
 
     /// Restores saved decisions one at a time, as the user made them, so a

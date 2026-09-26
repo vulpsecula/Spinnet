@@ -32,8 +32,15 @@ The schema checks the shape of each member: which members exist, their types,
 the allowed Capabilities, Host Commands, and field kinds, and the length limits.
 The Host checks the rest when it loads a package, such as that the Preset names
 declared Commands, that each Capability scope belongs to a declared Capability
-and names the data and targets it affects, and that default inputs and settings
-suit their fields.
+and names the data and targets it affects, that default inputs and settings
+suit their fields, and that each `migrations` step moves a retired Command or
+settings key onto a declared one and drops only the input of a Command that is
+not configurable.
+
+`migrations` may rename Commands, rename settings keys, and drop an Action's
+input, and nothing else; a member the Host does not know is refused, so a
+migration can never grant a Capability. The Host applies the block every time
+it registers or updates the Plugin, and applying it again changes nothing.
 
 A few older spellings the Host still reads are not part of the interface and
 the schema rejects them: `script_path` and `javascript` for `script`,

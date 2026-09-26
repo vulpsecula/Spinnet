@@ -51,7 +51,8 @@
       "type": "array",
       "items": { "$ref": "#/$defs/command" },
       "minItems": 1
-    }
+    },
+    "migrations": { "$ref": "#/$defs/migrations" }
   },
   "$defs": {
     "text": {
@@ -195,6 +196,29 @@
         "screen.capture_full_screen",
         "screen.capture_window"
       ]
+    },
+    "migrations": {
+      "description": "How data an earlier version of the Plugin left behind maps onto this one, applied whenever the Host registers or updates the Plugin. It may rename Commands, rename settings keys, and drop an Action's input, and nothing else: a migration never grants a Capability. The Host also checks that each step moves something this version no longer declares onto something it does, and that drop_input names only Commands that are not configurable.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rename_commands": {
+          "description": "Retired Command IDs, each mapped to the declared Command its Actions move onto. Actions keep their IDs.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/text" }
+        },
+        "rename_settings": {
+          "description": "Retired settings keys, each mapped to the declared key its stored value moves to. A value already stored under the new key wins.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" }
+        },
+        "drop_input": {
+          "description": "Declared Commands that take no input; their Actions drop whatever an earlier version stored.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/text" },
+          "uniqueItems": true
+        }
+      }
     },
     "scriptPath": {
       "description": "A path relative to the package root that does not leave it.",

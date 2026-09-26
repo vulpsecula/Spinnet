@@ -84,5 +84,10 @@
     "execution": "javascript",
     "is_configurable": false,
     "script": "translate.js"
-  }]
+  }],
+  "migrations": {
+    "rename_commands": {"translator.copy": "translator.selection", "translator.replace": "translator.input"},
+    "rename_settings": {"endpoint": "deepl_endpoint", "credential": "deepl_credential"},
+    "drop_input": ["translator.selection", "translator.input", "translator.clipboard"]
+  }
 }
