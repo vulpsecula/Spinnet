@@ -523,10 +523,8 @@ public final class ResultsPresentationSession {
         case .systemPermissionDenied(let permission):
             return "\(permission.title) is not granted"
         case .automationPermissionDenied:
-            return "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation"
-        case .externalAppMissing:
-            return "Install Bob to use Bob Commands"
-        case .externalAppOperationUnsupported(let message):
+            return error.description
+        case .externalAppMissing(let message), .externalAppOperationUnsupported(let message):
             return message
         case .invalidInput(let message), .unavailable(let message), .failed(let message):
             return message

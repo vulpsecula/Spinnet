@@ -39,6 +39,9 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case captureArea = "screen.capture_area"
     case captureFullScreen = "screen.capture_full_screen"
     case captureWindow = "screen.capture_window"
+    /// Opens the Deep Link Template the Command names, filled in from its
+    /// configuration fields, through `open_deep_link`; no helper starts.
+    case openDeepLink = "deep_link.open"
 
     /// A protected Host Command is still declarative, but it must pass through
     /// the same authority checks as an equivalent Host Service request.
@@ -48,6 +51,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             return .writeClipboard
         case .captureArea, .captureFullScreen, .captureWindow:
             return .captureScreen
+        case .openDeepLink:
+            return .controlExternalApp
         default:
             return nil
         }
@@ -100,6 +105,8 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             return "Feedback message"
         case .captureArea, .captureFullScreen, .captureWindow:
             return "Copies or saves as set in Screenshot Plugin Settings"
+        case .openDeepLink:
+            return "Opens the Command's link in its app"
         }
     }
 
@@ -156,7 +163,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
                 title: "macOS Service",
                 placeholder: inputPlaceholder
             )
-        case .copyText, .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow:
+        case .copyText, .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow, .openDeepLink:
             return nil
         }
     }
@@ -201,6 +208,13 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             return input == .null
         case .presentFeedback:
             return stringValue(from: input, keys: ["message", "text"]) != nil
+        case .openDeepLink:
+            // The Command's configuration fields and its template decide the
+            // rest; members the template does not use are left alone.
+            switch input {
+            case .null, .object: return true
+            default: return false
+            }
         }
     }
 
@@ -348,6 +362,10 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     /// for a Command whose input is an object of named values. A Command
     /// declares these or a single `configurationField`, not both.
     public let configurationFields: [CommandConfigurationField]
+    /// The Deep Link Template a `deep_link.open` Command opens, written as
+    /// `deep_link_template`: the Plugin, not the Host, says which link each
+    /// Command uses.
+    public let deepLinkTemplate: String?
 
     public init(
         id: CommandID,
@@ -358,7 +376,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         script: String? = nil,
         configurationField: CommandConfigurationField? = nil,
         explanation: String? = nil,
-        configurationFields: [CommandConfigurationField] = []
+        configurationFields: [CommandConfigurationField] = [],
+        deepLinkTemplate: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -369,6 +388,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         self.configurationField = configurationField
         self.explanation = explanation
         self.configurationFields = configurationFields
+        self.deepLinkTemplate = deepLinkTemplate
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -404,6 +424,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case configuration
         case explanation = "description"
         case configurationFields = "configuration_fields"
+        case deepLinkTemplate = "deep_link_template"
     }
 
     public init(from decoder: Decoder) throws {
@@ -430,7 +451,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             configurationFields: try container.decodeIfPresent(
                 [CommandConfigurationField].self,
                 forKey: .configurationFields
-            ) ?? []
+            ) ?? [],
+            deepLinkTemplate: try container.decodeIfPresent(String.self, forKey: .deepLinkTemplate)
         )
     }
 
@@ -447,6 +469,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         if !configurationFields.isEmpty {
             try container.encode(configurationFields, forKey: .configurationFields)
         }
+        try container.encodeIfPresent(deepLinkTemplate, forKey: .deepLinkTemplate)
     }
 
     /// Configuration metadata may change without invalidating an existing
@@ -458,6 +481,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             && execution == other.execution
             && hostCommand == other.hostCommand
             && script == other.script
+            && deepLinkTemplate == other.deepLinkTemplate
     }
 }
 
@@ -613,9 +637,12 @@ public struct PluginManifest: Codable, Equatable {
                       return !host.contains("*") && url.host == host && url.path.isEmpty && url.port == nil
                           && url.user == nil && url.query == nil && url.fragment == nil
                   }),
-                  scope.externalApps.allSatisfy({ !$0.bundleID.isEmpty && !$0.operationFamilies.isEmpty }) else {
+                  scope.externalApps.allSatisfy({
+                      !$0.bundleID.isEmpty && (!$0.operationFamilies.isEmpty || !$0.deepLinkTemplates.isEmpty)
+                  }) else {
                 throw ConfigurationError.invalidManifest("Invalid Capability scope")
             }
+            try validateDeepLinkTemplates(in: scope)
             if (scope.capability == .contactHTTPS && scope.httpsHosts.isEmpty)
                 || (scope.capability == .controlExternalApp && scope.externalApps.isEmpty)
                 || ([PluginCapability.readCurrentClipboard, .readClipboardHistory, .monitorClipboard].contains(scope.capability) && scope.dataTypes.isEmpty)
@@ -724,6 +751,11 @@ public struct PluginManifest: Codable, Equatable {
     }
 
     private func validate(_ command: CommandDeclaration) throws {
+        guard (command.hostCommand == .openDeepLink) == (command.deepLinkTemplate != nil) else {
+            throw ConfigurationError.invalidManifest(
+                "Command \(command.id.rawValue) names a deep_link_template exactly when it runs deep_link.open"
+            )
+        }
         switch command.execution {
         case .host:
             guard let hostCommand = command.hostCommand, command.script == nil else {
@@ -731,6 +763,7 @@ public struct PluginManifest: Codable, Equatable {
                     "Host Command \(command.id.rawValue) must declare host_command only"
                 )
             }
+            if hostCommand == .openDeepLink { try validateDeepLinkCommand(command) }
             if let requiredCapability = hostCommand.requiredCapability,
                !capabilities.contains(requiredCapability) {
                 throw ConfigurationError.invalidManifest(
@@ -743,6 +776,51 @@ public struct PluginManifest: Codable, Equatable {
                   command.hostCommand == nil else {
                 throw ConfigurationError.invalidManifest(
                     "JavaScript Command \(command.id.rawValue) must declare a relative script only"
+                )
+            }
+        }
+    }
+
+    /// Templates are named for consent and repair, bounded, and uniquely
+    /// identified across the scope, since a Command or a script names one by
+    /// its ID alone.
+    private func validateDeepLinkTemplates(in scope: PluginCapabilityScope) throws {
+        var ids = Set<String>()
+        for app in scope.externalApps where !app.deepLinkTemplates.isEmpty {
+            guard let name = app.name else {
+                throw ConfigurationError.invalidManifest("\(app.bundleID) needs a name for its Deep Link Templates")
+            }
+            try validateText(name, name: "External App name")
+            for template in app.deepLinkTemplates {
+                try template.validate()
+                guard ids.insert(template.id).inserted else {
+                    throw ConfigurationError.invalidManifest("Deep Link Template \(template.id) is declared twice")
+                }
+            }
+        }
+    }
+
+    /// A `deep_link.open` Command opens one template its scope allows it, and
+    /// fills each parameter from its own configuration field of the same key,
+    /// which offers nothing the parameter does not accept.
+    private func validateDeepLinkCommand(_ command: CommandDeclaration) throws {
+        guard let id = command.deepLinkTemplate,
+              let scope = scope(for: .controlExternalApp), scope.commandIDs.contains(command.id),
+              let template = scope.externalApps.flatMap(\.deepLinkTemplates).first(where: { $0.id == id }) else {
+            throw ConfigurationError.invalidManifest(
+                "Command \(command.id.rawValue) must name a Deep Link Template its control_external_app scope declares for it"
+            )
+        }
+        for parameter in template.parameters {
+            let field = command.configurationFields.first { $0.key == parameter.key }
+            let fits: Bool
+            switch parameter.kind {
+            case .choice: fits = field?.kind == .choice && Set(field?.choices ?? []).isSubset(of: parameter.choices)
+            case .text: fits = field?.kind == .text || field?.kind == .multilineText
+            }
+            guard fits else {
+                throw ConfigurationError.invalidManifest(
+                    "Command \(command.id.rawValue) must fill \(parameter.key) from a configuration field that offers only its values"
                 )
             }
         }
@@ -940,6 +1018,7 @@ public struct PluginManifest: Codable, Equatable {
         switch command.execution {
         case .host:
             guard let hostCommand = command.hostCommand else { return false }
+            if hostCommand == .openDeepLink { return acceptsActionInput(input, for: command) }
             return hostCommand.isValidInput(input)
         case .javascript:
             if let field = command.configurationField, !field.isValidInput(input) {
@@ -1040,6 +1119,9 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     public let isConfigurable: Bool
     public let hostCommand: HostCommand?
     public let script: String?
+    /// The Deep Link Template a `deep_link.open` Action opens, recorded so a
+    /// Plugin that points the Command at another link is noticed.
+    public let deepLinkTemplate: String?
     public let input: JSONValue
 
     public init(
@@ -1079,6 +1161,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         self.isConfigurable = command.isConfigurable
         self.hostCommand = command.hostCommand
         self.script = command.script
+        self.deepLinkTemplate = command.deepLinkTemplate
         self.input = input
     }
 
@@ -1091,7 +1174,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
             execution: execution,
             isConfigurable: isConfigurable,
             hostCommand: hostCommand,
-            script: script
+            script: script,
+            deepLinkTemplate: deepLinkTemplate
         )
     }
 
@@ -1104,6 +1188,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         case isConfigurable
         case hostCommand
         case script
+        case deepLinkTemplate
         case input
     }
 
@@ -1121,7 +1206,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
                         forKey: .isConfigurable
                     ) ?? true,
                     hostCommand: container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
-                    script: container.decodeIfPresent(String.self, forKey: .script)
+                    script: container.decodeIfPresent(String.self, forKey: .script),
+                    deepLinkTemplate: container.decodeIfPresent(String.self, forKey: .deepLinkTemplate)
                 ),
             input: container.decode(JSONValue.self, forKey: .input)
         )
@@ -1502,6 +1588,19 @@ public struct HostActionRunner {
             resourceAvailability: resourceAvailability
         ) {
         case .available:
+            // A Deep Link Template opens through the Host Service a script
+            // would ask for, with the same scope and grant checks; no helper
+            // starts.
+            if action.hostCommand == .openDeepLink {
+                guard let hostServiceBroker, let package = registry.package(for: action.pluginID) else {
+                    return failure(for: action, category: .commandUnavailable,
+                                   message: ActionUnavailableReason.hostServiceUnavailable.description)
+                }
+                return invokeHost(action) {
+                    try hostServiceBroker.execute(request: package.manifest.deepLinkRequest(for: action),
+                                                  for: package, action: action)
+                }
+            }
             guard action.execution == .javascript else {
                 guard let package = registry.package(for: action.pluginID),
                       let contextualExecutor = executor as? ContextualHostCommandExecutor else {

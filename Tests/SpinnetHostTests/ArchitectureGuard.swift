@@ -51,6 +51,9 @@ enum ArchitectureGuard {
     enum Reason: CustomStringConvertible {
         case retiredPluginMigration
         case reviewedAppInterface
+        /// A review the Host no longer applies, kept only to check that a
+        /// user's decision carries over to what replaced it.
+        case retiredReview
         case hostSurface
         case testFixture
         /// The W ticket under the plugin architecture map, #47, that removes it.
@@ -60,6 +63,7 @@ enum ArchitectureGuard {
             switch self {
             case .retiredPluginMigration: return "retired-Plugin migration"
             case .reviewedAppInterface: return "Reviewed App Interface"
+            case .retiredReview: return "retired review carried into a grant"
             case .hostSurface: return "Host Surface"
             case .testFixture: return "test fixture"
             case .removedBy(let ticket): return "removed by \(ticket)"

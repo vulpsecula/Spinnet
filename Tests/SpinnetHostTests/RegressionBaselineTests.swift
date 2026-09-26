@@ -37,7 +37,10 @@ final class RegressionBaselineTests: XCTestCase {
 
     // MARK: Fixtures
 
-    func testConfigurationLoadsThroughTheLaunchStepsUnchanged() throws {
+    /// The only change a launch makes: Shottr's Commands open Deep Link
+    /// Templates now instead of running a script (W8, #55), so its Actions
+    /// move onto them, keeping their IDs and inputs.
+    func testConfigurationLoadsThroughTheLaunchStepsWithOnlyShottrsActionsMoved() throws {
         let grants = try restoredGrants()
         let registry = try registry(grantStore: grants)
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
@@ -49,14 +52,17 @@ final class RegressionBaselineTests: XCTestCase {
         let migrated = try StoredDataMigration.migrate(stored, registry: registry, pluginSettings: settings,
                                                        defaults: defaults)
 
-        XCTAssertEqual(migrated, stored, "a launch would rewrite the configuration")
+        let expected = try shottrActionsMovedOntoTemplates(stored, registry: registry)
+        XCTAssertEqual(migrated, expected, "a launch would rewrite the configuration")
+        XCTAssertEqual(migrated.actions.filter { $0.pluginID == PluginID("com.spinnet.shottr") }.count, 8)
         XCTAssertEqual(try Data(contentsOf: settings.fileURL), settingsBefore, "a launch would rewrite Plugin Settings")
         XCTAssertTrue(defaults.persistentDomain(forName: defaultsSuite)?.isEmpty ?? true,
                       "a launch would seed Screenshot Plugin Settings")
+        XCTAssertEqual(try StoredDataMigration.migrate(migrated, registry: registry, pluginSettings: settings,
+                                                       defaults: defaults), migrated, "a second launch changes nothing")
 
         try store.save(migrated)
-        XCTAssertEqual(try store.load(), stored)
-        try assertSameJSON(directory.appendingPathComponent("configuration.json"), "configuration.json")
+        XCTAssertEqual(try store.load(), expected)
     }
 
     /// `TranslatorVersion1/` holds the baseline's Translator Menu Item and
@@ -109,9 +115,13 @@ final class RegressionBaselineTests: XCTestCase {
                 accounts.contains(KeychainPluginCredentialStore.account(for: manifest.id, reference: $0))
             }).isEmpty
         })
-        let configuration = try XCTUnwrap(HostConfigurationStore(
-            fileURL: directory.appendingPathComponent("configuration.json")
-        ).load())
+        // As a launch does: decisions line up with the Plugins, then the
+        // stored Actions are brought up to date.
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
+        let configuration = try StoredDataMigration.migrate(
+            XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load()),
+            registry: registry, pluginSettings: settings, defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
+        )
 
         let declared = Set(bundledManifests(in: registry).flatMap { manifest in
             manifest.commands.map { "\(manifest.id.rawValue) \($0.id.rawValue)" }
@@ -156,7 +166,10 @@ final class RegressionBaselineTests: XCTestCase {
         ])
     }
 
-    func testCapabilityGrantsReconcileWithTheRegisteredPluginsUnchanged() throws {
+    /// Every decision survives. Bob's scope is persisted as it was; Shottr's
+    /// grant on its reviewed capture routes carries over to its Deep Link
+    /// Templates, which open the same links, and is stored with them.
+    func testCapabilityGrantsReconcileWithTheRegisteredPluginsAndShottrsCarriesOver() throws {
         let grants = try restoredGrants()
         let registry = try registry(grantStore: grants)
 
@@ -164,7 +177,19 @@ final class RegressionBaselineTests: XCTestCase {
 
         let written = directory.appendingPathComponent("capability-grants.json")
         try StoredDataMigration.encodeCapabilityGrants(grants).write(to: written)
-        try assertSameJSON(written, "capability-grants.json")
+        let shottr = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.shottr"))?.manifest)
+        let templates = try XCTUnwrap(shottr.scope(for: .controlExternalApp))
+        XCTAssertEqual(grants.decision(for: shottr.id, pluginVersion: shottr.version, capability: .controlExternalApp,
+                                       scope: templates), .granted)
+        var expected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: Self.baseline.appendingPathComponent("capability-grants.json")
+        )) as? [[String: Any]])
+        let index = try XCTUnwrap(expected.firstIndex {
+            $0["pluginID"] as? String == shottr.id.rawValue && $0["capability"] as? String == "control_external_app"
+        })
+        expected[index]["scope"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(templates))
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: Data(contentsOf: written)) as? NSArray,
+                       expected as NSArray, "capability-grants.json did not write back as expected")
         let translator = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.translator"))?.manifest)
         let contact = try XCTUnwrap(translator.scope(for: .contactHTTPS))
         XCTAssertEqual(grants.consentedHTTPSHosts(for: translator.id, pluginVersion: translator.version,
@@ -242,6 +267,18 @@ final class RegressionBaselineTests: XCTestCase {
             try registry.register(PluginPackage(rootURL: url, manifest: manifest, origin: .bundled))
         }
         return registry
+    }
+
+    /// `stored` with each Shottr Action rebuilt from its registered Command,
+    /// written out here rather than taken from the migration under test.
+    private func shottrActionsMovedOntoTemplates(_ stored: HostConfiguration,
+                                                 registry: PluginRegistry) throws -> HostConfiguration {
+        try HostConfiguration(actions: stored.actions.map { action in
+            guard action.pluginID == PluginID("com.spinnet.shottr") else { return action }
+            let command = try XCTUnwrap(registry.command(for: action.pluginID, commandID: action.commandID))
+            XCTAssertEqual(command.hostCommand, .openDeepLink)
+            return try ActionConfiguration(id: action.id, pluginID: action.pluginID, command: command, input: action.input)
+        }, menu: stored.menu)
     }
 
     private func bundledManifests(in registry: PluginRegistry) -> [PluginManifest] {

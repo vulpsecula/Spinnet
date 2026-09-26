@@ -53,7 +53,7 @@ final class HostFeedbackPresenterTests: XCTestCase {
              "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"),
             (.externalAppMissing, "Install Bob to use Bob Commands"),
             (.externalAppOperationUnsupported,
-             "This Bob version does not support the requested translation operation; update Bob and try again")
+             "This Bob version does not support the requested operation; update Bob and try again")
         ]
         for (category, repair) in repairs {
             let failure = ActionFailure(pluginID: action.pluginID, actionID: action.id,

@@ -92,7 +92,7 @@ cat >"$INFO_PLIST" <<PLIST
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Spinnet sends declared translation requests to Bob when you choose a Bob Command.</string>
+  <string>Spinnet sends an app only the requests it has reviewed for that app, when you choose a Command of a Plugin you allowed to control it.</string>
 </dict>
 </plist>
 PLIST

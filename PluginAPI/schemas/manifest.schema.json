@@ -109,16 +109,28 @@
           "items": { "type": "string", "pattern": "^[^\\s/:@*?#]+$" }
         },
         "external_apps": {
+          "description": "The External Apps a control_external_app scope reaches. Each names operation_families, deep_link_templates, or both; the Host requires at least one.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["bundle_id", "operation_families"],
+            "required": ["bundle_id"],
             "additionalProperties": false,
             "properties": {
               "bundle_id": { "type": "string", "minLength": 1 },
+              "name": {
+                "description": "The application's name, shown in consent and in the guidance when it is not installed. Required with deep_link_templates.",
+                "$ref": "#/$defs/text"
+              },
               "operation_families": {
+                "description": "Families of operations from the Host's Reviewed App Interface for this application, which a script sends with the perform_app_operation Host Service. An application without a Reviewed App Interface has none.",
                 "type": "array",
                 "items": { "type": "string" },
+                "minItems": 1
+              },
+              "deep_link_templates": {
+                "description": "Links into the application's own URL scheme. A script opens one with the open_deep_link Host Service; a Command opens one with the deep_link.open Host Command. The Host opens a link only in this application, without bringing it forward. Changing a template asks for consent again.",
+                "type": "array",
+                "items": { "$ref": "#/$defs/deepLinkTemplate" },
                 "minItems": 1
               }
             }
@@ -165,6 +177,11 @@
         "configuration_fields": {
           "type": "array",
           "items": { "$ref": "#/$defs/field" }
+        },
+        "deep_link_template": {
+          "description": "The ID of the Deep Link Template a deep_link.open Command opens. It must be declared in the control_external_app scope that covers this Command; each of its parameters is filled from the configuration field with the same key.",
+          "type": "string",
+          "minLength": 1
         }
       },
       "allOf": [
@@ -174,7 +191,64 @@
         },
         {
           "if": { "required": ["execution"], "properties": { "execution": { "const": "javascript" } } },
-          "then": { "required": ["script"], "properties": { "host_command": false } }
+          "then": { "required": ["script"], "properties": { "host_command": false, "deep_link_template": false } }
+        },
+        {
+          "if": { "required": ["host_command"], "properties": { "host_command": { "const": "deep_link.open" } } },
+          "then": { "required": ["deep_link_template"] }
+        }
+      ]
+    },
+    "deepLinkTemplate": {
+      "description": "A link into an External App's URL scheme: a fixed scheme, host and path, with {key} placeholders after the host for the declared parameters. http, https, file and other web schemes are refused; they have their own Host Services.",
+      "type": "object",
+      "required": ["id", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique across the scope; how a Command or a script names the template.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:\\S+$"
+        },
+        "parameters": {
+          "description": "One per placeholder, each used exactly once.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/deepLinkParameter" }
+        }
+      }
+    },
+    "deepLinkParameter": {
+      "description": "A bounded value for one placeholder: one of the choices, which are written into the link as they are, or text of at most max_length characters (at most 2048), which is percent-encoded.",
+      "type": "object",
+      "required": ["key", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$" },
+        "kind": { "enum": ["choice", "text"] },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._~-]+$" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "max_length": { "type": "integer", "minimum": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "choice" } } },
+          "then": { "required": ["choices"], "properties": { "max_length": false } }
+        },
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "text" } } },
+          "then": { "required": ["max_length"], "properties": { "choices": false } }
         }
       ]
     },
@@ -194,7 +268,8 @@
         "feedback.present",
         "screen.capture_area",
         "screen.capture_full_screen",
-        "screen.capture_window"
+        "screen.capture_window",
+        "deep_link.open"
       ]
     },
     "migrations": {

@@ -49,7 +49,29 @@ final class BobTests: XCTestCase {
             package.manifest.scope(for: .controlExternalApp)?.externalApps,
             [.init(bundleID: BobPluginFixture.bundleID, operationFamilies: [BobPluginFixture.operationFamily])]
         )
+        XCTAssertEqual(ReviewedAppInterface.interface(for: BobPluginFixture.bundleID)?.name, "Bob")
         XCTAssertTrue(package.manifest.commands.allSatisfy { !$0.id.rawValue.hasPrefix("translator.") })
+    }
+
+    /// Bob's scope is persisted as it was before the Reviewed App Interface,
+    /// so a grant the user gave carries over unchanged.
+    func testAGrantForBobsScopeAsPersistedStillAuthorizesIt() throws {
+        let package = try BobPluginFixture.load()
+        let persisted = try JSONDecoder().decode(PluginCapabilityScope.self, from: Data(#"""
+        {"capability": "control_external_app",
+         "command_ids": ["bob.selection_translate", "bob.snip_translate", "bob.input_translate",
+                         "bob.pasteboard_translate", "bob.translate_text"],
+         "data_types": [], "external_apps": [{"bundle_id": "com.hezongyidev.Bob", "operation_families": ["translate"]}],
+         "https_hosts": [], "includes_existing_host_data": false}
+        """#.utf8))
+        let grants = PluginCapabilityGrantStore(grants: [PluginCapabilityGrant(
+            pluginID: package.manifest.id, pluginVersion: package.manifest.version,
+            capability: .controlExternalApp, decision: .granted, scope: persisted
+        )])
+
+        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+                                       capability: .controlExternalApp,
+                                       scope: package.manifest.scope(for: .controlExternalApp)), .granted)
     }
 
     func testHostExplainsAnUnsupportedExternalAppOperationWithoutRemovingItsAction() throws {
@@ -83,19 +105,19 @@ final class BobTests: XCTestCase {
 }
 
 final class BobScriptTests: XCTestCase {
-    func testBobPluginUsesOnlyDeclaredTranslationOperationsAndSendsBobJSON() throws {
+    func testEachCommandAsksForItsOwnOperationAndBobGetsItsDocumentedJSON() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
         BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
 
-        var invocations: [ExternalAppInvocation] = []
+        var sent: [AppleEventRequest] = []
         var selectedTextReads = 0
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in selectedTextReads += 1; return "Selected text" },
             clipboardWriter: { _ in },
-            externalAppInvoker: { invocations.append($0) }
+            appleEventSender: { sent.append($0) }
         )
         let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
@@ -117,17 +139,17 @@ final class BobScriptTests: XCTestCase {
             XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
         }
 
-        XCTAssertEqual(invocations.count, operations.count)
+        XCTAssertEqual(sent.count, operations.count)
         XCTAssertEqual(selectedTextReads, 1, "Only the selection Command reads the selection")
-        for (invocation, operation) in zip(invocations, operations) {
-            XCTAssertEqual(invocation.bundleID, BobPluginFixture.bundleID)
-            XCTAssertEqual(invocation.operationFamily, BobPluginFixture.operationFamily)
-            let request = try JSONDecoder().decode(JSONValue.self, from: Data(invocation.requestJSON.utf8))
+        for (request, operation) in zip(sent, operations) {
+            XCTAssertEqual(request.bundleID, BobPluginFixture.bundleID)
+            XCTAssertEqual(request.handler, "request")
+            let argument = try JSONDecoder().decode(JSONValue.self, from: Data(request.argument.utf8))
             var body: [String: JSONValue] = ["action": .string(operation.1)]
             if operation.1 == "translateText" {
                 body["text"] = .string(operation.0 == "bob.selection_translate" ? "Selected text" : text)
             }
-            XCTAssertEqual(request, .object([
+            XCTAssertEqual(argument, .object([
                 "path": .string("translate"),
                 "body": .object(body)
             ]))
@@ -150,9 +172,9 @@ final class BobScriptTests: XCTestCase {
                 return try selection()
             },
             clipboardWriter: { _ in },
-            externalAppInvoker: { invocation in
-                let request = try JSONDecoder().decode(JSONValue.self, from: Data(invocation.requestJSON.utf8))
-                guard case .object(let fields) = request, case .object(let body)? = fields["body"],
+            appleEventSender: { request in
+                let argument = try JSONDecoder().decode(JSONValue.self, from: Data(request.argument.utf8))
+                guard case .object(let fields) = argument, case .object(let body)? = fields["body"],
                       case .string(let action)? = body["action"] else { return XCTFail("Unexpected Bob request") }
                 actions.append(action)
             }
@@ -179,132 +201,43 @@ final class BobScriptTests: XCTestCase {
         XCTAssertEqual(copyFallbackAllowed.last, true, "The clipboard grant lets the read fall back to a copy")
     }
 
-    func testBobHostServiceChecksCapabilityTargetAndOperationFamilyBeforeSending() throws {
-        let package = try BobPluginFixture.load()
-        let grants = PluginCapabilityGrantStore()
-        grants.setDecision(
-            .denied,
-            for: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capability: .controlExternalApp,
-            scope: package.manifest.scope(for: .controlExternalApp)
-        )
-
-        var invocations: [ExternalAppInvocation] = []
-        let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants,
-            systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" },
-            clipboardWriter: { _ in },
-            externalAppInvoker: { invocations.append($0) }
-        )
-        let command = try XCTUnwrap(package.manifest.commands.first { $0.id.rawValue == "bob.selection_translate" })
-        let action = try ActionConfiguration(id: ActionID("bob.selection_translate"), pluginID: package.manifest.id,
-                                             command: command, input: .null)
-
-        func input(bundleID: String, operationFamily: String, action: String = "selectionTranslate") -> JSONValue {
-            .object([
-                "bundle_id": .string(bundleID),
-                "operation_family": .string(operationFamily),
-                "request": .object([
-                    "path": .string("translate"),
-                    "body": .object(["action": .string(action)])
-                ])
-            ])
-        }
-
-        func request(_ input: JSONValue) -> PluginRuntimeHostServiceRequest {
-            PluginRuntimeHostServiceRequest(
-                invocationID: "test-invocation", actionID: action.id,
-                service: .invokeExternalApp, input: input
-            )
-        }
-
-        XCTAssertThrowsError(try broker.execute(
-            request: request(input(bundleID: BobPluginFixture.bundleID, operationFamily: "translate")),
-            for: package, action: action
-        )) { error in
-            XCTAssertEqual(error as? PluginHostServiceError, .capabilityDenied(.controlExternalApp))
-        }
-        grants.setDecision(
-            .granted,
-            for: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capability: .controlExternalApp,
-            scope: package.manifest.scope(for: .controlExternalApp)
-        )
-
-        XCTAssertThrowsError(try broker.execute(
-            request: request(input(bundleID: "example.unlisted.app", operationFamily: "translate")),
-            for: package, action: action
-        )) { error in
-            XCTAssertEqual(error as? PluginHostServiceError, .capabilityDenied(.controlExternalApp))
-        }
-        XCTAssertThrowsError(try broker.execute(
-            request: request(input(bundleID: BobPluginFixture.bundleID, operationFamily: "ocr")),
-            for: package, action: action
-        )) { error in
-            XCTAssertEqual(error as? PluginHostServiceError, .capabilityDenied(.controlExternalApp))
-        }
-        XCTAssertThrowsError(try broker.execute(
-            request: request(input(
-                bundleID: BobPluginFixture.bundleID,
-                operationFamily: BobPluginFixture.operationFamily,
-                action: "unsupportedTranslateOperation"
-            )),
-            for: package, action: action
-        )) { error in
-            XCTAssertEqual(
-                error as? PluginHostServiceError,
-                .externalAppOperationUnsupported("Bob does not support this translation operation")
-            )
-        }
-        XCTAssertTrue(invocations.isEmpty)
-
-        func textInput(_ text: String) -> JSONValue {
-            .object([
-                "bundle_id": .string(BobPluginFixture.bundleID),
-                "operation_family": .string(BobPluginFixture.operationFamily),
-                "request": .object([
-                    "path": .string("translate"),
-                    "body": .object([
-                        "action": .string("translateText"),
-                        "text": .string(text)
-                    ])
-                ])
-            ])
-        }
-
-        let boundaryText = String(repeating: "\u{1}", count: ExternalAppBudgets.maximumRequestTextBytes)
-        XCTAssertNoThrow(try broker.execute(
-            request: request(textInput(boundaryText)), for: package, action: action
-        ))
-        XCTAssertEqual(invocations.count, 1)
-        XCTAssertLessThanOrEqual(invocations[0].requestJSON.utf8.count, PluginRuntimeProtocol.maximumMessageBytes)
-
-        let oversizedText = boundaryText + "\u{1}"
-        XCTAssertThrowsError(try broker.execute(
-            request: request(textInput(oversizedText)), for: package, action: action
-        )) { error in
-            XCTAssertEqual(
-                error as? PluginHostServiceError,
-                .invalidInput("Bob translateText needs nonempty text up to 128 KiB")
-            )
-        }
-        XCTAssertEqual(invocations.count, 1, "Oversized text must be rejected before contacting Bob")
-    }
-
-    func testBobAdapterErrorsRemainDistinctThroughThePluginHelper() throws {
+    /// Selected text over the budget is refused before Bob is contacted, as
+    /// the configured text of Translate Configured Text is.
+    func testTextOverTheBudgetFailsTheActionWithoutContactingBob() throws {
         let package = try BobPluginFixture.load()
         let grants = PluginCapabilityGrantStore()
         BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
-        var nextError: PluginHostServiceError = .automationPermissionDenied
+        var sent: [AppleEventRequest] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { _ in String(repeating: "a", count: ExternalAppBudgets.maximumRequestTextBytes + 1) },
+            clipboardWriter: { _ in },
+            appleEventSender: { sent.append($0) }
+        )
+        let plugin = try PluginUnderTest(named: "Bob.spinnetplugin", origin: .bundled)
+        let helper = try PluginTestHelper()
+        defer { helper.shutdown() }
+
+        let run = helper.run(PluginTestInvocation("bob.selection_translate"), of: plugin, answering: broker)
+
+        XCTAssertThrowsError(try run.result.get()) { error in
+            XCTAssertEqual(error as? PluginRuntimeError,
+                           .hostServiceFailed("Host Service input is invalid: Bob translateText needs nonempty text up to 128 KiB"))
+        }
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testBobFailuresRemainDistinctThroughThePluginHelper() throws {
+        let package = try BobPluginFixture.load()
+        let grants = PluginCapabilityGrantStore()
+        BobPluginFixture.grant([.controlExternalApp, .readSelectedText], to: package, in: grants)
+        var nextError: PluginHostServiceError = .automationPermissionDenied("Bob")
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in "" },
             clipboardWriter: { _ in },
-            externalAppInvoker: { _ in throw nextError }
+            appleEventSender: { _ in throw nextError }
         )
         let supervisor = try PluginTestHelper()
         defer { supervisor.shutdown() }
@@ -312,14 +245,14 @@ final class BobScriptTests: XCTestCase {
         let action = try ActionConfiguration(id: ActionID("bob-errors"), pluginID: package.manifest.id,
                                              command: command, input: .null)
         let failures: [(PluginHostServiceError, ActionFailureCategory, String)] = [
-            (.automationPermissionDenied, .automationPermissionDenied,
+            (.automationPermissionDenied("Bob"), .automationPermissionDenied,
              "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"),
             (.externalAppMissing("Install Bob to use Bob Commands"),
              .externalAppMissing, "Install Bob to use Bob Commands"),
             (.externalAppOperationUnsupported(
-                "This Bob version does not support the requested translation operation; update Bob and try again"
+                "This Bob version does not support the requested operation; update Bob and try again"
             ), .externalAppOperationUnsupported,
-             "This Bob version does not support the requested translation operation; update Bob and try again")
+             "This Bob version does not support the requested operation; update Bob and try again")
         ]
 
         for (hostError, category, message) in failures {
@@ -349,7 +282,8 @@ final class BobScriptTests: XCTestCase {
         )
         let editor = HostConfigurationEditor(registry: registry, configuration: configuration)
 
-        XCTAssertEqual(editor.availability(for: action.id), .unavailable(.externalAppMissing))
+        XCTAssertEqual(editor.availability(for: action.id), .unavailable(.externalAppMissing("Bob")))
+        XCTAssertEqual(ActionUnavailableReason.externalAppMissing("Bob").description, "Install Bob to use Bob Commands")
         XCTAssertEqual(configuration.actions, [action])
         XCTAssertEqual(action.commandID, CommandID("bob.selection_translate"))
     }

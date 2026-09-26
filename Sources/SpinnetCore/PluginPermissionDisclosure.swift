@@ -103,7 +103,21 @@ public struct PluginPermissionDisclosure {
                 if scope.capability == .contactHTTPS, !consentedHTTPSHosts.isEmpty {
                     lines.append("Hosts you added: " + consentedHTTPSHosts.joined(separator: ", "))
                 }
-                for app in scope.externalApps { lines.append("\(app.bundleID): \(app.operationFamilies.joined(separator: ", "))") }
+                for app in scope.externalApps {
+                    let label = app.displayName == app.bundleID ? app.bundleID : "\(app.displayName) (\(app.bundleID))"
+                    if !app.operationFamilies.isEmpty {
+                        lines.append("\(label): \(app.operationFamilies.joined(separator: ", "))")
+                    }
+                    // Every link the Plugin may open is listed, so a changed
+                    // template is a changed disclosure.
+                    if !app.deepLinkTemplates.isEmpty {
+                        lines.append("\(label) links, opened without bringing it forward:")
+                        for template in app.deepLinkTemplates {
+                            let values = template.parameters.map(\.disclosure).joined(separator: "; ")
+                            lines.append(template.url + (values.isEmpty ? "" : " (\(values))"))
+                        }
+                    }
+                }
                 if !scope.capability.isSupportedByHostServices { lines.append("Host Service not available in this version; affected Commands remain unavailable.") }
                 return lines.joined(separator: "\n")
             }
@@ -149,7 +163,7 @@ public struct PluginPermissionDisclosure {
         case .controls:
             var affected = commands.compactMap { command -> String? in
                 guard let operation = command.hostCommand, operation.captureSource == nil,
-                      ![HostCommand.copyText, .presentFeedback].contains(operation) else { return nil }
+                      ![HostCommand.copyText, .presentFeedback, .openDeepLink].contains(operation) else { return nil }
                 return "\(command.title): \(operation.rawValue) (target configured per Menu Item)"
             }
             if manifest.capabilities.contains(.positionFocusedWindow), !names(.positionFocusedWindow).isEmpty {

@@ -14,28 +14,12 @@ final class ArchitectureGuardTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     static let exceptions: [ArchitectureGuard.Exception] = [
-        // Bob's Apple Events go to the adapter that sends its `request`
-        // handler; W8 turns that adapter into Bob's Reviewed App Interface.
-        .init("Sources/SpinnetHost/main.swift", "com.hezongyidev.Bob", .reviewedAppInterface),
-
-        // The bundle-ID switches in the broker, the registry and the External
-        // App invoker, Shottr's route table and its URL scheme adapter give
-        // way to a Reviewed App Interface and Deep Link Templates.
-        .init("Sources/SpinnetCore/PluginCapabilities.swift", "com.hezongyidev.Bob", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/PluginCapabilities.swift", "cc.ffitch.shottr", count: 2, .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/PluginRegistry.swift", "com.hezongyidev.Bob", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/PluginRegistry.swift", "cc.ffitch.shottr", count: 2, .removedBy("W8 #55")),
-        .init("Sources/SpinnetHost/main.swift", "cc.ffitch.shottr", .removedBy("W8 #55")),
-        .init("Sources/SpinnetHost/ShottrURLSchemeAdapter.swift", "cc.ffitch.shottr", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_area", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_fullscreen", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_window", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_repeat_area", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_scrolling", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_scrolling_reverse",
-              .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.capture_delayed", .removedBy("W8 #55")),
-        .init("Sources/SpinnetCore/ShottrCaptureRequest.swift", "shottr.append_capture", .removedBy("W8 #55")),
+        // Bob's Reviewed App Interface: the Apple Events operations the Host
+        // has reviewed for Bob, which Plugins choose from (ADR 0012).
+        .init("Sources/SpinnetCore/ReviewedAppInterface.swift", "com.hezongyidev.Bob", .reviewedAppInterface),
+        // The links the Host reviewed for Shottr before they became Deep Link
+        // Templates, kept only to check that a grant may carry over to them.
+        .init("Sources/SpinnetHost/DeepLinkMigration.swift", "cc.ffitch.shottr", .retiredReview),
 
         // The retired Screenshot Plugin's Menu Items and grant move onto
         // another Plugin, which no manifest's `migrations` can declare.

@@ -123,6 +123,27 @@ final class ManifestSchemaTests: XCTestCase {
              "/commands/0/script"),
             ("unknown host_command", changed("commands", 0) { $0["host_command"] = .string("disk.erase") },
              "/commands/0/host_command"),
+            ("deep_link.open without its template", changed("commands", 0) {
+                $0["host_command"] = .string("deep_link.open")
+            }, "/commands/0"),
+            ("a script naming a Deep Link Template", changed("commands", 1) {
+                $0["deep_link_template"] = .string("open")
+            }, "/commands/1/deep_link_template"),
+            ("a Deep Link Template without a URL", changed("capability_scopes", 0) {
+                $0["external_apps"] = .array([.object([
+                    "bundle_id": .string("com.example.app"), "name": .string("App"),
+                    "deep_link_templates": .array([.object(["id": .string("open")])])
+                ])])
+            }, "/capability_scopes/0/external_apps/0/deep_link_templates/0"),
+            ("a text parameter without a bound", changed("capability_scopes", 0) {
+                $0["external_apps"] = .array([.object([
+                    "bundle_id": .string("com.example.app"), "name": .string("App"),
+                    "deep_link_templates": .array([.object([
+                        "id": .string("find"), "url": .string("example-app://find?q={q}"),
+                        "parameters": .array([.object(["key": .string("q"), "kind": .string("text")])])
+                    ])])
+                ])])
+            }, "/capability_scopes/0/external_apps/0/deep_link_templates/0/parameters/0"),
             ("unknown field kind", changed("settings_fields", 0) { $0["kind"] = .string("slider") },
              "/settings_fields/0/kind"),
             ("choice without choices", changed("settings_fields", 0) { $0["choices"] = nil }, "/settings_fields/0"),
@@ -247,7 +268,8 @@ final class DocumentedManifestSchemaTests: XCTestCase {
         XCTAssertEqual(try allowedValues(of: "hostCommand"), [
             "url.open", "application.open", "file.open", "folder.open", "keyboard_shortcut.invoke",
             "service.invoke", "shortcut.invoke", "clipboard.copy", "clipboard.paste", "clipboard.cut",
-            "feedback.present", "screen.capture_area", "screen.capture_full_screen", "screen.capture_window"
+            "feedback.present", "screen.capture_area", "screen.capture_full_screen", "screen.capture_window",
+            "deep_link.open"
         ])
     }
 }

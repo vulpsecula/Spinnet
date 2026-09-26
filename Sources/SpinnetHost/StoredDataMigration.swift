@@ -26,6 +26,9 @@ enum StoredDataMigration {
         for manifest in registry.manifests() {
             configuration = try applyMigrations(declaredBy: manifest, to: configuration, pluginSettings: pluginSettings)
         }
+        // Commands that ran a script and now open a Deep Link Template keep
+        // their Actions.
+        configuration = try DeepLinkMigration.migrate(configuration, registry: registry) ?? configuration
         // Actions from before their Plugin declared settings carried every
         // value; those move into Plugin Settings once.
         if let pluginSettings {
@@ -79,6 +82,9 @@ enum StoredDataMigration {
     ) {
         // Before decisions for Plugins that are gone are discarded below.
         ScreenshotPluginMigration.carryGrant(in: grants)
+        // A decision on routes the Host reviewed carries over to Deep Link
+        // Templates only if they open the same links.
+        DeepLinkMigration.carryGrants(in: grants, for: manifests)
         for manifest in manifests {
             grants.register(pluginID: manifest.id, pluginVersion: manifest.version, capabilities: manifest.capabilities)
         }

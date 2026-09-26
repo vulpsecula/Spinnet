@@ -73,7 +73,7 @@ final class HostServicesTests: XCTestCase {
         let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in installed })
         try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/adapter.spinnetplugin"), manifest: manifest))
         let action = try ActionConfiguration(id: ActionID("capture"), pluginID: manifest.id, command: command, input: .string("capture"))
-        XCTAssertEqual(registry.availability(for: action), .unavailable(.externalAppMissing))
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.externalAppMissing("Bob")))
         let runner = HostActionRunner(executor: AppKitHostCommandExecutor(grantStore: grants))
         guard case .failed = runner.invoke(action, using: registry).terminal else { return XCTFail("Missing dependency must fail") }
         installed = true
@@ -270,8 +270,9 @@ final class HostServicesTests: XCTestCase {
 
     func testHostExecutorRoutesTheCommonFixtureCommandsThroughAdapters() throws {
         // Captures go to the capture service, not an adapter; see
-        // ScreenshotHostCommandTests.
-        let commands = HostCommand.allCases.filter { $0.captureSource == nil }.map { hostCommand in
+        // ScreenshotHostCommandTests. Deep Link Templates open through their
+        // Plugin's scope; see ShottrDeepLinkTests.
+        let commands = HostCommand.allCases.filter { $0.captureSource == nil && $0 != .openDeepLink }.map { hostCommand in
             CommandDeclaration(
                 id: CommandID("fixture.\(hostCommand.rawValue.replacingOccurrences(of: ".", with: "_"))"),
                 title: hostCommand.rawValue,

@@ -54,7 +54,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .readClipboardHistory: return "Read declared data types, including retained entries collected before this grant."
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
-        case .controlExternalApp: return "Request only the named External Apps and operation families."
+        case .controlExternalApp: return "Send the named External Apps only the operations Spinnet has reviewed for them, and open only the links listed for them."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
         case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
         case .openLocalPath: return "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents."
@@ -473,9 +473,14 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// the Host sends after the Action returns (ADR 0002). It needs what the
     /// requests need, `contact_https`, and tells the Plugin nothing back.
     case presentResults = "present_results"
-    /// Sends one validated, target-scoped request to an External App through
-    /// the Host. The Plugin cannot send arbitrary Apple Events or scripts.
-    case invokeExternalApp = "invoke_external_app"
+    /// Sends one operation of an External App's Reviewed App Interface, from
+    /// a family the scope names. The Plugin cannot send arbitrary Apple
+    /// Events or scripts.
+    case performAppOperation = "perform_app_operation"
+    /// Opens one of the Plugin's Deep Link Templates, filled in with bounded
+    /// values, in the application that handles its scheme, without bringing
+    /// it forward.
+    case openDeepLink = "open_deep_link"
     /// Classifies supplied text or a best-effort selected-text read in the
     /// Host, then performs only the corresponding Capability-checked operation.
     /// Empty text asks the Host for input.
@@ -508,7 +513,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .captureScreen
         case .httpsRequest, .presentResults:
             return .contactHTTPS
-        case .invokeExternalApp:
+        case .performAppOperation, .openDeepLink:
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
@@ -530,7 +535,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .screenRecording
         case .httpsRequest, .presentResults:
             return nil
-        case .invokeExternalApp:
+        case .performAppOperation, .openDeepLink:
             return nil
         case .insertText:
             return .accessibility
@@ -543,7 +548,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
 public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, LocalizedError {
     case capabilityDenied(PluginCapability)
     case systemPermissionDenied(PluginSystemPermission)
-    case automationPermissionDenied
+    /// macOS refused Spinnet's Apple Events to the named application.
+    case automationPermissionDenied(String)
     case externalAppMissing(String)
     case externalAppOperationUnsupported(String)
     case invalidInput(String)
@@ -556,8 +562,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Capability \(capability.rawValue) is not granted"
         case .systemPermissionDenied(let permission):
             return "System Permission \(permission.rawValue) is not granted"
-        case .automationPermissionDenied:
-            return "Allow Spinnet to control Bob in System Settings > Privacy & Security > Automation, then try again"
+        case .automationPermissionDenied(let application):
+            return "Allow Spinnet to control \(application) in System Settings > Privacy & Security > Automation, then try again"
         case .externalAppMissing(let message):
             return message
         case .externalAppOperationUnsupported(let message):
@@ -608,25 +614,10 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     }
 }
 
-/// One Host-approved External App request after its manifest scope and
-/// supported operation have been checked. `requestJSON` is the target App's
-/// JSON API parameter; it never contains AppleScript source.
 public enum ExternalAppBudgets {
     /// Maximum user text the Host copies into one External App request.
     /// Structured JSON and AppleScript string encoding add bounded overhead.
     public static let maximumRequestTextBytes = 128 * 1024
-}
-
-public struct ExternalAppInvocation: Equatable, Hashable {
-    public let bundleID: String
-    public let operationFamily: String
-    public let requestJSON: String
-
-    public init(bundleID: String, operationFamily: String, requestJSON: String) {
-        self.bundleID = bundleID
-        self.operationFamily = operationFamily
-        self.requestJSON = requestJSON
-    }
 }
 
 /// The Host-side seam used to broker a validated Plugin request. The package
@@ -669,7 +660,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     public let responseCache: ResultsResponseCache
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
-    private let externalAppInvoker: (ExternalAppInvocation) throws -> Void
+    private let appleEventSender: (AppleEventRequest) throws -> Void
+    private let deepLinkOpener: (DeepLink) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -721,8 +713,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
         actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil,
         responseCache: ResultsResponseCache = ResultsResponseCache(),
-        externalAppInvoker: @escaping (ExternalAppInvocation) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("External App requests")
+        appleEventSender: @escaping (AppleEventRequest) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Apple Events")
+        },
+        deepLinkOpener: @escaping (DeepLink) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Deep links")
         }
     ) {
         self.grantStore = grantStore
@@ -750,7 +745,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.responseCache = responseCache
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
-        self.externalAppInvoker = externalAppInvoker
+        self.appleEventSender = appleEventSender
+        self.deepLinkOpener = deepLinkOpener
     }
 
     public func execute(
@@ -970,13 +966,27 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             return .null
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
-        case .invokeExternalApp:
-            let invocation = try externalAppInvocation(
-                from: request.input,
-                manifest: package.manifest,
-                commandID: action.commandID
-            )
-            try externalAppInvoker(invocation)
+        case .performAppOperation:
+            try appleEventSender(appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
+            return .null
+        case .openDeepLink:
+            guard case .object(let fields) = request.input, case .string(let template)? = fields["template"],
+                  Set(fields.keys).isSubset(of: ["template", "parameters"]) else {
+                throw PluginHostServiceError.invalidInput("open_deep_link expects a template and optional parameters")
+            }
+            var parameters: [String: JSONValue] = [:]
+            if let supplied = fields["parameters"] {
+                guard case .object(let values) = supplied else {
+                    throw PluginHostServiceError.invalidInput("open_deep_link parameters must be an object")
+                }
+                parameters = values
+            }
+            // A template outside the consented scope is refused like any
+            // other target the user did not allow.
+            guard let scope = package.manifest.scope(for: .controlExternalApp) else {
+                throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
+            }
+            try deepLinkOpener(scope.deepLink(template: template, parameters: parameters))
             return .null
         case .presentResults:
             let presentation = try ResultsPresentation(serviceInput: request.input)
@@ -1071,84 +1081,37 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
     }
 
-    private func externalAppInvocation(
-        from input: JSONValue,
-        manifest: PluginManifest,
-        commandID: CommandID
-    ) throws -> ExternalAppInvocation {
-        guard case .object(let fields) = input, fields.count == 3,
-              case .string(let bundleID) = fields["bundle_id"],
-              case .string(let operationFamily) = fields["operation_family"],
-              let unvalidatedRequest = fields["request"], case .object = unvalidatedRequest else {
+    /// The Apple Event for a `perform_app_operation` input: an application
+    /// in the scope, one of its Reviewed App Interface's operations from a
+    /// family the scope names, and arguments that interface accepts.
+    private func appleEventRequest(from input: JSONValue, scope: PluginCapabilityScope?) throws -> AppleEventRequest {
+        guard case .object(let fields) = input, case .string(let bundleID)? = fields["bundle_id"],
+              case .string(let operation)? = fields["operation"],
+              Set(fields.keys).isSubset(of: ["bundle_id", "operation", "arguments"]) else {
             throw PluginHostServiceError.invalidInput(
-                "invoke_external_app expects bundle_id, operation_family, and a structured request"
+                "perform_app_operation expects bundle_id, operation, and optional arguments"
             )
         }
-
-        let isDeclared = manifest.scope(for: .controlExternalApp)?.externalApps.contains { target in
-            target.bundleID == bundleID && target.operationFamilies.contains(operationFamily)
-        } == true
-        guard isDeclared else {
+        var arguments: [String: JSONValue] = [:]
+        if let supplied = fields["arguments"] {
+            guard case .object(let values) = supplied else {
+                throw PluginHostServiceError.invalidInput("perform_app_operation arguments must be an object")
+            }
+            arguments = values
+        }
+        guard let target = scope?.externalApps.first(where: { $0.bundleID == bundleID }) else {
             throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
         }
-
-        var request = unvalidatedRequest
-        switch (bundleID, operationFamily) {
-        case ("com.hezongyidev.Bob", "translate"):
-            try validateBobRequest(request)
-        case ("cc.ffitch.shottr", "capture"):
-            request = try ShottrCaptureRequest(serviceInput: request, commandID: commandID).jsonValue
-        default:
+        guard let interface = ReviewedAppInterface.interface(for: bundleID) else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
-                "This External App operation is not supported by Spinnet"
+                "\(bundleID) has no Apple Events interface Spinnet has reviewed"
             )
         }
-
-        let requestJSON = try encodeExternalAppRequest(request, targetName: bundleID == "cc.ffitch.shottr" ? "Shottr" : "Bob")
-        return ExternalAppInvocation(bundleID: bundleID, operationFamily: operationFamily, requestJSON: requestJSON)
-    }
-
-    private func validateBobRequest(_ request: JSONValue) throws {
-        guard case .object(let requestFields) = request, requestFields.count == 2,
-              case .string(let path) = requestFields["path"], path == "translate",
-              case .object(let body) = requestFields["body"],
-              case .string(let operation) = body["action"] else {
-            throw PluginHostServiceError.invalidInput("Bob expects its declared translation request")
+        if let family = interface.operations.first(where: { $0.name == operation })?.family,
+           !target.operationFamilies.contains(family) {
+            throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
         }
-
-        let hasText = body["text"] != nil
-        guard body.count == (hasText ? 2 : 1) else {
-            throw PluginHostServiceError.invalidInput("Bob translation requests only accept action and optional text")
-        }
-        switch operation {
-        case "selectionTranslate", "snipTranslate", "inputTranslate", "pasteboardTranslate":
-            guard !hasText else {
-                throw PluginHostServiceError.invalidInput("This Bob translation operation does not accept text")
-            }
-        case "translateText":
-            guard case .string(let text)? = body["text"],
-                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  text.utf8.count <= ExternalAppBudgets.maximumRequestTextBytes else {
-                throw PluginHostServiceError.invalidInput("Bob translateText needs nonempty text up to 128 KiB")
-            }
-        default:
-            throw PluginHostServiceError.externalAppOperationUnsupported(
-                "Bob does not support this translation operation"
-            )
-        }
-    }
-
-    private func encodeExternalAppRequest(_ request: JSONValue, targetName: String) throws -> String {
-        let data: Data
-        do {
-            data = try JSONSerialization.data(withJSONObject: request.foundationObject, options: [.sortedKeys])
-        } catch {
-            throw PluginHostServiceError.invalidInput("The \(targetName) request could not be encoded as JSON")
-        }
-        guard let requestJSON = String(data: data, encoding: .utf8) else {
-            throw PluginHostServiceError.failed("The \(targetName) request could not be encoded as UTF-8")
-        }
-        return requestJSON
+        return try interface.request(operation: operation, arguments: arguments)
     }
 
     /// The Plugin Settings a popup may offer: its own, and only the kinds

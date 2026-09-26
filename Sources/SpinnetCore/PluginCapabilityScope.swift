@@ -25,18 +25,56 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
         case consentedHTTPSHosts = "consented_https_hosts"
     }
 
+    /// One External App a Plugin may reach: operation families from the
+    /// Host's Reviewed App Interface for it, sent as Apple Events, and Deep
+    /// Link Templates the Plugin declares itself (ADR 0012).
     public struct ExternalAppScope: Codable, Equatable, Hashable {
         public let bundleID: String
+        /// What the user knows the application as. Required with templates;
+        /// a Reviewed App Interface already names its application.
+        public let name: String?
         public let operationFamilies: [String]
+        public let deepLinkTemplates: [DeepLinkTemplate]
 
         private enum CodingKeys: String, CodingKey {
             case bundleID = "bundle_id"
+            case name
             case operationFamilies = "operation_families"
+            case deepLinkTemplates = "deep_link_templates"
         }
 
-        public init(bundleID: String, operationFamilies: [String]) {
+        public init(bundleID: String, name: String? = nil, operationFamilies: [String] = [],
+                    deepLinkTemplates: [DeepLinkTemplate] = []) {
             self.bundleID = bundleID
+            self.name = name
             self.operationFamilies = operationFamilies
+            self.deepLinkTemplates = deepLinkTemplates
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.init(
+                bundleID: try container.decode(String.self, forKey: .bundleID),
+                name: try container.decodeIfPresent(String.self, forKey: .name),
+                operationFamilies: try container.decodeIfPresent([String].self, forKey: .operationFamilies) ?? [],
+                deepLinkTemplates: try container.decodeIfPresent([DeepLinkTemplate].self, forKey: .deepLinkTemplates) ?? []
+            )
+        }
+
+        /// Written only with what it declares, so a scope from before Deep
+        /// Link Templates is persisted, and compared, exactly as it was.
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(bundleID, forKey: .bundleID)
+            try container.encodeIfPresent(name, forKey: .name)
+            if !operationFamilies.isEmpty { try container.encode(operationFamilies, forKey: .operationFamilies) }
+            if !deepLinkTemplates.isEmpty { try container.encode(deepLinkTemplates, forKey: .deepLinkTemplates) }
+        }
+
+        /// The name guidance uses: the manifest's, else its Reviewed App
+        /// Interface's, else the bundle identifier.
+        public var displayName: String {
+            name ?? ReviewedAppInterface.interface(for: bundleID)?.name ?? bundleID
         }
     }
 

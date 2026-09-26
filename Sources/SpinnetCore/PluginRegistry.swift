@@ -1,25 +1,27 @@
 import Foundation
 
-public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, CustomStringConvertible {
-    case pluginMissing = "plugin_missing"
-    case pluginDisabled = "plugin_disabled"
-    case commandMissing = "command_missing"
-    case commandChanged = "command_changed"
-    case resourceMissing = "resource_missing"
-    case externalAppMissing = "external_app_missing"
-    case shottrMissing = "shottr_missing"
-    case externalAppOperationUnsupported = "external_app_operation_unsupported"
-    case capabilityDenied = "capability_denied"
-    case systemPermissionDenied = "system_permission_denied"
-    case hostServiceUnavailable = "host_service_unavailable"
+public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertible {
+    case pluginMissing
+    case pluginDisabled
+    case commandMissing
+    case commandChanged
+    case resourceMissing
+    /// The External App the Command reaches is not installed. It holds the
+    /// application's name as the manifest, or its Reviewed App Interface,
+    /// gives it.
+    case externalAppMissing(String)
+    case externalAppOperationUnsupported
+    case capabilityDenied
+    case systemPermissionDenied
+    case hostServiceUnavailable
     /// The Screen Recording System Permission is missing. Accessibility keeps
     /// `systemPermissionDenied`, so each permission names its own repair.
-    case screenRecordingDenied = "screen_recording_denied"
+    case screenRecordingDenied
     /// The Screenshot save folder is gone, is not a folder, or cannot be
     /// written, and the Screenshot Plugin Settings say to save.
-    case saveFolderUnavailable = "save_folder_unavailable"
+    case saveFolderUnavailable
     /// The Plugin declares settings and one still has no usable value.
-    case pluginSettingsIncomplete = "plugin_settings_incomplete"
+    case pluginSettingsIncomplete
 
     public var description: String {
         switch self {
@@ -28,8 +30,7 @@ public enum ActionUnavailableReason: String, Equatable, Hashable, CaseIterable, 
         case .commandMissing: return "Command is no longer registered"
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
-        case .externalAppMissing: return "Install Bob to use Bob Commands"
-        case .shottrMissing: return "Install Shottr to use Shottr Commands"
+        case .externalAppMissing(let application): return "Install \(application) to use \(application) Commands"
         case .externalAppOperationUnsupported: return "This External App operation is not supported by Spinnet"
         case .capabilityDenied: return "Grant Access in Plugin Settings"
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
@@ -391,16 +392,15 @@ public final class PluginRegistry {
             capabilities.contains($0.capability) && $0.commandIDs.contains(action.commandID)
         }
             .flatMap(\.externalApps)
-        let supportedExternalAppOperations: [String: Set<String>] = [
-            "com.hezongyidev.Bob": ["translate"],
-            "cc.ffitch.shottr": ["capture"]
-        ]
+        // Operation families need a Reviewed App Interface that offers them;
+        // Deep Link Templates need nothing the Host has reviewed.
         if targets.contains(where: { target in
-            guard let operations = supportedExternalAppOperations[target.bundleID] else { return true }
-            return !Set(target.operationFamilies).isSubset(of: operations)
+            guard !target.operationFamilies.isEmpty else { return false }
+            guard let interface = ReviewedAppInterface.interface(for: target.bundleID) else { return true }
+            return !Set(target.operationFamilies).isSubset(of: interface.operations.map(\.family))
         }) { return .unavailable(.externalAppOperationUnsupported) }
         if let missingTarget = targets.first(where: { !externalAppExists($0.bundleID) }) {
-            return .unavailable(missingTarget.bundleID == "cc.ffitch.shottr" ? .shottrMissing : .externalAppMissing)
+            return .unavailable(.externalAppMissing(missingTarget.displayName))
         }
         if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)

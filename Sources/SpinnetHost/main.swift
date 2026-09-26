@@ -171,18 +171,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 actionRerunner: { [weak self] _, action in
                     DispatchQueue.main.async { [weak self] in self?.invoke(action) }
                 },
-                externalAppInvoker: { invocation in
-                    switch invocation.bundleID {
-                    case "com.hezongyidev.Bob":
-                        try BobAppleEventAdapter().invoke(invocation)
-                    case "cc.ffitch.shottr":
-                        try ShottrURLSchemeAdapter().invoke(invocation)
-                    default:
-                        throw PluginHostServiceError.externalAppOperationUnsupported(
-                            "This External App operation is not supported by Spinnet"
-                        )
-                    }
-                }
+                appleEventSender: { request in try AppleEventSender().send(request) },
+                deepLinkOpener: { link in try DeepLinkOpener().open(link) }
             )
             clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(

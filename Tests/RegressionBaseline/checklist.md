@@ -302,20 +302,27 @@ Needs Bob (`com.hezongyidev.Bob`). Bob owns its own windows and results.
 - Bob not installed → unavailable: "Install Bob to use Bob Commands".
 - Automation denied → "Allow Spinnet to control Bob in System Settings >
   Privacy & Security > Automation".
-- Older Bob → "This Bob version does not support the requested translation
-  operation; update Bob and try again". Other refusals → "Bob rejected the
-  request: *message*" or "Bob did not accept the translation request".
+- Older Bob → "This Bob version does not support the requested operation;
+  update Bob and try again". Other refusals → "Bob rejected the request:
+  *message*" or "Bob did not accept the request".
+- Selected or configured text over 128 KiB → the Action fails before Bob is
+  asked.
 
 ### Permission prompts
 
-- `control_external_app` for Bob's `translate` operations (all Commands);
+- `control_external_app` for "Bob (com.hezongyidev.Bob): translate", the
+  operations of the Host's Reviewed App Interface for Bob (all Commands);
   `read_selected_text` for Translate Selection; `read_current_clipboard`
-  optional (copy fallback). macOS asks for Automation consent the first time.
+  optional (copy fallback). macOS asks for Automation consent the first time,
+  explaining that Spinnet sends an app only the requests it has reviewed for
+  it. A grant given before W8 (#55) still applies.
 
 ## Shottr (`com.spinnet.shottr`)
 
 Needs Shottr 1.8 or later (`cc.ffitch.shottr`) with its URL Scheme API on.
-Shottr owns the capture, what happens after it, and Screen Recording.
+Shottr owns the capture, what happens after it, and Screen Recording. Each
+Command opens one of the Plugin's Deep Link Templates without starting a
+Plugin helper, and Shottr is not brought forward.
 
 ### Commands
 
@@ -338,15 +345,17 @@ Shottr owns the capture, what happens after it, and Screen Recording.
 ### Errors and repair routes
 
 - Shottr not installed → unavailable: "Install Shottr to use Shottr Commands".
-- Older Shottr → "Shottr 1.8 or later is required for URL Scheme Commands;
-  update Shottr and try again".
-- URL Scheme API off → "Enable Shottr's URL Scheme API in Shottr Settings >
-  Advanced, then try again" or "Shottr did not accept its deep link; enable
-  the URL Scheme API and try again".
+- Shottr not opening `shottr:` links (older than 1.8, or URL Scheme API off)
+  → "Shottr does not open shottr: links; update Shottr or turn on its URL
+  scheme in its settings, then try again".
 
 ### Permission prompts
 
-- `control_external_app` for Shottr's `capture` operations.
+- `control_external_app` listing "Shottr (cc.ffitch.shottr) links, opened
+  without bringing it forward" and each of the eight `shottr://grab/…`
+  templates, the delayed one with "delay_seconds: 3, 5, 10". A grant given to
+  Shottr's `capture` operations before W8 (#55) carries over, because the
+  templates open exactly those links; a changed template asks again.
 
 ## Fixture data
 
@@ -355,6 +364,9 @@ The files beside this one are user data in the formats the Host writes to
 through the launch path (`StoredDataMigration`) and requires that nothing
 changes and that they write back unchanged. A ticket that changes a format
 adds its migration and keeps this test passing on these files unchanged.
+The one expected change so far: since W8 (#55) the Shottr Actions move onto
+its Deep Link Templates, keeping their IDs and inputs, and its
+`control_external_app` grant is stored with the templates.
 
 | File | Covers |
 | --- | --- |

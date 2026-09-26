@@ -379,6 +379,10 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 throw HostCommandExecutionError.failed(reason)
             }
             return .null
+        case .openDeepLink:
+            // The Action runner opens it through `open_deep_link`, which
+            // needs the Plugin's scope; there is no link without one.
+            throw HostCommandExecutionError.unavailable("A Deep Link Template opens through its Plugin's scope")
         }
     }
 

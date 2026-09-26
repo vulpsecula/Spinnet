@@ -36,11 +36,21 @@ export type HostServiceName =
   | "https_request"
   /** Needs no Capability: the Plugin supplies the text. */
   | "detect_language"
+  /**
+   * Sends one operation of an External App's Reviewed App Interface:
+   * `{bundle_id, operation, arguments?}`, answered with `null`. Needs
+   * `control_external_app` with the operation's family in scope.
+   */
+  | "perform_app_operation"
+  /**
+   * Opens one of the Plugin's Deep Link Templates: `{template, parameters?}`,
+   * answered with `null`. Needs `control_external_app`.
+   */
+  | "open_deep_link"
   /** Presents the Host Surface for Clipboard History; needs `read_clipboard_history`. */
   | "present_clipboard_history"
   // Removed before Level 1 is published; their behaviour moves into Plugins.
   | "present_results"
-  | "invoke_external_app"
   | "smart_jump";
 
 /** A rectangle in global points, origin at the top-left of the primary display. */
