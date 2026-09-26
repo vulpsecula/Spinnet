@@ -295,8 +295,8 @@ export interface ScreenArea {
  * for secrets.
  *
  * A key is a non-empty string of at most 128 characters. A value, as JSON,
- * is at most 512 KiB, and a Plugin keeps at most 10 MiB, with the list of its
- * keys at most 512 KiB. A write over a limit stores nothing and throws a
+ * is at most 512 KiB, and a Plugin keeps at most 10 MiB in at most 1000
+ * keys. A write over a limit stores nothing and throws a
  * `StorageLimitError` the script may catch and carry on from; any other
  * failure ends the invocation, as a failed Host Service does.
  */

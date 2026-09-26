@@ -13,9 +13,10 @@ public enum PluginStorageBudgets {
     public static let maximumValueBytes = 512 * 1024
     /// Everything one Plugin keeps: the size of its key files together.
     public static let maximumPluginBytes = 10 * 1024 * 1024
-    /// The list `list_storage_keys` answers, as JSON, so it fits in one
-    /// helper message however many keys the Plugin keeps.
-    public static let maximumKeyListBytes = 512 * 1024
+    /// How many keys one Plugin keeps, so the list `list_storage_keys`
+    /// answers always fits in one helper message, and a Plugin cannot spread
+    /// its 10 MiB over countless tiny files.
+    public static let maximumKeyCount = 1000
 }
 
 /// Plugin Storage: each Plugin's own key-value store of JSON values, kept
@@ -38,20 +39,20 @@ public final class PluginStorage {
         public var maximumKeyLength: Int
         public var maximumValueBytes: Int
         public var maximumPluginBytes: Int
-        public var maximumKeyListBytes: Int
+        public var maximumKeyCount: Int
 
-        public init(maximumKeyLength: Int, maximumValueBytes: Int, maximumPluginBytes: Int, maximumKeyListBytes: Int) {
+        public init(maximumKeyLength: Int, maximumValueBytes: Int, maximumPluginBytes: Int, maximumKeyCount: Int) {
             self.maximumKeyLength = maximumKeyLength
             self.maximumValueBytes = maximumValueBytes
             self.maximumPluginBytes = maximumPluginBytes
-            self.maximumKeyListBytes = maximumKeyListBytes
+            self.maximumKeyCount = maximumKeyCount
         }
 
         public static let published = Limits(
             maximumKeyLength: PluginStorageBudgets.maximumKeyLength,
             maximumValueBytes: PluginStorageBudgets.maximumValueBytes,
             maximumPluginBytes: PluginStorageBudgets.maximumPluginBytes,
-            maximumKeyListBytes: PluginStorageBudgets.maximumKeyListBytes
+            maximumKeyCount: PluginStorageBudgets.maximumKeyCount
         )
     }
 
@@ -59,8 +60,6 @@ public final class PluginStorage {
     private struct Entry {
         /// Nil for a file whose key cannot be read; it still takes space.
         let key: String?
-        /// The key as the list of keys encodes it.
-        let encodedKeyBytes: Int
         let fileBytes: Int
     }
 
@@ -150,19 +149,15 @@ public final class PluginStorage {
                         + "and this write would take it to \(Self.describe(total)); nothing was stored"
                 )
             }
-            if replaced == nil {
-                let listed = entries.values.filter { $0.key != nil }
-                let listBytes = 2 + listed.reduce(0) { $0 + $1.encodedKeyBytes + 1 } + encodedKey.count
-                guard listBytes <= limits.maximumKeyListBytes else {
-                    throw PluginHostServiceError.storageLimitExceeded(
-                        "The list of a Plugin's keys in Plugin Storage may be at most "
-                            + "\(Self.describe(limits.maximumKeyListBytes)), and this new key would pass that; "
-                            + "nothing was stored"
-                    )
-                }
+            // Every key file counts, even one whose key cannot be read.
+            guard replaced != nil || entries.count < limits.maximumKeyCount else {
+                throw PluginHostServiceError.storageLimitExceeded(
+                    "A Plugin may keep at most \(limits.maximumKeyCount) keys in Plugin Storage, "
+                        + "and this one would be one more; nothing was stored"
+                )
             }
             try write(contents, named: name, in: directory(of: pluginID))
-            entries[name] = Entry(key: key, encodedKeyBytes: encodedKey.count, fileBytes: contents.count)
+            entries[name] = Entry(key: key, fileBytes: contents.count)
             indexes[pluginID] = entries
         }
     }
@@ -278,7 +273,6 @@ public final class PluginStorage {
                 let key = Self.readKey(of: file)
                 entries[file.lastPathComponent] = Entry(
                     key: key.flatMap { Self.fileName(forKey: $0) == file.lastPathComponent ? $0 : nil },
-                    encodedKeyBytes: key.flatMap { try? Self.encode(.string($0)).count } ?? 0,
                     fileBytes: values.fileSize ?? 0
                 )
             }

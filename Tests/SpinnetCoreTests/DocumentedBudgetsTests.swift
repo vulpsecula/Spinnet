@@ -204,16 +204,19 @@ final class PluginStorageBudgetsTests: XCTestCase {
         XCTAssertEqual(PluginStorageBudgets.maximumValueBytes, 512 * 1024)
         // "a Plugin may keep up to 10 MiB, the default capacity of Raycast's `Cache`"
         XCTAssertEqual(PluginStorageBudgets.maximumPluginBytes, 10 * 1024 * 1024)
-        // "the list of its keys is at most 512 KiB"
-        XCTAssertEqual(PluginStorageBudgets.maximumKeyListBytes, 512 * 1024)
+        // "and it may keep up to 1000 keys"
+        XCTAssertEqual(PluginStorageBudgets.maximumKeyCount, 1000)
     }
 
     /// ADR 0015: "A value may be up to 512 KiB, so it always fits in one
-    /// helper message". The list of keys is bounded for the same reason, and
-    /// half the message leaves room for the message around it.
+    /// helper message". Half the message leaves room for the message around
+    /// it. The longest list of keys fits too: as many keys as a Plugin may
+    /// keep, each of the longest length and every character escaped to six
+    /// bytes (`\u001f`), with quotes and commas, and 64 KiB to spare.
     func testAValueAndTheListOfKeysEachFitInOneHelperMessage() {
         XCTAssertLessThanOrEqual(PluginStorageBudgets.maximumValueBytes * 2, ScriptedActionBudgets.maximumMessageBytes)
-        XCTAssertLessThanOrEqual(PluginStorageBudgets.maximumKeyListBytes * 2, ScriptedActionBudgets.maximumMessageBytes)
+        let longestList = 2 + PluginStorageBudgets.maximumKeyCount * (PluginStorageBudgets.maximumKeyLength * 6 + 3)
+        XCTAssertLessThanOrEqual(longestList + 64 * 1024, ScriptedActionBudgets.maximumMessageBytes)
     }
 
     /// The store enforces the published limits unless a test says otherwise.
@@ -222,7 +225,7 @@ final class PluginStorageBudgetsTests: XCTestCase {
             maximumKeyLength: PluginStorageBudgets.maximumKeyLength,
             maximumValueBytes: PluginStorageBudgets.maximumValueBytes,
             maximumPluginBytes: PluginStorageBudgets.maximumPluginBytes,
-            maximumKeyListBytes: PluginStorageBudgets.maximumKeyListBytes
+            maximumKeyCount: PluginStorageBudgets.maximumKeyCount
         ))
     }
 }

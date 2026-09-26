@@ -74,7 +74,8 @@ spinnet.storage.set({ key: "runs", value: runs });
 A key is a non-empty string of at most 128 characters. `get` answers `null`
 for a key with no value, and setting `null` removes the key. A value, as JSON,
 is at most 512 KiB, so it always fits in one helper message; a Plugin keeps at
-most 10 MiB; and the list `keys` answers is at most 512 KiB. A write over any
+most 10 MiB in at most 1000 keys, so the list `keys` answers always fits in
+one message too. A write over any
 of them stores nothing and throws an error with `code` `storage_limit_exceeded`
 that the script may catch and carry on from. Each key is its own file, written
 atomically, so a write rewrites only its own value.

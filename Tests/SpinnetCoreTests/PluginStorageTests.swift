@@ -241,23 +241,26 @@ final class PluginStorageTests: XCTestCase {
         try storage.setValue(chunk, forKey: "chunk0", of: other)
     }
 
-    /// `list_storage_keys` answers in one helper message, so a write that
-    /// adds a key the list would not fit with stores nothing either.
-    func testAWriteThatWouldOverflowTheListOfKeysStoresNothing() throws {
+    /// A Plugin keeps a bounded number of keys, so `list_storage_keys` always
+    /// answers in one helper message: a write that adds one more stores
+    /// nothing.
+    func testAWriteThatAddsAKeyPastTheLimitStoresNothing() throws {
         let storage = PluginStorage(directory: makeDirectory(), limits: PluginStorage.Limits(
             maximumKeyLength: 128, maximumValueBytes: 512 * 1024, maximumPluginBytes: 10 * 1024 * 1024,
-            maximumKeyListBytes: 17
+            maximumKeyCount: 2
         ))
-        // ["aaaaa","bbbbb"] is 17 bytes.
         try storage.setValue(.number(1), forKey: "aaaaa", of: counter)
         try storage.setValue(.number(2), forKey: "bbbbb", of: counter)
 
         XCTAssertThrowsError(try storage.setValue(.number(3), forKey: "c", of: counter)) {
             XCTAssertEqual(($0 as? PluginHostServiceError)?.runtimeFailureCategory, .storageLimitExceeded)
         }
-        // Replacing an existing key adds nothing to the list.
+        // Replacing an existing key adds none, and removing one makes room.
         try storage.setValue(.number(4), forKey: "bbbbb", of: counter)
         XCTAssertEqual(try storage.keys(of: counter), ["aaaaa", "bbbbb"])
+        try storage.setValue(.null, forKey: "aaaaa", of: counter)
+        try storage.setValue(.number(3), forKey: "c", of: counter)
+        XCTAssertEqual(try storage.keys(of: counter), ["bbbbb", "c"])
     }
 
     // MARK: - Size and clearing
