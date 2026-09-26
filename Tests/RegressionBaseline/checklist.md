@@ -176,7 +176,7 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
 
 | Key | Control | Default |
 | --- | --- | --- |
-| `search_engines` | "Search Engines (first is default)": the generic list editor (#53), one row per engine with a Name and a Search URL field, move up/down, remove, "Add Row" | Google, Bing, DuckDuckGo |
+| `search_engines` | "Search Engines (first is default)": the generic list editor (#53): one line per engine showing its name with its Search URL beneath, and Edit (pencil), move up/down and remove buttons; Edit opens a sheet with labelled "Name" and "Search URL" fields, whose Save stays disabled until both are valid and whose Cancel keeps the row as it was; "Add Row" opens the same sheet, and cancelling it adds nothing | Google, Bing, DuckDuckGo |
 
 - Search URLs must be https and contain `{query}` once, in the path or query;
   names are unique, at most 50 characters; at most 10 engines. Saving an
