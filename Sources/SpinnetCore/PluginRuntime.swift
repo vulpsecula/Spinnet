@@ -269,6 +269,46 @@ public enum PluginRuntimeProtocol {
     }
 }
 
+/// What the Host tells every script about itself, which the helper hands on
+/// as `spinnet.environment`. The Host decides it, not the helper, so a script
+/// sees the Host it runs under.
+public struct PluginRuntimeEnvironment: Codable, Equatable, Hashable {
+    /// The highest Plugin API Level the Host supports.
+    public let apiLevel: Int
+    /// The Host's version, from its bundle.
+    public let hostVersion: String
+    /// The BCP 47 code of the user's first preferred language, such as
+    /// `en-US` or `zh-Hans-CN`.
+    public let preferredLanguage: String
+
+    public init(apiLevel: Int = PluginAPILevel.highestSupported, hostVersion: String, preferredLanguage: String) {
+        self.apiLevel = apiLevel
+        self.hostVersion = hostVersion
+        self.preferredLanguage = preferredLanguage
+    }
+
+    /// The running Host's environment, read afresh so a change to the user's
+    /// languages reaches the next script.
+    public static var current: PluginRuntimeEnvironment {
+        current(bundle: .main, preferredLanguages: Locale.preferredLanguages)
+    }
+
+    /// An unbundled build, such as `swift run`, has no version of its own
+    /// and reports `0.0.0`; a user without preferred languages gets `en`.
+    public static func current(bundle: Bundle, preferredLanguages: [String]) -> PluginRuntimeEnvironment {
+        PluginRuntimeEnvironment(
+            hostVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+            preferredLanguage: preferredLanguages.first ?? "en"
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case apiLevel = "api_level"
+        case hostVersion = "host_version"
+        case preferredLanguage = "preferred_language"
+    }
+}
+
 public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     public let protocolVersion: String
     public let invocationID: String
@@ -278,6 +318,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     public let scriptPath: String
     public let scriptSource: String
     public let input: JSONValue
+    public let environment: PluginRuntimeEnvironment
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -287,7 +328,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         commandID: CommandID,
         scriptPath: String,
         scriptSource: String,
-        input: JSONValue
+        input: JSONValue,
+        environment: PluginRuntimeEnvironment = .current
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -297,6 +339,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         self.scriptPath = scriptPath
         self.scriptSource = scriptSource
         self.input = input
+        self.environment = environment
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -309,6 +352,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         case scriptPath = "script_path"
         case scriptSource = "script_source"
         case input
+        case environment
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -323,6 +367,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         try container.encode(scriptPath, forKey: .scriptPath)
         try container.encode(scriptSource, forKey: .scriptSource)
         try container.encode(input, forKey: .input)
+        try container.encode(environment, forKey: .environment)
     }
 
     public init(from decoder: Decoder) throws {
@@ -339,7 +384,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
             commandID: try container.decode(CommandID.self, forKey: .commandID),
             scriptPath: try container.decode(String.self, forKey: .scriptPath),
             scriptSource: try container.decode(String.self, forKey: .scriptSource),
-            input: try container.decode(JSONValue.self, forKey: .input)
+            input: try container.decode(JSONValue.self, forKey: .input),
+            environment: try container.decode(PluginRuntimeEnvironment.self, forKey: .environment)
         )
         try PluginRuntimeProtocol.validate(invocation)
         self = invocation
@@ -972,6 +1018,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     private let resourceSampler: PluginHelperResourceSamplerClosure
     private let resourceSchedule: PluginHelperResourceScheduler
     private let resourceLimitBytes: UInt64
+    private let environment: () -> PluginRuntimeEnvironment
 
     private let registry: PluginRegistry?
     private let grantStore: PluginCapabilityGrantStore?
@@ -1008,7 +1055,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         resourceSchedule: @escaping PluginHelperResourceScheduler = { delay, operation in
             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
         },
-        resourceLimitBytes: UInt64 = ScriptedActionBudgets.helperPhysFootprintBytes
+        resourceLimitBytes: UInt64 = ScriptedActionBudgets.helperPhysFootprintBytes,
+        environment: @escaping () -> PluginRuntimeEnvironment = { .current }
     ) {
         self.registry = registry
         self.grantStore = grantStore
@@ -1021,6 +1069,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         self.resourceSampler = resourceSampler
         self.resourceSchedule = resourceSchedule
         self.resourceLimitBytes = resourceLimitBytes
+        self.environment = environment
         registryObserver = registry?.observeInvalidation { [weak self] in self?.terminate(pluginID: $0) }
         grantObserver = grantStore?.observeRevocation { [weak self] in self?.terminate(pluginID: $0) }
     }
@@ -1093,7 +1142,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             commandID: action.commandID,
             scriptPath: scriptPath,
             scriptSource: scriptSource,
-            input: action.input
+            input: action.input,
+            environment: environment()
         )
         let connection = PluginRuntimeConnection(pluginID: package.manifest.id)
         let requestData: Data

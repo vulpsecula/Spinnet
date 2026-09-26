@@ -483,8 +483,14 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     case openLocalPath = "open_local_path"
     /// Replaces the focused App's selection with the supplied text.
     case insertText = "insert_text"
+    /// The BCP 47 code of text the Plugin supplies, decided on this Mac. The
+    /// Plugin already holds the text and nothing leaves the machine, so it
+    /// needs no Capability.
+    case detectLanguage = "detect_language"
 
-    public var requiredCapability: PluginCapability {
+    /// The Capability a Plugin must be granted to request the service, or
+    /// nil when the service gives it nothing it does not already hold.
+    public var requiredCapability: PluginCapability? {
         switch self {
         case .readSelectedText:
             return .readSelectedText
@@ -506,6 +512,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
+        case .detectLanguage:
+            return nil
         }
     }
 
@@ -526,6 +534,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
+        case .detectLanguage:
+            return nil
         }
     }
 }
@@ -754,17 +764,21 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             capabilities: package.manifest.capabilities
         )
         let service = request.service
-        let capability = service.requiredCapability
-        guard package.manifest.id == action.pluginID,
-              package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) }),
-              package.manifest.declares(capability, for: action.commandID),
-              grantStore.decision(
-                  for: package.manifest.id,
-                  pluginVersion: package.manifest.version,
-                  capability: capability,
-                  scope: package.manifest.scope(for: capability)
-              ) == .granted else {
-            throw PluginHostServiceError.capabilityDenied(capability)
+        let isPluginsOwnAction = package.manifest.id == action.pluginID
+            && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
+        if let capability = service.requiredCapability {
+            guard isPluginsOwnAction,
+                  package.manifest.declares(capability, for: action.commandID),
+                  grantStore.decision(
+                      for: package.manifest.id,
+                      pluginVersion: package.manifest.version,
+                      capability: capability,
+                      scope: package.manifest.scope(for: capability)
+                  ) == .granted else {
+                throw PluginHostServiceError.capabilityDenied(capability)
+            }
+        } else if !isPluginsOwnAction {
+            throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
         }
 
         if let permission = service.requiredSystemPermission,
@@ -783,7 +797,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("Expected entry_id, nonnegative integer offset, and length 1…196608")
             }
             let chunk = try readHistory {
-                try clipboardHistoryContentProvider(entryID, package.manifest.scope(for: capability)?.dataTypes ?? [], Int(offset), Int(length))
+                try clipboardHistoryContentProvider(entryID, package.manifest.scope(for: .readClipboardHistory)?.dataTypes ?? [], Int(offset), Int(length))
             }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(chunk))
         case .readCurrentClipboard:
@@ -791,7 +805,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("read_current_clipboard expects null")
             }
             guard let content = try currentClipboardProvider(),
-                  package.manifest.scope(for: capability)?.dataTypes.contains(content.type.rawValue) == true else { return .null }
+                  package.manifest.scope(for: .readCurrentClipboard)?.dataTypes.contains(content.type.rawValue) == true else { return .null }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(content))
         case .presentClipboardHistory:
             guard request.input == .null else {
@@ -811,7 +825,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("Expected null or a nonnegative integer offset")
             }
             let snapshot = try readHistory {
-                try clipboardHistoryProvider(package.manifest.scope(for: capability)?.dataTypes ?? [], offset)
+                try clipboardHistoryProvider(package.manifest.scope(for: .readClipboardHistory)?.dataTypes ?? [], offset)
             }
             return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
         case .readSelectedText:
@@ -1049,6 +1063,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             try focusedTextInserter(text)
             return .null
+        case .detectLanguage:
+            guard case .string(let text) = request.input else {
+                throw PluginHostServiceError.invalidInput("detect_language expects a text string")
+            }
+            return languageDetector(text).map(JSONValue.string) ?? .null
         }
     }
 

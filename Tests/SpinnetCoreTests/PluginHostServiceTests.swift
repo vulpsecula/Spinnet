@@ -92,6 +92,58 @@ final class PluginHostServiceTests: XCTestCase {
         )
         XCTAssertEqual(presentations, 1)
     }
+
+    /// `detect_language` looks only at text the Plugin already holds and
+    /// decides on this Mac, so it needs no Capability and no System
+    /// Permission. It answers a BCP 47 code, or null when it cannot tell.
+    func testDetectLanguageNeedsNoCapabilityAndAnswersACodeOrNull() throws {
+        let manifest = try PluginManifestLoader.decode(Data("""
+        {
+          "protocol_version": "1.0",
+          "id": "com.example.language",
+          "name": "Language",
+          "version": "1.0.0",
+          "commands": [{
+            "id": "detect", "title": "Detect", "execution": "javascript",
+            "is_configurable": false, "script": "detect.js"
+          }]
+        }
+        """.utf8))
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/language"), manifest: manifest)
+        let action = try ActionConfiguration(id: ActionID("detect"), pluginID: manifest.id,
+                                             command: manifest.commands[0], input: .null)
+        var detected: [String] = []
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            languageDetector: { text in
+                detected.append(text)
+                return text.hasPrefix("Guten") ? "de" : nil
+            }
+        )
+        func detect(_ input: JSONValue, for action: ActionConfiguration = action) throws -> JSONValue {
+            try broker.execute(request: PluginRuntimeHostServiceRequest(
+                invocationID: "invocation", actionID: action.id, service: .detectLanguage, input: input
+            ), for: package, action: action)
+        }
+
+        XCTAssertNil(PluginHostService.detectLanguage.requiredCapability)
+        XCTAssertNil(PluginHostService.detectLanguage.requiredSystemPermission)
+        XCTAssertEqual(try detect(.string("Guten Morgen")), .string("de"))
+        XCTAssertEqual(try detect(.string("1234")), .null)
+        XCTAssertEqual(detected, ["Guten Morgen", "1234"])
+
+        XCTAssertThrowsError(try detect(.null)) {
+            XCTAssertEqual(($0 as? PluginHostServiceError)?.runtimeFailureCategory, .hostServiceFailed)
+        }
+        // Needing no Capability does not make it callable for another
+        // Plugin's Action.
+        let foreign = try ActionConfiguration(id: ActionID("foreign"), pluginID: PluginID("com.example.other"),
+                                              command: manifest.commands[0], input: .null)
+        XCTAssertThrowsError(try detect(.string("Guten Morgen"), for: foreign))
+        XCTAssertEqual(detected.count, 2)
+    }
+
     func testCapabilityGrantStoreKeepsAnExplicitDecisionForEachDeclaredCapability() throws {
         let pluginID = PluginID("com.example.fixture")
         let store = PluginCapabilityGrantStore()

@@ -56,6 +56,17 @@ merged from Plugin Settings, Menu Item overrides and the Command's own fields.
 View Session inputs, `event` and `state`, will be added to it once Plugin
 Views ship.
 
+Scripts run with the same `spinnet` SDK object as in the Host. Its
+`spinnet.environment` reports `PluginTestHelper.defaultEnvironment`, English
+and an unbundled Host version `0.0.0`, whatever the machine running the tests
+prefers. To test another language, start the helper with one:
+
+```swift
+let helper = try PluginTestHelper(environment: PluginRuntimeEnvironment(
+    hostVersion: "0.0.0", preferredLanguage: "zh-Hans-CN"
+))
+```
+
 ## Recorded answers
 
 Each Host Service answers every request the same way:

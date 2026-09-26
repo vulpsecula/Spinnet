@@ -1,6 +1,7 @@
 import Foundation
 import JavaScriptCore
 import SpinnetCore
+import SpinnetPluginAPI
 
 @main
 struct SpinnetPluginHelperMain {
@@ -102,6 +103,16 @@ struct SpinnetPluginHelperMain {
                 + "return JSON.parse(__spinnetRequestHostService(String(name), encodedInput === undefined ? 'null' : encodedInput)); "
                 + "}"
         )
+        guard injectSDK(into: context, for: invocation), exceptionMessage == nil else {
+            return PluginRuntimeResponse(
+                invocationID: invocation.invocationID,
+                actionID: invocation.actionID,
+                terminal: .failed(PluginRuntimeFailure(
+                    category: .helperError,
+                    message: "The spinnet SDK could not be loaded"
+                ))
+            )
+        }
 
         guard let value = context.evaluateScript(invocation.scriptSource) else {
             if let hostServiceFailure {
@@ -155,6 +166,27 @@ struct SpinnetPluginHelperMain {
                 ))
             )
         }
+    }
+
+    /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
+    /// `requestHostService` already in `context`.
+    private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
+        let environment: [String: Any] = [
+            "apiLevel": invocation.environment.apiLevel,
+            "hostVersion": invocation.environment.hostVersion,
+            "preferredLanguage": invocation.environment.preferredLanguage,
+            "pluginID": invocation.pluginID.rawValue,
+            "commandID": invocation.commandID.rawValue,
+            "actionID": invocation.actionID.rawValue,
+            "invocationID": invocation.invocationID
+        ]
+        guard let makeSDK = context.evaluateScript(SpinnetSDK.source), makeSDK.isObject,
+              let requestHostService = context.objectForKeyedSubscript("requestHostService"),
+              let sdk = makeSDK.call(withArguments: [requestHostService, environment]), sdk.isObject else {
+            return false
+        }
+        context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
+        return true
     }
 
     private static func jsonValue(from value: JSValue) throws -> JSONValue {

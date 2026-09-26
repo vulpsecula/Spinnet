@@ -23,9 +23,18 @@ let package = Package(
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]
         ),
+        // The published contract (ADR 0013). Only the SDK's source is built,
+        // embedded in the helper so it never reads a file at run time.
+        .target(
+            name: "SpinnetPluginAPI",
+            path: "PluginAPI",
+            exclude: ["LICENSE", "README.md", "schemas", "spinnet.d.ts"],
+            sources: ["SpinnetSDK.swift"],
+            resources: [.embedInCode("spinnet.js")]
+        ),
         .executableTarget(
             name: "SpinnetPluginHelper",
-            dependencies: ["SpinnetCore"],
+            dependencies: ["SpinnetCore", "SpinnetPluginAPI"],
             linkerSettings: [
                 .linkedFramework("JavaScriptCore", .when(platforms: [.macOS]))
             ]

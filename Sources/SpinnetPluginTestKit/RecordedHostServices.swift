@@ -33,9 +33,11 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     public func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
                         action: ActionConfiguration) throws -> JSONValue {
         // Every Capability the Command declares counts as granted; one it
-        // does not declare is refused before any answer is looked up.
-        let capability = request.service.requiredCapability
-        guard package.manifest.declares(capability, for: action.commandID) else {
+        // does not declare is refused before any answer is looked up. A
+        // service that needs no Capability, such as `detect_language`, is
+        // never refused.
+        if let capability = request.service.requiredCapability,
+           !package.manifest.declares(capability, for: action.commandID) {
             throw PluginHostServiceError.capabilityDenied(capability)
         }
         switch answers[request.service] {

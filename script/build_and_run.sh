@@ -5,6 +5,8 @@ MODE="${1:-run}"
 APP_NAME="SpinnetHost"
 BUNDLE_ID="com.vulpsecula.SpinnetHost.preview"
 MIN_SYSTEM_VERSION="13.0"
+# The Host version Plugins read as spinnet.environment.hostVersion.
+APP_VERSION="0.1.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -79,6 +81,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>Spinnet</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

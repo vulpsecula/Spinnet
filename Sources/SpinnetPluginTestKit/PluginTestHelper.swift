@@ -7,10 +7,17 @@ import SpinnetCore
 public final class PluginTestHelper {
     private let supervisor: PluginRuntimeSupervisor
 
-    /// Uses the helper at `helperURL`, or else the one `locate()` finds.
-    public init(helperURL: URL? = nil) throws {
+    /// What `spinnet.environment` reports unless a test says otherwise: the
+    /// highest Plugin API Level this kit's Host supports, an unbundled
+    /// Host's version, and English, whatever the machine running the tests
+    /// prefers.
+    public static let defaultEnvironment = PluginRuntimeEnvironment(hostVersion: "0.0.0", preferredLanguage: "en")
+
+    /// Uses the helper at `helperURL`, or else the one `locate()` finds. Every
+    /// script it runs sees `environment` as the Host's.
+    public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment = PluginTestHelper.defaultEnvironment) throws {
         guard let url = helperURL ?? Self.locate() else { throw PluginTestKitError.helperNotFound }
-        supervisor = PluginRuntimeSupervisor(helperURL: url)
+        supervisor = PluginRuntimeSupervisor(helperURL: url, environment: { environment })
     }
 
     /// Runs `invocation` in the helper. Each Host Service request the script
