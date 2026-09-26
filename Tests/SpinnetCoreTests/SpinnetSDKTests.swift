@@ -15,8 +15,7 @@ final class SpinnetSDKTests: XCTestCase {
     /// its line here and wrap it in the SDK instead.
     private static let unwrapped: [PluginHostService: String] = [
         .presentResults: "W15 #62 moves Translator onto Plugin Views",
-        .smartJump: "W14 #61 moves Smart Jump's recognition into its Plugin",
-        .invokeExternalApp: "W8 #55 replaces it with a Reviewed App Interface and Deep Link Templates"
+        .smartJump: "W14 #61 moves Smart Jump's recognition into its Plugin"
     ]
 
     private static let repository = URL(fileURLWithPath: #filePath)
@@ -128,12 +127,12 @@ final class SpinnetSDKTests: XCTestCase {
     /// can test for a feature without guarding the area itself.
     func testTheAreasLaterTicketsFillArePresentAndEmpty() throws {
         let plugin = try writePlugin(capabilities: [], script: """
-            ["apps", "storage", "ui"].map((area) => [typeof spinnet[area], Object.keys(spinnet[area]).length])
+            ["storage", "ui"].map((area) => [typeof spinnet[area], Object.keys(spinnet[area]).length])
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
-        XCTAssertEqual(try run.result.get(), .array(Array(repeating: .array([.string("object"), .number(0)]), count: 3)))
+        XCTAssertEqual(try run.result.get(), .array(Array(repeating: .array([.string("object"), .number(0)]), count: 2)))
     }
 
     /// A script cannot swap a wrapper for something else, whether by accident

@@ -46,10 +46,11 @@ Permission ends the whole invocation even if the script catches the error.
 | `spinnet.http` | `request` (`https_request`) |
 | `spinnet.text` | `detectLanguage` (`detect_language`, which needs no Capability) |
 | `spinnet.screen` | `capture` (`capture_screen`) |
-| `spinnet.apps`, `spinnet.storage`, `spinnet.ui` | Empty until External Apps, Plugin Storage and Plugin Views land |
+| `spinnet.apps` | `perform` (`perform_app_operation`, an operation of a Reviewed App Interface), `openDeepLink` (`open_deep_link`, one of the Plugin's Deep Link Templates) |
+| `spinnet.storage`, `spinnet.ui` | Empty until Plugin Storage and Plugin Views land |
 | `spinnet.environment` | `apiLevel`, `hostVersion`, `preferredLanguage`, `pluginID`, `commandID`, `actionID`, `invocationID` |
 
-`present_results`, `smart_jump` and `invoke_external_app` have no wrapper:
+`present_results` and `smart_jump` have no wrapper:
 they are removed before Level 1 is published.
 
 ## What the manifest schema checks

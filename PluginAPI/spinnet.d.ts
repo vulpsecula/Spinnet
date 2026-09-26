@@ -235,7 +235,28 @@ export interface HTTPArea {
 }
 
 /** Reviewed App Interface operations and Deep Link Templates (W8 #55). */
-export interface AppsArea {}
+export interface AppsArea {
+  /**
+   * Sends one operation of an External App's Reviewed App Interface, such as
+   * `{bundle_id: "com.hezongyidev.Bob", operation: "translateText",
+   * arguments: {text}}`. Needs `control_external_app` with the operation's
+   * family in scope; a missing application or an operation the interface
+   * does not review fails the invocation.
+   * @service perform_app_operation
+   */
+  perform(request: {
+    bundle_id: string;
+    operation: string;
+    arguments?: Record<string, JSONValue>;
+  }): null;
+  /**
+   * Opens one of the Plugin's Deep Link Templates by name, filling its
+   * parameters, without activating the App. Needs `control_external_app`
+   * with that template in the consented scope.
+   * @service open_deep_link
+   */
+  openDeepLink(request: { template: string; parameters?: Record<string, JSONValue> }): null;
+}
 
 export interface TextArea {
   /**

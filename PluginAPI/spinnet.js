@@ -53,8 +53,11 @@
     http: area({
       request: service("https_request")
     }),
-    // Reviewed App Interface operations and Deep Link Templates (W8 #55).
-    apps: area({}),
+    // Reviewed App Interface operations and Deep Link Templates.
+    apps: area({
+      perform: service("perform_app_operation"),
+      openDeepLink: service("open_deep_link")
+    }),
     text: area({
       detectLanguage: service("detect_language")
     }),
