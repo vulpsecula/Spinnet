@@ -69,6 +69,10 @@ struct SpinnetPluginHelperMain {
         context.setObject(invocation.actionID.rawValue, forKeyedSubscript: "actionID" as NSString)
         context.setObject(invocation.commandID.rawValue, forKeyedSubscript: "commandID" as NSString)
         context.setObject(invocation.invocationID, forKeyedSubscript: "invocationID" as NSString)
+        // The View Event this run answers and the state the Host kept from the
+        // script's last view; both null when the Action starts (ADR 0010).
+        context.setObject(invocation.event.foundationObject, forKeyedSubscript: "event" as NSString)
+        context.setObject(invocation.state.foundationObject, forKeyedSubscript: "state" as NSString)
         let requestHostService: @convention(block) (String, String) -> String = {
             serviceName,
             inputJSON in

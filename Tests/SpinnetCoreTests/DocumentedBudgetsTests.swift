@@ -34,6 +34,19 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.maximumMessageBytes, 1_048_576)
     }
 
+    /// docs/adr/0010-run-plugin-views-as-view-sessions.md. These are the
+    /// initial limits; W13 (#60) measures them and pins what it accepts.
+    func testViewSessionBudgetsMatchADR0010() {
+        // "The initial limits are 64 KiB of state, 256 KiB of view
+        //  description, and the existing four-second deadline per event."
+        XCTAssertEqual(ScriptedActionBudgets.viewStateBytes, 64 * 1024)
+        XCTAssertEqual(ScriptedActionBudgets.viewDescriptionBytes, 256 * 1024)
+        XCTAssertEqual(ScriptedActionBudgets.viewEventDeadline, 4)
+
+        // "with input debounced by 100 ms"
+        XCTAssertEqual(ScriptedActionBudgets.fieldChangeDebounce, 0.1)
+    }
+
     /// ADR-0007: "A non-responsive Action therefore reaches a user-visible
     /// terminal state within 4.25 seconds." That figure is the deadline plus
     /// the graceful-exit allowance, so it must stay derived rather than stated

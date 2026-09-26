@@ -60,6 +60,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let smartJumpWindow = SmartJumpWindowController()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
+    /// A toast without a view, shown near the pointer.
+    private let toasts = HostToastPresenter()
+    /// Each Plugin's View Session, if it has one (ADR 0010).
+    private var viewSessions: PluginViewSessions!
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
     private let actionInvocationQueue = DispatchQueue(
         label: "com.vulpsecula.Spinnet.action-invocation",
@@ -196,6 +200,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 resourceAvailability: HostResourceAvailability.missingReason,
                 pluginSettings: { [unowned self] manifest in self.resolvedPluginSettings(manifest) }
             )
+            viewSessions = makeViewSessions()
             configurationStore = HostConfigurationStore(fileURL: configurationFileURL())
             let configuration = try loadConfiguration()
             let editor = HostConfigurationEditor(
@@ -487,11 +492,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let presenter = HostFeedbackPresenter()
             #endif
             executionFeedback[action.id] = presenter
-            let queue = pluginQueues[action.pluginID] ?? DispatchQueue(
-                label: "com.vulpsecula.Spinnet.plugin.\(action.pluginID.rawValue)",
-                qos: .userInitiated
-            )
-            pluginQueues[action.pluginID] = queue
+            let queue = pluginQueue(for: action.pluginID)
             let lifecycle = ActionLifecycle(action: action, execute: { action, control, finish in
                 queue.async {
                     let outcome = actionRunner.invoke(action, using: registry, control: control)
@@ -508,17 +509,36 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     }
                 case .finished(let outcome):
                     self.executions.removeValue(forKey: action.id)
-                    presenter.showOutcome(outcome, retry: { [weak self, weak presenter] in
-                        presenter?.dismiss()
-                        self?.executionFeedback.removeValue(forKey: action.id)
-                        self?.invoke(configuredAction)
-                    })
                     presenter.onDismiss = { [weak self] in
                         self?.executionFeedback.removeValue(forKey: action.id)
                         #if DEBUG
                         self?.lifecycleTestWindow?.show()
                         #endif
                     }
+                    // A view, a closed view or a toast is the Action's own
+                    // feedback; only an answer that shows nothing is reported
+                    // as completed.
+                    var outcome = outcome
+                    if case .succeeded(let answer) = outcome.terminal {
+                        do {
+                            if try self.viewSessions.actionAnswered(configuredAction, with: answer) {
+                                presenter.dismiss()
+                                return
+                            }
+                        } catch {
+                            let violation = error as? PluginRuntimeError
+                                ?? .protocolViolation("The script's answer is invalid")
+                            outcome = ActionOutcome(actionID: outcome.actionID, pluginID: outcome.pluginID,
+                                title: outcome.title, terminal: .failed(ActionFailure(pluginID: outcome.pluginID,
+                                    actionID: outcome.actionID, category: violation.failureCategory,
+                                    message: violation.description)))
+                        }
+                    }
+                    presenter.showOutcome(outcome, retry: { [weak self, weak presenter] in
+                        presenter?.dismiss()
+                        self?.executionFeedback.removeValue(forKey: action.id)
+                        self?.invoke(configuredAction)
+                    })
                 }
             })
             executions[action.id] = lifecycle
@@ -526,6 +546,41 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         } catch {
             feedback.showMessage("Action configuration is unavailable")
         }
+    }
+
+    /// Actions of one Plugin run one after another, View Events included.
+    private func pluginQueue(for pluginID: PluginID) -> DispatchQueue {
+        if let queue = pluginQueues[pluginID] { return queue }
+        let queue = DispatchQueue(label: "com.vulpsecula.Spinnet.plugin.\(pluginID.rawValue)", qos: .userInitiated)
+        pluginQueues[pluginID] = queue
+        return queue
+    }
+
+    /// Each View Event runs its Command through the Action runner, broker
+    /// and Plugin queue an Action uses, without the Action's progress
+    /// feedback. Until Plugin Views are drawn (W11 #58) a view is reported
+    /// and closed.
+    private func makeViewSessions() -> PluginViewSessions {
+        let registry = self.registry
+        let sessions = PluginViewSessions(
+            renderer: UnrenderedPluginViews(
+                report: { [weak self] message in self?.feedback?.showMessage(message) },
+                showToast: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) }
+            ),
+            runEvent: { [weak self] action, delivery, control, finish in
+                guard let self, let actionRunner = self.actionRunner else { return }
+                self.pluginQueue(for: action.pluginID).async {
+                    let outcome = actionRunner.invoke(action, using: registry, control: control, delivering: delivery)
+                    DispatchQueue.main.async { finish(outcome) }
+                }
+            },
+            schedule: { delay, operation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
+            },
+            showFeedback: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) }
+        )
+        sessions.observe(registry: registry, grantStore: capabilityGrants, on: { DispatchQueue.main.async(execute: $0) })
+        return sessions
     }
 
     private func presentClipboardHistory(package: PluginPackage, action: ActionConfiguration) {

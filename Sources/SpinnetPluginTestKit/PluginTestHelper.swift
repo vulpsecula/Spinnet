@@ -26,9 +26,19 @@ public final class PluginTestHelper {
     public func run(_ invocation: PluginTestInvocation, of plugin: PluginUnderTest,
                     answering hostServices: PluginHostServiceBroker) -> PluginTestRun {
         let recorder = RecordingHostServiceBroker(answering: hostServices)
-        let result = Result { try execute(plugin.action(for: invocation), in: plugin.package, using: recorder) }
+        let result = Result {
+            try execute(plugin.action(for: invocation), in: plugin.package, using: recorder,
+                        control: ActionExecutionControl(), delivering: invocation.delivery)
+        }
         return PluginTestRun(result: result, requests: recorder.requests)
     }
+
+    /// Retires the Plugin's helper, as the Host does when it has been idle,
+    /// so a test can check that the next run starts a fresh one.
+    public func retireHelper(of plugin: PluginUnderTest) { supervisor.terminate(pluginID: plugin.manifest.id) }
+
+    /// How many helper processes this kit has started.
+    public var launchCount: Int { supervisor.launchCount }
 
     public func shutdown() { supervisor.shutdown() }
 
@@ -71,6 +81,12 @@ extension PluginTestHelper: ScriptedActionExecutor {
                         control: ActionExecutionControl) throws -> JSONValue {
         try supervisor.execute(action, in: package, using: hostServiceBroker, control: control)
     }
+
+    public func execute(_ action: ActionConfiguration, in package: PluginPackage,
+                        using hostServiceBroker: PluginHostServiceBroker?,
+                        control: ActionExecutionControl, delivering delivery: ViewEventDelivery) throws -> JSONValue {
+        try supervisor.execute(action, in: package, using: hostServiceBroker, control: control, delivering: delivery)
+    }
 }
 
 /// What one run produced.
@@ -84,6 +100,13 @@ public struct PluginTestRun {
     /// The inputs of the requests made to `service`, in order.
     public func inputs(to service: PluginHostService) -> [JSONValue] {
         requests.filter { $0.service == service }.map(\.input)
+    }
+
+    /// The script's answer as the Host reads it: the view and state it
+    /// returned, whether it closed its view, and its toast. Throws the run's
+    /// failure, or a protocol violation for a value that is no answer.
+    public func answer() throws -> PluginScriptAnswer {
+        try PluginScriptAnswer(parsing: result.get())
     }
 }
 

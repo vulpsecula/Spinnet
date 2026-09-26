@@ -1578,10 +1578,15 @@ public struct HostActionRunner {
         }
     }
 
+    /// Runs `action` as the registry currently allows it. A scripted Action
+    /// may be answering one View Event of its View Session, `delivery`; it
+    /// takes the same availability check, Plugin Settings, broker and
+    /// deadline as the Action's own start.
     public func invoke(
         _ action: ActionConfiguration,
         using registry: PluginRegistry,
-        control: ActionExecutionControl = ActionExecutionControl()
+        control: ActionExecutionControl = ActionExecutionControl(),
+        delivering delivery: ViewEventDelivery = .actionStart
     ) -> ActionOutcome {
         switch registry.availability(
             for: action,
@@ -1635,7 +1640,8 @@ public struct HostActionRunner {
                         action,
                         in: package,
                         using: hostServiceBroker,
-                        control: control
+                        control: control,
+                        delivering: delivery
                     ))
                 )
             } catch let error as PluginRuntimeError {

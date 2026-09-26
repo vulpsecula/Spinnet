@@ -44,23 +44,30 @@ public struct PluginUnderTest {
     }
 }
 
-/// One run of one Command, as a Menu Item would start it.
-///
-/// This is where the inputs of a View Session will go: once Plugin Views
-/// land (ADR 0010), a script also receives `event` and `state`, and they
-/// become fields here beside `input`, so existing tests keep compiling.
+/// One run of one Command: the Action starting, as a Menu Item would start
+/// it, or one View Event of its View Session (ADR 0010).
 public struct PluginTestInvocation {
     public var commandID: CommandID
     /// The Action's input: Plugin Settings, then Menu Item overrides, then the
     /// Command's own fields, already merged as the Host would merge them.
     public var input: JSONValue
     public var actionID: ActionID
+    /// The View Event the script answers, its `event` global; nil when the
+    /// Action starts.
+    public var event: PluginViewEvent?
+    /// The state the script returned with its last view, its `state` global.
+    public var state: JSONValue
 
-    public init(_ commandID: String, input: JSONValue = .null, actionID: String? = nil) {
+    public init(_ commandID: String, input: JSONValue = .null, actionID: String? = nil,
+                event: PluginViewEvent? = nil, state: JSONValue = .null) {
         self.commandID = CommandID(commandID)
         self.input = input
         self.actionID = ActionID(actionID ?? commandID)
+        self.event = event
+        self.state = state
     }
+
+    var delivery: ViewEventDelivery { ViewEventDelivery(event: event, state: state) }
 }
 
 public enum PluginTestKitError: Error, Equatable, CustomStringConvertible {

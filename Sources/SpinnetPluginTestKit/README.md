@@ -53,8 +53,22 @@ final class UppercaseTests: XCTestCase {
 
 `PluginTestInvocation` takes the Command ID and the Action's `input`, already
 merged from Plugin Settings, Menu Item overrides and the Command's own fields.
-View Session inputs, `event` and `state`, will be added to it once Plugin
-Views ship.
+To run a View Event of a View Session, give it the event and the state the
+script returned with its view; they become the script's `event` and `state`
+globals, both `null` when the Action starts. `run.answer()` reads what the
+script evaluated to as the Host does, so its state can feed the next run:
+
+```swift
+let opened = try helper.run(PluginTestInvocation("example.form"), of: plugin, answering: services).answer()
+let submit = PluginTestInvocation("example.form", event: .submitted(values: .object(["query": .string("hi")])),
+                                  state: opened.state)
+let submitted = try helper.run(submit, of: plugin, answering: services).answer()
+XCTAssertEqual(submitted.toast, "Sent")
+```
+
+`helper.retireHelper(of: plugin)` retires the Plugin's helper, as the Host
+does when it idles, and `helper.launchCount` counts the helpers started, so a
+test can check that a script keeps nothing between runs.
 
 Scripts run with the same `spinnet` SDK object as in the Host. Its
 `spinnet.environment` reports `PluginTestHelper.defaultEnvironment`, English

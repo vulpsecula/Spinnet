@@ -53,6 +53,27 @@ Permission ends the whole invocation even if the script catches the error.
 `present_results` and `smart_jump` have no wrapper:
 they are removed before Level 1 is published.
 
+## Answers and View Sessions
+
+A script also runs with `event` and `state`, both `null` when its Action
+starts. It answers with the value of its last expression: `{view, state}` to
+show or update its Plugin View, `{close: true}` to close it, or `null` when it
+has nothing to show. Any answer may add a `toast` string; without a view the
+Host shows it near the pointer and starts no View Session. Any other value is
+a protocol violation.
+
+While the view is open the Host keeps `state` and runs the same script again
+for each View Event: `field_changed` (after a 100 ms pause; only the latest
+waiting one is delivered), `submitted`, `action_chosen`, `setting_changed` and
+`section_delivered`. One event runs at a time; the others wait in order. Each
+event is an ordinary invocation with the same four-second deadline, Host
+Services and Capability checks as the Action, so the helper may retire between
+events. A refused Capability keeps the view with an inline error and the last
+good state; a timeout or crash keeps the view and state; a protocol violation
+ends the session. The initial limits are 64 KiB of state and 256 KiB of view
+description. `spinnet.d.ts` types the events and answers as `ViewEvent` and
+`ScriptAnswer`.
+
 ## What the manifest schema checks
 
 The schema checks the shape of each member: which members exist, their types,

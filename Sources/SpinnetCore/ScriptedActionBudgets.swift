@@ -51,6 +51,25 @@ public enum ScriptedActionBudgets {
     /// codec, which is where callers already look for it.
     public static let maximumMessageBytes = 1_048_576
 
+    // MARK: View Sessions
+
+    // ADR-0010's initial limits. W13 (#60) measures View Sessions and then
+    // confirms or changes them, here and in the ADR together.
+
+    /// Largest state, as UTF-8 JSON, a script may keep in the Host between
+    /// View Events.
+    public static let viewStateBytes = 64 * 1024
+
+    /// Largest Plugin View description, as UTF-8 JSON.
+    public static let viewDescriptionBytes = 256 * 1024
+
+    /// Wall-clock deadline for one View Event's invocation: the Action
+    /// deadline, since each event is an ordinary bounded invocation.
+    public static var viewEventDeadline: TimeInterval { actionDeadline }
+
+    /// How long field changes must pause before the latest is delivered.
+    public static let fieldChangeDebounce: TimeInterval = 0.1
+
     /// The longest a non-responsive Action can take to reach a user-visible
     /// terminal state: the deadline plus the forced-termination grace period.
     /// ADR-0007 states this as 4.25 seconds.

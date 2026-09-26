@@ -319,6 +319,11 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     public let scriptSource: String
     public let input: JSONValue
     public let environment: PluginRuntimeEnvironment
+    /// The View Event this invocation answers, as JSON, or null when the
+    /// Action starts (ADR 0010).
+    public let event: JSONValue
+    /// The state the script returned with its last view, or null.
+    public let state: JSONValue
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -329,7 +334,9 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         scriptPath: String,
         scriptSource: String,
         input: JSONValue,
-        environment: PluginRuntimeEnvironment = .current
+        environment: PluginRuntimeEnvironment = .current,
+        event: JSONValue = .null,
+        state: JSONValue = .null
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -340,6 +347,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         self.scriptSource = scriptSource
         self.input = input
         self.environment = environment
+        self.event = event
+        self.state = state
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -353,6 +362,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         case scriptSource = "script_source"
         case input
         case environment
+        case event
+        case state
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -368,6 +379,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         try container.encode(scriptSource, forKey: .scriptSource)
         try container.encode(input, forKey: .input)
         try container.encode(environment, forKey: .environment)
+        try container.encode(event, forKey: .event)
+        try container.encode(state, forKey: .state)
     }
 
     public init(from decoder: Decoder) throws {
@@ -385,7 +398,9 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
             scriptPath: try container.decode(String.self, forKey: .scriptPath),
             scriptSource: try container.decode(String.self, forKey: .scriptSource),
             input: try container.decode(JSONValue.self, forKey: .input),
-            environment: try container.decode(PluginRuntimeEnvironment.self, forKey: .environment)
+            environment: try container.decode(PluginRuntimeEnvironment.self, forKey: .environment),
+            event: try container.decode(JSONValue.self, forKey: .event),
+            state: try container.decode(JSONValue.self, forKey: .state)
         )
         try PluginRuntimeProtocol.validate(invocation)
         self = invocation
@@ -969,6 +984,17 @@ public final class PluginRuntimeConnection {
 /// Plugin-owned script. Production uses `PluginRuntimeSupervisor`; tests can
 /// inject a deterministic executor without reaching through the supervisor.
 public protocol ScriptedActionExecutor {
+    /// Runs the script once to answer `delivery`: the Action's own start, or
+    /// one View Event of its View Session. Every invocation goes through the
+    /// same helper, broker and deadline, whichever it answers.
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl,
+        delivering delivery: ViewEventDelivery
+    ) throws -> JSONValue
+
     func execute(
         _ action: ActionConfiguration,
         in package: PluginPackage,
@@ -986,6 +1012,21 @@ public protocol ScriptedActionExecutor {
 }
 
 public extension ScriptedActionExecutor {
+    /// An executor that knows nothing of View Sessions runs only an Action's
+    /// start, and refuses a View Event rather than answer it without one.
+    func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl,
+        delivering delivery: ViewEventDelivery
+    ) throws -> JSONValue {
+        guard delivery == .actionStart else {
+            throw PluginRuntimeError.invalidAction("This executor cannot deliver View Events")
+        }
+        return try execute(action, in: package, using: hostServiceBroker, control: control)
+    }
+
     func execute(
         _ action: ActionConfiguration,
         in package: PluginPackage,
@@ -1102,6 +1143,16 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         using hostServiceBroker: PluginHostServiceBroker?,
         control: ActionExecutionControl
     ) throws -> JSONValue {
+        try execute(action, in: package, using: hostServiceBroker, control: control, delivering: .actionStart)
+    }
+
+    public func execute(
+        _ action: ActionConfiguration,
+        in package: PluginPackage,
+        using hostServiceBroker: PluginHostServiceBroker?,
+        control: ActionExecutionControl,
+        delivering delivery: ViewEventDelivery
+    ) throws -> JSONValue {
         var lease = try helpers.acquire(pluginID: action.pluginID, control: control)
         defer { helpers.release(lease) }
         try control.check()
@@ -1143,7 +1194,9 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             scriptPath: scriptPath,
             scriptSource: scriptSource,
             input: action.input,
-            environment: environment()
+            environment: environment(),
+            event: delivery.event?.json ?? .null,
+            state: delivery.state
         )
         let connection = PluginRuntimeConnection(pluginID: package.manifest.id)
         let requestData: Data

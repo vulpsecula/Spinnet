@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 //
 // It types the globals the helper injects into a script today, including the
-// `spinnet` SDK object built by `spinnet.js`. `event` and `state` and Plugin
-// View answers are added here as each is implemented, and Level 1 may still
-// change until it is published.
+// `spinnet` SDK object built by `spinnet.js`, `event` and `state`, and the
+// answer a script gives. The view components are added as they are
+// implemented (W11 #58), and Level 1 may still change until it is published.
 //
 // Each SDK wrapper names the one Host Service it requests with an `@service`
 // tag; a test checks the tags against `spinnet.js` and the Host.
@@ -293,12 +293,46 @@ export interface Environment {
   readonly invocationID: string;
 }
 
+// View Sessions (ADR 0010). While a script's Plugin View is open, the Host
+// keeps its state and runs the script again for each View Event, with the
+// event and that state as globals. Nothing lives in the helper between events.
+
+/**
+ * One user interaction in the script's Plugin View. A field change arrives
+ * after a 100 ms pause in typing, and only the latest waiting one arrives.
+ */
+export type ViewEvent =
+  | { type: "field_changed"; field: string; values: { [field: string]: JSONValue } }
+  | { type: "submitted"; values: { [field: string]: JSONValue } }
+  | { type: "action_chosen"; action: string }
+  /** The Host has already stored the new value as Plugin Settings. */
+  | { type: "setting_changed"; key: string; value: JSONValue }
+  | { type: "section_delivered"; section: string; response: JSONValue };
+
+/**
+ * What a script evaluates to. `view` shows or updates its Plugin View and
+ * `state` (at most 64 KiB of JSON) comes back with the next event; the view
+ * description is at most 256 KiB. `{close: true}` closes the view, and `null`
+ * shows nothing, or changes nothing while a view is open. Any answer may add
+ * a `toast`; without a view the Host shows it near the pointer. Anything
+ * else ends the View Session as a protocol violation.
+ */
+export type ScriptAnswer =
+  | null
+  | { view: { [key: string]: JSONValue }; state?: JSONValue; toast?: string }
+  | { close: true; toast?: string }
+  | { toast: string };
+
 declare global {
   /**
    * The Action's input: the Plugin Settings, then the Menu Item's overrides,
    * then the Command's own configured value.
    */
   const input: JSONValue;
+  /** The View Event this run answers, or null when the Action starts. */
+  const event: ViewEvent | null;
+  /** The state the script returned with its last view, or null. */
+  const state: JSONValue;
   /** `input`, encoded as JSON. */
   const inputJSON: string;
   const pluginID: string;
@@ -318,4 +352,4 @@ declare global {
   function requestHostService(name: HostServiceName, input?: JSONValue): JSONValue;
 }
 
-// A script's answer is the value of its last expression, which must be JSON.
+// A script's answer is the value of its last expression, a `ScriptAnswer`.

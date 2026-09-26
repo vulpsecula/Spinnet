@@ -141,6 +141,45 @@ final class PluginTestKitTests: XCTestCase {
         }
     }
 
+    /// A script sees `event` and `state` as globals: both null when its
+    /// Action starts, and the View Event and the state it last returned when
+    /// it answers one (ADR 0010).
+    func testAScriptReceivesTheViewEventAndStateAndNullForBothWhenItsActionStarts() throws {
+        let plugin = try writePlugin(capabilities: [], script: "({ event: event, state: state })")
+
+        let start = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
+        XCTAssertEqual(try start.result.get(), .object(["event": .null, "state": .null]))
+
+        let state: JSONValue = .object(["count": .number(2), "query": .string("hi")])
+        let run = helper.run(PluginTestInvocation("example.run", event: .submitted(values: .object([
+            "query": .string("hello")
+        ])), state: state), of: plugin, answering: RecordedHostServices())
+        XCTAssertEqual(try run.result.get(), .object([
+            "event": .object(["type": .string("submitted"), "values": .object(["query": .string("hello")])]),
+            "state": state
+        ]))
+    }
+
+    /// A script's answer reads as the Host reads it, so a test can check the
+    /// view and state a View Event produced and feed the state to the next.
+    func testARunReadsTheScriptsAnswerAsTheHostDoes() throws {
+        let plugin = try writePlugin(capabilities: [], script: """
+            ({ view: { type: "detail", markdown: "Count " + ((state && state.count) || 0) },
+               state: { count: ((state && state.count) || 0) + 1 }, toast: "Counted" })
+            """)
+
+        let first = try helper.run(PluginTestInvocation("example.run"), of: plugin,
+                                   answering: RecordedHostServices()).answer()
+        XCTAssertEqual(first.view, .object(["type": .string("detail"), "markdown": .string("Count 0")]))
+        XCTAssertEqual(first.state, .object(["count": .number(1)]))
+        XCTAssertEqual(first.toast, "Counted")
+
+        let second = try helper.run(PluginTestInvocation("example.run", event: .actionChosen("again"),
+                                                         state: first.state),
+                                    of: plugin, answering: RecordedHostServices()).answer()
+        XCTAssertEqual(second.state, .object(["count": .number(2)]))
+    }
+
     // MARK: - Support
 
     /// A one-Command package in a temporary directory, removed after the test.
