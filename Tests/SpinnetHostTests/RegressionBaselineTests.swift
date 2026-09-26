@@ -37,14 +37,17 @@ final class RegressionBaselineTests: XCTestCase {
 
     // MARK: Fixtures
 
-    /// The only change a launch makes: Shottr's Commands open Deep Link
+    /// The only changes a launch makes: Shottr's Commands open Deep Link
     /// Templates now instead of running a script (W8, #55), so its Actions
-    /// move onto them, keeping their IDs and inputs.
-    func testConfigurationLoadsThroughTheLaunchStepsWithOnlyShottrsActionsMoved() throws {
+    /// move onto them, keeping their IDs and inputs; and Smart Jump's engines,
+    /// saved as text before the `list` kind (W6, #53), are written as rows.
+    func testConfigurationLoadsThroughTheLaunchStepsWithOnlyShottrAndSmartJumpMoved() throws {
         let grants = try restoredGrants()
         let registry = try registry(grantStore: grants)
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
-        let settingsBefore = try Data(contentsOf: settings.fileURL)
+        let settingsBefore = Dictionary(uniqueKeysWithValues: registry.manifests().map {
+            ($0.id, settings.values(for: $0.id))
+        })
         let store = HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json"))
         let stored = try XCTUnwrap(store.load())
 
@@ -55,7 +58,13 @@ final class RegressionBaselineTests: XCTestCase {
         let expected = try shottrActionsMovedOntoTemplates(stored, registry: registry)
         XCTAssertEqual(migrated, expected, "a launch would rewrite the configuration")
         XCTAssertEqual(migrated.actions.filter { $0.pluginID == PluginID("com.spinnet.shottr") }.count, 8)
-        XCTAssertEqual(try Data(contentsOf: settings.fileURL), settingsBefore, "a launch would rewrite Plugin Settings")
+        for manifest in registry.manifests() {
+            let before = try XCTUnwrap(settingsBefore[manifest.id])
+            let rows = manifest.listSettingsAsRows(before)
+            XCTAssertEqual(rows != nil, manifest.id == PluginID("com.spinnet.smart-jump"), manifest.id.rawValue)
+            XCTAssertEqual(settings.values(for: manifest.id), rows ?? before,
+                           "a launch would rewrite \(manifest.name)'s Plugin Settings")
+        }
         XCTAssertTrue(defaults.persistentDomain(forName: defaultsSuite)?.isEmpty ?? true,
                       "a launch would seed Screenshot Plugin Settings")
         XCTAssertEqual(try StoredDataMigration.migrate(migrated, registry: registry, pluginSettings: settings,
@@ -139,25 +148,27 @@ final class RegressionBaselineTests: XCTestCase {
             let stored = settings.values(for: manifest.id)
             // A stored value a field no longer accepts would be silently
             // replaced by its default. A `list` saved as text before that
-            // kind existed loads as its rows instead (#53).
+            // kind existed migrates to its rows first (#53).
             var expected = stored
             for field in manifest.settingsFields where field.kind == .list {
                 guard let key = field.key, case .string(let text)? = stored[key] else { continue }
-                expected[key] = try XCTUnwrap(field.listRows(fromText: text), "\(manifest.name) \(key) does not load")
+                expected[key] = try XCTUnwrap(field.listRows(fromText: text), "\(manifest.name) \(key) does not migrate")
             }
-            XCTAssertEqual(manifest.resolvedSettings(stored: stored), expected, manifest.id.rawValue)
+            XCTAssertEqual(manifest.resolvedSettings(stored: manifest.listSettingsAsRows(stored) ?? stored), expected,
+                           manifest.id.rawValue)
             try settings.setValues(stored, for: manifest.id)
         }
         try assertSameJSON(settings.fileURL, "PluginSettings.json")
     }
 
     /// Smart Jump's engines were stored as text before the `list` kind (#53).
-    /// They load as rows in their order, so the first is still the default.
+    /// They migrate to rows in their order, so the first is still the default.
     func testStoredSearchEnginesLoadInTheirOrder() throws {
         let registry = try registry()
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         let smartJump = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.smart-jump"))?.manifest)
-        let values = smartJump.resolvedSettings(stored: settings.values(for: smartJump.id))
+        let stored = settings.values(for: smartJump.id)
+        let values = smartJump.resolvedSettings(stored: smartJump.listSettingsAsRows(stored) ?? stored)
         let engines = try SmartJumpSearchEngine.engines(from: values["search_engines"])
         XCTAssertEqual(engines.map(\.name), ["DuckDuckGo", "Google", "Scholar"])
         XCTAssertEqual(engines.map(\.template), [

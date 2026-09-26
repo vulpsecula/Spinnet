@@ -9,22 +9,33 @@ public extension PluginManifest {
     var hasSettings: Bool { !settingsFields.isEmpty }
 
     /// The settings the Host uses: the defaults, replaced by each stored value
-    /// that is still a valid value of a declared field. A `list` stored as
-    /// text, as settings saved before that kind held it, loads as its rows.
-    /// Anything else stored, such as a value from an older version, is ignored.
+    /// that is still a valid value of a declared field. Anything else stored,
+    /// such as a value from an older version, is ignored.
     func resolvedSettings(stored: [String: JSONValue]) -> [String: JSONValue] {
         var values: [String: JSONValue] = [:]
         for field in settingsFields {
             guard let key = field.key else { continue }
             if let value = stored[key], field.acceptsMemberValue(value) {
                 values[key] = value
-            } else if case .string(let text)? = stored[key], let rows = field.listRows(fromText: text) {
-                values[key] = rows
             } else if let value = defaultSettings[key] {
                 values[key] = value
             }
         }
         return values
+    }
+
+    /// `stored` with each `list` setting saved as text, as settings were
+    /// before that kind held them, rewritten as its rows. Text that is not a
+    /// valid list is left for `resolvedSettings` to ignore. Nil when nothing
+    /// is stored as text, so applying it again changes nothing.
+    func listSettingsAsRows(_ stored: [String: JSONValue]) -> [String: JSONValue]? {
+        var settings = stored
+        for field in settingsFields where field.kind == .list {
+            guard let key = field.key, case .string(let text)? = stored[key],
+                  let rows = field.listRows(fromText: text) else { continue }
+            settings[key] = rows
+        }
+        return settings == stored ? nil : settings
     }
 
     /// Settings fields the current values use that have no usable value:

@@ -44,9 +44,9 @@ enum StoredDataMigration {
     }
 
     /// The configuration with one Plugin's manifest `migrations` applied, and
-    /// its stored Plugin Settings renamed as they declare. It runs whenever
-    /// the Host registers or updates the Plugin, and changes nothing the
-    /// second time.
+    /// its stored Plugin Settings renamed as they declare, with any `list`
+    /// saved as text rewritten as rows. It runs whenever the Host registers or
+    /// updates the Plugin, and changes nothing the second time.
     static func applyMigrations(
         declaredBy manifest: PluginManifest,
         to configuration: HostConfiguration,
@@ -54,6 +54,9 @@ enum StoredDataMigration {
     ) throws -> HostConfiguration {
         if let pluginSettings, let renamed = manifest.migrateSettings(pluginSettings.values(for: manifest.id)) {
             try pluginSettings.setValues(renamed, for: manifest.id)
+        }
+        if let pluginSettings, let rows = manifest.listSettingsAsRows(pluginSettings.values(for: manifest.id)) {
+            try pluginSettings.setValues(rows, for: manifest.id)
         }
         return try manifest.migrate(configuration) ?? configuration
     }

@@ -182,8 +182,8 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
   names are unique, at most 50 characters; at most 10 engines. Saving an
   invalid row names the row and refuses; an empty list → unavailable ("Still
   needed: Search Engines (first is default)").
-- Engines saved before #53, as text, open as rows in their order and are
-  written as a list the next time the sheet saves.
+- Engines saved before #53, as text, are written as rows in their order at
+  the first launch, and open as those rows.
 
 ### Permission prompts
 
@@ -364,9 +364,10 @@ The files beside this one are user data in the formats the Host writes to
 through the launch path (`StoredDataMigration`) and requires that nothing
 changes and that they write back unchanged. A ticket that changes a format
 adds its migration and keeps this test passing on these files unchanged.
-The one expected change so far: since W8 (#55) the Shottr Actions move onto
+The expected changes so far: since W8 (#55) the Shottr Actions move onto
 its Deep Link Templates, keeping their IDs and inputs, and its
-`control_external_app` grant is stored with the templates.
+`control_external_app` grant is stored with the templates; since W6 (#53)
+Smart Jump's engines, saved as text, are written as `list` rows.
 
 | File | Covers |
 | --- | --- |

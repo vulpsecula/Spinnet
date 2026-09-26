@@ -251,9 +251,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     // Plugin is installed either way.
                     let migrated: HostConfiguration
                     do {
-                        migrated = try StoredDataMigration.applyMigrations(
+                        let declared = try StoredDataMigration.applyMigrations(
                             declaredBy: manifest, to: configuration, pluginSettings: self.pluginSettings
                         )
+                        migrated = try DeepLinkMigration.migrate(declared, registry: self.registry) ?? declared
                     } catch {
                         migrated = configuration
                         self.showConfigurationError(error)

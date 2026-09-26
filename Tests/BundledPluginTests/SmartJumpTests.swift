@@ -325,12 +325,12 @@ final class SmartJumpScriptTests: XCTestCase {
         XCTAssertEqual(opened.last, URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs"))
     }
 
-    /// Engines a user saved before the `list` kind, as text, still search in
-    /// their order: the first stays the default.
+    /// Engines a user saved before the `list` kind, as text, migrate to rows
+    /// and still search in their order: the first stays the default.
     func testEnginesSavedAsTextStillSearchWithTheFirst() throws {
-        let settings: [String: JSONValue] = ["search_engines": .string(
+        let settings = try XCTUnwrap(SmartJumpFixture.load().manifest.listSettingsAsRows(["search_engines": .string(
             "DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}"
-        )]
+        )]))
         var opened: [URL] = []
         let search = try smartJumpOutcome(selection: { "cats" }, open: { opened.append($0) }, settings: settings)
         guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }

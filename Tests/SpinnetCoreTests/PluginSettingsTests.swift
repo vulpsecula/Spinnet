@@ -249,20 +249,36 @@ final class PluginSettingsTests: XCTestCase {
     }
 
     /// Settings saved before `list` existed held the rows as text, one per
-    /// line with cells separated by `|`. They load as rows in their order,
-    /// and are written as a list the next time the settings save.
-    func testAListStoredAsTextLoadsAsRowsInItsOrder() throws {
+    /// line with cells separated by `|`. They migrate to rows in their order
+    /// once, and after that nothing is left to migrate.
+    func testAListStoredAsTextMigratesToRowsInItsOrderOnce() throws {
         let manifest = try manifest(settings: Self.listSettings,
                                     defaults: #"{"sites": [{"name": "D", "url": "https://d.example/?q={query}"}]}"#)
-        let stored: JSONValue = .string("B | https://b.example/search/{query}\n\n  A|https://a.example/?q={query}  \n")
-        XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": stored])["sites"], .array([
+        let stored: [String: JSONValue] = [
+            "sites": .string("B | https://b.example/search/{query}\n\n  A|https://a.example/?q={query}  \n"),
+            "other": .string("kept")
+        ]
+        let migrated = try XCTUnwrap(manifest.listSettingsAsRows(stored))
+        XCTAssertEqual(migrated, ["sites": .array([
             row("B", "https://b.example/search/{query}"), row("A", "https://a.example/?q={query}")
-        ]))
+        ]), "other": .string("kept")])
+        XCTAssertNil(manifest.listSettingsAsRows(migrated), "a second migration changes nothing")
+    }
+
+    /// Text that is not a valid list is left as stored, and like any other
+    /// invalid stored value it is ignored in favour of the default. Reading
+    /// settings never parses text as rows.
+    func testAListStoredAsInvalidTextIsLeftAndIgnored() throws {
+        let manifest = try manifest(settings: Self.listSettings,
+                                    defaults: #"{"sites": [{"name": "D", "url": "https://d.example/?q={query}"}]}"#)
         for invalid in ["", "A", "A | http://a.example/?q={query}", "A | https://a.example/?q={query} | x",
                         "A | https://a.example/?q={query}\nA | https://b.example/?q={query}"] {
+            XCTAssertNil(manifest.listSettingsAsRows(["sites": .string(invalid)]), invalid)
             XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": .string(invalid)])["sites"],
                            .array([row("D", "https://d.example/?q={query}")]), invalid)
         }
+        XCTAssertEqual(manifest.resolvedSettings(stored: ["sites": .string("B | https://b.example/?q={query}")])["sites"],
+                       .array([row("D", "https://d.example/?q={query}")]))
     }
 
     // MARK: - Combining settings with an Action

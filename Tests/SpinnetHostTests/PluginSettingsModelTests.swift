@@ -228,23 +228,6 @@ final class PluginSettingsModelTests: XCTestCase {
         return (model, store)
     }
 
-    /// Engines saved as text before the `list` kind open as rows in their
-    /// order, the first still the default, and save back as a list.
-    func testEnginesStoredAsTextOpenAsRowsAndSaveAsAList() throws {
-        let (model, store) = try smartJumpModel(stored: ["search_engines": .string(
-            "DuckDuckGo | https://duckduckgo.com/?q={query}\nScholar | https://scholar.google.com/scholar?q={query}"
-        )])
-        XCTAssertEqual(model.rows(for: "search_engines"), [
-            ["name": "DuckDuckGo", "url": "https://duckduckgo.com/?q={query}"],
-            ["name": "Scholar", "url": "https://scholar.google.com/scholar?q={query}"]
-        ])
-        XCTAssertTrue(model.save(), model.error ?? "")
-        XCTAssertEqual(store.values(for: model.manifest.id)["search_engines"], .array([
-            .object(["name": .string("DuckDuckGo"), "url": .string("https://duckduckgo.com/?q={query}")]),
-            .object(["name": .string("Scholar"), "url": .string("https://scholar.google.com/scholar?q={query}")])
-        ]))
-    }
-
     /// The generic row editor adds an empty row last, edits one cell, moves a
     /// row within the list, and removes one.
     func testRowsAreAddedEditedMovedAndRemoved() throws {
