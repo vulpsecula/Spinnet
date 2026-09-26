@@ -526,7 +526,8 @@ public final class ResultsPresentationSession {
             return error.description
         case .externalAppMissing(let message), .externalAppOperationUnsupported(let message):
             return message
-        case .invalidInput(let message), .unavailable(let message), .failed(let message):
+        case .invalidInput(let message), .unavailable(let message), .failed(let message),
+             .storageLimitExceeded(let message):
             return message
         }
     }

@@ -108,6 +108,8 @@ struct PluginConsentSheet: View {
     var screenshotSettings: ScreenshotSettingsModel? = nil
     /// The Plugin's declared settings, saved by Done.
     var pluginSettings: PluginSettingsModel? = nil
+    /// What the Plugin keeps in Plugin Storage.
+    var pluginStorage: PluginStorageModel? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -124,6 +126,9 @@ struct PluginConsentSheet: View {
                     PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
                                      setDecision: privacy.setCapabilityDecision,
                                      consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
+                    if let pluginStorage {
+                        PluginStorageSection(model: pluginStorage, pluginName: manifest.name)
+                    }
                 }
             }
             HStack {

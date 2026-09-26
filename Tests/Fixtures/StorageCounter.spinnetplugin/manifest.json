@@ -1,0 +1,31 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.example.storage-counter",
+  "name": "Storage Counter",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "counter.count",
+    "default_alternate_command_ids": ["counter.overfill"]
+  },
+  "commands": [
+    {
+      "id": "counter.count",
+      "title": "Count Runs",
+      "description": "Counts its own runs in Plugin Storage and shows the count.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "count.js"
+    },
+    {
+      "id": "counter.overfill",
+      "title": "Store Too Much",
+      "description": "Tries to keep a value over the 512 KiB limit and shows how Plugin Storage refused it.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "overfill.js"
+    }
+  ]
+}

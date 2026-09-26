@@ -58,9 +58,16 @@ struct SpinnetPluginHelperMain {
         let context = JSContext()!
         var exceptionMessage: String?
         var hostServiceFailure: PluginRuntimeFailure?
+        // Failures the script may catch, each with the error it was thrown
+        // as, and the one the script let escape, if any.
+        var catchableFailures: [(error: JSValue, failure: PluginRuntimeFailure)] = []
+        var uncaughtHostServiceFailure: PluginRuntimeFailure?
+        // The errors hold the context, which holds the closures holding them.
+        defer { catchableFailures.removeAll() }
         let hostServiceClient = PluginRuntimeHostServiceClient(invocation: invocation)
         context.exceptionHandler = { _, exception in
             exceptionMessage = exception?.toString()
+            uncaughtHostServiceFailure = catchableFailures.first { exception?.isEqual(to: $0.error) == true }?.failure
         }
 
         context.setObject(invocation.input.foundationObject, forKeyedSubscript: "input" as NSString)
@@ -82,6 +89,20 @@ struct SpinnetPluginHelperMain {
                     serviceName: serviceName,
                     inputJSON: inputJSON
                 )
+            } catch let error as PluginRuntimeHostServiceClientError
+                        where error.failure.category.isCatchableByScript {
+                // A failure that harms nothing, such as a Plugin Storage write
+                // over a limit, is thrown into the script as an Error with the
+                // failure's category as its `code`, for it to catch.
+                guard let context = JSContext.current(),
+                      let thrown = JSValue(newErrorFromMessage: error.failure.message, in: context) else {
+                    hostServiceFailure = error.failure
+                    return "!"
+                }
+                thrown.setValue(error.failure.category.rawValue, forProperty: "code")
+                catchableFailures.append((thrown, error.failure))
+                context.exception = thrown
+                return "null"
             } catch let error as PluginRuntimeHostServiceClientError {
                 hostServiceFailure = error.failure
                 // Make the JavaScript wrapper throw immediately. Returning a
@@ -119,7 +140,7 @@ struct SpinnetPluginHelperMain {
         }
 
         guard let value = context.evaluateScript(invocation.scriptSource) else {
-            if let hostServiceFailure {
+            if let hostServiceFailure = hostServiceFailure ?? uncaughtHostServiceFailure {
                 return PluginRuntimeResponse(
                     invocationID: invocation.invocationID,
                     actionID: invocation.actionID,
@@ -135,7 +156,9 @@ struct SpinnetPluginHelperMain {
                 ))
             )
         }
-        if let hostServiceFailure {
+        // A catchable failure the script let escape ends the invocation as
+        // the Host's failure, not as a script error.
+        if let hostServiceFailure = hostServiceFailure ?? uncaughtHostServiceFailure {
             return PluginRuntimeResponse(
                 invocationID: invocation.invocationID,
                 actionID: invocation.actionID,
@@ -275,7 +298,20 @@ private final class PluginRuntimeHostServiceClient {
             input: input
         )
         do {
-            let data = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
+            let data: Data
+            do {
+                data = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
+            } catch where service == .setStorageValue {
+                // A value too large to send in one message is larger than
+                // any Plugin Storage keeps, so it fails as the Host fails a
+                // value over the limit: nothing stored, and catchable.
+                throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
+                    category: .storageLimitExceeded,
+                    message: "A Plugin Storage value may be at most "
+                        + "\(PluginStorageBudgets.maximumValueBytes / 1024) KiB, and this one is too large to "
+                        + "send to the Host; nothing was stored"
+                ))
+            }
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data([0x0A]))
             guard let responseData = try PluginRuntimeProtocol.readFrame(

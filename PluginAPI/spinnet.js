@@ -10,6 +10,8 @@
 // service's input, unchanged, and returns the service's answer. It therefore
 // fails exactly as `requestHostService` does: a refused Capability or System
 // Permission ends the whole invocation, even if the script catches the error.
+// Only a Plugin Storage write over a limit throws an error the script may
+// catch, with `code` "storage_limit_exceeded".
 //
 // To add a wrapper, give it a camelCase name in the area it belongs to, name
 // its service with `service(...)`, and declare it in `spinnet.d.ts` with an
@@ -64,8 +66,14 @@
     screen: area({
       capture: service("capture_screen")
     }),
-    // Plugin Storage (W20 #67).
-    storage: area({}),
+    // Plugin Storage: the Plugin's own JSON values, kept between invocations.
+    storage: area({
+      get: service("get_storage_value"),
+      set: service("set_storage_value"),
+      remove: service("remove_storage_value"),
+      keys: service("list_storage_keys"),
+      clear: service("clear_storage")
+    }),
     // Pure builders for Plugin Views and standard actions; no Host call (W11 #58).
     ui: area({}),
     environment: area({

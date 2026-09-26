@@ -68,7 +68,8 @@ final class ResultsPopupModel: ObservableObject {
         case .capabilityDenied, .systemPermissionDenied, .automationPermissionDenied, .externalAppMissing:
             return "\(error)"
         case .externalAppOperationUnsupported(let message): return message
-        case .invalidInput(let message), .unavailable(let message), .failed(let message): return message
+        case .invalidInput(let message), .unavailable(let message), .failed(let message),
+             .storageLimitExceeded(let message): return message
         }
     }
 

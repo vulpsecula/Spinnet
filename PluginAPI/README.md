@@ -8,6 +8,7 @@ type definitions without taking on the GPL that covers the rest of Spinnet.
 | File | Contents |
 | --- | --- |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json` |
+| [`schemas/plugin-storage.schema.json`](schemas/plugin-storage.schema.json) | JSON Schemas for the inputs and results of the Plugin Storage Host Services |
 | [`spinnet.d.ts`](spinnet.d.ts) | Types for the globals a Plugin script runs with, including `spinnet` |
 | [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every script |
 | [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds `spinnet.js` in the helper when it is built |
@@ -35,6 +36,8 @@ a camelCase name for exactly one Host Service: it sends its argument as the
 service's input, unchanged (`null` when omitted), and returns the answer, so it
 fails exactly as `requestHostService` does. A refused Capability or System
 Permission ends the whole invocation even if the script catches the error.
+The one failure a script may catch is a Plugin Storage write over a limit,
+thrown as an `Error` whose `code` is `storage_limit_exceeded`.
 `requestHostService(name, input)` stays available as the raw call.
 
 | Area | Wrappers |
@@ -47,11 +50,34 @@ Permission ends the whole invocation even if the script catches the error.
 | `spinnet.text` | `detectLanguage` (`detect_language`, which needs no Capability) |
 | `spinnet.screen` | `capture` (`capture_screen`) |
 | `spinnet.apps` | `perform` (`perform_app_operation`, an operation of a Reviewed App Interface), `openDeepLink` (`open_deep_link`, one of the Plugin's Deep Link Templates) |
-| `spinnet.storage`, `spinnet.ui` | Empty until Plugin Storage and Plugin Views land |
+| `spinnet.storage` | `get` (`get_storage_value`), `set` (`set_storage_value`), `remove` (`remove_storage_value`), `keys` (`list_storage_keys`), `clear` (`clear_storage`), over Plugin Storage, which needs no Capability |
+| `spinnet.ui` | Empty until Plugin Views land |
 | `spinnet.environment` | `apiLevel`, `hostVersion`, `preferredLanguage`, `pluginID`, `commandID`, `actionID`, `invocationID` |
 
 `present_results` and `smart_jump` have no wrapper:
 they are removed before Level 1 is published.
+
+## Plugin Storage
+
+Each Plugin has its own key-value store of JSON values, kept between
+invocations and launches, which no other Plugin can reach (ADR 0015). It needs
+no Capability and no consent: a Plugin keeps there only what it already holds.
+The Library shows how much each Plugin keeps and offers Clear Stored Data;
+removing a Plugin deletes its store, so installing it again starts empty, and
+an update keeps it. It is not the Keychain and never the place for a secret.
+
+```js
+const runs = (spinnet.storage.get("runs") ?? 0) + 1;
+spinnet.storage.set({ key: "runs", value: runs });
+```
+
+A key is a non-empty string of at most 128 characters. `get` answers `null`
+for a key with no value, and setting `null` removes the key. A value, as JSON,
+is at most 512 KiB, so it always fits in one helper message; a Plugin keeps at
+most 10 MiB; and the list `keys` answers is at most 512 KiB. A write over any
+of them stores nothing and throws an error with `code` `storage_limit_exceeded`
+that the script may catch and carry on from. Each key is its own file, written
+atomically, so a write rewrites only its own value.
 
 ## Answers and View Sessions
 

@@ -492,6 +492,21 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Plugin already holds the text and nothing leaves the machine, so it
     /// needs no Capability.
     case detectLanguage = "detect_language"
+    /// Plugin Storage (ADR 0015): the value the Plugin keeps under a key, or
+    /// null. Each Plugin reaches only its own store, and keeps there only
+    /// what it already held, so none of these needs a Capability.
+    case getStorageValue = "get_storage_value"
+    /// Keeps a JSON value under a key, within the Plugin Storage limits.
+    case setStorageValue = "set_storage_value"
+    case removeStorageValue = "remove_storage_value"
+    /// The names of the Plugin's keys, without their values.
+    case listStorageKeys = "list_storage_keys"
+    case clearStorage = "clear_storage"
+
+    /// The Plugin Storage services, answered by `PluginStorage`.
+    public var isPluginStorage: Bool {
+        [.getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage].contains(self)
+    }
 
     /// The Capability a Plugin must be granted to request the service, or
     /// nil when the service gives it nothing it does not already hold.
@@ -517,7 +532,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
-        case .detectLanguage:
+        case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
         }
     }
@@ -539,7 +554,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
-        case .detectLanguage:
+        case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
         }
     }
@@ -555,6 +570,9 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     case invalidInput(String)
     case unavailable(String)
     case failed(String)
+    /// A Plugin Storage write over a limit. It stored nothing, and unlike
+    /// every other failure the script may catch it and carry on.
+    case storageLimitExceeded(String)
 
     public var description: String {
         switch self {
@@ -574,6 +592,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Host Service is unavailable: \(message)"
         case .failed(let message):
             return "Host Service failed: \(message)"
+        case .storageLimitExceeded(let message):
+            return message
         }
     }
 
@@ -593,6 +613,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed:
             return .hostServiceFailed
+        case .storageLimitExceeded:
+            return .storageLimitExceeded
         }
     }
 
@@ -608,7 +630,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppMissing
         case .externalAppOperationUnsupported:
             return .externalAppOperationUnsupported
-        case .invalidInput, .unavailable, .failed:
+        case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
         }
     }
@@ -662,6 +684,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let localPathOpener: (URL) throws -> Void
     private let appleEventSender: (AppleEventRequest) throws -> Void
     private let deepLinkOpener: (DeepLink) throws -> Void
+    private let pluginStorage: PluginStorage?
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -718,7 +741,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         deepLinkOpener: @escaping (DeepLink) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Deep links")
-        }
+        },
+        pluginStorage: PluginStorage? = nil
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -747,6 +771,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.localPathOpener = localPathOpener
         self.appleEventSender = appleEventSender
         self.deepLinkOpener = deepLinkOpener
+        self.pluginStorage = pluginStorage
     }
 
     public func execute(
@@ -1078,6 +1103,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("detect_language expects a text string")
             }
             return languageDetector(text).map(JSONValue.string) ?? .null
+        case .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
+            guard let pluginStorage else {
+                throw PluginHostServiceError.unavailable("Plugin Storage")
+            }
+            // The Plugin bound to the connection, never one the request
+            // names: a Plugin reaches only its own store.
+            return try pluginStorage.answer(service, input: request.input, for: package.manifest.id)
         }
     }
 

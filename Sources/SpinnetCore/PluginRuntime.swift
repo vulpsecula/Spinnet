@@ -240,7 +240,9 @@ public enum PluginRuntimeProtocol {
     private static func encode<T: Encodable>(_ value: T, description: String) throws -> Data {
         do {
             let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
+            // Slashes stay unescaped, so a value measured as Plugin Storage
+            // measures it takes no more room in a message.
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             let data = try encoder.encode(value)
             try validateMessageSize(data, description: description)
             return data
@@ -490,6 +492,16 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
+    /// A Plugin Storage write over a limit, which stored nothing.
+    case storageLimitExceeded = "storage_limit_exceeded"
+
+    /// Whether the helper hands this Host Service failure to the script as
+    /// an error it may catch. Every other failure ends the invocation, so a
+    /// refusal can never fall through to a later protected operation; a
+    /// write that did not fit harms nothing and the script may recover.
+    public var isCatchableByScript: Bool {
+        self == .storageLimitExceeded
+    }
 }
 
 public struct PluginRuntimeFailure: Codable, Equatable, Hashable {
@@ -1340,7 +1352,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .externalAppMissing(failure.message)
             case .externalAppOperationUnsupported:
                 runtimeError = .externalAppOperationUnsupported(failure.message)
-            case .hostServiceFailed:
+            case .hostServiceFailed, .storageLimitExceeded:
                 runtimeError = .hostServiceFailed(failure.message)
             }
             try fail(action: action, error: runtimeError)

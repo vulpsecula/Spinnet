@@ -49,6 +49,19 @@ export type HostServiceName =
   | "open_deep_link"
   /** Presents the Host Surface for Clipboard History; needs `read_clipboard_history`. */
   | "present_clipboard_history"
+  /**
+   * Plugin Storage, which needs no Capability: the value kept under a key
+   * string, or `null` when there is none.
+   */
+  | "get_storage_value"
+  /** Keeps `{key, value}`, answered with `null`; a `null` value removes the key. */
+  | "set_storage_value"
+  /** Forgets a key string, answered with `null`. */
+  | "remove_storage_value"
+  /** The Plugin's keys, sorted, without their values. */
+  | "list_storage_keys"
+  /** Forgets every key, answered with `null`. */
+  | "clear_storage"
   // Removed before Level 1 is published; their behaviour moves into Plugins.
   | "present_results"
   | "smart_jump";
@@ -146,7 +159,8 @@ export interface ScreenCaptureRequest {
  * The `spinnet` object, one area per kind of Host functionality. Each
  * wrapper requests one Host Service with its argument as the input and
  * returns the answer; a refused Capability or System Permission ends the
- * whole invocation, even if the script catches the error.
+ * whole invocation, even if the script catches the error. Only a Plugin
+ * Storage write over a limit throws an error the script may catch.
  */
 export interface Spinnet {
   readonly selection: SelectionArea;
@@ -273,8 +287,53 @@ export interface ScreenArea {
   capture(request: ScreenCaptureRequest): null;
 }
 
-/** Plugin Storage (W20 #67). */
-export interface StorageArea {}
+/**
+ * Plugin Storage: the Plugin's own key-value store of JSON values, kept
+ * between invocations and launches, which no other Plugin can reach. It needs
+ * no Capability. The user sees how much it holds in the Library and may clear
+ * it there; removing the Plugin deletes it, and an update keeps it. It is not
+ * for secrets.
+ *
+ * A key is a non-empty string of at most 128 characters. A value, as JSON,
+ * is at most 512 KiB, and a Plugin keeps at most 10 MiB, with the list of its
+ * keys at most 512 KiB. A write over a limit stores nothing and throws a
+ * `StorageLimitError` the script may catch and carry on from; any other
+ * failure ends the invocation, as a failed Host Service does.
+ */
+export interface StorageArea {
+  /**
+   * The value kept under `key`, or null when there is none.
+   * @service get_storage_value
+   */
+  get(key: string): JSONValue;
+  /**
+   * Keeps `value` under `key`, replacing what was there. A null value
+   * removes the key. Only this key's file is rewritten.
+   * @throws {StorageLimitError} when the value or the store would pass a limit.
+   * @service set_storage_value
+   */
+  set(entry: { key: string; value: JSONValue }): null;
+  /**
+   * Forgets `key`; a key the Plugin does not keep is no error.
+   * @service remove_storage_value
+   */
+  remove(key: string): null;
+  /**
+   * Every key the Plugin keeps, sorted, without their values.
+   * @service list_storage_keys
+   */
+  keys(): string[];
+  /**
+   * Forgets every key, as Clear Stored Data in the Library does.
+   * @service clear_storage
+   */
+  clear(): null;
+}
+
+/** What `spinnet.storage.set` throws when a write would pass a limit. */
+export interface StorageLimitError extends Error {
+  readonly code: "storage_limit_exceeded";
+}
 
 /** Pure builders for Plugin Views and standard actions (W11 #58). */
 export interface UIArea {}

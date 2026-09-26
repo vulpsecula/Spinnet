@@ -17,18 +17,24 @@ public struct PluginInstallationReview: Equatable {
 /// Owns installed package copies and an atomic index, plus the record of which
 /// shipped Plugins the user removed. Importing never starts a helper or grants
 /// access. Old copies remain available if writing fails.
+///
+/// It also decides the fate of each Plugin's Plugin Storage: removing a
+/// Plugin deletes it, installing a Plugin that is not registered starts it
+/// empty, and an update keeps it.
 public final class PluginInstallationStore {
     private let directory: URL
     private let registry: PluginRegistry
     private let grants: PluginCapabilityGrantStore
     private let persistGrants: () throws -> Void
+    private let storage: PluginStorage?
 
     public init(directory: URL, registry: PluginRegistry, grants: PluginCapabilityGrantStore,
-                persistGrants: @escaping () throws -> Void) {
+                persistGrants: @escaping () throws -> Void, storage: PluginStorage? = nil) {
         self.directory = directory
         self.registry = registry
         self.grants = grants
         self.persistGrants = persistGrants
+        self.storage = storage
     }
 
     private var indexURL: URL { directory.appendingPathComponent("installed.json") }
@@ -56,7 +62,9 @@ public final class PluginInstallationStore {
 
     /// Removes a Plugin the user no longer wants. Menu Items that referenced it
     /// are left alone: they report the same unavailability as a disabled
-    /// Plugin, so nothing the user arranged is discarded by a removal.
+    /// Plugin, so nothing the user arranged is discarded by a removal. What it
+    /// kept in Plugin Storage is deleted, as its access decisions are
+    /// forgotten.
     ///
     /// The durable record is written before the Plugin leaves the registry, so
     /// a crash in between leaves the removal done rather than half done.
@@ -74,6 +82,7 @@ public final class PluginInstallationStore {
         registry.unregister(pluginID)
         grants.removeGrants(for: pluginID)
         try persistGrants()
+        try storage?.clear(pluginID)
     }
 
     /// Drops the user's own copy of a Plugin: its index entry first, so a
@@ -169,6 +178,11 @@ public final class PluginInstallationStore {
             guard package.manifest == candidate.manifest else {
                 throw ConfigurationError.invalidManifest("Plugin changed during installation")
             }
+            let isUpdate = registry.package(for: package.manifest.id) != nil
+            // A Plugin that is not registered starts with empty Plugin
+            // Storage, even if a write reached it after it was removed. An
+            // update keeps what the earlier version kept.
+            if !isUpdate { try storage?.clear(package.manifest.id) }
             grants.prepareInstallation(of: package.manifest,
                 replacing: registry.package(for: package.manifest.id)?.manifest)
             // Persist inherited and newly requested scope decisions before
@@ -177,7 +191,7 @@ public final class PluginInstallationStore {
             var index = try readIndex()
             let oldName = index.updateValue(name, forKey: package.manifest.id.rawValue)
             try JSONEncoder().encode(index).write(to: indexURL, options: .atomic)
-            if registry.package(for: package.manifest.id) == nil {
+            if !isUpdate {
                 try registry.register(package)
             } else {
                 try registry.replace(package)

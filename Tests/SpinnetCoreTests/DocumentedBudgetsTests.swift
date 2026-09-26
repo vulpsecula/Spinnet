@@ -192,3 +192,37 @@ final class ResultsPresentationBudgetsTests: XCTestCase {
         XCTAssertEqual(ResultsPresentationBudgets.textPlaceholder, "{{text}}")
     }
 }
+
+final class PluginStorageBudgetsTests: XCTestCase {
+
+    /// docs/plugin-interface.md, "Plugin Storage", and
+    /// docs/adr/0015-give-each-plugin-its-own-storage-without-a-capability.md
+    func testBudgetsMatchDocumentedInterface() {
+        // "A key is a non-empty string of at most 128 characters"
+        XCTAssertEqual(PluginStorageBudgets.maximumKeyLength, 128)
+        // "A value may be up to 512 KiB"
+        XCTAssertEqual(PluginStorageBudgets.maximumValueBytes, 512 * 1024)
+        // "a Plugin may keep up to 10 MiB, the default capacity of Raycast's `Cache`"
+        XCTAssertEqual(PluginStorageBudgets.maximumPluginBytes, 10 * 1024 * 1024)
+        // "the list of its keys is at most 512 KiB"
+        XCTAssertEqual(PluginStorageBudgets.maximumKeyListBytes, 512 * 1024)
+    }
+
+    /// ADR 0015: "A value may be up to 512 KiB, so it always fits in one
+    /// helper message". The list of keys is bounded for the same reason, and
+    /// half the message leaves room for the message around it.
+    func testAValueAndTheListOfKeysEachFitInOneHelperMessage() {
+        XCTAssertLessThanOrEqual(PluginStorageBudgets.maximumValueBytes * 2, ScriptedActionBudgets.maximumMessageBytes)
+        XCTAssertLessThanOrEqual(PluginStorageBudgets.maximumKeyListBytes * 2, ScriptedActionBudgets.maximumMessageBytes)
+    }
+
+    /// The store enforces the published limits unless a test says otherwise.
+    func testTheStoreEnforcesThePublishedLimits() {
+        XCTAssertEqual(PluginStorage.Limits.published, PluginStorage.Limits(
+            maximumKeyLength: PluginStorageBudgets.maximumKeyLength,
+            maximumValueBytes: PluginStorageBudgets.maximumValueBytes,
+            maximumPluginBytes: PluginStorageBudgets.maximumPluginBytes,
+            maximumKeyListBytes: PluginStorageBudgets.maximumKeyListBytes
+        ))
+    }
+}

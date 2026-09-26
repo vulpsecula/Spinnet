@@ -180,6 +180,42 @@ final class PluginTestKitTests: XCTestCase {
         XCTAssertEqual(second.state, .object(["count": .number(2)]))
     }
 
+    /// Plugin Storage is answered by a real store over a directory the test
+    /// chooses, so a later run over the same directory reads what an earlier
+    /// one kept. A recorded answer still wins, and without a store the
+    /// services are unanswered like any other.
+    func testPluginStorageIsAnsweredByTheStoreTheTestSupplies() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetTestKitStorage-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              const runs = (spinnet.storage.get("runs") ?? 0) + 1;
+              spinnet.storage.set({ key: "runs", value: runs });
+              return runs;
+            })()
+            """)
+
+        for expected in 1...2 {
+            let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                                 answering: RecordedHostServices(storage: PluginStorage(directory: directory)))
+            XCTAssertEqual(try run.result.get(), .number(Double(expected)))
+        }
+        XCTAssertEqual(try PluginStorage(directory: directory).value(forKey: "runs", of: plugin.manifest.id),
+                       .number(2))
+
+        let recorded = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices(
+            [.getStorageValue: .value(.number(41)), .setStorageValue: .value(.null)],
+            storage: PluginStorage(directory: directory)
+        ))
+        XCTAssertEqual(try recorded.result.get(), .number(42))
+
+        let unanswered = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
+        XCTAssertThrowsError(try unanswered.result.get()) {
+            XCTAssertTrue("\($0)".contains("get_storage_value"), "\($0)")
+        }
+    }
+
     // MARK: - Support
 
     /// A one-Command package in a temporary directory, removed after the test.

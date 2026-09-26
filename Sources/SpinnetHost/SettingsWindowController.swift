@@ -109,7 +109,8 @@ final class SettingsWindowController: NSWindowController {
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         credentialStore: PluginCredentialStore? = nil,
-        pluginSettingsStore: PluginSettingsStore? = nil
+        pluginSettingsStore: PluginSettingsStore? = nil,
+        pluginStorage: PluginStorage? = nil
     ) {
         model = SettingsWindowModel(
             editor: editor,
@@ -120,6 +121,7 @@ final class SettingsWindowController: NSWindowController {
         )
         model.credentialStore = credentialStore
         model.pluginSettingsStore = pluginSettingsStore
+        model.pluginStorage = pluginStorage
 
         let window = SettingsWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1_360, height: 820),

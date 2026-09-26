@@ -218,6 +218,9 @@ final class SettingsWindowModel: ObservableObject {
     /// The settings section of the open Plugin Settings sheet, kept while it
     /// is open so edits survive a redraw.
     private var openPluginSettings: PluginSettingsModel?
+    /// Where Plugins keep their Plugin Storage, shown and cleared per Plugin.
+    var pluginStorage: PluginStorage?
+    private var openPluginStorage: PluginStorageModel?
     var onMouseCaptureChanged: ((Bool, MouseButtonCaptureSession) -> Void)?
     /// Where Configuration Sheets keep secrets typed into credential fields.
     var credentialStore: PluginCredentialStore?
@@ -279,9 +282,19 @@ final class SettingsWindowModel: ObservableObject {
         return model
     }
 
+    /// The Stored Data section, which every Plugin has.
+    func pluginStorageModel(for manifest: PluginManifest) -> PluginStorageModel? {
+        guard let pluginStorage else { return nil }
+        if let open = openPluginStorage, open.pluginID == manifest.id { return open }
+        let model = PluginStorageModel(pluginID: manifest.id, storage: pluginStorage)
+        openPluginStorage = model
+        return model
+    }
+
     func closePluginSettings() {
         privacy.pluginSettingsManifest = nil
         openPluginSettings = nil
+        openPluginStorage = nil
     }
 
     func selectPage(_ page: SettingsPage) {
@@ -393,7 +406,8 @@ struct SettingsRootView: View {
                 PluginConsentSheet(privacy: privacy, manifest: manifest,
                                    onDone: model.closePluginSettings,
                                    screenshotSettings: manifest.commands.contains { $0.hostCommand?.captureSource != nil } ? screenshots : nil,
-                                   pluginSettings: model.pluginSettingsModel(for: manifest))
+                                   pluginSettings: model.pluginSettingsModel(for: manifest),
+                                   pluginStorage: model.pluginStorageModel(for: manifest))
             }
         }
         .sheet(item: Binding(

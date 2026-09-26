@@ -87,7 +87,8 @@ Each Host Service answers every request the same way:
 
 - `.value(json)` returns a value.
 - `.failure(error)` fails with a `PluginHostServiceError`, which ends the run
-  as the Host's failure would.
+  as the Host's failure would; `storageLimitExceeded` reaches the script as
+  an error it may catch, as the Host's does.
 - `.answer { input in ... }` computes the answer from the request's input.
 - `try .encoding(value)` returns an `Encodable` value, such as a
   `FocusedWindow`, encoded as the Host encodes it.
@@ -100,6 +101,23 @@ service with no recorded answer fails the run naming the service.
 `run.result` holds what the script evaluated to, or the `PluginRuntimeError`
 the Host would have seen. `run.requests` lists every Host Service request in
 order, answered or not.
+
+## Plugin Storage
+
+`spinnet.storage` is easiest to test against a real store. Pass one over a
+temporary directory, and the five Plugin Storage services are answered the
+way the Host answers them, limits and all, unless you record an answer for
+one. A store over the same directory in a later run stands for a relaunch:
+
+```swift
+let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+defer { try? FileManager.default.removeItem(at: directory) }
+for expected in 1...2 {
+    let run = helper.run(PluginTestInvocation("counter.count"), of: plugin,
+                         answering: RecordedHostServices(storage: PluginStorage(directory: directory)))
+    XCTAssertEqual(try run.result.get(), .number(Double(expected)))
+}
+```
 
 ## Using the Host's own services
 

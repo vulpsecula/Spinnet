@@ -18,10 +18,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// Each Plugin's Plugin Settings, read when an Action runs or availability
     /// is computed. Set first thing at launch.
     private var pluginSettings: PluginSettingsStore?
+    /// Each Plugin's Plugin Storage, one directory per Plugin (ADR 0015).
+    private lazy var pluginStorage = PluginStorage(
+        directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginStorage")
+    )
     private lazy var pluginInstallation = PluginInstallationStore(
         directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
         registry: registry, grants: capabilityGrants,
-        persistGrants: { [unowned self] in try self.saveCapabilityGrants() }
+        persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
+        storage: pluginStorage
     )
     private var clipboardStore: ClipboardHistoryStore!
     private var clipboardCollector: ClipboardCollector?
@@ -176,7 +181,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.async { [weak self] in self?.invoke(action) }
                 },
                 appleEventSender: { request in try AppleEventSender().send(request) },
-                deepLinkOpener: { link in try DeepLinkOpener().open(link) }
+                deepLinkOpener: { link in try DeepLinkOpener().open(link) },
+                pluginStorage: pluginStorage
             )
             clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(
@@ -231,7 +237,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 capabilityGrantStore: capabilityGrants,
                 clipboardHistoryStore: clipboardStore,
                 credentialStore: pluginCredentials,
-                pluginSettingsStore: pluginSettings
+                pluginSettingsStore: pluginSettings,
+                pluginStorage: pluginStorage
             )
             let collector = ClipboardCollector(
                 store: clipboardStore,

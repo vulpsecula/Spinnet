@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Plugin Storage Host Services",
+  "description": "The inputs and results of the Plugin Storage Host Services, as of Plugin API Level 1. Plugin Storage is the Plugin's own key-value store of JSON values, kept between invocations and launches, which no other Plugin can reach and which needs no Capability. A key is a non-empty string of at most 128 characters. A value, as compact JSON with its slashes unescaped, is at most 512 KiB; a Plugin keeps at most 10 MiB, counting each key file as the key's JSON, a newline and the value's JSON; and the list of its keys, as JSON, is at most 512 KiB. A write over a limit stores nothing and fails with storage_limit_exceeded, which the script may catch; any other failure ends the invocation as host_service_failed. The schemas check shapes, not those sizes.",
+  "$defs": {
+    "key": {
+      "description": "A non-empty string of at most 128 characters, counted as Unicode code points. Keys are exact: they differ in case or Unicode normalization as JavaScript strings do.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "value": {
+      "description": "Any JSON value. null is no value: storing it removes the key, and reading a key with no value answers null."
+    },
+    "get_storage_value.input": {
+      "description": "The key to read.",
+      "$ref": "#/$defs/key"
+    },
+    "get_storage_value.result": {
+      "description": "The value kept under the key, or null when there is none.",
+      "$ref": "#/$defs/value"
+    },
+    "set_storage_value.input": {
+      "description": "The key and the value to keep under it, replacing what was there. Only that key's file is rewritten.",
+      "type": "object",
+      "required": ["key", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "value": { "$ref": "#/$defs/value" }
+      }
+    },
+    "set_storage_value.result": { "type": "null" },
+    "remove_storage_value.input": {
+      "description": "The key to forget. A key the Plugin does not keep is no error.",
+      "$ref": "#/$defs/key"
+    },
+    "remove_storage_value.result": { "type": "null" },
+    "list_storage_keys.input": { "type": "null" },
+    "list_storage_keys.result": {
+      "description": "Every key the Plugin keeps, sorted, without their values.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/key" },
+      "uniqueItems": true
+    },
+    "clear_storage.input": { "type": "null" },
+    "clear_storage.result": {
+      "description": "Every key is forgotten, as Clear Stored Data in the Library does.",
+      "type": "null"
+    }
+  }
+}

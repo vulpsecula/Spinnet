@@ -57,6 +57,11 @@ final class SpinnetSDKTests: XCTestCase {
         XCTAssertEqual(wrappers["http.request"], .httpsRequest)
         XCTAssertEqual(wrappers["text.detectLanguage"], .detectLanguage)
         XCTAssertEqual(wrappers["screen.capture"], .captureScreen)
+        XCTAssertEqual(wrappers["storage.get"], .getStorageValue)
+        XCTAssertEqual(wrappers["storage.set"], .setStorageValue)
+        XCTAssertEqual(wrappers["storage.remove"], .removeStorageValue)
+        XCTAssertEqual(wrappers["storage.keys"], .listStorageKeys)
+        XCTAssertEqual(wrappers["storage.clear"], .clearStorage)
     }
 
     /// A wrapper called without an argument sends `null`, as
@@ -127,12 +132,149 @@ final class SpinnetSDKTests: XCTestCase {
     /// can test for a feature without guarding the area itself.
     func testTheAreasLaterTicketsFillArePresentAndEmpty() throws {
         let plugin = try writePlugin(capabilities: [], script: """
-            ["storage", "ui"].map((area) => [typeof spinnet[area], Object.keys(spinnet[area]).length])
+            ["ui"].map((area) => [typeof spinnet[area], Object.keys(spinnet[area]).length])
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
-        XCTAssertEqual(try run.result.get(), .array(Array(repeating: .array([.string("object"), .number(0)]), count: 2)))
+        XCTAssertEqual(try run.result.get(), .array([.array([.string("object"), .number(0)])]))
+    }
+
+    // MARK: - Plugin Storage
+
+    /// `spinnet.storage` over a real store: what one run keeps, the next
+    /// reads, and so does a run after a relaunch, with a new helper and a new
+    /// store over the same directory.
+    func testStorageKeepsValuesBetweenRunsAndLaunches() throws {
+        let directory = temporaryDirectory()
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              const runs = (spinnet.storage.get("runs") ?? 0) + 1;
+              spinnet.storage.set({ key: "runs", value: runs });
+              spinnet.storage.set({ key: "history", value: { last: runs } });
+              return [runs, spinnet.storage.keys()];
+            })()
+            """)
+        func run(on helper: PluginTestHelper) throws -> JSONValue {
+            try helper.run(PluginTestInvocation("example.run"), of: plugin,
+                           answering: RecordedHostServices(storage: PluginStorage(directory: directory))).result.get()
+        }
+
+        XCTAssertEqual(try run(on: helper), .array([.number(1), .array([.string("history"), .string("runs")])]))
+        XCTAssertEqual(try run(on: helper), .array([.number(2), .array([.string("history"), .string("runs")])]))
+        helper.shutdown()
+        helper = try PluginTestHelper()
+        XCTAssertEqual(try run(on: helper), .array([.number(3), .array([.string("history"), .string("runs")])]))
+    }
+
+    func testStorageRemovesAndClears() throws {
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              spinnet.storage.set({ key: "a", value: 1 });
+              spinnet.storage.set({ key: "b", value: 2 });
+              spinnet.storage.remove("a");
+              const afterRemove = spinnet.storage.keys();
+              spinnet.storage.clear();
+              return [afterRemove, spinnet.storage.keys(), spinnet.storage.get("b")];
+            })()
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: PluginStorage(directory: temporaryDirectory())))
+
+        XCTAssertEqual(try run.result.get(), .array([.array([.string("b")]), .array([]), .null]))
+    }
+
+    /// A write over a limit stores nothing and throws an error the script can
+    /// catch and carry on from, unlike a refusal.
+    func testAWriteOverALimitThrowsAnErrorTheScriptCanCatch() throws {
+        let storage = PluginStorage(directory: temporaryDirectory())
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              spinnet.storage.set({ key: "big", value: "kept" });
+              try {
+                spinnet.storage.set({ key: "big", value: "x".repeat(600 * 1024) });
+                return "stored";
+              } catch (error) {
+                return [error instanceof Error, error.code, String(error.message).includes("512 KiB"),
+                        spinnet.storage.get("big")];
+              }
+            })()
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: storage))
+
+        XCTAssertEqual(try run.result.get(), .array([.bool(true), .string("storage_limit_exceeded"), .bool(true),
+                                                     .string("kept")]))
+    }
+
+    /// A value too large even to send to the Host is over the limit too, and
+    /// fails the same catchable way rather than ending the invocation.
+    func testAValueTooLargeToSendThrowsTheSameCatchableError() throws {
+        let storage = PluginStorage(directory: temporaryDirectory())
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              try {
+                spinnet.storage.set({ key: "huge", value: "x".repeat(2 * 1024 * 1024) });
+                return "stored";
+              } catch (error) {
+                return [error.code, spinnet.storage.keys()];
+              }
+            })()
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: storage))
+
+        XCTAssertEqual(try run.result.get(), .array([.string("storage_limit_exceeded"), .array([])]))
+    }
+
+    /// A value of the largest size travels to the Host and back in one
+    /// message each way, even one the Host's JSON would otherwise double by
+    /// escaping every slash.
+    func testTheLargestValueGoesToTheHostAndBack() throws {
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              const value = "/".repeat(512 * 1024 - 2);
+              spinnet.storage.set({ key: "slashes", value });
+              return spinnet.storage.get("slashes") === value;
+            })()
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: PluginStorage(directory: temporaryDirectory())))
+
+        XCTAssertEqual(try run.result.get(), .bool(true))
+    }
+
+    /// Left uncaught, the error ends the Action as a failed Host Service.
+    func testAnUncaughtLimitErrorFailsTheActionAsAHostServiceFailure() throws {
+        let plugin = try writePlugin(capabilities: [], script: """
+            spinnet.storage.set({ key: "big", value: "x".repeat(600 * 1024) })
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: PluginStorage(directory: temporaryDirectory())))
+
+        XCTAssertEqual(failureOf(run)?.failureCategory, .hostServiceFailed)
+        XCTAssertTrue(failureOf(run).map { "\($0)".contains("512 KiB") } ?? false, "\(String(describing: failureOf(run)))")
+    }
+
+    /// Only a write over a limit may be caught: a malformed request still
+    /// ends the invocation like any failed Host Service.
+    func testAMalformedStorageRequestStillEndsTheInvocation() throws {
+        let plugin = try writePlugin(capabilities: [], script: """
+            (() => {
+              try { spinnet.storage.get(""); } catch (error) {}
+              return "carried on";
+            })()
+            """)
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin,
+                             answering: RecordedHostServices(storage: PluginStorage(directory: temporaryDirectory())))
+
+        XCTAssertEqual(failureOf(run)?.failureCategory, .hostServiceFailed)
     }
 
     /// A script cannot swap a wrapper for something else, whether by accident
@@ -271,6 +413,13 @@ final class SpinnetSDKTests: XCTestCase {
     private func failureOf(_ run: PluginTestRun) -> PluginRuntimeError? {
         guard case .failure(let error) = run.result else { return nil }
         return error as? PluginRuntimeError
+    }
+
+    private func temporaryDirectory() -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetSDKStorage-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return directory
     }
 
     /// A one-Command package in a temporary directory, removed after the test.
