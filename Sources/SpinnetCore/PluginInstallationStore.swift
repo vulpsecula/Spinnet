@@ -82,7 +82,9 @@ public final class PluginInstallationStore {
         registry.unregister(pluginID)
         grants.removeGrants(for: pluginID)
         try persistGrants()
-        try storage?.clear(pluginID)
+        // The Plugin is removed by now, so a store that cannot be cleared
+        // does not make the removal fail; installing it again clears it.
+        try? storage?.clear(pluginID)
     }
 
     /// Drops the user's own copy of a Plugin: its index entry first, so a

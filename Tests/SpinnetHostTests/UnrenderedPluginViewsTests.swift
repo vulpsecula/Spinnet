@@ -11,7 +11,7 @@ final class UnrenderedPluginViewsTests: XCTestCase {
         var deferred: [() -> Void] = []
         let renderer = UnrenderedPluginViews(report: { reports.append($0) }, showToast: { toasts.append($0) },
                                              defer: { deferred.append($0) })
-        let sessions = PluginViewSessions(renderer: renderer, runEvent: { _, _, _, _ in XCTFail("No event runs") },
+        let sessions = PluginViewSessions(renderer: renderer, runEvent: { _, _, _, _, _ in XCTFail("No event runs") },
                                           schedule: { _, _ in }, showFeedback: { _ in })
         let action = try ActionConfiguration(
             id: ActionID("view"), pluginID: PluginID("com.example.view"),

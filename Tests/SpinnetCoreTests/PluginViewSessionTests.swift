@@ -52,6 +52,11 @@ final class PluginScriptAnswerTests: XCTestCase {
         XCTAssertEqual(PluginScriptAnswer.encodedSize(of: viewFits), ScriptedActionBudgets.viewDescriptionBytes)
         XCTAssertNoThrow(try PluginScriptAnswer(parsing: .object(["view": viewFits])))
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: .object(["view": viewTooLarge])))
+
+        // Measured as the message carries it: a slash is one byte, not `\/`.
+        let slashes = JSONValue.string(String(repeating: "/", count: ScriptedActionBudgets.viewStateBytes - 2))
+        XCTAssertEqual(PluginScriptAnswer.encodedSize(of: slashes), ScriptedActionBudgets.viewStateBytes)
+        XCTAssertNoThrow(try PluginScriptAnswer(parsing: .object(["view": .object([:]), "state": slashes])))
     }
 
     /// A JSON string whose encoding, quotes included, is `bytes` long.
@@ -328,6 +333,25 @@ final class PluginViewSessionTests: XCTestCase {
         XCTAssertNotEqual(renderer.presentations.last?.view, Self.view("late"))
     }
 
+    /// An event waiting behind another run of the Plugin has not used any of
+    /// its budget: the four seconds start when its script does.
+    func testAnEventsDeadlineStartsWhenItsScriptDoes() throws {
+        let session = try start(try Self.action())
+        runner.startsAtOnce = false
+        session.send(.submitted(values: .null))
+
+        clock.advance(by: ScriptedActionBudgets.viewEventDeadline * 2)
+        XCTAssertNil(runner.runs[0].stopReason)
+        XCTAssertNil(renderer.presentations.last?.error)
+
+        runner.runs[0].start()
+        clock.advance(by: ScriptedActionBudgets.viewEventDeadline - 0.001)
+        XCTAssertNil(runner.runs[0].stopReason)
+        clock.advance(by: 0.001)
+        XCTAssertEqual(runner.runs[0].stopReason, .timedOut)
+        XCTAssertEqual(renderer.presentations.last?.error?.category, .timedOut)
+    }
+
     func testAProtocolViolationEndsTheSession() throws {
         let session = try start(try Self.action())
         session.send(.submitted(values: .null))
@@ -434,12 +458,17 @@ final class PluginViewSessionTests: XCTestCase {
         sessions.observe(registry: PluginRegistry(), grantStore: grants, on: { $0() })
         let session = try start(try Self.action(pluginID: pluginID))
         let other = try start(try Self.action(pluginID: PluginID("com.example.other")))
+        session.send(.submitted(values: .null))
 
         grants.setDecision(.denied, for: pluginID, pluginVersion: "1.0.0", capability: .writeClipboard)
 
         XCTAssertTrue(session.isEnded)
         XCTAssertFalse(other.isEnded, "Another Plugin's view stays")
         XCTAssertEqual(renderer.closes, [.capabilityRevoked])
+        XCTAssertEqual(runner.runs[0].stopReason, .cancelled)
+        runner.runs[0].finish(Self.succeeded(.object(["toast": .string("Late")])))
+        XCTAssertEqual(renderer.toasts, [])
+        XCTAssertEqual(feedback, [])
     }
 
     // MARK: - Support
@@ -510,7 +539,8 @@ final class PluginViewSessionHelperTests: XCTestCase {
         let broker = RecordingBroker(answering: RecordedHostServices([.detectLanguage: .value(.string("fr"))]))
         let runner = HostActionRunner(executor: NoHostCommands(), scriptedExecutor: helper, hostServiceBroker: broker)
         let renderer = RecordingRenderer()
-        let sessions = PluginViewSessions(renderer: renderer, runEvent: { action, delivery, control, finish in
+        let sessions = PluginViewSessions(renderer: renderer, runEvent: { action, delivery, control, started, finish in
+            started()
             finish(runner.invoke(action, using: registry, control: control, delivering: delivery))
         }, schedule: ManualClock().schedule, showFeedback: { _ in })
         let action = try plugin.action(for: PluginTestInvocation("example.run"))
@@ -659,15 +689,20 @@ final class HeldEventRunner {
         let action: ActionConfiguration
         let delivery: ViewEventDelivery
         let control: ActionExecutionControl
+        private let started: () -> Void
         private let completion: (ActionOutcome) -> Void
 
         init(action: ActionConfiguration, delivery: ViewEventDelivery, control: ActionExecutionControl,
-             completion: @escaping (ActionOutcome) -> Void) {
+             started: @escaping () -> Void, completion: @escaping (ActionOutcome) -> Void) {
             self.action = action
             self.delivery = delivery
             self.control = control
+            self.started = started
             self.completion = completion
         }
+
+        /// The script begins, after waiting its turn on the Plugin's queue.
+        func start() { started() }
 
         /// Why the session stopped this run, if it did.
         var stopReason: PluginRuntimeError? {
@@ -681,10 +716,15 @@ final class HeldEventRunner {
     }
 
     private(set) var runs: [Run] = []
+    /// Whether a run's script begins as soon as it is dispatched, rather
+    /// than waiting behind another run of the Plugin until `start()`.
+    var startsAtOnce = true
 
     var run: PluginViewSession.RunEvent {
-        { [unowned self] action, delivery, control, completion in
-            runs.append(Run(action: action, delivery: delivery, control: control, completion: completion))
+        { [unowned self] action, delivery, control, started, completion in
+            let run = Run(action: action, delivery: delivery, control: control, started: started, completion: completion)
+            runs.append(run)
+            if startsAtOnce { run.start() }
         }
     }
 }

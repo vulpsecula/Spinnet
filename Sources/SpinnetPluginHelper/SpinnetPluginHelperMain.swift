@@ -301,10 +301,11 @@ private final class PluginRuntimeHostServiceClient {
             let data: Data
             do {
                 data = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
-            } catch where service == .setStorageValue {
+            } catch where service == .setStorageValue && inputData.count > PluginStorageBudgets.maximumValueBytes {
                 // A value too large to send in one message is larger than
                 // any Plugin Storage keeps, so it fails as the Host fails a
-                // value over the limit: nothing stored, and catchable.
+                // value over the limit: nothing stored, and catchable. Any
+                // other encoding failure stays a failure of the Action.
                 throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
                     category: .storageLimitExceeded,
                     message: "A Plugin Storage value may be at most "

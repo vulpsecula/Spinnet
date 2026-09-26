@@ -83,10 +83,22 @@ public final class ActionExecutionControl {
     private let lock = NSLock()
     private var error: PluginRuntimeError?
     private var termination: (() -> Void)?
-    public let deadline: TimeInterval
+    private var startedAt = ProcessInfo.processInfo.systemUptime
 
-    public init() {
-        deadline = ProcessInfo.processInfo.systemUptime + ScriptedActionBudgets.actionDeadline
+    public init() {}
+
+    public var deadline: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return startedAt + ScriptedActionBudgets.actionDeadline
+    }
+
+    /// Starts the deadline again now, for work that waited its turn before
+    /// beginning, such as a View Event queued behind the Plugin's Action.
+    public func restartDeadline() {
+        lock.lock()
+        startedAt = ProcessInfo.processInfo.systemUptime
+        lock.unlock()
     }
 
     public func check() throws {

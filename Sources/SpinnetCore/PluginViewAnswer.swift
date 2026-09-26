@@ -126,10 +126,11 @@ public struct PluginScriptAnswer: Equatable {
         self.init(view: view, state: state, toast: toast)
     }
 
-    /// The UTF-8 size of the value's JSON, which is how the budgets count.
+    /// The UTF-8 size of the value's JSON as a helper message carries it,
+    /// slashes unescaped, which is how the budgets count.
     static func encodedSize(of value: JSONValue) -> Int {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return (try? encoder.encode(value).count) ?? Int.max
     }
 

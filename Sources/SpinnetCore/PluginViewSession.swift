@@ -60,10 +60,12 @@ public protocol PluginViewRenderer: AnyObject {
 public final class PluginViewSession {
     public typealias Schedule = (TimeInterval, @escaping () -> Void) -> Void
     /// Runs the Command script once for a View Event, through the same
-    /// broker and invocation path as the Action itself, and calls back with
-    /// its outcome.
+    /// broker and invocation path as the Action itself. It calls `started`
+    /// when the script begins, after waiting its turn on the Plugin's queue,
+    /// and then back with its outcome.
     public typealias RunEvent = (ActionConfiguration, ViewEventDelivery, ActionExecutionControl,
-                                 @escaping (ActionOutcome) -> Void) -> Void
+                                 _ started: @escaping () -> Void,
+                                 _ finish: @escaping (ActionOutcome) -> Void) -> Void
 
     /// The configured Action whose Command presented the view.
     public private(set) var action: ActionConfiguration
@@ -187,12 +189,20 @@ public final class PluginViewSession {
         let control = ActionExecutionControl()
         inFlight = (dispatched, control)
         present()
-        schedule(ScriptedActionBudgets.viewEventDeadline) { [weak self] in self?.expire(dispatched) }
         // Each event is a new invocation, so it never reuses an Action ID.
         let invocation = (try? action.newInvocation()) ?? action
-        runEvent(invocation, ViewEventDelivery(event: event, state: state), control) { [weak self] outcome in
+        runEvent(invocation, ViewEventDelivery(event: event, state: state), control, { [weak self] in
+            self?.started(dispatched)
+        }, { [weak self] outcome in
             self?.receive(outcome, for: dispatched)
-        }
+        })
+    }
+
+    /// The event's budget starts when its script does, not while it waits
+    /// behind another run of the Plugin.
+    private func started(_ dispatched: Int) {
+        guard !isEnded, let current = inFlight, current.generation == dispatched else { return }
+        schedule(ScriptedActionBudgets.viewEventDeadline) { [weak self] in self?.expire(dispatched) }
     }
 
     private func expire(_ dispatched: Int) {

@@ -574,9 +574,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 report: { [weak self] message in self?.feedback?.showMessage(message) },
                 showToast: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) }
             ),
-            runEvent: { [weak self] action, delivery, control, finish in
+            runEvent: { [weak self] action, delivery, control, started, finish in
                 guard let self, let actionRunner = self.actionRunner else { return }
                 self.pluginQueue(for: action.pluginID).async {
+                    control.restartDeadline()
+                    DispatchQueue.main.async(execute: started)
                     let outcome = actionRunner.invoke(action, using: registry, control: control, delivering: delivery)
                     DispatchQueue.main.async { finish(outcome) }
                 }
