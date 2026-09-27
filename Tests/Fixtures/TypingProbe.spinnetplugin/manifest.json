@@ -1,0 +1,24 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.example.typing-probe",
+  "name": "Typing Probe",
+  "version": "1.0.0",
+  "capabilities": [],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.recognize",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "probe.recognize",
+      "title": "Recognize As You Type",
+      "description": "Opens a one-field form that recognizes what is typed, as Smart Jump does, and shows it as a status line after each pause.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "probe.js"
+    }
+  ]
+}

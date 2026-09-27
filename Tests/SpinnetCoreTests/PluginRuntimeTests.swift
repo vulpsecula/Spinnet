@@ -1841,6 +1841,16 @@ final class PluginRuntimeTests: XCTestCase {
             }
         }
 
+        // The helper built beside this test bundle is the one in its build
+        // configuration. The scan below would take whichever it met first,
+        // and a release helper optimizes `--fault-memory`'s untouched
+        // allocation away, as a release build for measurement leaves one.
+        let besideTests = Bundle(for: PluginRuntimeTests.self).bundleURL
+            .deletingLastPathComponent().appendingPathComponent("SpinnetPluginHelper")
+        if FileManager.default.isExecutableFile(atPath: besideTests.path) {
+            return besideTests
+        }
+
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { root.deleteLastPathComponent() }
         let buildRoot = root.appendingPathComponent(".build", isDirectory: true)

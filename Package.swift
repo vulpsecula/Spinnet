@@ -39,6 +39,13 @@ let package = Package(
                 .linkedFramework("JavaScriptCore", .when(platforms: [.macOS]))
             ]
         ),
+        // Measures View Session latency and memory over the real helper (W13
+        // #60). It ships in no product; script/measure_view_sessions.sh
+        // builds and runs it in release.
+        .executableTarget(
+            name: "SpinnetViewSessionMeasurement",
+            dependencies: ["SpinnetCore"]
+        ),
         // Runs a Plugin's scripts in the real helper against recorded Host
         // Service answers. It must not depend on SpinnetHost, so a Plugin can
         // use it from its own repository (ADR 0014).
