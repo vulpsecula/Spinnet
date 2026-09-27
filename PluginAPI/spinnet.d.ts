@@ -77,7 +77,11 @@ export interface WindowRect {
 /** The focused window and the screens around it. */
 export interface FocusedWindow {
   frame: WindowRect;
-  /** The visible frame of the screen holding most of the window. */
+  /**
+   * The visible frame of the screen holding most of the window: the screen
+   * less the menu bar, the Dock, and Stage Manager's strip of recent apps
+   * while it is shown.
+   */
   visibleFrame: WindowRect;
   /** Every display's visible frame, left to right, then top to bottom. */
   displays: WindowRect[];

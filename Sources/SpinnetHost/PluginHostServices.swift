@@ -30,7 +30,11 @@ final class AppKitPluginHostServiceProvider {
         let frame = try frame(of: window)
         windowLock.withLock { readWindow = window }
         let screens = onMain {
-            NSScreen.screens.map { FocusedWindowScreen(frame: $0.frame, visibleFrame: $0.visibleFrame) }
+            let strip = StageManagerStrip.current(primaryHeight: NSScreen.screens.first?.frame.maxY ?? 0)
+            return NSScreen.screens.map { screen in
+                let described = FocusedWindowScreen(frame: screen.frame, visibleFrame: screen.visibleFrame)
+                return strip?.excluded(from: described) ?? described
+            }
         }
         guard let focused = FocusedWindowScreen.focusedWindow(frame, among: screens) else {
             throw PluginHostServiceError.unavailable("No display is available")
