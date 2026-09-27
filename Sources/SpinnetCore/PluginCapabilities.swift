@@ -775,6 +775,40 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.pluginStorage = pluginStorage
     }
 
+    /// Checks what a request for `service` needs before anything is touched:
+    /// that the Action is the Plugin's own, that the Command declares the
+    /// Capability and the user granted it, and that macOS grants the System
+    /// Permission. A Plugin View's standard actions are checked the same way.
+    public func authorize(_ service: PluginHostService, for package: PluginPackage,
+                          action: ActionConfiguration) throws {
+        grantStore.register(
+            pluginID: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capabilities: package.manifest.capabilities
+        )
+        let isPluginsOwnAction = package.manifest.id == action.pluginID
+            && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
+        if let capability = service.requiredCapability {
+            guard isPluginsOwnAction,
+                  package.manifest.declares(capability, for: action.commandID),
+                  grantStore.decision(
+                      for: package.manifest.id,
+                      pluginVersion: package.manifest.version,
+                      capability: capability,
+                      scope: package.manifest.scope(for: capability)
+                  ) == .granted else {
+                throw PluginHostServiceError.capabilityDenied(capability)
+            }
+        } else if !isPluginsOwnAction {
+            throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
+        }
+
+        if let permission = service.requiredSystemPermission,
+           !systemPermissionCheck(permission) {
+            throw PluginHostServiceError.systemPermissionDenied(permission)
+        }
+    }
+
     public func execute(
         request: PluginRuntimeHostServiceRequest,
         for package: PluginPackage,
@@ -1100,38 +1134,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         performer.isCancelled = { cancellation.isCancelled }
         return try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
                                           performer: performer)
-    }
-
-    /// Checks the current manifest declaration, user grant, and System
-    /// Permission `service` needs before anything touches a Host provider.
-    private func authorize(_ service: PluginHostService, for package: PluginPackage,
-                           action: ActionConfiguration) throws {
-        grantStore.register(
-            pluginID: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capabilities: package.manifest.capabilities
-        )
-        let isPluginsOwnAction = package.manifest.id == action.pluginID
-            && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
-        if let capability = service.requiredCapability {
-            guard isPluginsOwnAction,
-                  package.manifest.declares(capability, for: action.commandID),
-                  grantStore.decision(
-                      for: package.manifest.id,
-                      pluginVersion: package.manifest.version,
-                      capability: capability,
-                      scope: package.manifest.scope(for: capability)
-                  ) == .granted else {
-                throw PluginHostServiceError.capabilityDenied(capability)
-            }
-        } else if !isPluginsOwnAction {
-            throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
-        }
-
-        if let permission = service.requiredSystemPermission,
-           !systemPermissionCheck(permission) {
-            throw PluginHostServiceError.systemPermissionDenied(permission)
-        }
     }
 
     /// Performs an `https_request` input the Host sends for a view or popup.

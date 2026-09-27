@@ -232,10 +232,21 @@ final class AppKitPluginHostServiceProvider {
     /// element that does not let its selected text be set fails before
     /// anything changes; the Host never falls back to pasting.
     func insertText(_ text: String) throws {
+        try insertText(text, into: AXUIElementCreateSystemWide())
+    }
+
+    /// The same into one App's focused element, even while a Plugin View's
+    /// panel holds the keyboard: a Plugin View inserts into the App it came
+    /// from, which a non-activating panel leaves in front.
+    func insertText(_ text: String, intoApplication processIdentifier: pid_t) throws {
+        try insertText(text, into: AXUIElementCreateApplication(processIdentifier))
+    }
+
+    private func insertText(_ text: String, into container: AXUIElement) throws {
         guard isGranted(.accessibility) else {
             throw PluginHostServiceError.systemPermissionDenied(.accessibility)
         }
-        guard let element = elementAttribute(kAXFocusedUIElementAttribute, of: AXUIElementCreateSystemWide()) else {
+        guard let element = elementAttribute(kAXFocusedUIElementAttribute, of: container) else {
             throw PluginHostServiceError.unavailable("No focused text field")
         }
         var settable = DarwinBoolean(false)

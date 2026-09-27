@@ -66,6 +66,16 @@ let submitted = try helper.run(submit, of: plugin, answering: services).answer()
 XCTAssertEqual(submitted.toast, "Sent")
 ```
 
+To check a view the way the Host reads it before drawing it, parse it with the
+Plugin's settings fields; a view the Host would not draw throws the protocol
+violation that would end the View Session:
+
+```swift
+let view = try PluginViewDescription(parsing: XCTUnwrap(opened.view),
+                                     settingsFields: plugin.manifest.settingsFields)
+XCTAssertEqual(view.form?.submitTitle, "Send")
+```
+
 `helper.retireHelper(of: plugin)` retires the Plugin's helper, as the Host
 does when it idles, and `helper.launchCount` counts the helpers started, so a
 test can check that a script keeps nothing between runs.

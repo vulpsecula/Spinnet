@@ -568,10 +568,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     /// Each View Event runs its Command through the Action runner, broker
     /// and Plugin queue an Action uses, without the Action's progress
-    /// feedback. Until Plugin Views are drawn (W11 #58) a view is reported
-    /// and closed. A view's Host-Fetched Sections are sent through the same
-    /// broker as a script's `https_request`, which reads the Plugin's
-    /// authority afresh for every one.
+    /// feedback. Plugin Views are drawn by `PluginViewWindows`. A view's
+    /// Host-Fetched Sections are sent through the same broker as a script's
+    /// `https_request`, which reads the Plugin's authority afresh for every
+    /// one.
     private func makeViewSessions() -> PluginViewSessions {
         let registry = self.registry
         let broker = clipboardBroker!
@@ -586,10 +586,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         )
         self.fetchedSections = fetchedSections
         let sessions = PluginViewSessions(
-            renderer: UnrenderedPluginViews(
-                report: { [weak self] message in self?.feedback?.showMessage(message) },
-                showToast: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) }
-            ),
+            renderer: makePluginViewWindows(sections: fetchedSections),
             runEvent: { [weak self] action, delivery, control, started, finish in
                 guard let self, let actionRunner = self.actionRunner else { return }
                 self.pluginQueue(for: action.pluginID).async {
@@ -603,10 +600,85 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
             },
             showFeedback: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) },
+            // A view the renderer could not draw is the script's protocol
+            // violation, read against the Plugin's own settings.
+            readView: { action, view in
+                _ = try PluginViewDescription(
+                    parsing: view, settingsFields: registry.package(for: action.pluginID)?.manifest.settingsFields ?? []
+                )
+            },
             fetchedSections: fetchedSections
         )
         sessions.observe(registry: registry, grantStore: capabilityGrants, on: { DispatchQueue.main.async(execute: $0) })
         return sessions
+    }
+
+    /// The renderer and its window rules. Standard actions are authorized by
+    /// the broker's own check and performed by the Host; setting controls
+    /// store Plugin Settings as the Plugin Settings sheet does.
+    private func makePluginViewWindows(sections: HostFetchedSectionProvider) -> PluginViewWindows {
+        let registry = self.registry
+        let provider = pluginHostServiceProvider
+        let hostActions = PluginViewHostActions(
+            authorize: { [weak self] service, action in
+                guard let broker = self?.clipboardBroker, let package = registry.package(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
+                }
+                try broker.authorize(service, for: package, action: action)
+            },
+            manifest: { registry.package(for: $0)?.manifest },
+            copyText: { try provider.writeClipboard($0) },
+            openURL: { try provider.openURL($0) },
+            insertText: { text, origin in
+                if let origin {
+                    try provider.insertText(text, intoApplication: origin.processIdentifier)
+                } else {
+                    try provider.insertText(text)
+                }
+            },
+            openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) },
+            readSettings: { [weak self] manifest in self?.resolvedPluginSettings(manifest) ?? [:] },
+            // Nothing is delivered as changed unless it was stored.
+            writeSettings: { [weak self] manifest, values in
+                guard let self, let pluginSettings = self.pluginSettings else {
+                    throw PluginHostServiceError.unavailable("Plugin Settings")
+                }
+                try pluginSettings.setValues(values, for: manifest.id)
+                guard let configuration = self.currentConfiguration else { return }
+                self.menu?.reload(items: self.makeMenuSlots(from: configuration))
+            }
+        )
+        let environment = PluginViewEnvironment(
+            hostActions: hostActions,
+            sections: sections,
+            settingsFields: { registry.package(for: $0)?.manifest.settingsFields ?? [] },
+            pluginName: { registry.package(for: $0)?.manifest.name ?? $0.rawValue },
+            repair: { [weak self] route, pluginID in
+                switch route {
+                case .pluginSettings:
+                    self?.settings?.showPluginSettings(pluginID)
+                case .privacyAndPermissions:
+                    self?.settings?.select(page: .privacyAndPermissions)
+                    self?.settings?.present()
+                }
+            },
+            // The user copying what they read needs no Capability.
+            copy: { try? provider.writeClipboard($0) },
+            schedule: { delay, operation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
+            }
+        )
+        return PluginViewWindows(
+            environment: environment,
+            makeWindow: { PluginViewPanelWindow(model: $0) },
+            pointer: { NSEvent.mouseLocation },
+            frontmostApplication: {
+                NSWorkspace.shared.frontmostApplication.map {
+                    PluginViewOrigin(processIdentifier: $0.processIdentifier, name: $0.localizedName)
+                }
+            },
+            report: { [weak self] message in self?.feedback?.showMessage(message) }
+        )
     }
 
     private func presentClipboardHistory(package: PluginPackage, action: ActionConfiguration) {

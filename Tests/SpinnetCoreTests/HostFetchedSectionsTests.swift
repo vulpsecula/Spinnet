@@ -405,6 +405,41 @@ final class HostFetchedSectionsTests: XCTestCase {
         XCTAssertEqual(background.pending, HostFetchedSectionBudgets.maximumSections + 1)
     }
 
+    // MARK: - The renderer's seam
+
+    /// The Plugin View renderer reaches the engine as its
+    /// `HostFetchedSectionProvider`: it presents the fetch sections of each
+    /// view, redraws the sections it is told changed, and ends them with the
+    /// session.
+    func testTheEngineAnswersTheRenderersSeam() throws {
+        answers["https://api.example.com/translate"] = .success(Self.response(#"{"text":"fine"}"#))
+        let session = try start([])
+        var changed: [String] = []
+        let provider: HostFetchedSectionProvider = engine
+        provider.onChange = { changedSession, id in
+            XCTAssertTrue(changedSession === session)
+            changed.append(id)
+        }
+
+        provider.sectionsPresented([
+            PluginViewSection(id: "one", title: nil, text: nil, fetch: Self.fetch(mode: "show", pointer: "/text")),
+            PluginViewSection(id: "two", title: nil, text: nil, fetch: Self.fetch(mode: "show", pointer: "/missing"))
+        ], in: session)
+        XCTAssertEqual(changed, ["one", "two"])
+        XCTAssertEqual(provider.state(ofSection: "one", in: session), .loading)
+        XCTAssertEqual(provider.state(ofSection: "unknown", in: session), .loading)
+
+        changed = []
+        background.run(at: 0)
+        XCTAssertEqual(changed, ["one"], "Only the section whose state changed is redrawn")
+        XCTAssertEqual(provider.state(ofSection: "one", in: session), .text("fine"))
+
+        provider.sessionEnded(session)
+        XCTAssertNil(engine.state(ofSection: "two", for: Self.pluginID))
+        background.runAll()
+        XCTAssertEqual(sent.count, 1, "A section of an ended session sends nothing")
+    }
+
     // MARK: - Support
 
     private static let pluginID = PluginID("com.example.view")

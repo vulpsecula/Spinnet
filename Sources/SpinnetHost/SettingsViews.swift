@@ -1918,12 +1918,13 @@ private struct PermissionGuideBanner: View {
 struct ConfigurationTextEditor: View {
     @Binding var text: String
     let placeholder: String
+    /// In a Plugin View, Tab moves to the next field instead of typing a tab.
+    var tabMovesFocus = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $text)
-                    .font(.body)
+                editor
                     .frame(minHeight: 84)
                     .padding(4)
                     .background {
@@ -1934,7 +1935,8 @@ struct ConfigurationTextEditor: View {
                                     .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                             }
                     }
-                if text.isEmpty {
+                // The focus-moving editor draws its own placeholder.
+                if text.isEmpty, !tabMovesFocus {
                     Text(placeholder)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -1942,6 +1944,15 @@ struct ConfigurationTextEditor: View {
                         .allowsHitTesting(false)
                 }
             }
+        }
+    }
+
+    @ViewBuilder private var editor: some View {
+        if tabMovesFocus {
+            FocusMovingTextView(text: $text, placeholder: placeholder)
+        } else {
+            TextEditor(text: $text)
+                .font(.body)
         }
     }
 }

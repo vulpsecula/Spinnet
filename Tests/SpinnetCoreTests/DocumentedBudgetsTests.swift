@@ -256,3 +256,18 @@ final class HostFetchedSectionBudgetsTests: XCTestCase {
         XCTAssertEqual(HostFetchedSectionBudgets.maximumMessageLength, 512)
     }
 }
+
+final class PluginViewBudgetsTests: XCTestCase {
+
+    /// PluginAPI/README.md, "Plugin Views", and schemas/plugin-view.schema.json
+    func testViewBudgetsMatchDocumentedInterface() {
+        // "`settings`: up to 6 of the Plugin's own `choice` and `toggle` settings"
+        XCTAssertEqual(PluginViewDescription.maximumSettings, 6)
+        // "`form.fields`: 1 to 20 fields"
+        XCTAssertEqual(PluginViewDescription.maximumFields, 20)
+        // "`detail.sections`: 1 to 20 sections"
+        XCTAssertEqual(PluginViewDescription.maximumSections, 20)
+        // "`actions`: up to 12 buttons"
+        XCTAssertEqual(PluginViewDescription.maximumActions, 12)
+    }
+}

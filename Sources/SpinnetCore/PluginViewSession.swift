@@ -66,6 +66,9 @@ public final class PluginViewSession {
     public typealias RunEvent = (ActionConfiguration, ViewEventDelivery, ActionExecutionControl,
                                  _ started: @escaping () -> Void,
                                  _ finish: @escaping (ActionOutcome) -> Void) -> Void
+    /// Reads a view the script described before it is drawn, and throws a
+    /// protocol violation for one the Host would not draw.
+    public typealias ReadView = (ActionConfiguration, JSONValue) throws -> Void
 
     /// The configured Action whose Command presented the view.
     public private(set) var action: ActionConfiguration
@@ -75,11 +78,24 @@ public final class PluginViewSession {
     public private(set) var state: JSONValue
     public private(set) var error: ActionFailure?
     public private(set) var generation = 0
+    /// How many times an Action has presented the view: 1 when the session
+    /// starts, and one more each time presenting again replaces it. An
+    /// event's answer updates the view without counting, so a renderer can
+    /// tell the two apart.
+    public private(set) var presentationCount = 1
+    /// Counts every view the script answered with, starting at 1: each
+    /// presentation and each event's answer that has a view, even the same
+    /// view again. Busy and error changes do not count.
+    public private(set) var viewRevision = 1
+    /// The event whose answer is the view shown now, or nil when an Action
+    /// presented it.
+    public private(set) var answeredEvent: PluginViewEvent?
     public private(set) var isEnded = false
     public var isBusy: Bool { inFlight != nil }
 
     private weak var renderer: PluginViewRenderer?
     private let runEvent: RunEvent
+    private let readView: ReadView
     private let schedule: Schedule
     private let showFeedback: (String) -> Void
     private let onEnd: (PluginViewSession) -> Void
@@ -92,7 +108,8 @@ public final class PluginViewSession {
     private var debounceToken = 0
 
     init(action: ActionConfiguration, view: JSONValue, state: JSONValue, renderer: PluginViewRenderer,
-         runEvent: @escaping RunEvent, schedule: @escaping Schedule, showFeedback: @escaping (String) -> Void,
+         runEvent: @escaping RunEvent, readView: @escaping ReadView, schedule: @escaping Schedule,
+         showFeedback: @escaping (String) -> Void,
          sectionDelivery: @escaping (String, JSONValue, HostFetchedSections.Delivery) -> Void = { _, _, _ in },
          onEnd: @escaping (PluginViewSession) -> Void) {
         self.action = action
@@ -100,6 +117,7 @@ public final class PluginViewSession {
         self.state = state
         self.renderer = renderer
         self.runEvent = runEvent
+        self.readView = readView
         self.schedule = schedule
         self.showFeedback = showFeedback
         self.sectionDelivery = sectionDelivery
@@ -149,6 +167,9 @@ public final class PluginViewSession {
         self.view = view
         self.state = state
         error = nil
+        presentationCount += 1
+        viewRevision += 1
+        answeredEvent = nil
         present()
     }
 
@@ -238,6 +259,7 @@ public final class PluginViewSession {
             let answer: PluginScriptAnswer
             do {
                 answer = try PluginScriptAnswer(parsing: value)
+                if let view = answer.view { try readView(action, view) }
             } catch {
                 let violation = error as? PluginRuntimeError ?? .protocolViolation("The script's answer is invalid")
                 end(.failed(ActionFailure(pluginID: outcome.pluginID, actionID: outcome.actionID,
@@ -252,6 +274,8 @@ public final class PluginViewSession {
             if let view = answer.view {
                 self.view = view
                 state = answer.state
+                viewRevision += 1
+                answeredEvent = current.event
             }
             error = nil
             present()
@@ -284,6 +308,7 @@ public final class PluginViewSession {
 public final class PluginViewSessions {
     private let renderer: PluginViewRenderer
     private let runEvent: PluginViewSession.RunEvent
+    private let readView: PluginViewSession.ReadView
     private let schedule: PluginViewSession.Schedule
     private let showFeedback: (String) -> Void
     private let fetchedSections: HostFetchedSections?
@@ -294,14 +319,18 @@ public final class PluginViewSessions {
     private var grantObserver: UUID?
 
     /// `showFeedback` shows a toast without a view as the Host's feedback
-    /// near the pointer. `fetchedSections` sends the Host-Fetched Sections of
-    /// these sessions' views; it delivers responses through them, and every
-    /// session that ends cancels its sections.
+    /// near the pointer. `readView` reads every view before it is drawn, so
+    /// one the renderer could not draw is the script's protocol violation;
+    /// by default any object passes. `fetchedSections` sends the Host-Fetched
+    /// Sections of these sessions' views; it delivers responses through them,
+    /// and every session that ends cancels its sections.
     public init(renderer: PluginViewRenderer, runEvent: @escaping PluginViewSession.RunEvent,
                 schedule: @escaping PluginViewSession.Schedule, showFeedback: @escaping (String) -> Void,
+                readView: @escaping PluginViewSession.ReadView = { _, _ in },
                 fetchedSections: HostFetchedSections? = nil) {
         self.renderer = renderer
         self.runEvent = runEvent
+        self.readView = readView
         self.schedule = schedule
         self.showFeedback = showFeedback
         self.fetchedSections = fetchedSections
@@ -340,6 +369,7 @@ public final class PluginViewSessions {
         let answer = try PluginScriptAnswer(parsing: value)
         let existing = sessions[action.pluginID]
         if let view = answer.view {
+            try readView(action, view)
             if let existing {
                 // Another Command's view may not rely on what the first one
                 // was allowed to fetch.
@@ -352,7 +382,8 @@ public final class PluginViewSessions {
             }
             let pluginID = action.pluginID
             let session = PluginViewSession(action: action, view: view, state: answer.state, renderer: renderer,
-                                            runEvent: runEvent, schedule: schedule, showFeedback: showFeedback,
+                                            runEvent: runEvent, readView: readView, schedule: schedule,
+                                            showFeedback: showFeedback,
                                             sectionDelivery: { [weak fetchedSections] section, response, outcome in
                                                 fetchedSections?.delivery(of: section, response: response,
                                                                           for: pluginID, outcome)

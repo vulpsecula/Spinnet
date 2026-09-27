@@ -378,6 +378,72 @@ final class PluginViewSessionTests: XCTestCase {
         }
     }
 
+    /// The Host reads each view before drawing it; one it would not draw is
+    /// the script's protocol violation, whether the Action or an event
+    /// answered with it.
+    func testAViewTheHostWouldNotDrawIsAProtocolViolation() throws {
+        var read: [JSONValue] = []
+        sessions = PluginViewSessions(renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
+                                      showFeedback: { [unowned self] in self.feedback.append($0) },
+                                      readView: { _, view in
+                                          read.append(view)
+                                          guard view != Self.view("undrawable") else {
+                                              throw PluginRuntimeError.protocolViolation("The view is undrawable")
+                                          }
+                                      })
+        let action = try Self.action()
+        XCTAssertThrowsError(try sessions.actionAnswered(action, with: Self.answer(view: "undrawable", state: .null))) {
+            XCTAssertEqual(($0 as? PluginRuntimeError)?.failureCategory, .runtimeProtocolFailed)
+        }
+        XCTAssertNil(sessions.session(for: action.pluginID), "No session starts for it")
+
+        let session = try start(action, state: .number(1))
+        session.send(.submitted(values: .null))
+        runner.runs[0].finish(Self.succeeded(Self.answer(view: "undrawable", state: .number(2))))
+
+        XCTAssertTrue(session.isEnded)
+        guard case .failed(let failure) = renderer.closes.first else { return XCTFail("\(renderer.closes)") }
+        XCTAssertEqual(failure.category, .runtimeProtocolFailed)
+        XCTAssertEqual(read, [Self.view("undrawable"), Self.view("first"), Self.view("undrawable")])
+    }
+
+    /// The renderer tells an Action presenting the view anew from an event
+    /// updating it: only presenting anew counts.
+    func testPresentingAnewIsCountedAndAnEventsUpdateIsNot() throws {
+        let action = try Self.action()
+        let session = try start(action)
+        XCTAssertEqual(session.presentationCount, 1)
+        session.send(.submitted(values: .null))
+        runner.runs[0].finish(Self.succeeded(Self.answer(view: "updated", state: .null)))
+        XCTAssertEqual(session.presentationCount, 1)
+        try sessions.actionAnswered(action, with: Self.answer(view: "again", state: .null))
+        XCTAssertEqual(session.presentationCount, 2)
+    }
+
+    /// Each view answer counts, even one describing the same view, and the
+    /// renderer learns which event it answered, so a field the user is
+    /// typing in is not reset by the answer to their own typing.
+    func testTheSessionSaysWhichEventTheShownViewAnswers() throws {
+        let action = try Self.action()
+        let session = try start(action)
+        XCTAssertEqual(session.viewRevision, 1)
+        XCTAssertNil(session.answeredEvent)
+
+        session.send(.submitted(values: .null))
+        XCTAssertEqual(session.viewRevision, 1, "Busy alone is no new view")
+        runner.runs[0].finish(Self.succeeded(Self.answer(view: "first", state: .null)))
+        XCTAssertEqual(session.viewRevision, 2)
+        XCTAssertEqual(session.answeredEvent, .submitted(values: .null))
+
+        session.send(.actionChosen("nothing"))
+        runner.runs[1].finish(Self.succeeded(.null))
+        XCTAssertEqual(session.viewRevision, 2, "An answer without a view keeps the view")
+
+        try sessions.actionAnswered(action, with: Self.answer(view: "again", state: .null))
+        XCTAssertEqual(session.viewRevision, 3)
+        XCTAssertNil(session.answeredEvent)
+    }
+
     // MARK: - Ending
 
     func testAPluginMayCloseItsViewWithAToastForTheHostToShow() throws {

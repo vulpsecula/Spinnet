@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 //
 // It types the globals the helper injects into a script today, including the
-// `spinnet` SDK object built by `spinnet.js`, `event` and `state`, and the
-// answer a script gives. The view components are added as they are
-// implemented (W11 #58), and Level 1 may still change until it is published.
+// `spinnet` SDK object built by `spinnet.js`, `event` and `state`, the answer
+// a script gives, and the Plugin View it may describe. Level 1 may still
+// change until it is published.
 //
 // Each SDK wrapper names the one Host Service it requests with an `@service`
 // tag; a test checks the tags against `spinnet.js` and the Host.
@@ -335,8 +335,62 @@ export interface StorageLimitError extends Error {
   readonly code: "storage_limit_exceeded";
 }
 
-/** Pure builders for Plugin Views and standard actions (W11 #58). */
-export interface UIArea {}
+/**
+ * Pure builders for Plugin Views: each returns a new plain object in the
+ * shape of `schemas/plugin-view.schema.json`, leaving out members that are
+ * undefined, and asks the Host for nothing. Options are camelCase; the
+ * objects they build use the view's own snake_case members. The Host checks
+ * a view when the script answers with it, and one it would not draw ends the
+ * View Session as a protocol violation.
+ */
+export interface UIArea {
+  /** A whole view: a title and at least one of `form`, `detail` or `actions`. */
+  view(options: {
+    title: string;
+    subtitle?: string;
+    settings?: SettingControl[];
+    form?: ViewForm;
+    detail?: ViewDetail;
+    actions?: ViewAction[];
+  }): ViewDescription;
+  /** A control for one of the Plugin's own `choice` or `toggle` settings. */
+  setting(key: string): SettingControl;
+  form(options: { fields: FormField[]; submitTitle?: string }): ViewForm;
+  textField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
+  multilineTextField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
+  urlField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
+  toggleField(options: { key: string; title: string; value?: boolean }): ToggleFormField;
+  choiceField(options: {
+    key: string;
+    title: string;
+    choices: string[];
+    choiceTitles?: string[];
+    value?: string;
+  }): ChoiceFormField;
+  detail(options: { sections: DetailSection[] }): ViewDetail;
+  /** A section of text in the Markdown subset, or a Host-Fetched Section with `fetch`. */
+  section(options: { id: string; title?: string; text?: string; fetch?: SectionFetch }): DetailSection;
+  /** An action that delivers `action_chosen` with its ID. */
+  action(options: { id: string; title: string; shortcut?: Shortcut }): EventAction;
+  /** Copies `text`; needs `write_clipboard`. Titled "Copy" unless given a title. */
+  copyText(options: { text: string; title?: string; shortcut?: Shortcut; closesView?: boolean }): StandardAction;
+  /** Opens an http or https link; needs `open_url`. Titled "Open in Browser" unless given a title. */
+  openURL(options: { url: string; title?: string; shortcut?: Shortcut; closesView?: boolean }): StandardAction;
+  /**
+   * Inserts `text` into the App the view came from, in place of its
+   * selection; needs `insert_into_focused_app` and Accessibility. Titled
+   * "Insert" unless given a title.
+   */
+  insertText(options: { text: string; title?: string; shortcut?: Shortcut; closesView?: boolean }): StandardAction;
+  /** Opens the Plugin's own Plugin Settings; needs no Capability. */
+  openPluginSettings(options?: { title?: string; shortcut?: Shortcut }): StandardAction;
+  /** The answer that shows or updates the view, with the state to keep. */
+  show(view: ViewDescription, options?: { state?: JSONValue; toast?: string }): ScriptAnswer;
+  /** An answer that only shows a toast: in the view, or near the pointer without one. */
+  toast(text: string): ScriptAnswer;
+  /** The answer that closes the view. */
+  close(options?: { toast?: string }): ScriptAnswer;
+}
 
 /** The Host the script runs under, and this invocation. */
 export interface Environment {
@@ -393,6 +447,134 @@ export type SectionFetch =
     }
   | { request: HTTPSRequest; mode: "deliver"; cache?: boolean };
 
+// Plugin Views (ADR 0010). A view is data the Host draws: a title, the
+// Plugin's own setting controls, a Form, a Detail and Actions, in that order.
+// It never contains the Plugin's own markup. `spinnet.ui` builds each part.
+
+/** A Plugin View description, at most 256 KiB of JSON. */
+export interface ViewDescription {
+  title: string;
+  subtitle?: string;
+  /** At most 6, each naming one of the Plugin's `choice` or `toggle` settings. */
+  settings?: SettingControl[];
+  form?: ViewForm;
+  detail?: ViewDetail;
+  /** At most 12. */
+  actions?: ViewAction[];
+}
+
+/**
+ * A control for one of the Plugin's own settings. The Host shows what is
+ * stored, stores a change as Plugin Settings are, then delivers
+ * `setting_changed`; the Action does not run again.
+ */
+export interface SettingControl {
+  key: string;
+}
+
+/**
+ * Fields whose values arrive with `field_changed` and `submitted`. Return in
+ * a one-line field, the submit button, or Command-Return submits.
+ */
+export interface ViewForm {
+  /** 1 to 20, with distinct keys. */
+  fields: FormField[];
+  /** Defaults to "Submit". */
+  submit_title?: string;
+}
+
+export type FormField = TextFormField | ToggleFormField | ChoiceFormField;
+
+/**
+ * While the answer to the user's own typing arrives, a field keeps what they
+ * typed; any other answer with a view sets each field to its `value`, which
+ * is how a script clears or fills one.
+ */
+export interface TextFormField {
+  /** At most 64 characters, unique in the form. */
+  key: string;
+  kind: "text" | "multiline_text" | "url";
+  title: string;
+  placeholder?: string;
+  /** Defaults to "". */
+  value?: string;
+}
+
+export interface ToggleFormField {
+  key: string;
+  kind: "toggle";
+  title: string;
+  /** Defaults to false. */
+  value?: boolean;
+}
+
+export interface ChoiceFormField {
+  key: string;
+  kind: "choice";
+  title: string;
+  /** 1 to 100 distinct values. */
+  choices: string[];
+  /** What to show for each choice, in the same order. */
+  choice_titles?: string[];
+  /** One of `choices`; defaults to the first. */
+  value?: string;
+}
+
+export interface ViewDetail {
+  /** 1 to 20, with distinct IDs. */
+  sections: DetailSection[];
+}
+
+/**
+ * A section of Detail text. Without `fetch` it shows `text` in the Markdown
+ * subset: bold, italic, inline code, fenced code blocks, and http(s) links,
+ * which open under the `open_url` rules; anything else shows as plain text.
+ * With `fetch` it is a Host-Fetched Section, whose request the Host sends.
+ * Each section with text has a Copy button, the user's own copy.
+ */
+export interface DetailSection {
+  /** At most 64 characters, unique in the view. */
+  id: string;
+  title?: string;
+  text?: string;
+  fetch?: SectionFetch;
+}
+
+/**
+ * A keyboard shortcut such as `cmd+shift+k`: modifiers from `cmd`, `ctrl`,
+ * `option` and `shift`, at least `cmd` or `ctrl`, each once, then a
+ * lowercase letter, a digit, or `return`. The view keeps Command-W, -Q, -C,
+ * -V, -X, -A, -Z, Shift-Command-Z and Command-Return for itself.
+ */
+export type Shortcut = string;
+
+export type ViewAction = EventAction | StandardAction;
+
+/** Delivers `action_chosen` with `id`. Without a form, Return chooses the first action. */
+export interface EventAction {
+  /** At most 64 characters, unique among the view's actions. */
+  id: string;
+  title: string;
+  shortcut?: Shortcut;
+}
+
+/**
+ * An action the Host performs itself, without a View Event, under the
+ * Capability its Host Service needs. A refusal shows in the view with the
+ * way to repair it. With `closes_view`, the view closes once it succeeds.
+ */
+export type StandardAction = {
+  title: string;
+  shortcut?: Shortcut;
+  closes_view?: boolean;
+} & (
+  | { perform: "copy_text"; text: string }
+  | { perform: "open_url"; url: string }
+  /** At most 128 KiB of text. */
+  | { perform: "insert_text"; text: string }
+  | { perform: "open_plugin_settings" }
+);
+
 /**
  * What a script evaluates to. `view` shows or updates its Plugin View and
  * `state` (at most 64 KiB of JSON) comes back with the next event; the view
@@ -403,7 +585,7 @@ export type SectionFetch =
  */
 export type ScriptAnswer =
   | null
-  | { view: { [key: string]: JSONValue }; state?: JSONValue; toast?: string }
+  | { view: ViewDescription; state?: JSONValue; toast?: string }
   | { close: true; toast?: string }
   | { toast: string };
 

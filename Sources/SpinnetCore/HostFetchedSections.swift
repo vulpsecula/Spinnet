@@ -31,6 +31,30 @@ public enum HostFetchedSectionState: Equatable {
     case failed(String)
 }
 
+/// The seam between the Plugin View renderer and what sends the requests of
+/// Host-Fetched Sections. The renderer draws a Detail section that has
+/// `fetch` from the state this gives, and never reads `fetch` itself. All
+/// calls arrive on the main thread, and `onChange` must be called there too.
+public protocol HostFetchedSectionProvider: AnyObject {
+    /// The renderer calls this when the section with `id` in `session`'s
+    /// view should be drawn again. It is set before any other call.
+    var onChange: ((_ session: PluginViewSession, _ sectionID: String) -> Void)? { get set }
+
+    /// The session shows a view with these Host-Fetched Sections: when an
+    /// Action presents it, when presenting again replaces it, and when an
+    /// event's answer changes the view. `sections` holds only the sections
+    /// that have `fetch`, in view order, possibly none, so a provider can
+    /// start new requests and cancel those whose sections are gone.
+    func sectionsPresented(_ sections: [PluginViewSection], in session: PluginViewSession)
+
+    /// What the section with `id` shows now.
+    func state(ofSection id: String, in session: PluginViewSession) -> HostFetchedSectionState
+
+    /// The session ended; anything in flight for it is cancelled and its
+    /// answers are dropped.
+    func sessionEnded(_ session: PluginViewSession)
+}
+
 /// A Detail section that names a request for the Host to send, as the
 /// renderer read it from a view: `{id, title?, text?, fetch}`.
 public struct HostFetchedSection: Equatable {
@@ -327,6 +351,9 @@ public final class HostFetchedSections {
     private var shown: [PluginID: [String: HostFetchedSectionState]] = [:]
     private var nextToken = 0
     private var observers: [UUID: (PluginID) -> Void] = [:]
+    /// Called with the session and the ID of each section whose state
+    /// changed, while the session is open.
+    public var onChange: ((_ session: PluginViewSession, _ sectionID: String) -> Void)?
 
     /// `background` runs each send, concurrently with the others;
     /// `executor` brings its result back onto the sessions' executor.
@@ -481,9 +508,31 @@ public final class HostFetchedSections {
 
     private func notifyIfChanged(_ pluginID: PluginID) {
         let states = states(for: pluginID)
-        guard shown[pluginID] ?? [:] != states else { return }
+        let previous = shown[pluginID] ?? [:]
+        guard previous != states else { return }
         shown[pluginID] = states.isEmpty ? nil : states
+        if let onChange, let session = sessions?.session(for: pluginID), !session.isEnded {
+            for id in Set(previous.keys).union(states.keys).sorted() where previous[id] != states[id] {
+                onChange(session, id)
+            }
+        }
         for observer in Array(observers.values) { observer(pluginID) }
+    }
+}
+
+extension HostFetchedSections: HostFetchedSectionProvider {
+    public func sectionsPresented(_ sections: [PluginViewSection], in session: PluginViewSession) {
+        present(sections.compactMap { section in
+            section.fetch.map { HostFetchedSection(id: section.id, fetch: $0, text: section.text) }
+        }, for: session.pluginID)
+    }
+
+    public func state(ofSection id: String, in session: PluginViewSession) -> HostFetchedSectionState {
+        state(ofSection: id, for: session.pluginID) ?? .loading
+    }
+
+    public func sessionEnded(_ session: PluginViewSession) {
+        end(pluginID: session.pluginID)
     }
 }
 

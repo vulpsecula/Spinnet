@@ -1,0 +1,57 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "id": "com.example.view-gallery",
+  "name": "View Gallery",
+  "version": "1.0.0",
+  "capabilities": ["write_clipboard", "open_url", "insert_into_focused_app", "contact_https"],
+  "capability_scopes": [{
+    "capability": "insert_into_focused_app",
+    "command_ids": ["gallery.form", "gallery.detail"],
+    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }, {
+    "capability": "contact_https",
+    "command_ids": ["gallery.form", "gallery.detail"],
+    "data_types": [], "includes_existing_host_data": false, "https_hosts": ["api.github.com"], "external_apps": []
+  }],
+  "settings_fields": [
+    {"key": "tone", "kind": "choice", "title": "Tone", "choices": ["plain", "warm"], "choice_titles": ["Plain", "Warm"]},
+    {"key": "shout", "kind": "toggle", "title": "Shout"}
+  ],
+  "default_settings": {
+    "tone": "plain",
+    "shout": false
+  },
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "gallery.form",
+    "default_alternate_command_ids": ["gallery.detail", "gallery.toast"]
+  },
+  "commands": [
+    {
+      "id": "gallery.form",
+      "title": "Show Form",
+      "description": "Opens a form with every field kind, the Plugin's setting controls and its actions, and answers each View Event.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "gallery.js"
+    },
+    {
+      "id": "gallery.detail",
+      "title": "Show Detail",
+      "description": "Opens a detail page of Markdown sections with every standard action.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "gallery.js"
+    },
+    {
+      "id": "gallery.toast",
+      "title": "Show Toast",
+      "description": "Shows a toast near the pointer without opening a view.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "gallery.js"
+    }
+  ]
+}

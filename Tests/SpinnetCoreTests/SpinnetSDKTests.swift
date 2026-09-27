@@ -128,16 +128,95 @@ final class SpinnetSDKTests: XCTestCase {
         XCTAssertEqual(try run.result.get(), .string("hello"))
     }
 
-    /// The areas later tickets fill are there already, empty, so a script
-    /// can test for a feature without guarding the area itself.
-    func testTheAreasLaterTicketsFillArePresentAndEmpty() throws {
+    // MARK: - View builders
+
+    /// `spinnet.ui` holds a pure builder for every view component, standard
+    /// action and answer, and nothing else.
+    func testTheUIAreaHoldsABuilderForEveryComponentAndStandardAction() throws {
+        let plugin = try writePlugin(capabilities: [], script: "Object.keys(spinnet.ui).sort()")
+
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
+
+        XCTAssertEqual(try run.result.get(), .array([
+            "action", "choiceField", "close", "copyText", "detail", "form", "insertText", "multilineTextField",
+            "openPluginSettings", "openURL", "section", "setting", "show", "textField", "toast", "toggleField",
+            "urlField", "view"
+        ].map(JSONValue.string)))
+    }
+
+    /// The builders ask the Host for nothing, and what they build is a view
+    /// the Host draws, read back member for member.
+    func testTheUIBuildersArePureAndBuildWhatTheHostDraws() throws {
         let plugin = try writePlugin(capabilities: [], script: """
-            ["ui"].map((area) => [typeof spinnet[area], Object.keys(spinnet[area]).length])
+            (() => {
+              const ui = spinnet.ui;
+              const view = ui.view({
+                title: "Everything",
+                subtitle: "Built by spinnet.ui",
+                settings: [ui.setting("tone")],
+                form: ui.form({
+                  submitTitle: "Send",
+                  fields: [
+                    ui.textField({ key: "a", title: "A", placeholder: "Type", value: "x" }),
+                    ui.multilineTextField({ key: "b", title: "B" }),
+                    ui.urlField({ key: "c", title: "C" }),
+                    ui.toggleField({ key: "d", title: "D", value: true }),
+                    ui.choiceField({ key: "e", title: "E", choices: ["s", "l"], choiceTitles: ["Small", "Large"], value: "l" })
+                  ]
+                }),
+                detail: ui.detail({ sections: [
+                  ui.section({ id: "one", title: "One", text: "**Bold**" }),
+                  ui.section({ id: "two", fetch: { any: "thing" } })
+                ] }),
+                actions: [
+                  ui.action({ id: "go", title: "Go", shortcut: "cmd+g" }),
+                  ui.copyText({ text: "copied", shortcut: "cmd+shift+c" }),
+                  ui.openURL({ title: "Docs", url: "https://example.com" }),
+                  ui.insertText({ text: "inserted", closesView: true }),
+                  ui.openPluginSettings()
+                ]
+              });
+              return [ui.show(view, { state: { step: 1 }, toast: "Ready" }), ui.toast("Done"), ui.close(),
+                      ui.close({ toast: "Bye" })];
+            })()
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
-        XCTAssertEqual(try run.result.get(), .array([.array([.string("object"), .number(0)])]))
+        XCTAssertEqual(run.requests, [], "The builders call no Host Service")
+        guard case .array(let answers) = try run.result.get(), answers.count == 4 else {
+            return XCTFail("The script did not answer four values")
+        }
+        let shown = try PluginScriptAnswer(parsing: answers[0])
+        XCTAssertEqual(shown.state, .object(["step": .number(1)]))
+        XCTAssertEqual(shown.toast, "Ready")
+        let view = try PluginViewDescription(parsing: try XCTUnwrap(shown.view), settingsFields: [
+            CommandConfigurationField(kind: .choice, title: "Tone", choices: ["plain", "warm"], key: "tone")
+        ])
+        XCTAssertEqual(view.title, "Everything")
+        XCTAssertEqual(view.subtitle, "Built by spinnet.ui")
+        XCTAssertEqual(view.settings.map(\.key), ["tone"])
+        XCTAssertEqual(view.form?.submitTitle, "Send")
+        XCTAssertEqual(view.form?.fields.map(\.kind), [.text, .multilineText, .url, .toggle, .choice])
+        XCTAssertEqual(view.form?.values, .object(["a": .string("x"), "b": .string(""), "c": .string(""),
+                                                   "d": .bool(true), "e": .string("l")]))
+        XCTAssertEqual(view.form?.fields[0].placeholder, "Type")
+        XCTAssertEqual(view.form?.fields[4].choices.map(\.title), ["Small", "Large"])
+        XCTAssertEqual(view.detail?.sections, [
+            PluginViewSection(id: "one", title: "One", text: "**Bold**", fetch: nil),
+            PluginViewSection(id: "two", title: nil, text: nil, fetch: .object(["any": .string("thing")]))
+        ])
+        XCTAssertEqual(view.actions, [
+            PluginViewAction(title: "Go", shortcut: PluginViewShortcut(key: "g", modifiers: [.command]), kind: .event("go")),
+            PluginViewAction(title: "Copy", shortcut: PluginViewShortcut(key: "c", modifiers: [.command, .shift]),
+                             kind: .standard(.copyText("copied"), closesView: false)),
+            PluginViewAction(title: "Docs", shortcut: nil, kind: .standard(.openURL("https://example.com"), closesView: false)),
+            PluginViewAction(title: "Insert", shortcut: nil, kind: .standard(.insertText("inserted"), closesView: true)),
+            PluginViewAction(title: "Plugin Settings", shortcut: nil, kind: .standard(.openPluginSettings, closesView: false))
+        ])
+        XCTAssertEqual(try PluginScriptAnswer(parsing: answers[1]), PluginScriptAnswer(toast: "Done"))
+        XCTAssertEqual(try PluginScriptAnswer(parsing: answers[2]), PluginScriptAnswer(close: true))
+        XCTAssertEqual(try PluginScriptAnswer(parsing: answers[3]), PluginScriptAnswer(close: true, toast: "Bye"))
     }
 
     // MARK: - Plugin Storage
@@ -374,7 +453,8 @@ final class SpinnetSDKTests: XCTestCase {
             (() => {
               const called = [];
               for (const area of Object.keys(spinnet)) {
-                if (area === "environment") continue;
+                // The environment holds values, and `ui` only builds views.
+                if (area === "environment" || area === "ui") continue;
                 for (const name of Object.keys(spinnet[area])) {
                   spinnet[area][name]({ probe: area + "." + name });
                   called.push(area + "." + name);
