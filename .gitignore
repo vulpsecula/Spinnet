@@ -10,3 +10,4 @@ dist/
 /.claude/skills/
 .DS_Store
 *.swp
+tmp/
