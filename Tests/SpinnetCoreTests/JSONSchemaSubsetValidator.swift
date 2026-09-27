@@ -15,7 +15,7 @@ struct JSONSchemaSubsetValidator {
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
         "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
-        "allOf", "if", "then"
+        "allOf", "if", "then", "propertyNames"
     ]
 
     private let root: JSONValue
@@ -90,6 +90,11 @@ struct JSONSchemaSubsetValidator {
             if case .object(let properties)? = keywords["properties"] { declared = Set(properties.keys) }
             return members.keys.sorted().filter { !declared.contains($0) }.flatMap { name in
                 errors(for: members[name]!, against: value, at: path + "/" + name)
+            }
+        case ("propertyNames", _):
+            guard case .object(let members) = instance else { return [] }
+            return members.keys.sorted().flatMap { name in
+                errors(for: .string(name), against: value, at: path + "/" + name)
             }
         case ("items", _):
             guard case .array(let elements) = instance else { return [] }

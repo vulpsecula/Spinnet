@@ -9,6 +9,7 @@ type definitions without taking on the GPL that covers the rest of Spinnet.
 | --- | --- |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json` |
 | [`schemas/plugin-storage.schema.json`](schemas/plugin-storage.schema.json) | JSON Schemas for the inputs and results of the Plugin Storage Host Services |
+| [`schemas/host-fetched-section.schema.json`](schemas/host-fetched-section.schema.json) | JSON Schemas for a Detail section's `fetch` and the `section_delivered` View Event |
 | [`spinnet.d.ts`](spinnet.d.ts) | Types for the globals a Plugin script runs with, including `spinnet` |
 | [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every script |
 | [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds `spinnet.js` in the helper when it is built |
@@ -100,6 +101,75 @@ good state; a timeout or crash keeps the view and state; a protocol violation
 ends the session. The initial limits are 64 KiB of state and 256 KiB of view
 description. `spinnet.d.ts` types the events and answers as `ViewEvent` and
 `ScriptAnswer`.
+
+## Host-Fetched Sections
+
+A Detail section, `{id, title?, text?, fetch?}`, may name a request for the
+Host to send instead of text the script already has. The Host sends it with
+the Plugin's Credential Uses applied, so a script can show an answer from a
+service that needs a key without ever holding the key, and in `show` mode
+without seeing the answer either.
+
+```js
+// One section of a Detail view.
+const deepl = {
+  id: "deepl",
+  title: "DeepL",
+  fetch: {
+    request: {
+      method: "POST",
+      url: "https://api-free.deepl.com/v2/translate",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: [text], target_lang: "DE" }),
+      credential_uses: [{ reference: "deepl_key", header: "Authorization", template: "DeepL-Auth-Key {credential}" }]
+    },
+    mode: "show",
+    pointer: "/translations/0/text",
+    error_pointer: "/message",
+    status_messages: { "456": "The DeepL quota is used up" },
+    cache: true
+  }
+};
+```
+
+`fetch.request` is an `https_request` input and is held to the same rules as it
+is sent: https to a host consented for the Plugin, the same headers, body and
+Credential Uses, redirects only within the consented hosts, and a 128 KiB
+response. The section is sent with the authority of the Command that presented
+the view, read afresh for every request: once `contact_https` is revoked or a
+host is removed, nothing more is sent, cached answers included.
+
+- **`mode: "show"`**: the Host reads the answer, a string, at the RFC 6901
+  `pointer` in a 2xx JSON response and shows it as plain text. For a failed
+  response it shows the `status_messages` entry for the status, else the
+  string at `error_pointer`, else the status. The script never sees the
+  response, and the section's own `text` is ignored.
+- **`mode: "deliver"`**: the Host sends the `https_request` result to the
+  script as a `section_delivered` View Event, `{type, section, response}`,
+  which waits its turn behind the session's other events. The section shows
+  the `text` it has in the view the script answers with, in the Markdown
+  subset like any section's text; until then it is loading. A failed event, or an answer whose view gives the section no text,
+  shows as the section's failure. A request that fails before any response
+  arrives delivers nothing and shows why.
+
+Every section of a view is sent at once, so a slow service never holds back
+another, and each request has its own 15-second budget, redirects included;
+a script's own `https_request` keeps its 3-second budget. A view fetches at
+most 8 sections. A section keeps what it fetched while its `id` and `fetch`
+stay the same, so answering `section_delivered`, or any other event, sends
+nothing again; a changed `fetch` is sent afresh, and a section the view no
+longer has is cancelled. A view presented by another of the Plugin's Commands
+fetches afresh. Closing the view, or anything else that ends the View
+Session, cancels its sections and drops answers that arrive later.
+
+With `cache: true` the Host may answer the same request from its last 2xx
+answer to it, for 10 minutes, among at most 50 answers across all Plugins,
+in memory only, and forgets them all whenever a grant changes.
+
+A malformed `fetch`, such as a `show` section without a `pointer` or a
+`deliver` section with one, fails that section with the reason and leaves
+the rest of the view alone. Pointers and messages are at most 512
+characters.
 
 ## What the manifest schema checks
 

@@ -110,6 +110,13 @@ struct PluginHTTPSRequestPerformer {
     let consentedHosts: [String]
     let credential: (String) throws -> String?
     var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Wall-clock budget for the whole request, redirects included: a
+    /// script's own request keeps `HTTPSRequestBudgets.timeout`, a
+    /// Host-Fetched Section has its own.
+    var timeout: TimeInterval = HTTPSRequestBudgets.timeout
+    /// Whether whoever asked for the request still wants it. Checked before
+    /// each hop, so a cancelled request follows no further redirect.
+    var isCancelled: () -> Bool = { false }
 
     /// A request whose shape, destination, headers, and Credential Uses have
     /// been checked, before any secret is looked up or anything is sent.
@@ -177,7 +184,7 @@ struct PluginHTTPSRequestPerformer {
             try use.apply(use.value(with: secret), to: &credentialed)
         }
 
-        let deadline = now() + HTTPSRequestBudgets.timeout
+        let deadline = now() + timeout
         let originalHost = plain.url.host?.lowercased()
         var current = credentialed.url
         var currentMethod = plain.method
@@ -189,6 +196,7 @@ struct PluginHTTPSRequestPerformer {
             let isOriginalHost = current.host?.lowercased() == originalHost
             let sent = isOriginalHost ? credentialed.headers : plain.headers
             let body = keepsBody ? (isOriginalHost ? credentialed.body : plain.body) : nil
+            guard !isCancelled() else { throw PluginHostServiceError.failed("The request was cancelled") }
             let remaining = deadline - now()
             guard remaining > 0 else { throw PluginHostServiceError.failed("The request timed out") }
             let response: HTTPSTransportResponse

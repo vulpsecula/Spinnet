@@ -83,13 +83,17 @@ public final class PluginViewSession {
     private let schedule: Schedule
     private let showFeedback: (String) -> Void
     private let onEnd: (PluginViewSession) -> Void
-    private var inFlight: (generation: Int, control: ActionExecutionControl)?
+    /// Tells the view's Host-Fetched Sections how the script took a
+    /// `section_delivered` event: answered, failed, or dropped unrun.
+    private let sectionDelivery: (String, JSONValue, HostFetchedSections.Delivery) -> Void
+    private var inFlight: (generation: Int, control: ActionExecutionControl, event: PluginViewEvent)?
     private var queue: [PluginViewEvent] = []
     private var debouncing: PluginViewEvent?
     private var debounceToken = 0
 
     init(action: ActionConfiguration, view: JSONValue, state: JSONValue, renderer: PluginViewRenderer,
          runEvent: @escaping RunEvent, schedule: @escaping Schedule, showFeedback: @escaping (String) -> Void,
+         sectionDelivery: @escaping (String, JSONValue, HostFetchedSections.Delivery) -> Void = { _, _, _ in },
          onEnd: @escaping (PluginViewSession) -> Void) {
         self.action = action
         self.view = view
@@ -98,6 +102,7 @@ public final class PluginViewSession {
         self.runEvent = runEvent
         self.schedule = schedule
         self.showFeedback = showFeedback
+        self.sectionDelivery = sectionDelivery
         self.onEnd = onEnd
     }
 
@@ -160,8 +165,16 @@ public final class PluginViewSession {
     private func abandonEvents() {
         generation += 1
         inFlight?.control.stop(.cancelled)
+        // A delivery dropped with the old view is delivered again to the
+        // one that replaces it; after the session ends nothing is.
+        let dropped = ([inFlight?.event].compactMap { $0 } + queue)
         inFlight = nil
         queue.removeAll()
+        if !isEnded {
+            for case .sectionDelivered(let section, let response) in dropped {
+                sectionDelivery(section, response, .abandoned)
+            }
+        }
         debouncing = nil
         debounceToken += 1
     }
@@ -187,7 +200,7 @@ public final class PluginViewSession {
         generation += 1
         let dispatched = generation
         let control = ActionExecutionControl()
-        inFlight = (dispatched, control)
+        inFlight = (dispatched, control, event)
         present()
         // Each event is a new invocation, so it never reuses an Action ID.
         let invocation = (try? action.newInvocation()) ?? action
@@ -213,6 +226,7 @@ public final class PluginViewSession {
         self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
                                    category: error.failureCategory, message: error.description)
         present()
+        reportDelivery(of: current.event, .failed(error.description))
         dispatchNext()
     }
 
@@ -242,6 +256,7 @@ public final class PluginViewSession {
             error = nil
             present()
             showToast(answer.toast)
+            reportDelivery(of: current.event, .answered)
         case .failed(let failure):
             guard failure.category != .runtimeProtocolFailed else {
                 end(.failed(failure))
@@ -251,8 +266,14 @@ public final class PluginViewSession {
             // and the last good state; the next event may succeed.
             error = failure
             present()
+            reportDelivery(of: current.event, .failed(failure.message))
         }
         dispatchNext()
+    }
+
+    private func reportDelivery(of event: PluginViewEvent, _ outcome: HostFetchedSections.Delivery) {
+        guard !isEnded, case .sectionDelivered(let section, let response) = event else { return }
+        sectionDelivery(section, response, outcome)
     }
 }
 
@@ -265,6 +286,7 @@ public final class PluginViewSessions {
     private let runEvent: PluginViewSession.RunEvent
     private let schedule: PluginViewSession.Schedule
     private let showFeedback: (String) -> Void
+    private let fetchedSections: HostFetchedSections?
     private var sessions: [PluginID: PluginViewSession] = [:]
     private var registry: PluginRegistry?
     private var grantStore: PluginCapabilityGrantStore?
@@ -272,13 +294,18 @@ public final class PluginViewSessions {
     private var grantObserver: UUID?
 
     /// `showFeedback` shows a toast without a view as the Host's feedback
-    /// near the pointer.
+    /// near the pointer. `fetchedSections` sends the Host-Fetched Sections of
+    /// these sessions' views; it delivers responses through them, and every
+    /// session that ends cancels its sections.
     public init(renderer: PluginViewRenderer, runEvent: @escaping PluginViewSession.RunEvent,
-                schedule: @escaping PluginViewSession.Schedule, showFeedback: @escaping (String) -> Void) {
+                schedule: @escaping PluginViewSession.Schedule, showFeedback: @escaping (String) -> Void,
+                fetchedSections: HostFetchedSections? = nil) {
         self.renderer = renderer
         self.runEvent = runEvent
         self.schedule = schedule
         self.showFeedback = showFeedback
+        self.fetchedSections = fetchedSections
+        fetchedSections?.sessions = self
     }
 
     deinit {
@@ -314,15 +341,26 @@ public final class PluginViewSessions {
         let existing = sessions[action.pluginID]
         if let view = answer.view {
             if let existing {
+                // Another Command's view may not rely on what the first one
+                // was allowed to fetch.
+                if existing.action.commandID != action.commandID {
+                    fetchedSections?.end(pluginID: action.pluginID)
+                }
                 existing.replace(action: action, view: view, state: answer.state)
                 existing.showToast(answer.toast)
                 return true
             }
+            let pluginID = action.pluginID
             let session = PluginViewSession(action: action, view: view, state: answer.state, renderer: renderer,
                                             runEvent: runEvent, schedule: schedule, showFeedback: showFeedback,
+                                            sectionDelivery: { [weak fetchedSections] section, response, outcome in
+                                                fetchedSections?.delivery(of: section, response: response,
+                                                                          for: pluginID, outcome)
+                                            },
                                             onEnd: { [weak self] ended in
                                                 guard self?.sessions[ended.pluginID] === ended else { return }
                                                 self?.sessions.removeValue(forKey: ended.pluginID)
+                                                self?.fetchedSections?.end(pluginID: ended.pluginID)
                                             })
             sessions[action.pluginID] = session
             session.present()

@@ -47,6 +47,21 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.fieldChangeDebounce, 0.1)
     }
 
+    /// docs/adr/0010-run-plugin-views-as-view-sessions.md, "Host-Fetched
+    /// Sections", and docs/plugin-architecture.md, "Host-Fetched Sections".
+    func testHostFetchedSectionBudgetsMatchADR0010() {
+        // "A section request has its own 15-second budget, since it holds no
+        //  helper; a script's own `https_request` keeps the three-second
+        //  budget inside its invocation deadline."
+        XCTAssertEqual(ScriptedActionBudgets.hostFetchedSectionDeadline, 15)
+        XCTAssertEqual(HTTPSRequestBudgets.timeout, 3)
+
+        // "may be cached as `present_results` answers are today (10 minutes,
+        //  50 answers, memory only, cleared by any grant change)"
+        XCTAssertEqual(FetchedResponseCache.lifetime, 10 * 60)
+        XCTAssertEqual(FetchedResponseCache.maximumAnswers, 50)
+    }
+
     /// ADR-0007: "A non-responsive Action therefore reaches a user-visible
     /// terminal state within 4.25 seconds." That figure is the deadline plus
     /// the graceful-exit allowance, so it must stay derived rather than stated
@@ -227,5 +242,17 @@ final class PluginStorageBudgetsTests: XCTestCase {
             maximumPluginBytes: PluginStorageBudgets.maximumPluginBytes,
             maximumKeyCount: PluginStorageBudgets.maximumKeyCount
         ))
+    }
+}
+
+final class HostFetchedSectionBudgetsTests: XCTestCase {
+
+    /// PluginAPI/README.md, "Host-Fetched Sections"
+    func testHostFetchedSectionBudgetsMatchDocumentedInterface() {
+        // "A view fetches at most 8 sections"
+        XCTAssertEqual(HostFetchedSectionBudgets.maximumSections, 8)
+        // "Pointers and messages are at most 512 characters"
+        XCTAssertEqual(HostFetchedSectionBudgets.maximumPointerLength, 512)
+        XCTAssertEqual(HostFetchedSectionBudgets.maximumMessageLength, 512)
     }
 }

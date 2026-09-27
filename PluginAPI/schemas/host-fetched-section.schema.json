@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Host-Fetched Sections",
+  "description": "The fetch member of a Detail section, and the section_delivered View Event it may produce, as of Plugin API Level 1. A Detail section {id, title?, text?, fetch} whose fetch is present is a Host-Fetched Section: the Host sends its request, with the Plugin's Credential Uses applied, and either shows the answer it extracts (mode show; the Plugin never sees the response) or hands the response to the script as a section_delivered View Event and shows the text the script answers with (mode deliver). The request is checked again as it is sent: its URL must be https to a host consented for the Plugin, and its headers and Credential Uses follow the https_request rules. A view fetches at most 8 sections; each request has a 15-second budget, redirects included. A section keeps what it fetched while its id and fetch stay the same.",
+  "$defs": {
+    "request": {
+      "description": "The https_request input the Host sends. Credential Uses name stored credentials by reference; the Host places or signs them as the request leaves and never shows them to the Plugin.",
+      "type": "object",
+      "required": ["method", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "enum": ["GET", "POST"] },
+        "url": {
+          "description": "An absolute https URL to a host consented for the Plugin, without a user, password or port.",
+          "type": "string"
+        },
+        "headers": {
+          "description": "At most 32 headers. Credentials are never set here; they are Credential Uses.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": {
+          "description": "The body of a POST request, at most 128 KiB of UTF-8.",
+          "type": "string"
+        },
+        "credential_uses": {
+          "description": "At most 4 Credential Uses, each exactly as in https_request.",
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["reference"],
+            "properties": { "reference": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "pointer": {
+      "description": "An RFC 6901 JSON pointer, such as /data/0/text, of at most 512 characters.",
+      "type": "string",
+      "pattern": "^/",
+      "maxLength": 512
+    },
+    "fetch": {
+      "description": "What the Host sends for a section, and what it does with the response.",
+      "type": "object",
+      "required": ["request", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "request": { "$ref": "#/$defs/request" },
+        "mode": {
+          "description": "show: the Host extracts the answer at pointer and shows it as plain text. deliver: the Host sends the response to the script as a section_delivered View Event and shows the section's text from the view the script answers with.",
+          "enum": ["show", "deliver"]
+        },
+        "pointer": {
+          "description": "show only: where the answer, a string, sits in a 2xx JSON response.",
+          "$ref": "#/$defs/pointer"
+        },
+        "error_pointer": {
+          "description": "show only: where a message sits in a failed JSON response.",
+          "$ref": "#/$defs/pointer"
+        },
+        "status_messages": {
+          "description": "show only: the message to show for a failed status, which wins over error_pointer.",
+          "type": "object",
+          "propertyNames": { "type": "string", "pattern": "^[1-5][0-9][0-9]$" },
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 512 }
+        },
+        "cache": {
+          "description": "Whether the same request may be answered from the Host's last answer to it, kept in memory for 10 minutes among at most 50 answers and forgotten whenever a grant changes. Only a 2xx answer is kept.",
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "show" } } },
+          "then": { "required": ["pointer"] }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "deliver" } } },
+          "then": {
+            "properties": { "pointer": false, "error_pointer": false, "status_messages": false }
+          }
+        }
+      ]
+    },
+    "response": {
+      "description": "The https_request result: the status, only the content-type, content-language and retry-after headers, and the body as text of at most 128 KiB.",
+      "type": "object",
+      "required": ["status", "headers", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "integer" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "type": "string" }
+      }
+    },
+    "section_delivered": {
+      "description": "The View Event a deliver section's response arrives as. It waits its turn behind the session's other events. The script answers it as any other event; the section then shows its text from the view the script answers with, and is not fetched again while its fetch is unchanged. A request that fails before a response arrives is shown as the section's failure and delivers nothing.",
+      "type": "object",
+      "required": ["type", "section", "response"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "section_delivered" },
+        "section": { "description": "The section's id.", "type": "string" },
+        "response": { "$ref": "#/$defs/response" }
+      }
+    }
+  }
+}

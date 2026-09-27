@@ -366,7 +366,32 @@ export type ViewEvent =
   | { type: "action_chosen"; action: string }
   /** The Host has already stored the new value as Plugin Settings. */
   | { type: "setting_changed"; key: string; value: JSONValue }
-  | { type: "section_delivered"; section: string; response: JSONValue };
+  /** A deliver section's response; the script answers with the section's text. */
+  | { type: "section_delivered"; section: string; response: HTTPSResponse };
+
+/**
+ * A Detail section's `fetch`: a request the Host sends with the Plugin's
+ * Credential Uses applied, within its own 15-second budget, alongside the
+ * view's other fetched sections (at most 8). `show` shows the answer at
+ * `pointer` without the script seeing it; `deliver` sends the response to the
+ * script as a `section_delivered` event and shows the section's `text` from
+ * the view it answers with. The section keeps what it fetched while its `id`
+ * and `fetch` are unchanged. `cache` lets the Host answer the same request
+ * again from its last 2xx answer, for up to 10 minutes.
+ */
+export type SectionFetch =
+  | {
+      request: HTTPSRequest;
+      mode: "show";
+      /** RFC 6901 pointer to the answer, a string, in a 2xx JSON response. */
+      pointer: string;
+      /** RFC 6901 pointer to a message in a failed JSON response. */
+      error_pointer?: string;
+      /** A message for a failed status, which wins over `error_pointer`. */
+      status_messages?: { [status: string]: string };
+      cache?: boolean;
+    }
+  | { request: HTTPSRequest; mode: "deliver"; cache?: boolean };
 
 /**
  * What a script evaluates to. `view` shows or updates its Plugin View and

@@ -69,6 +69,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let toasts = HostToastPresenter()
     /// Each Plugin's View Session, if it has one (ADR 0010).
     private var viewSessions: PluginViewSessions!
+    /// The Host-Fetched Sections of those sessions' views. The renderer
+    /// presents each view's sections to it (W11 #58).
+    private var fetchedSections: HostFetchedSections!
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
     private let actionInvocationQueue = DispatchQueue(
         label: "com.vulpsecula.Spinnet.action-invocation",
@@ -566,9 +569,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// Each View Event runs its Command through the Action runner, broker
     /// and Plugin queue an Action uses, without the Action's progress
     /// feedback. Until Plugin Views are drawn (W11 #58) a view is reported
-    /// and closed.
+    /// and closed. A view's Host-Fetched Sections are sent through the same
+    /// broker as a script's `https_request`, which reads the Plugin's
+    /// authority afresh for every one.
     private func makeViewSessions() -> PluginViewSessions {
         let registry = self.registry
+        let broker = clipboardBroker!
+        let fetchedSections = HostFetchedSections(
+            send: { action, request, cancellation in
+                try broker.sendHostFetchedRequest(request, for: action, using: registry, cancellation: cancellation)
+            },
+            schedule: { delay, operation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
+            },
+            executor: { DispatchQueue.main.async(execute: $0) }
+        )
+        self.fetchedSections = fetchedSections
         let sessions = PluginViewSessions(
             renderer: UnrenderedPluginViews(
                 report: { [weak self] message in self?.feedback?.showMessage(message) },
@@ -586,7 +602,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             schedule: { delay, operation in
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
             },
-            showFeedback: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) }
+            showFeedback: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) },
+            fetchedSections: fetchedSections
         )
         sessions.observe(registry: registry, grantStore: capabilityGrants, on: { DispatchQueue.main.async(execute: $0) })
         return sessions

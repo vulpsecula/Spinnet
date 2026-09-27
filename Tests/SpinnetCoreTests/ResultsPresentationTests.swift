@@ -53,7 +53,7 @@ final class ResultsPresentationTests: XCTestCase {
     private var reruns = 0
     /// Answers kept for repeated requests, with a clock the test moves.
     private var clock: TimeInterval = 0
-    private lazy var cache = ResultsResponseCache(lifetime: 60, limit: 2, now: { [unowned self] in clock })
+    private lazy var cache = FetchedResponseCache(lifetime: 60, limit: 2, now: { [unowned self] in clock })
     /// What the Host's language detector reports for the text being resolved.
     private var detected: String?
 
@@ -524,11 +524,11 @@ final class ResultsPresentationTests: XCTestCase {
     /// its reference, never its secret.
     func testAnswersAreKeptPerPluginAndPerRequest() throws {
         let request: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/t")])
-        let mine = try XCTUnwrap(ResultsResponseCache.key(pluginID: PluginID("com.example.a"), request: request))
-        let theirs = try XCTUnwrap(ResultsResponseCache.key(pluginID: PluginID("com.example.b"), request: request))
+        let mine = try XCTUnwrap(FetchedResponseCache.key(pluginID: PluginID("com.example.a"), request: request))
+        let theirs = try XCTUnwrap(FetchedResponseCache.key(pluginID: PluginID("com.example.b"), request: request))
         XCTAssertNotEqual(mine, theirs)
         let other: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/u")])
-        XCTAssertNotEqual(mine, ResultsResponseCache.key(pluginID: PluginID("com.example.a"), request: other))
+        XCTAssertNotEqual(mine, FetchedResponseCache.key(pluginID: PluginID("com.example.a"), request: other))
         XCTAssertFalse(mine.contains("secret"))
     }
 

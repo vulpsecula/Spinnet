@@ -10,22 +10,18 @@ public enum ResultsPresentationBudgets {
     /// label, or `when_language` code, in characters.
     public static let maximumTitleLength = 256
 
-    /// How long a cached answer stays usable.
-    public static let cacheLifetime: TimeInterval = 10 * 60
-
-    /// Answers kept at once, across every popup.
-    public static let maximumCachedAnswers = 50
-
     /// Plugin Settings one popup may offer to change.
     public static let maximumSettings = 6
 
-    /// Longest `result_pointer` or `error_pointer`, in characters.
-    public static let maximumPointerLength = 512
+    /// Longest `result_pointer` or `error_pointer`, in characters: the same
+    /// as a Host-Fetched Section's, since both are read by `FetchedAnswer`.
+    public static let maximumPointerLength = HostFetchedSectionBudgets.maximumPointerLength
 
     /// Longest message a section shows for a failed answer, in characters.
     /// Longer `status_messages` are refused; a longer message read through
-    /// `error_pointer` is cut short.
-    public static let maximumMessageLength = 512
+    /// `error_pointer` is cut short to the same length as a Host-Fetched
+    /// Section's.
+    public static let maximumMessageLength = HostFetchedSectionBudgets.maximumMessageLength
 
     /// The placeholder a section's request names the text with: a JSON string
     /// in `json_body` exactly equal to it, or this text inside the `url`,
@@ -108,23 +104,15 @@ public struct ResultsPresentation: Equatable {
             }
         }
 
-        /// What the section shows for one `https_request` result.
+        /// What the section shows for one `https_request` result, read as a
+        /// Host-Fetched Section in `show` mode reads its own.
         func state(for response: JSONValue) -> ResultsSectionState {
-            let unexpected = ResultsSectionState.failed("The service sent an unexpected response")
-            guard case .object(let fields) = response, case .number(let code)? = fields["status"],
-                  case .string(let body)? = fields["body"] else { return unexpected }
-            let status = Int(code)
-            let document = try? JSONDecoder().decode(JSONValue.self, from: Data(body.utf8))
-            guard (200..<300).contains(status) else {
-                if let message = statusMessages[status] { return .failed(message) }
-                if let errorPointer, case .string(let message)? = document?.value(atPointer: errorPointer) {
-                    let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { return .failed(String(trimmed.prefix(ResultsPresentationBudgets.maximumMessageLength))) }
-                }
-                return .failed("The service answered \(status)")
+            switch FetchedAnswer(pointer: resultPointer, errorPointer: errorPointer,
+                                 statusMessages: statusMessages).state(for: response) {
+            case .text(let answer), .delivered(let answer): return .succeeded(answer)
+            case .failed(let message): return .failed(message)
+            case .loading: return .pending
             }
-            guard case .string(let answer)? = document?.value(atPointer: resultPointer) else { return unexpected }
-            return .succeeded(answer.trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
@@ -328,79 +316,6 @@ public struct ResultsPresentation: Equatable {
     }
 }
 
-/// Answers the Host may give again without asking the service, for requests
-/// a Plugin marked cacheable, such as translating the same text twice.
-///
-/// An answer is kept per Plugin and per request, so one Plugin never reads
-/// another's, and the key holds a credential's reference rather than its
-/// secret. Nothing is written to disk: a restart starts with none. Only a
-/// successful answer is kept, and a request is only asked of the cache after
-/// the Plugin's authority has been checked afresh, so revoking access stops
-/// cached answers too.
-public final class ResultsResponseCache {
-    private struct Entry {
-        let response: JSONValue
-        let storedAt: TimeInterval
-    }
-
-    private let lock = NSLock()
-    private var entries: [String: Entry] = [:]
-    /// Keys in the order they were stored, oldest first.
-    private var order: [String] = []
-    private let lifetime: TimeInterval
-    private let limit: Int
-    private let now: () -> TimeInterval
-
-    public init(lifetime: TimeInterval = ResultsPresentationBudgets.cacheLifetime,
-                limit: Int = ResultsPresentationBudgets.maximumCachedAnswers,
-                now: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
-        self.lifetime = lifetime
-        self.limit = limit
-        self.now = now
-    }
-
-    /// The key of one request: which Plugin asked, and exactly what it asked.
-    static func key(pluginID: PluginID, request: JSONValue) -> String? {
-        let encoder = JSONEncoder()
-        // A dictionary has no order of its own, so the same request has to
-        // encode the same way twice or nothing would ever be found again.
-        encoder.outputFormatting = [.sortedKeys]
-        guard let encoded = try? encoder.encode(request) else { return nil }
-        return pluginID.rawValue + "\u{0}" + String(decoding: encoded, as: UTF8.self)
-    }
-
-    func response(for key: String) -> JSONValue? {
-        lock.withLock {
-            guard let entry = entries[key] else { return nil }
-            guard now() - entry.storedAt < lifetime else {
-                entries[key] = nil
-                order.removeAll { $0 == key }
-                return nil
-            }
-            return entry.response
-        }
-    }
-
-    func store(_ response: JSONValue, for key: String) {
-        lock.withLock {
-            if entries[key] == nil { order.append(key) }
-            entries[key] = Entry(response: response, storedAt: now())
-            while order.count > limit, let oldest = order.first {
-                order.removeFirst()
-                entries[oldest] = nil
-            }
-        }
-    }
-
-    /// Forgets everything, such as when a Plugin's access changes.
-    public func clear() {
-        lock.withLock {
-            entries = [:]
-            order = []
-        }
-    }
-}
-
 /// One presented popup with the means to fill it in. The Host keeps it while
 /// the popup is open; every send reads the Plugin's authority again, so a
 /// grant revoked while the popup waits for input stops its requests.
@@ -517,19 +432,7 @@ public final class ResultsPresentationSession {
     }
 
     private static func message(for error: PluginHostServiceError) -> String {
-        switch error {
-        case .capabilityDenied:
-            return "Network access is not granted to this Plugin"
-        case .systemPermissionDenied(let permission):
-            return "\(permission.title) is not granted"
-        case .automationPermissionDenied:
-            return error.description
-        case .externalAppMissing(let message), .externalAppOperationUnsupported(let message):
-            return message
-        case .invalidInput(let message), .unavailable(let message), .failed(let message),
-             .storageLimitExceeded(let message):
-            return message
-        }
+        FetchedAnswer.message(for: error)
     }
 }
 
@@ -542,26 +445,5 @@ public extension JSONValue {
             return text
         }
         return strings.count == items.count ? strings : nil
-    }
-
-    /// The value an RFC 6901 JSON pointer names, or nil when it names none.
-    func value(atPointer pointer: String) -> JSONValue? {
-        guard !pointer.isEmpty else { return self }
-        guard pointer.hasPrefix("/") else { return nil }
-        var current = self
-        for token in pointer.dropFirst().split(separator: "/", omittingEmptySubsequences: false) {
-            let key = token.replacingOccurrences(of: "~1", with: "/").replacingOccurrences(of: "~0", with: "~")
-            switch current {
-            case .object(let members):
-                guard let next = members[key] else { return nil }
-                current = next
-            case .array(let items):
-                guard let index = Int(key), String(index) == key, items.indices.contains(index) else { return nil }
-                current = items[index]
-            default:
-                return nil
-            }
-        }
-        return current
     }
 }

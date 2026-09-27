@@ -70,6 +70,12 @@ public enum ScriptedActionBudgets {
     /// How long field changes must pause before the latest is delivered.
     public static let fieldChangeDebounce: TimeInterval = 0.1
 
+    /// Wall-clock budget for one Host-Fetched Section's request, redirects
+    /// included, from when the Host sends it. It holds no helper, so it is
+    /// longer than a script's own `https_request`, which keeps
+    /// `HTTPSRequestBudgets.timeout` inside its invocation deadline.
+    public static let hostFetchedSectionDeadline: TimeInterval = 15
+
     /// The longest a non-responsive Action can take to reach a user-visible
     /// terminal state: the deadline plus the forced-termination grace period.
     /// ADR-0007 states this as 4.25 seconds.

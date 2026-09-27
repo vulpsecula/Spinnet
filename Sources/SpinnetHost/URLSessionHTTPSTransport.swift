@@ -19,8 +19,30 @@ final class URLSessionHTTPSTransport: NSObject, HTTPSTransport, URLSessionDataDe
     private let lock = NSLock()
     private var exchanges: [Int: Exchange] = [:]
 
-    private lazy var session: URLSession = {
+    private let protocolClasses: [AnyClass]?
+    private var madeSession: URLSession?
+
+    /// `protocolClasses` stand in for the network in tests.
+    init(protocolClasses: [AnyClass]? = nil) {
+        self.protocolClasses = protocolClasses
+        super.init()
+    }
+
+    /// Made once, under the lock: requests sent at the same moment, such as
+    /// a view's Host-Fetched Sections, must share one session, because a
+    /// task is known by an identifier that is unique only within its session.
+    private var session: URLSession {
+        lock.withLock {
+            if let madeSession { return madeSession }
+            let session = makeSession()
+            madeSession = session
+            return session
+        }
+    }
+
+    private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
+        if let protocolClasses { configuration.protocolClasses = protocolClasses }
         configuration.httpCookieStorage = nil
         configuration.httpCookieAcceptPolicy = .never
         configuration.httpShouldSetCookies = false
@@ -30,7 +52,7 @@ final class URLSessionHTTPSTransport: NSObject, HTTPSTransport, URLSessionDataDe
         configuration.tlsMinimumSupportedProtocolVersion = .TLSv12
         configuration.httpAdditionalHeaders = ["User-Agent": "Spinnet"]
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-    }()
+    }
 
     func send(_ request: HTTPSTransportRequest) throws -> HTTPSTransportResponse {
         var urlRequest = URLRequest(url: request.url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,

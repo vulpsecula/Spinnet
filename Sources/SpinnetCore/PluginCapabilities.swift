@@ -678,8 +678,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let pluginSettingsReader: (PluginManifest) -> [String: JSONValue]
     private let pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)?
     private let actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)?
-    /// Answers to repeated requests, for the popups of every Plugin.
-    public let responseCache: ResultsResponseCache
+    /// Answers to repeated requests, for the popups and Host-Fetched
+    /// Sections of every Plugin.
+    public let responseCache: FetchedResponseCache
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
     private let appleEventSender: (AppleEventRequest) throws -> Void
@@ -735,7 +736,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         pluginSettingsReader: @escaping (PluginManifest) -> [String: JSONValue] = { $0.resolvedSettings(stored: [:]) },
         pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
         actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil,
-        responseCache: ResultsResponseCache = ResultsResponseCache(),
+        responseCache: FetchedResponseCache = FetchedResponseCache(),
         appleEventSender: @escaping (AppleEventRequest) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Apple Events")
         },
@@ -779,33 +780,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         for package: PluginPackage,
         action: ActionConfiguration
     ) throws -> JSONValue {
-        grantStore.register(
-            pluginID: package.manifest.id,
-            pluginVersion: package.manifest.version,
-            capabilities: package.manifest.capabilities
-        )
         let service = request.service
-        let isPluginsOwnAction = package.manifest.id == action.pluginID
-            && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
-        if let capability = service.requiredCapability {
-            guard isPluginsOwnAction,
-                  package.manifest.declares(capability, for: action.commandID),
-                  grantStore.decision(
-                      for: package.manifest.id,
-                      pluginVersion: package.manifest.version,
-                      capability: capability,
-                      scope: package.manifest.scope(for: capability)
-                  ) == .granted else {
-                throw PluginHostServiceError.capabilityDenied(capability)
-            }
-        } else if !isPluginsOwnAction {
-            throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
-        }
-
-        if let permission = service.requiredSystemPermission,
-           !systemPermissionCheck(permission) {
-            throw PluginHostServiceError.systemPermissionDenied(permission)
-        }
+        try authorize(service, for: package, action: action)
 
         switch service {
         case .readClipboardHistoryContent:
@@ -1050,17 +1026,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                     ) == .granted else {
                         throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
                     }
-                    // Asking the same question twice, such as translating the
-                    // same text again, is answered from the last answer. The
-                    // grant is checked first, so a withdrawn one stops these too.
-                    let key = mayAnswerFromCache ? ResultsResponseCache.key(pluginID: manifest.id, request: input) : nil
-                    if let key, let cached = responseCache.response(for: key) { return cached }
-                    let response = try httpsPerformer(for: package).perform(input)
-                    if let key, case .object(let fields) = response, case .number(let status)? = fields["status"],
-                       (200..<300).contains(Int(status)) {
-                        responseCache.store(response, for: key)
-                    }
-                    return response
+                    return try sendAnsweringFromCache(input, for: package, mayAnswerFromCache: mayAnswerFromCache,
+                                                      performer: httpsPerformer(for: package))
                 },
                 // The Host reads the text it already holds; nothing is sent
                 // anywhere to tell one direction from the other.
@@ -1111,6 +1078,82 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             // names: a Plugin reaches only its own store.
             return try pluginStorage.answer(service, input: request.input, for: package.manifest.id)
         }
+    }
+
+    /// Sends the request of a Host-Fetched Section for `action`, the
+    /// Plugin's Command that presented the view, and answers with the
+    /// `https_request` result. Like every Host Service request it reads the
+    /// Plugin's authority afresh: the Plugin must still be active, the
+    /// Command must declare `contact_https`, the grant must stand and the
+    /// destination must be among the hosts consented to now, so a revocation
+    /// stops the next send, cached answers included. The request has the
+    /// section's own budget and leaves with its Credential Uses applied.
+    public func sendHostFetchedRequest(_ request: HostFetchedRequest, for action: ActionConfiguration,
+                                       using registry: PluginRegistry,
+                                       cancellation: HostFetchedSections.Cancellation) throws -> JSONValue {
+        guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
+            throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+        }
+        try authorize(.httpsRequest, for: package, action: action)
+        var performer = try httpsPerformer(for: package)
+        performer.timeout = ScriptedActionBudgets.hostFetchedSectionDeadline
+        performer.isCancelled = { cancellation.isCancelled }
+        return try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
+                                          performer: performer)
+    }
+
+    /// Checks the current manifest declaration, user grant, and System
+    /// Permission `service` needs before anything touches a Host provider.
+    private func authorize(_ service: PluginHostService, for package: PluginPackage,
+                           action: ActionConfiguration) throws {
+        grantStore.register(
+            pluginID: package.manifest.id,
+            pluginVersion: package.manifest.version,
+            capabilities: package.manifest.capabilities
+        )
+        let isPluginsOwnAction = package.manifest.id == action.pluginID
+            && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
+        if let capability = service.requiredCapability {
+            guard isPluginsOwnAction,
+                  package.manifest.declares(capability, for: action.commandID),
+                  grantStore.decision(
+                      for: package.manifest.id,
+                      pluginVersion: package.manifest.version,
+                      capability: capability,
+                      scope: package.manifest.scope(for: capability)
+                  ) == .granted else {
+                throw PluginHostServiceError.capabilityDenied(capability)
+            }
+        } else if !isPluginsOwnAction {
+            throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
+        }
+
+        if let permission = service.requiredSystemPermission,
+           !systemPermissionCheck(permission) {
+            throw PluginHostServiceError.systemPermissionDenied(permission)
+        }
+    }
+
+    /// Performs an `https_request` input the Host sends for a view or popup.
+    /// Asking the same question twice, such as translating the same text
+    /// again, is answered from the last answer when the Plugin allows it;
+    /// the caller has checked the Plugin's authority first, so a withdrawn
+    /// grant stops these too, and a kept answer is given only while the
+    /// request would still be sent, its host consented to now. Only a 2xx
+    /// answer is kept.
+    private func sendAnsweringFromCache(_ input: JSONValue, for package: PluginPackage, mayAnswerFromCache: Bool,
+                                        performer: PluginHTTPSRequestPerformer) throws -> JSONValue {
+        let key = mayAnswerFromCache ? FetchedResponseCache.key(pluginID: package.manifest.id, request: input) : nil
+        if let key, let cached = responseCache.response(for: key) {
+            try performer.validate(input)
+            return cached
+        }
+        let response = try performer.perform(input)
+        if let key, case .object(let fields) = response, case .number(let status)? = fields["status"],
+           (200..<300).contains(Int(status)) {
+            responseCache.store(response, for: key)
+        }
+        return response
     }
 
     /// The Apple Event for a `perform_app_operation` input: an application
