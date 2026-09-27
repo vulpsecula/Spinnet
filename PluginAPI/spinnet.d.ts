@@ -62,8 +62,7 @@ export type HostServiceName =
   | "list_storage_keys"
   /** Forgets every key, answered with `null`. */
   | "clear_storage"
-  // Removed before Level 1 is published; their behaviour moves into Plugins.
-  | "present_results"
+  // Removed before Level 1 is published; its behaviour moves into Plugins.
   | "smart_jump";
 
 /** A rectangle in global points, origin at the top-left of the primary display. */
@@ -357,9 +356,18 @@ export interface UIArea {
     detail?: ViewDetail;
     actions?: ViewAction[];
   }): ViewDescription;
-  /** A control for one of the Plugin's own `choice` or `toggle` settings. */
-  setting(key: string): SettingControl;
-  form(options: { fields: FormField[]; submitTitle?: string }): ViewForm;
+  /**
+   * A control for one of the Plugin's own `choice` or `toggle` settings.
+   * `swapWith` names the `choice` control that follows this one and offers
+   * the same choices, to draw a swap button between the two.
+   */
+  setting(key: string, options?: { swapWith?: string }): SettingControl;
+  /**
+   * `submitOnReturn` makes Return submit from any field, a multiline one
+   * included, where Shift-Return starts a new line; the form then draws no
+   * submit button and takes no `submitTitle`.
+   */
+  form(options: { fields: FormField[]; submitTitle?: string; submitOnReturn?: boolean }): ViewForm;
   textField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
   multilineTextField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
   urlField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
@@ -424,6 +432,8 @@ export type ViewEvent =
   | { type: "action_chosen"; action: string }
   /** The Host has already stored the new value as Plugin Settings. */
   | { type: "setting_changed"; key: string; value: JSONValue }
+  /** A swap button exchanged two settings; the Host has already stored both. */
+  | { type: "settings_swapped"; keys: [string, string] }
   /** A deliver section's response; the script answers with the section's text. */
   | { type: "section_delivered"; section: string; response: HTTPSResponse };
 
@@ -474,6 +484,14 @@ export interface ViewDescription {
  */
 export interface SettingControl {
   key: string;
+  /**
+   * On a `choice` control, the key of the `choice` control right after it,
+   * which offers the same choices.
+   * The Host draws a swap button between the two, as between two languages,
+   * which stores both values exchanged and then delivers one
+   * `settings_swapped` whose `keys` name this one first.
+   */
+  swap_with?: string;
 }
 
 /**
@@ -483,8 +501,13 @@ export interface SettingControl {
 export interface ViewForm {
   /** 1 to 20, with distinct keys. */
   fields: FormField[];
-  /** Defaults to "Submit". */
+  /** Defaults to "Submit". Not with `submit_on_return`. */
   submit_title?: string;
+  /**
+   * Return submits from any field, a multiline one included, where
+   * Shift-Return starts a new line; no submit button is drawn.
+   */
+  submit_on_return?: boolean;
 }
 
 export type FormField = TextFormField | ToggleFormField | ChoiceFormField;

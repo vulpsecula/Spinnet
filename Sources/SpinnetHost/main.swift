@@ -60,8 +60,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
     }
     private let pluginCredentials = KeychainPluginCredentialStore()
-    /// Result popups outlive the Action that presented them.
-    private let resultsPopup = ResultsPopupController()
     private let smartJumpWindow = SmartJumpWindowController()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
@@ -160,9 +158,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 focusedTextInserter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.insertText(text)
                 },
-                resultsPresenter: { [resultsPopup] session in
-                    DispatchQueue.main.async { resultsPopup.present(session) }
-                },
                 smartJumpPresenter: { [smartJumpWindow] session in
                     DispatchQueue.main.async { smartJumpWindow.present(session) }
                 },
@@ -170,19 +165,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     try pluginHostServiceProvider.openLocalPath(url)
                 },
                 languageDetector: { text in TextLanguage.detect(text) },
-                pluginSettingsReader: { [unowned self] manifest in self.resolvedPluginSettings(manifest) },
-                pluginSettingsWriter: { [unowned self] manifest, values in
-                    try self.pluginSettings?.setValues(values, for: manifest.id)
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self, let configuration = self.currentConfiguration else { return }
-                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
-                    }
-                },
-                // A setting changed in a popup runs its Action again, so the
-                // Plugin describes its requests with the new value.
-                actionRerunner: { [weak self] _, action in
-                    DispatchQueue.main.async { [weak self] in self?.invoke(action) }
-                },
                 appleEventSender: { request in try AppleEventSender().send(request) },
                 deepLinkOpener: { link in try DeepLinkOpener().open(link) },
                 pluginStorage: pluginStorage

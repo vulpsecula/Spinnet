@@ -142,10 +142,10 @@ final class PluginViewHostActionsTests: XCTestCase {
         let event = try actions.changeSetting("tone", to: .string("warm"), pluginID: package.manifest.id)
 
         XCTAssertEqual(event, .settingChanged(key: "tone", value: .string("warm")))
-        XCTAssertEqual(stored, ["tone": .string("warm"), "shout": .bool(false)])
+        XCTAssertEqual(stored, ["tone": .string("warm"), "shout": .bool(false), "from": .string("en"), "into": .string("de")])
         XCTAssertEqual(try actions.changeSetting("shout", to: .bool(true), pluginID: package.manifest.id),
                        .settingChanged(key: "shout", value: .bool(true)))
-        XCTAssertEqual(stored, ["tone": .string("warm"), "shout": .bool(true)])
+        XCTAssertEqual(stored, ["tone": .string("warm"), "shout": .bool(true), "from": .string("en"), "into": .string("de")])
     }
 
     func testASettingValueItsFieldCannotHoldIsRefusedAndNothingIsStored() throws {
@@ -153,6 +153,28 @@ final class PluginViewHostActionsTests: XCTestCase {
             XCTAssertThrowsError(try actions.changeSetting(key, to: value, pluginID: package.manifest.id), key)
         }
         XCTAssertEqual(stored, [:])
+    }
+
+    /// A swap button stores both settings exchanged in one write, then
+    /// delivers one `settings_swapped`, so the script can tell a swap from
+    /// two changes.
+    func testASwapStoresBothSettingsExchangedAndBecomesOneEvent() throws {
+        stored = ["from": .string("en"), "into": .string("fr")]
+        let event = try actions.swapSettings("from", "into", pluginID: package.manifest.id)
+
+        XCTAssertEqual(event, .settingsSwapped(first: "from", second: "into"))
+        XCTAssertEqual(stored["from"], .string("fr"))
+        XCTAssertEqual(stored["into"], .string("en"))
+        XCTAssertEqual(stored["tone"], .string("plain"), "The other settings are kept")
+    }
+
+    /// Only two choice settings that can hold each other's values swap.
+    func testASwapEitherSettingCannotTakeIsRefusedAndNothingIsStored() throws {
+        stored = ["from": .string("en"), "into": .string("fr")]
+        for (first, second) in [("from", "tone"), ("tone", "shout"), ("from", "from"), ("from", "missing")] {
+            XCTAssertThrowsError(try actions.swapSettings(first, second, pluginID: package.manifest.id), "\(first) \(second)")
+        }
+        XCTAssertEqual(stored, ["from": .string("en"), "into": .string("fr")])
     }
 
     // MARK: - Repair routes

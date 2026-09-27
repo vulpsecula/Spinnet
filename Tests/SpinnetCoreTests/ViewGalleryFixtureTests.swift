@@ -46,7 +46,8 @@ final class ViewGalleryFixtureTests: XCTestCase {
     func testTheFormUsesEveryFieldKindTheSettingControlsAndActions() throws {
         let opened = try answer()
         let view = try XCTUnwrap(opened.view)
-        XCTAssertEqual(view.settings.map(\.key), ["tone", "shout"])
+        XCTAssertEqual(view.settings.map(\.key), ["tone", "shout", "from", "into"])
+        XCTAssertEqual(view.settings.map(\.swapWith), [nil, nil, "into", nil])
         XCTAssertEqual(Set(view.form?.fields.map(\.kind) ?? []), Set(PluginViewForm.fieldKinds))
         XCTAssertEqual(view.form?.submitTitle, "Greet")
         XCTAssertTrue(view.actions.contains { $0.kind == .standard(.openPluginSettings, closesView: false) })

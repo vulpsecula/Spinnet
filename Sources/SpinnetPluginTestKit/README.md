@@ -129,6 +129,32 @@ for expected in 1...2 {
 }
 ```
 
+## Host-Fetched Sections
+
+A view's Host-Fetched Sections are sent by the Host, not the script, so a run
+only shows the `fetch` the script described. `RecordedHostFetchedSections`
+sends them the way the Host does, through its own broker, with recorded
+responses by host in place of the network, and reads what each section shows:
+
+```swift
+let fetches = RecordedHostFetchedSections(
+    ["api.example.com": RecordedHostFetchedSections.json(#"{"text":"Hallo"}"#)],
+    credentials: ["key": "s3cret"]
+)
+let sections = try fetches.fetch(XCTUnwrap(opened.view), of: plugin, for: PluginTestInvocation("example.form"))
+XCTAssertEqual(sections.map(\.state), [.text("Hallo")])
+XCTAssertEqual(fetches.requests.first?.headers["Authorization"], "Key s3cret")
+```
+
+Each request is held to the Host's rules: Credential Uses are applied from
+`credentials`, a host outside the manifest's scope is refused unless it is in
+`consentedHosts`, a section with `cache` is answered again from its last 2xx
+answer across `fetch` calls, and `deniedCapabilities` refuses a declared
+Capability. A `show` section's `state` is the answer the Host extracts or why
+there is none. A `deliver` section is `.loading` with a `delivery`, the
+`section_delivered` event to run the script with next. `fetches.requests`
+lists what reached the network, as it left.
+
 ## Using the Host's own services
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and

@@ -469,10 +469,6 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// One HTTPS request to a host in the Plugin's consented contact scope.
     /// The Host owns the transport, redirects, and Credential Uses.
     case httpsRequest = "https_request"
-    /// Opens a Host-rendered result popup whose sections are HTTPS requests
-    /// the Host sends after the Action returns (ADR 0002). It needs what the
-    /// requests need, `contact_https`, and tells the Plugin nothing back.
-    case presentResults = "present_results"
     /// Sends one operation of an External App's Reviewed App Interface, from
     /// a family the scope names. The Plugin cannot send arbitrary Apple
     /// Events or scripts.
@@ -526,7 +522,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         case .openLocalPath: return .openLocalPath
         case .captureScreen:
             return .captureScreen
-        case .httpsRequest, .presentResults:
+        case .httpsRequest:
             return .contactHTTPS
         case .performAppOperation, .openDeepLink:
             return .controlExternalApp
@@ -548,7 +544,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .captureScreen:
             return .screenRecording
-        case .httpsRequest, .presentResults:
+        case .httpsRequest:
             return nil
         case .performAppOperation, .openDeepLink:
             return nil
@@ -673,13 +669,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
-    private let resultsPresenter: (ResultsPresentationSession) throws -> Void
     private let languageDetector: (String) -> String?
-    private let pluginSettingsReader: (PluginManifest) -> [String: JSONValue]
-    private let pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)?
-    private let actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)?
-    /// Answers to repeated requests, for the popups and Host-Fetched
-    /// Sections of every Plugin.
+    /// Answers to repeated requests, for the Host-Fetched Sections of every
+    /// Plugin.
     public let responseCache: FetchedResponseCache
     private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
@@ -723,9 +715,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         focusedTextInserter: @escaping (String) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Text insertion")
         },
-        resultsPresenter: @escaping (ResultsPresentationSession) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Result popups")
-        },
         smartJumpPresenter: @escaping (SmartJumpSession) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Smart Jump window")
         },
@@ -733,9 +722,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("Opening local paths")
         },
         languageDetector: @escaping (String) -> String? = { _ in nil },
-        pluginSettingsReader: @escaping (PluginManifest) -> [String: JSONValue] = { $0.resolvedSettings(stored: [:]) },
-        pluginSettingsWriter: ((PluginManifest, [String: JSONValue]) throws -> Void)? = nil,
-        actionRerunner: ((PluginPackage, ActionConfiguration) -> Void)? = nil,
         responseCache: FetchedResponseCache = FetchedResponseCache(),
         appleEventSender: @escaping (AppleEventRequest) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Apple Events")
@@ -762,11 +748,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.httpsTransport = httpsTransport
         self.credentialStore = credentialStore
         self.focusedTextInserter = focusedTextInserter
-        self.resultsPresenter = resultsPresenter
         self.languageDetector = languageDetector
-        self.pluginSettingsReader = pluginSettingsReader
-        self.pluginSettingsWriter = pluginSettingsWriter
-        self.actionRerunner = actionRerunner
         self.responseCache = responseCache
         self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
@@ -1023,75 +1005,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             try deepLinkOpener(scope.deepLink(template: template, parameters: parameters))
             return .null
-        case .presentResults:
-            let presentation = try ResultsPresentation(serviceInput: request.input)
-            // Every section is checked now, so a popup never opens for a
-            // request that could not be sent.
-            let performer = try httpsPerformer(for: package)
-            for variant in presentation.variants {
-                for section in variant.sections {
-                    try performer.validate(section.request(with: presentation.original ?? ""))
-                }
-            }
-            // The popup outlives the Action, so each send checks the grant
-            // and the consented hosts again rather than trusting this one.
-            // Checked once, read afresh: the popup always shows what is stored.
-            let offeredFields = try popupSettingFields(presentation.settings, of: package.manifest)
-            let manifest = package.manifest
-            let offered = { [pluginSettingsReader] () -> [ResultsPresentationSession.Setting] in
-                let values = pluginSettingsReader(manifest)
-                return offeredFields.map { field in
-                    let key = field.key ?? ""
-                    return ResultsPresentationSession.Setting(
-                        key: key,
-                        title: field.displayTitle,
-                        kind: field.kind,
-                        value: values[key] ?? .null,
-                        choices: field.choices.map { ($0, field.displayTitle(forChoice: $0)) }
-                    )
-                }
-            }
-            let session = ResultsPresentationSession(
-                presentation: presentation,
-                send: { [self] input, mayAnswerFromCache in
-                    guard grantStore.decision(
-                        for: package.manifest.id, pluginVersion: package.manifest.version,
-                        capability: .contactHTTPS, scope: package.manifest.scope(for: .contactHTTPS)
-                    ) == .granted else {
-                        throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
-                    }
-                    return try sendAnsweringFromCache(input, for: package, mayAnswerFromCache: mayAnswerFromCache,
-                                                      performer: httpsPerformer(for: package))
-                },
-                // The Host reads the text it already holds; nothing is sent
-                // anywhere to tell one direction from the other.
-                detectLanguage: languageDetector,
-                settings: offered,
-                swappableSettings: presentation.settings.flatMap { declared in
-                    declared.swap.count == 2 ? (declared.swap[0], declared.swap[1]) : nil
-                },
-                changeSettings: offeredFields.isEmpty ? nil : { [self] values in
-                    // The user changed a setting in the popup, so it is stored
-                    // like any other Plugin Setting and the Action runs again:
-                    // only the Plugin can say what its requests look like now.
-                    guard let pluginSettingsWriter, let actionRerunner else {
-                        throw PluginHostServiceError.unavailable("Changing Plugin Settings")
-                    }
-                    var stored = pluginSettingsReader(package.manifest)
-                    for (key, value) in values {
-                        guard let field = package.manifest.settingsFields.first(where: { $0.key == key }),
-                              field.acceptsMemberValue(value) else {
-                            throw PluginHostServiceError.invalidInput("\(key) cannot hold that value")
-                        }
-                        stored[key] = value
-                    }
-                    try pluginSettingsWriter(package.manifest, stored)
-                    actionRerunner(package, action)
-                }
-            )
-            try resultsPresenter(session)
-            // The user reads the answers; the Plugin never sees them.
-            return .null
         case .insertText:
             guard case .string(let text) = request.input,
                   text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
@@ -1132,11 +1045,22 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         var performer = try httpsPerformer(for: package)
         performer.timeout = ScriptedActionBudgets.hostFetchedSectionDeadline
         performer.isCancelled = { cancellation.isCancelled }
-        return try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
-                                          performer: performer)
+        do {
+            return try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
+                                              performer: performer)
+        } catch PluginHostServiceError.capabilityDenied(.contactHTTPS) {
+            // The grant stood a moment ago, so it is this host the user never
+            // allowed, such as a self-hosted endpoint; the section says which.
+            guard case .object(let fields) = request.request, case .string(let address)? = fields["url"],
+                  let url = URL(string: address), let host = HTTPSDestination.host(of: url) else {
+                throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
+            }
+            throw PluginHostServiceError.failed(
+                "\(package.manifest.name) may not contact \(host) until it is allowed in its Plugin Settings")
+        }
     }
 
-    /// Performs an `https_request` input the Host sends for a view or popup.
+    /// Performs an `https_request` input the Host sends for a view.
     /// Asking the same question twice, such as translating the same text
     /// again, is answered from the last answer when the Plugin allows it;
     /// the caller has checked the Plugin's authority first, so a withdrawn
@@ -1189,23 +1113,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
         }
         return try interface.request(operation: operation, arguments: arguments)
-    }
-
-    /// The Plugin Settings a popup may offer: its own, and only the kinds
-    /// the Host can render in one. A key that is not a setting, or holds a
-    /// secret or an address, is refused before the popup opens.
-    private func popupSettingFields(_ declared: ResultsPresentation.Settings?,
-                                    of manifest: PluginManifest) throws -> [CommandConfigurationField] {
-        guard let declared else { return [] }
-        return try declared.keys.map { key in
-            guard let field = manifest.settingsFields.first(where: { $0.key == key }),
-                  [.choice, .toggle].contains(field.kind) else {
-                throw PluginHostServiceError.invalidInput(
-                    "settings may only name the Plugin's own choice or toggle settings, and \(key) is not one"
-                )
-            }
-            return field
-        }
     }
 
     /// A performer for the Plugin's declared hosts plus those the user

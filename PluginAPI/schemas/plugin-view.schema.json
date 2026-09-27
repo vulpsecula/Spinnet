@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Plugin View",
-  "description": "The view a script answers with as `{view, state}`, as of Plugin API Level 1 (ADR 0010). The Host draws a title, the Plugin's own setting controls, a Form, a Detail and Actions, in that order, and never the Plugin's own markup. `spinnet.ui` builds each part. Besides the shapes below, the Host checks that field keys, section IDs, action IDs and shortcuts are each distinct, that a setting control names one of the Plugin's own `choice` or `toggle` settings, each once, that a shortcut includes cmd or ctrl, names each modifier once and is not one the view keeps (cmd+w, cmd+q, cmd+c, cmd+v, cmd+x, cmd+a, cmd+z, cmd+shift+z, cmd+return), that inserted text is at most 128 KiB, and that the whole description is at most 256 KiB of JSON. A view that breaks any of these ends the View Session as a protocol violation.",
+  "description": "The view a script answers with as `{view, state}`, as of Plugin API Level 1 (ADR 0010). The Host draws a title, the Plugin's own setting controls, a Form, a Detail and Actions, in that order, and never the Plugin's own markup. `spinnet.ui` builds each part. Besides the shapes below, the Host checks that field keys, section IDs, action IDs and shortcuts are each distinct, that a setting control names one of the Plugin's own `choice` or `toggle` settings, each once, that `swap_with` names the `choice` setting control right after a `choice` control, that a shortcut includes cmd or ctrl, names each modifier once and is not one the view keeps (cmd+w, cmd+q, cmd+c, cmd+v, cmd+x, cmd+a, cmd+z, cmd+shift+z, cmd+return), that inserted text is at most 128 KiB, and that the whole description is at most 256 KiB of JSON. A view that breaks any of these ends the View Session as a protocol violation.",
   "$ref": "#/$defs/view",
   "$defs": {
     "text": {
@@ -45,12 +45,13 @@
       ]
     },
     "setting_control": {
-      "description": "A control for one of the Plugin's own choice or toggle settings. The Host shows what is stored, stores a change as Plugin Settings are, and then delivers setting_changed; the Action does not run again.",
+      "description": "A control for one of the Plugin's own choice or toggle settings. The Host shows what is stored, stores a change as Plugin Settings are, and then delivers setting_changed; the Action does not run again. A choice control's swap_with names the choice control that follows it: the Host draws a swap button between the two, which stores both values exchanged and then delivers one settings_swapped event whose keys name this control's key first.",
       "type": "object",
       "required": ["key"],
       "additionalProperties": false,
       "properties": {
-        "key": { "$ref": "#/$defs/text" }
+        "key": { "$ref": "#/$defs/text" },
+        "swap_with": { "$ref": "#/$defs/text" }
       }
     },
     "form": {
@@ -65,8 +66,14 @@
           "maxItems": 20,
           "items": { "$ref": "#/$defs/field" }
         },
-        "submit_title": { "$ref": "#/$defs/text" }
-      }
+        "submit_title": { "$ref": "#/$defs/text" },
+        "submit_on_return": {
+          "description": "Return submits from any field, a multiline one included, where Shift-Return starts a new line. The form then draws no submit button and takes no submit_title.",
+          "type": "boolean"
+        }
+      },
+      "if": { "required": ["submit_on_return"], "properties": { "submit_on_return": { "const": true } } },
+      "then": { "propertyNames": { "enum": ["fields", "submit_on_return"] } }
     },
     "field": {
       "description": "A field of one of the kinds Plugin Settings use whose value is text, a switch, or one choice. Without a value it starts empty, off, or on its first choice.",

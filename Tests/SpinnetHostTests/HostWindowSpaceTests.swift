@@ -41,22 +41,13 @@ final class HostWindowSpaceTests: XCTestCase {
         assertStaysOnOneDesktop(try visibleWindow(labelled: "Spinnet feedback"))
     }
 
-    func testResultsPopupShowsOnlyOnTheActiveDesktop() throws {
-        let presentation = try ResultsPresentation(serviceInput: .object([
-            "title": .string("Space Check"),
-            "original": .string("Hello"),
-            "sections": .array([.object([
-                "title": .string("One"),
-                "request": .object(["method": .string("GET"), "url": .string("https://api.example.com/one")]),
-                "result_pointer": .string("/text")
-            ])])
-        ]))
-        let popup = ResultsPopupController()
-        defer { popup.close() }
+    func testAPluginViewShowsOnlyOnTheActiveDesktop() throws {
+        let harness = try PluginViewHarness()
+        try harness.present(PluginViewHarness.form(title: "Space Check"))
+        let window = PluginViewPanelWindow(model: try XCTUnwrap(harness.windows.model(for: harness.pluginID)))
+        defer { window.close() }
 
-        popup.present(ResultsPresentationSession(presentation: presentation) { _, _ in
-            throw PluginHostServiceError.failed("not asked here")
-        })
+        window.show(near: try centreOfMainScreen())
 
         assertStaysOnOneDesktop(try visibleWindow(labelled: "Space Check"))
     }

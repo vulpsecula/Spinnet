@@ -189,6 +189,8 @@ final class PluginViewSessionTests: XCTestCase {
                        .object(["type": .string("action_chosen"), "action": .string("copy")]))
         XCTAssertEqual(PluginViewEvent.settingChanged(key: "target", value: .string("de")).json,
                        .object(["type": .string("setting_changed"), "key": .string("target"), "value": .string("de")]))
+        XCTAssertEqual(PluginViewEvent.settingsSwapped(first: "source", second: "target").json,
+                       .object(["type": .string("settings_swapped"), "keys": .array([.string("source"), .string("target")])]))
         XCTAssertEqual(PluginViewEvent.sectionDelivered(section: "deepl", response: .object(["status": .number(200)])).json,
                        .object(["type": .string("section_delivered"), "section": .string("deepl"),
                                 "response": .object(["status": .number(200)])]))

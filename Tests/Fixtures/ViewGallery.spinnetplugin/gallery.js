@@ -17,7 +17,8 @@
     return ui.view({
       title: "View Gallery",
       subtitle: subtitle || `Tone: ${tone}${shout ? ", shouting" : ""}`,
-      settings: [ui.setting("tone"), ui.setting("shout")],
+      // A swap button between the two choices exchanges their values.
+      settings: [ui.setting("tone"), ui.setting("shout"), ui.setting("from", { swapWith: "into" }), ui.setting("into")],
       form: ui.form({
         submitTitle: "Greet",
         fields: [
@@ -135,6 +136,8 @@
     case "setting_changed":
       // The Host stored the setting already; `input` holds the new value.
       return show(current, `${event.key} is now ${JSON.stringify(event.value)}`);
+    case "settings_swapped":
+      return show(current, `Swapped ${event.keys.join(" and ")}`);
     case "section_delivered":
       return show(Object.assign({}, current, {
         delivered: current.screen === "fetched"

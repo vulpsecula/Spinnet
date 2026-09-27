@@ -119,12 +119,13 @@
         return compact({ title: o.title, subtitle: o.subtitle, settings: o.settings, form: o.form,
                          detail: o.detail, actions: o.actions });
       },
-      setting: function (key) {
-        return { key: key };
+      setting: function (key, value) {
+        const o = options(value);
+        return compact({ key: key, swap_with: o.swapWith });
       },
       form: function (value) {
         const o = options(value);
-        return compact({ fields: o.fields, submit_title: o.submitTitle });
+        return compact({ fields: o.fields, submit_title: o.submitTitle, submit_on_return: o.submitOnReturn });
       },
       textField: field("text"),
       multilineTextField: field("multiline_text"),

@@ -216,7 +216,89 @@ final class PluginTestKitTests: XCTestCase {
         }
     }
 
+    // MARK: - Host-Fetched Sections
+
+    /// A view's fetched sections are sent as the Host sends them, to the
+    /// recorded responses: with the Credential Uses applied, only to hosts
+    /// the manifest declares or the test consented to, and read as the Host
+    /// reads them, a `show` answer by its pointer and a `deliver` response
+    /// as the event the script receives.
+    func testAViewsFetchedSectionsAreSentAndShownAsTheHostWould() throws {
+        let plugin = try writeFetchingPlugin()
+        let view = try helper.run(PluginTestInvocation("example.run"), of: plugin,
+                                  answering: RecordedHostServices()).answer().view
+        let fetches = RecordedHostFetchedSections([
+            "api.example.com": RecordedHostFetchedSections.json(#"{"text":"Hallo"}"#),
+            "errors.example.com": RecordedHostFetchedSections.json(#"{"message":"No quota"}"#, status: 456)
+        ], credentials: ["key": "s3cret"])
+
+        let sections = try fetches.fetch(XCTUnwrap(view), of: plugin, for: PluginTestInvocation("example.run"))
+
+        XCTAssertEqual(sections.map(\.id), ["shown", "failing", "delivered", "unconsented", "malformed"])
+        XCTAssertEqual(sections[0].state, .text("Hallo"))
+        XCTAssertEqual(sections[0].title, "Shown")
+        XCTAssertEqual(sections[1].state, .failed("The quota is used up"))
+        XCTAssertEqual(sections[2].state, .loading, "A delivered response waits for the script's answer")
+        XCTAssertEqual(sections[2].delivery, .sectionDelivered(section: "delivered", response: .object([
+            "status": .number(200), "headers": .object(["content-type": .string("application/json")]),
+            "body": .string(#"{"text":"Hallo"}"#)
+        ])))
+        XCTAssertEqual(sections[3].state, .failed("Fetching may not contact self.example.com until it is allowed in its Plugin Settings"))
+        guard case .failed = sections[4].state else { return XCTFail("\(sections[4].state)") }
+        XCTAssertEqual(fetches.requests.map { $0.url.host }, ["api.example.com", "errors.example.com", "api.example.com"])
+        XCTAssertEqual(fetches.requests.first?.headers["Authorization"], "Key s3cret")
+
+        fetches.consentedHosts = ["self.example.com"]
+        fetches.responses["self.example.com"] = RecordedHostFetchedSections.json(#"{"text":"Mine"}"#)
+        let consented = try fetches.fetch(XCTUnwrap(view), of: plugin, for: PluginTestInvocation("example.run"))
+        XCTAssertEqual(consented[3].state, .text("Mine"))
+        XCTAssertEqual(fetches.requests.count, 6, "Only the section with cache was answered from its last answer")
+
+        fetches.deniedCapabilities = [.contactHTTPS]
+        let denied = try fetches.fetch(XCTUnwrap(view), of: plugin, for: PluginTestInvocation("example.run"))
+        XCTAssertEqual(denied[0].state, .failed("Network access is not granted to this Plugin"))
+        XCTAssertEqual(fetches.requests.count, 6, "Nothing is sent without the grant, cached answers included")
+    }
+
     // MARK: - Support
+
+    private func writeFetchingPlugin() throws -> PluginUnderTest {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpinnetTestKit-\(UUID().uuidString).spinnetplugin", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try #"""
+        {
+          "protocol_version": "1.0", "id": "com.example.fetching", "name": "Fetching", "version": "1.0.0",
+          "capabilities": ["contact_https"],
+          "capability_scopes": [{
+            "capability": "contact_https", "command_ids": ["example.run"], "data_types": [],
+            "includes_existing_host_data": false, "https_hosts": ["api.example.com", "errors.example.com"],
+            "external_apps": []
+          }],
+          "commands": [
+            {"id": "example.run", "title": "Run", "execution": "javascript", "is_configurable": false, "script": "run.js"}
+          ]
+        }
+        """#.write(to: root.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try #"""
+        (() => {
+          const ui = spinnet.ui;
+          const request = (host) => ({ method: "GET", url: "https://" + host + "/t",
+            credential_uses: [{ reference: "key", header: "Authorization", template: "Key {credential}" }] });
+          return ui.show(ui.view({ title: "Fetching", detail: ui.detail({ sections: [
+            ui.section({ id: "shown", title: "Shown",
+                         fetch: { request: request("api.example.com"), mode: "show", pointer: "/text", cache: true } }),
+            ui.section({ id: "failing", fetch: { request: request("errors.example.com"), mode: "show", pointer: "/text",
+                                                 status_messages: { "456": "The quota is used up" } } }),
+            ui.section({ id: "delivered", fetch: { request: request("api.example.com"), mode: "deliver" } }),
+            ui.section({ id: "unconsented", fetch: { request: request("self.example.com"), mode: "show", pointer: "/text" } }),
+            ui.section({ id: "malformed", fetch: { request: request("api.example.com"), mode: "show" } })
+          ] }) }));
+        })()
+        """#.write(to: root.appendingPathComponent("run.js"), atomically: true, encoding: .utf8)
+        return try PluginUnderTest(packageAt: root)
+    }
 
     /// A one-Command package in a temporary directory, removed after the test.
     private func writePlugin(capabilities: [String], script: String) throws -> PluginUnderTest {

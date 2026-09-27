@@ -153,6 +153,28 @@ final class PluginViewModelTests: XCTestCase {
         XCTAssertEqual(harness.events.map(\.event), [.settingChanged(key: "tone", value: .string("warm"))])
     }
 
+    /// A swap button stores both settings exchanged, then sends
+    /// `setting_changed` for each, the first control's first.
+    func testASwapStoresBothSettingsThenSendsSettingChangedForEach() throws {
+        try harness.present(.object([
+            "title": .string("Convert"),
+            "settings": .array([.object(["key": .string("from"), "swap_with": .string("into")]),
+                                .object(["key": .string("into")])]),
+            "actions": .array([.object(["id": .string("go"), "title": .string("Go")])])
+        ]))
+        let model = try model()
+        let from = try XCTUnwrap(model.description.settings.first)
+        XCTAssertEqual(model.swapTarget(of: from)?.key, "into")
+        XCTAssertNil(model.swapTarget(of: try XCTUnwrap(model.description.settings.last)))
+        XCTAssertTrue(model.accessibilityLabels.contains("Swap From and Into"), "\(model.accessibilityLabels)")
+
+        model.swapSettings(from)
+
+        XCTAssertEqual(harness.stored["from"], .string("de"))
+        XCTAssertEqual(harness.stored["into"], .string("en"))
+        XCTAssertEqual(harness.events.map(\.event), [.settingsSwapped(first: "from", second: "into")])
+    }
+
     // MARK: - Detail
 
     func testSectionsShowMarkdownOrWhatTheProviderSays() throws {

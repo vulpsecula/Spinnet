@@ -11,7 +11,8 @@ final class PluginViewSchemaTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("PluginAPI/schemas/plugin-view.schema.json")
 
-    private let settings = [CommandConfigurationField(kind: .choice, title: "Tone", choices: ["a", "b"], key: "tone")]
+    private let settings = [CommandConfigurationField(kind: .choice, title: "Tone", choices: ["a", "b"], key: "tone"),
+                            CommandConfigurationField(kind: .choice, title: "Pitch", choices: ["a", "b"], key: "pitch")]
 
     func testTheHostDrawsExactlyTheViewsTheSchemaAccepts() throws {
         let schema = try JSONSchemaSubsetValidator(schemaAt: Self.schemaURL)
@@ -34,11 +35,21 @@ final class PluginViewSchemaTests: XCTestCase {
             view(["settings": .array([.object(["key": .string("tone")])]), "actions": .array([go])]),
             view(["settings": .array([.string("tone")]), "actions": .array([go])]),
             view(["settings": .array(Array(repeating: .object(["key": .string("tone")]), count: 7)), "actions": .array([go])]),
+            view(["settings": .array([.object(["key": .string("tone"), "swap_with": .string("pitch")]),
+                                      .object(["key": .string("pitch")])]), "actions": .array([go])]),
+            view(["settings": .array([.object(["key": .string("tone"), "swap_with": .number(1)]),
+                                      .object(["key": .string("pitch")])]), "actions": .array([go])]),
+            view(["settings": .array([.object(["key": .string("tone"), "swap_with": .string(" ")]),
+                                      .object(["key": .string("pitch")])]), "actions": .array([go])]),
             // Forms
             form([]), form(Array(repeating: field, count: 21)).removingDuplicateKeysForSchema(),
             view(["form": .object(["fields": .array([field]), "submit_title": .string("Send")])]),
             view(["form": .object(["fields": .array([field]), "submit_title": .string("")])]),
             view(["form": .object(["fields": .array([field]), "extra": .bool(true)])]),
+            view(["form": .object(["fields": .array([field]), "submit_on_return": .bool(true)])]),
+            view(["form": .object(["fields": .array([field]), "submit_on_return": .bool(false), "submit_title": .string("Send")])]),
+            view(["form": .object(["fields": .array([field]), "submit_on_return": .bool(true), "submit_title": .string("Send")])]),
+            view(["form": .object(["fields": .array([field]), "submit_on_return": .string("yes")])]),
             form([.object(["key": .string("q"), "kind": .string("toggle"), "title": .string("Q"), "value": .bool(true)])]),
             form([.object(["key": .string("q"), "kind": .string("toggle"), "title": .string("Q"), "value": .string("on")])]),
             form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"), "value": .bool(true)])]),
@@ -104,7 +115,8 @@ final class PluginViewSchemaTests: XCTestCase {
         let schema = try JSONSchemaSubsetValidator(schemaAt: Self.schemaURL)
         let everything = JSONValue.object([
             "title": .string("Everything"), "subtitle": .string("All of it"),
-            "settings": .array([.object(["key": .string("tone")])]),
+            "settings": .array([.object(["key": .string("tone"), "swap_with": .string("pitch")]),
+                                .object(["key": .string("pitch")])]),
             "form": .object(["fields": .array([
                 .object(["key": .string("a"), "kind": .string("text"), "title": .string("A"), "placeholder": .string("p")]),
                 .object(["key": .string("b"), "kind": .string("choice"), "title": .string("B"),

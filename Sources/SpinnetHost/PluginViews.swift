@@ -178,6 +178,30 @@ final class PluginViewModel: ObservableObject {
         }
     }
 
+    /// The control a swap button after `control` exchanges its value with,
+    /// or nil when there is no button there.
+    func swapTarget(of control: PluginViewSettingControl) -> PluginViewSettingControl? {
+        guard let key = control.swapWith else { return nil }
+        return description.settings.first { $0.key == key }
+    }
+
+    /// Stores the two settings exchanged, then tells the Plugin of the swap.
+    func swapSettings(_ control: PluginViewSettingControl) {
+        guard let other = swapTarget(of: control) else { return }
+        hostError = nil
+        do {
+            let event = try environment.hostActions.swapSettings(control.key, other.key, pluginID: session.pluginID)
+            objectWillChange.send()
+            session.send(event)
+        } catch {
+            hostError = environment.hostActions.failure(error, for: session.action)
+        }
+    }
+
+    static func swapLabel(_ control: PluginViewSettingControl, with other: PluginViewSettingControl) -> String {
+        "Swap \(control.title) and \(other.title)"
+    }
+
     // MARK: - Detail
 
     func content(of section: PluginViewSection) -> PluginViewSectionContent {
@@ -222,9 +246,12 @@ final class PluginViewModel: ObservableObject {
     /// them. The SwiftUI view labels each component with these.
     var accessibilityLabels: [String] {
         var labels = [title, Self.pinLabel(isPinned), Self.closeLabel]
-        labels += description.settings.map(\.title)
+        for control in description.settings {
+            labels.append(control.title)
+            if let other = swapTarget(of: control) { labels.append(Self.swapLabel(control, with: other)) }
+        }
         if let form = description.form {
-            labels += form.fields.map(\.title) + [form.submitTitle]
+            labels += form.fields.map(\.title) + (form.submitsOnReturn ? [] : [form.submitTitle])
         }
         for (index, section) in (description.detail?.sections ?? []).enumerated() {
             labels.append(Self.label(of: section, at: index))

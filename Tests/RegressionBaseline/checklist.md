@@ -65,29 +65,50 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
 
 | Command | Entry | What happens |
 | --- | --- | --- |
-| `translator.selection` | Menu Item with text selected | Popup near the pointer with the selection as the original and one section per source turned on |
-| `translator.selection` | Nothing selected, or the App keeps its selection to itself | Popup with a "Text to translate" field and a Translate button instead of failing |
-| `translator.input` | Menu Item | Popup with the "Text to translate" field; Return or Translate sends it |
-| `translator.clipboard` | Text on the clipboard | Popup with the clipboard text as the original |
-| `translator.clipboard` | Clipboard holds no text | Popup with the input field |
+| `translator.selection` | Menu Item with text selected | Plugin View near the pointer with the selection in its text field and one section per source turned on |
+| `translator.selection` | Nothing selected, or the App keeps its selection to itself | Plugin View with an empty "Text to translate" field instead of failing |
+| `translator.input` | Menu Item | Plugin View with the empty "Text to translate" field |
+| `translator.clipboard` | Text on the clipboard | Plugin View with the clipboard text in its field |
+| `translator.clipboard` | Clipboard holds no text | Plugin View with the empty field |
 
-### Popup
+### The view
 
-- Title "Translate"; under it, the direction in use.
-- Each section is titled by its source (Google, DeepL, "OpenAI · *model*"),
-  in the order of the `sources` setting. Each shows a spinner, then the
-  translation (selectable) or a warning line with the failure message.
+Since W15 (#62) Translator is a Plugin View (ADR 0010) rather than a popup of
+its own, so the window rules are those of every Plugin View.
+
+- Title "Translate"; with Auto Detect Language on, the subtitle says the
+  language found, "Detected *language*".
+- The text is in one field, whether selected, copied or typed, and can
+  always be changed. The field grows with its text and scrolls past about
+  ten lines. Return translates it again; Shift-Return starts a new line;
+  there is no Translate button. An edit not yet sent is what a change of
+  language translates.
+- A text too long for the view (about 40 KB of Chinese with all three
+  sources) shows "The text is too long to translate at once. Select a
+  shorter part." and leaves the field empty.
+- Each source section is titled by its source (Google, DeepL, "OpenAI ·
+  *model*"), in the order of the `sources` setting. Each shows a spinner,
+  then the translation (selectable) or the failure message.
 - A Copy button appears on each finished section and copies that translation.
-- The settings line offers Input and Target pickers, a Swap button between
-  them, and an "Auto" switch for detecting the direction. Changing one stores
-  the Plugin Setting and runs the Action again; the new popup keeps the text.
-- With Detect Direction on and the text already in the target language, the
-  popup translates into the Input language instead and says "Detected
-  *target*, translating into *input*".
-- The pin button keeps the popup open when focus moves; unpinned, clicking
-  elsewhere closes it. Escape closes it. It can be dragged, and then grows
-  from where it was left.
-- A new popup replaces the old one.
+- The setting controls are the Input and Target pickers with a swap button
+  between them ("Swap Input and Target"), and an "Auto Detect Language"
+  checkbox. Changing one stores the Plugin Setting and translates the same
+  text again in the same view, without running the Action again; a source
+  whose request did not change keeps its answer.
+- The translation always goes into Target, as the controls show, even for
+  text already in Target. Auto Detect Language only decides what language
+  the text is in: on, it is detected on the Mac (Chinese, Japanese or Korean
+  prose that quotes English terms counts as that language, not English);
+  off, the text is taken to be in Input.
+- The swap button exchanges Input and Target and translates the same text
+  into the new Target.
+- DeepL is told the text's language (`source_lang`) when it is known and not
+  the Target's; OpenAI is asked to translate every part of the text, quoted
+  terms in other languages included.
+- The pin button keeps the view open when focus moves; unpinned, losing focus
+  closes it. Escape or the close button closes it.
+- Running a Translator Command again replaces the view in place and keeps its
+  pin.
 - Translating the same text again within 10 minutes is answered from the
   cache (no new network request; at most 50 answers kept).
 
@@ -98,7 +119,7 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
 | `sources` | Checklist, reorderable: Google, DeepL, OpenAI | Google | "Checked ones are used, in this order." None checked → unavailable |
 | `source_language` | Input picker (Languages) | EN-US | 23 languages, English titles |
 | `target_language` | Target picker (Languages) | ZH-HANS | Same list |
-| `auto_detect` | Detect Direction switch (Languages) | on | No effect when Input equals Target |
+| `auto_detect` | "Auto Detect Language" switch (Languages) | on | On: the text's language is detected; off: it is Input |
 | `google_endpoint` | Endpoint (Google) | `https://clients5.google.com` | Shown only with Google on |
 | `deepl_endpoint` | Endpoint (DeepL) | `https://api-free.deepl.com` | `api.deepl.com` also declared |
 | `deepl_credential` | API Key (DeepL) | reference `deepl` | Secure field with show/hide; kept in the Keychain |
@@ -123,16 +144,19 @@ Command ID or a Plugin Settings key in the six manifests is missing from it.
   until it is allowed. The allowed host is added to the `contact_https`
   scope and kept across launches.
 - A source with no key stored → unavailable until the key is entered.
-- A non-https endpoint → the section fails: "Configure an https address for
-  *source* in Translator's Plugin Settings".
+- An endpoint on a host that was never allowed, such as one written into the
+  saved data → that source's section says "Translator may not contact *host*
+  until it is allowed in its Plugin Settings"; the other sources still answer.
+- A non-https endpoint → that source's section fails: "Configure an https
+  address for *source* in Translator's Plugin Settings".
 - Service refusals show per section: DeepL 401/403 "DeepL rejected the API
   key", 429 "Too many requests to DeepL; try again shortly", 456 "The DeepL
   quota is used up"; Google 429 "Google is refusing requests from this
   network for now; try again later", 403 "Google refused the request", 413
   "The text is too long for Google"; OpenAI 401 "The service rejected the
   OpenAI API key"; any other status "The service answered *status*".
-- Network access revoked while a popup is open → its next send fails with
-  "Network access is not granted to this Plugin".
+- Network access revoked while the view is open → the view closes (as any
+  Plugin View does when its Plugin loses a grant it uses).
 
 ### Permission prompts
 

@@ -14,6 +14,9 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// The user changed one of the Plugin's own settings in the view. The
     /// Host has already stored it as Plugin Settings.
     case settingChanged(key: String, value: JSONValue)
+    /// The user swapped two of the Plugin's own `choice` settings with the
+    /// swap button between their controls. The Host has already stored both.
+    case settingsSwapped(first: String, second: String)
     /// A Host-Fetched Section in `deliver` mode received its answer.
     case sectionDelivered(section: String, response: JSONValue)
 
@@ -34,6 +37,8 @@ public enum PluginViewEvent: Equatable, Hashable {
             return .object(["type": .string("action_chosen"), "action": .string(action)])
         case .settingChanged(let key, let value):
             return .object(["type": .string("setting_changed"), "key": .string(key), "value": value])
+        case .settingsSwapped(let first, let second):
+            return .object(["type": .string("settings_swapped"), "keys": .array([.string(first), .string(second)])])
         case .sectionDelivered(let section, let response):
             return .object(["type": .string("section_delivered"), "section": .string(section),
                             "response": response])

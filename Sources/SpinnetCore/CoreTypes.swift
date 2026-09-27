@@ -68,6 +68,16 @@ public enum JSONValue: Codable, Equatable, Hashable {
             return value.mapValues(\.foundationObject)
         }
     }
+
+    /// The strings of an array holding only strings, or nil for anything else.
+    public var strings: [String]? {
+        guard case .array(let items) = self else { return nil }
+        let strings = items.compactMap { item -> String? in
+            guard case .string(let text) = item else { return nil }
+            return text
+        }
+        return strings.count == items.count ? strings : nil
+    }
 }
 
 public struct PluginID: RawRepresentable, Codable, Equatable, Hashable {

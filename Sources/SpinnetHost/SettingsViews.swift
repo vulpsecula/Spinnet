@@ -1918,14 +1918,17 @@ private struct PermissionGuideBanner: View {
 struct ConfigurationTextEditor: View {
     @Binding var text: String
     let placeholder: String
-    /// In a Plugin View, Tab moves to the next field instead of typing a tab.
+    /// In a Plugin View, Tab moves to the next field instead of typing a tab,
+    /// and the field is as tall as its text.
     var tabMovesFocus = false
+    /// In a Plugin View whose form submits on Return, what Return does.
+    var onReturn: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topLeading) {
                 editor
-                    .frame(minHeight: 84)
+                    .frame(minHeight: tabMovesFocus ? nil : 84)
                     .padding(4)
                     .background {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -1949,7 +1952,7 @@ struct ConfigurationTextEditor: View {
 
     @ViewBuilder private var editor: some View {
         if tabMovesFocus {
-            FocusMovingTextView(text: $text, placeholder: placeholder)
+            FocusMovingTextView(text: $text, placeholder: placeholder, onReturn: onReturn)
         } else {
             TextEditor(text: $text)
                 .font(.body)

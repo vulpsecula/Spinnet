@@ -599,7 +599,9 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
         grants.setConsentedHTTPSHosts([], for: manifest.id, pluginVersion: manifest.version, declaredScope: scope)
 
         XCTAssertThrowsError(try send(own)) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.contactHTTPS))
+            XCTAssertEqual($0 as? PluginHostServiceError,
+                           .failed("\(manifest.name) may not contact self.example.com until it is allowed in its Plugin Settings"),
+                           "The section names the host, since the grant itself still stands")
         }
         XCTAssertEqual(transport.requests.count, 1)
     }
@@ -621,7 +623,9 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
         grants.setConsentedHTTPSHosts([], for: manifest.id, pluginVersion: manifest.version, declaredScope: scope)
 
         XCTAssertThrowsError(try send(own)) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.contactHTTPS))
+            XCTAssertEqual($0 as? PluginHostServiceError,
+                           .failed("\(manifest.name) may not contact self.example.com until it is allowed in its Plugin Settings"),
+                           "The section names the host, since the grant itself still stands")
         }
         XCTAssertEqual(transport.requests.count, 1)
     }
@@ -640,8 +644,8 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 0)
     }
 
-    /// Acceptance: a section marked `cache` is answered again from the cache
-    /// `present_results` uses (kept for its lifetime, successes only).
+    /// Acceptance: a section marked `cache` is answered again from the
+    /// shared cache (kept for its lifetime, successes only).
     func testACacheableSectionIsAnsweredFromTheCacheUntilItExpires() throws {
         let cacheable = HostFetchedSectionsTests.fetch(mode: "show", pointer: "/text", extra: ["cache": .bool(true)])
         let first = try send(cacheable)
@@ -666,6 +670,30 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
         _ = try send(cacheable)
         _ = try send(cacheable)
         XCTAssertEqual(transport.requests.count, 7, "A failed answer is not kept")
+    }
+
+    /// One Plugin never reads another's answers, and a credential is keyed by
+    /// its reference, never its secret.
+    func testAnswersAreKeptPerPluginAndPerRequest() throws {
+        let request: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/t")])
+        let mine = try XCTUnwrap(FetchedResponseCache.key(pluginID: PluginID("com.example.a"), request: request))
+        let theirs = try XCTUnwrap(FetchedResponseCache.key(pluginID: PluginID("com.example.b"), request: request))
+        XCTAssertNotEqual(mine, theirs)
+        let other: JSONValue = .object(["method": .string("GET"), "url": .string("https://api.example.com/u")])
+        XCTAssertNotEqual(mine, FetchedResponseCache.key(pluginID: PluginID("com.example.a"), request: other))
+        XCTAssertFalse(mine.contains("secret"))
+    }
+
+    func testJSONPointersFollowRFC6901() {
+        let document: JSONValue = .object(["a": .array([.object(["b/c": .string("slash"), "d~e": .string("tilde")])]),
+                                           "": .string("empty")])
+        XCTAssertEqual(document.value(atPointer: "/a/0/b~1c"), .string("slash"))
+        XCTAssertEqual(document.value(atPointer: "/a/0/d~0e"), .string("tilde"))
+        XCTAssertEqual(document.value(atPointer: "/"), .string("empty"))
+        XCTAssertEqual(document.value(atPointer: ""), document)
+        XCTAssertNil(document.value(atPointer: "/a/1"))
+        XCTAssertNil(document.value(atPointer: "/a/-"))
+        XCTAssertNil(document.value(atPointer: "/a/01"))
     }
 
     /// A cancelled send stops before its next hop: a redirect is not followed.

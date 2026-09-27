@@ -16,7 +16,6 @@ enum UIPreviewRenderer {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try renderPluginSettings(into: directory)
-            try renderPopup(into: directory)
             FileHandle.standardError.write(Data("rendered into \(directory.path)\n".utf8))
         } catch {
             FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
@@ -49,52 +48,6 @@ enum UIPreviewRenderer {
         model.values["sources"] = .array([.string("Google"), .string("DeepL"), .string("OpenAI")])
         try inWindow(PluginSettingsForm(model: model).frame(width: 440).padding(12),
                      size: NSSize(width: 464, height: 760), named: "plugin-settings", in: directory)
-    }
-
-    private static func renderPopup(into directory: URL) throws {
-        let answers = ["google": "早上好。你今天怎么样？",
-                       "deepl": "早上好，你今天过得怎么样？",
-                       "openai": "早安。今天过得如何？"]
-        let presentation = try ResultsPresentation(serviceInput: .object([
-            "title": .string("Translate"),
-            "original": .string("Good morning. How are you today?"),
-            "settings": .object(["keys": .array([.string("source_language"), .string("target_language"),
-                                                 .string("auto_detect")]),
-                                 "swap": .array([.string("source_language"), .string("target_language")])]),
-            "sections": .array([section("Google", host: "google"), section("DeepL", host: "deepl"),
-                                section("OpenAI · gpt-4.1-mini", host: "openai")])
-        ]))
-        let session = ResultsPresentationSession(
-            presentation: presentation,
-            send: { request, _ in
-                guard case .object(let fields) = request, case .string(let url)? = fields["url"],
-                      let answer = answers.first(where: { url.contains($0.key) })?.value else {
-                    throw PluginHostServiceError.failed("The request to example.com failed")
-                }
-                return .object(["status": .number(200), "headers": .object([:]),
-                                "body": .string(#"{"text":"\#(answer)"}"#)])
-            },
-            settings: {
-                [.init(key: "source_language", title: "Input", kind: .choice, value: .string("EN-US"),
-                       choices: [("EN-US", "English (American)"), ("ZH-HANS", "Simplified Chinese")]),
-                 .init(key: "target_language", title: "Target", kind: .choice, value: .string("ZH-HANS"),
-                       choices: [("EN-US", "English (American)"), ("ZH-HANS", "Simplified Chinese")]),
-                 .init(key: "auto_detect", title: "Detect Direction", kind: .toggle, value: .bool(true), choices: [])]
-            },
-            swappableSettings: ("source_language", "target_language")
-        )
-        let model = ResultsPopupModel(session: session, copy: { _ in })
-        model.start()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
-        try inWindow(ResultsPopupView(model: model), size: NSSize(width: 420, height: 460),
-                     named: "translation-popup", in: directory)
-    }
-
-    private static func section(_ title: String, host: String) -> JSONValue {
-        .object(["title": .string(title),
-                 "request": .object(["method": .string("GET"),
-                                     "url": .string("https://\(host).example.com/t")]),
-                 "result_pointer": .string("/text")])
     }
 
     /// Draws a view to a PNG. Interactive controls come out as placeholders,

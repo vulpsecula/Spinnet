@@ -10,7 +10,9 @@ final class PluginViewDescriptionTests: XCTestCase {
         CommandConfigurationField(kind: .choice, title: "Tone", choices: ["plain", "warm"],
                                   choiceTitles: ["Plain", "Warm"], key: "tone"),
         CommandConfigurationField(kind: .toggle, title: "Shout", key: "shout"),
-        CommandConfigurationField(kind: .text, title: "Name", key: "name")
+        CommandConfigurationField(kind: .text, title: "Name", key: "name"),
+        CommandConfigurationField(kind: .choice, title: "From", choices: ["en", "de"], key: "from"),
+        CommandConfigurationField(kind: .choice, title: "Into", choices: ["en", "de"], key: "into")
     ]
 
     private func parse(_ view: JSONValue) throws -> PluginViewDescription {
@@ -61,6 +63,7 @@ final class PluginViewDescriptionTests: XCTestCase {
         ])
         let form = try XCTUnwrap(view.form)
         XCTAssertEqual(form.submitTitle, "Send")
+        XCTAssertFalse(form.submitsOnReturn)
         XCTAssertEqual(form.fields.map(\.key), ["query", "notes", "loud", "size", "link"])
         XCTAssertEqual(form.fields.map(\.kind), [.text, .multilineText, .toggle, .choice, .url])
         XCTAssertEqual(form.fields.map(\.value), [.string("hi"), .string(""), .bool(true), .string("s"), .string("")],
@@ -101,6 +104,34 @@ final class PluginViewDescriptionTests: XCTestCase {
         ])])))
     }
 
+    /// A form may submit on Return from any field, a multiline one included,
+    /// and then draws no submit button, so it takes no submit_title.
+    func testAFormMaySubmitOnReturn() throws {
+        let notes = JSONValue.object(["key": .string("notes"), "kind": .string("multiline_text"), "title": .string("Notes")])
+        let form = try XCTUnwrap(parse(.object(["title": .string("T"), "form": .object([
+            "fields": .array([notes]), "submit_on_return": .bool(true)
+        ])])).form)
+        XCTAssertTrue(form.submitsOnReturn)
+        XCTAssertThrowsError(try parse(.object(["title": .string("T"), "form": .object([
+            "fields": .array([notes]), "submit_on_return": .bool(true), "submit_title": .string("Send")
+        ])])))
+        XCTAssertThrowsError(try parse(.object(["title": .string("T"), "form": .object([
+            "fields": .array([notes]), "submit_on_return": .string("yes")
+        ])])))
+    }
+
+    /// Two neighbouring choice controls may be swapped: the first names the
+    /// second, and the Host draws a swap button between them.
+    func testAChoiceControlMaySwapWithTheChoiceControlAfterIt() throws {
+        let view = try parse(.object([
+            "title": .string("Convert"),
+            "settings": .array([.object(["key": .string("from"), "swap_with": .string("into")]),
+                                .object(["key": .string("into")]), .object(["key": .string("shout")])]),
+            "actions": .array([.object(["id": .string("go"), "title": .string("Go")])])
+        ]))
+        XCTAssertEqual(view.settings.map(\.swapWith), ["into", nil, nil])
+    }
+
     /// Only the components the Host draws, with the members it reads.
     func testAnythingTheHostWouldNotDrawIsAProtocolViolation() {
         let field = JSONValue.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q")])
@@ -112,6 +143,11 @@ final class PluginViewDescriptionTests: XCTestCase {
         }
         func sections(_ sections: [JSONValue]) -> JSONValue {
             .object(["title": .string("T"), "detail": .object(["sections": .array(sections)])])
+        }
+        func swaps(_ controls: [(String, String?)]) -> JSONValue {
+            .object(["title": .string("T"), "settings": .array(controls.map { key, other in
+                .object(["key": .string(key)].merging(other.map { ["swap_with": .string($0)] } ?? [:]) { $1 })
+            }), "actions": .array([.object(["id": .string("a"), "title": .string("A")])])])
         }
         func settings(_ keys: [String]) -> JSONValue {
             .object(["title": .string("T"), "settings": .array(keys.map { .object(["key": .string($0)]) }),
@@ -184,7 +220,16 @@ final class PluginViewDescriptionTests: XCTestCase {
             ("setting that is not a choice or toggle", settings(["name"])),
             ("the same setting twice", settings(["tone", "tone"])),
             ("setting without key", .object(["title": .string("T"), "settings": .array([.string("tone")]),
-                                             "actions": .array([.object(["id": .string("a"), "title": .string("A")])])]))
+                                             "actions": .array([.object(["id": .string("a"), "title": .string("A")])])])),
+            ("swap with a control that does not follow", swaps([("from", "into"), ("tone", nil), ("into", nil)])),
+            ("swap with a control the view does not offer", swaps([("from", "into")])),
+            ("swap with itself", swaps([("from", "from")])),
+            ("swap with a toggle", swaps([("tone", "shout"), ("shout", nil)])),
+            ("swap from a toggle", swaps([("shout", "tone"), ("tone", nil)])),
+            ("swap between different choices", swaps([("tone", "into"), ("into", nil)])),
+            ("swap_with that is not a string", .object(["title": .string("T"), "settings": .array([
+                .object(["key": .string("from"), "swap_with": .bool(true)]), .object(["key": .string("into")])
+            ]), "actions": .array([.object(["id": .string("a"), "title": .string("A")])])]))
         ]
         for (name, view) in violations {
             XCTAssertThrowsError(try parse(view), name) {

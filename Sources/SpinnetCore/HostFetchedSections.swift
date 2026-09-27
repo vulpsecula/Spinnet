@@ -29,6 +29,16 @@ public enum HostFetchedSectionState: Equatable {
     case delivered(String)
     /// Why there is no answer, in words for the user.
     case failed(String)
+
+    /// A section that failed with `error`, such as a malformed `fetch` or a
+    /// refused request, in the words the section shows.
+    public static func failure(_ error: Error) -> HostFetchedSectionState {
+        .failed(FetchedAnswer.message(for: error))
+    }
+
+    /// A section past the number one view may fetch, which sends nothing.
+    public static let overLimit = HostFetchedSectionState.failed(
+        "A view fetches at most \(HostFetchedSectionBudgets.maximumSections) sections")
 }
 
 /// The seam between the Plugin View renderer and what sends the requests of
@@ -150,6 +160,18 @@ public struct HostFetchedRequest: Equatable {
         answer?.state(for: response) ?? .failed(FetchedAnswer.unexpected)
     }
 
+    /// What the section shows once its send is over: for a `show` section
+    /// the answer it extracts, and for either mode why a failed send has
+    /// none. A `deliver` section that got its response is loading until the
+    /// script answers the `section_delivered` event.
+    public func state(afterSending result: Result<JSONValue, Error>) -> HostFetchedSectionState {
+        switch (result, mode) {
+        case (.failure(let error), _): return .failure(error)
+        case (.success(let response), .show): return shownState(for: response)
+        case (.success, .deliver): return .loading
+        }
+    }
+
     /// The shape of an `https_request` input, as the schema publishes it.
     private static func checkShape(of request: JSONValue) throws {
         let problem = "fetch request expects method GET or POST, a url, and optional headers, body, and credential_uses"
@@ -202,7 +224,7 @@ public struct HostFetchedRequest: Equatable {
 }
 
 /// Where an answer sits in a JSON response, and how to explain a response
-/// that has none. `present_results` sections read their answers this way too.
+/// that has none.
 struct FetchedAnswer: Equatable {
     /// RFC 6901 pointer to the answer, a string, in a 2xx JSON response.
     let pointer: String
@@ -409,8 +431,7 @@ public final class HostFetchedSections {
             }
             let record: Record
             if current.count >= HostFetchedSectionBudgets.maximumSections {
-                record = makeRecord(section, request: nil, phase: .finished(.failed(
-                    "A view fetches at most \(HostFetchedSectionBudgets.maximumSections) sections")))
+                record = makeRecord(section, request: nil, phase: .finished(.overLimit))
                 record.isOverLimit = true
             } else {
                 do {
@@ -489,12 +510,10 @@ public final class HostFetchedSections {
     private func receive(_ result: Result<JSONValue, Error>, for id: String, of pluginID: PluginID, token: Int) {
         guard let record = sending(id, of: pluginID, token: token), let request = record.request else { return }
         switch (result, request.mode) {
-        case (.failure(let error), _):
-            record.phase = .finished(.failed(FetchedAnswer.message(for: error)))
-        case (.success(let response), .show):
-            record.phase = .finished(request.shownState(for: response))
         case (.success(let response), .deliver):
             deliver(response, to: id, of: pluginID, record: record)
+        default:
+            record.phase = .finished(request.state(afterSending: result))
         }
         notifyIfChanged(pluginID)
     }

@@ -14,7 +14,6 @@ final class SpinnetSDKTests: XCTestCase {
     /// compiling; when a ticket keeps a service under a new shape, delete
     /// its line here and wrap it in the SDK instead.
     private static let unwrapped: [PluginHostService: String] = [
-        .presentResults: "W15 #62 moves Translator onto Plugin Views",
         .smartJump: "W14 #61 moves Smart Jump's recognition into its Plugin"
     ]
 
@@ -153,7 +152,7 @@ final class SpinnetSDKTests: XCTestCase {
               const view = ui.view({
                 title: "Everything",
                 subtitle: "Built by spinnet.ui",
-                settings: [ui.setting("tone")],
+                settings: [ui.setting("tone", { swapWith: "pitch" }), ui.setting("pitch")],
                 form: ui.form({
                   submitTitle: "Send",
                   fields: [
@@ -177,25 +176,29 @@ final class SpinnetSDKTests: XCTestCase {
                 ]
               });
               return [ui.show(view, { state: { step: 1 }, toast: "Ready" }), ui.toast("Done"), ui.close(),
-                      ui.close({ toast: "Bye" })];
+                      ui.close({ toast: "Bye" }),
+                      ui.form({ submitOnReturn: true, fields: [ui.multilineTextField({ key: "b", title: "B" })] })];
             })()
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
         XCTAssertEqual(run.requests, [], "The builders call no Host Service")
-        guard case .array(let answers) = try run.result.get(), answers.count == 4 else {
-            return XCTFail("The script did not answer four values")
+        guard case .array(let answers) = try run.result.get(), answers.count == 5 else {
+            return XCTFail("The script did not answer five values")
         }
+        XCTAssertTrue(try PluginViewForm(parsing: answers[4]).submitsOnReturn)
         let shown = try PluginScriptAnswer(parsing: answers[0])
         XCTAssertEqual(shown.state, .object(["step": .number(1)]))
         XCTAssertEqual(shown.toast, "Ready")
         let view = try PluginViewDescription(parsing: try XCTUnwrap(shown.view), settingsFields: [
-            CommandConfigurationField(kind: .choice, title: "Tone", choices: ["plain", "warm"], key: "tone")
+            CommandConfigurationField(kind: .choice, title: "Tone", choices: ["plain", "warm"], key: "tone"),
+            CommandConfigurationField(kind: .choice, title: "Pitch", choices: ["plain", "warm"], key: "pitch")
         ])
         XCTAssertEqual(view.title, "Everything")
         XCTAssertEqual(view.subtitle, "Built by spinnet.ui")
-        XCTAssertEqual(view.settings.map(\.key), ["tone"])
+        XCTAssertEqual(view.settings.map(\.key), ["tone", "pitch"])
+        XCTAssertEqual(view.settings.map(\.swapWith), ["pitch", nil])
         XCTAssertEqual(view.form?.submitTitle, "Send")
         XCTAssertEqual(view.form?.fields.map(\.kind), [.text, .multilineText, .url, .toggle, .choice])
         XCTAssertEqual(view.form?.values, .object(["a": .string("x"), "b": .string(""), "c": .string(""),

@@ -56,8 +56,8 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.hostFetchedSectionDeadline, 15)
         XCTAssertEqual(HTTPSRequestBudgets.timeout, 3)
 
-        // "may be cached as `present_results` answers are today (10 minutes,
-        //  50 answers, memory only, cleared by any grant change)"
+        // "may be cached (10 minutes, 50 answers, memory only, cleared by any
+        //  grant change)"
         XCTAssertEqual(FetchedResponseCache.lifetime, 10 * 60)
         XCTAssertEqual(FetchedResponseCache.maximumAnswers, 50)
     }
@@ -187,24 +187,6 @@ final class ExternalAppBudgetsTests: XCTestCase {
     func testRequestTextBudgetMatchesDocumentedInterface() {
         // "translateText accepts non-empty body.text of at most 128 KiB of UTF-8 text."
         XCTAssertEqual(ExternalAppBudgets.maximumRequestTextBytes, 128 * 1024)
-    }
-}
-
-final class ResultsPresentationBudgetsTests: XCTestCase {
-
-    /// docs/plugin-interface.md, "Result popups"
-    func testBudgetsMatchDocumentedInterface() {
-        // "at most 8 sections"
-        XCTAssertEqual(ResultsPresentationBudgets.maximumSections, 8)
-        // "titles, section titles, the placeholder and the button label are
-        //  non-empty and at most 256 characters"
-        XCTAssertEqual(ResultsPresentationBudgets.maximumTitleLength, 256)
-        // "pointers are at most 512 characters"
-        XCTAssertEqual(ResultsPresentationBudgets.maximumPointerLength, 512)
-        // "A message is at most 512 characters"
-        XCTAssertEqual(ResultsPresentationBudgets.maximumMessageLength, 512)
-        // "a JSON string exactly equal to `{{text}}`"
-        XCTAssertEqual(ResultsPresentationBudgets.textPlaceholder, "{{text}}")
     }
 }
 

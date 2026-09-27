@@ -2,8 +2,7 @@ import Foundation
 
 /// Answers the Host may give again without asking the service, for requests
 /// a Plugin marked cacheable, such as translating the same text twice. The
-/// Host-Fetched Sections of every Plugin View and the sections of
-/// `present_results` popups share it.
+/// Host-Fetched Sections of every Plugin View share it.
 ///
 /// An answer is kept per Plugin and per request, so one Plugin never reads
 /// another's, and the key holds a credential's reference rather than its

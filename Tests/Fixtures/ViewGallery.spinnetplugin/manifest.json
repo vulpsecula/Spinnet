@@ -16,11 +16,15 @@
   }],
   "settings_fields": [
     {"key": "tone", "kind": "choice", "title": "Tone", "choices": ["plain", "warm"], "choice_titles": ["Plain", "Warm"]},
-    {"key": "shout", "kind": "toggle", "title": "Shout"}
+    {"key": "shout", "kind": "toggle", "title": "Shout"},
+    {"key": "from", "kind": "choice", "title": "From", "choices": ["en", "de", "fr"], "choice_titles": ["English", "German", "French"]},
+    {"key": "into", "kind": "choice", "title": "Into", "choices": ["en", "de", "fr"], "choice_titles": ["English", "German", "French"]}
   ],
   "default_settings": {
     "tone": "plain",
-    "shout": false
+    "shout": false,
+    "from": "en",
+    "into": "de"
   },
   "preset": {
     "readiness": "ready_to_use",

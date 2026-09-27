@@ -2,7 +2,7 @@ import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
-/// A result popup picks its direction from the language of the text, decided
+/// A translator picks its direction from the language of the text, decided
 /// on this Mac. An unsure guess counts as unknown, because turning a
 /// translation around by mistake is worse than not turning it at all.
 final class TextLanguageTests: XCTestCase {
@@ -23,8 +23,8 @@ final class TextLanguageTests: XCTestCase {
         XCTAssertNil(TextLanguage.detect("1234 5678 ++--"))
     }
 
-    /// `detect_language` is this detector offered to every Plugin, so a
-    /// Plugin deciding a direction gets the answer a result popup would.
+    /// `detect_language` is this detector offered to every Plugin, so every
+    /// Plugin deciding a direction gets the same answer.
     func testDetectLanguageAnswersAsTextLanguageDoes() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {

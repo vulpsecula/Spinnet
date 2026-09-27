@@ -136,4 +136,27 @@ public final class PluginViewHostActions {
         try writeSettings(manifest, settings)
         return .settingChanged(key: key, value: value)
     }
+
+    /// Exchanges what is stored for two `choice` settings, as a swap button
+    /// between their controls does, in one write, and returns the one
+    /// `settings_swapped` event to deliver, so the script can tell a swap
+    /// from two changes. Nothing is stored unless each setting can hold the
+    /// other's value.
+    public func swapSettings(_ first: String, _ second: String, pluginID: PluginID) throws -> PluginViewEvent {
+        guard let manifest = manifest(pluginID) else {
+            throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
+        }
+        guard first != second else { throw PluginHostServiceError.invalidInput("\(first) cannot swap with itself") }
+        var settings = readSettings(manifest)
+        let swapped = [first: settings[second] ?? .null, second: settings[first] ?? .null]
+        for (key, value) in swapped {
+            guard let field = manifest.settingsFields.first(where: { $0.key == key }),
+                  field.kind == .choice, field.acceptsMemberValue(value) else {
+                throw PluginHostServiceError.invalidInput("\(key) cannot hold that value")
+            }
+        }
+        settings.merge(swapped) { $1 }
+        try writeSettings(manifest, settings)
+        return .settingsSwapped(first: first, second: second)
+    }
 }

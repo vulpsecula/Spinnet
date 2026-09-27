@@ -110,6 +110,13 @@ struct PluginViewContent: View {
                     .fixedSize()
                     .accessibilityLabel(control.title)
                 }
+                if let other = model.swapTarget(of: control) {
+                    let label = PluginViewModel.swapLabel(control, with: other)
+                    Button { model.swapSettings(control) } label: { Image(systemName: "arrow.left.arrow.right") }
+                        .buttonStyle(.borderless)
+                        .help(label)
+                        .accessibilityLabel(label)
+                }
             }
         }
         .font(.caption)
@@ -154,12 +161,21 @@ struct PluginViewContent: View {
                     editor(for: field)
                 }
             }
-            HStack {
-                Spacer()
-                Button(form.submitTitle) { model.submit() }
+            if form.submitsOnReturn {
+                // No button to see, but Command-Return still submits.
+                Button("") { model.submit() }
                     .keyboardShortcut(.return, modifiers: .command)
-                    .help("\(form.submitTitle) (⌘↩)")
-                    .accessibilityLabel(form.submitTitle)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            } else {
+                HStack {
+                    Spacer()
+                    Button(form.submitTitle) { model.submit() }
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .help("\(form.submitTitle) (⌘↩)")
+                        .accessibilityLabel(form.submitTitle)
+                }
             }
         }
     }
@@ -186,7 +202,8 @@ struct PluginViewContent: View {
             .pickerStyle(.menu)
             .accessibilityLabel(field.title)
         case .multilineText:
-            ConfigurationTextEditor(text: text(key), placeholder: field.placeholder ?? "", tabMovesFocus: true)
+            ConfigurationTextEditor(text: text(key), placeholder: field.placeholder ?? "", tabMovesFocus: true,
+                                    onReturn: model.description.form?.submitsOnReturn == true ? { model.submit() } : nil)
                 .focused($focusedField, equals: key)
                 .accessibilityLabel(field.title)
         default:

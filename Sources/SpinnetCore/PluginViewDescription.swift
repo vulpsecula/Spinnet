@@ -46,16 +46,31 @@ public struct PluginViewDescription: Equatable {
         guard let value else { return [] }
         let items = try array(value, "The view's settings", maximum: maximumSettings)
         var seen: Set<String> = []
-        return try items.map { item in
-            let members = try object(item, "A setting control", allowed: ["key"])
+        let controls = try items.map { item in
+            let members = try object(item, "A setting control", allowed: ["key", "swap_with"])
             let key = try text(members["key"], "A setting control's key")
             guard let field = declared.first(where: { $0.key == key }), [.choice, .toggle].contains(field.kind) else {
                 throw violation("A setting control may only name the Plugin's own choice or toggle settings, and \(key) is not one")
             }
             guard seen.insert(key).inserted else { throw violation("The view offers the setting \(key) twice") }
             return PluginViewSettingControl(key: key, title: field.displayTitle, kind: field.kind,
-                                            choices: field.choices.map { PluginViewChoice(value: $0, title: field.displayTitle(forChoice: $0)) })
+                                            choices: field.choices.map { PluginViewChoice(value: $0, title: field.displayTitle(forChoice: $0)) },
+                                            swapWith: try members["swap_with"].map { try text($0, "The setting control \(key)'s swap_with") })
         }
+        // A swap button sits between two neighbouring choices, so it can only
+        // exchange a control's value with the one drawn right after it, and
+        // only when each can hold whatever the other holds.
+        for (index, control) in controls.enumerated() {
+            guard let other = control.swapWith else { continue }
+            guard control.kind == .choice, index + 1 < controls.count, controls[index + 1].key == other,
+                  controls[index + 1].kind == .choice else {
+                throw violation("The setting control \(control.key) may only swap with the choice setting control after it, and \(other) is not that")
+            }
+            guard Set(control.choices.map(\.value)) == Set(controls[index + 1].choices.map(\.value)) else {
+                throw violation("The setting controls \(control.key) and \(other) may only swap when they offer the same choices")
+            }
+        }
+        return controls
     }
 
     private static func actions(_ value: JSONValue) throws -> [PluginViewAction] {
@@ -132,12 +147,18 @@ public struct PluginViewSettingControl: Equatable {
     public let title: String
     public let kind: CommandConfigurationFieldKind
     public let choices: [PluginViewChoice]
+    /// The key of the `choice` control drawn right after this one, when a
+    /// swap button between the two exchanges their values, as a pair of
+    /// languages or units is swapped.
+    public let swapWith: String?
 
-    public init(key: String, title: String, kind: CommandConfigurationFieldKind, choices: [PluginViewChoice]) {
+    public init(key: String, title: String, kind: CommandConfigurationFieldKind, choices: [PluginViewChoice],
+                swapWith: String? = nil) {
         self.key = key
         self.title = title
         self.kind = kind
         self.choices = choices
+        self.swapWith = swapWith
     }
 }
 
@@ -146,6 +167,9 @@ public struct PluginViewSettingControl: Equatable {
 public struct PluginViewForm: Equatable {
     public let fields: [PluginViewField]
     public let submitTitle: String
+    /// Return submits from any field, a multiline one included, where
+    /// Shift-Return starts a new line; the form then draws no submit button.
+    public let submitsOnReturn: Bool
 
     /// The kinds a view's field may have: those whose value is text, a
     /// switch, or one choice. The others need a Host sheet or panel, or are
@@ -153,10 +177,19 @@ public struct PluginViewForm: Equatable {
     public static let fieldKinds: [CommandConfigurationFieldKind] = [.text, .multilineText, .toggle, .choice, .url]
 
     public init(parsing value: JSONValue) throws {
-        let members = try PluginViewDescription.object(value, "The form", allowed: ["fields", "submit_title"])
+        let members = try PluginViewDescription.object(value, "The form",
+                                                       allowed: ["fields", "submit_title", "submit_on_return"])
         fields = try PluginViewDescription.array(members["fields"] ?? .null, "The form's fields", minimum: 1,
                                                  maximum: PluginViewDescription.maximumFields).map(PluginViewField.init(parsing:))
         submitTitle = try members["submit_title"].map { try PluginViewDescription.text($0, "The form's submit_title") } ?? "Submit"
+        switch members["submit_on_return"] {
+        case nil, .bool(false)?: submitsOnReturn = false
+        case .bool(true)?: submitsOnReturn = true
+        default: throw PluginViewDescription.violation("The form's submit_on_return is not a boolean")
+        }
+        if submitsOnReturn, members["submit_title"] != nil {
+            throw PluginViewDescription.violation("A form that submits on Return draws no submit button, so it has no submit_title")
+        }
         var keys: Set<String> = []
         for field in fields where !keys.insert(field.key).inserted {
             throw PluginViewDescription.violation("The form has two fields with the key \(field.key)")

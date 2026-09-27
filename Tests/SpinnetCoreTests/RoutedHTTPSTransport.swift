@@ -1,13 +1,8 @@
-import Foundation
+import XCTest
 @testable import SpinnetCore
 
-/// Answers by host, from any thread, so the sections of one presentation can
+/// Answers by host, from any thread, so the sections of one view can
 /// run at once. A host may answer late or not at all.
-///
-/// Translator's results are still Host-Fetched Sections sent by the Host, so
-/// its tests need the Host's transport answered as `ResultsPresentationTests`
-/// answers it; this copy goes once they belong to a Plugin View whose sections
-/// the kit can answer.
 final class RoutedHTTPSTransport: HTTPSTransport {
     struct Route {
         var response: HTTPSTransportResponse?
@@ -32,9 +27,12 @@ final class RoutedHTTPSTransport: HTTPSTransport {
         return response
     }
 
+    /// Replaces what a host answers from now on.
+    func answer(_ host: String, with route: Route) {
+        lock.withLock { routes[host] = route }
+    }
+
     static func json(_ body: String, status: Int = 200, delay: TimeInterval = 0) -> Route {
-        Route(response: HTTPSTransportResponse(status: status, headers: ["content-type": "application/json"],
-                                               body: Data(body.utf8)),
-              delay: delay)
+        Route(response: ScriptedHTTPSTransport.json(body, status: status), delay: delay)
     }
 }
