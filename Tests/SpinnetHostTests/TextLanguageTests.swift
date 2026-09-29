@@ -17,6 +17,16 @@ final class TextLanguageTests: XCTestCase {
         XCTAssertEqual(TextLanguage.detect("早上好，今天过得怎么样？"), "zh-Hans")
     }
 
+    /// Chinese prose quoting English terms is Chinese, though it has more
+    /// Latin letters than Chinese characters; a few Chinese words in an
+    /// English sentence leave it English.
+    func testMixedTextIsJudgedByItsWordsRatherThanItsLetters() {
+        XCTAssertEqual(primary("Profile： 删掉了工具列表那句。\"useful learning routine\" 改成直接描述 routine 本身，" +
+                               "\"Make reasoning visible\" 改为 \"Model the reasoning\"。"), "zh")
+        XCTAssertEqual(primary("把 README 里的 install 步骤改成用 Homebrew"), "zh")
+        XCTAssertEqual(primary("We had 寿司 and 拉面 for dinner with friends last night"), "en")
+    }
+
     func testTextWithNoLanguageIsUnknown() {
         XCTAssertNil(TextLanguage.detect(""))
         XCTAssertNil(TextLanguage.detect("   \n "))

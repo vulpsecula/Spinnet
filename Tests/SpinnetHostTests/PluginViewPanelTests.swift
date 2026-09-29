@@ -1,5 +1,6 @@
 import AppKit
 import SpinnetCore
+import SwiftUI
 import XCTest
 @testable import SpinnetHost
 
@@ -45,5 +46,29 @@ final class PluginViewPanelTests: XCTestCase {
         XCTAssertTrue(snapshot.isNonActivating)
         XCTAssertFalse(snapshot.becomesKeyOnlyIfNeeded)
         XCTAssertEqual(snapshot.frame.maxY, 500 - PluginViewPanelWindow.pointerGap, accuracy: 1)
+    }
+
+    /// The view draws its own header, so the transparent title bar adds no
+    /// empty band above it: the panel is as tall as its content.
+    func testThePanelIsAsTallAsItsContent() throws {
+        _ = NSApplication.shared
+        let harness = try PluginViewHarness()
+        try harness.present(PluginViewHarness.form(title: "Panel"))
+        let model = try XCTUnwrap(harness.windows.model(for: harness.pluginID))
+        let window = PluginViewPanelWindow(model: model)
+        defer { window.close() }
+        window.show(near: NSPoint(x: 400, y: 500))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        let alone = NSHostingView(rootView: PluginViewContent(model: model))
+        XCTAssertEqual(window.presentationSnapshot.frame.height, alone.fittingSize.height, accuracy: 1)
+
+        // The header's pin and close buttons sit where the title bar is, and
+        // a click there still reaches them rather than the title bar.
+        let content = try XCTUnwrap(window.contentView)
+        let frame = try XCTUnwrap(content.superview)
+        let corner = NSPoint(x: frame.bounds.maxX - 24, y: frame.isFlipped ? 20 : frame.bounds.maxY - 20)
+        let hit = try XCTUnwrap(frame.hitTest(corner))
+        XCTAssertTrue(hit.isDescendant(of: content), "\(hit) took the click")
     }
 }

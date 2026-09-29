@@ -35,6 +35,9 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         super.init()
         let hosting = NSHostingController(rootView: PluginViewContent(model: model))
         hosting.sizingOptions = [.preferredContentSize]
+        // The view draws its own header, so the content runs under the
+        // transparent title bar instead of leaving an empty band above it.
+        if #available(macOS 13.3, *) { hosting.safeAreaRegions = [] }
         panel.contentViewController = hosting
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true

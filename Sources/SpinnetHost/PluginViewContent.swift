@@ -223,10 +223,21 @@ struct PluginViewContent: View {
 
     private func detailView(_ detail: PluginViewDetail) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            // Each section is a card of its own, so answers side by side,
+            // such as one per translation source, read apart at a glance.
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(detail.sections.enumerated()), id: \.element.id) { index, section in
-                    if index > 0 { Divider().padding(.vertical, 8) }
                     sectionView(section, at: index)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                                }
+                        }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -236,7 +247,7 @@ struct PluginViewContent: View {
         }
         // Before the first measurement a guess from the number of sections
         // stands in, so the detail is never drawn at no height.
-        .frame(height: min(max(detailHeight, CGFloat(detail.sections.count) * 44), 380))
+        .frame(height: min(max(detailHeight, CGFloat(detail.sections.count) * 64), 380))
         .onPreferenceChange(DetailHeightKey.self) { detailHeight = $0 }
     }
 
