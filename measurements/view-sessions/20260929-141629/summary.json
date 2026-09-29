@@ -1,0 +1,460 @@
+{
+  "conditions" : {
+    "buildConfiguration" : "release",
+    "chip" : "Apple M1 Pro",
+    "finishedAt" : "2026-09-29T14:21:52+08:00",
+    "fixturePath" : "Tests/Fixtures/TypingProbe.spinnetplugin",
+    "gitRevision" : "3b2cafc",
+    "helperPath" : ".build/out/Products/Release/SpinnetPluginHelper",
+    "loadAverageAtEnd" : [
+      11.47509765625,
+      9.60205078125,
+      9.87451171875
+    ],
+    "loadAverageAtStart" : [
+      10.44287109375,
+      9.22900390625,
+      10.15966796875
+    ],
+    "lowPowerMode" : false,
+    "macOSVersion" : "Version 27.0 (Build 26A428)",
+    "machineIdleDeclared" : "yes",
+    "machineModel" : "MacBookPro18,1",
+    "memoryBytes" : 17179869184,
+    "note" : "W13 formal run after W15; Spinnet app running idle in the background; no builds or tests during the run",
+    "percentileMethod" : "nearest rank",
+    "powerSource" : "AC Power",
+    "processorCount" : 10,
+    "startedAt" : "2026-09-29T14:16:29+08:00",
+    "thermalStateAtEnd" : "nominal",
+    "thermalStateAtStart" : "nominal"
+  },
+  "latency" : [
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 0,
+        "mean" : 0,
+        "min" : 0,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 380.723709,
+        "mean" : 44.5332583,
+        "min" : 17.675209,
+        "p50" : 23.932042,
+        "p95" : 42.159833
+      },
+      "scenario" : "open",
+      "totalMs" : {
+        "count" : 20,
+        "max" : 381.327708,
+        "mean" : 44.7544897,
+        "min" : 17.781791,
+        "p50" : 24.155459,
+        "p95" : 42.458125
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 0,
+        "mean" : 0,
+        "min" : 0,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 9.463459,
+        "mean" : 4.7792646,
+        "min" : 2.224667,
+        "p50" : 3.513834,
+        "p95" : 8.708291
+      },
+      "scenario" : "open",
+      "totalMs" : {
+        "count" : 20,
+        "max" : 9.6995,
+        "mean" : 5.1554272,
+        "min" : 2.313958,
+        "p50" : 3.658209,
+        "p95" : 9.097084
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 50,
+        "max" : 9.427958,
+        "mean" : 0.35603246,
+        "min" : 0.014333,
+        "p50" : 0.035292,
+        "p95" : 2.968625
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 50,
+        "max" : 245.437459,
+        "mean" : 31.2788033,
+        "min" : 13.909417,
+        "p50" : 25.386042,
+        "p95" : 48.350584
+      },
+      "scenario" : "event",
+      "totalMs" : {
+        "count" : 50,
+        "max" : 248.524708,
+        "mean" : 31.795906620000004,
+        "min" : 14.071042,
+        "p50" : 25.536083,
+        "p95" : 49.302292
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 50,
+        "max" : 0.738708,
+        "mean" : 0.05991502,
+        "min" : 0.018625,
+        "p50" : 0.034792,
+        "p95" : 0.105375
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 50,
+        "max" : 11.473125,
+        "mean" : 4.8470942,
+        "min" : 2.012042,
+        "p50" : 4.190667,
+        "p95" : 8.696125
+      },
+      "scenario" : "event",
+      "totalMs" : {
+        "count" : 50,
+        "max" : 11.771208,
+        "mean" : 5.053547540000001,
+        "min" : 2.107,
+        "p50" : 4.4195,
+        "p95" : 9.026375
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 106.888542,
+        "mean" : 103.62356465,
+        "min" : 100.598458,
+        "p50" : 103.83125,
+        "p95" : 105.024667
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 52.556667,
+        "mean" : 25.48114785,
+        "min" : 16.421542,
+        "p50" : 23.572708,
+        "p95" : 39.321458
+      },
+      "keystrokeIntervalMs" : 50,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 300,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 156.526291,
+        "mean" : 129.24769175,
+        "min" : 119.9165,
+        "p50" : 128.023042,
+        "p95" : 141.015541
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 111.395041,
+        "mean" : 104.60211035,
+        "min" : 102.288209,
+        "p50" : 104.439208,
+        "p95" : 105.12525
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 9.6725,
+        "mean" : 4.6800938,
+        "min" : 2.351291,
+        "p50" : 3.472541,
+        "p95" : 9.01425
+      },
+      "keystrokeIntervalMs" : 50,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 150,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 120.526208,
+        "mean" : 109.42282709999999,
+        "min" : 104.784167,
+        "p50" : 108.024042,
+        "p95" : 114.466125
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 118.391333,
+        "mean" : 105.80093550000001,
+        "min" : 103.005125,
+        "p50" : 104.566125,
+        "p95" : 114.427417
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 9.918208,
+        "mean" : 5.51323745,
+        "min" : 2.336708,
+        "p50" : 5.169667,
+        "p95" : 9.438208
+      },
+      "keystrokeIntervalMs" : 160,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 300,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 123.658583,
+        "mean" : 111.45705210000001,
+        "min" : 106.618791,
+        "p50" : 110.466459,
+        "p95" : 119.391375
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 110.65,
+        "mean" : 104.6624543,
+        "min" : 101.936625,
+        "p50" : 104.706125,
+        "p95" : 105.284083
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 8.161917,
+        "mean" : 5.921820900000001,
+        "min" : 2.171541,
+        "p50" : 5.818834,
+        "p95" : 7.200792
+      },
+      "keystrokeIntervalMs" : 160,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 150,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 116.048792,
+        "mean" : 110.72060844999999,
+        "min" : 106.227208,
+        "p50" : 110.855292,
+        "p95" : 112.4045
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 2,
+        "max" : 0.862708,
+        "mean" : 0.499104,
+        "min" : 0.1355,
+        "p50" : 0.1355,
+        "p95" : 0.862708
+      },
+      "failures" : 0,
+      "helper" : "idle-exit",
+      "helperExitMs" : {
+        "count" : 2,
+        "max" : 30110.653792,
+        "mean" : 30105.66425,
+        "min" : 30100.674708,
+        "p50" : 30100.674708,
+        "p95" : 30110.653792
+      },
+      "invokeMs" : {
+        "count" : 2,
+        "max" : 23.20325,
+        "mean" : 20.009479499999998,
+        "min" : 16.815709,
+        "p50" : 16.815709,
+        "p95" : 23.20325
+      },
+      "scenario" : "event",
+      "totalMs" : {
+        "count" : 2,
+        "max" : 23.501458,
+        "mean" : 20.662333,
+        "min" : 17.823208,
+        "p50" : 17.823208,
+        "p95" : 23.501458
+      }
+    }
+  ],
+  "memory" : [
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5816968,
+        "mean" : 5769454.4,
+        "min" : 5718664,
+        "p50" : 5767816,
+        "p95" : 5816968
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 0,
+        "mean" : -1638.4,
+        "min" : -32768,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "phase" : "no-view",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5833352,
+        "mean" : 5792392,
+        "min" : 5751432,
+        "p50" : 5784200,
+        "p95" : 5833352
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 32768,
+        "mean" : 21299.2,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 32768
+      },
+      "phase" : "view-open",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5997336,
+        "mean" : 5931761.6,
+        "min" : 5898960,
+        "p50" : 5931728,
+        "p95" : 5997336
+      },
+      "phase" : "view-open",
+      "process" : "helper"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5866120,
+        "mean" : 5799600.96,
+        "min" : 5751432,
+        "p50" : 5800584,
+        "p95" : 5866120
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 49152,
+        "mean" : 28508.16,
+        "min" : 0,
+        "p50" : 32768,
+        "p95" : 49152
+      },
+      "phase" : "after-typing",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 9913112,
+        "mean" : 9851474.56,
+        "min" : 9781968,
+        "p50" : 9847528,
+        "p95" : 9913112
+      },
+      "phase" : "after-typing",
+      "process" : "helper"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5849736,
+        "mean" : 5790753.6,
+        "min" : 5735048,
+        "p50" : 5784200,
+        "p95" : 5849736
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 32768,
+        "mean" : 19660.8,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 32768
+      },
+      "phase" : "helper-retired",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5849736,
+        "mean" : 5790753.6,
+        "min" : 5735048,
+        "p50" : 5784200,
+        "p95" : 5849736
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 32768,
+        "mean" : 19660.8,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 32768
+      },
+      "phase" : "view-closed",
+      "process" : "host"
+    }
+  ],
+  "options" : {
+    "eventSamples" : 50,
+    "fieldChangeDebounceMs" : 100,
+    "helperIdleExitMs" : 30000,
+    "idleRetirements" : 2,
+    "keystrokeIntervalsMs" : [
+      50,
+      160
+    ],
+    "memoryCycles" : 5,
+    "memorySamplesPerPhase" : 10,
+    "openSamples" : 20,
+    "settleMs" : 300,
+    "typingSamples" : 20
+  }
+}

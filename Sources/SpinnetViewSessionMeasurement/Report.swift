@@ -54,6 +54,13 @@ struct RunConditions: Codable {
     var loadAverageAtEnd: [Double]?
     var percentileMethod = "nearest rank"
 
+    /// `path` from the directory the run started in, when it is inside it,
+    /// so a kept summary names no one's home folder.
+    static func relative(_ path: String) -> String {
+        let base = FileManager.default.currentDirectoryPath + "/"
+        return path.hasPrefix(base) ? String(path.dropFirst(base.count)) : path
+    }
+
     init(options: MeasurementOptions, helperPath: String, fixturePath: String) {
         startedAt = Self.timestamp()
         machineModel = Self.sysctl("hw.model")
@@ -67,8 +74,8 @@ struct RunConditions: Codable {
         buildConfiguration = "release"
         #endif
         gitRevision = options.gitRevision
-        self.helperPath = helperPath
-        self.fixturePath = fixturePath
+        self.helperPath = Self.relative(helperPath)
+        self.fixturePath = Self.relative(fixturePath)
         machineIdleDeclared = options.machineIdle
         note = options.note
         powerSource = Self.powerSource()

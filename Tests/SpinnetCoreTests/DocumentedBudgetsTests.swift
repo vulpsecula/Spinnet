@@ -30,20 +30,28 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.footprintSampleInterval, 0.1)
         XCTAssertEqual(ScriptedActionBudgets.consecutiveFootprintSamples, 2)
 
+        // "active helper incremental `phys_footprint` at most 6 MiB p95",
+        // counted over the same helper idle (W13 #60)
+        XCTAssertEqual(ScriptedActionBudgets.activeHelperIncrementalFootprintBytes, 6 * 1024 * 1024)
+
         // "enforces a 1 MiB request/response limit"
         XCTAssertEqual(ScriptedActionBudgets.maximumMessageBytes, 1_048_576)
     }
 
-    /// docs/adr/0010-run-plugin-views-as-view-sessions.md. These are the
-    /// initial limits; W13 (#60) measures them and pins what it accepts.
+    /// docs/adr/0010-run-plugin-views-as-view-sessions.md, "Budgets", as W13
+    /// (#60) accepted them after measuring View Sessions.
     func testViewSessionBudgetsMatchADR0010() {
-        // "The initial limits are 64 KiB of state, 256 KiB of view
-        //  description, and the existing four-second deadline per event."
+        // "The limits are 64 KiB of state, 256 KiB of view description, and
+        //  the existing four-second deadline per event."
         XCTAssertEqual(ScriptedActionBudgets.viewStateBytes, 64 * 1024)
         XCTAssertEqual(ScriptedActionBudgets.viewDescriptionBytes, 256 * 1024)
         XCTAssertEqual(ScriptedActionBudgets.viewEventDeadline, 4)
 
-        // "with input debounced by 100 ms"
+        // "A view shows the script's answer within 150 ms of a typing pause on
+        //  a warm helper, 300 ms from cold, at p95, with input debounced by
+        //  100 ms"
+        XCTAssertEqual(ScriptedActionBudgets.viewUpdateAfterPauseWarm, 0.15)
+        XCTAssertEqual(ScriptedActionBudgets.viewUpdateAfterPauseCold, 0.3)
         XCTAssertEqual(ScriptedActionBudgets.fieldChangeDebounce, 0.1)
     }
 

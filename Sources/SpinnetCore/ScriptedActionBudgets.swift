@@ -44,6 +44,12 @@ public enum ScriptedActionBudgets {
     /// One spike is tolerated; two consecutive ones are not.
     public static let consecutiveFootprintSamples = 2
 
+    /// How much an active helper's `phys_footprint` may grow over the same
+    /// helper idle, at p95, a helper serving an open view included. An
+    /// acceptance budget that `script/measure_view_sessions.sh` checks, not a
+    /// limit the Host enforces.
+    public static let activeHelperIncrementalFootprintBytes: UInt64 = 6 * 1024 * 1024
+
     // MARK: Wire format
 
     /// Largest accepted JSON message body, excluding its newline frame.
@@ -53,8 +59,9 @@ public enum ScriptedActionBudgets {
 
     // MARK: View Sessions
 
-    // ADR-0010's initial limits. W13 (#60) measures View Sessions and then
-    // confirms or changes them, here and in the ADR together.
+    // ADR-0010's limits, accepted by W13 (#60) after measuring View
+    // Sessions with `script/measure_view_sessions.sh`; the ADR records the
+    // run. A session does not keep its helper alive to meet them.
 
     /// Largest state, as UTF-8 JSON, a script may keep in the Host between
     /// View Events.
@@ -69,6 +76,13 @@ public enum ScriptedActionBudgets {
 
     /// How long field changes must pause before the latest is delivered.
     public static let fieldChangeDebounce: TimeInterval = 0.1
+
+    /// How soon after a typing pause a view shows the script's answer, at
+    /// p95 with the debounce included, on a warm helper and when the helper
+    /// starts cold. Acceptance budgets that `script/measure_view_sessions.sh`
+    /// checks, not limits the Host enforces.
+    public static let viewUpdateAfterPauseWarm: TimeInterval = 0.15
+    public static let viewUpdateAfterPauseCold: TimeInterval = 0.3
 
     /// Wall-clock budget for one Host-Fetched Section's request, redirects
     /// included, from when the Host sends it. It holds no helper, so it is

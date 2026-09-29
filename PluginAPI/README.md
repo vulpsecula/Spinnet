@@ -99,8 +99,10 @@ event is an ordinary invocation with the same four-second deadline, Host
 Services and Capability checks as the Action, so the helper may retire between
 events. A refused Capability keeps the view with an inline error and the last
 good state; a timeout or crash keeps the view and state; a protocol violation
-ends the session. The initial limits are 64 KiB of state and 256 KiB of view
-description. `spinnet.d.ts` types the events and answers as `ViewEvent` and
+ends the session. The limits are 64 KiB of state and 256 KiB of view
+description. A view shows the answer to a typing pause within 150 ms on a warm
+helper and 300 ms from cold, at p95 with the 100 ms debounce included; the
+helper still retires between events. `spinnet.d.ts` types the events and answers as `ViewEvent` and
 `ScriptAnswer`.
 
 ## Plugin Views

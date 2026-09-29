@@ -46,14 +46,12 @@ struct SessionReport: Codable {
     let latency: [LatencyGroup]
     let memory: [MemoryGroup]
 
-    /// ADR 0010: "Smart Jump's live recognition must update within 150 ms of
-    /// a typing pause on a warm helper, 300 ms from cold, with input
-    /// debounced by 100 ms." They are targets until W13 accepts them.
+    /// ADR 0010's budgets for a view's answer after a typing pause, in ms.
     static func target(scenario: String, helper: String) -> Double? {
         guard scenario == "typing" else { return nil }
         switch helper {
-        case "warm": return 150
-        case "cold": return 300
+        case "warm": return ScriptedActionBudgets.viewUpdateAfterPauseWarm * 1000
+        case "cold": return ScriptedActionBudgets.viewUpdateAfterPauseCold * 1000
         default: return nil
         }
     }
