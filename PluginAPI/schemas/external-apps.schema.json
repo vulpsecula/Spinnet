@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet External App Host Services",
+  "description": "The inputs and results of perform_app_operation and open_deep_link, as of Plugin API Level 1 (ADR 0012). Both need control_external_app, and the manifest's scope for it names each External App the Plugin reaches: its bundle_id, its name, the operation_families it may use from the Host's Reviewed App Interface for that application, and the Deep Link Templates it declares. The schemas check shapes; the Host also checks that the application and the operation's family or the template are in the consented scope, and that the application is installed. A missing application fails with external_app_missing, an operation its interface does not describe with external_app_operation_unsupported, and macOS refusing Spinnet's Apple Events with automation_permission_denied.",
+  "$defs": {
+    "perform_app_operation.input": {
+      "description": "One operation of the Reviewed App Interface the Host ships for the application. The Host builds the one request the interface describes and sends it to the interface's handler; a Plugin cannot send AppleScript source, arbitrary Apple Events or another handler. Adding an application is a Host release.",
+      "type": "object",
+      "required": ["bundle_id", "operation"],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_id": { "type": "string", "minLength": 1 },
+        "operation": { "type": "string", "minLength": 1 },
+        "arguments": {
+          "description": "Exactly the operation's parameters.",
+          "type": "object"
+        }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/reviewed_app_interfaces/$defs/com.hezongyidev.Bob" }
+      ]
+    },
+    "perform_app_operation.result": { "type": "null" },
+    "reviewed_app_interfaces": {
+      "description": "Every Reviewed App Interface the Host ships at this level, keyed by bundle ID in its $defs, each stating the operations it accepts. Each is referenced from perform_app_operation.input.",
+      "$defs": {
+        "com.hezongyidev.Bob": {
+          "description": "Bob, through its documented request handler. Every operation is in the translate family. Bob reads the selection, the screen, its own input window or the clipboard where an operation asks it to, and shows the result itself. Only translateText carries text: non-blank, at most 128 KiB of UTF-8.",
+          "if": { "properties": { "bundle_id": { "const": "com.hezongyidev.Bob" } } },
+          "then": {
+            "properties": {
+              "operation": {
+                "enum": ["selectionTranslate", "snipTranslate", "inputTranslate", "pasteboardTranslate", "translateText"]
+              }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "operation": { "const": "translateText" } } },
+                "then": {
+                  "required": ["arguments"],
+                  "properties": {
+                    "arguments": {
+                      "required": ["text"],
+                      "additionalProperties": false,
+                      "properties": { "text": { "type": "string", "pattern": "\\S" } }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "operation": { "enum": ["selectionTranslate", "snipTranslate", "inputTranslate", "pasteboardTranslate"] }
+                  }
+                },
+                "then": { "properties": { "arguments": { "maxProperties": 0 } } }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "open_deep_link.input": {
+      "description": "One of the Plugin's Deep Link Templates, by id, with exactly its parameters. A choice parameter takes one of its choices, written into the link as it is; a text parameter takes non-empty text of at most its max_length characters, percent-encoded. The Host checks that the declared application handles the scheme and opens the link without bringing it forward. A Command may open a template declaratively instead, with the deep_link.open Host Command, taking parameters from its configuration.",
+      "type": "object",
+      "required": ["template"],
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "open_deep_link.result": { "type": "null" }
+  }
+}

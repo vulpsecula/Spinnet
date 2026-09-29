@@ -17,8 +17,13 @@ terms, and avoid the synonyms it lists.
 
 Note that `docs/` is deliberately git-ignored (see commit 97558ec), so these
 documents carry no version history. A documentation change cannot be reviewed
-as a diff; the budgets in `docs/adr/0007` and `docs/plugin-interface.md` are
-instead pinned by `DocumentedBudgetsTests`.
+as a diff; the budgets in the ADRs are instead pinned by
+`DocumentedBudgetsTests`.
+
+The Plugin interface itself is documented only in `PluginAPI/`, which is
+committed: its README catalogues Plugin API Level 1, and `PluginAPI/reference/`
+and the schemas specify it. Write interface changes there, never into
+`docs/`, which keeps Host-internal design and ADRs.
 
 ### Development verification
 

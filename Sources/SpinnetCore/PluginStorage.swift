@@ -3,7 +3,7 @@ import CryptoKit
 import Darwin
 
 /// The limits of Plugin Storage (ADR 0015). `DocumentedBudgetsTests` pins
-/// them against `docs/plugin-interface.md`.
+/// them against `PluginAPI/reference/host-services.md`.
 public enum PluginStorageBudgets {
     /// A key is a non-empty string of at most this many Unicode scalars, as
     /// JSON Schema's `maxLength` counts them.

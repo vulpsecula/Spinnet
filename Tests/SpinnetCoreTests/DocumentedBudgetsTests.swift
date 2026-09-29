@@ -8,6 +8,26 @@ import XCTest
 ///
 /// A failure is not a bug report. It means a published contract moved, and the
 /// fix is to update the document and this expectation together.
+///
+/// The pages under `PluginAPI/` are committed, so each quote from them is also
+/// checked against the page itself. The ADRs in the git-ignored `docs/` are
+/// cited only.
+
+/// Fails unless the published page `PluginAPI/<page>` says `quote`, reading
+/// every run of white space, line breaks included, as one space.
+func XCTAssertPublished(_ quote: String, in page: String, file: StaticString = #filePath, line: UInt = #line) {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("PluginAPI").appendingPathComponent(page)
+    func normalized(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+    guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+        return XCTFail("PluginAPI/\(page) cannot be read", file: file, line: line)
+    }
+    XCTAssertTrue(normalized(text).contains(normalized(quote)),
+                  "PluginAPI/\(page) no longer says: \(quote)", file: file, line: line)
+}
 
 final class ScriptedActionBudgetsTests: XCTestCase {
 
@@ -38,6 +58,27 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.maximumMessageBytes, 1_048_576)
     }
 
+    /// PluginAPI/reference/scripts.md, "Limits" and "The helper protocol"
+    func testBudgetsMatchThePublishedScriptLimits() {
+        XCTAssertPublished("A scripted Action has a four-second deadline. After 500 ms the Host shows progress",
+                           in: "reference/scripts.md")
+        XCTAssertEqual(ScriptedActionBudgets.actionDeadline, 4)
+        XCTAssertEqual(ScriptedActionBudgets.progressDelay, 0.5)
+
+        XCTAssertPublished("A helper message is at most 1 MiB of UTF-8 JSON", in: "reference/scripts.md")
+        XCTAssertEqual(ScriptedActionBudgets.maximumMessageBytes, 1_048_576)
+
+        XCTAssertPublished("stays at or above 64 MiB for two consecutive 100 ms samples", in: "reference/scripts.md")
+        XCTAssertEqual(ScriptedActionBudgets.helperPhysFootprintBytes, 64 * 1024 * 1024)
+        XCTAssertEqual(ScriptedActionBudgets.consecutiveFootprintSamples, 2)
+        XCTAssertEqual(ScriptedActionBudgets.footprintSampleInterval, 0.1)
+
+        XCTAssertPublished("which exits after 30 seconds idle", in: "reference/scripts.md")
+        XCTAssertEqual(ScriptedActionBudgets.helperIdleExit, 30)
+        XCTAssertPublished("a helper still alive 250 ms later is ended", in: "reference/scripts.md")
+        XCTAssertEqual(ScriptedActionBudgets.helperGracefulExit, 0.25)
+    }
+
     /// docs/adr/0010-run-plugin-views-as-view-sessions.md, "Budgets", as W13
     /// (#60) accepted them after measuring View Sessions.
     func testViewSessionBudgetsMatchADR0010() {
@@ -53,11 +94,23 @@ final class ScriptedActionBudgetsTests: XCTestCase {
         XCTAssertEqual(ScriptedActionBudgets.viewUpdateAfterPauseWarm, 0.15)
         XCTAssertEqual(ScriptedActionBudgets.viewUpdateAfterPauseCold, 0.3)
         XCTAssertEqual(ScriptedActionBudgets.fieldChangeDebounce, 0.1)
+
+        // PluginAPI/reference/views.md, "View Sessions"
+        XCTAssertPublished("The limits are 64 KiB of state and 256 KiB of view description.", in: "reference/views.md")
+        XCTAssertPublished("the same four-second deadline", in: "reference/views.md")
+        XCTAssertPublished("""
+            A view shows the answer to a typing pause within 150 ms on a warm helper and 300 ms from cold, \
+            at p95 with the 100 ms debounce included
+            """, in: "reference/views.md")
     }
 
     /// docs/adr/0010-run-plugin-views-as-view-sessions.md, "Host-Fetched
-    /// Sections", and docs/plugin-architecture.md, "Host-Fetched Sections".
+    /// Sections", and PluginAPI/reference/views.md, "Host-Fetched Sections".
     func testHostFetchedSectionBudgetsMatchADR0010() {
+        XCTAssertPublished("each request has its own 15-second budget, redirects included; "
+                           + "a script's own `https_request` keeps its 3-second budget", in: "reference/views.md")
+        XCTAssertPublished("for 10 minutes, among at most 50 answers across all Plugins", in: "reference/views.md")
+
         // "A section request has its own 15-second budget, since it holds no
         //  helper; a script's own `https_request` keeps the three-second
         //  budget inside its invocation deadline."
@@ -88,49 +141,51 @@ final class ScriptedActionBudgetsTests: XCTestCase {
 
 final class ClipboardHistoryBudgetsTests: XCTestCase {
 
-    /// docs/plugin-interface.md, "Clipboard History"
+    /// PluginAPI/reference/host-services.md, "Clipboard History"
     func testPaginationBudgetsMatchDocumentedInterface() {
-        // "Pages contain at most 50 copies and at most 512 KiB of encoded
-        //  representation metadata."
+        XCTAssertPublished("Pages contain at most 50 copies and at most 512 KiB of encoded representation metadata.",
+                           in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.maximumCopiesPerPage, 50)
         XCTAssertEqual(ClipboardHistoryBudgets.maximumPageBytes, 512 * 1024)
     }
 
-    /// docs/plugin-interface.md: "`length` is an integer from 1 through
-    /// 196608 (192 KiB)."
     func testContentChunkBudgetMatchesDocumentedInterface() {
+        XCTAssertPublished("`length` is an integer from 1 through 196608 (192 KiB).", in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.maximumContentChunkBytes, 196_608)
         XCTAssertEqual(ClipboardHistoryBudgets.contentChunkLookaheadBytes, 196_609)
     }
 
-    /// docs/plugin-interface.md: "`imagePreview`: … optional `thumbnail`
-    /// (base64 JPEG, at most 32 KiB, at most 128 pixels on its longest edge)."
     func testImagePreviewBudgetsMatchDocumentedInterface() {
+        XCTAssertPublished("optional `thumbnail` (base64 JPEG, at most 32 KiB, at most 128 pixels on its longest edge)",
+                           in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.maximumThumbnailBytes, 32_768)
         XCTAssertEqual(ClipboardHistoryBudgets.thumbnailMaxPixelSize, 128)
     }
 
-    /// docs/plugin-interface.md: "a regular, readable, non-symlink, non-cloud,
-    /// local PNG/JPEG/TIFF/GIF/HEIC file of at most 20 MiB, at most 40
-    /// megapixels, and at most 20,000 pixels per dimension."
     func testFileReferenceThumbnailBudgetsMatchDocumentedInterface() {
+        XCTAssertPublished("""
+            a regular, readable, non-symlink, non-cloud, local PNG/JPEG/TIFF/GIF/HEIC file of at most 20 MiB, \
+            at most 40 megapixels, and at most 20,000 pixels per dimension
+            """, in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.maximumThumbnailSourceBytes, 20 * 1_024 * 1_024)
         XCTAssertEqual(ClipboardHistoryBudgets.maximumThumbnailSourcePixels, 40_000_000)
         XCTAssertEqual(ClipboardHistoryBudgets.maximumThumbnailSourceEdge, 20_000)
     }
 
-    /// docs/plugin-interface.md: "retention (1/7/30 days)" and "Source
-    /// attribution uses the foreground application at the 0.5-second sampling
-    /// boundary".
+    /// The sampling interval is Host-internal (docs/host-internals.md,
+    /// "Clipboard History collection"): "Source attribution uses the
+    /// foreground application at the 0.5-second sampling boundary".
     func testCollectionBudgetsMatchDocumentedInterface() {
+        XCTAssertPublished("retention (1, 7 or 30 days)", in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.retentionDayOptions, [1, 7, 30])
         XCTAssertEqual(ClipboardHistoryBudgets.samplingInterval, 0.5)
     }
 
-    /// docs/plugin-interface.md: "at most 2048 characters for every type, and
-    /// at most 2048 UTF-8 bytes, raised to 8192 for a `rich_text`
-    /// representation."
     func testPreviewBudgetsMatchDocumentedInterface() {
+        XCTAssertPublished("""
+            at most 2048 characters for every type, and at most 2048 UTF-8 bytes, raised to 8192 for a \
+            `rich_text` representation.
+            """, in: "reference/host-services.md")
         XCTAssertEqual(ClipboardHistoryBudgets.plainTextPreviewBytes, 2_048)
         XCTAssertEqual(ClipboardHistoryBudgets.richTextPreviewBytes, 8_192)
     }
@@ -164,52 +219,53 @@ final class ClipboardHistoryBudgetsTests: XCTestCase {
 
 final class HTTPSRequestBudgetsTests: XCTestCase {
 
-    /// docs/plugin-interface.md, "HTTPS requests"
+    /// PluginAPI/reference/host-services.md, "https_request"
     func testBudgetsMatchDocumentedInterface() {
-        // "Request and response bodies are at most 128 KiB"
+        XCTAssertPublished("Request and response bodies are at most 128 KiB", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.maximumRequestBodyBytes, 128 * 1024)
         XCTAssertEqual(HTTPSRequestBudgets.maximumResponseBodyBytes, 128 * 1024)
 
-        // "The Host follows at most 3 redirects"
+        XCTAssertPublished("The Host follows at most 3 redirects", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.maximumRedirects, 3)
 
-        // "A request has a 3-second budget inside the Action deadline"
+        XCTAssertPublished("A request has a 3-second budget inside the Action deadline", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.timeout, 3)
         XCTAssertLessThan(HTTPSRequestBudgets.timeout, ScriptedActionBudgets.actionDeadline)
     }
 
-    /// docs/plugin-interface.md, "Credential Uses"
+    /// PluginAPI/reference/host-services.md, "Credential Uses"
     func testCredentialUseBudgetsMatchDocumentedInterface() {
-        // "an array of at most 4 Credential Uses"
+        XCTAssertPublished("an array of at most 4 Credential Uses", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.maximumCredentialUses, 4)
-        // "Templates, HMAC keys, and chain steps are at most 1024 characters."
+        XCTAssertPublished("Templates, HMAC keys, and chain steps are at most 1024 characters.", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.maximumCredentialTemplateLength, 1024)
-        // "An optional `chain` of at most 8 texts"
+        XCTAssertPublished("An optional `chain` of at most 8 texts", in: "reference/host-services.md")
         XCTAssertEqual(HTTPSRequestBudgets.maximumHMACChainSteps, 8)
     }
 }
 
 final class ExternalAppBudgetsTests: XCTestCase {
 
-    /// docs/plugin-interface.md, "External App requests"
+    /// PluginAPI/reference/host-services.md, "perform_app_operation"
     func testRequestTextBudgetMatchesDocumentedInterface() {
-        // "translateText accepts non-empty body.text of at most 128 KiB of UTF-8 text."
+        XCTAssertPublished("`translateText`, which alone takes `text`, non-blank and at most 128 KiB of UTF-8",
+                           in: "reference/host-services.md")
         XCTAssertEqual(ExternalAppBudgets.maximumRequestTextBytes, 128 * 1024)
     }
 }
 
 final class PluginStorageBudgetsTests: XCTestCase {
 
-    /// docs/plugin-interface.md, "Plugin Storage", and
+    /// PluginAPI/reference/host-services.md, "Plugin Storage", and
     /// docs/adr/0015-give-each-plugin-its-own-storage-without-a-capability.md
     func testBudgetsMatchDocumentedInterface() {
-        // "A key is a non-empty string of at most 128 characters"
+        XCTAssertPublished("A key is a non-empty string of at most 128 characters", in: "reference/host-services.md")
         XCTAssertEqual(PluginStorageBudgets.maximumKeyLength, 128)
-        // "A value may be up to 512 KiB"
+        XCTAssertPublished("A value may be up to 512 KiB", in: "reference/host-services.md")
         XCTAssertEqual(PluginStorageBudgets.maximumValueBytes, 512 * 1024)
-        // "a Plugin may keep up to 10 MiB, the default capacity of Raycast's `Cache`"
+        XCTAssertPublished("a Plugin may keep up to 10 MiB, the default capacity of Raycast's `Cache`", in: "reference/host-services.md")
         XCTAssertEqual(PluginStorageBudgets.maximumPluginBytes, 10 * 1024 * 1024)
-        // "and it may keep up to 1000 keys"
+        XCTAssertPublished("and it may keep up to 1000 keys", in: "reference/host-services.md")
         XCTAssertEqual(PluginStorageBudgets.maximumKeyCount, 1000)
     }
 
@@ -237,11 +293,11 @@ final class PluginStorageBudgetsTests: XCTestCase {
 
 final class HostFetchedSectionBudgetsTests: XCTestCase {
 
-    /// PluginAPI/README.md, "Host-Fetched Sections"
+    /// PluginAPI/reference/views.md, "Host-Fetched Sections"
     func testHostFetchedSectionBudgetsMatchDocumentedInterface() {
-        // "A view fetches at most 8 sections"
+        XCTAssertPublished("A view fetches at most 8 sections", in: "reference/views.md")
         XCTAssertEqual(HostFetchedSectionBudgets.maximumSections, 8)
-        // "Pointers and messages are at most 512 characters"
+        XCTAssertPublished("Pointers and messages are at most 512 characters", in: "reference/views.md")
         XCTAssertEqual(HostFetchedSectionBudgets.maximumPointerLength, 512)
         XCTAssertEqual(HostFetchedSectionBudgets.maximumMessageLength, 512)
     }
@@ -249,15 +305,15 @@ final class HostFetchedSectionBudgetsTests: XCTestCase {
 
 final class PluginViewBudgetsTests: XCTestCase {
 
-    /// PluginAPI/README.md, "Plugin Views", and schemas/plugin-view.schema.json
+    /// PluginAPI/reference/views.md, "Components", and schemas/plugin-view.schema.json
     func testViewBudgetsMatchDocumentedInterface() {
-        // "`settings`: up to 6 of the Plugin's own `choice` and `toggle` settings"
+        XCTAssertPublished("`settings`: up to 6 of the Plugin's own `choice` and `toggle` settings", in: "reference/views.md")
         XCTAssertEqual(PluginViewDescription.maximumSettings, 6)
-        // "`form.fields`: 1 to 20 fields"
+        XCTAssertPublished("`form.fields`: 1 to 20 fields", in: "reference/views.md")
         XCTAssertEqual(PluginViewDescription.maximumFields, 20)
-        // "`detail.sections`: 1 to 20 sections"
+        XCTAssertPublished("`detail.sections`: 1 to 20 sections", in: "reference/views.md")
         XCTAssertEqual(PluginViewDescription.maximumSections, 20)
-        // "`actions`: up to 12 buttons"
+        XCTAssertPublished("`actions`: up to 12 buttons", in: "reference/views.md")
         XCTAssertEqual(PluginViewDescription.maximumActions, 12)
     }
 }

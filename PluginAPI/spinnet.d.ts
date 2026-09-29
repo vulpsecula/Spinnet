@@ -1,10 +1,10 @@
 // Type definitions for Spinnet Plugin scripts, Plugin API Level 1.
 // SPDX-License-Identifier: MIT
 //
-// It types the globals the helper injects into a script today, including the
+// It types the globals the helper injects into a script, including the
 // `spinnet` SDK object built by `spinnet.js`, `event` and `state`, the answer
-// a script gives, and the Plugin View it may describe. Level 1 may still
-// change until it is published.
+// a script gives, and the Plugin View it may describe. `reference/` states
+// the rules behind each type.
 //
 // Each SDK wrapper names the one Host Service it requests with an `@service`
 // tag; a test checks the tags against `spinnet.js` and the Host.
@@ -94,7 +94,7 @@ export interface ClipboardContent {
 
 /**
  * One page of Clipboard History. Follow `nextOffset` rather than assuming a
- * page size; the entries' fields are described in the Host's documentation.
+ * page size; `reference/host-services.md` describes the entries' fields.
  */
 export interface ClipboardHistoryPage {
   state: "off" | "paused" | "collecting";
@@ -250,7 +250,7 @@ export interface HTTPArea {
   request(request: HTTPSRequest): HTTPSResponse;
 }
 
-/** Reviewed App Interface operations and Deep Link Templates (W8 #55). */
+/** Reviewed App Interface operations and Deep Link Templates. */
 export interface AppsArea {
   /**
    * Sends one operation of an External App's Reviewed App Interface, such as

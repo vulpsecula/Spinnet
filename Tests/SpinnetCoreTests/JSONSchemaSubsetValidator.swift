@@ -15,17 +15,34 @@ struct JSONSchemaSubsetValidator {
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
         "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
-        "allOf", "if", "then", "propertyNames"
+        "allOf", "oneOf", "if", "then", "propertyNames", "maxProperties"
     ]
 
     private let root: JSONValue
+    /// Where a reference to another schema file, such as
+    /// `https-request.schema.json#/$defs/credential_use`, is looked up.
+    private let directory: URL?
 
-    init(schema: JSONValue) {
+    init(schema: JSONValue, directory: URL? = nil) {
         root = schema
+        self.directory = directory
     }
 
     init(schemaAt url: URL) throws {
-        self.init(schema: try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)))
+        self.init(schema: try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)),
+                  directory: url.deletingLastPathComponent())
+    }
+
+    /// Checks against one of the `$defs` of the schema at `url`, such as
+    /// `https_request.input`.
+    init(definition: String, inSchemaAt url: URL) throws {
+        let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        guard case .object(let document) = schema, case .object(let definitions)? = document["$defs"],
+              definitions[definition] != nil else {
+            throw ConfigurationError.malformedValue("\(url.lastPathComponent) does not define \(definition)")
+        }
+        self.init(schema: .object(["$ref": .string("#/$defs/\(definition)"), "$defs": .object(definitions)]),
+                  directory: url.deletingLastPathComponent())
     }
 
     /// Every way `instance` breaks the schema, each prefixed with the JSON
@@ -61,8 +78,8 @@ struct JSONSchemaSubsetValidator {
 
         switch (keyword, value) {
         case ("$ref", .string(let reference)):
-            guard let target = resolve(reference) else { return fail("cannot resolve \(reference)") }
-            return errors(for: instance, against: target, at: path)
+            guard let (document, target) = resolve(reference) else { return fail("cannot resolve \(reference)") }
+            return document.errors(for: instance, against: target, at: path)
         case ("type", .string(let type)):
             return Self.matches(instance, type: type) ? [] : fail("is not of type \(type)")
         case ("type", .array(let types)):
@@ -129,8 +146,14 @@ struct JSONSchemaSubsetValidator {
         case ("maximum", .number(let maximum)):
             guard case .number(let number) = instance else { return [] }
             return number <= maximum ? [] : fail("is greater than \(maximum)")
+        case ("maxProperties", .number(let maximum)):
+            guard case .object(let members) = instance else { return [] }
+            return Double(members.count) <= maximum ? [] : fail("has more than \(Int(maximum)) members")
         case ("allOf", .array(let schemas)):
             return schemas.flatMap { errors(for: instance, against: $0, at: path) }
+        case ("oneOf", .array(let schemas)):
+            let matching = schemas.filter { errors(for: instance, against: $0, at: path).isEmpty }.count
+            return matching == 1 ? [] : fail("matches \(matching) of the schemas where exactly one must match")
         case ("if", _):
             // `then` applies only when the instance satisfies `if`.
             guard errors(for: instance, against: value, at: path).isEmpty,
@@ -143,15 +166,25 @@ struct JSONSchemaSubsetValidator {
         }
     }
 
-    /// Resolves a reference within this document, such as `#/$defs/command`.
-    private func resolve(_ reference: String) -> JSONValue? {
-        guard reference.hasPrefix("#") else { return nil }
-        var target = root
-        for token in reference.dropFirst().split(separator: "/") {
+    /// Resolves a reference within this document, such as `#/$defs/command`,
+    /// or within a schema file beside it, such as
+    /// `plugin-view.schema.json#/$defs/view`, together with the validator
+    /// that resolves the references inside it.
+    private func resolve(_ reference: String) -> (JSONSchemaSubsetValidator, JSONValue)? {
+        let parts = reference.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        var document = self
+        if !parts[0].isEmpty {
+            guard let directory, let other = try? JSONSchemaSubsetValidator(
+                schemaAt: directory.appendingPathComponent(String(parts[0]))
+            ) else { return nil }
+            document = other
+        }
+        var target = document.root
+        for token in (parts.count > 1 ? parts[1] : "").split(separator: "/") {
             guard case .object(let members) = target, let next = members[String(token)] else { return nil }
             target = next
         }
-        return target
+        return (document, target)
     }
 
     private static func matches(_ instance: JSONValue, type: String) -> Bool {

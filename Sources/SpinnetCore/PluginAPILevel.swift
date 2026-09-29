@@ -5,8 +5,8 @@ import Foundation
 /// Plugin needs; the Host installs a Plugin only if it supports that level.
 /// `protocol_version` is unrelated: it only frames helper messages.
 public enum PluginAPILevel {
-    /// The highest level this Host supports. Level 1 is the first versioned
-    /// release, and stays open to change until it is published (#64).
+    /// The highest level this Host supports. Level 1 is the first published
+    /// level, catalogued in `PluginAPI/README.md`.
     public static let highestSupported = 1
 
     /// The level of a manifest written before `api_level` existed. Such a

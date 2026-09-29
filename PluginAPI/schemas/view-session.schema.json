@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet View Sessions",
+  "description": "The View Events a script receives as its event global and the answers it may give, as of Plugin API Level 1 (ADR 0010). When an Action starts, event and state are null. While the script's Plugin View is open the Host keeps its state and runs the same script again for each View Event, one at a time and in order, each an ordinary invocation with the four-second deadline, Host Services and Capability checks of the Action. A field change arrives after a 100 ms pause and only the latest waiting one is delivered. The state is at most 64 KiB and the view description at most 256 KiB of JSON; an answer over either, or of any other shape, is a protocol violation, which fails an Action and ends a View Session.",
+  "$defs": {
+    "text": {
+      "description": "A string with at least one character that is not white space.",
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "values": {
+      "description": "Every field of the form as it now stands, keyed by field key: a string, or a boolean for a toggle.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "boolean"] }
+    },
+    "event": {
+      "description": "One user interaction in the Plugin View, as the script's event global.",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["field_changed", "submitted", "action_chosen", "setting_changed", "settings_swapped", "section_delivered"]
+        }
+      },
+      "allOf": [
+        {
+          "description": "The user edited field; values holds every field, so coalescing pending changes loses nothing.",
+          "if": { "properties": { "type": { "const": "field_changed" } } },
+          "then": {
+            "required": ["field", "values"],
+            "propertyNames": { "enum": ["type", "field", "values"] },
+            "properties": { "field": { "type": "string" }, "values": { "$ref": "#/$defs/values" } }
+          }
+        },
+        {
+          "description": "The user submitted the form: Return in a one-line field, the submit button, or Command-Return.",
+          "if": { "properties": { "type": { "const": "submitted" } } },
+          "then": {
+            "required": ["values"],
+            "propertyNames": { "enum": ["type", "values"] },
+            "properties": { "values": { "$ref": "#/$defs/values" } }
+          }
+        },
+        {
+          "description": "The user chose the action with this id.",
+          "if": { "properties": { "type": { "const": "action_chosen" } } },
+          "then": {
+            "required": ["action"],
+            "propertyNames": { "enum": ["type", "action"] },
+            "properties": { "action": { "type": "string" } }
+          }
+        },
+        {
+          "description": "The user changed one of the Plugin's own settings in the view. The Host has already stored it as Plugin Settings; the Action does not run again, and the event's input already holds the new value.",
+          "if": { "properties": { "type": { "const": "setting_changed" } } },
+          "then": {
+            "required": ["key", "value"],
+            "propertyNames": { "enum": ["type", "key", "value"] },
+            "properties": { "key": { "type": "string" } }
+          }
+        },
+        {
+          "description": "The user pressed the swap button between two choice setting controls. The Host has already stored both values exchanged; keys names the control with swap_with first.",
+          "if": { "properties": { "type": { "const": "settings_swapped" } } },
+          "then": {
+            "required": ["keys"],
+            "propertyNames": { "enum": ["type", "keys"] },
+            "properties": {
+              "keys": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "section_delivered" } } },
+          "then": { "$ref": "host-fetched-section.schema.json#/$defs/section_delivered" }
+        }
+      ]
+    },
+    "answer": {
+      "description": "What the script evaluates to. {view, state} shows or updates the Plugin View and keeps state for the next event; {close: true} closes the view; null, or an object with neither, shows nothing and changes nothing while a view is open. Any answer may add a toast: shown briefly in the view, or near the pointer without one, which starts no View Session.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "view": { "$ref": "plugin-view.schema.json#/$defs/view" },
+        "state": { "description": "Any JSON, at most 64 KiB; null when absent. It comes back as the state global with the next View Event." },
+        "close": { "const": true },
+        "toast": { "$ref": "#/$defs/text" }
+      },
+      "allOf": [
+        {
+          "description": "An answer that closes the view describes none.",
+          "if": { "required": ["close"] },
+          "then": { "properties": { "view": false, "state": false } }
+        },
+        {
+          "description": "Only an answer with a view keeps a state.",
+          "if": { "properties": { "view": false } },
+          "then": { "properties": { "state": false } }
+        }
+      ]
+    }
+  }
+}

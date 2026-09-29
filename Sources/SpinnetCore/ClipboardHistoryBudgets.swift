@@ -4,9 +4,10 @@ import Foundation
 /// Interface promises to a Plugin, in one place.
 ///
 /// A Plugin author sizes buffers and pagination loops against these values, so
-/// changing one changes a published contract. `docs/plugin-interface.md`
-/// remains the prose record; this is the only place that states the numbers.
-/// `ClipboardHistoryBudgetsTests` asserts each one against that document.
+/// changing one changes a published contract.
+/// `PluginAPI/reference/host-services.md` is the prose record; this is the only
+/// place that states the numbers. `ClipboardHistoryBudgetsTests` asserts each
+/// one against that page.
 public enum ClipboardHistoryBudgets {
 
     // MARK: Snapshot pagination

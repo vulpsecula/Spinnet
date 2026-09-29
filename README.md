@@ -42,7 +42,8 @@ permission again after rebuilding them.
 The Host reads every Plugin package it finds in `Plugins` through the public
 manifest loader. Open URL, Screenshot and the other Plugins whose Commands are
 Host Commands (see the Host Command catalogue in
-[`docs/plugin-interface.md`](docs/plugin-interface.md)) are packages there like
+[`PluginAPI/reference/manifest.md`](PluginAPI/reference/manifest.md#host-commands))
+are packages there like
 Clipboard History, and can be removed like it. A Bundled Plugin is delivered into
 `SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
 Application Support, and the Host discovers both by reading a directory.
@@ -164,12 +165,12 @@ Host-rendered history window is a separate Host Service that the same grant
 allows, whichever Plugin asks: the user reads their own data there, and the
 Plugin learns nothing from it.
 
-The manifest shape, helper protocol, Host Command catalogue, and Clipboard
-History contract are documented in
-[`docs/plugin-interface.md`](docs/plugin-interface.md). The timing, size, and
-resource budgets those contracts promise are declared once in
+The Documented Plugin Interface, Plugin API Level 1, is published in
+[`PluginAPI/`](PluginAPI/README.md): the manifest, the helper protocol, every
+Host Service, Plugin Views, and their schemas. The timing, size, and resource
+budgets those contracts promise are declared once in budget types such as
 `ScriptedActionBudgets` and `ClipboardHistoryBudgets`, and pinned against the
-documents by `DocumentedBudgetsTests`.
+published pages by `DocumentedBudgetsTests`.
 
 ## Licence
 
@@ -209,8 +210,8 @@ of those rights away.
 ### Plugins
 
 A Plugin that is not based on Spinnet-Owned Code and reaches Spinnet only
-through the Documented Plugin Interface in [`PluginAPI/`](PluginAPI/) and
-[`docs/plugin-interface.md`](docs/plugin-interface.md) keeps its own licence;
+through the Documented Plugin Interface in [`PluginAPI/`](PluginAPI/) keeps
+its own licence;
 running inside Spinnet does not place it under the GPL. Community Plugins may
 use any OSI-approved open-source licence, and their authors keep their
 copyright. Plugins bundled with Spinnet and maintained here are

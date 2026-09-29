@@ -91,7 +91,7 @@ final class ManifestSchemaTests: XCTestCase {
     /// schema that starts using another must fail here rather than pass with
     /// the keyword ignored.
     func testTheValidatorRefusesAKeywordItDoesNotImplement() {
-        let validator = JSONSchemaSubsetValidator(schema: .object(["oneOf": .array([.bool(true)])]))
+        let validator = JSONSchemaSubsetValidator(schema: .object(["not": .bool(false)]))
 
         XCTAssertFalse(validator.errors(for: .null).isEmpty)
     }
@@ -205,10 +205,10 @@ final class ManifestSchemaTests: XCTestCase {
 }
 
 /// The manifest schema has to say what the Host reads and what
-/// docs/plugin-interface.md promises. The Host side compares the schema with
-/// the Swift types that decode a manifest; the prose side, like
-/// `DocumentedBudgetsTests`, compares it with literals copied from the
-/// document, so changing either means changing the other in the same commit.
+/// PluginAPI/reference/manifest.md promises. The Host side compares the schema
+/// with the Swift types that decode a manifest; the prose side, like
+/// `DocumentedBudgetsTests`, checks the page says what the schema allows, so
+/// changing either means changing the other in the same commit.
 final class DocumentedManifestSchemaTests: XCTestCase {
     private func schema() throws -> [String: JSONValue] {
         let url = URL(fileURLWithPath: #filePath)
@@ -245,31 +245,52 @@ final class DocumentedManifestSchemaTests: XCTestCase {
         XCTAssertEqual(protocolVersion["const"], .string(PluginManifest.supportedProtocolVersion))
     }
 
-    /// docs/plugin-interface.md, "Manifest"
+    /// PluginAPI/reference/manifest.md
     func testTheSchemaMatchesTheDocumentedManifest() throws {
-        // "`id`, `name`, `version`, Command IDs, and Command titles must be
-        //  non-empty and no longer than 256 characters."
+        let page = "reference/manifest.md"
+        XCTAssertPublished("""
+            `id`, `name`, `version`, Command IDs, and Command titles must be non-empty and no longer than \
+            256 characters.
+            """, in: page)
         XCTAssertEqual(try definition("text")["minLength"], .number(1))
         XCTAssertEqual(try definition("text")["maxLength"], .number(256))
 
-        // "to select the Host-rendered field kind: `text`, `multiline_text`,
-        //  `toggle`, `choice`, `application`, `file`, `folder`, `shortcut`,
-        //  `keyboard_shortcut`, `url`, `size`, or `position`." Then
-        //  "`configuration_fields` may also hold `multiline_text`, `credential`,
-        //  and `https_endpoint`", and Plugin Settings "take the same kinds as
-        //  `configuration_fields`, plus `ordered_choices` and `list`".
+        XCTAssertPublished("""
+            to choose the Host-rendered field kind: `text`, `multiline_text`, `toggle`, `choice`, `application`, \
+            `file`, `folder`, `shortcut`, `keyboard_shortcut`, `url`, `size`, or `position`.
+            """, in: page)
+        XCTAssertPublished("`configuration_fields` may also hold `multiline_text`, `credential`, and `https_endpoint`",
+                           in: page)
+        XCTAssertPublished("They take the same kinds as `configuration_fields`, plus `ordered_choices` and `list`",
+                           in: page)
         XCTAssertEqual(try allowedValues(of: "fieldKind"), [
             "text", "multiline_text", "toggle", "choice", "application", "file", "folder", "shortcut",
             "keyboard_shortcut", "url", "size", "position", "credential", "https_endpoint",
             "ordered_choices", "list"
         ])
 
-        // "The supported Host Command catalogue is:"
-        XCTAssertEqual(try allowedValues(of: "hostCommand"), [
-            "url.open", "application.open", "file.open", "folder.open", "keyboard_shortcut.invoke",
-            "service.invoke", "shortcut.invoke", "clipboard.copy", "clipboard.paste", "clipboard.cut",
-            "feedback.present", "screen.capture_area", "screen.capture_full_screen", "screen.capture_window",
-            "deep_link.open"
-        ])
+        XCTAssertEqual(Set(try PublishedTable.column(0, under: "### Host Commands", in: "reference/manifest.md")), try allowedValues(of: "hostCommand"),
+                       "The Host Commands table in \(page) lists exactly the schema's Host Commands")
+
+        XCTAssertPublished("one to eight, each a `key`, a `kind`", in: page)
+        XCTAssertPublished("optionally `max_rows` (1–100, default 100)", in: page)
+        XCTAssertPublished("at most the column's `max_length` characters (1–256, default 256)", in: page)
+        guard case .object(let field)? = try definition("field")["properties"],
+              case .object(let columns)? = field["columns"], case .object(let maxRows)? = field["max_rows"],
+              case .object(let column)? = try definition("listColumn")["properties"],
+              case .object(let maxLength)? = column["max_length"] else {
+            return XCTFail("The schema does not describe a list")
+        }
+        XCTAssertEqual([columns["minItems"], columns["maxItems"]], [.number(1), .number(8)])
+        XCTAssertEqual([maxRows["minimum"], maxRows["maximum"]], [.number(1), .number(100)])
+        XCTAssertEqual([maxLength["minimum"], maxLength["maximum"]], [.number(1), .number(256)])
+
+        XCTAssertPublished("`rename_commands` maps retired Command IDs to declared ones", in: page)
+        XCTAssertPublished("`rename_settings` maps retired settings keys to declared ones", in: page)
+        XCTAssertPublished("`drop_input` names declared Commands that are not configurable", in: page)
+        guard case .object(let migrations)? = try definition("migrations")["properties"] else {
+            return XCTFail("The schema does not describe migrations")
+        }
+        XCTAssertEqual(Set(migrations.keys), ["rename_commands", "rename_settings", "drop_input"])
     }
 }

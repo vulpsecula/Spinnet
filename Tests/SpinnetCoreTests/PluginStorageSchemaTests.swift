@@ -13,14 +13,7 @@ final class PluginStorageSchemaTests: XCTestCase {
     private let pluginID = PluginID("com.example.schema")
 
     private func validator(for definition: String) throws -> JSONSchemaSubsetValidator {
-        let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.schemaURL))
-        guard case .object(let document) = schema, case .object(let definitions)? = document["$defs"] else {
-            throw XCTSkip("The schema has no $defs")
-        }
-        XCTAssertNotNil(definitions[definition], "The schema defines \(definition)")
-        return JSONSchemaSubsetValidator(schema: .object([
-            "$ref": .string("#/$defs/\(definition)"), "$defs": .object(definitions)
-        ]))
+        try JSONSchemaSubsetValidator(definition: definition, inSchemaAt: Self.schemaURL)
     }
 
     private func makeStorage() -> PluginStorage {

@@ -43,6 +43,17 @@ final class ArchitectureGuardTests: XCTestCase {
         }
     }
 
+    /// Plugin API Level 1 is published with no Plugin behaviour left to move
+    /// out of the Host: every exception stays for a reason, and none waits
+    /// for a ticket to remove it.
+    func testNoExceptionIsLeftToMigrate() {
+        for exception in Self.exceptions {
+            if case .removedBy(let ticket) = exception.reason {
+                XCTFail("\(exception.file) still names \"\(exception.literal)\" until \(ticket)")
+            }
+        }
+    }
+
     private func declaredLiterals() throws -> [ArchitectureGuard.DeclaredLiteral] {
         let plugins = Self.repository.appendingPathComponent("Plugins")
         return try FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil)
