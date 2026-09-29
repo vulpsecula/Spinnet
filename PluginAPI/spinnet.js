@@ -77,7 +77,7 @@
       write: service("write_clipboard"),
       history: service("read_clipboard_history"),
       historyContent: service("read_clipboard_history_content"),
-      // Opens the Clipboard History window, a Host Surface.
+      // Opens the Clipboard History window, the one Host Surface.
       showHistory: service("present_clipboard_history")
     }),
     window: area({

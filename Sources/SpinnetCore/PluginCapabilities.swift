@@ -442,9 +442,10 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     case writeClipboard = "write_clipboard"
     case readCurrentClipboard = "read_current_clipboard"
     case readClipboardHistory = "read_clipboard_history"
-    /// Opening the Host's own Clipboard History window. It returns nothing to
-    /// the Plugin, and only a shipped Plugin may ask (ADR 0002), so it is named
-    /// rather than hidden in another service's input.
+    /// Opens the Clipboard History window, the one Host Surface (ADR 0002).
+    /// It needs only the `read_clipboard_history` grant, whatever the Plugin's
+    /// origin, and returns nothing to the Plugin, so it is named rather than
+    /// hidden in another service's input.
     case presentClipboardHistory = "present_clipboard_history"
     /// The focused window's frame and its screen's visible frame, and nothing
     /// else from the accessibility tree.

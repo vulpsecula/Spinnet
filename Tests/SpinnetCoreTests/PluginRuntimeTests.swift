@@ -13,8 +13,8 @@ final class PluginRuntimeTests: XCTestCase {
     func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/ClipboardHistory.spinnetplugin"))
-        // Registered the way the Host registers it, so the test covers the
-        // origin that is allowed to present a Host-owned window.
+        // Registered the way the Host registers a Bundled Plugin. The origin
+        // grants nothing: ClipboardHistoryTests presents from an installed copy.
         let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

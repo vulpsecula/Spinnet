@@ -8,7 +8,9 @@ import XCTest
 /// Every occurrence the Host still has is listed below, per file and literal,
 /// with the reason it may stay or the W ticket under #47 that removes it. The
 /// list may only shrink: a new occurrence fails, and so does an exception
-/// that no longer matches what it excuses.
+/// that no longer matches what it excuses. The Clipboard History window, the
+/// one Host Surface, needs none: the Host presents it for whichever Plugin
+/// asks and names no Plugin to do so.
 final class ArchitectureGuardTests: XCTestCase {
     private static let repository = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

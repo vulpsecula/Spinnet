@@ -207,8 +207,9 @@ export interface ClipboardArea {
   /** @service read_clipboard_history_content */
   historyContent(chunk: { entry_id: string; offset: number; length: number }): ClipboardHistoryContent;
   /**
-   * Opens the Clipboard History window, a Host Surface. The Plugin learns
-   * nothing from it.
+   * Opens the Clipboard History window, the one Host Surface. Any Plugin
+   * granted `read_clipboard_history` may open it, Bundled or installed, and
+   * learns nothing from it.
    * @service present_clipboard_history
    */
   showHistory(): null;
