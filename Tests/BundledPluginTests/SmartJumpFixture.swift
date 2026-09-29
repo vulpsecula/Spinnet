@@ -88,13 +88,17 @@ final class SmartJumpDriver {
         let answer: PluginScriptAnswer
         let view: PluginViewDescription
 
+        var field: PluginViewField? { view.form?.fields.first { $0.key == "query" } }
         /// What the text field holds.
-        var query: JSONValue? { view.form?.fields.first { $0.key == "query" }?.value }
-        var status: PluginViewSection? { view.detail?.sections.first { $0.id == "status" } }
-        var statusTitle: String? { status?.title }
-        /// The status line's text as the user reads it.
+        var query: JSONValue? { field?.value }
+        /// The field's status line, "what · on what".
+        var status: String? { field?.status }
+        /// What the status says the text would do.
+        var statusTitle: String? { status.map { String($0.components(separatedBy: " · ")[0]) } }
+        /// What the status says it would do it to.
         var statusText: String? {
-            status?.text.map { PluginViewMarkdown.plainText(of: PluginViewMarkdown.parse($0)) }
+            guard let status, let range = status.range(of: " · ") else { return nil }
+            return String(status[range.upperBound...])
         }
     }
 

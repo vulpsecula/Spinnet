@@ -27,7 +27,8 @@ final class PluginViewDescriptionTests: XCTestCase {
             "form": .object([
                 "fields": .array([
                     .object(["key": .string("query"), "kind": .string("text"), "title": .string("Query"),
-                             "placeholder": .string("Type"), "value": .string("hi")]),
+                             "placeholder": .string("Type"), "value": .string("hi"), "accent": .string("teal"),
+                             "status": .string("Search · hi")]),
                     .object(["key": .string("notes"), "kind": .string("multiline_text"), "title": .string("Notes")]),
                     .object(["key": .string("loud"), "kind": .string("toggle"), "title": .string("Loud"),
                              "value": .bool(true)]),
@@ -69,6 +70,8 @@ final class PluginViewDescriptionTests: XCTestCase {
         XCTAssertEqual(form.fields.map(\.value), [.string("hi"), .string(""), .bool(true), .string("s"), .string("")],
                        "A field without a value starts empty, off, or on its first choice")
         XCTAssertEqual(form.fields[0].placeholder, "Type")
+        XCTAssertEqual(form.fields.map(\.accent), [.teal, nil, nil, nil, nil])
+        XCTAssertEqual(form.fields.map(\.status), ["Search · hi", nil, nil, nil, nil])
         XCTAssertEqual(form.fields[3].choices, [PluginViewChoice(value: "s", title: "Small"),
                                                PluginViewChoice(value: "l", title: "Large")])
         XCTAssertEqual(form.values, .object(["query": .string("hi"), "notes": .string(""), "loud": .bool(true),
@@ -87,6 +90,25 @@ final class PluginViewDescriptionTests: XCTestCase {
             PluginViewAction(title: "Insert", shortcut: nil, kind: .standard(.insertText("hello"), closesView: true)),
             PluginViewAction(title: "Settings", shortcut: nil, kind: .standard(.openPluginSettings, closesView: false))
         ])
+    }
+
+    /// A text or url field may name any colour of the palette, and only those.
+    func testAOneLineFieldMayBeTintedWithEveryColourOfThePalette() throws {
+        XCTAssertEqual(PluginViewAccent.allCases.map(\.rawValue),
+                       ["blue", "indigo", "purple", "pink", "red", "orange", "green", "teal", "gray"])
+        for kind in ["text", "url"] {
+            for accent in PluginViewAccent.allCases {
+                let view = try parse(.object(["title": .string("T"), "form": .object(["fields": .array([
+                    .object(["key": .string("q"), "kind": .string(kind), "title": .string("Q"), "accent": .string(accent.rawValue)])
+                ])])]))
+                XCTAssertEqual(view.form?.fields.first?.accent, accent, kind)
+            }
+            let status = try parse(.object(["title": .string("T"), "form": .object(["fields": .array([
+                .object(["key": .string("q"), "kind": .string(kind), "title": .string("Q"), "status": .string("Open · x")])
+            ])])]))
+            XCTAssertEqual(status.form?.fields.first?.status, "Open · x", "A status needs no accent")
+            XCTAssertNil(status.form?.fields.first?.accent)
+        }
     }
 
     func testTheSmallestViewsHaveATitleAndOneComponent() throws {
@@ -188,6 +210,27 @@ final class PluginViewDescriptionTests: XCTestCase {
             ("section without text or fetch", sections([.object(["id": .string("a"), "title": .string("A")])])),
             ("fetch that is not an object", sections([.object(["id": .string("a"), "fetch": .string("https://x")])])),
             ("unknown section member", sections([.object(["id": .string("a"), "text": .string("a"), "copy": .bool(true)])])),
+            ("accent on a section", sections([.object(["id": .string("a"), "text": .string("a"), "accent": .string("blue")])])),
+            ("accent outside the palette", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                                          "accent": .string("magenta")])])),
+            ("yellow accent", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                             "accent": .string("yellow")])])),
+            ("accent as a colour value", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                                        "accent": .string("#ff0000")])])),
+            ("accent that is not a string", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                                           "accent": .number(1)])])),
+            ("accent on a multiline field", form([.object(["key": .string("q"), "kind": .string("multiline_text"),
+                                                           "title": .string("Q"), "accent": .string("blue")])])),
+            ("accent on a toggle", form([.object(["key": .string("q"), "kind": .string("toggle"), "title": .string("Q"),
+                                                  "accent": .string("blue")])])),
+            ("blank status", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                            "status": .string(" ")])])),
+            ("status that is not a string", form([.object(["key": .string("q"), "kind": .string("text"), "title": .string("Q"),
+                                                           "status": .number(1)])])),
+            ("status on a multiline field", form([.object(["key": .string("q"), "kind": .string("multiline_text"),
+                                                           "title": .string("Q"), "status": .string("S")])])),
+            ("status on a choice", form([.object(["key": .string("q"), "kind": .string("choice"), "title": .string("Q"),
+                                                  "choices": .array([.string("a")]), "status": .string("S")])])),
             ("no actions", actions([])),
             ("action without title", actions([.object(["id": .string("a")])])),
             ("action with neither id nor perform", actions([.object(["title": .string("A")])])),

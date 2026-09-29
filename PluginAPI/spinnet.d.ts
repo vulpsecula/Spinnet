@@ -366,9 +366,13 @@ export interface UIArea {
    * submit button and takes no `submitTitle`.
    */
   form(options: { fields: FormField[]; submitTitle?: string; submitOnReturn?: boolean }): ViewForm;
-  textField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
+  textField(options: {
+    key: string; title: string; placeholder?: string; value?: string; accent?: Accent; status?: string;
+  }): TextFormField;
   multilineTextField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
-  urlField(options: { key: string; title: string; placeholder?: string; value?: string }): TextFormField;
+  urlField(options: {
+    key: string; title: string; placeholder?: string; value?: string; accent?: Accent; status?: string;
+  }): TextFormField;
   toggleField(options: { key: string; title: string; value?: boolean }): ToggleFormField;
   choiceField(options: {
     key: string;
@@ -523,6 +527,14 @@ export interface TextFormField {
   placeholder?: string;
   /** Defaults to "". */
   value?: string;
+  /** Tints the box and status line of a `text` or `url` field, never a `multiline_text` one. */
+  accent?: Accent;
+  /**
+   * One line of plain text, not blank, drawn in a `text` or `url` field's
+   * box under what is typed, in the accent's colour and shortened in the
+   * middle when it does not fit: what the Plugin makes of the text.
+   */
+  status?: string;
 }
 
 export interface ToggleFormField {
@@ -564,6 +576,15 @@ export interface DetailSection {
   text?: string;
   fetch?: SectionFetch;
 }
+
+/**
+ * A system colour the Host tints a text or url field's box with, its
+ * background, border and status line, in the shade for the current appearance: a live
+ * status for what is typed. A Plugin names a colour, never a value, and its
+ * view still says in words what the colour stands for.
+ */
+export type Accent =
+  | "blue" | "indigo" | "purple" | "pink" | "red" | "orange" | "green" | "teal" | "gray";
 
 /**
  * A keyboard shortcut such as `cmd+shift+k`: modifiers from `cmd`, `ctrl`,

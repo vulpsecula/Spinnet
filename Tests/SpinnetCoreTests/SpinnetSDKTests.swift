@@ -154,7 +154,7 @@ final class SpinnetSDKTests: XCTestCase {
                 form: ui.form({
                   submitTitle: "Send",
                   fields: [
-                    ui.textField({ key: "a", title: "A", placeholder: "Type", value: "x" }),
+                    ui.textField({ key: "a", title: "A", placeholder: "Type", value: "x", accent: "blue", status: "Open · x" }),
                     ui.multilineTextField({ key: "b", title: "B" }),
                     ui.urlField({ key: "c", title: "C" }),
                     ui.toggleField({ key: "d", title: "D", value: true }),
@@ -202,6 +202,8 @@ final class SpinnetSDKTests: XCTestCase {
         XCTAssertEqual(view.form?.values, .object(["a": .string("x"), "b": .string(""), "c": .string(""),
                                                    "d": .bool(true), "e": .string("l")]))
         XCTAssertEqual(view.form?.fields[0].placeholder, "Type")
+        XCTAssertEqual(view.form?.fields.map(\.accent), [.blue, nil, nil, nil, nil])
+        XCTAssertEqual(view.form?.fields.map(\.status), ["Open · x", nil, nil, nil, nil])
         XCTAssertEqual(view.form?.fields[4].choices.map(\.title), ["Small", "Large"])
         XCTAssertEqual(view.detail?.sections, [
             PluginViewSection(id: "one", title: "One", text: "**Bold**", fetch: nil),

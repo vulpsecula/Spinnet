@@ -207,12 +207,57 @@ struct PluginViewContent: View {
                 .focused($focusedField, equals: key)
                 .accessibilityLabel(field.title)
         default:
-            TextField(field.placeholder ?? "", text: text(key))
-                .textFieldStyle(.roundedBorder)
-                .focused($focusedField, equals: key)
-                .onSubmit { model.submit() }
-                .accessibilityLabel(field.title)
+            // Always the same field in a box the Host draws, so a change of
+            // accent while the user types only recolours the box and never
+            // replaces the field, its focus or its caret.
+            VStack(alignment: .leading, spacing: 3) {
+                TextField(field.placeholder ?? "", text: text(key))
+                    .textFieldStyle(.plain)
+                    .focused($focusedField, equals: key)
+                    .onSubmit { model.submit() }
+                    .accessibilityLabel(field.title)
+                    .accessibilityHint(field.status ?? "")
+                if let status = field.status {
+                    // The field's hint already says it to VoiceOver.
+                    Text(status)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(field.accent.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityHidden(true)
+                        .animation(.easeInOut(duration: 0.18), value: field.accent)
+                        // A click on the status line types into the field,
+                        // as a click on the text does.
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusedField = key }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background { fieldBox(field.accent, focused: focusedField == key) }
         }
+    }
+
+    /// A one-line field's box. Without an accent it is the text background
+    /// with a separator, a stronger grey while focused, never a colour a
+    /// Plugin could have meant as a status; with
+    /// one it is a tint of that system colour, a border and a faint glow,
+    /// each stronger while focused, so the status reads as the user types.
+    /// A change of colour is animated.
+    private func fieldBox(_ accent: PluginViewAccent?, focused: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        let tint = accent?.color
+        return shape
+            .fill(tint.map { $0.opacity(focused ? 0.12 : 0.07) } ?? Color(nsColor: .textBackgroundColor))
+            .overlay {
+                shape.strokeBorder(tint.map { $0.opacity(focused ? 0.78 : 0.42) }
+                                       ?? (focused ? Color.secondary.opacity(0.7) : Color(nsColor: .separatorColor)),
+                                   lineWidth: focused ? 1.5 : 1)
+            }
+            .shadow(color: tint.map { $0.opacity(focused ? 0.22 : 0.09) } ?? .clear, radius: focused ? 8 : 4)
+            .animation(.easeInOut(duration: 0.18), value: accent)
+            .animation(.easeInOut(duration: 0.18), value: focused)
     }
 
     private func text(_ key: String) -> Binding<String> {
@@ -471,4 +516,22 @@ struct PluginViewFlowLayout: Layout {
 private struct DetailHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+extension PluginViewAccent {
+    /// The SwiftUI system colour of the same name, which adapts to light and
+    /// dark appearance and to Increase Contrast by itself.
+    var color: Color {
+        switch self {
+        case .blue: return .blue
+        case .indigo: return .indigo
+        case .purple: return .purple
+        case .pink: return .pink
+        case .red: return .red
+        case .orange: return .orange
+        case .green: return .green
+        case .teal: return .teal
+        case .gray: return .gray
+        }
+    }
 }

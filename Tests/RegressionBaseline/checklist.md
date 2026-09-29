@@ -197,12 +197,18 @@ Escape, its close button, or clicking elsewhere while unpinned closes it.
 
 - Title "Smart Jump"; one field "Text", placeholder "Text, link, path or
   calculation".
-- After each pause in typing, a status section previews the target, titled
-  "Type to preview", "Open web address", "Open DOI", "Open Bilibili video",
-  "Open download link in browser", "Open local file", "Search the web",
-  "Calculate" or "Check this input", with the link, the path, "Using
-  *engine* · *host*", "Result: *value*" or what is wrong beneath. The
-  section's own Copy button copies that text.
+- After each pause in typing, a status line in the field's box, under the
+  text, previews the target as the old window's did: "Type to preview",
+  "Open web address", "Open DOI", "Open Bilibili video", "Open download link
+  in browser", "Open local file", "Search the web", "Calculate" or "Check
+  this input", then " · " and the link, the path, "Using *engine* ·
+  *host*", "Result: *value*" or what is wrong, shortened in the middle when
+  it does not fit. There is no section below the field.
+- The field's box and status line are tinted as the old window's input card
+  was, the box more strongly while it has focus: web address blue, DOI indigo, video pink,
+  download purple, local file orange, search teal, calculation green,
+  "Check this input" red; "Type to preview" has no tint. A change of colour
+  animates and never takes the focus or caret from the field.
 - Return or the submit button (Jump / Open / Watch / Download / Search /
   Calculate) performs it and closes the view, except a calculation, which
   stays open with a "Copy Result" action that copies the result and says

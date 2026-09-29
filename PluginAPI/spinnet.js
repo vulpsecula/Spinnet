@@ -48,7 +48,8 @@
   function field(kind) {
     return function (value) {
       const o = options(value);
-      return compact({ key: o.key, kind: kind, title: o.title, placeholder: o.placeholder, value: o.value });
+      return compact({ key: o.key, kind: kind, title: o.title, placeholder: o.placeholder, value: o.value,
+                       accent: o.accent, status: o.status });
     };
   }
 

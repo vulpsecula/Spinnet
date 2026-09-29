@@ -310,40 +310,36 @@
     }
   }
 
-  // Text the user reads as it is: every marker of the Markdown subset is
-  // escaped, so an asterisk stays an asterisk.
-  function literal(text) {
-    return text.replace(/[\\`*_[\]]/g, "\\$&");
-  }
-
   function host(url) {
     return url.replace(/^https?:\/\//i, "").replace(/[/?#].*$/, "").replace(/^.*@/, "");
   }
 
-  // The status line: what the field's text would do, and the button that
-  // does it.
+  // The status the field shows under its text, "what · on what", the colour
+  // it takes for that kind of target, and the button that does it. Waiting
+  // for text has no colour.
   function status(found) {
     switch (found.kind) {
       case "refused":
-        return { title: "Check this input", text: literal(found.message), verb: "Jump" };
+        return { title: "Check this input", detail: found.message, accent: "red", verb: "Jump" };
       case "input":
-        return { title: "Type to preview", text: "A link, DOI, video, path, calculation or search", verb: "Jump" };
+        return { title: "Type to preview", detail: "Link, DOI, video, path, calculation or search", verb: "Jump" };
       case "search":
-        return { title: "Search the web", text: literal("Using " + found.engine + " · " + host(found.url)), verb: "Search" };
+        return { title: "Search the web", detail: "Using " + found.engine + " · " + host(found.url), accent: "teal",
+                 verb: "Search" };
       case "path":
-        return { title: "Open local file", text: literal(found.path), verb: "Open" };
+        return { title: "Open local file", detail: found.path, accent: "orange", verb: "Open" };
       case "calculation":
-        return { title: "Calculate", text: literal("Result: " + found.result), verb: "Calculate" };
+        return { title: "Calculate", detail: "Result: " + found.result, accent: "green", verb: "Calculate" };
       default:
-        return Object.assign({ text: literal(found.url) }, linkStatus[found.linkKind]);
+        return Object.assign({ detail: found.url }, linkStatus[found.linkKind]);
     }
   }
 
   const linkStatus = {
-    web: { title: "Open web address", verb: "Open" },
-    doi: { title: "Open DOI", verb: "Open" },
-    video: { title: "Open Bilibili video", verb: "Watch" },
-    download: { title: "Open download link in browser", verb: "Download" }
+    web: { title: "Open web address", accent: "blue", verb: "Open" },
+    doi: { title: "Open DOI", accent: "indigo", verb: "Open" },
+    video: { title: "Open Bilibili video", accent: "pink", verb: "Watch" },
+    download: { title: "Open download link in browser", accent: "purple", verb: "Download" }
   };
 
   // Recognizes without throwing: a Refusal becomes what the view shows.
@@ -368,9 +364,9 @@
       title: "Smart Jump",
       form: ui.form({
         submitTitle: line.verb,
-        fields: [ui.textField({ key: "query", title: "Text", placeholder: "Text, link, path or calculation", value: kept })]
+        fields: [ui.textField({ key: "query", title: "Text", placeholder: "Text, link, path or calculation", value: kept,
+                                accent: line.accent, status: line.title + " · " + line.detail })]
       }),
-      detail: ui.detail({ sections: [ui.section({ id: "status", title: line.title, text: line.text })] }),
       actions: found.kind === "calculation" ? [ui.action({ id: "copy_result", title: "Copy Result" })] : undefined
     });
     return ui.show(view, { state: { query: kept }, toast });

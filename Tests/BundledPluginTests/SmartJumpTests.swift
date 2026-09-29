@@ -427,15 +427,15 @@ final class SmartJumpScriptTests: XCTestCase {
         XCTAssertEqual(opened.view.title, "Smart Jump")
         XCTAssertEqual(opened.view.form?.fields.map(\.kind), [.text])
         XCTAssertEqual(opened.query, .string(""))
-        XCTAssertEqual(opened.statusTitle, "Type to preview")
+        XCTAssertEqual(opened.status, "Type to preview · Link, DOI, video, path, calculation or search")
+        XCTAssertNil(opened.view.detail, "The status is in the field, not in a section of its own")
         XCTAssertEqual(opened.view.form?.submitTitle, "Jump")
         XCTAssertEqual(opened.view.actions, [])
 
         let typed = smartJump.run(SmartJumpDriver.typed("github.com"), state: opened.answer.state)
         XCTAssertEqual(typed.requests, [], "Recognizing has no effect")
         let preview = try smartJump.view(of: typed)
-        XCTAssertEqual(preview.statusTitle, "Open web address")
-        XCTAssertEqual(preview.statusText, "https://github.com")
+        XCTAssertEqual(preview.status, "Open web address · https://github.com")
         XCTAssertEqual(preview.view.form?.submitTitle, "Open")
 
         let submitted = smartJump.run(SmartJumpDriver.submitted("github.com"), state: preview.answer.state)
@@ -476,12 +476,18 @@ final class SmartJumpScriptTests: XCTestCase {
         XCTAssertEqual(shown.answer.state, .object(["query": .string("")]))
     }
 
-    /// Each kind of target names its own button.
-    func testTheSubmitButtonSaysWhatItDoes() throws {
-        for (text, title) in [("cats", "Search"), ("BV1Et41137T6", "Watch"), ("https://example.com/a.zip", "Download"),
-                              ("10.1000/123", "Open"), ("/tmp", "Open"), ("1+1", "Calculate"), ("1/0", "Jump")] {
+    /// Each kind of target names its own button and tints the field with its
+    /// own colour, as the Host's window did; waiting for text has none.
+    func testTheSubmitButtonAndStatusColourSayWhatItDoes() throws {
+        let cases: [(String, String, PluginViewAccent?)] = [
+            ("", "Jump", nil), ("github.com", "Open", .blue), ("10.1000/123", "Open", .indigo),
+            ("BV1Et41137T6", "Watch", .pink), ("https://example.com/a.zip", "Download", .purple),
+            ("/tmp", "Open", .orange), ("cats", "Search", .teal), ("1+1", "Calculate", .green), ("1/0", "Jump", .red)
+        ]
+        for (text, title, accent) in cases {
             let shown = try smartJump.view(of: smartJump.run(SmartJumpDriver.typed(text), state: .object(["query": .string("")])))
             XCTAssertEqual(shown.view.form?.submitTitle, title, text)
+            XCTAssertEqual(shown.field?.accent, accent, text)
         }
     }
 
@@ -492,8 +498,7 @@ final class SmartJumpScriptTests: XCTestCase {
         XCTAssertEqual(run.requests.map(\.service), [.readSelectedText], "Showing a result must not overwrite the clipboard")
         let shown = try smartJump.view(of: run)
         XCTAssertEqual(shown.query, .string("2+3*4"))
-        XCTAssertEqual(shown.statusTitle, "Calculate")
-        XCTAssertEqual(shown.statusText, "Result: 14")
+        XCTAssertEqual(shown.status, "Calculate · Result: 14")
 
         let submitted = try smartJump.view(of: smartJump.run(SmartJumpDriver.submitted("(4+2)/3"), state: shown.answer.state))
         XCTAssertEqual(submitted.statusText, "Result: 2")

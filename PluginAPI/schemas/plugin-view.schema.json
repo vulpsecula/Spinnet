@@ -96,6 +96,14 @@
         "choice_titles": {
           "type": "array",
           "items": { "$ref": "#/$defs/text" }
+        },
+        "accent": {
+          "description": "A system colour the Host tints a text or url field's box with, its background, border and status line, in the shade for the current appearance: a live status for what is typed. The view still says in words what it stands for.",
+          "enum": ["blue", "indigo", "purple", "pink", "red", "orange", "green", "teal", "gray"]
+        },
+        "status": {
+          "description": "One line of plain text the Host draws in a text or url field's box, under what is typed, in the accent's colour, shortened in the middle when it does not fit: what the Plugin makes of the text.",
+          "$ref": "#/$defs/text"
         }
       },
       "allOf": [
@@ -115,6 +123,11 @@
         {
           "if": { "properties": { "kind": { "enum": ["text", "multiline_text", "url", "toggle"] } } },
           "then": { "properties": { "choices": false, "choice_titles": false } }
+        },
+        {
+          "description": "Only a text or url field has an accent or a status.",
+          "if": { "properties": { "kind": { "enum": ["multiline_text", "toggle", "choice"] } } },
+          "then": { "properties": { "accent": false, "status": false } }
         }
       ]
     },

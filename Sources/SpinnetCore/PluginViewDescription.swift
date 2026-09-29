@@ -212,10 +212,19 @@ public struct PluginViewField: Equatable {
     /// choice.
     public let value: JSONValue
     public let choices: [PluginViewChoice]
+    /// The system colour the Host tints a one-line field's box with.
+    public let accent: PluginViewAccent?
+    /// A line of plain text the Host draws in a one-line field's box, under
+    /// what is typed, in the accent's colour: what the Plugin makes of it.
+    public let status: String?
+
+    /// The kinds the Host draws in a box of its own, which an accent tints
+    /// and a status line joins.
+    public static let boxedKinds: [CommandConfigurationFieldKind] = [.text, .url]
 
     public init(parsing value: JSONValue) throws {
         let members = try PluginViewDescription.object(value, "A form field", allowed: [
-            "key", "kind", "title", "placeholder", "value", "choices", "choice_titles"
+            "key", "kind", "title", "placeholder", "value", "choices", "choice_titles", "accent", "status"
         ])
         let key = try PluginViewDescription.identifier(members["key"], "A form field's key")
         self.key = key
@@ -260,6 +269,19 @@ public struct PluginViewField: Equatable {
             self.value = .string(text)
         default:
             throw PluginViewDescription.violation("The form field \(key) holds a value its kind cannot")
+        }
+        if !Self.boxedKinds.contains(kind), members["accent"] != nil || members["status"] != nil {
+            throw PluginViewDescription.violation("Only a text or url field has an accent or a status, and \(key) is a \(kind.rawValue)")
+        }
+        status = try members["status"].map { try PluginViewDescription.text($0, "The form field \(key)'s status") }
+        if let declared = members["accent"] {
+            guard case .string(let name) = declared, let accent = PluginViewAccent(rawValue: name) else {
+                throw PluginViewDescription.violation("The form field \(key)'s accent must be one of "
+                    + PluginViewAccent.allCases.map(\.rawValue).joined(separator: ", "))
+            }
+            self.accent = accent
+        } else {
+            accent = nil
         }
     }
 }
@@ -314,6 +336,16 @@ public struct PluginViewSection: Equatable {
     }
 
     public var isHostFetched: Bool { fetch != nil }
+}
+
+/// The system colours a one-line field's box and status line may be tinted
+/// with, as a live status the Plugin gives what is typed. The Host picks the shade for light
+/// and dark appearance and draws every tint the same way, so a Plugin names
+/// a colour, never a value, and its view still says in words what the
+/// colour stands for. Yellow is not one: it cannot be told from the field's
+/// own background in light appearance.
+public enum PluginViewAccent: String, CaseIterable, Equatable {
+    case blue, indigo, purple, pink, red, orange, green, teal, gray
 }
 
 /// An action button, with an optional keyboard shortcut. Either it delivers
