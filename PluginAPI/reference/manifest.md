@@ -224,11 +224,14 @@ exactly one member per key: a boolean for `toggle`, one of the declared
 a port other than 443. On a Command in the `contact_https` scope, an
 `https_endpoint` host that is neither declared nor already added must be
 disclosed and allowed before the Configuration Sheet saves. A `credential`
-field stores only a reference; the secret the user types is kept by the Host in
-the Keychain, per Plugin. The Host-rendered field shows the stored secret,
-hidden behind a reveal button, so the user can check and correct a key; a
-Plugin never reads it, and uses it only through
-[Credential Uses](host-services.md#credential-uses).
+field stores only a reference, the name the Host keeps the secret under, which
+the field's default value must give: in `default_settings` for a setting, such
+as `"deepl_credential": "deepl"`, or in the Command's `default_inputs`. Without
+one there is nowhere to keep a secret, and the field stays missing. The secret
+the user types is kept by the Host in the Keychain, per Plugin and reference.
+The Host-rendered field shows the stored secret, hidden behind a reveal
+button, so the user can check and correct a key; a Plugin never reads it, and
+uses it only through [Credential Uses](host-services.md#credential-uses).
 
 `size` and `position` fields render as text and store a string of two
 comma-separated lengths, each in points or as a percentage of the visible frame

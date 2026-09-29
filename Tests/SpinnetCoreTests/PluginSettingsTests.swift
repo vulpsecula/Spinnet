@@ -346,6 +346,24 @@ final class PluginSettingsTests: XCTestCase {
         XCTAssertEqual(manifest.missingSettings(in: values, hasSecret: { $0 == "key" }), [])
     }
 
+    /// A `credential` setting holds a reference, the name the Host keeps its
+    /// secret under, which its default gives; the field's key is not the
+    /// reference. The published pages say so, since a script names the
+    /// secret by that reference in a Credential Use.
+    func testACredentialSettingHoldsTheReferenceItsSecretIsKeptUnder() throws {
+        let withDefault = try manifest(defaults: #"{"target": "DE", "credential": "example"}"#)
+        let values = withDefault.resolvedSettings(stored: [:])
+        XCTAssertEqual(values["credential"], .string("example"))
+        XCTAssertEqual(withDefault.missingSettings(in: values, hasSecret: { $0 == "credential" }).map(\.key),
+                       ["endpoint", "credential", "note"], "A secret kept under the field's key is not found")
+        XCTAssertEqual(withDefault.missingSettings(in: values, hasSecret: { $0 == "example" }).map(\.key),
+                       ["endpoint", "note"])
+
+        XCTAssertPublished("A `credential` field stores only a reference, the name the Host keeps the secret under, "
+                           + "which the field's default value must give", in: "reference/manifest.md")
+        XCTAssertPublished("the reference the Plugin's `credential` field holds, not the field's key", in: "reference/host-services.md")
+    }
+
     func testIncompleteSettingsLeaveTheMenuItemInPlaceWithThePluginSettingsRepair() throws {
         let manifest = try manifest()
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/remote"), manifest: manifest)

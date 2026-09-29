@@ -137,7 +137,7 @@ const deepl = {
       url: "https://api-free.deepl.com/v2/translate",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: [text], target_lang: "DE" }),
-      credential_uses: [{ reference: "deepl_key", header: "Authorization", template: "DeepL-Auth-Key {credential}" }]
+      credential_uses: [{ reference: input.deepl_credential, header: "Authorization", template: "DeepL-Auth-Key {credential}" }]
     },
     mode: "show",
     pointer: "/translations/0/text",

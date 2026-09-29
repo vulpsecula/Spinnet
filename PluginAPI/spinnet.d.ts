@@ -116,6 +116,10 @@ export interface ClipboardHistoryContent {
  * or signs the request with it, as it is sent. It names exactly one placement.
  */
 export interface CredentialUse {
+  /**
+   * The reference the Plugin's `credential` field holds, read from `input`,
+   * such as `input.deepl_credential`; not the field's key.
+   */
   reference: string;
   header?: string;
   query?: string;

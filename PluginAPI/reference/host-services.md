@@ -310,8 +310,10 @@ returned. A Host-Fetched Section sends the same input with its own budget (see
 
 A request names a stored credential only through `credential_uses`, an array of
 at most 4 Credential Uses (ADR 0011). The Host looks each secret up by its
-`reference`, the key of the Plugin's `credential` field, computes the value,
-and places it as the request is sent. Neither the secret nor anything derived
+`reference`, the reference the Plugin's `credential` field holds, not the
+field's key; a script reads it from its `input`, as
+`{reference: input.deepl_credential, …}`. The Host computes the value and
+places it as the request is sent. Neither the secret nor anything derived
 from it is returned to the Plugin.
 
 ```json

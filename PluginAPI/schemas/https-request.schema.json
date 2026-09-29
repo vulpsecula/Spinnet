@@ -61,7 +61,7 @@
       "additionalProperties": false,
       "properties": {
         "reference": {
-          "description": "The key of the Plugin's credential field that holds the secret: 1 to 64 letters, digits, dots, underscores and hyphens.",
+          "description": "The reference the Plugin's credential field holds, not the field's key, as the script reads it from its input: 1 to 64 letters, digits, dots, underscores and hyphens.",
           "type": "string",
           "pattern": "^[A-Za-z0-9._-]{1,64}$"
         },
