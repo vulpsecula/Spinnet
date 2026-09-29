@@ -169,12 +169,12 @@ final class RegressionBaselineTests: XCTestCase {
         let smartJump = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.smart-jump"))?.manifest)
         let stored = settings.values(for: smartJump.id)
         let values = smartJump.resolvedSettings(stored: smartJump.listSettingsAsRows(stored) ?? stored)
-        let engines = try SmartJumpSearchEngine.engines(from: values["search_engines"])
-        XCTAssertEqual(engines.map(\.name), ["DuckDuckGo", "Google", "Scholar"])
-        XCTAssertEqual(engines.map(\.template), [
-            "https://duckduckgo.com/?q={query}", "https://www.google.com/search?q={query}",
-            "https://scholar.google.com/scholar?q={query}"
-        ])
+        func engine(_ name: String, _ url: String) -> JSONValue { .object(["name": .string(name), "url": .string(url)]) }
+        XCTAssertEqual(values["search_engines"], .array([
+            engine("DuckDuckGo", "https://duckduckgo.com/?q={query}"),
+            engine("Google", "https://www.google.com/search?q={query}"),
+            engine("Scholar", "https://scholar.google.com/scholar?q={query}")
+        ]))
     }
 
     /// Every decision survives. Bob's scope is persisted as it was; Shottr's

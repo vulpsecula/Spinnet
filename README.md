@@ -61,18 +61,19 @@ Smart Jump recognises links, DOI identifiers, Bilibili AV/BV numbers, local
 paths and arithmetic; other text becomes a web search. The first target in a
 passage wins. Quote paths containing spaces so their boundaries are explicit.
 Downloads open in the default browser. In the Library's Plugin Settings,
-configure search engines as one `Name | URL` per line, with `{query}` in the
-URL; the first is the default (Google initially). Running with no selection
-opens an input window with a destination preview and search-engine picker.
+edit the search engines row by row, each a name and an https URL with
+`{query}`; the first is the default (Google initially). Arithmetic, or running
+with no selection, opens Smart Jump's view, whose field previews where its
+text would go as it is typed.
 Arithmetic results can be copied explicitly. Opening local paths and writing
 the clipboard each require their own grant.
 
 For #46, check a bare domain, a DOI inside a sentence, an AV/BV number, a
 download link, an existing file and folder, and `32-68*(50/6-3.28)+5` from
-another app. Also check no selection, Return/Escape in the input window,
-editing shortcuts, changing search engines, copying a result, and revoking a
-grant while the window remains open. These real-app checks are separate from
-the deterministic classifier and Host Action tests.
+another app. Also check no selection, Return/Escape in the view, editing
+shortcuts, changing search engines, copying a result, and revoking a grant
+while the view remains open. These real-app checks are separate from the
+deterministic recognition tests, which run `open.js` in the Plugin test kit.
 
 1. Open Settings from the status item and add `Open URL` from the Library to a
    Slot. A first launch has an empty Menu, so every check below needs at least

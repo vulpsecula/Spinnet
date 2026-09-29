@@ -1,0 +1,36 @@
+View Session measurement (W13 #60)
+
+Machine: MacBookPro18,1, Apple M1 Pro, 10 cores, 16 GiB
+macOS: Version 27.0 (Build 26A428)
+Build: release, revision 04df910 with uncommitted changes
+Run: 2026-09-29T16:45:27+08:00 to 2026-09-29T16:49:48+08:00, power AC Power, low power mode off
+Thermal state: nominal to nominal
+Load average (1/5/15 min): 7.45/7.35/8.95 at start, 6.30/7.14/8.46 at end
+Machine otherwise idle (declared): no; note: W14 #61: Smart Jump's open.js; selection read skipped at start, again redraws
+
+Latency in ms. Total runs from the last input reaching the session to the view presenting
+its answer; for typing that is from the pause, debounce included. Invoke is the helper's part.
+Scenario  Helper  Keys every   n  Failed    p50    p95    max  Invoke p50  Invoke p95  Target  p95 ok  max ok
+--------  ------  ----------  --  ------  -----  -----  -----  ----------  ----------  ------  ------  ------
+open        cold              20       0   24.9   31.2   38.7        24.7        31.1                        
+open        warm              20       0    5.9    8.1    8.9         5.7         8.0                        
+event       cold              50       0   21.9   30.9   35.6        21.8        30.8                        
+event       warm              50       0    4.1    8.1   10.8         3.9         7.9                        
+typing      cold       50 ms  20       0  130.4  144.6  145.6        25.0        40.0   300.0     yes     yes
+typing      warm       50 ms  20       0  111.2  116.7  118.0         6.1        11.4   150.0     yes     yes
+typing      cold      160 ms  20       0  110.3  116.0  116.0         5.5        10.2   300.0     yes     yes
+typing      warm      160 ms  20       0  109.9  116.6  137.3         5.3        11.7   150.0     yes     yes
+
+Memory in MiB (phys_footprint). Host is this process, which holds the sessions but draws
+nothing; growth is over the same cycle's no-view median.
+Phase           Process   n    p50    p95    max  Growth p50  Growth p95  Growth max
+--------------  -------  --  -----  -----  -----  ----------  ----------  ----------
+no-view            host  50   5.61   5.64   5.64        0.00        0.00        0.00
+view-open          host  50   5.63   5.63   5.63        0.02        0.02        0.02
+view-open        helper  50   6.05   6.06   6.06           -           -           -
+after-typing       host  50   5.63   5.70   5.70        0.02        0.06        0.06
+after-typing     helper  50  10.53  10.74  10.74           -           -           -
+helper-retired     host  50   5.61   5.69   5.69        0.02        0.05        0.05
+view-closed        host  50   5.61   5.69   5.69        0.02        0.05        0.05
+
+Keeping the helper alive while a view is open would save 22.8 ms at p95 on an event that would otherwise start cold, and hold 10.74 MiB (p95 after typing) for as long as the view stays open.

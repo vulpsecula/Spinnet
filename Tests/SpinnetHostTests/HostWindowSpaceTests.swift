@@ -52,15 +52,6 @@ final class HostWindowSpaceTests: XCTestCase {
         assertStaysOnOneDesktop(try visibleWindow(labelled: "Space Check"))
     }
 
-    func testSmartJumpShowsOnlyOnTheActiveDesktop() throws {
-        let window = SmartJumpWindowController()
-        defer { window.close() }
-
-        window.present(SmartJumpSession(initialText: "", searchEngines: [], copy: { _ in }, perform: { _ in }))
-
-        assertStaysOnOneDesktop(try visibleWindow(labelled: "Smart Jump"))
-    }
-
     private func assertStaysOnOneDesktop(_ window: NSWindow, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(window.collectionBehavior.contains(.moveToActiveSpace), file: file, line: line)
         XCTAssertFalse(window.collectionBehavior.contains(.canJoinAllSpaces), file: file, line: line)

@@ -13,9 +13,7 @@ final class SpinnetSDKTests: XCTestCase {
     /// only shrink: when a ticket removes its service, its line stops
     /// compiling; when a ticket keeps a service under a new shape, delete
     /// its line here and wrap it in the SDK instead.
-    private static let unwrapped: [PluginHostService: String] = [
-        .smartJump: "W14 #61 moves Smart Jump's recognition into its Plugin"
-    ]
+    private static let unwrapped: [PluginHostService: String] = [:]
 
     private static let repository = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

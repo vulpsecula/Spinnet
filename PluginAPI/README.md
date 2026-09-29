@@ -57,8 +57,6 @@ thrown as an `Error` whose `code` is `storage_limit_exceeded`.
 | `spinnet.ui` | Pure builders, which request no Host Service: `view`, `setting`, `form`, `textField`, `multilineTextField`, `urlField`, `toggleField`, `choiceField`, `detail`, `section`, `action`, the standard actions `copyText`, `openURL`, `insertText` and `openPluginSettings`, and the answers `show`, `toast` and `close` (see [Plugin Views](#plugin-views)) |
 | `spinnet.environment` | `apiLevel`, `hostVersion`, `preferredLanguage`, `pluginID`, `commandID`, `actionID`, `invocationID` |
 
-`smart_jump` has no wrapper: it is removed before Level 1 is published.
-
 ## Plugin Storage
 
 Each Plugin has its own key-value store of JSON values, kept between

@@ -1,0 +1,423 @@
+{
+  "conditions" : {
+    "buildConfiguration" : "release",
+    "chip" : "Apple M1 Pro",
+    "finishedAt" : "2026-09-29T16:49:48+08:00",
+    "fixturePath" : "Plugins/SmartJump.spinnetplugin, measured as a copy (see measurements/README.md)",
+    "gitRevision" : "04df910 with uncommitted changes",
+    "helperPath" : ".build/out/Products/Release/SpinnetPluginHelper",
+    "loadAverageAtEnd" : [
+      6.296875,
+      7.13720703125,
+      8.45703125
+    ],
+    "loadAverageAtStart" : [
+      7.44677734375,
+      7.34619140625,
+      8.94921875
+    ],
+    "lowPowerMode" : false,
+    "macOSVersion" : "Version 27.0 (Build 26A428)",
+    "machineIdleDeclared" : "no",
+    "machineModel" : "MacBookPro18,1",
+    "memoryBytes" : 17179869184,
+    "note" : "W14 #61: Smart Jump's open.js; selection read skipped at start, again redraws",
+    "percentileMethod" : "nearest rank",
+    "powerSource" : "AC Power",
+    "processorCount" : 10,
+    "startedAt" : "2026-09-29T16:45:27+08:00",
+    "thermalStateAtEnd" : "nominal",
+    "thermalStateAtStart" : "nominal"
+  },
+  "latency" : [
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 0,
+        "mean" : 0,
+        "min" : 0,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 38.495875,
+        "mean" : 25.297406300000002,
+        "min" : 16.700083,
+        "p50" : 24.68875,
+        "p95" : 31.079709
+      },
+      "scenario" : "open",
+      "totalMs" : {
+        "count" : 20,
+        "max" : 38.731458,
+        "mean" : 25.555983400000002,
+        "min" : 17.479875,
+        "p50" : 24.883709,
+        "p95" : 31.246167
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 0,
+        "mean" : 0,
+        "min" : 0,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 8.803583,
+        "mean" : 5.854454200000001,
+        "min" : 2.928042,
+        "p50" : 5.706292,
+        "p95" : 7.989
+      },
+      "scenario" : "open",
+      "totalMs" : {
+        "count" : 20,
+        "max" : 8.933875,
+        "mean" : 6.047337349999999,
+        "min" : 3.047,
+        "p50" : 5.863208,
+        "p95" : 8.1335
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 50,
+        "max" : 0.287416,
+        "mean" : 0.03970490000000001,
+        "min" : 0.018791,
+        "p50" : 0.031709,
+        "p95" : 0.083416
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 50,
+        "max" : 35.422334,
+        "mean" : 22.517120920000004,
+        "min" : 14.991125,
+        "p50" : 21.781459,
+        "p95" : 30.760875
+      },
+      "scenario" : "event",
+      "totalMs" : {
+        "count" : 50,
+        "max" : 35.593833,
+        "mean" : 22.661774919999992,
+        "min" : 15.115333,
+        "p50" : 21.9235,
+        "p95" : 30.88625
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 50,
+        "max" : 0.277166,
+        "mean" : 0.036622499999999995,
+        "min" : 0.014625,
+        "p50" : 0.029292,
+        "p95" : 0.068208
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 50,
+        "max" : 10.657334,
+        "mean" : 4.49490672,
+        "min" : 2.660167,
+        "p50" : 3.935958,
+        "p95" : 7.885709
+      },
+      "scenario" : "event",
+      "totalMs" : {
+        "count" : 50,
+        "max" : 10.796667,
+        "mean" : 4.62232248,
+        "min" : 2.778208,
+        "p50" : 4.110917,
+        "p95" : 8.069041
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 106.21825,
+        "mean" : 104.55911875,
+        "min" : 103.206,
+        "p50" : 104.672375,
+        "p95" : 105.254583
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 40.496,
+        "mean" : 25.768202099999996,
+        "min" : 16.835708,
+        "p50" : 24.977959,
+        "p95" : 40.035708
+      },
+      "keystrokeIntervalMs" : 50,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 300,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 145.55825,
+        "mean" : 130.44891875,
+        "min" : 120.841584,
+        "p50" : 130.442917,
+        "p95" : 144.619625
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 114.073583,
+        "mean" : 104.91961875000001,
+        "min" : 102.457584,
+        "p50" : 104.498333,
+        "p95" : 109.314
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 11.79825,
+        "mean" : 6.615487450000001,
+        "min" : 3.627833,
+        "p50" : 6.077375,
+        "p95" : 11.379917
+      },
+      "keystrokeIntervalMs" : 50,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 150,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 118.010833,
+        "mean" : 111.6531563,
+        "min" : 106.7105,
+        "p50" : 111.196167,
+        "p95" : 116.713125
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 110.096667,
+        "mean" : 104.46134375000001,
+        "min" : 102.802209,
+        "p50" : 104.198542,
+        "p95" : 105.517708
+      },
+      "failures" : 0,
+      "helper" : "cold",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 12.820791,
+        "mean" : 6.4530729000000004,
+        "min" : 3.43725,
+        "p50" : 5.465209,
+        "p95" : 10.207083
+      },
+      "keystrokeIntervalMs" : 160,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 300,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 116.010875,
+        "mean" : 111.04786044999999,
+        "min" : 107.666333,
+        "p50" : 110.33275,
+        "p95" : 115.965541
+      }
+    },
+    {
+      "dispatchMs" : {
+        "count" : 20,
+        "max" : 105.686166,
+        "mean" : 104.47019785,
+        "min" : 101.732041,
+        "p50" : 104.68775,
+        "p95" : 105.46825
+      },
+      "failures" : 0,
+      "helper" : "warm",
+      "invokeMs" : {
+        "count" : 20,
+        "max" : 32.282125,
+        "mean" : 7.74945635,
+        "min" : 3.3115,
+        "p50" : 5.326334,
+        "p95" : 11.690042
+      },
+      "keystrokeIntervalMs" : 160,
+      "maxWithinTarget" : true,
+      "p95WithinTarget" : true,
+      "scenario" : "typing",
+      "targetMs" : 150,
+      "totalMs" : {
+        "count" : 20,
+        "max" : 137.347042,
+        "mean" : 112.33092070000001,
+        "min" : 107.686208,
+        "p50" : 109.870166,
+        "p95" : 116.560625
+      }
+    }
+  ],
+  "memory" : [
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5915248,
+        "mean" : 5885756.8,
+        "min" : 5866096,
+        "p50" : 5882480,
+        "p95" : 5915248
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 0,
+        "mean" : 0,
+        "min" : 0,
+        "p50" : 0,
+        "p95" : 0
+      },
+      "phase" : "no-view",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5898864,
+        "mean" : 5892310.4,
+        "min" : 5882480,
+        "p50" : 5898864,
+        "p95" : 5898864
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 16384,
+        "mean" : 6553.6,
+        "min" : -16384,
+        "p50" : 16384,
+        "p95" : 16384
+      },
+      "phase" : "view-open",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 6357784,
+        "mean" : 6334812.8,
+        "min" : 6292200,
+        "p50" : 6341352,
+        "p95" : 6357784
+      },
+      "phase" : "view-open",
+      "process" : "helper"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5980808,
+        "mean" : 5915250.4,
+        "min" : 5898864,
+        "p50" : 5898864,
+        "p95" : 5980808
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 65560,
+        "mean" : 29493.6,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 65560
+      },
+      "phase" : "after-typing",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 11256600,
+        "mean" : 11084866.88,
+        "min" : 10978024,
+        "p50" : 11043608,
+        "p95" : 11256600
+      },
+      "phase" : "after-typing",
+      "process" : "helper"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5964424,
+        "mean" : 5905422.4,
+        "min" : 5882480,
+        "p50" : 5882480,
+        "p95" : 5964424
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 49176,
+        "mean" : 19665.6,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 49176
+      },
+      "phase" : "helper-retired",
+      "process" : "host"
+    },
+    {
+      "bytes" : {
+        "count" : 50,
+        "max" : 5964424,
+        "mean" : 5905422.4,
+        "min" : 5882480,
+        "p50" : 5882480,
+        "p95" : 5964424
+      },
+      "growthOverNoViewBytes" : {
+        "count" : 50,
+        "max" : 49176,
+        "mean" : 19665.6,
+        "min" : 0,
+        "p50" : 16384,
+        "p95" : 49176
+      },
+      "phase" : "view-closed",
+      "process" : "host"
+    }
+  ],
+  "options" : {
+    "eventSamples" : 50,
+    "fieldChangeDebounceMs" : 100,
+    "helperIdleExitMs" : 30000,
+    "idleRetirements" : 0,
+    "keystrokeIntervalsMs" : [
+      50,
+      160
+    ],
+    "memoryCycles" : 5,
+    "memorySamplesPerPhase" : 10,
+    "openSamples" : 20,
+    "settleMs" : 300,
+    "typingSamples" : 20
+  }
+}

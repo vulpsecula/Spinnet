@@ -185,7 +185,7 @@ final class BobScriptTests: XCTestCase {
         let action = try ActionConfiguration(id: ActionID("bob-selection"), pluginID: package.manifest.id,
                                              command: command, input: .null)
 
-        // Nothing selected: Bob's input window, as Smart Jump opens its own.
+        // Nothing selected: Bob's input window, as Smart Jump opens its view.
         selection = { "  \n" }
         XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
         // An unreadable selection is left to Bob's own reading.

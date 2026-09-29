@@ -2,10 +2,11 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// The Smart Jump Bundled Plugin reads the selected text and asks the Host to
-/// recognise and act on it in the Host. These tests pin its package shape,
-/// Host-side validation, and authorization in front of each effect.
-/// No test opens a real URL: the opener is always a recording closure.
+/// The Smart Jump Bundled Plugin recognises the selected text in its script
+/// and asks the Host to open what it found. These tests pin its package
+/// shape, the Host's own validation of a link, and authorization in front
+/// of each effect. No test opens a real URL: the opener is always a
+/// recording closure.
 final class SmartJumpTests: XCTestCase {
 
     func testSmartJumpAppearsOnceInTheLibraryAsAReadyToUsePreset() throws {
@@ -26,8 +27,13 @@ final class SmartJumpTests: XCTestCase {
     func testSmartJumpDeclaresEachEffectSeparatelyWithoutNetworkFetch() throws {
         let manifest = try SmartJumpFixture.load().manifest
         XCTAssertEqual(manifest.settingsFields.map(\.kind), [.list])
-        XCTAssertEqual(try SmartJumpSearchEngine.engines(from: manifest.defaultSettings["search_engines"]).map(\.name),
-                       ["Google", "Bing", "DuckDuckGo"])
+        guard case .array(let engines)? = manifest.defaultSettings["search_engines"] else {
+            return XCTFail("Smart Jump ships its engines as list rows")
+        }
+        XCTAssertEqual(engines.map { row -> JSONValue? in
+            guard case .object(let cells) = row else { return nil }
+            return cells["name"]
+        }, [.string("Google"), .string("Bing"), .string("DuckDuckGo")])
         XCTAssertEqual(manifest.capabilities, [.readSelectedText, .readCurrentClipboard, .openURL, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.optionalCapabilities, [.readCurrentClipboard, .writeClipboard, .openLocalPath])
         XCTAssertEqual(manifest.scope(for: .readCurrentClipboard)?.dataTypes, ["text"])
@@ -292,312 +298,234 @@ final class SmartJumpTests: XCTestCase {
     }
 }
 
-/// Smart Jump's script runs in the real helper, driven through the Host
-/// Action seam with recording adapters.
+/// Smart Jump's script runs in the real helper through the Plugin test kit:
+/// what it reads, what it opens, and the view it shows when there is
+/// nothing to open yet, with recorded answers in place of the Host. Each
+/// effect goes through its own Host Service, which the Host authorizes
+/// when it is asked, so a refusal reaches the script as the Host's own.
 final class SmartJumpScriptTests: XCTestCase {
+    private var smartJump: SmartJumpDriver!
 
-    /// Smart Jump installed from a file presents its window like the copy
-    /// the app ships: where a Plugin came from grants it nothing.
-    func testAnInstalledSmartJumpPresentsItsWindowLikeTheShippedOne() throws {
-        for selection in ["", "1+1"] {
-            var presented = false
-            let outcome = try smartJumpOutcome(selection: { selection }, open: { _ in XCTFail("No URL expected") },
-                                              present: { _ in presented = true }, origin: .installed)
-            guard case .succeeded = outcome else { XCTFail("\(outcome)"); continue }
-            XCTAssertTrue(presented)
+    override func setUpWithError() throws {
+        smartJump = try SmartJumpDriver()
+    }
+
+    override func tearDown() {
+        smartJump?.shutdown()
+        smartJump = nil
+    }
+
+    /// Starts the Action with `selection` selected.
+    private func start(_ selection: JSONValue, settings: JSONValue? = nil,
+                       _ overrides: [PluginHostService: RecordedHostServices.Answer] = [:]) -> PluginTestRun {
+        smartJump.run(settings: settings, answering: SmartJumpDriver.services(selection: selection, overrides))
+    }
+
+    private func assertOpens(_ selection: String, _ service: PluginHostService, _ target: String,
+                             settings: JSONValue? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        let run = start(.string(selection), settings: settings)
+        XCTAssertEqual(try run.result.get(), .null, "Opening shows no view", file: file, line: line)
+        XCTAssertEqual(run.requests, [
+            PluginTestRequest(service: .readSelectedText, input: .object(["best_effort": .bool(true)])),
+            PluginTestRequest(service: service, input: .string(target))
+        ], file: file, line: line)
+    }
+
+    private func assertRefused(_ run: PluginTestRun, _ capability: PluginCapability,
+                               file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertThrowsError(try run.result.get(), file: file, line: line) {
+            XCTAssertEqual($0 as? PluginRuntimeError,
+                           .capabilityDenied(PluginHostServiceError.capabilityDenied(capability).description),
+                           file: file, line: line)
         }
     }
 
+    // MARK: A selection
+
+    func testSmartJumpOpensTheSelectedLink() {
+        assertOpens("  https://example.com/path?q=1 \n", .openURL, "https://example.com/path?q=1")
+    }
+
+    func testSmartJumpFindsAnAddressInASelection() {
+        assertOpens("See github.com for the project", .openURL, "https://github.com")
+    }
+
+    func testSmartJumpOpensPathsWithTheirOwnService() throws {
+        assertOpens("Look in /tmp/report.pdf, please.", .openLocalPath, "/tmp/report.pdf")
+        let package = smartJump.plugin.package
+        XCTAssertTrue(PluginPermissionDisclosure(manifest: package.manifest).details(for: .controls).contains("local files and folders"))
+        XCTAssertFalse(package.manifest.capabilities.contains(.contactHTTPS))
+    }
+
+    func testSmartJumpSearchesUnrecognisedTextWithoutOpeningUnsupportedSchemes() throws {
+        for selection in ["mailto:someone@example.com", "javascript:alert(1)", "ordinary search text", "https://"] {
+            guard case .search(let url, _) = SmartJumpDriver.google(selection) else { return XCTFail() }
+            assertOpens(selection, .openURL, url)
+        }
+    }
+
+    /// The same engines serve a selection and the view: the first is the default.
     func testSmartJumpSharesConfiguredEnginesBetweenSelectionAndInput() throws {
-        let settings: [String: JSONValue] = ["search_engines": .array([
-            .object(["name": .string("DuckDuckGo"), "url": .string("https://duckduckgo.com/?q={query}")]),
-            .object(["name": .string("Google"), "url": .string("https://www.google.com/search?q={query}")])
-        ])]
-        var opened: [URL] = []
-        let search = try smartJumpOutcome(selection: { "cats & dogs" }, open: { opened.append($0) }, settings: settings)
-        guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }
-        XCTAssertEqual(opened, [URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs")!])
-        var session: SmartJumpSession?
-        _ = try smartJumpOutcome(selection: { "" }, open: { opened.append($0) }, present: { session = $0 }, settings: settings)
-        let input = try XCTUnwrap(session)
-        XCTAssertEqual(input.searchEngines.map(\.name), ["DuckDuckGo", "Google"])
-        _ = try input.submit("cats & dogs")
-        XCTAssertEqual(opened.last, URL(string: "https://duckduckgo.com/?q=cats%20%26%20dogs"))
+        let settings = smartJump.settings(engines: .array([
+            SmartJumpDriver.engine("DuckDuckGo", "https://duckduckgo.com/?q={query}"),
+            SmartJumpDriver.engine("Google", "https://www.google.com/search?q={query}")
+        ]))
+        assertOpens("cats & dogs", .openURL, "https://duckduckgo.com/?q=cats%20%26%20dogs", settings: settings)
+        let submitted = smartJump.run(SmartJumpDriver.submitted("cats & dogs"), state: .object(["query": .string("")]),
+                                      settings: settings)
+        XCTAssertEqual(submitted.inputs(to: .openURL), [.string("https://duckduckgo.com/?q=cats%20%26%20dogs")])
     }
 
     /// Engines a user saved before the `list` kind, as text, migrate to rows
     /// and still search in their order: the first stays the default.
     func testEnginesSavedAsTextStillSearchWithTheFirst() throws {
-        let settings = try XCTUnwrap(SmartJumpFixture.load().manifest.listSettingsAsRows(["search_engines": .string(
+        let manifest = smartJump.plugin.manifest
+        let stored = try XCTUnwrap(manifest.listSettingsAsRows(["search_engines": .string(
             "DuckDuckGo | https://duckduckgo.com/?q={query}\nGoogle | https://www.google.com/search?q={query}"
         )]))
-        var opened: [URL] = []
-        let search = try smartJumpOutcome(selection: { "cats" }, open: { opened.append($0) }, settings: settings)
-        guard case .succeeded = search else { return XCTFail("Search should succeed: \(search)") }
-        XCTAssertEqual(opened, [URL(string: "https://duckduckgo.com/?q=cats")!])
+        assertOpens("cats", .openURL, "https://duckduckgo.com/?q=cats",
+                    settings: .object(manifest.resolvedSettings(stored: stored)))
     }
 
-    func testSmartJumpOpensPathsWithSeparateAuthorityAndDisclosure() throws {
-        var paths: [URL] = []
-        var grants: PluginCapabilityGrantStore!
-        let package = try SmartJumpFixture.load()
-        let run = try smartJumpOutcome(selection: { "Look in /tmp/report.pdf, please." },
-                                       open: { _ in XCTFail("No browser for a local path") }, path: { paths.append($0) })
-        guard case .succeeded = run else { return XCTFail("Path should open: \(run)") }
-        XCTAssertEqual(paths, [URL(fileURLWithPath: "/tmp/report.pdf")])
-        let denied = try smartJumpOutcome(selection: {
-            grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .openLocalPath)
-            return "/tmp/report.pdf"
-        }, open: { _ in XCTFail("No fallback after denial") }, grantStore: { grants = $0 }, path: { paths.append($0) })
-        guard case .failed(let failure) = denied else { return XCTFail("A revoked path grant must fail") }
-        XCTAssertEqual(failure.category, .capabilityDenied)
-        XCTAssertEqual(paths.count, 1)
-        XCTAssertTrue(PluginPermissionDisclosure(manifest: package.manifest).details(for: .controls).contains("local files and folders"))
-        XCTAssertFalse(package.manifest.capabilities.contains(.contactHTTPS))
+    /// Opening a link needs neither of the optional grants: copying and
+    /// opening local paths.
+    func testSmartJumpOpensLinksWithoutTheOptionalGrants() throws {
+        let run = start(.string("https://example.com"), [
+            .writeClipboard: .failure(.capabilityDenied(.writeClipboard)),
+            .openLocalPath: .failure(.capabilityDenied(.openLocalPath))
+        ])
+        XCTAssertEqual(try run.result.get(), .null)
+        XCTAssertEqual(run.inputs(to: .openURL), [.string("https://example.com")])
     }
 
-    func testSmartJumpShowsArithmeticAndCopiesOnlyWithCurrentClipboardGrant() throws {
-        var session: SmartJumpSession?
-        var copied: [String] = []
-        var grants: PluginCapabilityGrantStore!
-        let outcome = try smartJumpOutcome(selection: { "2+3*4" }, open: { _ in XCTFail("No browser for arithmetic") },
-                                          grantStore: { grants = $0 }, present: { session = $0 }, copy: { copied.append($0) })
-        guard case .succeeded = outcome else { return XCTFail("Calculation should display: \(outcome)") }
-        let result = try XCTUnwrap(session)
-        XCTAssertEqual(try result.preview(result.initialText), .calculation(14))
-        XCTAssertTrue(copied.isEmpty, "Showing a result must not overwrite the clipboard")
-        XCTAssertEqual(try result.submit("(4+2)/3"), .calculation(2))
-        try result.copyResult(for: "(4+2)/3")
-        XCTAssertEqual(copied, ["2"])
-        let package = try SmartJumpFixture.load()
-        grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .writeClipboard)
-        XCTAssertThrowsError(try result.copyResult(for: "2+3")) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.writeClipboard))
-        }
-        XCTAssertEqual(copied, ["2"])
+    /// A grant refused or revoked by the time the script opens the target
+    /// ends the Action with the Host's refusal, and nothing opens instead.
+    func testARefusedEffectEndsTheActionWithoutAFallback() {
+        let link = start(.string("https://example.com"), [.openURL: .failure(.capabilityDenied(.openURL))])
+        assertRefused(link, .openURL)
+        XCTAssertEqual(link.requests.map(\.service), [.readSelectedText, .openURL])
+        let path = start(.string("/tmp/report.pdf"), [.openLocalPath: .failure(.capabilityDenied(.openLocalPath))])
+        assertRefused(path, .openLocalPath)
+        XCTAssertEqual(path.requests.map(\.service), [.readSelectedText, .openLocalPath])
     }
 
-    func testSmartJumpWithoutASelectionPresentsInputAndRechecksPermissionOnSubmit() throws {
-        var session: SmartJumpSession?
-        var opened: [URL] = []
-        var grants: PluginCapabilityGrantStore!
-        let outcome = try smartJumpOutcome(selection: { "" }, open: { opened.append($0) },
-                                          grantStore: { grants = $0 }, present: { session = $0 })
-        guard case .succeeded = outcome else { return XCTFail("Input should open: \(outcome)") }
-        let input = try XCTUnwrap(session)
-        XCTAssertEqual(input.initialText, "")
-        XCTAssertEqual(try input.preview("github.com"), .link(URL(string: "https://github.com")!, .web))
-        XCTAssertTrue(opened.isEmpty, "Preview must have no side effect")
-        _ = try input.submit("github.com")
-        XCTAssertEqual(opened, [URL(string: "https://github.com")!])
-        let package = try SmartJumpFixture.load()
-        grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .openURL)
-        XCTAssertThrowsError(try input.submit("example.com")) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.openURL))
-        }
-        XCTAssertEqual(opened.count, 1)
+    func testASelectionOverSixteenKiBIsRefusedNearThePointer() throws {
+        let run = start(.string(String(repeating: "x", count: 16 * 1024 + 1)))
+        let answer = try run.answer()
+        XCTAssertNil(answer.view)
+        XCTAssertEqual(answer.toast, "Smart Jump accepts up to 16 KiB of text")
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText])
     }
 
+    // MARK: The view
+
+    /// With nothing selected the view opens with an empty field; what is
+    /// typed is recognized with no effect, and submitting it opens it and
+    /// closes the view.
+    func testSmartJumpWithoutASelectionPresentsInputAndOpensWhatIsSubmitted() throws {
+        let opened = try smartJump.view(of: start(.string("   ")))
+        XCTAssertEqual(opened.view.title, "Smart Jump")
+        XCTAssertEqual(opened.view.form?.fields.map(\.kind), [.text])
+        XCTAssertEqual(opened.query, .string(""))
+        XCTAssertEqual(opened.statusTitle, "Type to preview")
+        XCTAssertEqual(opened.view.form?.submitTitle, "Jump")
+        XCTAssertEqual(opened.view.actions, [])
+
+        let typed = smartJump.run(SmartJumpDriver.typed("github.com"), state: opened.answer.state)
+        XCTAssertEqual(typed.requests, [], "Recognizing has no effect")
+        let preview = try smartJump.view(of: typed)
+        XCTAssertEqual(preview.statusTitle, "Open web address")
+        XCTAssertEqual(preview.statusText, "https://github.com")
+        XCTAssertEqual(preview.view.form?.submitTitle, "Open")
+
+        let submitted = smartJump.run(SmartJumpDriver.submitted("github.com"), state: preview.answer.state)
+        XCTAssertEqual(submitted.inputs(to: .openURL), [.string("https://github.com")])
+        XCTAssertEqual(try submitted.answer().close, true)
+
+        let revoked = smartJump.run(SmartJumpDriver.submitted("example.com"), state: preview.answer.state,
+                                    answering: SmartJumpDriver.services([.openURL: .failure(.capabilityDenied(.openURL))]))
+        assertRefused(revoked, .openURL)
+    }
+
+    /// An App that keeps its selection to itself leaves the view waiting for
+    /// text rather than failing.
     func testSmartJumpPresentsInputWhenSelectedTextCannotBeRead() throws {
-        var session: SmartJumpSession?
-        var copyFallbackCalls = 0
-        let outcome = try smartJumpOutcome(
-            selection: {
-                XCTFail("The granted clipboard fallback should be used")
-                return ""
-            },
-            open: { _ in XCTFail("No link should open before the user enters text") },
-            present: { session = $0 },
-            copyFallback: {
-                copyFallbackCalls += 1
-                throw PluginHostServiceError.failed("Focused app has no readable selection")
-            }
-        )
-
-        guard case .succeeded = outcome else { return XCTFail("Input should open: \(outcome)") }
-        XCTAssertEqual(try XCTUnwrap(session).initialText, "")
-        XCTAssertEqual(copyFallbackCalls, 1)
+        let run = start(.null)
+        XCTAssertEqual(run.inputs(to: .readSelectedText), [.object(["best_effort": .bool(true)])])
+        let opened = try smartJump.view(of: run)
+        XCTAssertEqual(opened.query, .string(""))
+        XCTAssertEqual(opened.statusTitle, "Type to preview")
     }
 
-    func testSmartJumpFindsAnAddressInASelectionThroughTheHostActionSeam() throws {
-        var opened: [URL] = []
-        let outcome = try smartJumpOutcome(selection: { "See github.com for the project" }, open: { opened.append($0) })
-        guard case .succeeded = outcome else { return XCTFail("Recognition should succeed: \(outcome)") }
-        XCTAssertEqual(opened, [URL(string: "https://github.com")!])
+    func testSubmittingNothingAsksForText() throws {
+        let submitted = smartJump.run(SmartJumpDriver.submitted(" "), state: .object(["query": .string("")]))
+        XCTAssertEqual(submitted.requests, [])
+        let shown = try smartJump.view(of: submitted)
+        XCTAssertEqual(shown.answer.toast, "Enter text to jump")
+        XCTAssertFalse(shown.answer.close)
     }
 
-    func testSmartJumpUsesCopyFallbackTextFromItsHostSelectionRead() throws {
-        let selectedURL = "https://example.com/telegram-selection"
-        var opened: [URL] = []
-        var copyFallbackCalls = 0
-        var presentedInput = false
-        let outcome = try smartJumpOutcome(
-            selection: { "" },
-            open: { opened.append($0) },
-            present: { _ in presentedInput = true },
-            copyFallback: {
-                copyFallbackCalls += 1
-                return selectedURL
-            }
-        )
-
-        guard case .succeeded = outcome else { return XCTFail("The selected link should open: \(outcome)") }
-        XCTAssertEqual(copyFallbackCalls, 1)
-        XCTAssertEqual(opened, [URL(string: selectedURL)!])
-        XCTAssertFalse(presentedInput, "A readable selection must not open blank input")
+    /// A pasted text far over 16 KiB is refused in the view rather than
+    /// ending it: it stays out of the field and the state, which the Host
+    /// bounds.
+    func testAHugeTextIsRefusedWithoutEndingTheView() throws {
+        let huge = String(repeating: "x", count: 100_000)
+        let shown = try smartJump.view(of: smartJump.run(SmartJumpDriver.typed(huge), state: .object(["query": .string("")])))
+        XCTAssertEqual(shown.statusText, "Smart Jump accepts up to 16 KiB of text")
+        XCTAssertEqual(shown.query, .string(""))
+        XCTAssertEqual(shown.answer.state, .object(["query": .string("")]))
     }
 
-    func testSmartJumpOpensTheSelectedLinkThroughTheHostActionSeam() throws {
-        var opened: [URL] = []
-        let outcome = try smartJumpOutcome(selection: { "  https://example.com/path?q=1 \n" }, open: { opened.append($0) })
-        guard case .succeeded = outcome else { return XCTFail("A valid link should open: \(outcome)") }
-        XCTAssertEqual(opened, [URL(string: "https://example.com/path?q=1")!])
-    }
-
-    func testSmartJumpUsesAccessibilitySelectionWithoutOptionalEffectGrants() throws {
-        let package = try SmartJumpFixture.load()
-        var selections = 0
-        var opened: [URL] = []
-        let outcome = try smartJumpOutcome(
-            grant: false,
-            selection: { selections += 1; return "https://example.com" },
-            open: { opened.append($0) },
-            grantStore: { grants in
-                for capability in [PluginCapability.readSelectedText, .openURL] {
-                    grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                                       capability: capability, scope: package.manifest.scope(for: capability))
-                }
-                for capability in [PluginCapability.writeClipboard, .openLocalPath] {
-                    grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version,
-                                       capability: capability, scope: package.manifest.scope(for: capability))
-                }
-            },
-            copyFallback: {
-                XCTFail("An ungranted clipboard fallback must not run")
-                return ""
-            }
-        )
-
-        guard case .succeeded = outcome else {
-            return XCTFail("Accessibility selection should work without the optional clipboard fallback grant: \(outcome)")
-        }
-        XCTAssertEqual(selections, 1)
-        XCTAssertEqual(opened, [URL(string: "https://example.com")!])
-    }
-
-    func testSmartJumpSearchesUnrecognisedTextWithoutOpeningUnsupportedSchemes() throws {
-        var opened: [URL] = []
-        for selection in ["mailto:someone@example.com", "javascript:alert(1)", "ordinary search text", "https://"] {
-            let outcome = try smartJumpOutcome(selection: { selection }, open: { opened.append($0) })
-            guard case .succeeded = outcome else { XCTFail("Search should succeed: \(outcome)"); continue }
-            XCTAssertEqual(opened.last, try SmartJumpSearchEngine.google.url(for: selection))
+    /// Each kind of target names its own button.
+    func testTheSubmitButtonSaysWhatItDoes() throws {
+        for (text, title) in [("cats", "Search"), ("BV1Et41137T6", "Watch"), ("https://example.com/a.zip", "Download"),
+                              ("10.1000/123", "Open"), ("/tmp", "Open"), ("1+1", "Calculate"), ("1/0", "Jump")] {
+            let shown = try smartJump.view(of: smartJump.run(SmartJumpDriver.typed(text), state: .object(["query": .string("")])))
+            XCTAssertEqual(shown.view.form?.submitTitle, title, text)
         }
     }
 
-    func testSmartJumpIsDeniedWithoutTheGrantAndStopsWhenTheGrantIsRevoked() throws {
-        var opened: [URL] = []
-        // Never granted: the Action is refused before any helper runs.
-        var selections = 0
-        let denied = try smartJumpOutcome(grant: false, selection: { selections += 1; return "https://example.com" },
-                                          open: { opened.append($0) })
-        guard case .failed(let deniedFailure) = denied else { return XCTFail("A withheld grant should fail") }
-        XCTAssertEqual(deniedFailure.category, .commandUnavailable)
-        XCTAssertEqual(deniedFailure.message, ActionUnavailableReason.capabilityDenied.description)
-        XCTAssertEqual(selections, 0)
+    /// Arithmetic shows its result in the view, which stays open when the
+    /// user submits it; copying the result needs the clipboard grant.
+    func testSmartJumpShowsArithmeticAndCopiesOnlyWithTheClipboardGrant() throws {
+        let run = start(.string("2+3*4"))
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText], "Showing a result must not overwrite the clipboard")
+        let shown = try smartJump.view(of: run)
+        XCTAssertEqual(shown.query, .string("2+3*4"))
+        XCTAssertEqual(shown.statusTitle, "Calculate")
+        XCTAssertEqual(shown.statusText, "Result: 14")
 
-        // Revoked while the selection is read: the open request is refused.
-        let package = try SmartJumpFixture.load()
-        var grants: PluginCapabilityGrantStore!
-        let revoked = try smartJumpOutcome(
-            selection: {
-                grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .openURL)
-                return "https://example.com"
-            },
-            open: { opened.append($0) },
-            grantStore: { grants = $0 }
-        )
-        guard case .failed(let revokedFailure) = revoked else { return XCTFail("A revoked grant should fail") }
-        XCTAssertEqual(revokedFailure.category, .capabilityDenied)
-        XCTAssertEqual(opened, [])
+        let submitted = try smartJump.view(of: smartJump.run(SmartJumpDriver.submitted("(4+2)/3"), state: shown.answer.state))
+        XCTAssertEqual(submitted.statusText, "Result: 2")
+        XCTAssertFalse(submitted.answer.close, "A calculation keeps the view open")
+
+        let copied = smartJump.run(.actionChosen("copy_result"), state: submitted.answer.state)
+        XCTAssertEqual(copied.inputs(to: .writeClipboard), [.string("2")])
+        XCTAssertEqual(try copied.answer().toast, "Copied")
+
+        let refused = smartJump.run(.actionChosen("copy_result"), state: .object(["query": .string("2+3")]),
+                                    answering: SmartJumpDriver.services([.writeClipboard: .failure(.capabilityDenied(.writeClipboard))]))
+        assertRefused(refused, .writeClipboard)
     }
 
-    func testSmartJumpWithoutAccessibilityIsUnavailableWithThePermissionRepairRoute() throws {
-        var selections = 0
-        var opened: [URL] = []
-        let outcome = try smartJumpOutcome(accessibility: false, selection: { selections += 1; return "https://example.com" },
-                                           open: { opened.append($0) })
-        guard case .failed(let failure) = outcome else { return XCTFail("Missing Accessibility should fail") }
-        XCTAssertEqual(failure.category, .commandUnavailable)
-        XCTAssertEqual(failure.message, ActionUnavailableReason.systemPermissionDenied.description)
-        XCTAssertEqual(selections, 0)
-        XCTAssertEqual(opened, [])
+    /// The state holds only the field's text, so the helper may retire
+    /// between View Events.
+    func testTheViewKeepsOnlyTheFieldsTextBetweenEvents() throws {
+        let shown = try smartJump.view(of: start(.string("6*7")))
+        XCTAssertEqual(shown.answer.state, .object(["query": .string("6*7")]))
+        smartJump.helper.retireHelper(of: smartJump.plugin)
+        let copied = smartJump.run(.actionChosen("copy_result"), state: shown.answer.state)
+        XCTAssertEqual(copied.inputs(to: .writeClipboard), [.string("42")])
     }
 
-    private func smartJumpOutcome(
-        grant: Bool = true,
-        accessibility: Bool = true,
-        selection: @escaping () throws -> String,
-        open: @escaping (URL) throws -> Void,
-        grantStore: (PluginCapabilityGrantStore) -> Void = { _ in },
-        present: @escaping (SmartJumpSession) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Unexpected input window")
-        },
-        copy: @escaping (String) throws -> Void = { _ in XCTFail("The clipboard was written") },
-        path: @escaping (URL) throws -> Void = { _ in XCTFail("A local path was opened") },
-        copyFallback: (() throws -> String)? = nil,
-        settings: [String: JSONValue] = [:],
-        origin: PluginOrigin = .bundled
-    ) throws -> ActionTerminalOutcome {
-        let loaded = try SmartJumpFixture.load()
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: origin)
-        let grants = PluginCapabilityGrantStore()
-        grantStore(grants)
-        if grant { SmartJumpFixture.grant(package, in: grants) }
-        let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in accessibility })
-        try registry.register(package)
-        let action = try ActionConfiguration(id: ActionID("smart-jump"), pluginID: package.manifest.id,
-                                             command: package.manifest.commands[0], input: .null)
-        let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in accessibility },
-            selectedTextProvider: { allowingCopyFallback in
-                if allowingCopyFallback, let copyFallback { return try copyFallback() }
-                return try selection()
-            },
-            clipboardWriter: copy,
-            urlOpener: open,
-            smartJumpPresenter: present,
-            localPathOpener: path
-        )
-        let supervisor = try PluginTestHelper()
-        defer { supervisor.shutdown() }
-        return HostActionRunner(
-            executor: SmartJumpNoopExecutor(),
-            scriptedExecutor: supervisor,
-            hostServiceBroker: broker,
-            pluginSettings: { $0.resolvedSettings(stored: settings) }
-        ).invoke(action, using: registry).terminal
-    }
-}
-
-private struct SmartJumpNoopExecutor: HostCommandExecutor {
-    func execute(_ action: ActionConfiguration) throws -> JSONValue {
-        XCTFail("Smart Jump ran a Host Command")
-        return .null
-    }
-}
-
-/// The repository's Smart Jump package, registered the way the Host registers
-/// a Plugin that ships with the app.
-enum SmartJumpFixture {
-    static func load() throws -> PluginPackage {
-        try PluginUnderTest(named: "SmartJump.spinnetplugin", origin: .bundled).package
-    }
-
-    /// Grants the package's Capabilities with their current scopes.
-    static func grant(_ package: PluginPackage, in grants: PluginCapabilityGrantStore) {
-        for capability in package.manifest.capabilities {
-            grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                               capability: capability, scope: package.manifest.scope(for: capability))
+    /// Smart Jump installed from a file behaves as the copy the app ships:
+    /// where a Plugin came from grants it nothing.
+    func testAnInstalledSmartJumpPresentsTheSameView() throws {
+        let installed = try SmartJumpDriver(origin: .installed)
+        defer { installed.shutdown() }
+        for selection in ["", "1+1"] {
+            let shown = try installed.view(of: installed.run(answering: SmartJumpDriver.services(selection: .string(selection))))
+            XCTAssertEqual(shown.query, .string(selection))
         }
     }
 }

@@ -50,7 +50,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .writeClipboard:
             return "Lets the Plugin ask the Host to replace the current clipboard text."
         case .readCurrentClipboard:
-            return "Read the declared data types from the current clipboard. Smart Jump uses this grant for its temporary Copy fallback when an app does not expose selected text through Accessibility. Without the grant, Smart Jump uses Accessibility-only selection."
+            return "Read the declared data types from the current clipboard. A Command that reads selected text also uses this grant for a temporary Copy fallback when an app does not expose its selection through Accessibility. Without the grant, it uses Accessibility-only selection."
         case .readClipboardHistory: return "Read declared data types, including retained entries collected before this grant."
         case .monitorClipboard: return "Requires separate Host Sensitive Data Collection opt-in."
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
@@ -477,10 +477,6 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// values, in the application that handles its scheme, without bringing
     /// it forward.
     case openDeepLink = "open_deep_link"
-    /// Classifies supplied text or a best-effort selected-text read in the
-    /// Host, then performs only the corresponding Capability-checked operation.
-    /// Empty text asks the Host for input.
-    case smartJump = "smart_jump"
     case openLocalPath = "open_local_path"
     /// Replaces the focused App's selection with the supplied text.
     case insertText = "insert_text"
@@ -517,7 +513,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .writeClipboard
         case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
             return .positionFocusedWindow
-        case .openURL, .smartJump:
+        case .openURL:
             return .openURL
         case .openLocalPath: return .openLocalPath
         case .captureScreen:
@@ -540,7 +536,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         case .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
              .readClipboardHistoryContent, .presentClipboardHistory:
             return nil
-        case .openURL, .smartJump, .openLocalPath:
+        case .openURL, .openLocalPath:
             return nil
         case .captureScreen:
             return .screenRecording
@@ -673,7 +669,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     /// Answers to repeated requests, for the Host-Fetched Sections of every
     /// Plugin.
     public let responseCache: FetchedResponseCache
-    private let smartJumpPresenter: (SmartJumpSession) throws -> Void
     private let localPathOpener: (URL) throws -> Void
     private let appleEventSender: (AppleEventRequest) throws -> Void
     private let deepLinkOpener: (DeepLink) throws -> Void
@@ -715,9 +710,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         focusedTextInserter: @escaping (String) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Text insertion")
         },
-        smartJumpPresenter: @escaping (SmartJumpSession) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Smart Jump window")
-        },
         localPathOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening local paths")
         },
@@ -750,7 +742,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.focusedTextInserter = focusedTextInserter
         self.languageDetector = languageDetector
         self.responseCache = responseCache
-        self.smartJumpPresenter = smartJumpPresenter
         self.localPathOpener = localPathOpener
         self.appleEventSender = appleEventSender
         self.deepLinkOpener = deepLinkOpener
@@ -892,67 +883,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.invalidInput("restore_focused_window_frame expects null")
             }
             try focusedWindowFrameRestorer()
-            return .null
-        case .smartJump:
-            // `{"text": …, "engines": […]}`: the Plugin hands over its own
-            // search engines, such as the rows of a `list` setting.
-            guard case .object(let members) = request.input,
-                  Set(members.keys).isSubset(of: ["text", "engines"]) else {
-                throw PluginHostServiceError.invalidInput("smart_jump expects an object with text and engines")
-            }
-            let engines = try SmartJumpSearchEngine.engines(from: members["engines"])
-            let text: String
-            switch members["text"] ?? .null {
-            case .string(let suppliedText):
-                text = suppliedText
-            case .null:
-                // A missing selection is a normal Smart Jump entry point. Read
-                // it through the usual Capability checks, but let the Host
-                // input window open when no readable selection is available.
-                let readRequest = PluginRuntimeHostServiceRequest(
-                    invocationID: request.invocationID,
-                    actionID: request.actionID,
-                    service: .readSelectedText,
-                    input: .null
-                )
-                if case .string(let selectedText)? = try? execute(
-                    request: readRequest,
-                    for: package,
-                    action: action
-                ) {
-                    text = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                } else {
-                    text = ""
-                }
-            default:
-                throw PluginHostServiceError.invalidInput("smart_jump expects text or null")
-            }
-            let session = SmartJumpSession(initialText: text, searchEngines: engines, copy: { [self] text in
-                let copy = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
-                                                          service: .writeClipboard, input: .string(text))
-                _ = try execute(request: copy, for: package, action: action)
-            }) { [self] target in
-                switch target {
-                case .link(let url, _), .search(let url, _):
-                    let open = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
-                                                              service: .openURL, input: .string(url.absoluteString))
-                    _ = try execute(request: open, for: package, action: action)
-                case .calculation: break
-                case .localPath(let path):
-                    let open = PluginRuntimeHostServiceRequest(invocationID: request.invocationID, actionID: action.id,
-                                                              service: .openLocalPath, input: .string(path))
-                    _ = try execute(request: open, for: package, action: action)
-                case .input:
-                    throw PluginHostServiceError.unavailable("This Smart Jump target is not available")
-                }
-            }
-            switch try session.preview(text) {
-            case .input, .calculation:
-                // A specialised Host-owned window until Smart Jump moves onto
-                // Plugin Views (#61), open to any Plugin granted the service.
-                try smartJumpPresenter(session)
-            default: try session.submit(text)
-            }
             return .null
         case .openLocalPath:
             guard case .string(let path) = request.input else {

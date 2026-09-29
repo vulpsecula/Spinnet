@@ -60,7 +60,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
     }
     private let pluginCredentials = KeychainPluginCredentialStore()
-    private let smartJumpWindow = SmartJumpWindowController()
     private var executions: [ActionID: ActionLifecycle] = [:]
     private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     /// A toast without a view, shown near the pointer.
@@ -157,9 +156,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 credentialStore: pluginCredentials,
                 focusedTextInserter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.insertText(text)
-                },
-                smartJumpPresenter: { [smartJumpWindow] session in
-                    DispatchQueue.main.async { smartJumpWindow.present(session) }
                 },
                 localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)

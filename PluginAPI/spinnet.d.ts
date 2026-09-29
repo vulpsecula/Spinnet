@@ -61,9 +61,7 @@ export type HostServiceName =
   /** The Plugin's keys, sorted, without their values. */
   | "list_storage_keys"
   /** Forgets every key, answered with `null`. */
-  | "clear_storage"
-  // Removed before Level 1 is published; its behaviour moves into Plugins.
-  | "smart_jump";
+  | "clear_storage";
 
 /** A rectangle in global points, origin at the top-left of the primary display. */
 export interface WindowRect {

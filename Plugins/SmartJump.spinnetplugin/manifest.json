@@ -39,7 +39,7 @@
   "commands": [{
     "id": "smart_jump.open_selection",
     "title": "Open Selected Link",
-    "description": "Opens the first link, DOI, video ID or local path in selected text, calculates arithmetic, or searches the web. With no selection, opens an input window. Downloads open in the browser.",
+    "description": "Opens the first link, DOI, video ID or local path in selected text, or searches the web for it. Arithmetic, or no selection, opens a view that recognizes text as it is typed. Downloads open in the browser.",
     "execution": "javascript",
     "is_configurable": false,
     "script": "open.js"

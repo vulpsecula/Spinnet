@@ -172,29 +172,42 @@ its own, so the window rules are those of every Plugin View.
 
 | Command | Entry | What happens |
 | --- | --- | --- |
-| `smart_jump.open_selection` | Selection containing a web address | Opens the first address in the browser; no window |
+| `smart_jump.open_selection` | Selection containing a web address | Opens the first address in the browser; no view |
 | `smart_jump.open_selection` | Selection with a DOI (`10.xxxx/…`) | Opens `https://doi.org/…` |
 | `smart_jump.open_selection` | Selection with a Bilibili ID (BV…, av…) | Opens the video page |
 | `smart_jump.open_selection` | Selection with a local path (`/…`, `~/…`, quoted) | Opens it in Finder or its App; "The local file or folder does not exist" when absent |
 | `smart_jump.open_selection` | Link ending in zip/dmg/pdf/pkg/tar/gz/bz2/xz/7z/rar | Opens it in the browser, which downloads it |
 | `smart_jump.open_selection` | Plain text | Searches with the first search engine |
-| `smart_jump.open_selection` | Arithmetic, e.g. `2*(3+4)` | Opens the Smart Jump window showing the result |
-| `smart_jump.open_selection` | Nothing selected | Opens the Smart Jump window with an empty field |
+| `smart_jump.open_selection` | Arithmetic, e.g. `2*(3+4)` | Opens the Smart Jump view showing the result |
+| `smart_jump.open_selection` | Arithmetic it cannot calculate, e.g. `1/0` | Opens the Smart Jump view saying why ("Cannot divide by zero") |
+| `smart_jump.open_selection` | Nothing selected, or the App keeps its selection to itself | Opens the Smart Jump view with an empty field |
+| `smart_jump.open_selection` | Selection over 16 KiB | Feedback "Smart Jump accepts up to 16 KiB of text"; no view |
 
 - The first target in reading order wins; at the same position a DOI, video
   or path wins over a web address. A leading `/` is a path, not a division.
+- Recognition runs in the Plugin's `open.js` since W14 (#61), and gives the
+  targets the Host's classifier gave, except that a result that rounds to
+  ±10^15 reads "1E+15" rather than "1000000000000000".
 
-### Smart Jump window
+### The view
 
-- Title "Smart Jump"; field "Text, link, path or calculation".
-- As the user types, a status line previews the target: "Type to preview",
-  "Open web address", "Open DOI", "Open Bilibili video", "Open download link
-  in browser", "Open local file", "Search the web · Using *engine* · *host*",
-  "Calculate · Result: *value*", or "Check this input" with the error.
-- Return or the action button (Open / Watch / Download / Search / Calculate)
-  performs it and closes the window, except a calculation, which stays open
-  and offers "Copy Result" ("Copied" once done).
-- Escape or clicking elsewhere closes it. Text over 16 KiB is refused.
+Since W14 (#61) Smart Jump shows a Plugin View (ADR 0010) instead of a Host window, so the
+window rules are those of every Plugin View: it opens near the pointer, and
+Escape, its close button, or clicking elsewhere while unpinned closes it.
+
+- Title "Smart Jump"; one field "Text", placeholder "Text, link, path or
+  calculation".
+- After each pause in typing, a status section previews the target, titled
+  "Type to preview", "Open web address", "Open DOI", "Open Bilibili video",
+  "Open download link in browser", "Open local file", "Search the web",
+  "Calculate" or "Check this input", with the link, the path, "Using
+  *engine* · *host*", "Result: *value*" or what is wrong beneath. The
+  section's own Copy button copies that text.
+- Return or the submit button (Jump / Open / Watch / Download / Search /
+  Calculate) performs it and closes the view, except a calculation, which
+  stays open with a "Copy Result" action that copies the result and says
+  "Copied". Submitting an empty field says "Enter text to jump".
+- Text over 16 KiB is refused in the status section.
 
 ### Plugin Settings
 
