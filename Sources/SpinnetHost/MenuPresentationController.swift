@@ -166,6 +166,8 @@ final class MenuPresentationController {
         let frame = layout.overlayFrame(for: pointer, in: screen.visibleFrame)
         menuView.clearSelection()
         panel.setFrame(frame, display: false)
+        panel.alphaValue = 1
+        panel.ignoresMouseEvents = false
         panel.orderFrontRegardless()
         panel.makeKey()
         panel.makeFirstResponder(menuView)
@@ -184,6 +186,13 @@ final class MenuPresentationController {
     func dismiss() {
         guard isOpen else { return }
         removeDismissalMonitors()
+        // Ordered out while it handles a press on itself, as when a click
+        // in the center closes it, the panel stays on screen as far as the
+        // window server is concerned, open to the eye but with no monitors
+        // left to close it. Invisible and click-through, it is gone to the
+        // user until it opens again.
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
         panel.orderOut(nil)
         isOpen = false
         onDismiss?()
