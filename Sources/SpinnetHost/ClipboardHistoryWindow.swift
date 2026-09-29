@@ -14,6 +14,11 @@ final class ClipboardHistoryWindowModel: ObservableObject {
     @Published private(set) var accessDenied = false
     @Published private(set) var isLoading = false
     @Published private(set) var isLoadingMore = false
+    /// Counts requests to give the list the keyboard, such as when a detail
+    /// opened from it closes.
+    @Published private(set) var listFocusRequests = 0
+
+    func focusList() { listFocusRequests += 1 }
     private let queryQueue = DispatchQueue(label: "com.spinnet.clipboard-history-query", qos: .userInitiated)
     private var queryRevision = UUID()
     private var queuedQuery: (id: UUID, offset: Int, append: Bool)?
@@ -117,6 +122,12 @@ struct ClipboardHistoryView: View {
     let clearHistory: (@escaping (String?) -> Void) -> Void
     /// Restores a copy to the clipboard; `true` also pastes it into the previous app.
     var restore: (UUID, _ paste: Bool) -> Void = { _, _ in }
+    /// Opens a copy's detail window: an image to zoom, or text to edit.
+    var open: (ClipboardHistoryCopy) -> Void = { _ in }
+    /// Space: opens the copy's detail, or closes it when it is open.
+    var toggle: (ClipboardHistoryCopy) -> Void = { _ in }
+    /// Reads a row's image preview from the copy's payload.
+    var loadPreview: ((UUID) async -> NSImage?)?
     var deleteCopies: (Set<UUID>, @escaping (String?) -> Void) -> Void = { $1(nil) }
     @State private var busy = false
     @State private var managementError: String?
@@ -124,7 +135,8 @@ struct ClipboardHistoryView: View {
     /// After a delete, the row that took the first deleted row's place.
     @State private var selectionIndexAfterDelete: Int?
     @State private var browsing = ClipboardHistoryBrowsing()
-    @FocusState private var listFocused: Bool
+    private enum Focus { case search, list }
+    @FocusState private var focus: Focus?
 
     private var copies: [ClipboardHistoryCopy] { model.snapshot?.copies ?? [] }
     private var shown: [ClipboardHistoryCopy] { browsing.apply(to: copies) }
@@ -148,6 +160,7 @@ struct ClipboardHistoryView: View {
             if browsing.needsEveryPage { model.loadEveryPage() }
             reconcileSelection()
         }
+        .onChange(of: model.listFocusRequests) { _ in focus = .list }
     }
 
     private var header: some View {
@@ -157,6 +170,7 @@ struct ClipboardHistoryView: View {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Search", text: $browsing.text)
                         .textFieldStyle(.plain)
+                        .focused($focus, equals: .search)
                         .onSubmit { pasteSelection() }
                     if !browsing.text.isEmpty {
                         Button { browsing.text = "" } label: { Image(systemName: "xmark.circle.fill") }
@@ -243,7 +257,8 @@ struct ClipboardHistoryView: View {
         let shown = shown
         return List(selection: $selection) {
             ForEach(shown) { copy in
-                ClipboardHistoryCopyRow(copy: copy)
+                ClipboardHistoryCopyRow(copy: copy, open: ClipboardHistoryDetail.opens(copy) ? { open(copy) } : nil,
+                                        isSelected: selection.contains(copy.id), loadPreview: loadPreview)
             }
             if model.isLoadingMore {
                 HStack { Spacer(); ProgressView().controlSize(.small); Spacer() }
@@ -254,6 +269,10 @@ struct ClipboardHistoryView: View {
         }
         .contextMenu(forSelectionType: UUID.self) { ids in
             if ids.count == 1, let id = ids.first {
+                if let copy = copies.first(where: { $0.id == id }), ClipboardHistoryDetail.opens(copy) {
+                    Button("Open") { open(copy) }
+                    Divider()
+                }
                 Button("Paste") { restore(id, true) }
                 Button("Copy to Clipboard") { restore(id, false) }
                 Divider()
@@ -264,8 +283,12 @@ struct ClipboardHistoryView: View {
         } primaryAction: { ids in
             if ids.count == 1, let id = ids.first { restore(id, true) }
         }
-        .onDeleteCommand { delete(selection) }
-        .focused($listFocused)
+        .modifier(ListKeys(openSelection: openSelection, deleteSelection: {
+            guard !selection.isEmpty else { return false }
+            delete(selection)
+            return true
+        }))
+        .focused($focus, equals: .list)
         .overlay {
             if shown.isEmpty, !model.isLoadingMore { Text("No entries match.").foregroundStyle(.secondary) }
         }
@@ -291,8 +314,17 @@ struct ClipboardHistoryView: View {
         var parts = [browsing.isFiltering ? "\(shown.count) of \(copies.count) entries" : "\(copies.count) entries"]
         if model.canLoadMore { parts[0] += " loaded" }
         if selection.count > 1 { parts.append("\(selection.count) selected") }
-        parts.append("Double-click or Return to paste · Delete to remove")
+        parts.append("Double-click or Return to paste · ⌘⌫ to delete")
         return parts.joined(separator: " · ")
+    }
+
+    /// Space opens the selected copy and closes it again, as Quick Look does
+    /// in Finder.
+    private func openSelection() -> Bool {
+        guard selection.count == 1, let copy = copies.first(where: { $0.id == selection.first }),
+              ClipboardHistoryDetail.opens(copy) else { return false }
+        toggle(copy)
+        return true
     }
 
     private func pasteSelection() {
@@ -316,7 +348,8 @@ struct ClipboardHistoryView: View {
     }
 
     /// Keeps the selection on rows that are still shown; with none left, selects
-    /// the row where the user was working so the keyboard keeps a target.
+    /// the row where the user was working so the keyboard keeps a target. A
+    /// search in progress keeps its focus: Return there pastes the selection.
     private func reconcileSelection() {
         // While a refresh is in flight there is nothing to reconcile against.
         guard model.snapshot != nil else { return }
@@ -327,7 +360,30 @@ struct ClipboardHistoryView: View {
         let index = min(selectionIndexAfterDelete ?? 0, shown.count - 1)
         selectionIndexAfterDelete = nil
         selection = [shown[index].id]
-        listFocused = true
+        if focus != .search { focus = .list }
+    }
+}
+
+/// The list's keys: Space opens or closes the selected copy, and
+/// Command-Delete deletes the selection. Delete alone does nothing, so a
+/// stray key press cannot remove history.
+private struct ListKeys: ViewModifier {
+    let openSelection: () -> Bool
+    let deleteSelection: () -> Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content
+                .onKeyPress(.space) { openSelection() ? .handled : .ignored }
+                .onKeyPress(phases: .down) { press in
+                    // The Delete key sends U+007F, not `KeyEquivalent.delete`.
+                    guard press.modifiers == .command, [KeyEquivalent.delete, KeyEquivalent("\u{7f}")].contains(press.key)
+                    else { return .ignored }
+                    return deleteSelection() ? .handled : .ignored
+                }
+        } else {
+            content
+        }
     }
 }
 
@@ -336,6 +392,13 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     private let grants: PluginCapabilityGrantStore
     private var observer: UUID?
     private let restoration: (UUID) throws -> [ClipboardHistoryRestoredItem]
+    private let saveText: (UUID, String, _ asNew: Bool, @escaping (String?) -> Void) -> Void
+    private var details: [UUID: ClipboardHistoryDetailWindow] = [:]
+    /// Copies whose detail is being read, so a second Space does not open
+    /// another window for the same copy.
+    private var opening: Set<UUID> = []
+    private let previews = NSCache<NSUUID, NSImage>()
+    private let previewQueue = DispatchQueue(label: "com.spinnet.clipboard-history-preview", qos: .userInitiated)
     private let notify: (String) -> Void
     private let paster: ClipboardHistoryPaster
     private let restoreQueue = DispatchQueue(label: "com.spinnet.clipboard-history-restore", qos: .userInitiated)
@@ -349,10 +412,12 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
          openIgnoredApplications: @escaping () -> Void,
          clearHistory: @escaping (@escaping (String?) -> Void) -> Void,
          deleteCopies: @escaping (Set<UUID>, @escaping (String?) -> Void) -> Void,
+         saveText: @escaping (UUID, String, _ asNew: Bool, @escaping (String?) -> Void) -> Void = { $3(nil) },
          notify: @escaping (String) -> Void,
          paster: ClipboardHistoryPaster = ClipboardHistoryPaster()) {
         self.grants = grants
         self.restoration = restoration
+        self.saveText = saveText
         self.notify = notify
         self.paster = paster
         model = ClipboardHistoryWindowModel(query: query)
@@ -364,7 +429,10 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
         window.delegate = self
         window.contentView = NSHostingView(rootView: ClipboardHistoryView(model: model, openPrivacy: openPrivacy,
             openPluginSettings: openPluginSettings, openIgnoredApplications: openIgnoredApplications, clearHistory: clearHistory,
-            restore: { [weak self] id, paste in self?.restore(id, paste: paste) }, deleteCopies: deleteCopies))
+            restore: { [weak self] id, paste in self?.restore(id, paste: paste) },
+            open: { [weak self] copy in self?.open(copy) },
+            toggle: { [weak self] copy in self?.toggle(copy) },
+            loadPreview: { [weak self] copyID in await self?.preview(of: copyID) }, deleteCopies: deleteCopies))
         window.center()
         observer = grants.observeChanges { [weak self] in
             if Thread.isMainThread { self?.refreshIfVisible() }
@@ -379,6 +447,20 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError("Not supported") }
+
+    /// Puts items on the clipboard; pasting also closes the history and sends
+    /// them to the App that was in front before it.
+    private func put(_ items: [ClipboardHistoryRestoredItem], paste: Bool) {
+        guard paste else {
+            notify(paster.write(items) ? "Copied to the clipboard" : "The clipboard could not be updated")
+            return
+        }
+        close()
+        paster.paste(items, into: previousApplication) { [weak self] message in
+            if let message { self?.notify(message) }
+        }
+    }
+
     deinit {
         if let observer { grants.removeChangeObserver(observer) }
         if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
@@ -387,7 +469,11 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
         model.discardSnapshot()
         if window?.isVisible == true { model.refresh() }
     }
-    func windowWillClose(_ notification: Notification) { model.discardSnapshot() }
+    func windowWillClose(_ notification: Notification) {
+        model.discardSnapshot()
+        // A detail belongs to the history it was opened from.
+        details.values.forEach { $0.close() }
+    }
     func present() {
         if let front = NSWorkspace.shared.frontmostApplication,
            front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
@@ -400,6 +486,84 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     }
     func windowDidBecomeKey(_ notification: Notification) { model.refresh() }
 
+    /// A row's image, read from the copy's payload through the same grant as
+    /// a restore and scaled to what the row shows on this display.
+    private func preview(of copyID: UUID) async -> NSImage? {
+        if let cached = previews.object(forKey: copyID as NSUUID) { return cached }
+        let scale = window?.backingScaleFactor ?? 2
+        let longestEdge = Int(max(ClipboardHistoryRowIcon.imageSize.width, ClipboardHistoryRowIcon.imageSize.height) * scale)
+        let image: NSImage? = await withCheckedContinuation { continuation in
+            previewQueue.async { [restoration] in
+                let items = try? restoration(copyID)
+                let image = items.flatMap { ClipboardHistoryDetail.preview(restoring: $0, longestEdge: longestEdge) }
+                continuation.resume(returning: image.map { NSImage(cgImage: $0, size: .zero) })
+            }
+        }
+        if let image { previews.setObject(image, forKey: copyID as NSUUID) }
+        return image
+    }
+
+    private func toggle(_ copy: ClipboardHistoryCopy) {
+        if let open = details[copy.id] { open.close() } else { self.open(copy) }
+    }
+
+    /// Opens the copy's detail, or brings an open one forward. Its payloads
+    /// are read the way a restore reads them, so the same grant bounds both.
+    private func open(_ copy: ClipboardHistoryCopy) {
+        if let open = details[copy.id] { open.present(); return }
+        let presentation = ClipboardHistoryCopyPresentation(copy: copy)
+        guard let entry = presentation.primary, opening.insert(copy.id).inserted else { return }
+        restoreQueue.async { [weak self] in
+            guard let self else { return }
+            let result = Result { try self.restoration(copy.id) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.opening.remove(copy.id)
+                switch result {
+                case .failure(let error):
+                    self.notify(error.localizedDescription)
+                case .success(let items):
+                    guard let detail = ClipboardHistoryDetail(restoring: items) else {
+                        self.notify("This entry has nothing to open")
+                        return
+                    }
+                    self.present(detail, of: copy.id, title: presentation.title(for: entry),
+                                 source: entry.sourceApplicationName + " · "
+                                    + entry.copiedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+        }
+    }
+
+    private func present(_ detail: ClipboardHistoryDetail, of copyID: UUID, title: String, source: String) {
+        let text: (String) -> [ClipboardHistoryRestoredItem] = {
+            [ClipboardHistoryRestoredItem(representations: [.init(format: "public.utf8-plain-text", data: Data($0.utf8))])]
+        }
+        let window = ClipboardHistoryDetailWindow(title: title, source: source, detail: detail, actions: .init(
+            restoreOriginal: { [weak self] paste in self?.restore(copyID, paste: paste) },
+            restoreText: { [weak self] value, paste in self?.put(text(value), paste: paste) },
+            save: { [weak self] value, asNew, completion in
+                guard let self else { completion("Clipboard History closed"); return }
+                self.saveText(copyID, value, asNew) { [weak self] error in
+                    if error == nil { self?.model.refresh() }
+                    completion(error)
+                }
+            }))
+        window.onClose = { [weak self] in
+            guard let self else { return }
+            self.details[copyID] = nil
+            // Hand the keyboard back to the list, so Space opens it again,
+            // once the close is done and unless the history closed with it.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window?.isVisible == true else { return }
+                self.window?.makeKeyAndOrderFront(nil)
+                self.model.focusList()
+            }
+        }
+        details[copyID] = window
+        window.present()
+    }
+
     /// Payload reads can wait behind Store writes, so they stay off main.
     private func restore(_ copyID: UUID, paste: Bool) {
         restoreQueue.async { [weak self] in
@@ -410,13 +574,8 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
                 switch result {
                 case .failure(let error):
                     self.notify(error.localizedDescription)
-                case .success(let items) where !paste:
-                    self.notify(self.paster.write(items) ? "Copied to the clipboard" : "The clipboard could not be updated")
                 case .success(let items):
-                    self.close()
-                    self.paster.paste(items, into: self.previousApplication) { message in
-                        if let message { self.notify(message) }
-                    }
+                    self.put(items, paste: paste)
                 }
             }
         }

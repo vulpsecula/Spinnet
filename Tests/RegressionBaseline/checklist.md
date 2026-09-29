@@ -300,7 +300,7 @@ Settings.
 - Rows show a preview: text, image thumbnail with pixel size, "File reference
   only — source contents are not stored.", or "Unavailable — *reason*".
 - Double-click or Return pastes into the previous App; the context menu offers
-  Paste, Copy to Clipboard and Delete (or "Delete *n* Entries"); ⌫ deletes.
+  Paste, Copy to Clipboard and Delete (or "Delete *n* Entries"); ⌘⌫ deletes, ⌫ alone does not.
   The footer shows "*n* entries", "*n* of *m* entries" when filtering, the
   selection count, Delete and Paste.
 - Scrolling to the end loads more.

@@ -22,6 +22,32 @@ final class ClipboardHistoryBrowsingTests: XCTestCase {
         XCTAssertEqual(ClipboardHistoryBrowsing.applications(in: copies), ["Notes", "Safari"])
     }
 
+    /// An image the pasteboard did not name goes by a link copied with it,
+    /// or else by the number the store gave it.
+    func testImageTitlesPreferANameThenALinkThenTheNumber() {
+        func image(_ text: String = "Image 3", format: String = "public.png", bundleID: String = "notes") -> ClipboardHistoryEntry {
+            var entry = ClipboardHistoryEntry(id: UUID(), text: text, contentType: .image, sourceApplicationName: "App",
+                                              sourceBundleIdentifier: bundleID, copiedAt: Date())
+            entry.format = format
+            entry.itemIndex = 0
+            return entry
+        }
+        func title(_ entries: [ClipboardHistoryEntry]) -> String {
+            let presentation = ClipboardHistoryCopyPresentation(copy: ClipboardHistoryCopy(id: UUID(), representations: entries))
+            return presentation.title(for: entries[0])
+        }
+        var link = ClipboardHistoryEntry(id: UUID(), text: "https://example.com/photos/Beach%20Day.jpg?s=2", contentType: .url,
+                                         sourceApplicationName: "Safari", sourceBundleIdentifier: "safari", copiedAt: Date())
+        link.itemIndex = 0
+
+        XCTAssertEqual(title([image("Cat Nap.png"), link]), "Cat Nap.png")
+        XCTAssertEqual(title([image(), link]), "Beach Day.jpg")
+        XCTAssertEqual(title([image()]), "Image 3")
+        XCTAssertEqual(title([image("Image 12 of the tour"), link]), "Image 12 of the tour", "a name that only starts like a number")
+        let text = copy("hello", .text, app: "Notes")
+        XCTAssertEqual(ClipboardHistoryCopyPresentation(copy: text).title(for: text.representations[0]), "hello")
+    }
+
     func testSortsKeepNewestFirstWithinEachGroup() {
         let copies = [copy("a", .url, app: "Safari"), copy("b", .text, app: "Notes"),
                       copy("c", .url, app: "Notes"), copy("d", .text, app: "Safari")]

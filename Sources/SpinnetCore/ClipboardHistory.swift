@@ -5,6 +5,10 @@ import ImageIO
 import UniformTypeIdentifiers
 
 public struct ClipboardContent: Codable, Equatable {
+    /// What a copied image is called when nothing on the pasteboard names it.
+    /// The store numbers each such image as it keeps it: "Image 1", "Image 2".
+    public static let unnamedImageText = "Image"
+
     public enum ContentType: String, Codable { case text, url, image, binary, richText = "rich_text", fileReference = "file_reference" }
     /// Known UTI families cannot be downgraded to the unrestricted binary category.
     public static func contentType(forFormat format: String) -> ContentType {
@@ -105,8 +109,10 @@ public struct ClipboardHistoryRestoredItem: Equatable {
     public struct Representation: Equatable {
         public let format: String
         public let data: Data
+        public init(format: String, data: Data) { self.format = format; self.data = data }
     }
     public var representations: [Representation]
+    public init(representations: [Representation]) { self.representations = representations }
 }
 
 /// A user-visible copy; only authorized representations are included.
@@ -158,6 +164,12 @@ public enum ClipboardHistoryControl {
     case delete(copyIDs: Set<UUID>)
     case turnOff(deleteEntries: Bool)
     case excludeApplications([String])
+    /// Replaces a copy with one plain-text representation, keeping its place,
+    /// its source App and when it was copied.
+    case replaceText(copyID: UUID, text: String)
+    /// Adds text as a new copy in front, attributed to the copy it was edited
+    /// from. Text the history already holds brings that copy to the front.
+    case addText(String, editedFrom: UUID)
 }
 
 /// Host-owned collection. Plugins only receive filtered snapshots through the
@@ -205,6 +217,8 @@ public final class ClipboardHistoryStore {
                 case .delete(let copyIDs): try performDelete(copyIDs)
                 case .turnOff(let deleteEntries): try performTurnOff(deleteEntries: deleteEntries)
                 case .excludeApplications(let bundleIDs): try performExclusions(bundleIDs)
+                case .replaceText(let copyID, let text): try performReplaceText(copyID: copyID, text: text)
+                case .addText(let text, let copyID): try performAddText(text, editedFrom: copyID)
                 }
             } catch { failure = error }
             let value = settings
@@ -302,6 +316,9 @@ public final class ClipboardHistoryStore {
         var excludedApplications: [String]? = nil
         var markdownClassificationVersion: Int? = nil
         var plainPreviewVersion: Int? = nil
+        /// The number the last unnamed image was given; never given again.
+        var lastImageNumber: Int? = nil
+        var imageNumberingVersion: Int? = nil
     }
     public static let defaultExcludedApplications = ["com.apple.Passwords", "com.apple.keychainaccess"]
 
@@ -341,10 +358,12 @@ public final class ClipboardHistoryStore {
         self.now = now
         self.writeFile = writeFile
         archive = FileManager.default.fileExists(atPath: fileURL.path)
-            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL)) : Archive(markdownClassificationVersion: 1, plainPreviewVersion: 1)
+            ? try JSONDecoder().decode(Archive.self, from: Data(contentsOf: fileURL))
+            : Archive(markdownClassificationVersion: 1, plainPreviewVersion: 1, imageNumberingVersion: 1)
         committedSettings = settingsSnapshot(archive)
         try expire()
         try removeUnreferencedPayloads()
+        if archive.imageNumberingVersion != 1 { try numberKeptImages() }
         if archive.markdownClassificationVersion != 1 || archive.plainPreviewVersion != 1 {
             historyReady = false
             transactions.async { [self] in
@@ -359,6 +378,28 @@ public final class ClipboardHistoryStore {
                 }
             }
         }
+    }
+
+    /// Numbers the unnamed images an older version kept, oldest first. It
+    /// reads only the index, so it runs before the history is published.
+    private func numberKeptImages() throws {
+        lock.lock(); defer { lock.unlock() }
+        var next = archive
+        var numbers: [String: Int] = [:]
+        var last = next.lastImageNumber ?? 0
+        let unnamed = next.entries.indices
+            .filter { next.entries[$0].contentType == .image && next.entries[$0].text == ClipboardContent.unnamedImageText }
+            .sorted { next.entries[$0].copiedAt < next.entries[$1].copiedAt }
+        for index in unnamed {
+            let entry = next.entries[index]
+            let image = "\((entry.copyID ?? entry.id).uuidString)#\(entry.itemIndex ?? 0)"
+            let number = numbers[image] ?? { last += 1; return last }()
+            numbers[image] = number
+            next.entries[index].text = "\(ClipboardContent.unnamedImageText) \(number)"
+        }
+        next.lastImageNumber = last
+        next.imageNumberingVersion = 1
+        try persist(next)
     }
 
     /// Runs on the transaction queue; queries never synchronously read rich payloads.
@@ -505,6 +546,7 @@ public final class ClipboardHistoryStore {
         if next.copyFingerprints == nil { next.copyFingerprints = [:] }
         next.copyFingerprints?[copyID.uuidString] = fingerprint
         var createdPayloads: [URL] = []
+        var imageNumbers: [Int: Int] = [:]
         var committed = false
         defer {
             if !committed {
@@ -514,7 +556,15 @@ public final class ClipboardHistoryStore {
         }
         for content in contents {
             guard content.data != nil || !content.text.isEmpty else { continue }
-            let preview = OfflineClipboardPreview.boundedPrefix(content.text, bytes: ClipboardHistoryBudgets.previewBytes(for: content.type))
+            var preview = OfflineClipboardPreview.boundedPrefix(content.text, bytes: ClipboardHistoryBudgets.previewBytes(for: content.type))
+            if content.type == .image, content.text == ClipboardContent.unnamedImageText {
+                // Every format of one image shares its number.
+                let item = content.itemIndex ?? 0
+                let number = imageNumbers[item] ?? (next.lastImageNumber ?? 0) + 1
+                imageNumbers[item] = number
+                next.lastImageNumber = max(next.lastImageNumber ?? 0, number)
+                preview = "\(ClipboardContent.unnamedImageText) \(number)"
+            }
             var entry = ClipboardHistoryEntry(id: UUID(), text: preview, contentType: content.type,
                 sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: copiedAt)
             if content.type == .fileReference, let url = content.fileURL, url.isFileURL {
@@ -528,11 +578,8 @@ public final class ClipboardHistoryStore {
                 entry.imagePreview = reference.thumbnail
             } else {
                 let data = content.data ?? Data(content.text.utf8)
-                try FileManager.default.createDirectory(at: payloadDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: payloadDirectory.path)
                 createdPayloads.append(payloadURL(entry.id))
-                try writeFile(data, payloadURL(entry.id))
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: payloadURL(entry.id).path)
+                try writePayload(data, for: entry.id)
                 entry.byteCount = data.count
                 entry.format = content.format ?? "public.utf8-plain-text"
             }
@@ -568,6 +615,86 @@ public final class ClipboardHistoryStore {
             return hash.finalize().map { String(format: "%02x", $0) }.joined()
         }.sorted()
         return SHA256.hash(data: Data(digests.joined(separator: ":").utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func writePayload(_ data: Data, for id: UUID) throws {
+        try FileManager.default.createDirectory(at: payloadDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: payloadDirectory.path)
+        try writeFile(data, payloadURL(id))
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: payloadURL(id).path)
+    }
+
+    private func performReplaceText(copyID: UUID, text: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        try expire()
+        let content = try editedContent(text)
+        guard let position = archive.entries.firstIndex(where: { ($0.copyID ?? $0.id) == copyID }) else {
+            throw PluginHostServiceError.unavailable("Clipboard entry is unavailable")
+        }
+        let original = archive.entries[position]
+        var next = archive
+        next.entries.removeAll { ($0.copyID ?? $0.id) == copyID }
+        let entry = try plainTextEntry(content, copyID: copyID, sourceName: original.sourceApplicationName,
+                                       sourceBundleID: original.sourceBundleIdentifier, copiedAt: original.copiedAt)
+        next.entries.insert(entry, at: position)
+        next.copyFingerprints = (next.copyFingerprints ?? [:]).merging([copyID.uuidString: try copyFingerprint([content])]) { $1 }
+        try persistRemovingPayloadOnFailure(next, of: entry)
+    }
+
+    private func performAddText(_ text: String, editedFrom copyID: UUID) throws {
+        lock.lock(); defer { lock.unlock() }
+        try expire()
+        let content = try editedContent(text)
+        guard let original = archive.entries.first(where: { ($0.copyID ?? $0.id) == copyID }) else {
+            throw PluginHostServiceError.unavailable("Clipboard entry is unavailable")
+        }
+        let copiedAt = now()
+        var next = archive
+        let fingerprint = try copyFingerprint([content])
+        if let existing = next.copyFingerprints?.first(where: { $0.value == fingerprint })?.key,
+           let heldID = UUID(uuidString: existing), next.entries.contains(where: { $0.copyID == heldID }) {
+            var held = next.entries.filter { $0.copyID == heldID }
+            next.entries.removeAll { $0.copyID == heldID }
+            for index in held.indices { held[index].copiedAt = copiedAt }
+            next.entries.insert(contentsOf: held, at: 0)
+            try persist(next)
+            return
+        }
+        let newID = UUID()
+        let entry = try plainTextEntry(content, copyID: newID, sourceName: original.sourceApplicationName,
+                                       sourceBundleID: original.sourceBundleIdentifier, copiedAt: copiedAt)
+        next.entries.insert(entry, at: 0)
+        next.copyFingerprints = (next.copyFingerprints ?? [:]).merging([newID.uuidString: fingerprint]) { $1 }
+        try persistRemovingPayloadOnFailure(next, of: entry)
+    }
+
+    private func editedContent(_ text: String) throws -> ClipboardContent {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw PluginHostServiceError.invalidInput("Enter some text to save")
+        }
+        return ClipboardContent(text: text, type: .text, itemIndex: 0)
+    }
+
+    /// Writes the payload of a copy made of one plain-text representation.
+    private func plainTextEntry(_ content: ClipboardContent, copyID: UUID, sourceName: String,
+                                sourceBundleID: String, copiedAt: Date) throws -> ClipboardHistoryEntry {
+        var entry = ClipboardHistoryEntry(
+            id: UUID(), text: OfflineClipboardPreview.boundedPrefix(content.text, bytes: ClipboardHistoryBudgets.previewBytes(for: .text)),
+            contentType: .text, sourceApplicationName: sourceName, sourceBundleIdentifier: sourceBundleID, copiedAt: copiedAt)
+        let data = Data(content.text.utf8)
+        try writePayload(data, for: entry.id)
+        entry.byteCount = data.count
+        entry.format = "public.utf8-plain-text"
+        entry.copyID = copyID
+        entry.itemIndex = content.itemIndex
+        return entry
+    }
+
+    private func persistRemovingPayloadOnFailure(_ next: Archive, of entry: ClipboardHistoryEntry) throws {
+        do { try persist(next) } catch {
+            try? FileManager.default.removeItem(at: payloadURL(entry.id))
+            throw error
+        }
     }
 
     private var payloadDirectory: URL { fileURL.deletingLastPathComponent().appendingPathComponent("clipboard-payloads", isDirectory: true) }
@@ -766,7 +893,7 @@ public final class ClipboardHistoryStore {
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fileURL.deletingLastPathComponent().path)
         var next = next
-        if next.entries.isEmpty { next.markdownClassificationVersion = 1; next.plainPreviewVersion = 1 }
+        if next.entries.isEmpty { next.markdownClassificationVersion = 1; next.plainPreviewVersion = 1; next.imageNumberingVersion = 1 }
         let retainedIDs = Set(next.entries.map { $0.id.uuidString })
         next.references = next.references?.filter { retainedIDs.contains($0.key) }
         let retainedCopies = Set(next.entries.compactMap { $0.copyID?.uuidString })

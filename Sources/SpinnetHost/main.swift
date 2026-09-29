@@ -696,6 +696,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }, deleteCopies: { [weak self] copyIDs, completion in
             guard let self else { completion("Host closed"); return }
             self.settings.deleteClipboardHistory(copyIDs: copyIDs, completion: completion)
+        }, saveText: { [weak self] copyID, text, asNew, completion in
+            guard let self else { completion("Host closed"); return }
+            self.settings.saveClipboardHistoryText(text, editing: copyID, asNew: asNew, completion: completion)
         }, notify: { [weak self] message in self?.feedback.showMessage(message) })
         clipboardWindow?.present()
     }

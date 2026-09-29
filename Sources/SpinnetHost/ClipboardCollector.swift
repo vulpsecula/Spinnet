@@ -163,11 +163,18 @@ final class ClipboardCollector {
                       !format.rawValue.hasPrefix("org.nspasteboard."),
                       !format.rawValue.hasPrefix("com.apple.pasteboard."),
                       let data = item.data(forType: format), !data.isEmpty else { continue }
-                contents.append(ClipboardContent(text: type == .image ? "Image" : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
+                contents.append(ClipboardContent(text: type == .image ? imageName(in: item) : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
                     imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex))
             }
         }
         return contents
+    }
+
+    private static func imageName(in item: NSPasteboardItem) -> String {
+        if let html = item.string(forType: .html), let name = ClipboardHistoryImageName.name(inHTML: html) { return name }
+        if let name = item.string(forType: NSPasteboard.PasteboardType("public.url-name"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        return ClipboardContent.unnamedImageText
     }
 
     private static func imagePreview(_ data: Data) -> ClipboardImagePreview? {
@@ -179,7 +186,7 @@ final class ClipboardCollector {
         if let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 128
+            kCGImageSourceThumbnailMaxPixelSize: ClipboardHistoryBudgets.thumbnailMaxPixelSize
         ] as CFDictionary) {
             let output = NSMutableData()
             if let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) {

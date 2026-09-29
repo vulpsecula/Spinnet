@@ -104,6 +104,11 @@ final class ClipboardHistorySettingsModel: ObservableObject {
         submit(.delete(copyIDs: copyIDs), completion: completion)
     }
 
+    /// Saves edited text over a copy, or as a new copy in front of it.
+    func saveText(_ text: String, editing copyID: UUID, asNew: Bool, completion: ((String?) -> Void)? = nil) {
+        submit(asNew ? .addText(text, editedFrom: copyID) : .replaceText(copyID: copyID, text: text), completion: completion)
+    }
+
     /// Turning collection off is shown immediately so the switch does not sit
     /// in its old position while persistence runs.
     func turnOff(deleteEntries: Bool) {

@@ -438,8 +438,6 @@ final class RichClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(presentation.fileTitle, "3 files")
         XCTAssertEqual(presentation.fileOverview, "a.txt\nb.txt\nc.txt")
         XCTAssertEqual(presentation.fileIcon, "doc.on.doc")
-        XCTAssertEqual(presentation.expandedRepresentations.filter { $0.contentType == .fileReference }.map(\.text), ["a.txt", "b.txt", "c.txt"])
-        XCTAssertTrue(presentation.shownSummary.hasPrefix("Shown:"))
         let textOnly = try h.package(types: ["text"]); h.grant(textOnly)
         XCTAssertFalse(try h.query(textOnly).copies.contains { ClipboardHistoryCopyPresentation(copy: $0).fileCount > 0 })
     }

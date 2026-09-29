@@ -78,6 +78,152 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(try store.query(dataTypes: ["text"]).copies.count, 2)
     }
 
+    /// Saving an edit replaces the copy with one plain-text representation in
+    /// the same place, from the same App at the same time.
+    func testSavingAnEditReplacesTheCopyWithPlainTextInPlace() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { now })
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        try store.observe(changeCount: 1, content: .init(text: "older", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        try store.observe(changeCount: 2, contents: [
+            .init(text: "Hello", type: .richText, data: Data(#"{\rtf1 Hello}"#.utf8), format: "public.rtf", itemIndex: 0),
+            .init(text: "Hello", type: .text, itemIndex: 0)
+        ], sourceName: "TextEdit", sourceBundleID: "com.apple.TextEdit")
+        try store.observe(changeCount: 3, content: .init(text: "newer", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        let types = ["text", "url", "rich_text"]
+        let before = try store.query(dataTypes: types).copies
+        let edited = before[1]
+        let payloads = directory.appendingPathComponent("clipboard-payloads")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: payloads.path).count, 4)
+
+        now = now.addingTimeInterval(60)
+        try store.applyControl(.replaceText(copyID: edited.id, text: "Hello, edited"))
+
+        let after = try store.query(dataTypes: types).copies
+        XCTAssertEqual(after.map(\.id), before.map(\.id), "the copy keeps its place")
+        let entry = try XCTUnwrap(after[1].representations.first)
+        XCTAssertEqual(after[1].representations.count, 1)
+        XCTAssertEqual(entry.text, "Hello, edited")
+        XCTAssertEqual(entry.contentType, .text)
+        XCTAssertEqual(entry.sourceApplicationName, "TextEdit")
+        XCTAssertEqual(entry.copiedAt, edited.representations[0].copiedAt)
+        XCTAssertEqual(try store.restoration(copyID: edited.id, dataTypes: types).map { $0.representations.map(\.format) },
+                       [["public.utf8-plain-text"]])
+        XCTAssertEqual(try store.restoration(copyID: edited.id, dataTypes: types).first?.representations.first?.data,
+                       Data("Hello, edited".utf8))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: payloads.path).count, 3,
+                       "the rich text payload is gone")
+
+        // Copying the edited text again finds the edited copy.
+        try store.observe(changeCount: 4, content: .init(text: "Hello, edited", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        XCTAssertEqual(try store.query(dataTypes: types).copies.map(\.id), [edited.id, before[0].id, before[2].id])
+
+        XCTAssertThrowsError(try store.applyControl(.replaceText(copyID: edited.id, text: "  \n")), "blank text is refused")
+        XCTAssertThrowsError(try store.applyControl(.replaceText(copyID: UUID(), text: "gone")))
+    }
+
+    /// Saving an edit as new adds a copy in front and leaves the original.
+    func testSavingAnEditAsNewAddsACopyInFront() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { now })
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        try store.observe(changeCount: 1, content: .init(text: "original", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        try store.observe(changeCount: 2, content: .init(text: "newer", type: .text), sourceName: "Safari", sourceBundleID: "safari")
+        let before = try store.query(dataTypes: ["text"]).copies
+
+        now = now.addingTimeInterval(60)
+        try store.applyControl(.addText("original, edited", editedFrom: before[1].id))
+
+        let after = try store.query(dataTypes: ["text"]).copies
+        XCTAssertEqual(after.count, 3)
+        XCTAssertEqual(Array(after.dropFirst()).map(\.id), before.map(\.id), "the original stays")
+        let entry = try XCTUnwrap(after.first?.representations.first)
+        XCTAssertEqual(entry.text, "original, edited")
+        XCTAssertEqual(entry.sourceApplicationName, "Notes", "attributed to the copy it was edited from")
+        XCTAssertEqual(entry.copiedAt, now)
+        XCTAssertEqual(try store.restoration(copyID: after[0].id, dataTypes: ["text"]).first?.representations.first?.data,
+                       Data("original, edited".utf8))
+
+        // Text the history already holds brings that copy to the front instead.
+        try store.applyControl(.addText("original", editedFrom: before[0].id))
+        XCTAssertEqual(try store.query(dataTypes: ["text"]).copies.map(\.id), [before[1].id, after[0].id, before[0].id])
+        XCTAssertThrowsError(try store.applyControl(.addText("", editedFrom: before[0].id)))
+    }
+
+    /// Images the pasteboard does not name are numbered in the order they
+    /// were copied, one number per image whatever formats it came in, and a
+    /// number is never given twice.
+    func testUnnamedImagesAreNumberedOnceInTheOrderTheyWereCopied() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("history.json")
+        let store = try ClipboardHistoryStore(fileURL: url)
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        let unnamed = ClipboardContent.unnamedImageText
+        func image(_ byte: UInt8, _ name: String = ClipboardContent.unnamedImageText) -> [ClipboardContent] {
+            [.init(text: name, type: .image, data: Data([byte]), format: "public.png", itemIndex: 0),
+             .init(text: name, type: .image, data: Data([byte, byte]), format: "public.tiff", itemIndex: 0)]
+        }
+        func names() throws -> [String] {
+            try store.query(dataTypes: ["image"]).copies.map { Set($0.representations.map(\.text)).sorted().joined(separator: "|") }
+        }
+        try store.observe(changeCount: 1, contents: image(1), sourceName: "A", sourceBundleID: "a")
+        try store.observe(changeCount: 2, contents: image(2, "Cat.png"), sourceName: "A", sourceBundleID: "a")
+        try store.observe(changeCount: 3, contents: image(3), sourceName: "A", sourceBundleID: "a")
+        XCTAssertEqual(try names(), ["\(unnamed) 2", "Cat.png", "\(unnamed) 1"])
+
+        // Copying an image again keeps its number.
+        try store.observe(changeCount: 4, contents: image(1), sourceName: "A", sourceBundleID: "a")
+        XCTAssertEqual(try names(), ["\(unnamed) 1", "\(unnamed) 2", "Cat.png"])
+
+        // A number is not given again after its image is gone.
+        let first = try XCTUnwrap(store.query(dataTypes: ["image"]).copies.first?.id)
+        try store.applyControl(.delete(copyIDs: [first]))
+        try store.observe(changeCount: 5, contents: image(4), sourceName: "A", sourceBundleID: "a")
+        XCTAssertEqual(try names(), ["\(unnamed) 3", "\(unnamed) 2", "Cat.png"])
+        XCTAssertEqual(try ClipboardHistoryStore(fileURL: url).query(dataTypes: ["image"]).copies.first?.representations.first?.text,
+                       "\(unnamed) 3", "numbers are kept across launches")
+    }
+
+    /// History kept before images were numbered is numbered once, oldest first.
+    func testImagesKeptBeforeNumberingAreNumberedOldestFirst() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("history.json")
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        let store = try ClipboardHistoryStore(fileURL: url, now: { now })
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        for byte in UInt8(1)...3 {
+            now = now.addingTimeInterval(60)
+            try store.observe(changeCount: Int(byte), contents: [
+                .init(text: "Image", type: .image, data: Data([byte]), format: "public.png", itemIndex: 0)
+            ], sourceName: "A", sourceBundleID: "a")
+        }
+        // Rewrite the archive as an older version left it: plain "Image" names
+        // and no numbering record.
+        var archive = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        archive["lastImageNumber"] = nil
+        archive["imageNumberingVersion"] = nil
+        archive["entries"] = (archive["entries"] as? [[String: Any]])?.map { entry in
+            var entry = entry
+            entry["text"] = "Image"
+            return entry
+        }
+        try JSONSerialization.data(withJSONObject: archive).write(to: url)
+
+        let reopened = try ClipboardHistoryStore(fileURL: url, now: { now })
+        XCTAssertEqual(try reopened.query(dataTypes: ["image"]).entries.map(\.text), ["Image 3", "Image 2", "Image 1"])
+        now = now.addingTimeInterval(60)
+        try reopened.observe(changeCount: 9, contents: [
+            .init(text: "Image", type: .image, data: Data([9]), format: "public.png", itemIndex: 0)
+        ], sourceName: "A", sourceBundleID: "a")
+        XCTAssertEqual(try reopened.query(dataTypes: ["image"]).entries.first?.text, "Image 4")
+    }
+
     func testAppendedPagesBrowseAsOneList() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

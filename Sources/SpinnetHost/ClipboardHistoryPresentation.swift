@@ -23,13 +23,6 @@ struct ClipboardHistoryCopyPresentation {
         copy.representations.filter { $0.contentType == .fileReference }
             .sorted { ($0.itemIndex ?? 0) < ($1.itemIndex ?? 0) }
     }
-    var expandedRepresentations: [ClipboardHistoryEntry] {
-        copy.representations.sorted { ($0.itemIndex ?? 0) < ($1.itemIndex ?? 0) }
-    }
-    /// Counts only this authorized page, not representations elsewhere in the copy.
-    var shownSummary: String {
-        "Shown: \(Set(copy.representations.map { $0.itemIndex ?? 0 }).count) items · \(copy.representations.count) representations"
-    }
     var fileCount: Int { files.count }
     var fileTitle: String { "\(fileCount) files" }
     var fileOverview: String { files.map(\.text).joined(separator: "\n") }
@@ -44,6 +37,52 @@ struct ClipboardHistoryCopyPresentation {
             return plain.text
         }
         return ClipboardHistoryTextPresentation(entry: entry).text
+    }
+
+    /// What a row calls the entry. An image the pasteboard did not name goes
+    /// by the file name of a link copied with it, or else by its number.
+    func title(for entry: ClipboardHistoryEntry) -> String {
+        guard entry.contentType == .image, ClipboardHistoryImageName.isNumbered(entry.text),
+              let link = copy.representations.first(where: { $0.contentType == .url && $0.itemIndex == entry.itemIndex }),
+              let name = ClipboardHistoryImageName.fileName(in: link.text) else { return text(for: entry) }
+        return name
+    }
+}
+
+/// Names for copied images, which the pasteboard rarely names itself.
+enum ClipboardHistoryImageName {
+    /// Whether `name` is the number the store gave an image nothing named.
+    static func isNumbered(_ name: String) -> Bool {
+        let prefix = ClipboardContent.unnamedImageText + " "
+        return name == ClipboardContent.unnamedImageText
+            || (name.hasPrefix(prefix) && !name.dropFirst(prefix.count).isEmpty && name.dropFirst(prefix.count).allSatisfy(\.isNumber))
+    }
+
+    /// The decoded last path component of a web or file link.
+    static func fileName(in link: String) -> String? {
+        guard let url = URL(string: link.trimmingCharacters(in: .whitespacesAndNewlines)),
+              ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") else { return nil }
+        let name = url.lastPathComponent
+        return name.isEmpty || name == "/" ? nil : name
+    }
+
+    /// The first `<img>` in HTML a browser put beside a copied image: its alt
+    /// text, or else the file name its `src` links to.
+    static func name(inHTML html: String) -> String? {
+        guard let tag = html.range(of: #"<img\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]).map({ String(html[$0]) })
+        else { return nil }
+        func attribute(_ name: String) -> String? {
+            guard let match = tag.range(of: #"\b\#(name)\s*=\s*("[^"]*"|'[^']*')"#, options: [.regularExpression, .caseInsensitive])
+            else { return nil }
+            let quoted = tag[match].drop { $0 != "\"" && $0 != "'" }
+            let value = String(quoted.dropFirst().dropLast())
+                .replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "&#39;", with: "'")
+                .replacingOccurrences(of: "&lt;", with: "<").replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        return attribute("alt") ?? attribute("src").flatMap(fileName(in:))
     }
 }
 

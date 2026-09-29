@@ -77,6 +77,10 @@ final class SettingsWindowController: NSWindowController {
         model.clipboardHistory.delete(copyIDs: copyIDs, completion: completion)
     }
 
+    func saveClipboardHistoryText(_ text: String, editing copyID: UUID, asNew: Bool, completion: @escaping (String?) -> Void) {
+        model.clipboardHistory.saveText(text, editing: copyID, asNew: asNew, completion: completion)
+    }
+
     var currentPage: SettingsPage {
         model.page
     }

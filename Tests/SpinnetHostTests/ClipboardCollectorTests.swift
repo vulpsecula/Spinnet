@@ -57,6 +57,30 @@ final class ClipboardCollectorTests: XCTestCase {
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries.map(\.text), ["stable replacement"])
     }
 
+    /// An image is named from what came with it on the pasteboard: a browser's
+    /// `<img>` alt text or file name, or the item's URL name.
+    func testImagesAreNamedFromWhatCameWithThemOnThePasteboard() throws {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 3, bitsPerSample: 8,
+            samplesPerPixel: 3, hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        func imageName(_ extra: [NSPasteboard.PasteboardType: String]) -> String? {
+            board.clearContents()
+            let item = NSPasteboardItem()
+            item.setData(png, forType: .png)
+            for (type, value) in extra { item.setString(value, forType: type) }
+            board.writeObjects([item])
+            return ClipboardCollector.readAll(from: board).first { $0.type == .image }?.text
+        }
+
+        XCTAssertEqual(imageName([.html: #"<img src="https://cdn.example.com/p/Cat%20Nap.png?w=2" alt="">"#]), "Cat Nap.png")
+        XCTAssertEqual(imageName([.html: #"<meta charset="utf-8"><img alt="A sleeping cat" src="/p/1.png">"#]), "A sleeping cat")
+        XCTAssertEqual(imageName([NSPasteboard.PasteboardType("public.url-name"): "Diagram"]), "Diagram")
+        XCTAssertEqual(imageName([.html: #"<img src="data:image/png;base64,AAAA">"#]), "Image")
+        XCTAssertEqual(imageName([:]), "Image")
+    }
+
     func testHistoryWindowRefreshDoesNotBlockMainOnPersistenceOrPublishAfterClose() throws {
         let writing = expectation(description: "slow payload write")
         let sampled = expectation(description: "sample completed")
