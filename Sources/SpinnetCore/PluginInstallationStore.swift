@@ -69,7 +69,17 @@ public final class PluginInstallationStore {
     /// The durable record is written before the Plugin leaves the registry, so
     /// a crash in between leaves the removal done rather than half done.
     public func uninstall(_ pluginID: PluginID) throws {
-        guard let package = registry.package(for: pluginID) else { return }
+        guard let package = registry.package(for: pluginID) else {
+            // An installed Plugin this Host could not register is removed
+            // the same way, from what is on disk.
+            guard registry.isUnavailable(pluginID) else { return }
+            try discardInstalledCopy(of: pluginID)
+            registry.unregister(pluginID)
+            grants.removeGrants(for: pluginID)
+            try persistGrants()
+            try? storage?.clear(pluginID)
+            return
+        }
         switch package.origin {
         case .bundled:
             try writeRemoved(try removedPluginIDs().union([pluginID]))
@@ -99,20 +109,38 @@ public final class PluginInstallationStore {
         }
     }
 
+    /// Registers every installed Plugin. One this Host cannot register, such
+    /// as a broken package or one declaring a Candidate Contract revision the
+    /// Host does not provide, is recorded as unavailable with the reason and
+    /// left installed, and the others restore regardless. Only an index that
+    /// cannot be read stops the restore.
     public func restore() throws {
-        for (pluginID, name) in try readIndex() {
+        for (rawID, name) in try readIndex().sorted(by: { $0.key < $1.key }) {
+            let pluginID = PluginID(rawID)
             // Shipped packages own their identities even if an older Host
             // installed a package with that ID before it became bundled.
-            if registry.package(for: PluginID(pluginID))?.canBeReplacedByInstall == false { continue }
-            guard name == URL(fileURLWithPath: name).lastPathComponent else {
-                throw ConfigurationError.invalidManifest("Invalid installed package location")
+            if registry.package(for: pluginID)?.canBeReplacedByInstall == false { continue }
+            var manifest: PluginManifest?
+            do {
+                guard name == URL(fileURLWithPath: name).lastPathComponent else {
+                    throw ConfigurationError.invalidManifest("Invalid installed package location")
+                }
+                let package = try PluginManifestLoader.load(packageAt: directory.appendingPathComponent(name))
+                guard package.manifest.id == pluginID else {
+                    throw ConfigurationError.invalidManifest("Installed Plugin identity changed")
+                }
+                manifest = package.manifest
+                try registry.register(package)
+            } catch {
+                registry.recordUnavailable(pluginID, manifest: manifest, reason: error.localizedDescription)
             }
-            let package = try PluginManifestLoader.load(packageAt: directory.appendingPathComponent(name))
-            guard package.manifest.id.rawValue == pluginID else {
-                throw ConfigurationError.invalidManifest("Installed Plugin identity changed")
-            }
-            try registry.register(package)
         }
+    }
+
+    /// The manifest an install of `pluginID` replaces: the registered one, or
+    /// that of an installed Plugin this launch could not register.
+    private func replacedManifest(_ pluginID: PluginID) -> PluginManifest? {
+        registry.package(for: pluginID)?.manifest ?? registry.unavailableManifest(for: pluginID)
     }
 
     /// A package must be a plain tree. A symbolic link inside it would let a
@@ -144,16 +172,14 @@ public final class PluginInstallationStore {
         return PluginInstallationReview(
             manifest: candidate.manifest,
             requestedAccess: grants.requestsAfterInstallation(
-                of: candidate.manifest, replacing: registry.package(for: candidate.manifest.id)?.manifest
+                of: candidate.manifest, replacing: replacedManifest(candidate.manifest.id)
             )
         )
     }
 
     private func check(_ source: URL) throws -> PluginPackage {
         let candidate = try PluginManifestLoader.load(packageAt: source)
-        guard candidate.manifest.apiLevel <= PluginAPILevel.highestSupported else {
-            throw UnsupportedPluginAPILevel(requiredBy: candidate.manifest)
-        }
+        try registry.contracts.check(candidate.manifest, origin: .installed)
         if let existing = registry.package(for: candidate.manifest.id),
            !existing.canBeReplacedByInstall {
             throw ConfigurationError.invalidManifest("Cannot replace a Host-provided Plugin")
@@ -180,20 +206,20 @@ public final class PluginInstallationStore {
             guard package.manifest == candidate.manifest else {
                 throw ConfigurationError.invalidManifest("Plugin changed during installation")
             }
-            let isUpdate = registry.package(for: package.manifest.id) != nil
+            let isRegistered = registry.package(for: package.manifest.id) != nil
+            let isUpdate = isRegistered || registry.isUnavailable(package.manifest.id)
             // A Plugin that is not registered starts with empty Plugin
             // Storage, even if a write reached it after it was removed. An
             // update keeps what the earlier version kept.
             if !isUpdate { try storage?.clear(package.manifest.id) }
-            grants.prepareInstallation(of: package.manifest,
-                replacing: registry.package(for: package.manifest.id)?.manifest)
+            grants.prepareInstallation(of: package.manifest, replacing: replacedManifest(package.manifest.id))
             // Persist inherited and newly requested scope decisions before
             // publishing the package, including across a Host restart.
             try persistGrants()
             var index = try readIndex()
             let oldName = index.updateValue(name, forKey: package.manifest.id.rawValue)
             try JSONEncoder().encode(index).write(to: indexURL, options: .atomic)
-            if !isUpdate {
+            if !isRegistered {
                 try registry.register(package)
             } else {
                 try registry.replace(package)

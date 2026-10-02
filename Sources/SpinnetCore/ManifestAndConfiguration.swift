@@ -492,6 +492,10 @@ public struct PluginManifest: Codable, Equatable {
     public let protocolVersion: String
     /// The lowest Plugin API Level the Plugin needs, written as `api_level`.
     public let apiLevel: Int
+    /// The exact Candidate Contract revisions the Plugin was written against,
+    /// written as `candidate_contracts`; empty for a Plugin using only stable
+    /// Levels.
+    public let candidateContracts: [CandidateContractRevision]
     public let id: PluginID
     public let name: String
     public let version: String
@@ -513,6 +517,7 @@ public struct PluginManifest: Codable, Equatable {
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
         apiLevel: Int = PluginAPILevel.undeclared,
+        candidateContracts: [CandidateContractRevision] = [],
         id: PluginID,
         name: String,
         version: String,
@@ -527,6 +532,7 @@ public struct PluginManifest: Codable, Equatable {
     ) throws {
         self.protocolVersion = protocolVersion
         self.apiLevel = apiLevel
+        self.candidateContracts = candidateContracts
         self.id = id
         self.name = name
         self.version = version
@@ -544,6 +550,7 @@ public struct PluginManifest: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case protocolVersion = "protocol_version"
         case apiLevel = "api_level"
+        case candidateContracts = "candidate_contracts"
         case id
         case name
         case version
@@ -561,6 +568,7 @@ public struct PluginManifest: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(protocolVersion, forKey: .protocolVersion)
         try container.encode(apiLevel, forKey: .apiLevel)
+        if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
@@ -580,6 +588,14 @@ public struct PluginManifest: Codable, Equatable {
         self.apiLevel = container.contains(.apiLevel)
             ? try container.decode(Int.self, forKey: .apiLevel)
             : PluginAPILevel.undeclared
+        if container.contains(.candidateContracts) {
+            self.candidateContracts = try container.decode([CandidateContractRevision].self, forKey: .candidateContracts)
+            guard !candidateContracts.isEmpty else {
+                throw ConfigurationError.invalidManifest("candidate_contracts names no Candidate Contract")
+            }
+        } else {
+            self.candidateContracts = []
+        }
         self.id = try container.decode(PluginID.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
         self.version = try container.decode(String.self, forKey: .version)
@@ -611,6 +627,12 @@ public struct PluginManifest: Codable, Equatable {
         }
         guard apiLevel >= 1 else {
             throw ConfigurationError.invalidManifest("Plugin API Level \(apiLevel) does not exist")
+        }
+        guard candidateContracts.allSatisfy({ CandidateContractRevision.isValidName($0.name) && $0.revision >= 1 }),
+              Set(candidateContracts.map(\.name)).count == candidateContracts.count else {
+            throw ConfigurationError.invalidManifest(
+                "Each Candidate Contract is declared once, by an identifier and a revision of at least 1"
+            )
         }
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")

@@ -155,6 +155,27 @@ there is none. A `deliver` section is `.loading` with a `delivery`, the
 `section_delivered` event to run the script with next. `fetches.requests`
 lists what reached the network, as it left.
 
+## Candidate Contracts
+
+A run is held to what the Host offers: Plugin API Level 1 and the Candidate
+Contract revisions this kit's Host provides (see
+`PluginAPI/candidates/README.md`). A Plugin that Host would refuse, such as
+one declaring another revision of a candidate, fails with the refusal as an
+`invalidAction`, and a Host Service request outside the Levels and
+candidates the Plugin declares fails with `hostServiceFailed`. To run
+against a Host that offers other revisions, pass its contracts, built from
+the candidates' published `candidate.json`:
+
+```swift
+let candidate = try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: metadataURL))
+let helper = try PluginTestHelper(contracts: PluginInterfaceContracts(
+    levels: PluginInterfaceContracts.host.levels, candidates: [candidate]
+))
+```
+
+`spinnet.environment.apiLevel` then reports the highest stable Level of those
+contracts. `RecordedHostFetchedSections(contracts:)` takes the same value.
+
 ## Using the Host's own services
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and

@@ -1,0 +1,23 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "candidate_contracts": [{"name": "language_probe", "revision": 1}],
+  "id": "com.example.candidate-probe",
+  "name": "Candidate Probe",
+  "version": "1.0.0",
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.detect"
+  },
+  "commands": [
+    {
+      "id": "probe.detect",
+      "title": "Detect Language",
+      "description": "Asks the Host which language a fixed sentence is in, through a candidate Host Service.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "detect.js"
+    }
+  ]
+}

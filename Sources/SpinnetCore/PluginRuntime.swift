@@ -1072,6 +1072,9 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     private let resourceSchedule: PluginHelperResourceScheduler
     private let resourceLimitBytes: UInt64
     private let environment: () -> PluginRuntimeEnvironment
+    /// What the Host offers: every run is checked against it, and each Host
+    /// Service request against the members the Plugin declared.
+    private let contracts: PluginInterfaceContracts
 
     private let registry: PluginRegistry?
     private let grantStore: PluginCapabilityGrantStore?
@@ -1109,8 +1112,10 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: operation)
         },
         resourceLimitBytes: UInt64 = ScriptedActionBudgets.helperPhysFootprintBytes,
-        environment: @escaping () -> PluginRuntimeEnvironment = { .current }
+        environment: @escaping () -> PluginRuntimeEnvironment = { .current },
+        contracts: PluginInterfaceContracts? = nil
     ) {
+        self.contracts = contracts ?? registry?.contracts ?? .host
         self.registry = registry
         self.grantStore = grantStore
         self.helpers = PluginHelperPool(schedule: schedule)
@@ -1184,6 +1189,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             $0.matchesExecutableDefinition(action.declaredCommand)
         }) else {
             throw PluginRuntimeError.invalidAction("Action Command is not declared by the Plugin")
+        }
+        do {
+            try contracts.check(package.manifest, origin: package.origin)
+        } catch {
+            throw PluginRuntimeError.invalidAction(error.localizedDescription)
         }
         guard let scriptPath = action.scriptPath else {
             throw PluginRuntimeError.invalidAction("Action does not declare a script")
@@ -1389,6 +1399,12 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 _ = try connection.acceptHostServiceRequest(request)
                 let response: PluginRuntimeHostServiceResponse
                 do {
+                    guard contracts.permits(.hostService(request.service.rawValue), declaredBy: package.manifest) else {
+                        throw PluginHostServiceError.unavailable(
+                            "\(request.service.rawValue) is not part of Plugin API Level \(package.manifest.apiLevel) "
+                                + "or a Candidate Contract \(package.manifest.name) declares"
+                        )
+                    }
                     guard let hostServiceBroker else {
                         throw PluginHostServiceError.unavailable(
                             "No Host Service broker is configured"

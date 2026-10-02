@@ -126,7 +126,7 @@ final class RegressionBaselineTests: XCTestCase {
         })
         // As a launch does: decisions line up with the Plugins, then the
         // stored Actions are brought up to date.
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry, discardingOthers: true)
         let configuration = try StoredDataMigration.migrate(
             XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load()),
             registry: registry, pluginSettings: settings, defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
@@ -184,7 +184,7 @@ final class RegressionBaselineTests: XCTestCase {
         let grants = try restoredGrants()
         let registry = try registry(grantStore: grants)
 
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry, discardingOthers: true)
 
         let written = directory.appendingPathComponent("capability-grants.json")
         try StoredDataMigration.encodeCapabilityGrants(grants).write(to: written)

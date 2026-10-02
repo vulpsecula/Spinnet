@@ -3,6 +3,10 @@ import Foundation
 public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertible {
     case pluginMissing
     case pluginDisabled
+    /// The Plugin is installed but this Host could not register it at
+    /// launch, such as one declaring a Candidate Contract revision the Host
+    /// does not provide. It holds the reason, which is what the user sees.
+    case pluginUnavailable(String)
     case commandMissing
     case commandChanged
     case resourceMissing
@@ -27,6 +31,7 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
         switch self {
         case .pluginMissing: return "Plugin is not registered"
         case .pluginDisabled: return "Plugin is disabled"
+        case .pluginUnavailable(let reason): return reason
         case .commandMissing: return "Command is no longer registered"
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
@@ -194,6 +199,11 @@ public final class PluginRegistry {
     private let lock = NSLock()
     private var packages: [PluginID: PluginPackage] = [:]
     private var disabledPluginIDs: Set<PluginID> = []
+    /// Installed Plugins a launch could not register, with the manifest
+    /// when it could be read, so an install over one is an update.
+    private var unavailable: [PluginID: (plugin: UnavailablePlugin, manifest: PluginManifest?)] = [:]
+    /// What this Host offers Plugins; every registration is checked against it.
+    public let contracts: PluginInterfaceContracts
     private var invalidationObservers: [UUID: (PluginID) -> Void] = [:]
 
     /// Observers must only retire runtime work; they must not reenter the registry.
@@ -229,6 +239,7 @@ public final class PluginRegistry {
         defer { lock.unlock() }
         packages.removeValue(forKey: pluginID)
         disabledPluginIDs.remove(pluginID)
+        unavailable.removeValue(forKey: pluginID)
         for observer in invalidationObservers.values { observer(pluginID) }
     }
 
@@ -238,11 +249,13 @@ public final class PluginRegistry {
     private let pluginSettingsComplete: (PluginManifest) -> Bool
 
     public init(
+        contracts: PluginInterfaceContracts = .host,
         grantStore: PluginCapabilityGrantStore? = nil,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { _ in true },
         externalAppExists: @escaping (String) -> Bool = { _ in false },
         pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
     ) {
+        self.contracts = contracts
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.externalAppExists = externalAppExists
@@ -258,6 +271,7 @@ public final class PluginRegistry {
 
     public func register(_ package: PluginPackage) throws {
         try package.manifest.validate()
+        try contracts.check(package.manifest, origin: package.origin)
 
         lock.lock()
         defer { lock.unlock() }
@@ -269,10 +283,41 @@ public final class PluginRegistry {
         }
 
         packages[package.manifest.id] = package
+        unavailable.removeValue(forKey: package.manifest.id)
+    }
+
+    /// Records an installed Plugin a launch could not register. Its Actions
+    /// then report `reason` rather than a Plugin that is gone.
+    public func recordUnavailable(_ pluginID: PluginID, manifest: PluginManifest?, reason: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard packages[pluginID] == nil else { return }
+        unavailable[pluginID] = (UnavailablePlugin(id: pluginID, name: manifest?.name, reason: reason), manifest)
+    }
+
+    /// The installed Plugins this launch could not register, by ID.
+    public func unavailablePlugins() -> [UnavailablePlugin] {
+        lock.lock()
+        defer { lock.unlock() }
+        return unavailable.values.map(\.plugin).sorted { $0.id.rawValue < $1.id.rawValue }
+    }
+
+    /// The manifest of an unavailable Plugin, when it could be read.
+    public func unavailableManifest(for pluginID: PluginID) -> PluginManifest? {
+        lock.lock()
+        defer { lock.unlock() }
+        return unavailable[pluginID]?.manifest
+    }
+
+    func isUnavailable(_ pluginID: PluginID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return unavailable[pluginID] != nil
     }
 
     public func replace(_ package: PluginPackage) throws {
         try package.manifest.validate()
+        try contracts.check(package.manifest, origin: package.origin)
 
         // Installation owns migration and persistence. Scope-bound decisions
         // prevent a replacement from broadening a grant, including when its
@@ -418,6 +463,7 @@ public final class PluginRegistry {
         defer { lock.unlock() }
 
         guard let package = packages[action.pluginID] else {
+            if let record = unavailable[action.pluginID] { return .unavailable(.pluginUnavailable(record.plugin.reason)) }
             return .unavailable(.pluginMissing)
         }
         guard !disabledPluginIDs.contains(action.pluginID) else {

@@ -102,7 +102,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // decisions belong to the packaged Host that does read them.
             StoredDataMigration.reconcileCapabilityGrants(
                 capabilityGrants,
-                with: registry.manifests(),
+                with: registry,
                 discardingOthers: bundledPlugins.accountsForBundledPlugins
             )
             try saveCapabilityGrants()

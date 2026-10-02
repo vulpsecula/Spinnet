@@ -36,11 +36,16 @@ public final class RecordedHostFetchedSections {
     public var deniedCapabilities: Set<PluginCapability> = []
     /// The answers kept for sections with `cache`, across `fetch` calls.
     public let cache: FetchedResponseCache
+    /// What the Host under test offers; a Plugin it would refuse fetches
+    /// nothing. By default this kit's own Host.
+    public let contracts: PluginInterfaceContracts
     private let transport = RecordedTransport()
 
     public init(_ responses: [String: HTTPSTransportResponse] = [:], credentials: [String: String] = [:],
-                consentedHosts: [String] = [], cache: FetchedResponseCache = FetchedResponseCache()) {
+                consentedHosts: [String] = [], cache: FetchedResponseCache = FetchedResponseCache(),
+                contracts: PluginInterfaceContracts = .host) {
         self.responses = responses
+        self.contracts = contracts
         self.credentials = credentials
         self.consentedHosts = consentedHosts
         self.cache = cache
@@ -73,7 +78,7 @@ public final class RecordedHostFetchedSections {
             grants.setConsentedHTTPSHosts(consentedHosts, for: manifest.id, pluginVersion: manifest.version,
                                           declaredScope: declared)
         }
-        let registry = PluginRegistry(grantStore: grants)
+        let registry = PluginRegistry(contracts: contracts, grantStore: grants)
         try registry.register(plugin.package)
         let secrets = InMemoryPluginCredentialStore()
         for (reference, secret) in credentials {

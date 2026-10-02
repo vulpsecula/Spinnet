@@ -14,10 +14,24 @@ public final class PluginTestHelper {
     public static let defaultEnvironment = PluginRuntimeEnvironment(hostVersion: "0.0.0", preferredLanguage: "en")
 
     /// Uses the helper at `helperURL`, or else the one `locate()` finds. Every
-    /// script it runs sees `environment` as the Host's.
-    public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment = PluginTestHelper.defaultEnvironment) throws {
+    /// script it runs sees `environment` as the Host's, by default
+    /// `defaultEnvironment` reporting the highest stable Level of `contracts`.
+    ///
+    /// `contracts` is what the Host under test offers: by default this kit's
+    /// own Host, Plugin API Level 1 and the Candidate Contract revisions it
+    /// provides. A run of a Plugin that Host would refuse, such as one
+    /// declaring another revision of a candidate, fails as the Host would
+    /// fail it, and a Host Service request outside the Levels and candidates
+    /// the Plugin declares is refused.
+    public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment? = nil,
+                contracts: PluginInterfaceContracts = .host) throws {
         guard let url = helperURL ?? Self.locate() else { throw PluginTestKitError.helperNotFound }
-        supervisor = PluginRuntimeSupervisor(helperURL: url, environment: { environment })
+        let environment = environment ?? PluginRuntimeEnvironment(
+            apiLevel: contracts.highestStableLevel,
+            hostVersion: Self.defaultEnvironment.hostVersion,
+            preferredLanguage: Self.defaultEnvironment.preferredLanguage
+        )
+        supervisor = PluginRuntimeSupervisor(helperURL: url, environment: { environment }, contracts: contracts)
     }
 
     /// Runs `invocation` in the helper. Each Host Service request the script

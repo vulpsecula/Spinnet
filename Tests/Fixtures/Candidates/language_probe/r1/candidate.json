@@ -1,0 +1,10 @@
+{
+  "name": "language_probe",
+  "revision": 1,
+  "base_level": 1,
+  "requires": [],
+  "conflicts": [],
+  "members": [{"kind": "host_service", "name": "detect_language"}],
+  "tag": "plugin-api-candidate/language_probe/r1",
+  "status": "supported"
+}
