@@ -30,7 +30,12 @@ struct SpinnetPluginHelperMain {
                     break
                 }
                 let invocation = try PluginRuntimeProtocol.decodeInvocation(data)
-                response = execute(invocation)
+                // JavaScriptCore hands back autoreleased JSValues, each holding
+                // its context and so the context's virtual machine. This loop
+                // never returns to a run loop that would drain them, so without
+                // a pool per invocation every run's context lived as long as
+                // the helper, about 1 MiB a View Event (#69).
+                response = autoreleasepool { execute(invocation) }
             } catch let error as PluginRuntimeError {
                 response = PluginRuntimeResponse(
                     invocationID: "unknown",
