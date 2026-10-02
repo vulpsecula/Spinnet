@@ -259,6 +259,9 @@ public final class PluginViewSession {
             let answer: PluginScriptAnswer
             do {
                 answer = try PluginScriptAnswer(parsing: value)
+                // View Components, Standard Actions and View Events are all
+                // Level 1 members today. When a Candidate Contract adds one,
+                // hold the view to `PluginInterfaceContracts.permits` here.
                 if let view = answer.view { try readView(action, view) }
             } catch {
                 let violation = error as? PluginRuntimeError ?? .protocolViolation("The script's answer is invalid")

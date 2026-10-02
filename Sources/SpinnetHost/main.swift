@@ -102,12 +102,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // decisions belong to the packaged Host that does read them.
             StoredDataMigration.reconcileCapabilityGrants(
                 capabilityGrants,
-                with: registry,
+                with: registry.manifests(),
+                keeping: registry.refusedPlugins().map(\.id),
                 discardingOthers: bundledPlugins.accountsForBundledPlugins
             )
             try saveCapabilityGrants()
             let scriptedExecutor = pluginHelperURL().map {
-                PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants)
+                PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants,
+                                        contracts: registry.contracts)
             }
             pluginRuntime = scriptedExecutor
             let hostServiceBroker = CapabilityCheckedHostServiceBroker(

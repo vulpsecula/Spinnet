@@ -58,11 +58,13 @@ The refusal's message is what the Library reports for an install, and what
 an unavailable Menu Item shows.
 
 At launch, an installed Plugin the Host refuses, or whose package cannot be
-read, is unavailable rather than removed. Every other Plugin restores. Its
-Menu Items stay in their Menu Slots and report the reason; its Plugin
-Settings, Plugin Storage, credentials and access decisions are kept for a
-Host that can run it. Installing a revision the Host accepts over it is an
-update, and removing it removes it as any Plugin is removed.
+read, is a Refused Plugin rather than a removed one. Every other Plugin
+restores. The Library lists it with the reason and a way to remove it, and it
+cannot be added to the Menu. Its Menu Items stay in their Menu Slots,
+unavailable with the reason; its Plugin Settings, Plugin Storage, credentials
+and access decisions are kept for a Host that can run it. Installing a
+revision the Host accepts over it is an update, and removing it removes it as
+any Plugin is removed.
 
 While a script runs, each Host Service it requests must belong to a stable
 Level up to the Plugin's `api_level` or to a candidate revision it declares.

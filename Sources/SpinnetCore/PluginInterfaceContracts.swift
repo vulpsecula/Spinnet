@@ -135,15 +135,23 @@ public struct CandidateContract: Codable, Equatable {
 }
 
 /// Why a Host will not run a Plugin's declared Candidate Contracts. The
-/// message is what the Library and an unavailable Menu Item show.
+/// message is what the Library shows for a refused install or a Refused
+/// Plugin, and what that Plugin's unavailable Menu Items show.
+///
+/// Each case's `plugin` is the Plugin's display name, its manifest `name`,
+/// since only the user reads it; `declared` is the revision the Plugin
+/// declares that the Host refuses.
 public enum CandidateContractRefusal: Error, Equatable, LocalizedError {
-    case notProvided(plugin: String, CandidateContractRevision)
-    case revisionMismatch(plugin: String, CandidateContractRevision, provided: Int)
-    case retired(plugin: String, CandidateContractRevision, promotedToLevel: Int?)
-    case needsLevel(plugin: String, CandidateContractRevision, baseLevel: Int, declaredLevel: Int)
-    case missingDependency(plugin: String, CandidateContractRevision, needs: CandidateContractRevision)
-    case conflict(plugin: String, String, String)
-    case bundled(plugin: String, String)
+    case notProvided(plugin: String, declared: CandidateContractRevision)
+    case revisionMismatch(plugin: String, declared: CandidateContractRevision, provided: Int)
+    case retired(plugin: String, declared: CandidateContractRevision, promotedToLevel: Int?)
+    case needsLevel(plugin: String, declared: CandidateContractRevision, baseLevel: Int, declaredLevel: Int)
+    case missingDependency(plugin: String, declared: CandidateContractRevision, needs: CandidateContractRevision)
+    /// The Plugin declares `candidate` and `conflictingCandidate`, one of
+    /// which excludes the other.
+    case conflict(plugin: String, candidate: String, conflictingCandidate: String)
+    /// A Bundled Plugin declares `candidate`; it may use stable Levels only.
+    case bundled(plugin: String, candidate: String)
 
     public var errorDescription: String? {
         switch self {
@@ -202,8 +210,9 @@ public struct PluginInterfaceContracts: Equatable {
                "section_delivered"].map(PluginInterfaceMember.viewEvent)
     )
 
-    /// This Host: Level 1, and no Candidate Contract yet.
-    public static let host = PluginInterfaceContracts(levels: [PluginAPILevel.highestSupported: levelOneMembers])
+    /// This Host: Level 1, and no Candidate Contract yet. A Level added
+    /// later is keyed at its own number beside Level 1.
+    public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers])
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -219,30 +228,32 @@ public struct PluginInterfaceContracts: Equatable {
         }
         let plugin = manifest.name
         let declared = manifest.candidateContracts
-        if let first = declared.first, origin == .bundled { throw CandidateContractRefusal.bundled(plugin: plugin, first.name) }
+        if let first = declared.first, origin == .bundled { throw CandidateContractRefusal.bundled(plugin: plugin, candidate: first.name) }
         for declaration in declared {
             if let known = candidates.first(where: { $0.declaration == declaration }),
                case .retired(let level) = known.status {
-                throw CandidateContractRefusal.retired(plugin: plugin, declaration, promotedToLevel: level)
+                throw CandidateContractRefusal.retired(plugin: plugin, declared: declaration, promotedToLevel: level)
             }
             guard let contract = supported(declaration) else {
                 if let other = candidates.first(where: { $0.name == declaration.name && $0.status == .supported }) {
-                    throw CandidateContractRefusal.revisionMismatch(plugin: plugin, declaration, provided: other.revision)
+                    throw CandidateContractRefusal.revisionMismatch(plugin: plugin, declared: declaration,
+                                                                    provided: other.revision)
                 }
-                throw CandidateContractRefusal.notProvided(plugin: plugin, declaration)
+                throw CandidateContractRefusal.notProvided(plugin: plugin, declared: declaration)
             }
             guard contract.baseLevel <= manifest.apiLevel else {
-                throw CandidateContractRefusal.needsLevel(plugin: plugin, declaration, baseLevel: contract.baseLevel,
+                throw CandidateContractRefusal.needsLevel(plugin: plugin, declared: declaration, baseLevel: contract.baseLevel,
                                                           declaredLevel: manifest.apiLevel)
             }
             if let missing = contract.requires.first(where: { !declared.contains($0) }) {
-                throw CandidateContractRefusal.missingDependency(plugin: plugin, declaration, needs: missing)
+                throw CandidateContractRefusal.missingDependency(plugin: plugin, declared: declaration, needs: missing)
             }
             if let other = declared.first(where: { other in
                 other.name != declaration.name && (contract.conflicts.contains(other.name)
                     || supported(other)?.conflicts.contains(declaration.name) == true)
             }) {
-                throw CandidateContractRefusal.conflict(plugin: plugin, declaration.name, other.name)
+                throw CandidateContractRefusal.conflict(plugin: plugin, candidate: declaration.name,
+                                                        conflictingCandidate: other.name)
             }
         }
     }
@@ -250,6 +261,11 @@ public struct PluginInterfaceContracts: Equatable {
     /// Whether `manifest` may use `member`: one of the stable Levels it
     /// declares, or a candidate it declares, offers it. `check` has already
     /// accepted the manifest.
+    ///
+    /// Only Host Service requests are held to it at run time. Every View
+    /// Component, Standard Action and View Event is a Level 1 member, so
+    /// checking them would refuse nothing yet; wire it into view parsing when
+    /// a candidate first adds one.
     public func permits(_ member: PluginInterfaceMember, declaredBy manifest: PluginManifest) -> Bool {
         levels.contains { $0.key <= manifest.apiLevel && $0.value.contains(member) }
             || manifest.candidateContracts.contains { supported($0)?.members.contains(member) == true }
@@ -262,10 +278,10 @@ public struct PluginInterfaceContracts: Equatable {
     /// install instead.
     public func promoting(_ name: String, toLevel level: Int) throws -> PluginInterfaceContracts {
         guard let index = candidates.firstIndex(where: { $0.name == name && $0.status == .supported }) else {
-            throw ConfigurationError.invalidManifest("No provided Candidate Contract is named \(name)")
+            throw CandidateContractPromotionError.notProvided(candidate: name)
         }
         guard level == highestStableLevel + 1 else {
-            throw ConfigurationError.invalidManifest("Promotion assigns the next stable Level, \(highestStableLevel + 1)")
+            throw CandidateContractPromotionError.notTheNextLevel(level, next: highestStableLevel + 1)
         }
         let candidate = candidates[index]
         var levels = levels
@@ -280,18 +296,44 @@ public struct PluginInterfaceContracts: Equatable {
     }
 }
 
-/// An installed Plugin this Host could not register at launch, kept as the
-/// user's rather than removed: its Menu Items, settings, storage and access
-/// decisions stay for a Host that can run it, and its Actions report why.
-public struct UnavailablePlugin: Equatable {
+/// Why promotion tooling cannot promote a candidate. It concerns the Host's
+/// own contracts, never a Plugin, so no user sees it.
+public enum CandidateContractPromotionError: Error, Equatable, LocalizedError {
+    /// The Host provides no revision of `candidate` to promote.
+    case notProvided(candidate: String)
+    /// Promotion assigns only the stable Level after the highest one.
+    case notTheNextLevel(Int, next: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .notProvided(let candidate):
+            return "No provided Candidate Contract is named \(candidate)"
+        case let .notTheNextLevel(level, next):
+            return "Promotion assigns the next stable Level, \(next), not Level \(level)"
+        }
+    }
+}
+
+/// A Refused Plugin: an installed Plugin this Host did not load at launch,
+/// because its package is broken or it declares a Plugin API Level or
+/// Candidate Contract revision the Host does not provide. It stays the
+/// user's rather than being removed: the Library lists it with the reason
+/// and can remove it, and its Menu Items, settings, storage and access
+/// decisions stay for a Host that can run it.
+public struct RefusedPlugin: Equatable {
     public let id: PluginID
-    /// Its name, when its manifest could be read.
-    public let name: String?
+    /// Its manifest, when it could be read, so an install over it is an
+    /// update that carries its access decisions forward.
+    public let manifest: PluginManifest?
+    /// Why the Host refused it, as the user reads it.
     public let reason: String
 
-    public init(id: PluginID, name: String?, reason: String) {
+    public init(id: PluginID, manifest: PluginManifest?, reason: String) {
         self.id = id
-        self.name = name
+        self.manifest = manifest
         self.reason = reason
     }
+
+    /// Its name, when its manifest could be read.
+    public var name: String? { manifest?.name }
 }

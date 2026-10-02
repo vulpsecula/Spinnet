@@ -155,8 +155,15 @@ final class CandidateContractCatalogueTests: XCTestCase {
         XCTAssertEqual(stableHost.levels[2], [CandidateProbeFixture.member])
         XCTAssertEqual(stableHost.levels[1], candidateHost.levels[1])
         XCTAssertEqual(stableHost.candidates.map(\.status), [.retired(promotedToLevel: 2)])
-        XCTAssertThrowsError(try candidateHost.promoting("language_probe", toLevel: 3), "Levels are not skipped")
-        XCTAssertThrowsError(try candidateHost.promoting("unknown_probe", toLevel: 2))
-        XCTAssertThrowsError(try stableHost.promoting("language_probe", toLevel: 3), "A retired revision is not promoted again")
+        XCTAssertThrowsError(try candidateHost.promoting("language_probe", toLevel: 3), "Levels are not skipped") {
+            XCTAssertEqual($0 as? CandidateContractPromotionError, .notTheNextLevel(3, next: 2))
+        }
+        XCTAssertThrowsError(try candidateHost.promoting("unknown_probe", toLevel: 2)) {
+            XCTAssertEqual($0 as? CandidateContractPromotionError, .notProvided(candidate: "unknown_probe"))
+        }
+        XCTAssertThrowsError(try stableHost.promoting("language_probe", toLevel: 3),
+                             "A retired revision is not promoted again") {
+            XCTAssertEqual($0 as? CandidateContractPromotionError, .notProvided(candidate: "language_probe"))
+        }
     }
 }

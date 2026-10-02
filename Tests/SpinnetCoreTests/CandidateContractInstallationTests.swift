@@ -5,8 +5,8 @@ import XCTest
 /// A Plugin that declares a Candidate Contract names its exact revision
 /// (ADR 0013). Installing it, reviewing it and registering it at launch all
 /// hold it to the revisions this Host provides, and one installed Plugin the
-/// Host can no longer run is left unavailable, with its reason, while every
-/// other Plugin restores.
+/// Host can no longer run is left a Refused Plugin, with its reason, while
+/// every other Plugin restores.
 final class CandidateContractInstallationTests: XCTestCase {
     private struct Launch {
         let directory: URL
@@ -195,10 +195,10 @@ final class CandidateContractInstallationTests: XCTestCase {
     // MARK: Restoring at launch
 
     /// The same Library on a Host that no longer provides the revision: the
-    /// probe is unavailable with the reason, distinct from a removed Plugin,
+    /// probe is a Refused Plugin with the reason, distinct from a removed one,
     /// and nothing the user kept is lost. Going back to a Host that provides
     /// it makes it available again.
-    func testADowngradedHostLeavesOnlyTheProbeUnavailableAndKeepsItsData() throws {
+    func testADowngradedHostRefusesOnlyTheProbeAndKeepsItsData() throws {
         let first = launch(try CandidateProbeFixture.matchingHost())
         try first.store.install(from: CandidateProbeFixture.package)
         let other = try first.store.install(from: ScriptedPackageFixture.write())
@@ -212,20 +212,22 @@ final class CandidateContractInstallationTests: XCTestCase {
         XCTAssertNil(downgraded.registry.package(for: CandidateProbeFixture.pluginID))
         let reason = "Candidate Probe needs revision 1 of the language_probe Candidate Contract, which this version "
             + "of Spinnet does not provide."
-        XCTAssertEqual(downgraded.registry.unavailablePlugins(), [
-            UnavailablePlugin(id: CandidateProbeFixture.pluginID, name: "Candidate Probe", reason: reason)
-        ])
+        let refused = try XCTUnwrap(downgraded.registry.refusedPlugins().first)
+        XCTAssertEqual(downgraded.registry.refusedPlugins().count, 1)
+        XCTAssertEqual(refused.id, CandidateProbeFixture.pluginID)
+        XCTAssertEqual(refused.name, "Candidate Probe")
+        XCTAssertEqual(refused.reason, reason)
         let action = try probeAction(in: downgraded.registry)
-        XCTAssertEqual(downgraded.registry.availability(for: action), .unavailable(.pluginUnavailable(reason)))
-        XCTAssertEqual(ActionUnavailableReason.pluginUnavailable(reason).description, reason)
+        XCTAssertEqual(downgraded.registry.availability(for: action), .unavailable(.pluginRefused(reason)))
+        XCTAssertEqual(ActionUnavailableReason.pluginRefused(reason).description, reason)
         XCTAssertEqual(try downgraded.storage.answer(.getStorageValue, input: .string("runs"),
                                                      for: CandidateProbeFixture.pluginID), .number(3))
-        XCTAssertEqual(installedCopies().count, 2, "The unavailable package stays installed")
+        XCTAssertEqual(installedCopies().count, 2, "The refused package stays installed")
 
         let upgraded = launch(try CandidateProbeFixture.matchingHost())
         try upgraded.store.restore()
         XCTAssertEqual(upgraded.registry.availability(for: action), .available)
-        XCTAssertEqual(upgraded.registry.unavailablePlugins(), [])
+        XCTAssertEqual(upgraded.registry.refusedPlugins(), [])
     }
 
     func testABrokenInstalledPackageDoesNotStopTheOthersFromRestoring() throws {
@@ -239,18 +241,18 @@ final class CandidateContractInstallationTests: XCTestCase {
         try relaunched.store.restore()
 
         XCTAssertNotNil(relaunched.registry.package(for: other.id))
-        let unavailable = try XCTUnwrap(relaunched.registry.unavailablePlugins().first)
-        XCTAssertEqual(unavailable.id, CandidateProbeFixture.pluginID)
-        XCTAssertNil(unavailable.name, "A manifest that cannot be read has no name to show")
-        XCTAssertFalse(unavailable.reason.isEmpty)
+        let refused = try XCTUnwrap(relaunched.registry.refusedPlugins().first)
+        XCTAssertEqual(refused.id, CandidateProbeFixture.pluginID)
+        XCTAssertNil(refused.name, "A manifest that cannot be read has no name to show")
+        XCTAssertFalse(refused.reason.isEmpty)
         XCTAssertEqual(relaunched.registry.availability(for: try probeAction(in: relaunched.registry)),
-                       .unavailable(.pluginUnavailable(unavailable.reason)))
+                       .unavailable(.pluginRefused(refused.reason)))
     }
 
-    /// Installing a revision the Host can run over an unavailable Plugin is
+    /// Installing a revision the Host can run over a Refused Plugin is
     /// an update: it keeps the Plugin's storage and the decisions on scopes
     /// it did not change.
-    func testInstallingARunnableRevisionOverAnUnavailablePluginIsAnUpdate() throws {
+    func testInstallingARunnableRevisionOverARefusedPluginIsAnUpdate() throws {
         let first = launch(try CandidateProbeFixture.matchingHost())
         try first.store.install(from: CandidateProbeFixture.package)
         _ = try first.storage.answer(.setStorageValue, input: .object(["key": .string("runs"), "value": .number(3)]),
@@ -263,13 +265,13 @@ final class CandidateContractInstallationTests: XCTestCase {
         try downgraded.store.install(from: source)
 
         XCTAssertEqual(downgraded.registry.package(for: CandidateProbeFixture.pluginID)?.manifest.version, "1.1.0")
-        XCTAssertEqual(downgraded.registry.unavailablePlugins(), [])
+        XCTAssertEqual(downgraded.registry.refusedPlugins(), [])
         XCTAssertEqual(try downgraded.storage.answer(.getStorageValue, input: .string("runs"),
                                                      for: CandidateProbeFixture.pluginID), .number(3))
-        XCTAssertEqual(installedCopies().count, 1, "The unavailable copy is replaced")
+        XCTAssertEqual(installedCopies().count, 1, "The refused copy is replaced")
     }
 
-    func testRemovingAnUnavailablePluginRemovesItForGood() throws {
+    func testRemovingARefusedPluginRemovesItForGood() throws {
         let first = launch(try CandidateProbeFixture.matchingHost())
         try first.store.install(from: CandidateProbeFixture.package)
         _ = try first.storage.answer(.setStorageValue, input: .object(["key": .string("runs"), "value": .number(3)]),
@@ -281,7 +283,7 @@ final class CandidateContractInstallationTests: XCTestCase {
 
         try downgraded.store.uninstall(CandidateProbeFixture.pluginID)
 
-        XCTAssertEqual(downgraded.registry.unavailablePlugins(), [])
+        XCTAssertEqual(downgraded.registry.refusedPlugins(), [])
         XCTAssertEqual(downgraded.registry.availability(for: try probeAction(in: downgraded.registry)),
                        .unavailable(.pluginMissing))
         XCTAssertTrue(installedCopies().isEmpty)

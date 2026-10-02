@@ -77,15 +77,15 @@ enum StoredDataMigration {
 
     /// Lines decisions up with the Plugins this launch registered: each
     /// declared Capability gets an entry, and, when `discardingOthers`, the
-    /// decisions of Plugins that are gone are dropped. An installed Plugin
-    /// the launch could not register is not gone: its decisions stay for a
-    /// Host that can run it.
+    /// decisions of Plugins that are gone are dropped. The Refused Plugins
+    /// in `refused` are not gone: their decisions stay for a Host that can
+    /// run them.
     static func reconcileCapabilityGrants(
         _ grants: PluginCapabilityGrantStore,
-        with registry: PluginRegistry,
+        with manifests: [PluginManifest],
+        keeping refused: [PluginID] = [],
         discardingOthers: Bool
     ) {
-        let manifests = registry.manifests()
         // Before decisions for Plugins that are gone are discarded below.
         ScreenshotPluginMigration.carryGrant(in: grants)
         // A decision on routes the Host reviewed carries over to Deep Link
@@ -95,7 +95,7 @@ enum StoredDataMigration {
             grants.register(pluginID: manifest.id, pluginVersion: manifest.version, capabilities: manifest.capabilities)
         }
         if discardingOthers {
-            grants.discardGrants(outside: Set(manifests.map(\.id) + registry.unavailablePlugins().map(\.id)))
+            grants.discardGrants(outside: Set(manifests.map(\.id) + refused))
         }
     }
 

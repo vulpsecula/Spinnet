@@ -1073,7 +1073,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
     private let resourceLimitBytes: UInt64
     private let environment: () -> PluginRuntimeEnvironment
     /// What the Host offers: every run is checked against it, and each Host
-    /// Service request against the members the Plugin declared.
+    /// Service request against the members the Plugin declared. With a
+    /// registry, it is the registry's, which admitted the package.
     private let contracts: PluginInterfaceContracts
 
     private let registry: PluginRegistry?
@@ -1113,9 +1114,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         },
         resourceLimitBytes: UInt64 = ScriptedActionBudgets.helperPhysFootprintBytes,
         environment: @escaping () -> PluginRuntimeEnvironment = { .current },
-        contracts: PluginInterfaceContracts? = nil
+        contracts: PluginInterfaceContracts = .host
     ) {
-        self.contracts = contracts ?? registry?.contracts ?? .host
+        precondition(registry.map { $0.contracts == contracts } ?? true,
+                     "A supervisor runs Plugins against the contracts its registry admitted them under")
+        self.contracts = contracts
         self.registry = registry
         self.grantStore = grantStore
         self.helpers = PluginHelperPool(schedule: schedule)

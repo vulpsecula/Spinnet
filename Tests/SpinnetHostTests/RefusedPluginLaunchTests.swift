@@ -2,16 +2,16 @@ import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
-/// A launch lines access decisions up with the Plugins it found. An installed
-/// Plugin this Host cannot run is still the user's: its decisions stay for
-/// the Host that can, unlike those of a Plugin that is gone.
-final class UnavailablePluginLaunchTests: XCTestCase {
+/// A launch lines access decisions up with the Plugins it found. A Refused
+/// Plugin is still the user's: its decisions stay for the Host that can run
+/// it, unlike those of a Plugin that is gone.
+final class RefusedPluginLaunchTests: XCTestCase {
     private static let probe = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Fixtures/CandidateProbe.spinnetplugin", isDirectory: true)
     private static let probeID = PluginID("com.example.candidate-probe")
 
-    func testDecisionsOfAnUnavailablePluginSurviveTheLaunchAndThoseOfAGoneOneDoNot() throws {
+    func testDecisionsOfARefusedPluginSurviveTheLaunchAndThoseOfAGoneOneDoNot() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         let grants = PluginCapabilityGrantStore()
@@ -28,9 +28,11 @@ final class UnavailablePluginLaunchTests: XCTestCase {
         let registry = PluginRegistry(contracts: .host)
         try PluginInstallationStore(directory: directory, registry: registry, grants: grants,
                                     persistGrants: {}).restore()
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry, discardingOthers: true)
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(),
+                                                      keeping: registry.refusedPlugins().map(\.id),
+                                                      discardingOthers: true)
 
-        XCTAssertEqual(registry.unavailablePlugins().map(\.id), [Self.probeID])
+        XCTAssertEqual(registry.refusedPlugins().map(\.id), [Self.probeID])
         XCTAssertEqual(grants.decision(for: Self.probeID, pluginVersion: "1.0.0", capability: .readSelectedText),
                        .granted)
         XCTAssertEqual(grants.decision(for: gone, pluginVersion: "1.0.0", capability: .readSelectedText),

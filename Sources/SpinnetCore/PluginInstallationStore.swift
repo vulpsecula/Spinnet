@@ -69,26 +69,16 @@ public final class PluginInstallationStore {
     /// The durable record is written before the Plugin leaves the registry, so
     /// a crash in between leaves the removal done rather than half done.
     public func uninstall(_ pluginID: PluginID) throws {
-        guard let package = registry.package(for: pluginID) else {
-            // An installed Plugin this Host could not register is removed
-            // the same way, from what is on disk.
-            guard registry.isUnavailable(pluginID) else { return }
-            try discardInstalledCopy(of: pluginID)
-            registry.unregister(pluginID)
-            grants.removeGrants(for: pluginID)
-            try persistGrants()
-            try? storage?.clear(pluginID)
-            return
-        }
-        switch package.origin {
-        case .bundled:
+        let package = registry.package(for: pluginID)
+        // A Refused Plugin has no package registered, but is removed the same
+        // way, from what is on disk.
+        guard package != nil || registry.refusedPlugin(pluginID) != nil else { return }
+        if package?.origin == .bundled {
             try writeRemoved(try removedPluginIDs().union([pluginID]))
-            // A user copy left underneath the shipped one by an older Host is
-            // the same Plugin, so it goes too rather than coming back.
-            try discardInstalledCopy(of: pluginID)
-        case .installed:
-            try discardInstalledCopy(of: pluginID)
         }
+        // A user copy left underneath a shipped one by an older Host is the
+        // same Plugin, so it goes too rather than coming back.
+        try discardInstalledCopy(of: pluginID)
         registry.unregister(pluginID)
         grants.removeGrants(for: pluginID)
         try persistGrants()
@@ -111,8 +101,8 @@ public final class PluginInstallationStore {
 
     /// Registers every installed Plugin. One this Host cannot register, such
     /// as a broken package or one declaring a Candidate Contract revision the
-    /// Host does not provide, is recorded as unavailable with the reason and
-    /// left installed, and the others restore regardless. Only an index that
+    /// Host does not provide, is recorded as a Refused Plugin with the reason
+    /// and left installed, and the others restore regardless. Only an index that
     /// cannot be read stops the restore.
     public func restore() throws {
         for (rawID, name) in try readIndex().sorted(by: { $0.key < $1.key }) {
@@ -132,15 +122,16 @@ public final class PluginInstallationStore {
                 manifest = package.manifest
                 try registry.register(package)
             } catch {
-                registry.recordUnavailable(pluginID, manifest: manifest, reason: error.localizedDescription)
+                registry.recordRefused(RefusedPlugin(id: pluginID, manifest: manifest,
+                                                     reason: error.localizedDescription))
             }
         }
     }
 
     /// The manifest an install of `pluginID` replaces: the registered one, or
-    /// that of an installed Plugin this launch could not register.
+    /// that of a Refused Plugin when it could be read.
     private func replacedManifest(_ pluginID: PluginID) -> PluginManifest? {
-        registry.package(for: pluginID)?.manifest ?? registry.unavailableManifest(for: pluginID)
+        registry.package(for: pluginID)?.manifest ?? registry.refusedPlugin(pluginID)?.manifest
     }
 
     /// A package must be a plain tree. A symbolic link inside it would let a
@@ -207,7 +198,7 @@ public final class PluginInstallationStore {
                 throw ConfigurationError.invalidManifest("Plugin changed during installation")
             }
             let isRegistered = registry.package(for: package.manifest.id) != nil
-            let isUpdate = isRegistered || registry.isUnavailable(package.manifest.id)
+            let isUpdate = isRegistered || registry.refusedPlugin(package.manifest.id) != nil
             // A Plugin that is not registered starts with empty Plugin
             // Storage, even if a write reached it after it was removed. An
             // update keeps what the earlier version kept.
