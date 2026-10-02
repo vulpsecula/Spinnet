@@ -24,6 +24,7 @@ licence.
 | [`spinnet.d.ts`](spinnet.d.ts) | Types for the globals a script runs with, including `spinnet` |
 | [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every script |
 | [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds `spinnet.js` in the helper when it is built |
+| [`candidates/README.md`](candidates/README.md) | Candidate Contracts: provisional revisions declared by exact revision, kept apart from every stable Level |
 
 The schemas check shapes. What a shape cannot say, such as that a Preset
 names declared Commands or that a request goes to a consented host, the

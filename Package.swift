@@ -28,7 +28,7 @@ let package = Package(
         .target(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
-            exclude: ["LICENSE", "README.md", "reference", "schemas", "spinnet.d.ts"],
+            exclude: ["LICENSE", "README.md", "candidates", "reference", "schemas", "spinnet.d.ts"],
             sources: ["SpinnetSDK.swift"],
             resources: [.embedInCode("spinnet.js")]
         ),

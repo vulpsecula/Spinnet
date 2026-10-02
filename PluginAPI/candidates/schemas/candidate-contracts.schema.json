@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Candidate Contract declarations",
+  "description": "The candidate_contracts member a manifest adds to the stable manifest to declare the exact Candidate Contract revisions the Plugin was written against. It is not part of any stable Plugin API Level: the stable manifest schema refuses it. Check the manifest without this member against ../../schemas/manifest.schema.json, and with it against this schema. The Host also refuses a name declared twice.",
+  "type": "object",
+  "required": ["candidate_contracts"],
+  "properties": {
+    "candidate_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/declaration" }
+    }
+  },
+  "$defs": {
+    "name": {
+      "description": "A Candidate Contract's name: a lowercase letter, then lowercase letters, digits or underscores, at most 64 characters.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "declaration": {
+      "description": "One exact revision. The Host runs the Plugin only if it provides this revision; a lower or higher one is a mismatch.",
+      "type": "object",
+      "required": ["name", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

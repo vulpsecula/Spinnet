@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Candidate Contract revision",
+  "description": "The candidate.json that pins one revision of a Candidate Contract, published as candidates/<name>/r<revision>/candidate.json at the tag it names. The Host's own record of the revisions it provides is this file, and a test holds them equal. A published revision never changes: any change to its members, requirements or conflicts is a new revision.",
+  "type": "object",
+  "required": ["name", "revision", "base_level", "requires", "conflicts", "members", "tag", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "$ref": "candidate-contracts.schema.json#/$defs/name" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "base_level": {
+      "description": "The stable Plugin API Level the candidate adds to. A Plugin declaring the candidate must declare at least this api_level.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "requires": {
+      "description": "Candidate revisions a Plugin must declare alongside this one.",
+      "type": "array",
+      "items": { "$ref": "candidate-contracts.schema.json#/$defs/declaration" }
+    },
+    "conflicts": {
+      "description": "Candidates a Plugin may not declare alongside this one, by name.",
+      "type": "array",
+      "items": { "$ref": "candidate-contracts.schema.json#/$defs/name" },
+      "uniqueItems": true
+    },
+    "members": {
+      "description": "What the candidate adds. Only a Plugin declaring this revision reaches them.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/member" },
+      "uniqueItems": true
+    },
+    "tag": {
+      "description": "The git tag pinning this revision's published material.",
+      "type": "string",
+      "pattern": "^plugin-api-candidate/[a-z][a-z0-9_]{0,63}/r[1-9][0-9]*$"
+    },
+    "status": {
+      "description": "supported while the Host provides the revision; retired once it does not, with promoted_to_level when its members became that stable Level.",
+      "enum": ["supported", "retired"]
+    },
+    "promoted_to_level": { "type": "integer", "minimum": 2 }
+  },
+  "$defs": {
+    "member": {
+      "type": "object",
+      "required": ["kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["host_service", "view_component", "standard_action", "view_event", "behaviour"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    }
+  }
+}
