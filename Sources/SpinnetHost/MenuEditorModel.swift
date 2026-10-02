@@ -14,6 +14,23 @@ struct PendingPluginInstallation: Identifiable, Equatable {
     var id: URL { source }
 }
 
+/// A Plugin the user asked to remove from the Library, waiting for them to
+/// confirm: one offering a Menu Item Preset, or a Refused Plugin.
+struct PendingPluginRemoval: Equatable {
+    let pluginID: PluginID
+    let name: String
+}
+
+extension RefusedPlugin {
+    /// What the Library calls it: its name, or its ID when its manifest
+    /// could not be read.
+    var libraryName: String { name ?? id.rawValue }
+
+    /// What VoiceOver reads for its Library row: the name, then why the Host
+    /// refused it.
+    var libraryAccessibilityLabel: String { "\(libraryName), refused: \(reason)" }
+}
+
 /// What became of an install, reported as an alert every time: the Library's
 /// own message sits below the fold, and installing the same version again
 /// changes nothing else the user can see.
@@ -49,7 +66,7 @@ final class MenuEditorModel: ObservableObject {
     /// Records the user's allowing an install as granting the access it asked for.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
     var removePlugin: ((PluginID) throws -> Void)?
-    @Published private(set) var presetPendingRemoval: MenuItemPreset?
+    @Published private(set) var pluginPendingRemoval: PendingPluginRemoval?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
 
@@ -128,16 +145,16 @@ final class MenuEditorModel: ObservableObject {
     }
 
     var removalTitle: String {
-        guard let preset = presetPendingRemoval else { return "Remove Plugin?" }
-        return "Remove \(preset.name)?"
+        guard let plugin = pluginPendingRemoval else { return "Remove Plugin?" }
+        return "Remove \(plugin.name)?"
     }
 
     /// Names the Menu Slots whose Menu Items use the Plugin, since those stay
     /// in the Menu and stop working.
     var removalMessage: String {
         let base = "Its access is forgotten and it leaves the Library."
-        guard let preset = presetPendingRemoval else { return base }
-        let slots = slotNumbers(usingPlugin: preset.pluginID)
+        guard let plugin = pluginPendingRemoval else { return base }
+        let slots = slotNumbers(usingPlugin: plugin.pluginID)
         switch slots.count {
         case 0:
             return base
@@ -160,21 +177,26 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func requestPluginRemoval(_ preset: MenuItemPreset) {
-        presetPendingRemoval = preset
+        pluginPendingRemoval = PendingPluginRemoval(pluginID: preset.pluginID, name: preset.name)
+    }
+
+    /// A Refused Plugin is removed as any Plugin is: Plugin Removal.
+    func requestPluginRemoval(_ refused: RefusedPlugin) {
+        pluginPendingRemoval = PendingPluginRemoval(pluginID: refused.id, name: refused.libraryName)
     }
 
     func cancelPluginRemoval() {
-        presetPendingRemoval = nil
+        pluginPendingRemoval = nil
     }
 
     func confirmPluginRemoval() {
-        guard let preset = presetPendingRemoval, let removePlugin else { return }
-        presetPendingRemoval = nil
+        guard let plugin = pluginPendingRemoval, let removePlugin else { return }
+        pluginPendingRemoval = nil
         do {
-            try removePlugin(preset.pluginID)
+            try removePlugin(plugin.pluginID)
             refreshMenuSlots()
             refreshToken += 1
-            placementMessage = "\(preset.name) removed. Menu Items that used it are kept and marked unavailable."
+            placementMessage = "\(plugin.name) removed. Menu Items that used it are kept and marked unavailable."
         } catch {
             placementMessage = "Removal failed: \(error.localizedDescription)"
         }
@@ -218,7 +240,9 @@ final class MenuEditorModel: ObservableObject {
 
     private func install(_ url: URL, as review: PluginInstallationReview) throws {
         guard let installPlugin else { return }
+        let refused = editor.refusedPlugins.first { $0.id == review.manifest.id }
         let previous = editor.pluginManifests.first { $0.id == review.manifest.id }?.version
+            ?? refused?.manifest?.version
         let manifest = try installPlugin(url)
         let requested = review.requestedAccess
         if !requested.isEmpty { grantRequestedAccess?(manifest, requested) }
@@ -226,6 +250,10 @@ final class MenuEditorModel: ObservableObject {
         refreshToken += 1
         let kept = requested.isEmpty ? " Its access decisions are kept." : ""
         switch previous {
+        case nil where refused != nil:
+            // Its manifest could not be read, so there is no version to name.
+            installationResult = PluginInstallationResult(
+                title: "Plugin Updated", message: "\(manifest.name) is updated to \(manifest.version).\(kept)")
         case nil:
             installationResult = PluginInstallationResult(
                 title: "Plugin Installed", message: "\(manifest.name) \(manifest.version) is installed.")
@@ -272,6 +300,17 @@ final class MenuEditorModel: ObservableObject {
         }
     }
 
+
+    /// The Refused Plugins the Library lists below its Presets, matched by
+    /// name or ID. None can be added to a Menu.
+    func libraryRefusedPlugins(matching query: String) -> [RefusedPlugin] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return editor.refusedPlugins.filter { plugin in
+            trimmedQuery.isEmpty
+                || plugin.libraryName.localizedCaseInsensitiveContains(trimmedQuery)
+                || plugin.id.rawValue.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
 
     func configurationDidChange(_ configuration: HostConfiguration) {
         selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))

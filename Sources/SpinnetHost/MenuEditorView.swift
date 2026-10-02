@@ -10,6 +10,8 @@ struct MenuEditorView: View {
     var onInstallPlugin: () -> Void = {}
     var onPluginSettings: (PluginID) -> Void = { _ in }
     var onRemovePlugin: (MenuItemPreset) -> Void = { _ in }
+    var refusedPluginsForQuery: (String) -> [RefusedPlugin] = { _ in [] }
+    var onRemoveRefusedPlugin: (RefusedPlugin) -> Void = { _ in }
 
     @State private var searchText = ""
 
@@ -47,7 +49,8 @@ struct MenuEditorView: View {
                 Button("Install or Update Plugin…", action: onInstallPlugin)
 
                 let presets = libraryPresets
-                if presets.isEmpty {
+                let refusedPlugins = refusedPluginsForQuery(searchText)
+                if presets.isEmpty && refusedPlugins.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
@@ -65,6 +68,10 @@ struct MenuEditorView: View {
                             draggableLibraryCard(preset)
                         }
                     }
+                }
+
+                if !refusedPlugins.isEmpty {
+                    refusedPluginsSection(refusedPlugins)
                 }
 
                 Divider()
@@ -181,6 +188,64 @@ struct MenuEditorView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(preset.accessibilityLabel)
         .accessibilityHint(presetActionHelp(preset))
+    }
+
+    /// Installed Plugins this launch did not load. They are listed so the
+    /// user can see why and remove them, but offer nothing to place.
+    private func refusedPluginsSection(_ plugins: [RefusedPlugin]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Refused Plugins").font(.headline)
+                Text("Spinnet did not load these installed Plugins. Their Menu Items stay in the Menu, unavailable. Install a copy this version can run, or remove them.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(plugins, id: \.id) { plugin in
+                refusedPluginCard(plugin)
+            }
+        }
+    }
+
+    private func refusedPluginCard(_ plugin: RefusedPlugin) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Image(systemName: "exclamationmark.octagon")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(plugin.libraryName).font(.headline)
+                Text(plugin.reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Button { onRemoveRefusedPlugin(plugin) } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Remove this Plugin from the Library")
+            .accessibilityLabel("Remove Plugin: \(plugin.libraryName)")
+        }
+        .padding(10)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(plugin.libraryAccessibilityLabel)
     }
 
     private func presetStateImageName(_ preset: MenuItemPreset) -> String {

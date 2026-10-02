@@ -77,6 +77,11 @@ public final class HostConfigurationEditor {
         registry.manifests()
     }
 
+    /// The Refused Plugins, which the Library lists but offers no Preset of.
+    public var refusedPlugins: [RefusedPlugin] {
+        registry.refusedPlugins()
+    }
+
     public func availability(for actionID: ActionID) -> ActionAvailability? {
         guard let action = action(with: actionID) else { return nil }
         return registry.availability(

@@ -164,13 +164,13 @@ final class MenuEditorWorkflowTests: XCTestCase {
         let menuBefore = model.editor.configuration.menu
 
         model.menuEditor.requestPluginRemoval(preset)
-        XCTAssertEqual(model.menuEditor.presetPendingRemoval?.pluginID, preset.pluginID)
+        XCTAssertEqual(model.menuEditor.pluginPendingRemoval?.pluginID, preset.pluginID)
         XCTAssertTrue(removed.isEmpty, "Removal must wait for the confirmation")
 
         model.menuEditor.confirmPluginRemoval()
 
         XCTAssertEqual(removed, [preset.pluginID])
-        XCTAssertNil(model.menuEditor.presetPendingRemoval)
+        XCTAssertNil(model.menuEditor.pluginPendingRemoval)
         XCTAssertEqual(model.editor.configuration.menu, menuBefore)
     }
 
@@ -185,7 +185,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         model.menuEditor.confirmPluginRemoval()
 
         XCTAssertTrue(removed.isEmpty)
-        XCTAssertNil(model.menuEditor.presetPendingRemoval)
+        XCTAssertNil(model.menuEditor.pluginPendingRemoval)
     }
 
     /// Open URL runs a Host Command, and is still a Plugin the user may remove.

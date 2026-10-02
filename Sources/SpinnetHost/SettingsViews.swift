@@ -436,7 +436,7 @@ struct SettingsRootView: View {
             Text("This removes the whole Slot from the Menu. You can undo the deletion.")
         }
         .alert(menuEditor.removalTitle, isPresented: Binding(
-            get: { menuEditor.presetPendingRemoval != nil },
+            get: { menuEditor.pluginPendingRemoval != nil },
             set: { if !$0 { menuEditor.cancelPluginRemoval() } }
         )) {
             Button("Cancel", role: .cancel, action: menuEditor.cancelPluginRemoval)
@@ -756,7 +756,9 @@ struct SettingsRootView: View {
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
                     onPluginSettings: privacy.showPluginSettings,
-                    onRemovePlugin: menuEditor.requestPluginRemoval
+                    onRemovePlugin: menuEditor.requestPluginRemoval,
+                    refusedPluginsForQuery: menuEditor.libraryRefusedPlugins(matching:),
+                    onRemoveRefusedPlugin: menuEditor.requestPluginRemoval
                 )
                 }
                 .id(menuEditor.refreshToken)
