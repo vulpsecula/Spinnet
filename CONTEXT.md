@@ -28,6 +28,10 @@ _Avoid_: Plugin window, privileged UI
 Where a Plugin's package came from — shipped with the app, or installed by the user — which decides whether an install may replace it and how a removal is recorded. It grants no access.
 _Avoid_: Plugin type, plugin kind, trust level
 
+**Refused Plugin**:
+An installed Plugin the Host does not load at launch, because its package is broken or it declares a Plugin API Level or Candidate Contract revision this Host does not provide. Unlike a removed Plugin it stays installed: the Library lists it with the reason and can remove it, and its Menu Items, Plugin Settings, Plugin Storage and access decisions are kept until it is replaced or removed.
+_Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
+
 **Plugin Removal**:
 Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable, exactly as a disabled Plugin's are. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
@@ -87,6 +91,14 @@ _Avoid_: Popup, plugin window, custom UI
 **View Session**:
 The span from a Plugin View appearing until it closes, during which the Host keeps the view's state and hands each user interaction to the Plugin as a View Event.
 _Avoid_: Long-running helper, view process
+
+**View Component**:
+A supported element of a Plugin View, such as a field, collection or layout container, which a Plugin combines to express its interface.
+_Avoid_: Native control, custom widget, HTML element
+
+**View Page**:
+A destination within a Plugin View's interaction flow, such as a search, detail or editing step.
+_Avoid_: Command, window, Settings page
 
 **View Event**:
 One user interaction in a Plugin View, such as editing a field, submitting, or choosing an action, delivered to the Plugin, which answers with the next state of the view.
@@ -207,3 +219,7 @@ _Avoid_: Host internals, private API, ABI
 **Plugin API Level**:
 The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level.
 _Avoid_: SDK version, protocol version
+
+**Candidate Contract**:
+An explicitly provisional revision of the Documented Plugin Interface used to evaluate additions before they become part of a stable Plugin API Level.
+_Avoid_: Stable release, Plugin version
