@@ -1,6 +1,14 @@
 {
   "title": "With notify, the result is answered before the next gesture runs, and only by the requesting Action",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "result delivery",
     "busy behaviour",

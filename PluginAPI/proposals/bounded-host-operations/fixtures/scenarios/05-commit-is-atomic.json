@@ -1,6 +1,14 @@
 {
   "title": "A refused Capability refuses the whole answer",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "atomic answer commit",
     "refusal at commit"

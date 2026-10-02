@@ -5,10 +5,23 @@
 > Plugin API Level 1 or of any published candidate, and no Host behaves this
 > way yet. The rationale is in [`design.md`](design.md).
 
-A Plugin that declares the candidate (named `host_operations` here as a
-placeholder; the declaration format is #75's) may ask the Host to perform an
-operation *after* its script has answered. The Host commits the request with
-the rest of the answer, checks authority again, asks for its own
+A Plugin that declares the [Candidate Contract](../../candidates/README.md)
+`host_operations` at revision 1 may ask the Host to perform an operation
+*after* its script has answered. It declares the candidate in its manifest,
+beside the stable Level it builds on:
+
+```json
+{
+  "api_level": 1,
+  "candidate_contracts": [{"name": "host_operations", "revision": 1}]
+}
+```
+
+The revision's metadata, in draft, is [`candidate.json`](candidate.json). The
+Host checks the declaration as it checks every candidate: a Host that does
+not provide exactly this revision refuses the Plugin.
+
+The Host commits the request with the rest of the answer, checks authority again, asks for its own
 confirmation when the kind of operation needs one, resolves the target,
 performs it, and shows the outcome. None of this happens inside the script's
 four-second invocation, so a confirmation can wait for the user without
@@ -141,8 +154,9 @@ inserting follows the same rule:
 | An `insert_text` operation | The App the view named when the user made the gesture |
 | A synchronous `insert_text` Host Service call | The App the view named when the user made the gesture that started this invocation |
 
-The Host inserts only if the App it named is the App in front at that moment.
-Otherwise it writes nothing, refuses with `target_changed` (or, for a
+The Host inserts only if the App it named is the App in front at that moment
+and the element focused in that App is the one that was focused when the
+user acted. Otherwise it writes nothing, refuses with `target_changed` (or, for a
 synchronous call, fails the invocation with `insertion_target_changed`), and
 updates the name it shows. There is no fallback to the App the view came from
 or to any other App.
@@ -162,14 +176,19 @@ and fails when the App rejects the text (`text_rejected`) or does not answer
 within one second (`target_unresponsive`). This list is provisional until the
 Accessibility evidence of #69 is recorded.
 
-The target is an App. Moving focus to another field of the same App between
-the gesture and the insertion is not detected.
+The Host shows the App, but it compares the focused element too: moving focus
+to another field or window of the same App between the gesture and the
+insertion refuses it with `target_changed`, and the user acts again to insert
+into the element now focused. Whether Accessibility elements compare
+reliably enough for this in every App is still being recorded (#69).
 
 ### Without a view
 
-A Command that shows no view may request `insert_text`, or call the Host
-Service, from its Action's start. The Host compares the App frontmost when
-the Action started with the App frontmost at insertion.
+A Command that shows no view has nowhere to show a target, so an
+`insert_text` operation it requests, or a synchronous `insert_text` call it
+makes, is refused with `target_not_shown` and nothing is written. The Host
+shows the refusal near the pointer. To insert, a Plugin shows a view that
+names the target first.
 
 ### Level 1 Plugins
 

@@ -1,6 +1,14 @@
 {
   "title": "Only an answer to a gesture may request an operation",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "gesture binding",
     "protocol violation"

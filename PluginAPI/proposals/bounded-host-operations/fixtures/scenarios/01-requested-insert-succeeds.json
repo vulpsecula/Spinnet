@@ -1,6 +1,14 @@
 {
   "title": "A requested insertion goes to the App the Host showed",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "commit",
     "deferred insertion",

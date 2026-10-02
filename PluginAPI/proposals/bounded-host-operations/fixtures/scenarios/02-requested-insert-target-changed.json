@@ -1,6 +1,14 @@
 {
   "title": "The App in front changed after the gesture: refuse and update the hint",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "target_changed",
     "refuse and update hint",

@@ -1,6 +1,15 @@
 {
   "title": "Illustrative mutating kind: Force Quit with Host confirmation (shape owned by #83)",
-  "declares": "candidate (future revision with quit_app)",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 2
+      }
+    ]
+  },
+  "manifest_note": "A hypothetical later revision whose members would add quit_app; not proposed by this revision",
   "covers": [
     "confirmation",
     "decline",

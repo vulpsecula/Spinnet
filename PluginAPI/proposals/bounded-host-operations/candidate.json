@@ -1,0 +1,17 @@
+{
+  "name": "host_operations",
+  "revision": 1,
+  "base_level": 1,
+  "requires": [],
+  "conflicts": [],
+  "members": [
+    {"kind": "behaviour", "name": "answer_operation"},
+    {"kind": "behaviour", "name": "insert_text_operation"},
+    {"kind": "view_event", "name": "operation_finished"},
+    {"kind": "behaviour", "name": "shows_insertion_target"},
+    {"kind": "behaviour", "name": "execution_time_insertion_target"},
+    {"kind": "behaviour", "name": "insertion_target_changed_failure"}
+  ],
+  "tag": "plugin-api-candidate/host_operations/r1",
+  "status": "supported"
+}

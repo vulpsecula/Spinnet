@@ -7,7 +7,8 @@ This document answers #70's acceptance criteria. Sections 3 to 5 define the
 request path, section 6 the insertion rules, section 7 the permission
 boundaries, section 8 what waits on #69 evidence, and section 11 the product
 choices returned to the user. The draft public contract is in
-[`reference.md`](reference.md), [`host-operations.schema.json`](host-operations.schema.json)
+[`reference.md`](reference.md), [`candidate.json`](candidate.json),
+[`host-operations.schema.json`](host-operations.schema.json)
 and [`host-operations.d.ts`](host-operations.d.ts); budgets and the real-App
 plan are in [`verification-plan.md`](verification-plan.md).
 
@@ -50,7 +51,7 @@ Read from the code at `26819a6`:
 
 ## 3. Vocabulary used here
 
-- **Requested Host operation** (proposed glossary term, section 12): an
+- **Requested Host operation** (a proposed glossary term): an
   operation a script asks the Host to perform after its invocation ends,
   by naming it in its answer. The Host owns its confirmation, target,
   execution and outcome.
@@ -91,7 +92,8 @@ Rules:
    `operation_finished` with another request. One gesture yields at most one
    operation.
 3. `operation` may accompany a view, a toast, or neither (an Action without
-   a view may request one, as when a Menu Item inserts directly). It may not
+   a view may request one; an `insert_text` request from it is refused by
+   default because nothing showed its target, section 6.5). It may not
    accompany `close: true`; an operation that should close the view on
    success says `closes_view: true` instead, so a refused insertion keeps the
    view open to show the updated hint.
@@ -374,7 +376,10 @@ The Host refuses, without writing, when:
 
 - Spinnet itself is frontmost (its Settings or Clipboard History window), or
   no App is: `no_target`;
-- the target is not the displayed target (section 6.3): `target_changed`;
+- the target is not the displayed target, or its focused element is not the
+  one captured with the gesture (sections 6.3 and 6.7): `target_changed`;
+- nothing showed a target, including every insertion from an Action without
+  a view (sections 6.3 and 6.5): `target_not_shown`;
 - the App has no focused element with a settable selection: `no_text_input`
   *(category waits on #69)*;
 - the focused element is a secure text field: `secure_input` *(proposed;
@@ -403,15 +408,21 @@ needs the separate identity-read Capability (section 7), which this design
 does not add.
 
 When the user makes a gesture, the Host captures the displayed target, the
-one the user could see, with the gesture. If the view showed no target
-(neither an insert action was the gesture, nor `shows_insertion_target` was
-set), the capture is "none shown".
+one the user could see, with the gesture, together with the element focused
+in that App at that moment (section 6.7). If nothing showed a target (there
+was no view, as for a Menu Action's start without one, or neither an insert
+action was the gesture nor `shows_insertion_target` was set), the capture is
+"none shown".
 
 ### 6.3 Refuse and update the hint
 
 At execution:
 
-- displayed target captured and equal to the insertion target: insert;
+- displayed target captured, equal to the insertion target, and the same
+  element focused in it: insert;
+- displayed target captured and equal, but focus has moved to another
+  element of that App: refuse with `target_changed` and write nothing
+  (section 6.7); the hint, which names only the App, stays as it is;
 - displayed target captured and different: refuse with `target_changed`,
   write nothing, update the hint to the real frontmost App (it normally
   already shows it, because the change that caused the mismatch also updated
@@ -420,7 +431,8 @@ At execution:
   the App now shown;
 - no target shown, from a view: refuse with `target_not_shown`. A candidate
   view must show where text goes before it may insert;
-- no target shown, from an Action without a view: see section 6.5.
+- no target shown, from an Action without a view: refuse with
+  `target_not_shown` as well (section 6.5).
 
 A gap between the hint and the actual frontmost App can only come from an
 activation the Host has not yet processed, or one that happens between the
@@ -453,12 +465,19 @@ refused. The reference recommends the requested path for new Plugins.
 
 ### 6.5 Outside a View Session
 
-A Command with no view may insert synchronously or by request (a Menu Item
-"Insert today's date"). No hint exists on the radial Menu. The proposed rule
-captures the frontmost App when the Menu Action starts and refuses if a
-different App is frontmost at execution. Whether that is enough disclosure,
-or whether a viewless insertion should need something more, is product
-choice P2.
+A Command with no view might want to insert synchronously or by request (a
+Menu Item "Insert today's date"). No hint exists on the radial Menu, so
+nothing has shown the user where the text would go. #68 makes the Host
+responsible for target disclosure and refuses on a mismatch with the shown
+target, so by default such an insertion has no shown target and is refused
+with `target_not_shown`, on both the requested and the synchronous path,
+with Host feedback near the pointer. A Plugin that wants to insert shows a
+view naming the target first.
+
+Whether a viewless insertion should instead be allowed, for example by
+capturing the frontmost App when the Menu Action starts and refusing if a
+different App is frontmost at execution, is product choice P2. Until the user
+decides, the refusal stands.
 
 ### 6.6 Level 1 paths, retained
 
@@ -476,15 +495,27 @@ Level 1 Plugin running on a candidate Host gets exactly Level 1. Declaring
 Level 1 never exposes a Plugin to `operation`, `operation_finished` or
 `shows_insertion_target`; to a Level 1 Plugin they remain unknown members.
 
-### 6.7 Limits of an App-level target
+### 6.7 Focus moving inside the same App
 
-The target is an App, not a window or field. If the user moves focus to
-another window or field *inside the same App* between gesture and execution,
-the insertion goes to the newly focused field and is not refused. A window-
-or element-level check would need the Host to remember an Accessibility
-element across the gesture, which `set_focused_window_frame` already does for
-windows. Whether that is worth adding depends on #69's evidence about how
-often it matters and how reliably elements compare (section 8).
+The Host names an App, but text lands in one element of it. If the user
+moves focus to another input element *inside the same App* (another field,
+or a field in another window) between gesture and execution, the text would
+go somewhere the user did not act on. By default this counts as a target
+change: the Host remembers the App's focused Accessibility element with the
+gesture (as `set_focused_window_frame` already remembers a window), compares
+it with the App's focused element at execution, and refuses with
+`target_changed`, writing nothing, when they differ. The user acts again to
+insert into the element now focused.
+
+For a standard `insert_text` action the gesture and execution are a moment
+apart, so this rarely refuses; it matters for requested operations and for
+synchronous calls made late in an invocation.
+
+The default is provisional. #69's evidence decides whether element
+comparison is reliable: if Apps recreate or re-wrap the focused element
+without the user moving focus (web content and Electron are the likely
+cases), the check would refuse insertions the user expected to work. Section
+8 lists what that evidence must show.
 
 ## 7. Permission boundaries
 
@@ -540,7 +571,13 @@ before they are settled with evidence.
    (`AXManualAccessibility`, `AXEnhancedUserInterface`). Setting such an
    attribute changes the target App's behaviour. Whether the Host may do so
    is a product decision if the evidence shows it is needed (P3).
-6. **Element-level target checks** (section 6.7).
+6. **Element-level target checks** (section 6.7). Whether the focused
+   element read at the gesture compares equal to the one read at execution
+   when the user has not moved focus, in each App group, and whether it
+   compares unequal when they have. Until then, focus moving within an App
+   refuses. If comparison proves unreliable for Apps that matter, whether to
+   fall back to an App-level check, and so accept insertion into a field the
+   user did not act on, returns to the user.
 7. **The 1 s messaging timeout**, from measured latencies of slow targets.
 8. **Secure fields**: whether Apps let Accessibility write into secure text
    fields at all, which decides whether `secure_input` is a refusal or simply
@@ -552,7 +589,11 @@ before #69 completes.
 
 ## 9. Public contract summary
 
-Draft, in [`reference.md`](reference.md) and the schema:
+Draft, in [`reference.md`](reference.md) and the schema, and listed as the
+members of the draft Candidate Contract `host_operations` revision 1 in
+[`candidate.json`](candidate.json), which a Plugin declares in its manifest's
+`candidate_contracts` as [Candidate Contracts](../../candidates/README.md)
+describes:
 
 - answer member `operation` (`insert_text` kind in this revision);
 - View Event `operation_finished`;
@@ -587,8 +628,10 @@ implements:
 (`fixtures/scenarios/`) written as given/when/then steps. The scenarios are
 the cases #76's Host tests and test-kit tests should cover: commit
 atomicity, gesture rule, busy ordering, owner end before and during
-execution, handler change, revocation, target change on each path, Level 1
-retention, and the illustrative mutating kinds. They describe external
+execution, handler change, revocation, target change on each path, focus
+moving within an App, the refused viewless insertion, Level 1 retention, and
+the illustrative mutating kinds. Each scenario states the manifest's
+`api_level` and `candidate_contracts` it runs under. They describe external
 behaviour, not implementation structure.
 
 Real-App behaviour (target, focus, IME, Accessibility results) cannot be
@@ -603,7 +646,7 @@ None of these is decided by this design. Each has a proposed default so that
 | # | Question | Proposed default | Why it is a product choice |
 | --- | --- | --- | --- |
 | P1 | Where does the insertion target name appear: in each insert button's title ("Insert into Notes"), as a secondary label, or only in a footer line? Are insert controls disabled when no valid target exists (Spinnet frontmost)? | Secondary label on each insert action plus the optional target line; controls stay enabled and refuse with `no_target` | Visible UX of every inserting Plugin |
-| P2 | May a Command without a view insert (Menu Item → text appears) when nothing showed the target? | Yes, with the frontmost App captured at Menu invocation and re-checked at execution | Disclosure standard differs from views |
+| P2 | May a Command without a view insert (Menu Item → text appears) when nothing showed the target? | No: refused with `target_not_shown`, since #68 requires the Host to disclose the target first. The alternative to decide on is allowing it with the frontmost App captured at Menu invocation and re-checked at execution | Disclosure standard differs from views |
 | P3 | If #69 shows Accessibility insertion failing in important Apps: accept a documented narrower scope with Copy as the fallback the user chooses; add a reviewed paste-style insertion Capability (clipboard write, ⌘V, restore rules); or let the Host switch on Chromium/Electron accessibility | Undecided. Wait for #69 evidence; no clipboard or paste behaviour until the user chooses | New permission or behaviour toward other Apps |
 | P4 | Which operations need Host confirmation, and how: Quit (none?) vs Force Quit (always); default button; whether Return confirms a destructive operation; any "don't ask again" | Quit: none. Force Quit and task start: always. Default button Cancel; Return does not confirm destructive kinds; no "don't ask again" | Trust and friction |
 | P5 | May Plugin text appear in a Host confirmation (for example a reason line)? | No, Host text only | A Plugin could word it to mislead |
@@ -614,102 +657,6 @@ None of these is decided by this design. Each has a proposed default so that
 | P10 | Target change on the synchronous path: a new failure category `insertion_target_changed`, or `host_service_failed` with a message | New category | Category names are stable, user-facing contract |
 | P11 | Should a request from `field_changed` ever be allowed (for example "insert as you type")? | No | Typing would then have effects in another App |
 
-## 12. Proposed ADR and glossary text
-
-### Proposed ADR 0018: Execute script-requested Host operations after the answer commits
-
-> **Status: proposed (#70), not implemented.**
->
-> Some operations a Plugin needs cannot complete inside a bounded script
-> invocation: they wait for a trusted Host confirmation, or act on a target
-> the Host must own and disclose. A script therefore requests such an
-> operation in its answer, and the Host performs it after the invocation
-> ends. The answer and the request commit together or not at all; only an
-> answer to a user gesture (the Action's start or an explicit call,
-> `submitted`, `action_chosen`) may request one, and it may request at most
-> one. The request runs under the authority of the Action that produced it,
-> which the Host checks at commit and again at execution. A View Session
-> owns its requests: ending the session cancels any not yet executing, and
-> nothing is replayed. Each Plugin has at most one outstanding operation;
-> gesture events wait behind it while other View Events continue. Each
-> request reaches exactly one outcome (succeeded, refused, declined,
-> cancelled, failed, expired), which the Host shows, and which it delivers
-> to the Plugin as an `operation_finished` View Event only when asked and
-> only while the requesting Action still handles the session.
->
-> Whether a kind of operation needs Host confirmation is part of that kind's
-> definition and cannot be skipped by a Plugin. Host confirmations are drawn
-> by the Host with Host-generated text and Host-resolved targets, without
-> activating Spinnet, and are distinct from a Plugin's own business
-> confirmation views.
->
-> Under the first new UI contract, insertion is the first kind. Every
-> insertion path in a View Session (the standard action, the requested
-> operation and the synchronous `insert_text` service) inserts into the App
-> frontmost at the moment of insertion, through that App's focused element.
-> The Host shows that App's name and keeps it current; the name is never
-> given to the Plugin. If the App the Host showed when the user acted is not
-> the App in front at execution, the insertion is refused, nothing is
-> written and the hint updates. There is no fallback to the view's origin,
-> to the most recent external App, or to the panel. Level 1 Plugins keep
-> every Level 1 insertion path. No clipboard or paste mechanism is part of
-> this decision; one would need evidence and a separate user decision.
->
-> **Considered options.** Synchronous confirmation inside the script was
-> rejected: it cannot fit the four-second deadline and would hold a helper
-> for as long as a dialog is open. A resident helper awaiting the result was
-> rejected by ADR 0004 and ADR 0010. Several operations per answer and
-> refusing a second request as busy were rejected for this candidate for
-> lack of a workload and because they lose user actions; a later revision
-> may add a list.
->
-> **Consequences.** Kinds such as App exit (#83) and reviewed task start add
-> only their input, target, confirmation policy, bounds and result members.
-> Supported insertion scope, success semantics and failure reasons are
-> settled from #69's recorded evidence before the E2 Host is frozen.
-
-### Proposed CONTEXT.md additions
-
-**Requested Host Operation**:
-An operation a script asks the Host to perform after its invocation ends, by
-naming it in its answer to a user gesture; the Host checks authority,
-confirms when the kind requires it, resolves the target, performs it and
-reports one outcome.
-_Avoid_: Callback, deferred Host Service, async call
-
-**Host Confirmation**:
-A trusted confirmation the Host draws, with its own text and the target it
-resolved, before performing an operation whose kind requires it; a Plugin can
-neither skip nor word it.
-_Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
-
-**Insertion Target**:
-The App that receives inserted text: under the first new UI contract, the
-App frontmost when the Host inserts, whose name the Host shows and never
-gives to the Plugin.
-_Avoid_: Origin App, recent App, focused App (when the panel is meant)
-
-## 13. Notes for #76 (Host touchpoints)
-
-Not public contract; recorded so the implementation does not rediscover
-them.
-
-- `PluginScriptAnswer(parsing:)` gains `operation` only for a candidate
-  declaration (#75's runtime member checks).
-- `PluginViewSession.receive` is where commit happens; the gesture check
-  needs the in-flight event, which it already holds. The pending operation
-  slot and the "gesture events wait" rule belong to `dispatchNext`.
-- `PluginViewSession.abandonEvents` (replace) must not cancel a committed
-  operation; `end` must.
-- `PluginViewSessions.actionAnswered` is the commit point for the Action's
-  first answer and for viewless requests.
-- `PluginViewWindows.present` currently captures `origin` on presentation;
-  candidate sessions need a live current target instead, observed from
-  `NSWorkspace.didActivateApplicationNotification`, and the gesture-time
-  capture in `PluginViewModel.submit/choose`.
-- `AppKitPluginHostServiceProvider.insertText(_:intoApplication:)` already
-  inserts into one App's focused element; the candidate path adds the
-  identity comparison and the messaging timeout, and runs off the main
-  thread so a slow target cannot stall the UI.
-- `PluginViewHostActions.perform` and the broker's `authorize` are reused for
-  both commit-time and execution-time authority.
+Host-internal design for this proposal (the proposed ADR, glossary entries
+and implementation touchpoints) lives in the Host's design notes, not in
+`PluginAPI/`.

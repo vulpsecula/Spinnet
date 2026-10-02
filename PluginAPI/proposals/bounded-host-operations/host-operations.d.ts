@@ -4,8 +4,9 @@
 // Not part of Plugin API Level 1, any stable Level, or any published
 // Candidate Contract revision. `spinnet.js` implements none of this, and the
 // helper injects none of it. The types extend `../../spinnet.d.ts` the way a
-// candidate revision's declarations would; #75 decides where such
-// declarations really live. `reference.md` states the rules behind them.
+// candidate revision's declarations would; once published they would live
+// with the revision under `../../candidates/host_operations/r1/`, never in
+// the stable `spinnet.d.ts`. `reference.md` states the rules behind them.
 
 import type { JSONValue, ScriptAnswer, ViewDescription, ViewEvent } from "../../spinnet";
 
@@ -26,7 +27,9 @@ export interface OperationCommon {
  * Inserts `text` (at most 128 KiB of UTF-8) into the App frontmost at
  * execution, through Accessibility only. Needs `insert_into_focused_app`
  * and Accessibility. Refused, with nothing written, when the App in front is
- * not the one the Host showed when the user acted.
+ * not the one the Host showed when the user acted, when focus has moved to
+ * another element of that App, or when nothing showed a target (always the
+ * case without a view).
  */
 export interface InsertTextOperation extends OperationCommon {
   kind: "insert_text";

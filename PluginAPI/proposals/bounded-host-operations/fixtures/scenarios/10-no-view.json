@@ -1,38 +1,74 @@
 {
-  "title": "A Menu Action without a view inserts directly",
-  "declares": "candidate",
+  "title": "A Menu Action without a view showed no target, so its insertion is refused",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "viewless request",
+    "target_not_shown",
     "product choice P2"
   ],
-  "steps": [
+  "variants": [
     {
-      "given": "frontmost",
-      "app": "App A"
-    },
-    {
-      "when": "menu_invocation",
-      "action": "date.insert",
-      "captured_target": "App A"
-    },
-    {
-      "script_answers": {
-        "operation": {
-          "kind": "insert_text",
-          "text": "2026-10-02"
+      "name": "requested insertion",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "when": "menu_invocation",
+          "action": "date.insert",
+          "displayed_target": "none shown"
+        },
+        {
+          "script_answers": {
+            "operation": {
+              "kind": "insert_text",
+              "text": "2026-10-02"
+            }
+          }
+        },
+        {
+          "expect": "not_executed"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "refused",
+          "reason": "target_not_shown",
+          "feedback": "near the pointer"
         }
-      }
+      ]
     },
     {
-      "expect": "executed",
-      "into": "App A"
-    },
-    {
-      "variant": "frontmost_becomes App B before execution",
-      "expect": "outcome",
-      "outcome": "refused",
-      "reason": "target_changed",
-      "feedback": "near the pointer"
+      "name": "synchronous insertion",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "when": "menu_invocation",
+          "action": "date.insert",
+          "displayed_target": "none shown"
+        },
+        {
+          "script_calls": "insert_text",
+          "input": "2026-10-02"
+        },
+        {
+          "expect": "invocation_failed",
+          "reason": "target_not_shown",
+          "feedback": "near the pointer"
+        }
+      ]
     }
-  ]
+  ],
+  "note": "The default #68 requires: the Host discloses the target before inserting, and nothing on the radial Menu shows one. Product choice P2 asks whether a viewless insertion may instead use the App frontmost at Menu invocation, re-checked at execution; until the user decides, it is refused."
 }

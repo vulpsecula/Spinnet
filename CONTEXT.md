@@ -100,6 +100,18 @@ _Avoid_: Native control, custom widget, HTML element
 A destination within a Plugin View's interaction flow, such as a search, detail or editing step.
 _Avoid_: Command, window, Settings page
 
+**Requested Host Operation**:
+An operation a script asks the Host to perform after its invocation ends, by naming it in its answer to a user gesture; the Host checks authority, confirms when the kind requires it, resolves the target, performs it and reports one outcome.
+_Avoid_: Callback, deferred Host Service, async call
+
+**Host Confirmation**:
+A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it.
+_Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
+
+**Insertion Target**:
+The App that receives inserted text: under the first new UI contract, the App frontmost when the Host inserts, whose name the Host shows and never gives to the Plugin, and, until #69 shows otherwise, the element focused in it when the user acted.
+_Avoid_: Origin App, recent App, focused App (when the panel is meant)
+
 **View Event**:
 One user interaction in a Plugin View, such as editing a field, submitting, or choosing an action, delivered to the Plugin, which answers with the next state of the view.
 _Avoid_: Callback, UI message

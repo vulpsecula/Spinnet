@@ -1,6 +1,14 @@
 {
   "title": "Gesture events wait behind an outstanding operation; typing does not",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "busy behaviour",
     "ordering"

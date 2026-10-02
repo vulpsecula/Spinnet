@@ -6,7 +6,9 @@
   ],
   "variants": [
     {
-      "declares": "level1",
+      "manifest": {
+        "api_level": 1
+      },
       "steps": [
         {
           "given": "frontmost",
@@ -44,7 +46,15 @@
       ]
     },
     {
-      "declares": "candidate",
+      "manifest": {
+        "api_level": 1,
+        "candidate_contracts": [
+          {
+            "name": "host_operations",
+            "revision": 1
+          }
+        ]
+      },
       "steps": [
         {
           "given": "frontmost",

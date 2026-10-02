@@ -7,7 +7,15 @@
   ],
   "variants": [
     {
-      "declares": "candidate",
+      "manifest": {
+        "api_level": 1,
+        "candidate_contracts": [
+          {
+            "name": "host_operations",
+            "revision": 1
+          }
+        ]
+      },
       "name": "from a gesture, target unchanged",
       "steps": [
         {
@@ -71,7 +79,15 @@
       ]
     },
     {
-      "declares": "candidate",
+      "manifest": {
+        "api_level": 1,
+        "candidate_contracts": [
+          {
+            "name": "host_operations",
+            "revision": 1
+          }
+        ]
+      },
       "name": "from a gesture, target changed",
       "steps": [
         {
@@ -153,7 +169,15 @@
       ]
     },
     {
-      "declares": "candidate",
+      "manifest": {
+        "api_level": 1,
+        "candidate_contracts": [
+          {
+            "name": "host_operations",
+            "revision": 1
+          }
+        ]
+      },
       "name": "from a non-gesture event",
       "steps": [
         {
@@ -212,7 +236,9 @@
       ]
     },
     {
-      "declares": "level1",
+      "manifest": {
+        "api_level": 1
+      },
       "name": "Level 1 path unchanged",
       "steps": [
         {

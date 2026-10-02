@@ -1,6 +1,15 @@
 {
   "title": "Illustrative mutating kind: starting a reviewed task (shape owned by the reviewed-task tickets)",
-  "declares": "candidate (future revision with start_task)",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 2
+      }
+    ]
+  },
+  "manifest_note": "A hypothetical later revision whose members would add start_task; not proposed by this revision",
   "covers": [
     "confirmation",
     "result payload",

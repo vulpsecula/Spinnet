@@ -1,0 +1,100 @@
+{
+  "title": "Focus moved to another element of the same App after the gesture: refuse",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
+  "covers": [
+    "target_changed",
+    "element-level target",
+    "waits on #69"
+  ],
+  "steps": [
+    {
+      "given": "frontmost",
+      "app": "App A",
+      "focused_element": "field 1"
+    },
+    {
+      "given": "view_open",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          }
+        },
+        "state": {}
+      }
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      },
+      "displayed_target": "App A",
+      "captured_element": "field 1"
+    },
+    {
+      "when": "focus_moves",
+      "app": "App A",
+      "focused_element": "field 2",
+      "note": "another field or window of the same App, before the Host executes"
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          }
+        },
+        "state": {},
+        "operation": {
+          "kind": "insert_text",
+          "text": "😀"
+        }
+      }
+    },
+    {
+      "expect": "not_executed"
+    },
+    {
+      "expect": "outcome",
+      "outcome": "refused",
+      "reason": "target_changed"
+    },
+    {
+      "expect": "hint",
+      "app": "App A",
+      "because": "the App is unchanged; pressing again inserts into the element now focused"
+    }
+  ],
+  "note": "The same rule holds for a standard insert_text action and a synchronous insert_text call. It is the default until #69 shows whether Accessibility elements compare reliably across Apps; if they do not, whether to fall back to an App-level check returns to the user."
+}

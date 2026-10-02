@@ -11,7 +11,7 @@
       "file": "answers/insert-without-view.json",
       "definition": "answer",
       "valid": true,
-      "note": "A Menu Action with no view requests one insertion"
+      "note": "A Menu Action with no view requests one insertion: a valid shape, which the Host refuses at execution with target_not_shown by default because nothing showed a target (product choice P2)"
     },
     {
       "file": "answers/insert-with-toast-and-notify.json",

@@ -1,6 +1,14 @@
 {
   "title": "Ending the session cancels a request that has not started and never replays",
-  "declares": "candidate",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
   "covers": [
     "ownership",
     "cancellation",

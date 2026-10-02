@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # PROPOSAL ONLY (#70). SPDX-License-Identifier: MIT
 #
-# Checks that the draft schema is well formed and that every fixture is
-# accepted or refused as fixtures/index.json says. It implements only the
+# Checks that the draft schema is well formed, that every fixture is
+# accepted or refused as fixtures/index.json says, that the draft
+# candidate.json satisfies the Candidate Contract metadata schema while no
+# Host provides it, and that every scenario declares its manifest's
+# api_level and candidate_contracts as #75 specifies. It implements only the
 # JSON Schema (draft 2020-12) keywords Spinnet's own JSONSchemaSubsetValidator
 # implements, and refuses any other keyword, so the draft can move into a real
 # candidate without a richer validator. It needs nothing beyond Python 3.
@@ -18,6 +21,10 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "host-operations.schema.json"
 LEVEL1_VIEW = (HERE / "../../schemas/plugin-view.schema.json").resolve()
 LEVEL1_SESSION = (HERE / "../../schemas/view-session.schema.json").resolve()
+CANDIDATES = (HERE / "../../candidates").resolve()
+CANDIDATE_METADATA = CANDIDATES / "schemas/candidate-metadata.schema.json"
+CANDIDATE_DECLARATIONS = CANDIDATES / "schemas/candidate-contracts.schema.json"
+DRAFT = HERE / "candidate.json"
 
 ANNOTATIONS = {"$schema", "$id", "$comment", "$defs", "title", "description", "examples"}
 ASSERTIONS = {
@@ -202,9 +209,66 @@ def scenario_values(node):
                 yield from scenario_values(value)
 
 
+def draft_candidate_errors(draft):
+    """The draft candidate.json follows #75's metadata schema but is provided by no Host."""
+    found = [f"candidate.json{message}" for message in errors(draft, document(CANDIDATE_METADATA), CANDIDATE_METADATA)]
+    if not isinstance(draft, dict):
+        return found
+    name, revision = draft.get("name"), draft.get("revision")
+    if draft.get("tag") != f"plugin-api-candidate/{name}/r{revision}":
+        found.append("candidate.json: tag does not name its own name and revision")
+    published = CANDIDATES / str(name)
+    if published.exists():
+        found.append(f"candidate.json: {published} exists; a draft must not be published as a candidate")
+    provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
+    table = provided.split("## Candidate Contracts this Host provides", 1)[-1].split("\n## ", 1)[0]
+    if re.search(rf"^\|\s*`?{re.escape(str(name))}`?\s*\|", table, re.MULTILINE):
+        found.append(f"candidate.json: candidates/README.md lists {name} as provided; this proposal is a draft")
+    return found
+
+
+def manifest_errors(manifest, draft, illustrative):
+    """A scenario's manifest excerpt: api_level, and candidate_contracts as #75 declares them."""
+    if not isinstance(manifest, dict):
+        return ["has no manifest excerpt"]
+    found = []
+    level = manifest.get("api_level")
+    if json_type(level) != "integer" or level < 1:
+        found.append("manifest: api_level is not a stable Level")
+    if "candidate_contracts" in manifest:
+        found += [f"manifest{message}" for message in
+                  errors(manifest, document(CANDIDATE_DECLARATIONS), CANDIDATE_DECLARATIONS)]
+        names = [d.get("name") for d in manifest["candidate_contracts"] if isinstance(d, dict)]
+        if len(set(names)) != len(names):
+            found.append("manifest: declares a candidate twice")
+        if not illustrative and {"name": draft["name"], "revision": draft["revision"]} not in manifest["candidate_contracts"]:
+            found.append(f"manifest: does not declare the draft {draft['name']} r{draft['revision']}")
+        if json_type(level) == "integer" and level < draft["base_level"]:
+            found.append("manifest: api_level is below the draft's base_level")
+    unknown = set(manifest) - {"api_level", "candidate_contracts"}
+    if unknown:
+        found.append(f"manifest: unexpected members {sorted(unknown)}")
+    return found
+
+
+def manifests(node):
+    if isinstance(node, list):
+        for item in node:
+            yield from manifests(item)
+    elif isinstance(node, dict):
+        if "manifest" in node:
+            yield node["manifest"]
+        for key, value in node.items():
+            if key != "manifest":
+                yield from manifests(value)
+
+
 def main():
     failures = []
     walk(document(SCHEMA), SCHEMA, "host-operations.schema.json", failures)
+
+    draft = json.loads(DRAFT.read_text(encoding="utf-8"))
+    failures += draft_candidate_errors(draft)
 
     index = json.loads((HERE / "fixtures/index.json").read_text(encoding="utf-8"))
     for entry in index["fixtures"]:
@@ -225,7 +289,14 @@ def main():
 
     scenarios = sorted((HERE / "fixtures/scenarios").glob("*.json"))
     for path in scenarios:
-        for definition, value in scenario_values(json.loads(path.read_text(encoding="utf-8"))):
+        scenario = json.loads(path.read_text(encoding="utf-8"))
+        declared = list(manifests(scenario))
+        if not declared:
+            failures.append(f"scenarios/{path.name}: declares no manifest")
+        for manifest in declared:
+            failures += [f"scenarios/{path.name}: {message}"
+                         for message in manifest_errors(manifest, draft, scenario.get("illustrative") is True)]
+        for definition, value in scenario_values(scenario):
             found = check_against(definition, value)
             if definition == "answer":
                 found += view_errors(value)
@@ -235,7 +306,8 @@ def main():
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"ok: schema well formed, {len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
+    print(f"ok: schema well formed, draft candidate.json valid and unpublished, "
+          f"{len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
     return 0
 
 

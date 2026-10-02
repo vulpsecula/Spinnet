@@ -97,12 +97,12 @@ For each App and control, run every path that applies:
 
 | ID | Path | Plugin declares |
 | --- | --- | --- |
-| L1-S | Standard `insert_text` action | Level 1 |
-| L1-Y | Synchronous `insert_text` from a View Event | Level 1 |
-| C-S | Standard `insert_text` action | Candidate |
-| C-R | Requested `insert_text` operation | Candidate |
-| C-Y | Synchronous `insert_text` from a gesture's invocation | Candidate |
-| C-M | Requested operation from a Menu Action with no view | Candidate |
+| L1-S | Standard `insert_text` action | `api_level: 1` only |
+| L1-Y | Synchronous `insert_text` from a View Event | `api_level: 1` only |
+| C-S | Standard `insert_text` action | `host_operations` r1 |
+| C-R | Requested `insert_text` operation | `host_operations` r1 |
+| C-Y | Synchronous `insert_text` from a gesture's invocation | `host_operations` r1 |
+| C-M | Requested and synchronous insertion from a Menu Action with no view | `host_operations` r1; expected `target_not_shown`, nothing written (P2) |
 
 L1-Y inside a View Session is expected to risk writing into the panel's own
 field; record what actually happens rather than assuming it.
@@ -124,7 +124,8 @@ field; record what actually happens rather than assuming it.
 | Session closed by focus loss while executing | Effect completes, Host feedback for failures |
 | Helper killed between commit and `operation_finished` | Delivered once from a new helper |
 | VoiceOver on | Hint read with the action label and as the target line's label; refusal announced |
-| Same App, different field focused between gesture and execution | Inserted into the new field (documented limit); recorded to inform the element-level question |
+| Same App, different field or window focused between gesture and execution | `target_changed`, nothing written, hint unchanged |
+| Same App, focus not moved, in each App group (including web content and Electron) | Inserted: the element read at the gesture compares equal at execution. A refusal here is a finding against the element-level default (design section 8) |
 
 ### 3.4 What each run records for insertion
 
@@ -149,7 +150,9 @@ Before #76 freezes the Host for E2, there must be:
 
 1. #69's recorded Level 1 results for the section 3.1 Apps;
 2. the candidate paths C-S, C-R, C-Y run on the same Apps, on the existing
-   non-activating panel, pinned and unpinned (not waiting for Pin resizing);
+   non-activating panel, pinned and unpinned (not waiting for Pin resizing),
+   including both focus-within-the-App rows of section 3.3, which settle
+   whether the element-level refusal stays the default;
 3. the user's answers to P1, P3 (if the evidence shows important failures)
    and P9 to P11;
 4. the measured budgets of section 1, with the 1 s Accessibility bound
