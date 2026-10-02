@@ -62,6 +62,15 @@ final class SessionMeasurement {
         self.options = options
     }
 
+    private var queries: [String] { options.queries ?? Self.queries }
+
+    /// The `again` action, or a field change when the fixture has no such
+    /// action (`--event-query`).
+    private var againEvent: PluginViewEvent {
+        guard let query = options.eventQuery else { return .actionChosen("again") }
+        return .fieldChanged(field: "query", values: .object(["query": .string(query)]))
+    }
+
     func run(progress: (String) -> Void) throws {
         progress("Opening the view, cold and warm (\(options.openSamples) each)")
         try measureOpening()
@@ -101,7 +110,7 @@ final class SessionMeasurement {
             for helper in ["cold", "warm"] {
                 if helper == "cold" { try rig.retireHelper() }
                 settle()
-                let interaction = try rig.interact([(0, .actionChosen("again"))])
+                let interaction = try rig.interact([(0, againEvent)])
                 latency.append(sample("event", helper, index: index, inputs: 1, interaction))
             }
         }
@@ -114,7 +123,7 @@ final class SessionMeasurement {
     private func measureTyping(every interval: Int) throws {
         try ensureViewIsOpen()
         for index in 0..<options.typingSamples {
-            let query = Self.queries[index % Self.queries.count]
+            let query = queries[index % queries.count]
             for helper in ["cold", "warm"] {
                 if helper == "cold" { try rig.retireHelper() }
                 settle()
@@ -132,7 +141,7 @@ final class SessionMeasurement {
         try ensureViewIsOpen()
         for index in 0..<options.idleRetirements {
             settle()
-            let priming = try rig.interact([(0, .actionChosen("again"))])
+            let priming = try rig.interact([(0, againEvent)])
             guard priming.failure == nil, let idleSince = priming.runs.last?.ended,
                   let helper = rig.runningHelper() else {
                 throw MeasurementError("The event before the idle period failed: \(priming.failure ?? "no helper")")
@@ -143,7 +152,7 @@ final class SessionMeasurement {
             var interaction: Interaction
             if let session = rig.session, !session.isEnded {
                 settle()
-                interaction = try rig.interact([(0, .actionChosen("again"))])
+                interaction = try rig.interact([(0, againEvent)])
             } else {
                 interaction = Interaction()
                 interaction.failure = "The View Session did not survive its helper's retirement"
@@ -179,7 +188,8 @@ final class SessionMeasurement {
             settle()
             sampleMemory(cycle: cycle, phase: "view-open")
 
-            for query in Self.queries.prefix(3) {
+            for index in 0..<options.memoryQueries {
+                let query = queries[index % queries.count]
                 let typed = try type(query, every: 50)
                 if let failure = typed.failure { throw MeasurementError("Typing failed: \(failure)") }
                 settle()

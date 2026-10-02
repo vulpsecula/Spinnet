@@ -21,6 +21,16 @@ struct MeasurementOptions {
     /// single event per pause; a slower one delivers every keystroke.
     var keystrokeIntervals: [Int] = [50, 160]
     var memoryCycles = 5
+    /// What is typed, one query per sample in turn; nil for the Smart
+    /// Jump-like defaults.
+    var queries: [String]?
+    /// Queries typed in each memory cycle's after-typing phase.
+    var memoryQueries = 3
+    /// The event the event and idle-retirement scenarios send: nil chooses
+    /// the fixture's `again` action, as the Typing Probe offers; a query
+    /// types it into the `query` field instead, for a Plugin whose only
+    /// events are field changes, debounce included.
+    var eventQuery: String?
     /// Each lets the helper retire after its real idle period, so each costs
     /// about 31 seconds.
     var idleRetirements = 2
@@ -56,6 +66,12 @@ struct MeasurementOptions {
           --event-samples N           View Event round trips, cold and warm each (default 50)
           --typing-samples N          Typed queries per interval, cold and warm each (default 20)
           --keystroke-intervals MS,…  Time between keystrokes (default 50,160)
+          --queries Q1|Q2|…           Queries typed in turn, separated by | (default:
+                                      Smart Jump-like links, sums and searches)
+          --event-query TEXT          Send a field change of `query` to TEXT for the event
+                                      and idle-retirement scenarios instead of choosing
+                                      the `again` action; its time includes the debounce
+          --memory-queries N          Queries typed in each memory cycle (default 3)
           --memory-cycles N           Open-type-retire-close cycles sampled (default 5)
           --memory-samples N          Samples per memory phase, 100 ms apart (default 10)
           --idle-retirements N        Helpers left to retire after 30 s idle (default 2)
@@ -117,6 +133,15 @@ struct MeasurementOptions {
                 }
                 keystrokeIntervals = intervals
             case "--memory-cycles": memoryCycles = try count(for: argument)
+            case "--memory-queries": memoryQueries = try count(for: argument, minimum: 1)
+            case "--queries":
+                let text = try value(for: argument)
+                let list = text.split(separator: "|").map(String.init).filter { !$0.isEmpty }
+                guard !list.isEmpty else { throw UsageError(description: "--queries needs at least one query") }
+                queries = list
+            case "--event-query":
+                eventQuery = try value(for: argument)
+                guard !(eventQuery ?? "").isEmpty else { throw UsageError(description: "--event-query needs text") }
             case "--memory-samples":
                 memorySamples = try count(for: argument, minimum: 1)
                 sawMemorySamples = true
