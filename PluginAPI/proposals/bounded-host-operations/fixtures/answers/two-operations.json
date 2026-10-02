@@ -1,0 +1,16 @@
+{
+  "operations": [
+    {
+      "kind": "insert_text",
+      "id": "insert",
+      "text": "😀",
+      "closes_view": true
+    },
+    {
+      "kind": "insert_text",
+      "id": "insert",
+      "text": "😀",
+      "closes_view": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "start_task",
+  "id": "install",
+  "profile": "homebrew",
+  "operation": "install",
+  "arguments": {
+    "formula": "wget"
+  },
+  "notify": true
+}

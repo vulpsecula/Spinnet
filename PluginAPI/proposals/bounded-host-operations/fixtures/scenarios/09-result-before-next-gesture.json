@@ -1,0 +1,177 @@
+{
+  "title": "With notify, the result is answered before the next gesture runs, and only by the requesting Action",
+  "declares": "candidate",
+  "covers": [
+    "result delivery",
+    "busy behaviour",
+    "authority does not combine through shared state"
+  ],
+  "steps": [
+    {
+      "given": "view_open",
+      "handler": "emoji.search",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "recent": []
+        }
+      }
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      }
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "recent": []
+        },
+        "operation": {
+          "kind": "insert_text",
+          "id": "insert",
+          "text": "😀",
+          "notify": true
+        }
+      }
+    },
+    {
+      "when": "explicit_call",
+      "action": "emoji.favourites",
+      "note": "a gesture: it waits while the operation is outstanding"
+    },
+    {
+      "expect": "outcome",
+      "outcome": "succeeded"
+    },
+    {
+      "expect": "delivered",
+      "to": "emoji.search",
+      "event": {
+        "type": "operation_finished",
+        "operation": "insert",
+        "kind": "insert_text",
+        "outcome": "succeeded"
+      }
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "recent": [
+            "😀"
+          ]
+        }
+      }
+    },
+    {
+      "expect": "slot_released",
+      "after": "the operation_finished invocation ends"
+    },
+    {
+      "expect": "dispatched",
+      "event_type": "explicit_call",
+      "action": "emoji.favourites",
+      "with_state": {
+        "recent": [
+          "😀"
+        ]
+      }
+    },
+    {
+      "note": "Had another Action become the handler before operation_finished was dispatched (for example a Level 1 style presentation replacing the session's Action), the outcome would be shown by the Host and not delivered."
+    }
+  ]
+}

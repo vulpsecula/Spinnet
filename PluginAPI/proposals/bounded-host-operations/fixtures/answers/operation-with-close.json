@@ -1,0 +1,9 @@
+{
+  "close": true,
+  "operation": {
+    "kind": "insert_text",
+    "id": "insert",
+    "text": "😀",
+    "closes_view": true
+  }
+}

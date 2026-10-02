@@ -1,0 +1,188 @@
+{
+  "title": "Gesture events wait behind an outstanding operation; typing does not",
+  "declares": "candidate",
+  "covers": [
+    "busy behaviour",
+    "ordering"
+  ],
+  "steps": [
+    {
+      "given": "view_open",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "count": 0
+        }
+      }
+    },
+    {
+      "given": "slow_target",
+      "note": "the target App takes 300 ms to accept a write"
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      }
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "count": 1
+        },
+        "operation": {
+          "kind": "insert_text",
+          "text": "1"
+        }
+      }
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      },
+      "note": "second Return while the first insertion runs"
+    },
+    {
+      "when": "event",
+      "event": {
+        "type": "field_changed",
+        "field": "query",
+        "values": {
+          "query": "smi"
+        }
+      }
+    },
+    {
+      "expect": "dispatched",
+      "event_type": "field_changed",
+      "before": "first outcome"
+    },
+    {
+      "expect": "outcome",
+      "outcome": "succeeded",
+      "text": "1"
+    },
+    {
+      "expect": "dispatched",
+      "event_type": "submitted",
+      "with_state": {
+        "count": 1
+      },
+      "after": "first outcome"
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "count": 2
+        },
+        "operation": {
+          "kind": "insert_text",
+          "text": "2"
+        }
+      }
+    },
+    {
+      "expect": "executed",
+      "order": [
+        "1",
+        "2"
+      ]
+    }
+  ]
+}

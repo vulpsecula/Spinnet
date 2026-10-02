@@ -1,0 +1,38 @@
+{
+  "title": "A Menu Action without a view inserts directly",
+  "declares": "candidate",
+  "covers": [
+    "viewless request",
+    "product choice P2"
+  ],
+  "steps": [
+    {
+      "given": "frontmost",
+      "app": "App A"
+    },
+    {
+      "when": "menu_invocation",
+      "action": "date.insert",
+      "captured_target": "App A"
+    },
+    {
+      "script_answers": {
+        "operation": {
+          "kind": "insert_text",
+          "text": "2026-10-02"
+        }
+      }
+    },
+    {
+      "expect": "executed",
+      "into": "App A"
+    },
+    {
+      "variant": "frontmost_becomes App B before execution",
+      "expect": "outcome",
+      "outcome": "refused",
+      "reason": "target_changed",
+      "feedback": "near the pointer"
+    }
+  ]
+}

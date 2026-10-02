@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "operation": "insert",
+  "kind": "insert_text",
+  "outcome": "succeeded"
+}

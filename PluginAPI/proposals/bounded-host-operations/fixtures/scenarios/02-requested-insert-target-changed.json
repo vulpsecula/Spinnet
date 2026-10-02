@@ -1,0 +1,134 @@
+{
+  "title": "The App in front changed after the gesture: refuse and update the hint",
+  "declares": "candidate",
+  "covers": [
+    "target_changed",
+    "refuse and update hint",
+    "result delivery"
+  ],
+  "steps": [
+    {
+      "given": "frontmost",
+      "app": "App A"
+    },
+    {
+      "given": "view_open",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {}
+      }
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      },
+      "displayed_target": "App A"
+    },
+    {
+      "when": "frontmost_becomes",
+      "app": "App B",
+      "note": "before the Host executes, e.g. while the script runs"
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {},
+        "operation": {
+          "kind": "insert_text",
+          "id": "insert",
+          "text": "😀",
+          "closes_view": true,
+          "notify": true
+        }
+      }
+    },
+    {
+      "expect": "not_executed"
+    },
+    {
+      "expect": "outcome",
+      "outcome": "refused",
+      "reason": "target_changed"
+    },
+    {
+      "expect": "hint",
+      "app": "App B"
+    },
+    {
+      "expect": "view_open",
+      "because": "closes_view applies to success only"
+    },
+    {
+      "expect": "delivered",
+      "event": {
+        "type": "operation_finished",
+        "operation": "insert",
+        "kind": "insert_text",
+        "outcome": "refused",
+        "reason": "target_changed"
+      }
+    }
+  ]
+}

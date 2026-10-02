@@ -1,0 +1,104 @@
+{
+  "title": "Ending the session cancels a request that has not started and never replays",
+  "declares": "candidate",
+  "covers": [
+    "ownership",
+    "cancellation",
+    "stale results"
+  ],
+  "variants": [
+    {
+      "name": "user closes while a confirmation is shown (illustrative mutating kind)",
+      "steps": [
+        {
+          "given": "confirming",
+          "kind": "quit_app"
+        },
+        {
+          "when": "view_closed",
+          "by": "user"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "declined"
+        },
+        {
+          "expect": "not_executed"
+        },
+        {
+          "expect": "not_delivered",
+          "because": "the session ended"
+        }
+      ]
+    },
+    {
+      "name": "Plugin updated while pending",
+      "steps": [
+        {
+          "given": "pending",
+          "kind": "insert_text"
+        },
+        {
+          "when": "plugin_updated"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "cancelled"
+        },
+        {
+          "expect": "not_executed"
+        },
+        {
+          "expect": "host_feedback",
+          "note": "the end was not the user's own close"
+        }
+      ]
+    },
+    {
+      "name": "Capability revoked between commit and execution",
+      "steps": [
+        {
+          "given": "pending",
+          "kind": "insert_text"
+        },
+        {
+          "when": "revoked",
+          "capability": "insert_into_focused_app"
+        },
+        {
+          "expect": "session_ended",
+          "reason": "capabilityRevoked"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "cancelled"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    },
+    {
+      "name": "view closes by focus loss while executing",
+      "steps": [
+        {
+          "given": "executing",
+          "kind": "insert_text"
+        },
+        {
+          "when": "view_closed",
+          "by": "focus loss"
+        },
+        {
+          "expect": "execution_completes"
+        },
+        {
+          "expect": "not_delivered"
+        },
+        {
+          "expect": "host_feedback_if_not_succeeded"
+        }
+      ]
+    }
+  ]
+}

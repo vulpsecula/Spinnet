@@ -1,0 +1,73 @@
+{
+  "title": "Illustrative mutating kind: starting a reviewed task (shape owned by the reviewed-task tickets)",
+  "declares": "candidate (future revision with start_task)",
+  "covers": [
+    "confirmation",
+    "result payload",
+    "request vs task lifetime"
+  ],
+  "illustrative": true,
+  "steps": [
+    {
+      "when": "gesture",
+      "event": {
+        "type": "action_chosen",
+        "action": "install"
+      }
+    },
+    {
+      "script_answers_illustrative": {
+        "view": {
+          "title": "wget",
+          "actions": [
+            {
+              "id": "install",
+              "title": "Install"
+            }
+          ]
+        },
+        "operation": {
+          "kind": "start_task",
+          "id": "install",
+          "profile": "homebrew",
+          "operation": "install",
+          "arguments": {
+            "formula": "wget"
+          },
+          "notify": true
+        }
+      }
+    },
+    {
+      "expect": "confirmation",
+      "text_from": "Host",
+      "names": "the reviewed operation and its source"
+    },
+    {
+      "when": "user_confirms"
+    },
+    {
+      "expect": "outcome",
+      "outcome": "succeeded",
+      "meaning": "the task started"
+    },
+    {
+      "expect": "delivered",
+      "event_illustrative": {
+        "type": "operation_finished",
+        "operation": "install",
+        "kind": "start_task",
+        "outcome": "succeeded",
+        "task": "task-7f3a"
+      }
+    },
+    {
+      "when": "view_closed",
+      "by": "user"
+    },
+    {
+      "expect": "task_continues",
+      "under": "ADR 0017"
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "title": "A refused Capability refuses the whole answer",
+  "declares": "candidate",
+  "covers": [
+    "atomic answer commit",
+    "refusal at commit"
+  ],
+  "steps": [
+    {
+      "given": "grant",
+      "capability": "insert_into_focused_app",
+      "decision": "denied"
+    },
+    {
+      "given": "view_open",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "form": {
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "smile"
+              }
+            ],
+            "submit_on_return": true
+          },
+          "detail": {
+            "sections": [
+              {
+                "id": "results",
+                "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "title": "Copy 😀",
+              "perform": "copy_text",
+              "text": "😀"
+            }
+          ]
+        },
+        "state": {
+          "recent": []
+        }
+      }
+    },
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      }
+    },
+    {
+      "script_answers": {
+        "view": {
+          "title": "Changed",
+          "actions": [
+            {
+              "id": "a",
+              "title": "A"
+            }
+          ]
+        },
+        "state": {
+          "recent": [
+            "😀"
+          ]
+        },
+        "toast": "Done",
+        "operation": {
+          "kind": "insert_text",
+          "id": "insert",
+          "text": "😀",
+          "closes_view": true
+        }
+      }
+    },
+    {
+      "expect": "not_committed",
+      "view_title": "Emoji",
+      "state": {
+        "recent": []
+      },
+      "toast_shown": false
+    },
+    {
+      "expect": "inline_error",
+      "category": "capability_denied",
+      "repair": "Open Plugin Settings"
+    },
+    {
+      "expect": "not_executed"
+    }
+  ]
+}

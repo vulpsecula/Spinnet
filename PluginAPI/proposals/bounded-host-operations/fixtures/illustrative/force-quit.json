@@ -1,0 +1,7 @@
+{
+  "kind": "quit_app",
+  "id": "force",
+  "target": "frontmost",
+  "force": true,
+  "notify": true
+}

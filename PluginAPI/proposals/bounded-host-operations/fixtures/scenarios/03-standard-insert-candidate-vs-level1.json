@@ -1,0 +1,89 @@
+{
+  "title": "Standard insert action: frontmost at execution under the candidate, origin under Level 1",
+  "covers": [
+    "standard insertion",
+    "Level 1 retained"
+  ],
+  "variants": [
+    {
+      "declares": "level1",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "T",
+              "actions": [
+                {
+                  "title": "Insert",
+                  "perform": "insert_text",
+                  "text": "x"
+                }
+              ]
+            }
+          },
+          "origin": "App A"
+        },
+        {
+          "when": "frontmost_becomes",
+          "app": "App B"
+        },
+        {
+          "when": "standard_action",
+          "perform": "insert_text"
+        },
+        {
+          "expect": "executed",
+          "into": "App A",
+          "because": "Level 1 inserts into the App the view came from"
+        }
+      ]
+    },
+    {
+      "declares": "candidate",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "T",
+              "actions": [
+                {
+                  "title": "Insert",
+                  "perform": "insert_text",
+                  "text": "x"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "frontmost_becomes",
+          "app": "App B"
+        },
+        {
+          "expect": "hint",
+          "on": "Insert",
+          "app": "App B"
+        },
+        {
+          "when": "standard_action",
+          "perform": "insert_text",
+          "displayed_target": "App B"
+        },
+        {
+          "expect": "executed",
+          "into": "App B"
+        }
+      ]
+    }
+  ]
+}

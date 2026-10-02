@@ -1,0 +1,268 @@
+{
+  "title": "Only an answer to a gesture may request an operation",
+  "declares": "candidate",
+  "covers": [
+    "gesture binding",
+    "protocol violation"
+  ],
+  "variants": [
+    {
+      "name": "field_changed",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "field_changed",
+            "field": "query",
+            "values": {
+              "query": "x"
+            }
+          }
+        },
+        {
+          "script_answers": {
+            "operation": {
+              "kind": "insert_text",
+              "text": "x"
+            }
+          }
+        },
+        {
+          "expect": "session_ended",
+          "category": "runtime_protocol_failed"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    },
+    {
+      "name": "setting_changed",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "setting_changed",
+            "key": "tone",
+            "value": "warm"
+          }
+        },
+        {
+          "script_answers": {
+            "operation": {
+              "kind": "insert_text",
+              "text": "x"
+            }
+          }
+        },
+        {
+          "expect": "session_ended",
+          "category": "runtime_protocol_failed"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    },
+    {
+      "name": "section_delivered",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "section_delivered",
+            "section": "s",
+            "response": {
+              "status": 200,
+              "headers": {},
+              "body": "{}"
+            }
+          }
+        },
+        {
+          "script_answers": {
+            "operation": {
+              "kind": "insert_text",
+              "text": "x"
+            }
+          }
+        },
+        {
+          "expect": "session_ended",
+          "category": "runtime_protocol_failed"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    },
+    {
+      "name": "operation_finished",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "operation_finished",
+            "kind": "insert_text",
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "script_answers": {
+            "operation": {
+              "kind": "insert_text",
+              "text": "x"
+            }
+          }
+        },
+        {
+          "expect": "session_ended",
+          "category": "runtime_protocol_failed"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    }
+  ]
+}

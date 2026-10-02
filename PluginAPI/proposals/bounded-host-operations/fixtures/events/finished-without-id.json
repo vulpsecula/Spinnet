@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "kind": "insert_text",
+  "outcome": "failed",
+  "reason": "text_rejected"
+}

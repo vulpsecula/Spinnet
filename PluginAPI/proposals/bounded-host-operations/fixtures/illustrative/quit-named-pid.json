@@ -1,0 +1,5 @@
+{
+  "kind": "quit_app",
+  "target": "frontmost",
+  "pid": 501
+}

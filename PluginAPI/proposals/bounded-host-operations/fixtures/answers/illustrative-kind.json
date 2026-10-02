@@ -1,0 +1,7 @@
+{
+  "operation": {
+    "kind": "quit_app",
+    "target": "frontmost",
+    "force": true
+  }
+}

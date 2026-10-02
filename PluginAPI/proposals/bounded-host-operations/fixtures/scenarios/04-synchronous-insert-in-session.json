@@ -1,0 +1,256 @@
+{
+  "title": "Synchronous insert_text inside a View Session",
+  "covers": [
+    "synchronous insertion",
+    "Level 1 retained",
+    "target_not_shown"
+  ],
+  "variants": [
+    {
+      "declares": "candidate",
+      "name": "from a gesture, target unchanged",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "gesture",
+          "event": {
+            "type": "submitted",
+            "values": {
+              "query": "smile"
+            }
+          },
+          "displayed_target": "App A"
+        },
+        {
+          "script_calls": "insert_text",
+          "input": "😀"
+        },
+        {
+          "expect": "executed",
+          "into": "App A",
+          "via": "App A's focused element, not the system-wide one"
+        }
+      ]
+    },
+    {
+      "declares": "candidate",
+      "name": "from a gesture, target changed",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            },
+            "state": {
+              "n": 1
+            }
+          }
+        },
+        {
+          "when": "gesture",
+          "event": {
+            "type": "submitted",
+            "values": {
+              "query": "smile"
+            }
+          },
+          "displayed_target": "App A"
+        },
+        {
+          "when": "frontmost_becomes",
+          "app": "App B"
+        },
+        {
+          "script_calls": "insert_text",
+          "input": "😀"
+        },
+        {
+          "expect": "invocation_failed",
+          "category": "insertion_target_changed",
+          "catchable": false
+        },
+        {
+          "expect": "state",
+          "value": {
+            "n": 1
+          },
+          "because": "last good state kept"
+        },
+        {
+          "expect": "hint",
+          "app": "App B"
+        }
+      ]
+    },
+    {
+      "declares": "candidate",
+      "name": "from a non-gesture event",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "smile"
+                  }
+                ],
+                "submit_on_return": true
+              },
+              "detail": {
+                "sections": [
+                  {
+                    "id": "results",
+                    "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Copy 😀",
+                  "perform": "copy_text",
+                  "text": "😀"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "field_changed",
+            "field": "query",
+            "values": {
+              "query": "s"
+            }
+          }
+        },
+        {
+          "script_calls": "insert_text",
+          "input": "s"
+        },
+        {
+          "expect": "invocation_failed",
+          "reason": "target_not_shown"
+        }
+      ]
+    },
+    {
+      "declares": "level1",
+      "name": "Level 1 path unchanged",
+      "steps": [
+        {
+          "given": "view_open",
+          "answer": {
+            "view": {
+              "title": "T",
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "q",
+                    "title": "Q"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "when": "event",
+          "event": {
+            "type": "submitted",
+            "values": {
+              "q": "x"
+            }
+          }
+        },
+        {
+          "script_calls": "insert_text",
+          "input": "x"
+        },
+        {
+          "expect": "executed",
+          "into": "system-wide focused element",
+          "note": "record, do not assume, whether this is the panel's own field"
+        }
+      ]
+    }
+  ]
+}

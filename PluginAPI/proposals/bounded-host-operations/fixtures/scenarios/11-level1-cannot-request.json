@@ -1,0 +1,33 @@
+{
+  "title": "A Level 1 Plugin cannot use the candidate members",
+  "declares": "level1",
+  "covers": [
+    "Level 1 retained",
+    "declared members"
+  ],
+  "steps": [
+    {
+      "when": "gesture",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "smile"
+        }
+      }
+    },
+    {
+      "script_answers": {
+        "operation": {
+          "kind": "insert_text",
+          "text": "x"
+        }
+      },
+      "level1_valid": false
+    },
+    {
+      "expect": "session_ended",
+      "category": "runtime_protocol_failed",
+      "message": "The script's answer has unknown member operation"
+    }
+  ]
+}

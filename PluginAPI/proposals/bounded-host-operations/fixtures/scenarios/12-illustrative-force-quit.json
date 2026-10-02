@@ -1,0 +1,111 @@
+{
+  "title": "Illustrative mutating kind: Force Quit with Host confirmation (shape owned by #83)",
+  "declares": "candidate (future revision with quit_app)",
+  "covers": [
+    "confirmation",
+    "decline",
+    "expiry",
+    "target re-validation"
+  ],
+  "illustrative": true,
+  "variants": [
+    {
+      "name": "confirmed",
+      "steps": [
+        {
+          "given": "frontmost",
+          "app": "App A"
+        },
+        {
+          "when": "gesture",
+          "event": {
+            "type": "action_chosen",
+            "action": "force-quit"
+          }
+        },
+        {
+          "script_answers_illustrative": {
+            "operation": {
+              "kind": "quit_app",
+              "target": "frontmost",
+              "force": true,
+              "notify": true
+            }
+          }
+        },
+        {
+          "expect": "confirmation",
+          "text_from": "Host",
+          "names": "App A"
+        },
+        {
+          "when": "user_confirms"
+        },
+        {
+          "expect": "target_revalidated",
+          "by": "pid + bundle ID + launch date"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "succeeded"
+        }
+      ]
+    },
+    {
+      "name": "declined",
+      "steps": [
+        {
+          "given": "confirming",
+          "kind": "quit_app"
+        },
+        {
+          "when": "user_declines"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "declined"
+        },
+        {
+          "expect": "not_executed"
+        }
+      ]
+    },
+    {
+      "name": "expired",
+      "steps": [
+        {
+          "given": "confirming",
+          "kind": "quit_app"
+        },
+        {
+          "when": "time_passes",
+          "seconds": 60
+        },
+        {
+          "expect": "outcome",
+          "outcome": "expired"
+        }
+      ]
+    },
+    {
+      "name": "App gone before execution",
+      "steps": [
+        {
+          "given": "confirming",
+          "kind": "quit_app"
+        },
+        {
+          "when": "target_exits"
+        },
+        {
+          "when": "user_confirms"
+        },
+        {
+          "expect": "outcome",
+          "outcome": "refused",
+          "reason": "no_target"
+        }
+      ]
+    }
+  ]
+}
