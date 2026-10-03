@@ -27,6 +27,8 @@ struct FixtureStatus: Encodable {
     let isActive: Bool
     let controlHasKeyboardFocus: Bool
     let value: String
+    /// Text an input method is still composing, uncommitted.
+    let markedText: String?
 }
 
 final class SwiftUIText: ObservableObject {
@@ -129,6 +131,11 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var markedText: String? {
+        guard let editor = window.firstResponder as? NSTextView, editor.hasMarkedText() else { return nil }
+        return (editor.string as NSString).substring(with: editor.markedRange())
+    }
+
     private var controlHasKeyboardFocus: Bool {
         guard window.isKeyWindow, let responder = window.firstResponder else { return false }
         switch appKitControl {
@@ -147,7 +154,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         guard let statusURL else { return }
         let status = FixtureStatus(control: control.rawValue, processID: getpid(), windowTitle: window.title,
                                    isActive: NSApp.isActive, controlHasKeyboardFocus: controlHasKeyboardFocus,
-                                   value: value)
+                                   value: value, markedText: markedText)
         guard let data = try? JSONEncoder().encode(status) else { return }
         try? data.write(to: statusURL, options: .atomic)
     }

@@ -50,8 +50,8 @@ func machineDescription() -> String {
 
 func timestamp() -> String { ISO8601DateFormatter().string(from: Date()) }
 
-let hostBuild = HostBuild(commit: HostA2Provenance.commit, spinnetCoreTree: HostA2Provenance.spinnetCoreTree,
-                          files: HostA2Provenance.files, headIdentical: HostA2Provenance.headIdentical)
+let hostBuild = HostBuild(commit: HostProvenance.commit, spinnetCoreTree: HostProvenance.spinnetCoreTree,
+                          files: HostProvenance.files, headIdentical: HostProvenance.headIdentical)
 
 switch arguments.first {
 case "check-trust":
@@ -79,7 +79,7 @@ case "run":
     let output = URL(fileURLWithPath: out, isDirectory: true)
     let dryRun = arguments.contains("--dry-run")
     let keepWork = arguments.contains("--keep-work")
-    var selected = groups("--only") ?? TargetGroup.allCases
+    var selected = groups("--only") ?? TargetGroup.defaults
     if let skipped = groups("--skip") { selected.removeAll { skipped.contains($0) } }
     let trusted = AXIsProcessTrusted()
     if !trusted && !dryRun {
@@ -134,7 +134,7 @@ case "run":
     }
 
     Thread.detachNewThread {
-        print("AX insertion probe on Host A2 \(HostA2Provenance.commit)")
+        print("AX insertion probe on \(HostProvenance.label) \(HostProvenance.commit)")
         print("marker \(marker), Accessibility \(trusted ? "trusted" : "not trusted"), \(dryRun ? "dry run" : "live run")")
         // The App in front when the run began, usually the terminal running
         // the script, comes back to the front afterwards.

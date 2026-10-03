@@ -15,6 +15,11 @@ import PackageDescription
 //
 // so the probe calls the Host's own
 // `AppKitPluginHostServiceProvider.insertText(_:intoApplication:)` unchanged.
+//
+// With --host current it instead adds this working tree's
+// Sources/SpinnetCore/ and Sources/AXInsertionProbe/HostCurrent/
+// (Sources/SpinnetHost/HostTextInserter.swift), and compiles the probe with
+// HOST_CURRENT so it calls that inserter.
 let package = Package(
     name: "AXInsertionProbe",
     platforms: [
@@ -25,9 +30,11 @@ let package = Package(
         .executableTarget(
             name: "AXInsertionProbe",
             dependencies: ["SpinnetCore"],
+            // HOST_SWIFT_SETTINGS
             linkerSettings: [
                 .linkedFramework("AppKit"),
-                .linkedFramework("ApplicationServices")
+                .linkedFramework("ApplicationServices"),
+                .linkedFramework("Carbon")
             ]
         ),
         // The probe's own text fields, run as a separate App process so the

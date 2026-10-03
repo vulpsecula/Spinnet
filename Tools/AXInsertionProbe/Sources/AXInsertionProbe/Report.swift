@@ -18,8 +18,21 @@ enum InsertionStep: String, Codable, CaseIterable {
     /// A Host error the probe does not recognise, which means the pinned
     /// insertion code is not the one this probe was written against.
     case otherError = "other_error"
+    // The current Host's keyboard-event inserter (--host current).
+    /// Delivered, and the focused element's `kAXValue` holds the text.
+    case delivered
+    case deliveredTextNotFound = "delivered_text_not_found"
+    case deliveredUnverified = "delivered_unverified"
+    case refusedPasswordField = "refused_password_field"
+    case refusedNotFrontmost = "refused_not_frontmost"
+    case refusedTargetGone = "refused_target_gone"
+    case refusedSpinnetItself = "refused_spinnet_itself"
+    case stoppedLostFront = "stopped_lost_front"
 
-    var isHostSuccess: Bool { [.inserted, .setOKTextNotFound, .setOKUnverified].contains(self) }
+    var isHostSuccess: Bool {
+        [.inserted, .setOKTextNotFound, .setOKUnverified, .delivered, .deliveredTextNotFound, .deliveredUnverified]
+            .contains(self)
+    }
 
     var summary: String {
         switch self {
@@ -31,6 +44,14 @@ enum InsertionStep: String, Codable, CaseIterable {
         case .setSelectedTextError: return "set error"
         case .accessibilityNotGranted: return "Accessibility not granted"
         case .otherError: return "other error"
+        case .delivered: return "delivered"
+        case .deliveredTextNotFound: return "delivered, text not found"
+        case .deliveredUnverified: return "delivered, unverified"
+        case .refusedPasswordField: return "refused: password field"
+        case .refusedNotFrontmost: return "refused: not in front"
+        case .refusedTargetGone: return "refused: App gone"
+        case .refusedSpinnetItself: return "refused: Spinnet itself"
+        case .stoppedLostFront: return "stopped: lost the front"
         }
     }
 }
@@ -43,6 +64,9 @@ struct Attempt: Codable, Equatable {
     var hostError: String?
     var readBack: ReadBack?
     var elapsedMilliseconds: Double
+    /// The current Host only: the stand-in Plugin View panel around the
+    /// call, and how the Host was asked to insert.
+    var hostNotes: [String]? = nil
 }
 
 struct ReadBack: Codable, Equatable {
@@ -110,7 +134,7 @@ struct IndependentCheck: Codable, Equatable {
     }
 
     init(label: String, source: String, value: String, text: InsertionText) {
-        let readBack = HostA2Insertion.evaluate(value, for: text, source: source)
+        let readBack = HostInsertion.evaluate(value, for: text, source: source)
         self.label = label
         self.source = source
         observed = true
@@ -199,7 +223,8 @@ struct ProbeRow: Codable, Equatable {
     var appVersion: String?
     var toolkit: String
     var control: String
-    /// "Host A2 as-is", or the experiment that changed the App first.
+    /// "Host A2 as-is" or "current Host …", or the experiment that changed
+    /// the App first.
     var variant: String
     var expected: String
     /// ran, skipped, planned (dry run)
@@ -230,6 +255,8 @@ struct ProbeRow: Codable, Equatable {
 }
 
 struct HostBuild: Codable, Equatable {
+    /// "Host A2" or "current Host".
+    var label = HostProvenance.label
     var commit: String
     var spinnetCoreTree: String
     var files: [String: String]
@@ -240,7 +267,7 @@ struct ProbeReport: Codable {
     var tool = "AXInsertionProbe"
     var mode: String
     var hostBuild: HostBuild
-    var hostCall = "AppKitPluginHostServiceProvider.insertText(_:intoApplication:) compiled from Host A2"
+    var hostCall = HostProvenance.hostCall
     var startedAt: String
     var finishedAt: String?
     var machine: String
@@ -263,9 +290,10 @@ enum ReportWriter {
         var lines: [String] = []
         lines.append("# AX insertion matrix (\(report.mode))")
         lines.append("")
-        lines.append("Host build: `\(report.hostBuild.commit)` (Host A2). Every insertion is a call of the Host's own")
-        lines.append("`AppKitPluginHostServiceProvider.insertText(_:intoApplication:)`, compiled from that commit;")
-        lines.append("`PluginHostServices.swift` blob `\(report.hostBuild.files["Sources/SpinnetHost/PluginHostServices.swift"] ?? "?")`.")
+        lines.append("Host build: `\(report.hostBuild.commit)` (\(report.hostBuild.label)). Every insertion is a call of the Host's own")
+        lines.append("`\(report.hostCall)`;")
+        lines.append(report.hostBuild.files.sorted { $0.key < $1.key }.map { "`\($0.key)` blob `\($0.value)`" }.joined(separator: ", ")
+                     + (report.hostBuild.headIdentical ? "" : " (differs from HEAD)") + ".")
         lines.append("")
         lines.append("| Item | Value |")
         lines.append("| --- | --- |")
@@ -329,6 +357,7 @@ enum ReportWriter {
                 }
             }
             if let panel = row.panel { notes.append(contentsOf: panelNotes(panel)) }
+            notes.append(contentsOf: row.attempt?.hostNotes ?? [])
             for channel in row.keystrokes?.channels ?? [] {
                 if let skipped = channel.skipped {
                     notes.append("\(channel.channel): not tried, \(skipped)")
@@ -391,7 +420,7 @@ enum ReportWriter {
 
     static func resultText(_ attempt: Attempt) -> String {
         var text = attempt.step.summary
-        if attempt.step.isHostSuccess, let readBack = attempt.readBack, attempt.step != .inserted {
+        if attempt.step.isHostSuccess, let readBack = attempt.readBack, attempt.step != .inserted, attempt.step != .delivered {
             if readBack.containsMarker && !readBack.containsEmoji { text += " (marker without emoji)" }
         }
         return text

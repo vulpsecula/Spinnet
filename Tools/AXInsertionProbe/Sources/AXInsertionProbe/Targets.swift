@@ -9,6 +9,18 @@ enum TargetGroup: String, CaseIterable {
     case panel
     /// The P3 flow: panel closed, target activated, Unicode keystrokes.
     case panelKeys = "panel-keys"
+    /// The current Host only: a pinned view left open, the script path,
+    /// line breaks and a tab, a long text, and Chinese input.
+    case hostExtra = "host-extra"
+
+    /// What a run visits unless told otherwise.
+    static var defaults: [TargetGroup] {
+        #if HOST_CURRENT
+        allCases.filter { ![.panel, .panelKeys].contains($0) }
+        #else
+        allCases.filter { $0 != .hostExtra }
+        #endif
+    }
 }
 
 enum Variant {
@@ -24,10 +36,31 @@ enum Variant {
     /// activated as Clipboard History's paster does, and the text typed as
     /// Unicode keyboard events through the HID tap (the P3 flow).
     case panelThenKeystrokes
+    // The current Host (--host current).
+    /// The Host's call from a pinned view that stays open.
+    case hostStaysOpen
+    /// The synchronous `insert_text`, into the App in front.
+    case hostScript
+    /// A text with line breaks (LF and CRLF) and a tab.
+    case hostLines
+    /// A text of several hundred characters, with CJK and emoji sequences.
+    case hostLong
+    /// With the named input source selected, restored afterwards.
+    case hostIME(String)
 
     var label: String {
         switch self {
-        case .asIs: return "Host A2 as-is"
+        case .asIs:
+            #if HOST_CURRENT
+            return "current Host, view closes on Insert"
+            #else
+            return "Host A2 as-is"
+            #endif
+        case .hostStaysOpen: return "current Host, pinned view stays open"
+        case .hostScript: return "current Host, insert_text into the App in front"
+        case .hostLines: return "current Host, line breaks and a tab"
+        case .hostLong: return "current Host, long text"
+        case .hostIME(let source): return "current Host, input source \(source)"
         case .experiment(let attribute): return "experiment: \(attribute) set first"
         case .keystrokes: return "experiment: Unicode keystrokes, no Host call"
         case .panelHoldsKey: return "Host A2 as-is while a non-activating panel holds key"
@@ -42,6 +75,21 @@ enum Variant {
         case .keystrokes: return "keystrokes"
         case .panelHoldsKey: return "panel"
         case .panelThenKeystrokes: return "p3-keys"
+        case .hostStaysOpen: return "open"
+        case .hostScript: return "script"
+        case .hostLines: return "lines"
+        case .hostLong: return "long"
+        case .hostIME(let source): return "ime-" + (source.split(separator: ".").last.map(String.init) ?? source)
+        }
+    }
+
+    /// The suffix the row's text carries after the marker.
+    var suffix: String {
+        switch self {
+        case .hostLines: return "\nline two\tafter a tab\r\nline three"
+        case .hostLong:
+            return String(repeating: " The quick brown fox, 中文输入测试 👨‍👩‍👧‍👦 café 🏳️‍🌈.", count: 14)
+        default: return ""
         }
     }
 
@@ -55,6 +103,7 @@ struct FixtureStatusRead: Decodable {
     let isActive: Bool
     let controlHasKeyboardFocus: Bool
     let value: String
+    let markedText: String?
 
     static func read(_ url: URL) -> FixtureStatusRead? {
         guard let data = try? Data(contentsOf: url) else { return nil }
@@ -66,7 +115,7 @@ struct FixtureStatusRead: Decodable {
 /// page, window or separate App instance, inserts through the Host's code,
 /// and closes what it opened without saving into anything of the user's.
 final class ProbeRun {
-    let insertion = HostA2Insertion()
+    let insertion = HostInsertion()
     let marker: String
     let work: URL
     let fixtureAppURL: URL?
@@ -75,6 +124,9 @@ final class ProbeRun {
     private(set) var rows: [ProbeRow] = []
     private(set) var notes: [String] = []
     private var counter = 0
+    /// The variant of the row being run, which decides how the current
+    /// Host is asked and what text it gets.
+    private var activeVariant = Variant.asIs
     /// Serves the web pages and receives their own reports of their fields.
     private var server: ObservationServer?
 
@@ -94,7 +146,7 @@ final class ProbeRun {
     /// A text unique to one row, so no read-back can see another row's.
     private func nextText() -> InsertionText {
         counter += 1
-        return InsertionText(marker: marker + String(format: "%02d", counter))
+        return InsertionText(marker: marker + String(format: "%02d", counter), suffix: activeVariant.suffix)
     }
 
     func run(groups: [TargetGroup], record: (ProbeRow) -> Void) throws {
@@ -113,11 +165,19 @@ final class ProbeRun {
             case .fixture: runFixture()
             case .textedit: runTextEdit()
             case .terminal: runTerminal()
+            #if HOST_CURRENT
+            case .safari: runSafari(plan: WebFieldKind.allCases.map { ($0, Variant.asIs) })
+            case .chrome: runChrome(plan: WebFieldKind.allCases.map { ($0, Variant.asIs) })
+            case .vscode: runElectron(.vscode, variants: [.asIs])
+            case .cursor: runElectron(.cursor, variants: [.asIs])
+            case .obsidian: runElectron(.obsidian, variants: [.asIs])
+            #else
             case .safari: runSafari()
             case .chrome: runChrome()
             case .vscode: runElectron(.vscode)
             case .cursor: runElectron(.cursor)
             case .obsidian: runElectron(.obsidian)
+            #endif
             case .notes:
                 add(skippedRow("notes", app: "Notes", bundleID: "com.apple.Notes", toolkit: "AppKit", control: "Note body",
                                reason: "skipped: a new note is stored in the user's Notes account and syncs, and a deleted one stays in Recently Deleted"))
@@ -140,6 +200,20 @@ final class ProbeRun {
                 runSafari(plan: [(.addressBar, .panelThenKeystrokes), (.input, .panelThenKeystrokes)])
                 runChrome(plan: [(.input, .panelThenKeystrokes)])
                 runElectron(.vscode, variants: [.panelThenKeystrokes])
+            case .hostExtra:
+                #if HOST_CURRENT
+                addNote(Self.hostExtraNote)
+                runFixture(kinds: ["appkit-textfield"], variants: [.hostStaysOpen, .hostScript])
+                runFixture(kinds: ["appkit-textfield", "appkit-textview"],
+                           variants: [.hostIME("com.apple.inputmethod.SCIM.ITABC"), .hostIME("com.apple.keylayout.ABC")])
+                runFixture(kinds: ["appkit-textview"], variants: [.hostLines])
+                runTextEdit(kinds: ["plain"], variants: [.hostStaysOpen, .hostLines, .hostLong])
+                runSafari(plan: [(.input, .hostStaysOpen), (.textarea, .hostLines), (.contenteditable, .hostLong)])
+                runChrome(plan: [(.textarea, .hostLines), (.textarea, .hostLong), (.input, .hostScript)])
+                runElectron(.vscode, variants: [.hostLines, .hostLong])
+                #else
+                addNote("host-extra runs only with --host current")
+                #endif
             }
             for row in rows[before...] {
                 record(row)
@@ -156,7 +230,8 @@ final class ProbeRun {
 
     private func newRow(_ id: String, app: String, bundleID: String, appURL: URL?, toolkit: String, control: String,
                         variant: Variant = .asIs, expected: String = "insert") -> ProbeRow {
-        ProbeRow(id: id, app: app, bundleID: bundleID, appVersion: appURL.flatMap(Apps.version), toolkit: toolkit,
+        activeVariant = variant
+        return ProbeRow(id: id, app: app, bundleID: bundleID, appVersion: appURL.flatMap(Apps.version), toolkit: toolkit,
                  control: control, variant: variant.label, expected: expected, status: "planned")
     }
 
@@ -189,13 +264,35 @@ final class ProbeRun {
         let started = Date()
         defer { row.durationSeconds = (Date().timeIntervalSince(started) * 10).rounded() / 10 }
         let text = nextText()
-        if preQuery && trusted { row.focusedBefore = HostA2Insertion.describeFocus(in: processIdentifier).0 }
+        if preQuery && trusted { row.focusedBefore = HostInsertion.describeFocus(in: processIdentifier).0 }
         if let gate, let reason = gate() {
             skip(&row, "not inserted: \(reason)")
             return nil
         }
         row.frontmostAtInsertion = Apps.frontmostDescription()
+        #if HOST_CURRENT
+        switch activeVariant {
+        case .hostStaysOpen: insertion.mode = .viewStaysOpen
+        case .hostScript: insertion.mode = .script
+        default: insertion.mode = .viewCloses
+        }
+        #endif
+        var restoreSource: (() -> String)?
+        if case .hostIME(let source) = activeVariant {
+            switch InputSources.select(source) {
+            case .success(let restore):
+                restoreSource = restore
+                row.notes.append("input source \(InputSources.currentID() ?? "?") selected for the insertion")
+            case .failure(let reason):
+                skip(&row, "not inserted: \(reason)")
+                return nil
+            }
+        }
         let first = insertion.attempt(text, into: processIdentifier)
+        if let fixtureStatus, let marked = FixtureStatusRead.read(fixtureStatus)?.markedText {
+            row.notes.append("fixture is composing \(ReportWriter.quoted(marked))")
+        }
+        if let restoreSource { row.notes.append(restoreSource()) }
         row.attempt = first
         row.status = "ran"
         if !first.step.isHostSuccess, first.step != .accessibilityNotGranted {
@@ -207,7 +304,7 @@ final class ProbeRun {
             }
         }
         if let verify { row.independentCheck = verify(text) }
-        if trusted { row.focusedAfter = HostA2Insertion.describeFocus(in: processIdentifier).0 }
+        if trusted { row.focusedAfter = HostInsertion.describeFocus(in: processIdentifier).0 }
         if let fixtureStatus { row.fixtureValue = FixtureStatusRead.read(fixtureStatus)?.value }
         if row.finalStep == .inserted, row.focusedAfter?.selectedTextRangeSettable == "yes", gate?() == nil {
             row.selection = insertion.selectionPass(after: text, in: processIdentifier)
@@ -538,7 +635,7 @@ final class ProbeRun {
     /// Autofocus normally leaves the field focused; if not, focus it by its
     /// DOM id through Accessibility.
     private func focusWebTarget(pid: pid_t, window: AXUIElement) -> String {
-        let (info, _) = HostA2Insertion.describeFocus(in: pid)
+        let (info, _) = HostInsertion.describeFocus(in: pid)
         if info.domIdentifier == "probe-target" { return "autofocus" }
         let target = AX.first(below: window, maxNodes: 3000) { AX.string($0, "AXDOMIdentifier") == "probe-target" }
         guard let target else { return "autofocus (field not found through Accessibility)" }
@@ -689,6 +786,11 @@ final class ProbeRun {
             case .keystrokes: short = "k"
             case .panelHoldsKey: short = "h"
             case .panelThenKeystrokes: short = "p"
+            case .hostStaysOpen: short = "o"
+            case .hostScript: short = "s"
+            case .hostLines: short = "l"
+            case .hostLong: short = "g"
+            case .hostIME: short = "i"
             }
             let root = URL(fileURLWithPath: "/tmp/\(marker)-\(String(describing: electron))-\(short)", isDirectory: true)
             try? FileManager.default.removeItem(at: root)
@@ -853,7 +955,7 @@ final class ProbeRun {
             insert(&row, into: pid, preQuery: false, verify: check)
         case .experiment:
             let gate: () -> String? = {
-                let (info, _) = HostA2Insertion.describeFocus(in: pid)
+                let (info, _) = HostInsertion.describeFocus(in: pid)
                 guard info.present else { return nil }
                 return info.windowTitle?.contains(titleMarker) == true
                     ? nil : "the focused element is not in the probe's window (\(info.windowTitle ?? "no window"))"
@@ -880,6 +982,8 @@ final class ProbeRun {
             }
             row.notes.append("the probe read only window titles; every window of this instance is the probe's own")
             keystrokesAfterPanel(&row, into: pid, axQueries: false, gate: frontmostGate(pid), verify: check)
+        case .hostStaysOpen, .hostScript, .hostLines, .hostLong, .hostIME:
+            insert(&row, into: pid, preQuery: false, verify: check)
         }
     }
 
@@ -888,6 +992,8 @@ final class ProbeRun {
     static let panelNote = "Panel variants: the probe shows its own NSPanel configured as Host A2's PluginViewPanelWindow (style mask titled, closable, fullSizeContentView, nonactivatingPanel; canBecomeKey true; floating; makeKeyAndOrderFront; a text field made first responder) while the probe runs as an accessory App, as the Host does. The origin is NSWorkspace's frontmost App captured just before the panel is shown, as the Host captures it at presentation; the row is skipped unless that is the target. The Host call is AppKitPluginHostServiceProvider.insertText(_:intoApplication: origin), as main.swift makes it. After the panel closes, the same call is made once more with a text of its own."
 
     static let panelKeysNote = "P3 flow rows: no Host call. The panel is shown and confirmed key, then closed; the target is activated with NSRunningApplication.activate() and the probe waits until it is frontmost (at most 1 s) and 50 ms more, as ClipboardHistoryPaster does; the text is then posted as Unicode keyboard events through the HID event tap, the tap the Host's paste keystroke uses, and only while the probe's gate confirms the target is frontmost and its focus is in the probe's own window (or nothing in it is focused). TextEdit and the Safari address bar are read back through Accessibility, TextEdit also from its saved file."
+
+    static let hostExtraNote = "Current Host rows: before each Host call the probe shows its stand-in Plugin View panel (key, non-activating) over the target, whose origin is the target. \"view closes on Insert\" closes the panel, then calls HostTextInserter.insertAndWait(text, into: .application(origin)); \"pinned view stays open\" makes the same call with the panel left on screen; \"insert_text into the App in front\" calls it with .frontmost while the panel is key. Line-break rows type LF and CRLF (each one Shift-Return) and a tab (the Tab key); they count as found when the value holds the text with every line break as LF. IME rows select the input source with TISSelectInputSource and reselect the previous one afterwards; Pinyin's own Chinese/English mode is not visible to the probe."
 
     private func frontmostGate(_ processIdentifier: pid_t) -> () -> String? {
         { Apps.frontmost()?.processIdentifier == processIdentifier ? nil : "the target is not frontmost" }
@@ -915,7 +1021,7 @@ final class ProbeRun {
             let source = "kAXValue of the target's focused element (Accessibility; not independent)"
             var value: String?
             Apps.poll(1.5, interval: 0.1) {
-                value = HostA2Insertion.focusedValue(in: processIdentifier)
+                value = HostInsertion.focusedValue(in: processIdentifier)
                 return value?.contains(text.text) == true
             }
             guard let value else {
@@ -947,7 +1053,7 @@ final class ProbeRun {
         var observation = PanelObservation(origin: Apps.frontmostDescription(),
                                            originIsTarget: Apps.frontmost()?.processIdentifier == processIdentifier)
         if axQueries && trusted {
-            observation.targetFocusBeforePanel = HostA2Insertion.describeFocus(in: processIdentifier).0
+            observation.targetFocusBeforePanel = HostInsertion.describeFocus(in: processIdentifier).0
         }
         if let report = fixtureReport(fixtureStatus) { observation.notes.append("fixture before panel: \(report)") }
         guard observation.originIsTarget else {
@@ -963,7 +1069,7 @@ final class ProbeRun {
         observation.frontmostWhilePanelKey = Apps.frontmostDescription()
         observation.targetStillFrontmost = Apps.frontmost()?.processIdentifier == processIdentifier
         if axQueries && trusted {
-            observation.targetFocusWhilePanelKey = HostA2Insertion.describeFocus(in: processIdentifier).0
+            observation.targetFocusWhilePanelKey = HostInsertion.describeFocus(in: processIdentifier).0
             observation.targetFocusedWindowWhilePanelKey = focusedWindowText(processIdentifier)
         }
         if let report = fixtureReport(fixtureStatus) { observation.notes.append("fixture while panel key: \(report)") }
@@ -1011,7 +1117,7 @@ final class ProbeRun {
         panel.close()
         Thread.sleep(forTimeInterval: 0.6)
         observation.frontmostAfterClose = Apps.frontmostDescription()
-        observation.targetFocusAfterClose = HostA2Insertion.describeFocus(in: processIdentifier).0
+        observation.targetFocusAfterClose = HostInsertion.describeFocus(in: processIdentifier).0
         if let report = fixtureReport(fixtureStatus) { observation.notes.append("fixture after panel closed: \(report)") }
         let control = nextText()
         if let gate, let reason = gate() {
@@ -1020,7 +1126,7 @@ final class ProbeRun {
             observation.hostCallAfterClose = insertion.attempt(control, into: processIdentifier)
             if let verify { observation.afterCloseCheck = verify(control) }
         }
-        row.focusedAfter = HostA2Insertion.describeFocus(in: processIdentifier).0
+        row.focusedAfter = HostInsertion.describeFocus(in: processIdentifier).0
         if let fixtureStatus { row.fixtureValue = FixtureStatusRead.read(fixtureStatus)?.value }
         return (text, control)
     }
@@ -1065,7 +1171,7 @@ final class ProbeRun {
         }
         Thread.sleep(forTimeInterval: 0.05)
         observation.frontmostAfterClose = Apps.frontmostDescription()
-        if axQueries && trusted { observation.targetFocusAfterClose = HostA2Insertion.describeFocus(in: processIdentifier).0 }
+        if axQueries && trusted { observation.targetFocusAfterClose = HostInsertion.describeFocus(in: processIdentifier).0 }
         if let report = fixtureReport(fixtureStatus) { observation.notes.append("fixture after activation: \(report)") }
         row.frontmostAtInsertion = Apps.frontmostDescription()
         if let reason = gate() {
@@ -1079,7 +1185,7 @@ final class ProbeRun {
         row.keystrokes = KeystrokeExperiment(channels: [KeystrokeChannel(
             channel: "HID", eventsPosted: posted, received: check.observed ? check.containsInsertedText : nil, check: check)])
         row.independentCheck = check
-        if axQueries && trusted { row.focusedAfter = HostA2Insertion.describeFocus(in: processIdentifier).0 }
+        if axQueries && trusted { row.focusedAfter = HostInsertion.describeFocus(in: processIdentifier).0 }
         if let fixtureStatus { row.fixtureValue = FixtureStatusRead.read(fixtureStatus)?.value }
         return text
     }

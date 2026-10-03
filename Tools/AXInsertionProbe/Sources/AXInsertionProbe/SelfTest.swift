@@ -36,6 +36,17 @@ enum SelfTest {
     }
 
     private static func checkSteps() {
+        #if HOST_CURRENT
+        let cases: [(PluginHostServiceError, InsertionStep, String)] = [
+            (.systemPermissionDenied(.accessibility), .accessibilityNotGranted,
+             "System Permission accessibility is not granted"),
+            (.unavailable("The focused field is a password field; nothing was inserted"), .refusedPasswordField,
+             "Host Service is unavailable: The focused field is a password field; nothing was inserted"),
+            (.unavailable("The App to insert into is no longer open"), .refusedTargetGone,
+             "Host Service is unavailable: The App to insert into is no longer open"),
+            (.unavailable("Something else"), .otherError, "Host Service is unavailable: Something else")
+        ]
+        #else
         let cases: [(PluginHostServiceError, InsertionStep, String)] = [
             (.systemPermissionDenied(.accessibility), .accessibilityNotGranted,
              "System Permission accessibility is not granted"),
@@ -47,27 +58,38 @@ enum SelfTest {
              "Host Service failed: The focused App did not accept the text"),
             (.unavailable("Something else"), .otherError, "Host Service is unavailable: Something else")
         ]
+        #endif
         for (error, step, shown) in cases {
-            check(HostA2Insertion.step(for: error) == step, "\(error) should map to \(step)")
+            check(HostInsertion.step(for: error) == step, "\(error) should map to \(step)")
             check(error.description == shown, "the Host shows \"\(error.description)\", expected \"\(shown)\"")
         }
     }
 
     private static func checkReadBack() {
         let text = InsertionText(marker: "axp123456")
-        let hit = HostA2Insertion.evaluate("before \(text.text) after", for: text, source: "test")
+        let hit = HostInsertion.evaluate("before \(text.text) after", for: text, source: "test")
         check(hit.containsInsertedText && hit.containsMarker && hit.containsEmoji, "a full insertion is found")
-        check(HostA2Insertion.step(afterSuccess: hit) == .inserted, "found means inserted")
-        let mangled = HostA2Insertion.evaluate("before ?? axp123456", for: text, source: "test")
+        #if HOST_CURRENT
+        let found = InsertionStep.delivered, notFound = InsertionStep.deliveredTextNotFound,
+            unverified = InsertionStep.deliveredUnverified
+        #else
+        let found = InsertionStep.inserted, notFound = InsertionStep.setOKTextNotFound,
+            unverified = InsertionStep.setOKUnverified
+        #endif
+        check(HostInsertion.step(afterSuccess: hit) == found, "found means inserted")
+        let lines = InsertionText(marker: "axp123456", suffix: "\na\r\nb")
+        check(HostInsertion.evaluate("x\(InsertionText.emoji)axp123456\na\nb", for: lines, source: "test").containsInsertedText,
+              "typed line breaks are found as LF")
+        let mangled = HostInsertion.evaluate("before ?? axp123456", for: text, source: "test")
         check(!mangled.containsInsertedText && mangled.containsMarker && !mangled.containsEmoji,
               "a marker without its emoji is told apart")
-        check(HostA2Insertion.step(afterSuccess: mangled) == .setOKTextNotFound, "a mangled insertion is not inserted")
+        check(HostInsertion.step(afterSuccess: mangled) == notFound, "a mangled insertion is not inserted")
         let unreadable = ReadBack(source: "test", readable: false, axError: "kAXErrorNoValue", valueLength: nil,
                                   containsInsertedText: false, containsMarker: false, containsEmoji: false, excerpt: nil)
-        check(HostA2Insertion.step(afterSuccess: unreadable) == .setOKUnverified, "unreadable is unverified")
+        check(HostInsertion.step(afterSuccess: unreadable) == unverified, "unreadable is unverified")
         check(text.replacement.text.contains(text.marker), "the replacement extends the marker")
         let long = String(repeating: "x", count: 200) + text.text + String(repeating: "y", count: 200)
-        let excerpt = HostA2Insertion.evaluate(long, for: text, source: "test").excerpt ?? ""
+        let excerpt = HostInsertion.evaluate(long, for: text, source: "test").excerpt ?? ""
         check(excerpt.count <= text.marker.count + 80, "the excerpt is bounded")
     }
 
@@ -127,10 +149,19 @@ enum SelfTest {
     /// nothing anywhere receives text: without the grant it must refuse for
     /// Accessibility, with it it must find no focused element.
     private static func checkHostCallIsLinked() {
-        let insertion = HostA2Insertion()
+        #if HOST_CURRENT
+        // Refused before anything is activated: no panel, no keystrokes.
+        var outcome: PluginHostServiceError?? = nil
+        HostTextInserter().insert("x", into: .application(999_999)) { outcome = .some($0) }
+        let expected: PluginHostServiceError = AXIsProcessTrusted()
+            ? .unavailable("The App to insert into is no longer open") : .systemPermissionDenied(.accessibility)
+        check(outcome == .some(expected), "the Host call into no process gave \(String(describing: outcome)), expected \(expected)")
+        #else
+        let insertion = HostInsertion()
         let attempt = insertion.attempt(InsertionText(marker: "axpselftest"), into: 999_999, settle: 0)
         let expected: InsertionStep = AXIsProcessTrusted() ? .noFocusedElement : .accessibilityNotGranted
         check(attempt.step == expected, "the Host call into no process gave \(attempt.step), expected \(expected)")
+        #endif
     }
 
     static func fakeReport() -> ProbeReport {
@@ -142,7 +173,7 @@ enum SelfTest {
                                 status: "ran")
         inserted.focusedBefore = element
         inserted.attempt = Attempt(step: .inserted, hostError: nil,
-                                   readBack: HostA2Insertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
+                                   readBack: HostInsertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
                                    elapsedMilliseconds: 3.2)
         inserted.selection = SelectionResult(result: "replaced_selection", hostError: nil, detail: nil)
         inserted.fixtureValue = text.text
@@ -152,10 +183,10 @@ enum SelfTest {
                                appVersion: "2.0", toolkit: "Chromium", control: "<input type=text>",
                                variant: Variant.asIs.label, expected: "insert", status: "ran")
         let error = PluginHostServiceError.unavailable("No focused text field")
-        noFocus.attempt = Attempt(step: HostA2Insertion.step(for: error), hostError: error.description, readBack: nil,
+        noFocus.attempt = Attempt(step: HostInsertion.step(for: error), hostError: error.description, readBack: nil,
                                   elapsedMilliseconds: 1)
         noFocus.retry = Attempt(step: .inserted, hostError: nil,
-                                readBack: HostA2Insertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
+                                readBack: HostInsertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
                                 elapsedMilliseconds: 2)
         noFocus.focusedAfter = element
         noFocus.cleanup = "separate instance quit; its profile deleted"
@@ -165,7 +196,7 @@ enum SelfTest {
         experiment.variant = Variant.experiment(attribute: "AXEnhancedUserInterface").label
         experiment.retry = nil
         experiment.attempt = Attempt(step: .inserted, hostError: nil,
-                                     readBack: HostA2Insertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
+                                     readBack: HostInsertion.evaluate(text.text, for: text, source: "kAXValue of the focused element"),
                                      elapsedMilliseconds: 2)
         experiment.experiment = ExperimentInfo(attribute: "AXEnhancedUserInterface", setResult: "success", valueAfter: "true")
 
@@ -185,7 +216,7 @@ enum SelfTest {
                            toolkit: "Chromium", control: "<textarea>", variant: Variant.asIs.label, expected: "insert",
                            status: "ran")
         web.attempt = Attempt(step: .setOKTextNotFound, hostError: nil,
-                              readBack: HostA2Insertion.evaluate("", for: text, source: "kAXValue of the focused element"),
+                              readBack: HostInsertion.evaluate("", for: text, source: "kAXValue of the focused element"),
                               elapsedMilliseconds: 2)
         var pageCheck = IndependentCheck(label: "page", source: "test", value: "", text: text)
         pageCheck.targetFocusedBefore = true
@@ -212,8 +243,8 @@ enum SelfTest {
 
         return ProbeReport(
             mode: "selftest (fake runner)",
-            hostBuild: HostBuild(commit: HostA2Provenance.commit, spinnetCoreTree: HostA2Provenance.spinnetCoreTree,
-                                 files: HostA2Provenance.files, headIdentical: HostA2Provenance.headIdentical),
+            hostBuild: HostBuild(commit: HostProvenance.commit, spinnetCoreTree: HostProvenance.spinnetCoreTree,
+                                 files: HostProvenance.files, headIdentical: HostProvenance.headIdentical),
             startedAt: "2026-10-02T00:00:00Z", finishedAt: "2026-10-02T00:00:01Z", machine: "fake machine",
             accessibilityTrusted: false, insertedTextPattern: "\(InsertionText.emoji)axp000000NN",
             rows: [inserted, noFocus, experiment, refused, web, typed, skipped, planned],

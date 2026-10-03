@@ -8,24 +8,122 @@ import SpinnetCore
 struct InsertionText: Equatable {
     static let emoji = "😀🎉"
     let marker: String
+    /// More text after the marker, for the current Host's line-break and
+    /// long-text rows.
+    var suffix = ""
 
-    init(marker: String) { self.marker = marker }
+    init(marker: String, suffix: String = "") {
+        self.marker = marker
+        self.suffix = suffix
+    }
 
     static func random() -> InsertionText {
         InsertionText(marker: "axp" + String(UInt32.random(in: 0x100000...0xFFFFFF), radix: 16))
     }
 
-    var text: String { Self.emoji + marker }
+    var text: String { Self.emoji + marker + suffix }
     /// The second insertion of a selection pass.
     var replacement: InsertionText { InsertionText(marker: marker + "r") }
 }
 
+#if HOST_CURRENT
+/// How the probe asks the current Host to insert, standing in for what
+/// surrounds the Host's call.
+enum HostCallMode: String, Codable {
+    /// A Plugin View's standard insert with `closes_view`: the view closes,
+    /// then the Host inserts into the view's origin.
+    case viewCloses = "view closes on Insert"
+    /// A standard insert in a pinned view: the Host inserts into the origin
+    /// while the panel is still on screen.
+    case viewStaysOpen = "view stays open (pinned)"
+    /// The synchronous `insert_text` Host Service from a View Event, while
+    /// the panel is key: the Host inserts into the App in front.
+    case script = "insert_text from a View Event"
+}
+#endif
+
+
+/// The current Host's insertion, called as main.swift calls it:
+/// `HostTextInserter.insertAndWait(_:into:)` (the script path's call; the
+/// view's asynchronous call runs the same sequence). Before each call the
+/// probe shows its stand-in Plugin View panel, key and non-activating, over
+/// the target, as the Host's view is when the user chooses Insert.
+///
+/// Without HOST_CURRENT:
 /// The Host A2 insertion, called exactly as the Host calls it for a Plugin
 /// View's standard insert action: `provider.insertText(text, intoApplication:
 /// origin.processIdentifier)` (Sources/SpinnetHost/main.swift at af1a450).
 /// `AppKitPluginHostServiceProvider` is the Host's own class, compiled from
 /// Host A2 into this probe; the probe adds nothing to its sequence.
-final class HostA2Insertion {
+final class HostInsertion {
+#if HOST_CURRENT
+    private let inserter = HostTextInserter()
+    var mode: HostCallMode = .viewCloses
+
+    var accessibilityGranted: Bool { AXIsProcessTrusted() }
+
+    func attempt(_ text: InsertionText, into processIdentifier: pid_t, settle: TimeInterval = 0.35,
+                 onMainThread: Bool = false) -> Attempt {
+        var notes = ["Host asked: \(mode.rawValue)"]
+        let origin = Apps.frontmost()
+        notes.append("origin \(Apps.frontmostDescription() ?? "none")\(origin?.processIdentifier == processIdentifier ? " (the target)" : " (NOT the target)")")
+        // The Host would insert into the origin, or the App in front; the
+        // probe never lets that be anything but its own target.
+        guard origin?.processIdentifier == processIdentifier else {
+            return Attempt(step: .otherError, hostError: "probe: the target was not in front, so nothing was asked of the Host",
+                           readBack: nil, elapsedMilliseconds: 0, hostNotes: notes)
+        }
+        let panel = ProbePanel.show(title: "Plugin View stand-in")
+        Apps.poll(2, interval: 0.05) { panel.state().isKey }
+        let shown = panel.state()
+        notes.append("panel key \(shown.isKey ? "yes" : "no"), probe active \(shown.probeIsActive ? "yes" : "no"), target in front while panel key \(Apps.frontmost()?.processIdentifier == processIdentifier ? "yes" : "no")")
+        if mode == .viewCloses { panel.close() }
+        let started = Date()
+        var hostError: PluginHostServiceError?
+        do {
+            try inserter.insertAndWait(text.text, into: mode == .script ? .frontmost : .application(processIdentifier))
+        } catch let error as PluginHostServiceError {
+            hostError = error
+        } catch {
+            hostError = .failed(error.localizedDescription)
+        }
+        let elapsed = Date().timeIntervalSince(started) * 1000
+        if mode != .viewCloses {
+            let after = panel.state()
+            notes.append("after the call: panel visible \(after.isVisible ? "yes" : "no"), key \(after.isKey ? "yes" : "no"), probe active \(after.probeIsActive ? "yes" : "no")")
+        }
+        notes.append("in front after the call: \(Apps.frontmostDescription() ?? "none")")
+        if let hostError {
+            panel.close()
+            return Attempt(step: Self.step(for: hostError), hostError: hostError.description, readBack: nil,
+                           elapsedMilliseconds: elapsed, hostNotes: notes)
+        }
+        Thread.sleep(forTimeInterval: settle)
+        panel.close()
+        let readBack = Self.readBack(text, in: processIdentifier)
+        return Attempt(step: Self.step(afterSuccess: readBack), hostError: nil, readBack: readBack,
+                       elapsedMilliseconds: elapsed, hostNotes: notes)
+    }
+
+    /// The current Host's own messages (`HostTextInserter.swift`).
+    static func step(for error: PluginHostServiceError) -> InsertionStep {
+        switch error {
+        case .systemPermissionDenied(.accessibility): return .accessibilityNotGranted
+        case .unavailable("The focused field is a password field; nothing was inserted"): return .refusedPasswordField
+        case .unavailable("The App to insert into did not come to the front; nothing was inserted"): return .refusedNotFrontmost
+        case .unavailable("The App to insert into is no longer open"): return .refusedTargetGone
+        case .unavailable("Spinnet does not insert text into itself"): return .refusedSpinnetItself
+        case .failed("The App to insert into left the front while the text was typed; only part of it was inserted"):
+            return .stoppedLostFront
+        default: return .otherError
+        }
+    }
+
+    static func step(afterSuccess readBack: ReadBack) -> InsertionStep {
+        guard readBack.readable else { return .deliveredUnverified }
+        return readBack.containsInsertedText ? .delivered : .deliveredTextNotFound
+    }
+#else
     private let provider = AppKitPluginHostServiceProvider()
 
     var accessibilityGranted: Bool { provider.isGranted(.accessibility) }
@@ -79,6 +177,7 @@ final class HostA2Insertion {
         guard readBack.readable else { return .setOKUnverified }
         return readBack.containsInsertedText ? .inserted : .setOKTextNotFound
     }
+#endif
 
     static func readBack(_ text: InsertionText, in processIdentifier: pid_t) -> ReadBack {
         let app = AX.application(processIdentifier)
@@ -106,8 +205,13 @@ final class HostA2Insertion {
             let end = value.index(range.upperBound, offsetBy: 40, limitedBy: value.endIndex) ?? value.endIndex
             excerpt = String(value[start..<end])
         }
+        // Each line break is typed as one Shift-Return, which Apps store as
+        // LF, so a CRLF in the text is found as LF.
+        func lines(_ string: String) -> String {
+            string.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        }
         return ReadBack(source: source, readable: true, axError: nil, valueLength: (value as NSString).length,
-                        containsInsertedText: value.contains(text.text), containsMarker: value.contains(text.marker),
+                        containsInsertedText: lines(value).contains(lines(text.text)), containsMarker: value.contains(text.marker),
                         containsEmoji: value.contains(InsertionText.emoji), excerpt: excerpt)
     }
 
