@@ -186,13 +186,12 @@ run_probe() {
     shift
     mkdir -p "$(dirname "$log")"
     : >"$log"
-    tail -n +1 -f "$log" &
-    local tail_pid=$!
-    trap 'pkill -TERM -f "$APP_BINARY" || true; kill $tail_pid 2>/dev/null || true' INT TERM
+    trap 'pkill -TERM -f "$APP_BINARY" || true' INT TERM
     local status=0
-    /usr/bin/open -W -n --stdout "$log" --stderr "$log" "$APP_BUNDLE" --args "$@" || status=$?
-    sleep 0.5
-    kill "$tail_pid" 2>/dev/null || true
+    # `open --stdout` makes LaunchServices refuse a long-running probe
+    # (-10810 on macOS 27), so the probe's progress is not streamed; its
+    # results are printed when it finishes.
+    /usr/bin/open -W -n "$APP_BUNDLE" --args "$@" >>"$log" 2>&1 || status=$?
     trap - INT TERM
     return "$status"
 }
