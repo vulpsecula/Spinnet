@@ -230,38 +230,6 @@ final class AppKitPluginHostServiceProvider {
             throw PluginHostServiceError.failed("The local file or folder could not be opened")
         }
     }
-
-    /// Replaces the focused element's selection with `text` through
-    /// Accessibility, the way typing would, leaving the clipboard alone. An
-    /// element that does not let its selected text be set fails before
-    /// anything changes; the Host never falls back to pasting.
-    func insertText(_ text: String) throws {
-        try insertText(text, into: AXUIElementCreateSystemWide())
-    }
-
-    /// The same into one App's focused element, even while a Plugin View's
-    /// panel holds the keyboard: a Plugin View inserts into the App it came
-    /// from, which a non-activating panel leaves in front.
-    func insertText(_ text: String, intoApplication processIdentifier: pid_t) throws {
-        try insertText(text, into: AXUIElementCreateApplication(processIdentifier))
-    }
-
-    private func insertText(_ text: String, into container: AXUIElement) throws {
-        guard isGranted(.accessibility) else {
-            throw PluginHostServiceError.systemPermissionDenied(.accessibility)
-        }
-        guard let element = elementAttribute(kAXFocusedUIElementAttribute, of: container) else {
-            throw PluginHostServiceError.unavailable("No focused text field")
-        }
-        var settable = DarwinBoolean(false)
-        guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &settable) == .success,
-              settable.boolValue else {
-            throw PluginHostServiceError.unavailable("The focused App does not accept inserted text")
-        }
-        guard AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success else {
-            throw PluginHostServiceError.failed("The focused App did not accept the text")
-        }
-    }
 }
 
 /// A window's identity for remembered frames. Accessibility elements compare

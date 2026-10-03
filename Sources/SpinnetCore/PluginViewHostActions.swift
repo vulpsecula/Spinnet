@@ -53,8 +53,9 @@ public enum PluginViewRepairRoute: Equatable {
 /// Host Service is (`authorize`, the broker's own check), so it needs the
 /// same Capability and System Permission, and a refusal throws the same
 /// `PluginHostServiceError`. Its effect is the Host's, not the service's:
-/// inserted text goes into the App the view came from, which the service,
-/// run while that App is in front, reaches as the focused one.
+/// inserted text goes into the App the view came from, which the Host brings
+/// back to the front and types the text into, so its outcome arrives only
+/// once that is done.
 public final class PluginViewHostActions {
     public typealias Authorize = (PluginHostService, ActionConfiguration) throws -> Void
 
@@ -62,7 +63,11 @@ public final class PluginViewHostActions {
     private let manifest: (PluginID) -> PluginManifest?
     private let copyText: (String) throws -> Void
     private let openURL: (URL) throws -> Void
-    private let insertText: (String, PluginViewOrigin?) throws -> Void
+    /// Inserts text into the origin and calls back once, with nil when it
+    /// was delivered.
+    public typealias InsertText = (String, PluginViewOrigin?, @escaping (PluginHostServiceError?) -> Void) -> Void
+
+    private let insertText: InsertText
     private let openPluginSettings: (PluginID) -> Void
     private let readSettings: (PluginManifest) -> [String: JSONValue]
     private let writeSettings: (PluginManifest, [String: JSONValue]) throws -> Void
@@ -73,7 +78,7 @@ public final class PluginViewHostActions {
                 manifest: @escaping (PluginID) -> PluginManifest?,
                 copyText: @escaping (String) throws -> Void,
                 openURL: @escaping (URL) throws -> Void,
-                insertText: @escaping (String, PluginViewOrigin?) throws -> Void,
+                insertText: @escaping InsertText,
                 openPluginSettings: @escaping (PluginID) -> Void,
                 readSettings: @escaping (PluginManifest) -> [String: JSONValue],
                 writeSettings: @escaping (PluginManifest, [String: JSONValue]) throws -> Void) {
@@ -89,9 +94,12 @@ public final class PluginViewHostActions {
 
     /// Performs a standard action for the Action whose view offers it.
     /// Throws a `PluginHostServiceError`: a refusal, invalid input, or the
-    /// effect's own failure.
+    /// effect's own failure. `finished` is called once the effect is done:
+    /// before this returns for most, later for inserted text, which is
+    /// typed only once its App is in front again.
     public func perform(_ standard: PluginViewStandardAction, for action: ActionConfiguration,
-                        origin: PluginViewOrigin?) throws {
+                        origin: PluginViewOrigin?,
+                        finished: @escaping (PluginHostServiceError?) -> Void = { _ in }) throws {
         if let service = standard.service { try authorize(service, action) }
         switch standard {
         case .copyText(let text):
@@ -100,10 +108,12 @@ public final class PluginViewHostActions {
             // The same rule as `open_url`: only an http or https link.
             try openURL(OpenableURL.validate(link))
         case .insertText(let text):
-            try insertText(text, origin)
+            insertText(text, origin, finished)
+            return
         case .openPluginSettings:
             openPluginSettings(action.pluginID)
         }
+        finished(nil)
     }
 
     /// A failure to show inline in the view, with the repair route its

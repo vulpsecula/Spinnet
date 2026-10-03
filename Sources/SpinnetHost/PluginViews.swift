@@ -16,6 +16,8 @@ struct PluginViewEnvironment {
     let copy: (String) -> Void
     /// Runs an operation after a delay, such as hiding a toast.
     let schedule: (TimeInterval, @escaping () -> Void) -> Void
+    /// Tells the user of a failure that comes after the view has closed.
+    let report: (String) -> Void
 }
 
 /// What a Detail section shows.
@@ -133,26 +135,57 @@ final class PluginViewModel: ObservableObject {
         case .event(let id):
             session.send(.actionChosen(id))
         case .standard(let standard, let closesView):
-            guard perform(standard), closesView else { return }
-            session.close()
+            perform(standard, closingView: closesView)
         }
     }
 
     /// Opens a link from Detail text, under the `open_url` rules.
     func open(_ url: URL) {
         hostError = nil
-        perform(.openURL(url.absoluteString))
+        perform(.openURL(url.absoluteString), closingView: false)
     }
 
-    @discardableResult
-    private func perform(_ standard: PluginViewStandardAction) -> Bool {
+    /// Performs a standard action and closes the view if asked once it has
+    /// succeeded. Inserted text is typed only after the Host brings its App
+    /// forward, which takes the keyboard from this view, so a view that
+    /// closes on inserting closes as soon as the insert is under way, and
+    /// a later failure is shown in the view if it is still open, or else as
+    /// the Host's message.
+    private func perform(_ standard: PluginViewStandardAction, closingView: Bool) {
+        let finishedAtOnce = FinishedAtOnce()
         do {
-            try environment.hostActions.perform(standard, for: session.action, origin: origin)
-            return true
+            try environment.hostActions.perform(standard, for: session.action, origin: origin) { [weak self] error in
+                guard !finishedAtOnce.returned else {
+                    self?.finishedLater(error)
+                    return
+                }
+                finishedAtOnce.outcome = .some(error)
+            }
         } catch {
             hostError = environment.hostActions.failure(error, for: session.action)
-            return false
+            return
         }
+        finishedAtOnce.returned = true
+        if case .some(let error?) = finishedAtOnce.outcome {
+            hostError = environment.hostActions.failure(error, for: session.action)
+            return
+        }
+        if closingView { session.close() }
+    }
+
+    private func finishedLater(_ error: PluginHostServiceError?) {
+        guard let error else { return }
+        let failure = environment.hostActions.failure(error, for: session.action)
+        if session.isEnded {
+            environment.report("\(pluginName) — \(session.action.title): \(failure.message)")
+        } else {
+            hostError = failure
+        }
+    }
+
+    private final class FinishedAtOnce {
+        var returned = false
+        var outcome: PluginHostServiceError??
     }
 
     func repair() {

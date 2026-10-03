@@ -45,6 +45,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let capabilityGrants = PluginCapabilityGrantStore()
     private let clipboardObservationGate = ClipboardObservationGate()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
+    private let textInserter = HostTextInserter()
     private lazy var selectedTextReader = SelectedTextReader(
         clipboardObservationGate: clipboardObservationGate
     )
@@ -156,8 +157,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 httpsTransport: URLSessionHTTPSTransport(),
                 credentialStore: pluginCredentials,
-                focusedTextInserter: { [pluginHostServiceProvider] text in
-                    try pluginHostServiceProvider.insertText(text)
+                // The script waits on its helper's queue while the main
+                // thread brings the App in front forward.
+                focusedTextInserter: { [textInserter] text in
+                    try textInserter.insertAndWait(text, into: .frontmost)
                 },
                 localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)
@@ -609,12 +612,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             manifest: { registry.package(for: $0)?.manifest },
             copyText: { try provider.writeClipboard($0) },
             openURL: { try provider.openURL($0) },
-            insertText: { text, origin in
-                if let origin {
-                    try provider.insertText(text, intoApplication: origin.processIdentifier)
-                } else {
-                    try provider.insertText(text)
-                }
+            insertText: { [textInserter] text, origin, finished in
+                textInserter.insert(text, into: origin.map { .application($0.processIdentifier) } ?? .frontmost,
+                                    completion: finished)
             },
             openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) },
             readSettings: { [weak self] manifest in self?.resolvedPluginSettings(manifest) ?? [:] },
@@ -646,7 +646,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             copy: { try? provider.writeClipboard($0) },
             schedule: { delay, operation in
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
-            }
+            },
+            report: { [weak self] message in self?.feedback?.showMessage(message) }
         )
         return PluginViewWindows(
             environment: environment,

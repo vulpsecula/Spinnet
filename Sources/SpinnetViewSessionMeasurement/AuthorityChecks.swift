@@ -141,7 +141,10 @@ final class AuthorityChecks {
             manifest: { _ in manifest },
             copyText: { copied.value.append($0) },
             openURL: { _ in },
-            insertText: { text, _ in inserted.value.append(text) },
+            insertText: { text, _, finished in
+                inserted.value.append(text)
+                finished(nil)
+            },
             openPluginSettings: { _ in },
             readSettings: { _ in [:] },
             writeSettings: { _, _ in }

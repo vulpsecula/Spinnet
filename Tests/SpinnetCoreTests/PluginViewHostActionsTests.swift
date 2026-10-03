@@ -16,6 +16,8 @@ final class PluginViewHostActionsTests: XCTestCase {
     private var copied: [String] = []
     private var opened: [URL] = []
     private var inserted: [(String, PluginViewOrigin?)] = []
+    /// Each insertion's delivery, finished when a test says so.
+    private var deliveries: [(PluginHostServiceError?) -> Void] = []
     private var settingsShown: [PluginID] = []
     private var stored: [String: JSONValue] = [:]
     private var actions: PluginViewHostActions!
@@ -31,6 +33,7 @@ final class PluginViewHostActionsTests: XCTestCase {
         copied = []
         opened = []
         inserted = []
+        deliveries = []
         settingsShown = []
         stored = [:]
         let broker = CapabilityCheckedHostServiceBroker(
@@ -44,7 +47,10 @@ final class PluginViewHostActionsTests: XCTestCase {
             manifest: { $0 == package.manifest.id ? package.manifest : nil },
             copyText: { [unowned self] in copied.append($0) },
             openURL: { [unowned self] in opened.append($0) },
-            insertText: { [unowned self] in inserted.append(($0, $1)) },
+            insertText: { [unowned self] text, origin, finished in
+                inserted.append((text, origin))
+                deliveries.append(finished)
+            },
             openPluginSettings: { [unowned self] in settingsShown.append($0) },
             readSettings: { [unowned self] manifest in manifest.resolvedSettings(stored: stored) },
             writeSettings: { [unowned self] _, values in stored = values }
@@ -94,6 +100,21 @@ final class PluginViewHostActionsTests: XCTestCase {
 
         try actions.perform(.openPluginSettings, for: action, origin: nil)
         XCTAssertEqual(settingsShown, [package.manifest.id], "Opening Plugin Settings needs no Capability")
+    }
+
+    /// Inserted text is typed after the Host brings the App forward, so
+    /// its outcome arrives once that is done; the other standard actions
+    /// finish at once.
+    func testAStandardActionReportsWhenItsEffectFinishes() throws {
+        let action = try self.action()
+        var outcomes: [String: PluginHostServiceError?] = [:]
+        try actions.perform(.copyText("copied"), for: action, origin: nil) { outcomes["copy"] = $0 }
+        XCTAssertEqual(outcomes["copy"], .some(nil))
+
+        try actions.perform(.insertText("inserted"), for: action, origin: nil) { outcomes["insert"] = $0 }
+        XCTAssertNil(outcomes["insert"], "Still being typed")
+        deliveries.first?(.unavailable("The App to insert into is no longer open"))
+        XCTAssertEqual(outcomes["insert"], .some(.unavailable("The App to insert into is no longer open")))
     }
 
     func testInsertingTextNeedsAccessibilityAsInsertTextDoes() throws {

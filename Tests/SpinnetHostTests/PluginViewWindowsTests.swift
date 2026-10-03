@@ -178,6 +178,10 @@ final class PluginViewHarness {
     var copied: [String] = []
     var opened: [URL] = []
     var inserted: [(String, PluginViewOrigin?)] = []
+    /// How an insertion finishes before `perform` returns; nil holds it in
+    /// `deliveries` until the test finishes it.
+    var insertionFinishesAtOnce: PluginHostServiceError?? = .some(nil)
+    var deliveries: [(PluginHostServiceError?) -> Void] = []
     var repairs: [PluginViewRepairRoute] = []
     var grants: Set<PluginCapability> = [.writeClipboard, .openURL, .insertIntoFocusedApp]
     let provider = RecordingSectionProvider()
@@ -198,7 +202,10 @@ final class PluginViewHarness {
             manifest: { $0 == manifest.id ? manifest : nil },
             copyText: { [unowned self] in copied.append($0) },
             openURL: { [unowned self] in opened.append($0) },
-            insertText: { [unowned self] in inserted.append(($0, $1)) },
+            insertText: { [unowned self] text, origin, finished in
+                inserted.append((text, origin))
+                if let outcome = insertionFinishesAtOnce { finished(outcome) } else { deliveries.append(finished) }
+            },
             openPluginSettings: { [unowned self] _ in repairs.append(.pluginSettings) },
             readSettings: { [unowned self] in $0.resolvedSettings(stored: stored) },
             writeSettings: { [unowned self] _, values in stored = values }
@@ -210,7 +217,8 @@ final class PluginViewHarness {
             pluginName: { $0 == manifest.id ? manifest.name : $0.rawValue },
             repair: { [unowned self] route, _ in repairs.append(route) },
             copy: { [unowned self] in copied.append($0) },
-            schedule: { [unowned self] delay, operation in scheduled.append((delay, operation)) }
+            schedule: { [unowned self] delay, operation in scheduled.append((delay, operation)) },
+            report: { [unowned self] in reports.append($0) }
         )
         windows = PluginViewWindows(
             environment: environment,

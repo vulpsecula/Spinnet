@@ -127,6 +127,62 @@ final class PluginViewModelTests: XCTestCase {
         XCTAssertEqual(window.closes, 1)
     }
 
+    /// Inserting gives the keyboard back to the App first: a view that
+    /// closes on inserting closes before the text is typed, and a failure
+    /// after that is the Host's own message, since there is no view to show
+    /// it in.
+    func testAnInsertThatClosesTheViewClosesItBeforeTheTextIsTyped() throws {
+        harness.insertionFinishesAtOnce = nil
+        try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
+            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+                     "closes_view": .bool(true)])
+        ]))
+        let model = try model()
+        let window = try XCTUnwrap(harness.window())
+        model.choose(try XCTUnwrap(model.description.actions.first))
+        XCTAssertEqual(harness.inserted.map(\.0), ["x"])
+        XCTAssertTrue(model.session.isEnded, "Closed while the text is still to be typed")
+        XCTAssertEqual(window.closes, 1)
+
+        harness.deliveries.first?(.unavailable("The App to insert into did not come to the front; nothing was inserted"))
+        XCTAssertEqual(harness.reports.count, 1)
+        XCTAssertTrue(harness.reports[0].contains("did not come to the front"), harness.reports[0])
+        XCTAssertTrue(harness.reports[0].contains("View Gallery"), harness.reports[0])
+    }
+
+    /// A refusal known before anything is typed shows in the view, which
+    /// stays open, as any other refusal does.
+    func testAnInsertRefusedAtOnceKeepsTheViewOpenWithItsError() throws {
+        harness.insertionFinishesAtOnce = .some(.unavailable("The App to insert into is no longer open"))
+        try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
+            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+                     "closes_view": .bool(true)])
+        ]))
+        let model = try model()
+        model.choose(try XCTUnwrap(model.description.actions.first))
+        XCTAssertFalse(model.session.isEnded)
+        XCTAssertEqual(model.error?.message, "Host Service is unavailable: The App to insert into is no longer open")
+        XCTAssertEqual(harness.reports, [])
+    }
+
+    /// An insert that keeps the view open shows a later failure in it while
+    /// it is still open.
+    func testAnInsertThatKeepsTheViewOpenShowsALaterFailureInIt() throws {
+        harness.insertionFinishesAtOnce = nil
+        try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
+            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x")])
+        ]))
+        let model = try model()
+        model.isPinned = true
+        model.choose(try XCTUnwrap(model.description.actions.first))
+        XCTAssertFalse(model.session.isEnded)
+        XCTAssertNil(model.error)
+        harness.deliveries.first?(.unavailable("The focused field is a password field; nothing was inserted"))
+        XCTAssertEqual(model.error?.message,
+                       "Host Service is unavailable: The focused field is a password field; nothing was inserted")
+        XCTAssertEqual(harness.reports, [])
+    }
+
     /// An event's refusal shows inline with its repair route too.
     func testARefusedEventShowsItsRepairRoute() throws {
         try harness.present(PluginViewHarness.form(title: "Form"))
