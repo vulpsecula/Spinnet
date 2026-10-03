@@ -12,6 +12,18 @@ choices returned to the user. The draft public contract is in
 and [`host-operations.d.ts`](host-operations.d.ts); budgets and the real-App
 plan are in [`verification-plan.md`](verification-plan.md).
 
+**Names (#99, 2026-10-04).** An operation names the Host Service it performs
+by its ID in the namespace catalogue
+([`../namespaces/`](../namespaces/README.md)), in `perform`, with that
+operation's `input`, and this candidate requires the draft `namespaces`
+revision. Where this document speaks of an operation's *kind*, it means that
+operation. The insertion kind is `selection.replace`; the illustrative
+`quit_app` and `start_task` are `apps.quit` and `tools.startTask`, IDs the
+catalogue reserves for #83 and the reviewed-task tickets. Every operation the
+catalogue offers as a request may be requested; insertion is the one this
+design works through. Level 1's own names (the `insert_text` Host Service and
+standard action) still describe Level 1.
+
 ## 1. Problem
 
 Some operations cannot run inside a script's bounded invocation:
@@ -75,7 +87,7 @@ A script requests an operation with an `operation` member on its answer:
 
 ```js
 // Emoji, answering Return on its search form.
-ui.show(view, { state, operation: ui.insertTextOperation({ id: "insert", text: "😀", closesView: true }) });
+ui.show(view, { state, operation: spinnet.selection.replace.operation({ text: "😀" }, { id: "insert", closesView: true }) });
 ```
 
 Rules:
@@ -92,16 +104,17 @@ Rules:
    `operation_finished` with another request. One gesture yields at most one
    operation.
 3. `operation` may accompany a view, a toast, or neither (an Action without
-   a view may request one; an `insert_text` request from it is refused by
+   a view may request one; a `selection.replace` request from it is refused by
    default because nothing showed its target, section 6.5). It may not
    accompany `close: true`; an operation that should close the view on
    success says `closes_view: true` instead, so a refused insertion keeps the
    view open to show the updated hint.
-4. Members common to every kind are `kind`, an optional Plugin-chosen `id`
-   (at most 64 characters, echoed in the result, never interpreted),
-   `closes_view` and `notify`. Each kind adds its own input members. Unknown
-   members, unknown kinds and kinds the Plugin's candidate revision does not
-   include are protocol violations.
+4. Members common to every operation are `perform`, the catalogue ID, an
+   optional Plugin-chosen `id` (at most 64 characters, echoed in the result,
+   never interpreted), `closes_view` and `notify`. The operation's own input
+   is `input`, exactly as a call or a page action gives it. Unknown members,
+   unknown IDs and IDs the catalogue does not offer as a request are
+   protocol violations.
 
 The synchronous `requestHostService` path stays for services that complete
 within the invocation. A kind that needs confirmation or a Host-owned target
@@ -155,7 +168,7 @@ in the same executor turn. No other event can observe the view without the
 request or the request without the view.
 
 What commit does **not** undo: Host Service effects the script already caused
-during its invocation (Plugin Storage writes, a synchronous `insert_text`).
+during its invocation (Plugin Storage writes, a synchronous `selection.replace`).
 They happened before the answer existed, as in Level 1. This is why the
 deferred path is preferred when an effect should depend on the answer being
 accepted.
@@ -205,9 +218,9 @@ the Plugin:
 
 | Kind | Host confirmation |
 | --- | --- |
-| `insert_text` | None. The gesture is the consent, and the target name is already on screen |
-| `quit_app` (illustrative, #83) | Proposed: none for a graceful quit, which the App can refuse or turn into its own save prompt; required for Force Quit (P4) |
-| `start_task` (illustrative, reviewed tasks) | Required: shows the Host's description of the reviewed operation and its source |
+| `selection.replace` | None. The gesture is the consent, and the target name is already on screen |
+| `apps.quit` (illustrative, #83) | Proposed: none for a graceful quit, which the App can refuse or turn into its own save prompt; required for Force Quit (P4) |
+| `tools.startTask` (illustrative, reviewed tasks) | Required: shows the Host's description of the reviewed operation and its source |
 
 While a confirmation is on screen the view's own controls are inert; Escape
 or Cancel declines; closing the view declines. Defaults are proposed in P4.
@@ -251,7 +264,7 @@ for the operation slot (section 4.8), so the requesting Action answers its
 own result before the next gesture runs:
 
 ```json
-{"type": "operation_finished", "operation": "insert", "kind": "insert_text",
+{"type": "operation_finished", "operation": "insert", "perform": "selection.replace",
  "outcome": "refused", "reason": "target_changed"}
 ```
 
@@ -261,7 +274,7 @@ state but request no operation. Under #68's page rules it is delivered like a
 persisted Settings notification: it does not depend on the page that
 requested it still being shown. It never carries the target's name, bundle
 ID, process or window. Kind-specific result members are allowed when the
-Plugin is entitled to them. `start_task`, for example, may return the opaque
+Plugin is entitled to them. `tools.startTask`, for example, may return the opaque
 task handle the reviewed-task ticket defines.
 
 Without `notify`, a Plugin that wants to record success (Emoji's recent list)
@@ -335,7 +348,7 @@ ADR 0007 ("a retired helper's work is never replayed") and #68 ("no replay").
 The same shape has to serve insertion, quitting the working App, and starting
 a reviewed task. Working all three through:
 
-| Aspect | `insert_text` | `quit_app` (illustrative, #83) | `start_task` (illustrative, reviewed tasks) |
+| Aspect | `selection.replace` | `apps.quit` (illustrative, #83) | `tools.startTask` (illustrative, reviewed tasks) |
 | --- | --- | --- | --- |
 | Typical gesture | Return on a result; an insert button | "Quit" / "Force Quit" action | "Install" on a selected package |
 | Input | `text` ≤ 128 KiB | `target: "frontmost"`, `force: bool` | Reviewed profile operation and its bounded arguments |
@@ -393,7 +406,8 @@ non-Spinnet App (Clipboard History's rule), or to a field in the panel.
 While a candidate view is open, the Host keeps a current insertion target,
 updated from frontmost-App activation notifications. It shows the name:
 
-- on every standard `insert_text` action button: "Insert into Notes", or the
+- on every `selection.replace` action button (Level 1's standard
+  `insert_text` in a Level 1 view): "Insert into Notes", or the
   action title with the App as a secondary label (P1);
 - in a Host-drawn target line, when the view sets
   `shows_insertion_target: true`, for views whose gestures may lead to an
@@ -443,9 +457,9 @@ the user was not shown.
 
 | Path | When the target is resolved | Compared with |
 | --- | --- | --- |
-| Standard `insert_text` action | When the Host performs it, immediately on the click or key | The target shown on that button when it was pressed |
-| Answer-requested `insert_text` operation | At execution, after commit | The target shown when the gesture was made |
-| Synchronous `insert_text` Host Service in a View Session invocation | When the service runs, inside the invocation | The target shown when the gesture that started this invocation was made |
+| A `selection.replace` action (Level 1's standard `insert_text` in a Level 1 view) | When the Host performs it, immediately on the click or key | The target shown on that button when it was pressed |
+| A requested `selection.replace` | At execution, after commit | The target shown when the gesture was made |
+| A synchronous `selection.replace` call in a View Session invocation | When the service runs, inside the invocation | The target shown when the gesture that started this invocation was made |
 
 All three use section 6.1's resolution and refusals, so expressing the same
 insertion a different way never changes where it goes (#68 user story 13).
@@ -507,7 +521,7 @@ it with the App's focused element at execution, and refuses with
 `target_changed`, writing nothing, when they differ. The user acts again to
 insert into the element now focused.
 
-For a standard `insert_text` action the gesture and execution are a moment
+For a `selection.replace` action the gesture and execution are a moment
 apart, so this rarely refuses; it matters for requested operations and for
 synchronous calls made late in an invocation.
 
@@ -572,7 +586,7 @@ before they are settled with evidence.
    success reliably means text appeared, notably in web content and
    Electron. If not, whether the Host reads the value back to verify, and
    what `succeeded` then promises.
-3. **Failure reasons.** The final enumeration of `reason` for `insert_text`
+3. **Failure reasons.** The final enumeration of `reason` for `selection.replace`
    (`no_text_input`, `text_rejected`, `target_unresponsive`, and whatever the
    evidence shows is distinguishable). The schema's list is provisional.
 4. **App-scoped focus versus system-wide focus.** Whether
@@ -609,20 +623,24 @@ members of the draft Candidate Contract `host_operations` revision 1 in
 `candidate_contracts` as [Candidate Contracts](../../candidates/README.md)
 describes:
 
-- answer member `operation` (`insert_text` kind in this revision);
-- View Event `operation_finished`;
+- answer member `operation`, `{perform, input, id?, closes_view?, notify?}`,
+  for every ID the namespace catalogue offers as a request, `selection.replace`
+  first among them (`request:<id>` members);
+- View Event `operation_finished`, naming the operation in `perform`;
 - view member `shows_insertion_target`;
-- candidate semantics for the standard `insert_text` action and the
-  `insert_text` Host Service inside View Sessions;
+- candidate semantics for `selection.replace` inside View Sessions, as an
+  action, a request or a call, and for Level 1's standard `insert_text` in a
+  Level 1 view the Plugin still answers;
 - failure category `insertion_target_changed` (P10);
-- `spinnet.ui` builder `insertTextOperation`, an `operation` option on
-  `show`, and `ui.request(operation)` for an answer with no view. Proposed
+- an `operation` option on `spinnet.ui.show` and `ui.request(operation)` for
+  an answer with no view; the operation itself is built by
+  `spinnet.<id>.operation(input, options)` in the namespaced SDK. Proposed
   only; `spinnet.js` is unchanged.
 
-`quit_app` and `start_task` appear in the schema under
+`apps.quit` and `tools.startTask` appear in the schema under
 `$defs/illustrative` only, to show that the generic members hold for a
-mutating kind. They are not in the `kind` enum and are not proposed by this
-revision.
+mutating operation. The catalogue reserves them; they are not request IDs of
+this revision.
 
 ## 10. Test seams and fixtures
 

@@ -1,5 +1,7 @@
 {
-  "kind": "quit_app",
-  "target": "frontmost",
+  "perform": "apps.quit",
+  "input": {
+    "target": "frontmost"
+  },
   "pid": 501
 }

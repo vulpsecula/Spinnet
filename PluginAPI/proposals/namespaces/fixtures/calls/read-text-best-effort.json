@@ -1,0 +1,6 @@
+{
+  "service": "selection.readText",
+  "input": {
+    "best_effort": true
+  }
+}

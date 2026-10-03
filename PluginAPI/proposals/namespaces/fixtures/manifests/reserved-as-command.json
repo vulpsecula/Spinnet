@@ -1,0 +1,21 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "insert_into_focused_app"
+  ],
+  "commands": [
+    {
+      "id": "insert.date",
+      "title": "Insert Date",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "selection.replace"
+    }
+  ]
+}

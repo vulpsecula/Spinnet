@@ -7,37 +7,28 @@
 // candidate revision's declarations would; once published they would live
 // with the revision under `../../candidates/host_operations/r1/`, never in
 // the stable `spinnet.d.ts`. `reference.md` states the rules behind them.
+// An operation names its Host Service by the catalogue ID of the namespaces
+// proposal (#99), whose types define each operation's input.
 
 import type { JSONValue, ScriptAnswer, ViewDescription, ViewEvent } from "../../spinnet";
-
-/** Members every requested Host operation may carry. */
-export interface OperationCommon {
-  /**
-   * A label of at most 64 characters, echoed in `operation_finished`.
-   * The Host never interprets it.
-   */
-  id?: string;
-  /** Close the view once the operation succeeds, and only then. */
-  closes_view?: boolean;
-  /** Deliver `operation_finished` when the outcome is ready. */
-  notify?: boolean;
-}
+import type { PerformID, RequestedOperation } from "../namespaces/namespaces";
 
 /**
- * Inserts `text` (at most 128 KiB of UTF-8) into the App frontmost at
- * execution, through Accessibility only. Needs `insert_into_focused_app`
- * and Accessibility. Refused, with nothing written, when the App in front is
- * not the one the Host showed when the user acted, when focus has moved to
- * another element of that App, or when nothing showed a target (always the
- * case without a view).
+ * A requested Host operation: `{perform, input, id?, closes_view?, notify?}`,
+ * built by `spinnet.<id>.operation(input, options)`. Every ID the catalogue
+ * offers at the request entry point may be requested.
  */
-export interface InsertTextOperation extends OperationCommon {
-  kind: "insert_text";
-  text: string;
-}
+export type HostOperation = RequestedOperation;
 
-/** The operations this proposal revision offers. */
-export type HostOperation = InsertTextOperation;
+/**
+ * `selection.replace`, the first operation requested this way: inserts its
+ * text (at most 128 KiB of UTF-8) into the App frontmost at execution, typed
+ * as keyboard events. Needs `insert_into_focused_app` and Accessibility.
+ * Refused, with nothing written, when the App in front is not the one the
+ * Host showed when the user acted, when focus has moved to another element of
+ * that App, or when nothing showed a target (always the case without a view).
+ */
+export type SelectionReplaceOperation = RequestedOperation<"selection.replace">;
 
 /** The one terminal result of a request. */
 export type OperationOutcome = "succeeded" | "refused" | "declined" | "expired" | "cancelled" | "failed";
@@ -67,14 +58,14 @@ export type OperationFinishedEvent =
   | {
       type: "operation_finished";
       operation?: string;
-      kind: HostOperation["kind"];
+      perform: PerformID;
       outcome: "refused" | "failed";
       reason: OperationReason;
     }
   | {
       type: "operation_finished";
       operation?: string;
-      kind: HostOperation["kind"];
+      perform: PerformID;
       outcome: "succeeded" | "declined" | "expired" | "cancelled";
     };
 
@@ -100,13 +91,12 @@ export type CandidateScriptAnswer =
   | { toast?: string; operation: HostOperation }
   | { toast: string };
 
-/** Proposed additions to `spinnet.ui`. Builders only; they request nothing. */
+/**
+ * Proposed additions to `spinnet.ui`. Builders only; they request nothing.
+ * The operation itself is built where its Host Service lives:
+ * `spinnet.selection.replace.operation({ text: "😀" }, { closesView: true })`.
+ */
 export interface CandidateUI {
-  /**
-   * Builds an `insert_text` operation to attach to an answer.
-   * `ui.insertTextOperation({ text: "😀", closesView: true })`
-   */
-  insertTextOperation(options: { text: string; id?: string; closesView?: boolean; notify?: boolean }): InsertTextOperation;
   /** `show` as in Level 1, with an optional operation committed together with the view. */
   show(view: CandidateViewDescription, options?: { state?: JSONValue; toast?: string; operation?: HostOperation }): CandidateScriptAnswer;
   /** An answer with no view that requests one operation, optionally with a toast. */

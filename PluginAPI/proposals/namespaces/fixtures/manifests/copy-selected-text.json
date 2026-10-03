@@ -1,0 +1,22 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "read_selected_text",
+    "write_clipboard"
+  ],
+  "commands": [
+    {
+      "id": "builtin.copy_selected_text",
+      "title": "Copy Selected Text",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "selection.copy"
+    }
+  ]
+}

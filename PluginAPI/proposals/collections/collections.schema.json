@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$comment": "PROPOSAL ONLY (#74). Not part of Plugin API Level 1, any stable Level, or any published Candidate Contract revision.",
   "title": "Spinnet Plugin pages and collections (draft candidate collections r1)",
-  "description": "What a script declaring the draft Candidate Contract collections r1 (which requires host_operations r1) may answer and receive: an answer with a page, the page's components and collection, and the page events. Level 1 answers and events stay valid and keep their meaning; Level 1's own schemas are unchanged and refuse everything here.",
+  "description": "What a script declaring the draft Candidate Contract collections r1 (which requires host_operations r1 and namespaces r1) may answer and receive: an answer with a page, the page's components and collection, and the page events. Level 1 answers and events stay valid and keep their meaning; Level 1's own schemas are unchanged and refuse everything here. Page and item actions name the Host Service they perform by its catalogue ID (../namespaces/catalogue.json).",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",
@@ -110,7 +110,7 @@
           "type": "string"
         },
         "shows_insertion_target": {
-          "description": "host_operations: the Host draws a non-interactive line at the foot of the page naming the App insertion would go to now. It is drawn as well when the collection has an insert_text item action. Captured with each gesture.",
+          "description": "host_operations: the Host draws a non-interactive line at the foot of the page naming the App insertion would go to now. It is drawn as well when the collection has an selection.replace item action. Captured with each gesture.",
           "type": "boolean"
         },
         "focus": {
@@ -354,115 +354,26 @@
       }
     },
     "page_action": {
-      "description": "A button: an event action with id and title, delivering action_chosen with the page's values and selection, or a Level 1 standard action. No shortcut.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/identifier"
-        },
-        "title": {
-          "$ref": "#/$defs/text"
-        },
-        "perform": {
-          "enum": [
-            "copy_text",
-            "open_url",
-            "insert_text",
-            "open_plugin_settings"
-          ]
-        },
-        "text": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string",
-          "pattern": "^https?://"
-        },
-        "closes_view": {
-          "type": "boolean"
-        }
-      },
-      "allOf": [
+      "description": "A button: an event action with id and title, delivering action_chosen with the page's values and selection, or a page action that names a Host Service by its catalogue ID in perform with its input (../namespaces/namespaces.schema.json view_action), which the Host performs without a View Event, as Level 1's standard actions are. No shortcut.",
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "perform": false
-            }
-          },
-          "then": {
-            "required": [
-              "id",
-              "title"
-            ],
-            "properties": {
-              "text": false,
-              "url": false,
-              "closes_view": false
+          "type": "object",
+          "required": [
+            "id",
+            "title"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "title": {
+              "$ref": "#/$defs/text"
             }
           }
         },
         {
-          "if": {
-            "required": [
-              "perform"
-            ],
-            "properties": {
-              "perform": {
-                "enum": [
-                  "copy_text",
-                  "insert_text"
-                ]
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "text"
-            ],
-            "properties": {
-              "url": false
-            }
-          }
-        },
-        {
-          "if": {
-            "required": [
-              "perform"
-            ],
-            "properties": {
-              "perform": {
-                "const": "open_url"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "url"
-            ],
-            "properties": {
-              "text": false
-            }
-          }
-        },
-        {
-          "if": {
-            "required": [
-              "perform"
-            ],
-            "properties": {
-              "perform": {
-                "const": "open_plugin_settings"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "text": false,
-              "url": false,
-              "closes_view": false
-            }
-          }
+          "$ref": "../namespaces/namespaces.schema.json#/$defs/view_action"
         }
       ]
     },
@@ -690,7 +601,7 @@
           "maxLength": 64
         },
         "text": {
-          "description": "What copy_text and insert_text item actions use, and what item_action's snapshot carries; without it, symbol, else title.",
+          "description": "What clipboard.write and selection.replace item actions use, and what item_action's snapshot carries; without it, symbol, else title.",
           "type": "string",
           "maxLength": 4096
         },
@@ -706,7 +617,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole copy_text action) are its only triggers. The Host draws no buttons for item actions.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
       "type": "object",
       "required": [
         "id",
@@ -725,11 +636,8 @@
           "const": true
         },
         "perform": {
-          "description": "A standard action the Host performs on the item's text, without a View Event. Without perform the action delivers item_action.",
-          "enum": [
-            "copy_text",
-            "insert_text"
-          ]
+          "description": "A Host Service, by catalogue ID, that the Host performs on the item's text without a View Event: the text becomes the operation's primary member text. Without perform the action delivers item_action.",
+          "$ref": "../namespaces/namespaces.schema.json#/$defs/item_action_id"
         },
         "closes_view": {
           "type": "boolean"

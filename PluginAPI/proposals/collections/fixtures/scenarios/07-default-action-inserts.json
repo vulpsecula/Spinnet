@@ -11,6 +11,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -71,7 +75,7 @@
                     {
                       "id": "copy",
                       "title": "Copy",
-                      "perform": "copy_text"
+                      "perform": "clipboard.write"
                     }
                   ],
                   "items": [
@@ -135,9 +139,9 @@
           "when": "answer_arrives",
           "answer": {
             "operation": {
-              "kind": "insert_text",
+              "perform": "selection.replace",
+              "input": {"text": "🐈"},
               "id": "insert",
-              "text": "🐈",
               "closes_view": true
             }
           }
@@ -206,7 +210,7 @@
                     {
                       "id": "copy",
                       "title": "Copy",
-                      "perform": "copy_text"
+                      "perform": "clipboard.write"
                     }
                   ],
                   "items": [
@@ -313,7 +317,7 @@
                     {
                       "id": "copy",
                       "title": "Copy",
-                      "perform": "copy_text"
+                      "perform": "clipboard.write"
                     }
                   ],
                   "items": [
@@ -348,9 +352,9 @@
           "when": "answer_arrives",
           "answer": {
             "operation": {
-              "kind": "insert_text",
+              "perform": "selection.replace",
+              "input": {"text": "🐈"},
               "id": "insert",
-              "text": "🐈",
               "closes_view": true
             }
           }
@@ -416,7 +420,7 @@
                     {
                       "id": "copy",
                       "title": "Copy",
-                      "perform": "copy_text"
+                      "perform": "clipboard.write"
                     }
                   ],
                   "items": [

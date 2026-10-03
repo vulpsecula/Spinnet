@@ -49,7 +49,7 @@ function answer(query, category, collection, shape) {
             choices: [plugin.ALL].concat(plugin.CATEGORIES), choice_titles: ["All Categories"].concat(plugin.EMOJI_GROUPS) }
         ] },
         Object.assign({ kind: "grid", id: "results", columns: 8, rows: 6, empty_text: "No emoji match",
-          actions: [{ id: "insert", title: "Insert", default: true }, { id: "copy", title: "Copy", perform: "copy_text" }] },
+          actions: [{ id: "insert", title: "Insert", default: true }, { id: "copy", title: "Copy", perform: "clipboard.write" }] },
           collection.body)
       ]
     },

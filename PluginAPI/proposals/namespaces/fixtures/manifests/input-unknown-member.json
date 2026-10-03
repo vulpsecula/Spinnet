@@ -1,0 +1,25 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "capture_screen"
+  ],
+  "commands": [
+    {
+      "id": "capture",
+      "title": "Capture",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture",
+      "input": {
+        "source": "area",
+        "delay": 3
+      }
+    }
+  ]
+}

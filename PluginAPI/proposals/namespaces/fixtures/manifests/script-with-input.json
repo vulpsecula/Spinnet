@@ -1,0 +1,22 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [],
+  "commands": [
+    {
+      "id": "translate",
+      "title": "Translate",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "translate.js",
+      "input": {
+        "text": "x"
+      }
+    }
+  ]
+}

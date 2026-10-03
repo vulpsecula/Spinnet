@@ -20,8 +20,10 @@
     {
       "script_answers": {
         "operation": {
-          "kind": "insert_text",
-          "text": "x"
+          "perform": "selection.replace",
+          "input": {
+            "text": "x"
+          }
         }
       },
       "level1_valid": false

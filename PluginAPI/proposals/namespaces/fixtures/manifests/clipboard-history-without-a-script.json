@@ -1,0 +1,40 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "read_clipboard_history"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "read_clipboard_history",
+      "command_ids": [
+        "history.browse"
+      ],
+      "data_types": [
+        "text",
+        "url",
+        "image",
+        "rich_text",
+        "file_reference",
+        "binary"
+      ],
+      "includes_existing_host_data": true,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
+  "commands": [
+    {
+      "id": "history.browse",
+      "title": "Browse Clipboard History",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "clipboard.history.show"
+    }
+  ]
+}

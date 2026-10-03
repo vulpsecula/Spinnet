@@ -6,10 +6,14 @@
       {
         "name": "host_operations",
         "revision": 2
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
-  "manifest_note": "A hypothetical later revision whose members would add quit_app; not proposed by this revision",
+  "manifest_note": "A hypothetical later revision whose members would add apps.quit, which the namespace catalogue reserves for #83; not proposed by this revision",
   "covers": [
     "confirmation",
     "decline",
@@ -35,9 +39,11 @@
         {
           "script_answers_illustrative": {
             "operation": {
-              "kind": "quit_app",
-              "target": "frontmost",
-              "force": true,
+              "perform": "apps.quit",
+              "input": {
+                "target": "frontmost",
+                "force": true
+              },
               "notify": true
             }
           }
@@ -65,7 +71,7 @@
       "steps": [
         {
           "given": "confirming",
-          "kind": "quit_app"
+          "perform": "apps.quit"
         },
         {
           "when": "user_declines"
@@ -84,7 +90,7 @@
       "steps": [
         {
           "given": "confirming",
-          "kind": "quit_app"
+          "perform": "apps.quit"
         },
         {
           "when": "time_passes",
@@ -101,7 +107,7 @@
       "steps": [
         {
           "given": "confirming",
-          "kind": "quit_app"
+          "perform": "apps.quit"
         },
         {
           "when": "target_exits"

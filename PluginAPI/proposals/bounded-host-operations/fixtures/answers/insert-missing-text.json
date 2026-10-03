@@ -1,5 +1,5 @@
 {
   "operation": {
-    "kind": "insert_text"
+    "perform": "selection.replace"
   }
 }

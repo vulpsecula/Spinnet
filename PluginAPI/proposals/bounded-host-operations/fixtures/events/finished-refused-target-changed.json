@@ -1,7 +1,7 @@
 {
   "type": "operation_finished",
   "operation": "insert",
-  "kind": "insert_text",
+  "perform": "selection.replace",
   "outcome": "refused",
   "reason": "target_changed"
 }

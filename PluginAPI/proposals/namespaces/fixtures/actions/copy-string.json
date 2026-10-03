@@ -1,0 +1,5 @@
+{
+  "perform": "clipboard.write",
+  "input": "😀",
+  "title": "Copy"
+}

@@ -1,15 +1,19 @@
 {
   "operations": [
     {
-      "kind": "insert_text",
+      "perform": "selection.replace",
+      "input": {
+        "text": "😀"
+      },
       "id": "insert",
-      "text": "😀",
       "closes_view": true
     },
     {
-      "kind": "insert_text",
+      "perform": "selection.replace",
+      "input": {
+        "text": "😀"
+      },
       "id": "insert",
-      "text": "😀",
       "closes_view": true
     }
   ]

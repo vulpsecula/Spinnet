@@ -1,5 +1,5 @@
 {
-  "title": "Synchronous insert_text inside a View Session",
+  "title": "Synchronous selection.replace inside a View Session",
   "covers": [
     "synchronous insertion",
     "Level 1 retained",
@@ -12,6 +12,10 @@
         "candidate_contracts": [
           {
             "name": "host_operations",
+            "revision": 1
+          },
+          {
+            "name": "namespaces",
             "revision": 1
           }
         ]
@@ -68,7 +72,7 @@
           "displayed_target": "App A"
         },
         {
-          "script_calls": "insert_text",
+          "script_calls": "selection.replace",
           "input": "😀"
         },
         {
@@ -84,6 +88,10 @@
         "candidate_contracts": [
           {
             "name": "host_operations",
+            "revision": 1
+          },
+          {
+            "name": "namespaces",
             "revision": 1
           }
         ]
@@ -147,7 +155,7 @@
           "app": "App B"
         },
         {
-          "script_calls": "insert_text",
+          "script_calls": "selection.replace",
           "input": "😀"
         },
         {
@@ -174,6 +182,10 @@
         "candidate_contracts": [
           {
             "name": "host_operations",
+            "revision": 1
+          },
+          {
+            "name": "namespaces",
             "revision": 1
           }
         ]
@@ -226,7 +238,7 @@
           }
         },
         {
-          "script_calls": "insert_text",
+          "script_calls": "selection.replace",
           "input": "s"
         },
         {
@@ -268,7 +280,7 @@
           }
         },
         {
-          "script_calls": "insert_text",
+          "script_calls": "selection.replace",
           "input": "x"
         },
         {

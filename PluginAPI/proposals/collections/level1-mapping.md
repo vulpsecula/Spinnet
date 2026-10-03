@@ -27,7 +27,10 @@ of [views.md](../../reference/views.md):
 
 A Plugin declaring the candidate may still answer `view`. That view keeps
 Level 1's view rules above (value replacement, shortcuts, Return), because
-its description has no IDs or reset to express anything else. What the
+its description has no IDs or reset to express anything else, and it keeps
+Level 1's vocabulary whole: its standard actions keep their Level 1 names
+(`copy_text`, `insert_text`, …), the one place a Plugin declaring #99's
+`namespaces` may still use them (namespaces choice N5). What the
 candidate changes for it is session-wide only: insertion follows
 `host_operations` r1, and an explicit call arrives as `called` (#78). A
 `view` answer counts as a page change to and from a page with no ID.
@@ -43,10 +46,10 @@ candidate changes for it is session-wide only: insertion follows
 | `submit_title`, `submit_on_return`, Command-Return | Return in a `text_field` without `collection` sends `submitted` | No submit button; one implicit form per page |
 | Field `status`, `accent` | Same members on `text_field` | Updated on every answer without disturbing typing |
 | Setting controls, `swap_with` | None yet | Keep a Level 1 `view` |
-| Detail section with `text` | `text` component | No automatic Copy button; add a `copy_text` action |
+| Detail section with `text` | `text` component | No automatic Copy button; add a `clipboard.write` page action |
 | Detail section with `fetch` (Host-Fetched Section) | None yet | Keep a Level 1 `view`; #71 designs sources |
 | `actions`, event action (`id`) | `actions` component, event action | `action_chosen` also carries `values` and `selection`; no `shortcut` |
-| Standard actions | Same `perform` kinds in `actions`; `copy_text` and `insert_text` also as item actions | No `shortcut`; insertion follows `host_operations` |
+| Standard actions | Page actions in `actions` that perform the same Host Services by catalogue ID with `input` (`clipboard.write`, `open.url`, `selection.replace`, `settings.show`); `clipboard.write` and `selection.replace` also as item actions | No `shortcut`; insertion follows `host_operations`; the names are #99's |
 | Return chooses the first action (no form) | None | Return belongs to the focused field or collection |
 | `toast`, `close`, `state` | Same | |
 | Twenty Detail sections plus twelve buttons as a result list | `list` or `grid` with item actions | Host selection, keyboard, scrolling, load-more |
@@ -59,12 +62,12 @@ second behaviour, and an author can move one page at a time.
 
 ## Emoji from E1 to E2
 
-| E1 (Level 1, Emoji 1.1.0) | E2 (`collections` r1 + `host_operations` r1) |
+| E1 (Level 1, Emoji 1.1.0) | E2 (`collections` r1 + `host_operations` r1 + `namespaces` r1) |
 | --- | --- |
 | Form: `query` text field with status, `category` choice | Row: `text_field` `query` (`collection: "results"`), `choice_field` `category` |
 | Six Detail sections "N. name", each with a Copy button | `grid` `results`, 8 columns: every match, paged 200 at a time, sections by category when browsing |
-| "Insert X" ⌘1–⌘6 (standard, origin App) | Default item action `insert`: Return or double-click → `item_action` → answer requests `insert_text`, frontmost App at execution, target shown in the page's non-interactive target line |
-| "Copy X" ⇧⌘1–⇧⌘6 (standard) | Secondary item action `copy` (`copy_text`): context menu and ⌘C (C5); no Host button (C6) |
+| "Insert X" ⌘1–⌘6 (standard, origin App) | Default item action `insert`: Return or double-click → `item_action` → answer requests `selection.replace`, frontmost App at execution, target shown in the page's non-interactive target line |
+| "Copy X" ⇧⌘1–⇧⌘6 (standard) | Secondary item action `copy` (`clipboard.write`): context menu and ⌘C (C5); no Host button (C6) |
 | Return copies the first result | Return inserts the selected result; the selection starts on the first |
 | No usage tracking | The `item_action` answer records the emoji in Plugin Storage for a Recent section |
 | Results capped at 6 | All matches reachable; at most 2,000 per collection |

@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -65,8 +69,10 @@
         {
           "script_answers": {
             "operation": {
-              "kind": "insert_text",
-              "text": "x"
+              "perform": "selection.replace",
+              "input": {
+                "text": "x"
+              }
             }
           }
         },
@@ -128,8 +134,10 @@
         {
           "script_answers": {
             "operation": {
-              "kind": "insert_text",
-              "text": "x"
+              "perform": "selection.replace",
+              "input": {
+                "text": "x"
+              }
             }
           }
         },
@@ -195,8 +203,10 @@
         {
           "script_answers": {
             "operation": {
-              "kind": "insert_text",
-              "text": "x"
+              "perform": "selection.replace",
+              "input": {
+                "text": "x"
+              }
             }
           }
         },
@@ -251,15 +261,17 @@
           "when": "event",
           "event": {
             "type": "operation_finished",
-            "kind": "insert_text",
+            "perform": "selection.replace",
             "outcome": "succeeded"
           }
         },
         {
           "script_answers": {
             "operation": {
-              "kind": "insert_text",
-              "text": "x"
+              "perform": "selection.replace",
+              "input": {
+                "text": "x"
+              }
             }
           }
         },

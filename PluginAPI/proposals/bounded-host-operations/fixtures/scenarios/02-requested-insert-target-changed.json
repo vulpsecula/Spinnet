@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -104,9 +108,11 @@
         },
         "state": {},
         "operation": {
-          "kind": "insert_text",
+          "perform": "selection.replace",
+          "input": {
+            "text": "😀"
+          },
           "id": "insert",
-          "text": "😀",
           "closes_view": true,
           "notify": true
         }
@@ -133,7 +139,7 @@
       "event": {
         "type": "operation_finished",
         "operation": "insert",
-        "kind": "insert_text",
+        "perform": "selection.replace",
         "outcome": "refused",
         "reason": "target_changed"
       }

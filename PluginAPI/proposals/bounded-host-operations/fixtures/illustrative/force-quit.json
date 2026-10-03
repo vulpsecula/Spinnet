@@ -1,7 +1,9 @@
 {
-  "kind": "quit_app",
+  "perform": "apps.quit",
+  "input": {
+    "target": "frontmost",
+    "force": true
+  },
   "id": "force",
-  "target": "frontmost",
-  "force": true,
   "notify": true
 }

@@ -1,0 +1,44 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "capture_screen"
+  ],
+  "commands": [
+    {
+      "id": "builtin.capture_area",
+      "title": "Capture Area",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture",
+      "input": {
+        "source": "area"
+      }
+    },
+    {
+      "id": "builtin.capture_full_screen",
+      "title": "Capture Full Screen",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture",
+      "input": {
+        "source": "fullscreen"
+      }
+    },
+    {
+      "id": "builtin.capture_window",
+      "title": "Capture Window",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "screen.capture",
+      "input": {
+        "source": "window"
+      }
+    }
+  ]
+}

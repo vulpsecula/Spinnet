@@ -25,8 +25,8 @@
           {"id": "upgrade", "title": "Upgrade"},
           {
             "title": "Copy Name",
-            "perform": "copy_text",
-            "text": "python@3.13"
+            "perform": "clipboard.write",
+            "input": "python@3.13"
           }
         ]
       }

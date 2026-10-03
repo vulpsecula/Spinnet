@@ -1,0 +1,6 @@
+{
+  "service": "clipboard.write",
+  "input": {
+    "text": 5
+  }
+}

@@ -7,13 +7,18 @@
 
 A Plugin that declares the [Candidate Contract](../../candidates/README.md)
 `host_operations` at revision 1 may ask the Host to perform an operation
-*after* its script has answered. It declares the candidate in its manifest,
-beside the stable Level it builds on:
+*after* its script has answered. It names the operation by its ID in the
+namespace catalogue ([`namespaces`](../namespaces/reference.md)), whose
+revision this one requires, and declares both in its manifest, beside the
+stable Level it builds on:
 
 ```json
 {
   "api_level": 1,
-  "candidate_contracts": [{"name": "host_operations", "revision": 1}]
+  "candidate_contracts": [
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
+  ]
 }
 ```
 
@@ -39,7 +44,7 @@ if (event?.type === "submitted") {
   const emoji = firstMatch(event.values.query);
   ui.show(searchView(event.values.query), {
     state: { recent: [emoji, ...state.recent].slice(0, 24) },
-    operation: ui.insertTextOperation({ text: emoji, closesView: true })
+    operation: spinnet.selection.replace.operation({ text: emoji }, { closesView: true })
   });
 }
 ```
@@ -52,9 +57,13 @@ if (event?.type === "submitted") {
   toast, both, or neither (`ui.request(operation)`), but not with
   `close: true`; to close the view after the operation succeeds, set
   `closes_view`.
-- Every kind takes `kind`, an optional `id` of at most 64 characters that
-  comes back in `operation_finished`, `closes_view` and `notify`, plus its own
-  members.
+- An operation is `{perform, input, id?, closes_view?, notify?}`: `perform`
+  is a catalogue ID the catalogue offers as a request, `input` is that
+  operation's input as a call or a page action gives it, and `id`, of at most
+  64 characters, comes back in `operation_finished`. The IDs offered in this
+  revision are `selection.replace`, `clipboard.write`, `open.url`,
+  `open.path`, `open.application`, `apps.perform`, `apps.openDeepLink`,
+  `settings.show` and `clipboard.history.show`.
 
 ## Commit
 
@@ -69,7 +78,7 @@ its last good view and state, shows the refusal and the way to repair it, and
 nothing is requested.
 
 What the script already did during its invocation, such as a Plugin Storage
-write or a synchronous `insert_text`, is not undone when an answer is refused.
+write or a synchronous `selection.replace`, is not undone when an answer is refused.
 Prefer requesting an operation when its effect should depend on the answer
 being accepted.
 
@@ -77,11 +86,11 @@ being accepted.
 
 | Outcome | Meaning |
 | --- | --- |
-| `succeeded` | The operation completed as its kind defines |
+| `succeeded` | The operation completed as it defines |
 | `refused` | A check at execution failed, such as a revoked Capability or a changed target; nothing was done |
 | `declined` | The user declined the Host's confirmation, or closed the view while it showed |
 | `expired` | The confirmation went unanswered for 60 seconds |
-| `cancelled` | The user cancelled an execution the kind lets them cancel |
+| `cancelled` | The user cancelled an execution the operation lets them cancel |
 | `failed` | The effect failed after the Host began it |
 
 - The Host checks the Capability, the System Permission and the target again
@@ -96,7 +105,7 @@ being accepted.
 With `notify: true` the script hears the outcome as a View Event:
 
 ```json
-{"type": "operation_finished", "operation": "insert", "kind": "insert_text",
+{"type": "operation_finished", "operation": "insert", "perform": "selection.replace",
  "outcome": "refused", "reason": "target_changed"}
 ```
 
@@ -116,7 +125,7 @@ is, `submitted`, `action_chosen` and explicit calls wait in
 order and run when it finishes. Field changes, setting changes and section
 deliveries go on as usual, so typing never waits for an insertion. After
 500 ms of running, the view shows the operation's own busy state, with Cancel
-for a kind that can be cancelled.
+for an operation that can be cancelled.
 
 ## Ending
 
@@ -127,23 +136,24 @@ not delivered. No operation is ever replayed.
 
 ## Host confirmation
 
-Some kinds of operation always ask the user first, in a confirmation the Host
+Some operations always ask the user first, in a confirmation the Host
 draws inside the Plugin's view (or near the pointer without one) without
 bringing Spinnet forward. Its words and the target it names are the Host's
 own; a Plugin cannot add to, reword or skip it. A Plugin's own "Are you
-sure?" is an ordinary view and authorizes nothing. `insert_text` needs no
+sure?" is an ordinary view and authorizes nothing. `selection.replace` needs no
 confirmation.
 
 ## Insertion
 
-### `insert_text` operation
+### `selection.replace` requested
 
-`{kind: "insert_text", text}` inserts `text`, at most 128 KiB, in place of the
-selection of the focused element of the App that is frontmost when the Host
-inserts. It needs `insert_into_focused_app` and Accessibility, and never uses
-the clipboard or a paste. (Draft note, 2026-10-03: this text predates P3. The
-Host now delivers inserted text as Unicode keyboard events to that App, as
-Level 1's `insert_text` does; see `PluginAPI/reference/host-services.md`.)
+`{perform: "selection.replace", input: {text}}` (or `input: text`) inserts
+`text`, at most 128 KiB, in place of the selection of the focused element of
+the App that is frontmost when the Host inserts. It needs
+`insert_into_focused_app` and Accessibility, and never uses the clipboard or
+a paste. The Host delivers the text as Unicode keyboard events to that App,
+as Level 1's `insert_text` does since P3 (2026-10-03); see
+`PluginAPI/reference/host-services.md`.
 
 ### Where text goes
 
@@ -152,9 +162,9 @@ inserting follows the same rule:
 
 | Path | Compared with |
 | --- | --- |
-| A standard `insert_text` action | The App its button named when it was pressed |
-| An `insert_text` operation | The App the view named when the user made the gesture |
-| A synchronous `insert_text` Host Service call | The App the view named when the user made the gesture that started this invocation |
+| A `selection.replace` page action, or Level 1's standard `insert_text` in a Level 1 view | The App its button named when it was pressed |
+| A requested `selection.replace` | The App the view named when the user made the gesture |
+| A synchronous `selection.replace` call | The App the view named when the user made the gesture that started this invocation |
 
 The Host inserts only if the App it named is the App in front at that moment
 and the element focused in that App is the one that was focused when the
@@ -163,12 +173,12 @@ synchronous call, fails the invocation with `insertion_target_changed`), and
 updates the name it shows. There is no fallback to the App the view came from
 or to any other App.
 
-The Host names the App on each standard `insert_text` button and, when the
+The Host names the App on each inserting button and, when the
 view sets `shows_insertion_target: true`, in a line it draws in the view. It
 keeps the name current while the view is open. The name is shown to the user
 only: no view, event, result or environment value carries it. A view whose
-gestures lead to an `insert_text` operation or a synchronous `insert_text`
-must set `shows_insertion_target`; otherwise the insertion is refused with
+gestures lead to a requested or synchronous `selection.replace` must set
+`shows_insertion_target`; otherwise the insertion is refused with
 `target_not_shown`.
 
 An insertion is also refused when Spinnet or no App is in front
@@ -187,7 +197,7 @@ reliably enough for this in every App is still being recorded (#69).
 ### Without a view
 
 A Command that shows no view has nowhere to show a target, so an
-`insert_text` operation it requests, or a synchronous `insert_text` call it
+`selection.replace` it requests, or a synchronous `selection.replace` call it
 makes, is refused with `target_not_shown` and nothing is written. The Host
 shows the refusal near the pointer. To insert, a Plugin shows a view that
 names the target first.

@@ -1,0 +1,75 @@
+{
+  "title": "screen.capture with only a source follows the user's screenshot preferences, at every entry point",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "namespaces",
+        "revision": 1
+      }
+    ]
+  },
+  "covers": [
+    "one ID for three Level 1 Host Commands",
+    "fixed Command input",
+    "choice N9"
+  ],
+  "steps": [
+    {
+      "given": "screenshot_preferences",
+      "after_capture": "copy_and_save",
+      "folder": "~/Desktop",
+      "format": "automatic"
+    },
+    {
+      "when": "menu_action",
+      "command": {
+        "id": "builtin.capture_area",
+        "title": "Capture Area",
+        "execution": "host",
+        "is_configurable": false,
+        "host_command": "screen.capture",
+        "input": {
+          "source": "area"
+        }
+      }
+    },
+    {
+      "expect": "capture_started",
+      "source": "area",
+      "copies": true,
+      "saves_to": "~/Desktop"
+    },
+    {
+      "when": "script",
+      "call": {
+        "service": "screen.capture",
+        "input": "window"
+      }
+    },
+    {
+      "expect": "capture_started",
+      "source": "window",
+      "copies": true,
+      "saves_to": "~/Desktop"
+    },
+    {
+      "when": "script",
+      "call": {
+        "service": "screen.capture",
+        "input": {
+          "source": "fullscreen",
+          "copy_to_clipboard": true,
+          "save": null
+        }
+      }
+    },
+    {
+      "expect": "capture_started",
+      "source": "fullscreen",
+      "copies": true,
+      "saves_to": null,
+      "because": "a request that says how to copy and save is followed as Level 1's capture_screen"
+    }
+  ]
+}

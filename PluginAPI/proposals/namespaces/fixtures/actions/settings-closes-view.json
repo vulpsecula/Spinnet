@@ -1,0 +1,4 @@
+{
+  "perform": "settings.show",
+  "closes_view": true
+}

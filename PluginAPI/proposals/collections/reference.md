@@ -6,7 +6,7 @@
 > [README](README.md).
 
 A Plugin that declares `collections` revision 1, which requires
-`host_operations` revision 1, may describe its Plugin View as **pages**:
+`host_operations` revision 1 and `namespaces` revision 1, may describe its Plugin View as **pages**:
 trees of identified View Components that the Host draws natively, with a
 searchable, selectable List or Grid. The Host keeps what the user is doing
 in a page (typed text, caret, input-method composition, focus, selection,
@@ -20,7 +20,8 @@ otherwise.
   "api_level": 1,
   "candidate_contracts": [
     {"name": "collections", "revision": 1},
-    {"name": "host_operations", "revision": 1}
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
   ],
   "id": "com.example.emoji"
 }
@@ -46,7 +47,7 @@ ui.showPage(ui.page({
     ] }),
     c.grid({ id: "results", columns: 8, rows: 6, emptyText: "No emoji match", hasMore,
       actions: [c.itemAction({ id: "insert", title: "Insert", default: true }),
-                c.itemAction({ id: "copy", title: "Copy", perform: "copy_text" })],
+                c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write" })],
       items: shown.map((e) => c.item({ id: e.hex, title: e.name, symbol: e.emoji })) })
   ]
 }), { state });
@@ -63,7 +64,7 @@ page has at most 40 components and at most one collection.
 | `text_field` | `title`, `placeholder`, `value`, `status`, `accent`, `collection` | A one-line field; `collection` makes it that collection's search field |
 | `choice_field` | `title`, `choices`, `choice_titles`, `value` | A pop-up |
 | `text` | `title`, `text` | Text in the Markdown subset |
-| `actions` | `actions`: up to 8 buttons | Event actions (`id`, `title`) and standard actions, without `shortcut` |
+| `actions` | `actions`: up to 8 buttons | Event actions (`id`, `title`) and page actions that perform a Host Service, `{perform, input, title?, closes_view?}` with a catalogue ID ([`namespaces`](../namespaces/reference.md)), without `shortcut` |
 | `list` | collection members, `rows` (1 to 12, default 8) | Rows: `symbol`, `title`, `subtitle`, `accessory` |
 | `grid` | collection members, `columns` (2 to 12 columns, default 8), `rows` (1 to 12, default 6) | Square cells showing `symbol`, else `title` |
 
@@ -123,12 +124,12 @@ A `list` or `grid` has `items`, or `sections` of `{id, title?, items}`, up to
 
 **Item actions** are declared once per collection, up to 6 item actions:
 `{id, title, default?}` delivers `item_action`; `{id, title, perform:
-"copy_text" | "insert_text", closes_view?}` is performed by the Host on the
-item's text without an event, under the same Capability as the standard
-action. The `default: true` action (at most one) runs on Return and
+"clipboard.write" | "selection.replace", closes_view?}` is performed by the
+Host on the item's text, as the operation's primary member `text`, without an
+event and under the Capability that operation needs. The `default: true` action (at most one) runs on Return and
 double-click; the others are secondary and offered only in the item's
 context menu. The Host draws no buttons for item actions and no bar below
-the collection. ⌘C performs a `copy_text` item action when the collection
+the collection. ⌘C performs a `clipboard.write` item action when the collection
 has exactly one.
 
 **Selection** is one item, kept by ID across answers; when its item leaves,
@@ -187,16 +188,16 @@ and `section_delivered` are unchanged.
 ## Insertion
 
 `host_operations` applies to pages: `shows_insertion_target` is a page
-member, `item_action` is a gesture whose answer may request `insert_text`,
-and an `insert_text` item action checks its target as a standard
-`insert_text` action does. The target shown when the user pressed Return,
+member, `item_action` is a gesture whose answer may request
+`selection.replace`, and a `selection.replace` item action checks its target
+as a `selection.replace` page action does. The target shown when the user pressed Return,
 double-clicked or chose from the menu must be the App in front when the
 Host inserts.
 
 Since no button carries an item action, the Host shows the target in
 `host_operations`' target line: one non-interactive line of Host text at the
 foot of the page, drawn only when the page sets `shows_insertion_target` or
-its collection has an `insert_text` item action. It has no buttons, is not
+its collection has a `selection.replace` item action. It has no buttons, is not
 a Tab stop, and VoiceOver reads it as text. The context menu's insert item
 also names the App. A page that cannot insert shows nothing below its
 collection.

@@ -99,9 +99,9 @@ For each App and control, run every path that applies:
 | --- | --- | --- |
 | L1-S | Standard `insert_text` action | `api_level: 1` only |
 | L1-Y | Synchronous `insert_text` from a View Event | `api_level: 1` only |
-| C-S | Standard `insert_text` action | `host_operations` r1 |
-| C-R | Requested `insert_text` operation | `host_operations` r1 |
-| C-Y | Synchronous `insert_text` from a gesture's invocation | `host_operations` r1 |
+| C-S | `selection.replace` page action, or Level 1's standard `insert_text` in a Level 1 view | `host_operations` r1, `namespaces` r1 |
+| C-R | Requested `selection.replace` | `host_operations` r1, `namespaces` r1 |
+| C-Y | Synchronous `selection.replace` call from a gesture's invocation | `host_operations` r1, `namespaces` r1 |
 | C-M | Requested and synchronous insertion from a Menu Action with no view | `host_operations` r1; expected `target_not_shown`, nothing written (P2) |
 
 L1-Y inside a View Session is expected to risk writing into the panel's own

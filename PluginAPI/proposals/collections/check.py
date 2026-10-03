@@ -8,7 +8,9 @@
 # schema cannot express (the Host's checks, written out below); that Level 1's
 # published schemas still refuse everything the candidate adds; that the draft
 # candidate.json satisfies #75's metadata schema, requires the draft
-# host_operations revision that exists beside it, and is not published; that
+# host_operations and namespaces revisions that exist beside it, and is not
+# published; that page and item actions perform the namespace catalogue's
+# IDs (#99) as its draft schema defines them; that
 # every scenario declares its manifest as #75 specifies; and that the budgets
 # stated in reference.md are the ones the schema enforces. It needs nothing
 # beyond Python 3.
@@ -26,6 +28,7 @@ REFERENCE = HERE / "reference.md"
 LEVEL1_VIEW = (HERE / "../../schemas/plugin-view.schema.json").resolve()
 LEVEL1_SESSION = (HERE / "../../schemas/view-session.schema.json").resolve()
 HOST_OPERATIONS = (HERE / "../bounded-host-operations").resolve()
+NAMESPACES = (HERE / "../namespaces").resolve()
 CANDIDATES = (HERE / "../../candidates").resolve()
 CANDIDATE_METADATA = CANDIDATES / "schemas/candidate-metadata.schema.json"
 CANDIDATE_DECLARATIONS = CANDIDATES / "schemas/candidate-contracts.schema.json"
@@ -317,7 +320,11 @@ def draft_candidate_errors(draft):
         found.append(f"candidate.json: does not require {wanted}, the first new UI contract's insertion rules")
     if draft.get("base_level") != operations.get("base_level"):
         found.append("candidate.json: builds on another Level than host_operations")
-    for candidate in (name, operations["name"]):
+    names = json.loads((NAMESPACES / "candidate.json").read_text(encoding="utf-8"))
+    wanted = {"name": names["name"], "revision": names["revision"]}
+    if wanted not in draft.get("requires", []):
+        found.append(f"candidate.json: does not require {wanted}, whose catalogue IDs page and item actions perform")
+    for candidate in (name, operations["name"], names["name"]):
         if (CANDIDATES / str(candidate)).exists():
             found.append(f"candidate.json: candidates/{candidate} exists; a draft must not be published as a candidate")
     provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
@@ -506,7 +513,7 @@ def main():
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"ok: schema well formed, draft candidate.json valid, unpublished and requiring host_operations, "
+    print(f"ok: schema well formed, draft candidate.json valid, unpublished and requiring host_operations and namespaces, "
           f"budgets agree with reference.md, {len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
     return 0
 

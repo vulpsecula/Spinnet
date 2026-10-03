@@ -37,8 +37,10 @@ forms the first new UI contract.
 
 The proposal is written as Candidate Contract `collections`, revision 1, in
 the format of [Candidate Contracts](../../candidates/README.md). It requires
-the draft [`host_operations` revision 1](../bounded-host-operations/README.md),
-so a Plugin declares both:
+the draft [`host_operations` revision 1](../bounded-host-operations/README.md)
+and the draft [`namespaces` revision 1](../namespaces/README.md), whose
+catalogue IDs its page and item actions perform, so a Plugin declares all
+three:
 
 ```json
 {
@@ -46,7 +48,8 @@ so a Plugin declares both:
   "api_level": 1,
   "candidate_contracts": [
     {"name": "collections", "revision": 1},
-    {"name": "host_operations", "revision": 1}
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
   ],
   "id": "com.example.emoji"
 }
@@ -58,8 +61,8 @@ metadata schema allows for a revision a Host would provide; it is not under
 `../../candidates/`, the table of Candidate Contracts the Host provides does
 not list it, its tag does not exist, and `check.py` fails if any of those
 changes while it is a proposal. The schema refers to the draft
-`host_operations` schema by relative path; publishing both moves those
-references with them.
+`host_operations` and `namespaces` schemas by relative path; publishing them
+moves those references with them.
 
 ## Files
 
@@ -94,7 +97,9 @@ in `PluginAPI/`.
 - **#69** supplied the evidence: Level 1's six-result cap and ⌘1–⌘6
   shortcuts, unobservable insertion, the typing and payload figures.
 - **#70** (`host_operations`) supplies insertion: `item_action` is a
-  gesture whose answer may request `insert_text` into the App in front.
+  gesture whose answer may request `selection.replace` into the App in front.
+- **#99** (`namespaces`) names every operation a page action, an item action
+  or a request performs by its catalogue ID; `collections` requires it.
 - **#75** defined the candidate format used here.
 - **#77** implements pages and collections; **#78** implements repeated
   calls, entering through the `called` event defined here; **#76** implements

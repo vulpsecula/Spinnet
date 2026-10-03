@@ -14,6 +14,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -67,7 +71,7 @@
                 {
                   "id": "copy",
                   "title": "Copy",
-                  "perform": "copy_text"
+                  "perform": "clipboard.write"
                 }
               ],
               "items": [
@@ -167,7 +171,7 @@
                 {
                   "id": "copy",
                   "title": "Copy",
-                  "perform": "copy_text"
+                  "perform": "clipboard.write"
                 }
               ],
               "items": [
@@ -251,7 +255,7 @@
                 {
                   "id": "copy",
                   "title": "Copy",
-                  "perform": "copy_text"
+                  "perform": "clipboard.write"
                 }
               ],
               "items": []

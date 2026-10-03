@@ -11,6 +11,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -68,7 +72,7 @@
                 {
                   "id": "copy",
                   "title": "Copy Name",
-                  "perform": "copy_text"
+                  "perform": "clipboard.write"
                 }
               ],
               "items": [
@@ -122,13 +126,11 @@
       "when": "answer_arrives",
       "answer_illustrative": {
         "operation": {
-          "kind": "start_task",
-          "profile": "homebrew",
-          "task": "upgrade",
-          "package": "python@3.13",
+          "perform": "tools.startTask",
+          "input": {"profile": "homebrew", "operation": "upgrade", "arguments": {"package": "python@3.13"}},
           "notify": true
         },
-        "note": "#70's illustrative start_task; the real kind is #88's"
+        "note": "#70's illustrative start_task under the ID the namespace catalogue reserves, tools.startTask; the real operation is #88's"
       }
     },
     {
@@ -141,7 +143,7 @@
       "when": "event_dispatched",
       "event_illustrative": {
         "type": "operation_finished",
-        "kind": "start_task",
+        "perform": "tools.startTask",
         "outcome": "succeeded"
       }
     },
@@ -198,7 +200,7 @@
                 {
                   "id": "copy",
                   "title": "Copy Name",
-                  "perform": "copy_text"
+                  "perform": "clipboard.write"
                 }
               ],
               "items": [

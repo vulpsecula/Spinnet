@@ -1,0 +1,28 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "position_focused_window"
+  ],
+  "commands": [
+    {
+      "id": "layout.full_screen",
+      "title": "Toggle Full Screen",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "window.toggleFullScreen"
+    },
+    {
+      "id": "layout.left",
+      "title": "Left Half",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "position.js"
+    }
+  ]
+}

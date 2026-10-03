@@ -11,6 +11,7 @@
 
 import type { Accent, JSONValue, ScriptAnswer, ViewEvent } from "../../spinnet";
 import type { HostOperation } from "../bounded-host-operations/host-operations";
+import type { ItemActionID, PerformAction } from "../namespaces/namespaces";
 
 /** A page, component, section, item or action ID: not blank, at most 64 characters. */
 export type ID = string;
@@ -26,7 +27,7 @@ export interface Page {
   subtitle?: string;
   /**
    * host_operations: draw the non-interactive line naming the App insertion
-   * would go to. Drawn as well when the collection has an `insert_text` item action.
+   * would go to. Drawn as well when the collection has a `selection.replace` item action.
    */
   shows_insertion_target?: boolean;
   /** Focused when the page is new or reset. Answers cannot move focus otherwise. */
@@ -89,11 +90,13 @@ export interface Actions {
   actions: PageAction[];
 }
 
+/**
+ * An event action, or a page action that performs a Host Service by its
+ * catalogue ID (#99), built by `spinnet.<id>.action(input, options)`.
+ */
 export type PageAction =
   | { id: ID; title: string }
-  | { perform: "copy_text" | "insert_text"; text: string; id?: ID; title?: string; closes_view?: boolean }
-  | { perform: "open_url"; url: string; id?: ID; title?: string; closes_view?: boolean }
-  | { perform: "open_plugin_settings"; id?: ID; title?: string };
+  | PerformAction;
 
 interface CollectionMembers {
   id: ID;
@@ -141,12 +144,13 @@ export interface Item {
 
 /**
  * No shortcut. Return and double-click run the default; every action is in the
- * item's context menu, and ⌘C runs a sole `copy_text` action. The Host draws no
+ * item's context menu, and ⌘C runs a sole `clipboard.write` action. The Host draws no
  * buttons for item actions.
  */
 export type ItemAction =
   | { id: ID; title: string; default?: true }
-  | { id: ID; title: string; default?: true; perform: "copy_text" | "insert_text"; closes_view?: boolean };
+  /** Performed on the item's text, which becomes the operation's primary member text. */
+  | { id: ID; title: string; default?: true; perform: ItemActionID; closes_view?: boolean };
 
 /** What a candidate script may answer. */
 export type CandidateAnswer =
@@ -188,7 +192,7 @@ export interface PageComponents {
   grid(options: { id: ID; items?: Item[]; sections?: Section[]; columns?: number; rows?: number; selected?: ID; emptyText?: string; hasMore?: boolean; actions?: ItemAction[] }): Grid;
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[] }): Item;
-  itemAction(options: { id: ID; title: string; default?: true; perform?: "copy_text" | "insert_text"; closesView?: boolean }): ItemAction;
+  itemAction(options: { id: ID; title: string; default?: true; perform?: ItemActionID; closesView?: boolean }): ItemAction;
 }
 
 export interface PageUI {

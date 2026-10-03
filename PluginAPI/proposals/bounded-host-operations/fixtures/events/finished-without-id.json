@@ -1,6 +1,6 @@
 {
   "type": "operation_finished",
-  "kind": "insert_text",
+  "perform": "selection.replace",
   "outcome": "failed",
   "reason": "text_rejected"
 }

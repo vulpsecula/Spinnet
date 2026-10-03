@@ -1,0 +1,23 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [],
+  "commands": [
+    {
+      "id": "builtin.open_url",
+      "title": "Open URL",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "open.url",
+      "configuration_field": {
+        "kind": "url",
+        "title": "URL"
+      }
+    }
+  ]
+}

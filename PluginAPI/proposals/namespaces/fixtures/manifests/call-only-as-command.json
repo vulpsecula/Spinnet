@@ -1,0 +1,21 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "read_selected_text"
+  ],
+  "commands": [
+    {
+      "id": "read",
+      "title": "Read Selection",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "selection.readText"
+    }
+  ]
+}

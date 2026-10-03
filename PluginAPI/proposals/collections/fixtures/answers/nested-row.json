@@ -52,7 +52,7 @@
           {
             "id": "copy",
             "title": "Copy",
-            "perform": "copy_text"
+            "perform": "clipboard.write"
           }
         ],
         "items": [

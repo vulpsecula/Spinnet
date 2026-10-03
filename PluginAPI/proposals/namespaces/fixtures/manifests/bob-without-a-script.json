@@ -1,0 +1,44 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [
+    "control_external_app"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "control_external_app",
+      "command_ids": [
+        "bob.snip_translate"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [
+        {
+          "bundle_id": "com.hezongyidev.Bob",
+          "operation_families": [
+            "translate"
+          ]
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "bob.snip_translate",
+      "title": "Capture and Translate with Bob",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "apps.perform",
+      "input": {
+        "bundle_id": "com.hezongyidev.Bob",
+        "operation": "snipTranslate"
+      }
+    }
+  ]
+}

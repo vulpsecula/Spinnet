@@ -3,7 +3,8 @@
   "revision": 1,
   "base_level": 1,
   "requires": [
-    {"name": "host_operations", "revision": 1}
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
   ],
   "conflicts": [],
   "members": [
@@ -19,6 +20,15 @@
     {"kind": "behaviour", "name": "collection_keyboard_roles"},
     {"kind": "behaviour", "name": "collection_selection"},
     {"kind": "behaviour", "name": "item_standard_actions"},
+    {"kind": "standard_action", "name": "settings.show"},
+    {"kind": "standard_action", "name": "selection.replace"},
+    {"kind": "standard_action", "name": "clipboard.write"},
+    {"kind": "standard_action", "name": "clipboard.history.show"},
+    {"kind": "standard_action", "name": "open.url"},
+    {"kind": "standard_action", "name": "open.path"},
+    {"kind": "standard_action", "name": "open.application"},
+    {"kind": "standard_action", "name": "apps.perform"},
+    {"kind": "standard_action", "name": "apps.openDeepLink"},
     {"kind": "behaviour", "name": "repeated_calls_into_session"},
     {"kind": "view_component", "name": "row"},
     {"kind": "view_component", "name": "text_field"},

@@ -21,14 +21,19 @@ itself after the script's four-second invocation has ended: it checks
 authority again, asks for a trusted Host confirmation when the kind of
 operation requires one, resolves the real target, and reports the outcome in
 the view or, when the Plugin asks, as an `operation_finished` View Event.
-Insertion is the first kind. Quitting the working App and starting a reviewed
+An operation names the Host Service it performs by its ID in the namespace
+catalogue of #99 ([`../namespaces/`](../namespaces/README.md)), in `perform`
+with its `input`; every operation the catalogue offers as a request may be
+requested. Insertion, `selection.replace`, is the first one worked through.
+Quitting the working App (`apps.quit`) and starting a reviewed
 task are worked through as illustrations so that the shape stays generic;
 their real definitions belong to the tickets that own them (#83 and the
 reviewed-task tickets).
 
 Under the same candidate, every insertion path in a View Session (the
-standard `insert_text` action, an answer-requested insertion, and a
-synchronous `insert_text` Host Service call) targets the App that is
+`selection.replace` action, a requested `selection.replace`, a synchronous
+`selection.replace` call, and Level 1's standard `insert_text` in a Level 1
+view the Plugin still answers) targets the App that is
 frontmost when the text is inserted, and the Host shows that App's name. If
 the App the Host showed is not the App in front at execution, or focus has
 moved to another element of it, nothing is inserted, the operation is
@@ -46,15 +51,20 @@ written against it would declare, beside its stable Level:
 {
   "protocol_version": "1.0",
   "api_level": 1,
-  "candidate_contracts": [{"name": "host_operations", "revision": 1}],
+  "candidate_contracts": [
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
+  ],
   "id": "com.example.emoji"
 }
 ```
 
 [`candidate.json`](candidate.json) is the draft metadata that revision would
-publish: it builds on Level 1, requires and excludes no other candidate, and
-lists its members (the `operation` answer member, the `insert_text`
-operation kind, the `operation_finished` View Event, the
+publish: it builds on Level 1, requires the draft
+[`namespaces` revision 1](../namespaces/README.md) whose IDs name its
+operations, excludes no other candidate, and lists its members (the
+`operation` answer member, one `request:<id>` member per catalogue ID it may
+request, `selection.replace` among them, the `operation_finished` View Event, the
 `shows_insertion_target` view member, execution-time insertion targeting on
 every View Session insertion path, and the `insertion_target_changed` failure
 category). It is a draft that no Host provides. Its `status` reads
@@ -98,7 +108,9 @@ in `PluginAPI/`.
   Level 1; after it, Level 1 delivers inserted text as keyboard events (P3). Every decision in `design.md` marked *waits on #69* stays open
   until that evidence exists.
 - **#76** implements an accepted version of this proposal with insertion as
-  its first complete kind; **#83** adds the App-exit kinds.
+  its first complete operation; **#83** adds `apps.quit`.
+- **#99** names every operation by its catalogue ID; this proposal requires
+  the draft `namespaces` revision.
 
 ## Licence
 

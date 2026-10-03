@@ -1,0 +1,7 @@
+{
+  "service": "storage.set",
+  "input": {
+    "key": "runs",
+    "value": 3
+  }
+}

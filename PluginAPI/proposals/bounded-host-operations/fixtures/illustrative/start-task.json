@@ -1,10 +1,12 @@
 {
-  "kind": "start_task",
-  "id": "install",
-  "profile": "homebrew",
-  "operation": "install",
-  "arguments": {
-    "formula": "wget"
+  "perform": "tools.startTask",
+  "input": {
+    "profile": "homebrew",
+    "operation": "install",
+    "arguments": {
+      "formula": "wget"
+    }
   },
+  "id": "install",
   "notify": true
 }

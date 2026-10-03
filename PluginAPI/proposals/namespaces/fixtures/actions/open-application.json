@@ -1,0 +1,5 @@
+{
+  "perform": "open.application",
+  "input": "com.apple.Notes",
+  "title": "Open Notes"
+}

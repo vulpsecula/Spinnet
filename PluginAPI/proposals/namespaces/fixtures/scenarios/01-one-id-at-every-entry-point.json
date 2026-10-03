@@ -1,0 +1,133 @@
+{
+  "title": "clipboard.write is the same operation, with the same authority and failure, at every entry point",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
+      }
+    ]
+  },
+  "covers": [
+    "one ID",
+    "entry points",
+    "Capability per operation",
+    "failure category at every entry point"
+  ],
+  "steps": [
+    {
+      "given": "granted",
+      "capability": "write_clipboard"
+    },
+    {
+      "when": "script",
+      "call": {
+        "service": "clipboard.write",
+        "input": "😀"
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "😀"
+    },
+    {
+      "when": "page_action_clicked",
+      "view_action": {
+        "perform": "clipboard.write",
+        "input": {
+          "text": "🐈"
+        },
+        "title": "Copy"
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "🐈",
+      "event": "none"
+    },
+    {
+      "when": "gesture_answered",
+      "operation": {
+        "perform": "clipboard.write",
+        "input": "🐶",
+        "notify": true
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "🐶",
+      "after": "the answer commits"
+    },
+    {
+      "when": "menu_action",
+      "command": {
+        "id": "snippet.copy",
+        "title": "Copy Snippet",
+        "execution": "host",
+        "is_configurable": true,
+        "host_command": "clipboard.write",
+        "configuration_fields": [
+          {
+            "key": "text",
+            "kind": "multiline_text",
+            "title": "Text"
+          }
+        ]
+      },
+      "configured_input": {
+        "text": "Regards"
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "Regards"
+    },
+    {
+      "given": "revoked",
+      "capability": "write_clipboard"
+    },
+    {
+      "when": "script",
+      "call": {
+        "service": "clipboard.write",
+        "input": "😀"
+      }
+    },
+    {
+      "expect": "invocation_failed",
+      "category": "capability_denied",
+      "names": "clipboard.write"
+    },
+    {
+      "when": "page_action_clicked",
+      "view_action": {
+        "perform": "clipboard.write",
+        "input": "🐈"
+      }
+    },
+    {
+      "expect": "refused_inline",
+      "category": "capability_denied",
+      "names": "clipboard.write"
+    },
+    {
+      "when": "menu_action",
+      "command_id": "snippet.copy"
+    },
+    {
+      "expect": "action_failed",
+      "category": "capability_denied",
+      "names": "clipboard.write",
+      "note": "Level 1 reports a Host Command's own failures as host_command_failed; under the candidate every entry point reports the operation's category"
+    }
+  ]
+}

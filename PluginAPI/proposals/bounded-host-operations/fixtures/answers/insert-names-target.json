@@ -1,7 +1,9 @@
 {
   "operation": {
-    "kind": "insert_text",
-    "text": "x",
+    "perform": "selection.replace",
+    "input": {
+      "text": "x"
+    },
     "target": "com.apple.TextEdit"
   }
 }

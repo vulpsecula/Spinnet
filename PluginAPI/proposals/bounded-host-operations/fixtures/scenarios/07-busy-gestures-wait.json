@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -101,8 +105,10 @@
           "count": 1
         },
         "operation": {
-          "kind": "insert_text",
-          "text": "1"
+          "perform": "selection.replace",
+          "input": {
+            "text": "1"
+          }
         }
       }
     },
@@ -180,8 +186,10 @@
           "count": 2
         },
         "operation": {
-          "kind": "insert_text",
-          "text": "2"
+          "perform": "selection.replace",
+          "input": {
+            "text": "2"
+          }
         }
       }
     },

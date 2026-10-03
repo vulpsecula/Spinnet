@@ -1,0 +1,71 @@
+{
+  "title": "open.application reaches scripts, pages and requests under open_local_path",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
+      }
+    ]
+  },
+  "covers": [
+    "coverage without new authority (design 6.3)"
+  ],
+  "steps": [
+    {
+      "given": "granted",
+      "capability": "open_local_path"
+    },
+    {
+      "when": "script",
+      "call": {
+        "service": "open.application",
+        "input": "com.apple.Notes"
+      }
+    },
+    {
+      "expect": "opened",
+      "application": "Notes"
+    },
+    {
+      "when": "page_action_clicked",
+      "view_action": {
+        "perform": "open.application",
+        "input": {
+          "application": "/Applications/Safari.app"
+        }
+      }
+    },
+    {
+      "expect": "opened",
+      "application": "Safari"
+    },
+    {
+      "given": "revoked",
+      "capability": "open_local_path"
+    },
+    {
+      "when": "gesture_answered",
+      "operation": {
+        "perform": "open.application",
+        "input": "com.apple.Notes",
+        "notify": true
+      }
+    },
+    {
+      "expect": "answer_refused",
+      "category": "capability_denied",
+      "names": "open.application",
+      "because": "authority is checked when the answer commits (ADR 0018)"
+    }
+  ]
+}

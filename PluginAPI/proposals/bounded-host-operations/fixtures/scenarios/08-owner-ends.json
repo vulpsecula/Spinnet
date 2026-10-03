@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -20,7 +24,7 @@
       "steps": [
         {
           "given": "confirming",
-          "kind": "quit_app"
+          "perform": "apps.quit"
         },
         {
           "when": "view_closed",
@@ -44,7 +48,7 @@
       "steps": [
         {
           "given": "pending",
-          "kind": "insert_text"
+          "perform": "selection.replace"
         },
         {
           "when": "plugin_updated"
@@ -67,7 +71,7 @@
       "steps": [
         {
           "given": "pending",
-          "kind": "insert_text"
+          "perform": "selection.replace"
         },
         {
           "when": "revoked",
@@ -91,7 +95,7 @@
       "steps": [
         {
           "given": "executing",
-          "kind": "insert_text"
+          "perform": "selection.replace"
         },
         {
           "when": "view_closed",

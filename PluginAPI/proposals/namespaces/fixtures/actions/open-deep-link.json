@@ -1,0 +1,10 @@
+{
+  "perform": "apps.openDeepLink",
+  "input": {
+    "template": "search",
+    "parameters": {
+      "query": "cat"
+    }
+  },
+  "title": "Search in App"
+}

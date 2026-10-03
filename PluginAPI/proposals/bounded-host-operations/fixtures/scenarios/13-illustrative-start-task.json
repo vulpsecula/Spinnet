@@ -6,10 +6,14 @@
       {
         "name": "host_operations",
         "revision": 2
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
-  "manifest_note": "A hypothetical later revision whose members would add start_task; not proposed by this revision",
+  "manifest_note": "A hypothetical later revision whose members would add tools.startTask, which the namespace catalogue reserves for the reviewed-task tickets; not proposed by this revision",
   "covers": [
     "confirmation",
     "result payload",
@@ -36,13 +40,15 @@
           ]
         },
         "operation": {
-          "kind": "start_task",
-          "id": "install",
-          "profile": "homebrew",
-          "operation": "install",
-          "arguments": {
-            "formula": "wget"
+          "perform": "tools.startTask",
+          "input": {
+            "profile": "homebrew",
+            "operation": "install",
+            "arguments": {
+              "formula": "wget"
+            }
           },
+          "id": "install",
           "notify": true
         }
       }
@@ -65,7 +71,7 @@
       "event_illustrative": {
         "type": "operation_finished",
         "operation": "install",
-        "kind": "start_task",
+        "perform": "tools.startTask",
         "outcome": "succeeded",
         "task": "task-7f3a"
       }

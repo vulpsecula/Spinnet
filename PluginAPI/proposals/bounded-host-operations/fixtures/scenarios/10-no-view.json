@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -30,8 +34,10 @@
         {
           "script_answers": {
             "operation": {
-              "kind": "insert_text",
-              "text": "2026-10-02"
+              "perform": "selection.replace",
+              "input": {
+                "text": "2026-10-02"
+              }
             }
           }
         },
@@ -59,7 +65,7 @@
           "displayed_target": "none shown"
         },
         {
-          "script_calls": "insert_text",
+          "script_calls": "selection.replace",
           "input": "2026-10-02"
         },
         {

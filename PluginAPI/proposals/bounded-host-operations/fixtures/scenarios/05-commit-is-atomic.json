@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -84,9 +88,11 @@
         },
         "toast": "Done",
         "operation": {
-          "kind": "insert_text",
+          "perform": "selection.replace",
+          "input": {
+            "text": "😀"
+          },
           "id": "insert",
-          "text": "😀",
           "closes_view": true
         }
       }

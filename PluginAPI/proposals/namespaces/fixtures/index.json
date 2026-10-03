@@ -1,0 +1,318 @@
+{
+  "description": "PROPOSAL ONLY (#99). Each fixture names what it is checked as and whether it should be accepted. manifest: an excerpt whose candidate_contracts follow #75 and whose commands are checked against namespaces.schema.json's command and the Command input rules check.py states. view_action and call: namespaces.schema.json. operation: the host_operations proposal's operation, which takes its perform IDs and inputs from namespaces.schema.json. check.py runs them, and the scenarios.",
+  "scenario_steps": "Scenarios are given/when/expect steps for the implementation tickets' tests at the test-kit seam. A step's call, command, view_action and operation are checked as the fixtures are; level1_command and level1_action against Level 1's own schemas. A scenario's manifest says which declarations it runs under.",
+  "fixtures": [
+    {
+      "file": "manifests/open-url.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "The Open URL Plugin under the candidate: one Command names open.url and its configured link is the primary member url"
+    },
+    {
+      "file": "manifests/screenshot.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "Level 1's three screen Host Commands become screen.capture with a fixed source; without copy and save the user's screenshot preferences apply"
+    },
+    {
+      "file": "manifests/copy-selected-text.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "Level 1's clipboard.copy with a null input is selection.copy, under both of its Capabilities"
+    },
+    {
+      "file": "manifests/copy-snippet.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "Level 1's clipboard.copy with a text input is clipboard.write; a configured multiline field supplies text"
+    },
+    {
+      "file": "manifests/bob-without-a-script.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "A Reviewed App Interface operation as a Command: the fixed input names Bob and the operation, so no helper starts"
+    },
+    {
+      "file": "manifests/clipboard-history-without-a-script.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "The Clipboard History Plugin opens its Host Surface from a Command instead of a one-line script"
+    },
+    {
+      "file": "manifests/script-and-command.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "A script Command and a Command naming an operation side by side; the script reaches the same IDs through spinnet"
+    },
+    {
+      "file": "manifests/run-shortcut.json",
+      "definition": "manifest",
+      "valid": true,
+      "note": "A configured Shortcut: apps.runShortcut at the Command entry point needs no Capability, as Level 1's shortcut.invoke"
+    },
+    {
+      "file": "manifests/level1-host-command-name.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "A Plugin declaring namespaces names operations only by catalogue ID: url.open is Level 1's name for open.url"
+    },
+    {
+      "file": "manifests/call-only-as-command.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "selection.readText returns data, which only a script can use; it is not offered as a Command"
+    },
+    {
+      "file": "manifests/reserved-as-command.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "selection.replace is reserved at the Command entry point until #70's P2 is decided"
+    },
+    {
+      "file": "manifests/capture-without-source.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "A screen.capture Command fixes its source in input"
+    },
+    {
+      "file": "manifests/input-twice.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "A member is fixed in input or configured, never both: url comes from the configuration field and from input"
+    },
+    {
+      "file": "manifests/input-unknown-member.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "input may only fix members of the operation's input; screen.capture has no delay"
+    },
+    {
+      "file": "manifests/script-with-input.json",
+      "definition": "manifest",
+      "valid": false,
+      "note": "A script Command takes no fixed input; its script receives the Action's input"
+    },
+    {
+      "file": "actions/copy-string.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "A Copy button: clipboard.write with its input as a bare string, the primary member text"
+    },
+    {
+      "file": "actions/copy-object.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "The same button with the input as an object; the title defaults to the catalogue's Copy"
+    },
+    {
+      "file": "actions/insert.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "An Insert button that closes the view once the text is inserted into the App it names"
+    },
+    {
+      "file": "actions/open-url.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "Level 1's open_url standard action as open.url"
+    },
+    {
+      "file": "actions/settings.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "settings.show takes no input"
+    },
+    {
+      "file": "actions/open-application.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "New at this entry point: opening an application, under open_local_path"
+    },
+    {
+      "file": "actions/open-deep-link.json",
+      "definition": "view_action",
+      "valid": true,
+      "note": "New at this entry point: one of the Plugin's Deep Link Templates"
+    },
+    {
+      "file": "actions/level1-name.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "copy_text is Level 1's name; a page action names clipboard.write"
+    },
+    {
+      "file": "actions/call-only.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "selection.readText returns data and is not a View Action"
+    },
+    {
+      "file": "actions/missing-input.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "clipboard.write needs its text"
+    },
+    {
+      "file": "actions/settings-closes-view.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "settings.show takes no closes_view, as Level 1's open_plugin_settings"
+    },
+    {
+      "file": "actions/paste.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "selection.paste is reserved at this entry point until the user decides N8"
+    },
+    {
+      "file": "actions/shortcut.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "Pages bind no shortcuts"
+    },
+    {
+      "file": "actions/open-url-wrong-member.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "open.url's input member is url"
+    },
+    {
+      "file": "operations/insert.json",
+      "definition": "operation",
+      "valid": true,
+      "note": "host_operations' first kind under its catalogue ID"
+    },
+    {
+      "file": "operations/copy-notify.json",
+      "definition": "operation",
+      "valid": true,
+      "note": "Copy only once the answer commits, and be told the outcome"
+    },
+    {
+      "file": "operations/settings.json",
+      "definition": "operation",
+      "valid": true,
+      "note": "Open the Plugin Settings after a gesture, with no input"
+    },
+    {
+      "file": "operations/open-path.json",
+      "definition": "operation",
+      "valid": true,
+      "note": "Open a path once the answer commits"
+    },
+    {
+      "file": "operations/kind-shape.json",
+      "definition": "operation",
+      "valid": false,
+      "note": "The draft r1 shape before #99: an operation names its catalogue ID in perform, not kind"
+    },
+    {
+      "file": "operations/toast.json",
+      "definition": "operation",
+      "valid": false,
+      "note": "feedback.toast is the answer's toast member, not a request"
+    },
+    {
+      "file": "operations/paste.json",
+      "definition": "operation",
+      "valid": false,
+      "note": "selection.paste is reserved at this entry point until the user decides N8"
+    },
+    {
+      "file": "operations/insert-without-input.json",
+      "definition": "operation",
+      "valid": false,
+      "note": "selection.replace needs its text"
+    },
+    {
+      "file": "calls/write.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.clipboard.write(\"😀\")"
+    },
+    {
+      "file": "calls/read-text-best-effort.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.selection.readText({best_effort: true})"
+    },
+    {
+      "file": "calls/read-text.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.selection.readText(): input left out is null"
+    },
+    {
+      "file": "calls/open-application.json",
+      "definition": "call",
+      "valid": true,
+      "note": "New: spinnet.open.application(\"com.apple.Notes\"), under open_local_path"
+    },
+    {
+      "file": "calls/capture-preferences.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.screen.capture(\"area\"): the user's screenshot preferences decide copy and save (N9)"
+    },
+    {
+      "file": "calls/capture-level1-shape.json",
+      "definition": "call",
+      "valid": true,
+      "note": "Level 1's capture_screen input stays valid under the new ID"
+    },
+    {
+      "file": "calls/storage-get.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.storage.get(\"runs\")"
+    },
+    {
+      "file": "calls/storage-set.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.storage.set({key, value})"
+    },
+    {
+      "file": "calls/history-content.json",
+      "definition": "call",
+      "valid": true,
+      "note": "spinnet.clipboard.history.content(...)"
+    },
+    {
+      "file": "calls/level1-name.json",
+      "definition": "call",
+      "valid": false,
+      "note": "write_clipboard is Level 1's name; a Plugin declaring namespaces calls clipboard.write"
+    },
+    {
+      "file": "calls/not-callable.json",
+      "definition": "call",
+      "valid": false,
+      "note": "settings.show opens a Host window after a gesture and is not called"
+    },
+    {
+      "file": "calls/paste.json",
+      "definition": "call",
+      "valid": false,
+      "note": "Keystrokes are never sent from inside an invocation"
+    },
+    {
+      "file": "calls/capture-half.json",
+      "definition": "call",
+      "valid": false,
+      "note": "copy_to_clipboard and save come together, or neither"
+    },
+    {
+      "file": "calls/write-wrong-type.json",
+      "definition": "call",
+      "valid": false,
+      "note": "text is a string"
+    },
+    {
+      "file": "calls/history-content-too-long.json",
+      "definition": "call",
+      "valid": false,
+      "note": "A chunk is at most 192 KiB"
+    }
+  ]
+}

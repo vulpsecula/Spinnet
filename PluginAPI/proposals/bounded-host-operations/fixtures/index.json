@@ -47,13 +47,13 @@
       "file": "answers/illustrative-kind.json",
       "definition": "answer",
       "valid": false,
-      "note": "quit_app is illustrative only and not a kind of this proposal revision"
+      "note": "apps.quit is reserved for #83 and not an operation this proposal revision requests"
     },
     {
       "file": "answers/insert-missing-text.json",
       "definition": "answer",
       "valid": false,
-      "note": "insert_text needs text"
+      "note": "selection.replace needs its input"
     },
     {
       "file": "answers/insert-names-target.json",
@@ -123,13 +123,13 @@
     },
     {
       "file": "illustrative/force-quit.json",
-      "definition": "illustrative/$defs/quit_app_operation",
+      "definition": "illustrative/$defs/quit_operation",
       "valid": true,
       "note": "Illustrative #83 shape: Force Quit of the working App, target resolved by the Host"
     },
     {
       "file": "illustrative/quit-named-pid.json",
-      "definition": "illustrative/$defs/quit_app_operation",
+      "definition": "illustrative/$defs/quit_operation",
       "valid": false,
       "note": "Illustrative: no PID or bundle ID from the Plugin"
     },

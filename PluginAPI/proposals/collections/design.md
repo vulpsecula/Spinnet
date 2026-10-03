@@ -7,6 +7,15 @@ user's requirements of 2026-10-03, and the Clipboard History window
 (`Sources/SpinnetHost/ClipboardHistoryWindow.swift`) as the interaction
 reference.
 
+**Names (#99, 2026-10-04).** Page actions and item actions name the Host
+Service they perform by its ID in the namespace catalogue
+([`../namespaces/`](../namespaces/README.md)): `clipboard.write` for Level 1's
+`copy_text`, `selection.replace` for `insert_text`, `open.url` for
+`open_url` and `settings.show` for `open_plugin_settings`, with the
+operation's `input`. `collections` therefore requires the draft
+`namespaces` revision as well as `host_operations`. The decision records in
+section 12 keep the names they were decided with.
+
 Each acceptance criterion of #74 is answered here:
 
 | Criterion | Sections |
@@ -112,7 +121,7 @@ ui.showPage(ui.page({
     c.grid({ id: "results", columns: 8, rows: 6, emptyText: "No emoji match",
       actions: [
         c.itemAction({ id: "insert", title: "Insert", default: true }),
-        c.itemAction({ id: "copy", title: "Copy", perform: "copy_text" })
+        c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write" })
       ],
       sections: GROUPS.map((g) => c.section({ id: g.id, title: g.title, items: g.items.map(item) })),
       hasMore: true })
@@ -133,7 +142,7 @@ Only what Emoji and the Brew check need (section 9), each with an `id`:
 | `text_field` | A one-line field: `title` (its label for VoiceOver and when there is room), `placeholder`, initial `value`, Level 1's `status` and `accent`. `collection` names the page's collection it searches (section 7) | Text, caret and selection, composition, undo, horizontal scroll |
 | `choice_field` | A pop-up of `choices` with `choice_titles` and an initial `value` | The chosen value |
 | `text` | Plain text in Level 1's Markdown subset, with an optional `title`; no Copy button and no `fetch` | None |
-| `actions` | A row of up to 8 buttons: Level 1's event actions (`id`, `title`) and standard actions (`copy_text`, `insert_text`, `open_url`, `open_plugin_settings`), **without** `shortcut` | None |
+| `actions` | A row of up to 8 buttons: Level 1's event actions (`id`, `title`) and page actions that perform a Host Service by catalogue ID with its `input`, as Level 1's standard actions do (`clipboard.write`, `selection.replace`, `open.url`, `settings.show` and the catalogue's other page-action IDs), **without** `shortcut` | None |
 | `row` | Up to 4 of the components above side by side; a `text_field` takes the spare width | None |
 | `list` | A collection drawn as rows: `symbol`, `title`, `subtitle`, trailing `accessory` | Selection, scroll, load-more |
 | `grid` | A collection drawn as square cells, `columns` across; a cell shows the item's `symbol`, or its `title` when it has none | Selection, scroll, load-more |
@@ -338,7 +347,7 @@ collection, page and their reset counts are what must still match.
 | `subtitle` | Secondary list text | 256 characters |
 | `symbol` | Large glyph in a grid cell; leading glyph in a list row | 32 characters |
 | `accessory` | Trailing list text, such as a version or "Outdated" | 64 characters |
-| `text` | What `copy_text` and `insert_text` item actions use; without it, `symbol`, else `title` | 4,096 characters |
+| `text` | What `clipboard.write` and `selection.replace` item actions use; without it, `symbol`, else `title` | 4,096 characters |
 | `actions` | IDs of the collection's item actions this item offers; all when absent | Up to 6 |
 
 Images and icons are #81's and not part of this revision.
@@ -349,9 +358,10 @@ A collection declares its item actions once, not per item, so 1,906 emoji
 do not each repeat "Insert" and "Copy":
 
 - `{id, title, default?: true}` delivers `item_action` (a gesture);
-- `{id, title, perform: "copy_text" | "insert_text", closes_view?}` is a
-  standard action the Host performs on the item's text without a View Event,
-  as Level 1's standard actions are.
+- `{id, title, perform: "clipboard.write" | "selection.replace", closes_view?}`
+  is a Host Service the Host performs on the item's text without a View
+  Event, as Level 1's standard actions are; the text becomes the operation's
+  primary member `text`.
 
 At most one is `default: true`. Return and double-click perform the
 default; the others are **secondary** and are offered only in the item's
@@ -359,14 +369,14 @@ context menu (right click, Control-click), after the default (C6). The Host
 draws no buttons for item actions, for any Plugin: there is no quick-action
 bar below a collection. No item action, page action or component may carry
 a `shortcut`. The only key bindings are the Host's own, the same for every
-Plugin (section 7): Return for the default and ⌘C for a single `copy_text`
-item action (C5).
+Plugin (section 7): Return for the default and ⌘C for a single
+`clipboard.write` item action (C5).
 
 An item action may be offered on some items only (`item.actions`): Brew
 shows "Upgrade" only on outdated packages and "Install" only on packages that
 are not installed.
 
-`insert_text` item actions follow #70's candidate rules: their context-menu
+`selection.replace` item actions follow #70's candidate rules: their context-menu
 item names the insertion target as #70's secondary label (P1), the page's
 target line shows it for Return and double-click (6.5), and the frontmost
 App at execution must be the one shown.
@@ -413,21 +423,21 @@ the only way to act on an item.
 
 **Insertion target line.** #70 needs the Host to show where an insertion
 would go before the user acts (its P1: a secondary label on each insert
-action, plus the optional target line). A Return or double-click on an
-`insert_text` default has no button to carry that label, so for pages the
+action, plus the optional target line). A Return or double-click on a
+`selection.replace` default has no button to carry that label, so for pages the
 Host shows the target in the least intrusive place it owns: #70's target
 line, one line of Host text (the App's name and icon) at the foot of the
 page, below the collection and anything after it. The Host draws it only
 when the page can insert:
 
 - the page sets `shows_insertion_target: true` (required by #70 when a
-  gesture's answer may request `insert_text`, as Emoji's event `insert`
+  gesture's answer may request `selection.replace`, as Emoji's event `insert`
   does), or
-- the collection has an `insert_text` item action, whatever the page says.
+- the collection has a `selection.replace` item action, whatever the page says.
 
 The line is not interactive: it holds no buttons, is not a key-view stop,
 and VoiceOver reads it as static text. A page that cannot insert shows
-nothing below its collection. An `insert_text` button in an `actions`
+nothing below its collection. A `selection.replace` button in an `actions`
 component carries the target as its own secondary label, as in #70, and
 needs no line. The Plugin cannot style or move the line, and the App's
 name never reaches the Plugin (#70 section 6.2).
@@ -484,7 +494,7 @@ Focus has two roles on a collection page: the **search field** (the
 | Double-click an item | | Select it and perform the default item action |
 | Click an item | | Select it; the collection takes focus |
 | Right click / Control-click | | Context menu: default action first, then secondary actions |
-| ⌘C | Copies selected text in the field | The selected item's `copy_text` item action, when the collection has exactly one (C5) |
+| ⌘C | Copies selected text in the field | The selected item's `clipboard.write` item action, when the collection has exactly one (C5) |
 | Tab / Shift-Tab | Next / previous key-view stop: field → other inputs → collection → page actions; the target line is not a stop | Same |
 | Escape | Closes the view, as in Level 1 (C4) | Same |
 | Space | Types a space | Nothing in this revision |
@@ -530,6 +540,10 @@ measured (#77).
 | Browse, 1,000 loaded | 1,000 | 63,015 | 2.9 (4.0) ms | |
 | **Browse all, one answer** | 1,906 | 117,228 | 3.3 (5.2) ms | **95.7 ms** |
 | Browse all, items also carrying `text` | 1,906 | 147,987 | | |
+
+These were measured with the Copy item action named `copy_text`; its
+catalogue ID, `clipboard.write` (#99), adds 6 bytes to each answer, which
+`measure-emoji.js` now builds.
 
 Items cost about 61 bytes each (`{id, title, symbol}`); repeating the emoji
 as `text` would add 26%, which is why `text` defaults to `symbol`. A
@@ -605,7 +619,7 @@ Progress is #81. The fixtures are
 | Install, upgrade on the right packages only | Secondary item actions with per-item `actions`; the answer to `item_action` requests a reviewed task (#70's illustrative `start_task`) | The task kind itself is #88's |
 | Back to the list as the user left it | The Plugin answers page `packages` again; page memory restores query, selection and scroll | None; no Host Back or page stack needed |
 | Progress while installing, without disturbing typing | A Progress component (#81) on the detail page, updated by `operation_finished` or a source delivery (#71); the kept `text_field` and selection are untouched by those answers (5.4) | Progress and sources are #81/#71 |
-| Copy the package name | Secondary `copy_text` item action on `text` | None |
+| Copy the package name | Secondary `clipboard.write` item action on `text` | None |
 
 What Brew adds to the design: per-item action availability (`item.actions`),
 page memory for list → detail → list, and the rule that non-typing answers
@@ -627,8 +641,10 @@ promise for part of it. This design proposes:
 
 `collections` r1 **requires** `host_operations` r1 (#75's `requires`), so no
 Plugin can use pages without the new insertion rules, and both are proved
-together on #79's Host B. Promotion assigns both to the next stable Level in
-one Host change; neither is promoted alone. `host_operations` may still be
+together on #79's Host B. Both also require the draft `namespaces` r1 (#99),
+whose catalogue IDs name every operation a page action, an item action or a
+request performs. Promotion assigns all three to the next stable Level in
+one Host change; none is promoted alone. `host_operations` may still be
 declared without `collections`, for #76's work and fixtures, but it is not
 promoted without it.
 
@@ -643,11 +659,11 @@ the answer's business, by page ID.
 Interaction with `host_operations`:
 
 - `item_action` joins #70's gestures: its answer may carry `operation`.
-  Emoji answers Return with `{"operation": {"kind": "insert_text", "text":
-  "😀", "closes_view": true}}` and no page, so nothing is re-described, and
+  Emoji answers Return with `{"operation": {"perform": "selection.replace",
+  "input": {"text": "😀"}, "closes_view": true}}` and no page, so nothing is re-described, and
   records the emoji in Plugin Storage for its Recent section.
 - `shows_insertion_target` is a page member; the target line is also drawn
-  for a collection with an `insert_text` item action (6.5). The displayed
+  for a collection with a `selection.replace` item action (6.5). The displayed
   target is captured with the gesture: Return, double-click or the
   context-menu choice.
 - A double-click in the non-activating panel does not change the frontmost

@@ -1,0 +1,7 @@
+{
+  "perform": "selection.replace",
+  "input": {
+    "text": "🐈"
+  },
+  "closes_view": true
+}

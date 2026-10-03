@@ -1,0 +1,31 @@
+{
+  "api_level": 1,
+  "candidate_contracts": [
+    {
+      "name": "namespaces",
+      "revision": 1
+    }
+  ],
+  "capabilities": [],
+  "commands": [
+    {
+      "id": "shortcut.run",
+      "title": "Run Shortcut",
+      "execution": "host",
+      "is_configurable": true,
+      "host_command": "apps.runShortcut",
+      "configuration_fields": [
+        {
+          "key": "name",
+          "kind": "text",
+          "title": "Shortcut"
+        },
+        {
+          "key": "input",
+          "kind": "text",
+          "title": "Input"
+        }
+      ]
+    }
+  ]
+}

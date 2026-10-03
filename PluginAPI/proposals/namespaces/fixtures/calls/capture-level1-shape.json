@@ -1,0 +1,8 @@
+{
+  "service": "screen.capture",
+  "input": {
+    "source": "window",
+    "copy_to_clipboard": true,
+    "save": null
+  }
+}

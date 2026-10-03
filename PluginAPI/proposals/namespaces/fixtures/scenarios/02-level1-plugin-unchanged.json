@@ -1,0 +1,61 @@
+{
+  "title": "A Level 1 Plugin keeps every Level 1 name on a Host that provides the candidates",
+  "manifest": {
+    "api_level": 1
+  },
+  "covers": [
+    "Level 1 unchanged"
+  ],
+  "steps": [
+    {
+      "when": "menu_action",
+      "level1_command": {
+        "id": "builtin.open_url",
+        "title": "Open URL",
+        "execution": "host",
+        "is_configurable": true,
+        "host_command": "url.open"
+      },
+      "configured_input": "https://example.com"
+    },
+    {
+      "expect": "opened",
+      "url": "https://example.com"
+    },
+    {
+      "when": "script",
+      "level1_call": {
+        "service": "write_clipboard",
+        "input": "😀"
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "😀"
+    },
+    {
+      "when": "view_action_clicked",
+      "level1_action": {
+        "title": "Copy",
+        "perform": "copy_text",
+        "text": "🐈"
+      }
+    },
+    {
+      "expect": "clipboard",
+      "text": "🐈"
+    },
+    {
+      "when": "script",
+      "level1_call": {
+        "service": "clipboard.write",
+        "input": "😀"
+      }
+    },
+    {
+      "expect": "invocation_failed",
+      "category": "host_service_failed",
+      "because": "catalogue IDs belong to the namespaces candidate, which this Plugin does not declare (#75's run-time check)"
+    }
+  ]
+}

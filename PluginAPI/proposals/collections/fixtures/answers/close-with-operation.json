@@ -1,7 +1,7 @@
 {
   "close": true,
   "operation": {
-    "kind": "insert_text",
-    "text": "🐈"
+    "perform": "selection.replace",
+    "input": {"text": "🐈"}
   }
 }

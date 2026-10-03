@@ -6,6 +6,10 @@
       {
         "name": "host_operations",
         "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
       }
     ]
   },
@@ -77,8 +81,10 @@
         },
         "state": {},
         "operation": {
-          "kind": "insert_text",
-          "text": "😀"
+          "perform": "selection.replace",
+          "input": {
+            "text": "😀"
+          }
         }
       }
     },
@@ -96,5 +102,5 @@
       "because": "the App is unchanged; pressing again inserts into the element now focused"
     }
   ],
-  "note": "The same rule holds for a standard insert_text action and a synchronous insert_text call. It is the default until #69 shows whether Accessibility elements compare reliably across Apps; if they do not, whether to fall back to an App-level check returns to the user."
+  "note": "The same rule holds for a selection.replace action and a synchronous selection.replace call. It is the default until #69 shows whether Accessibility elements compare reliably across Apps; if they do not, whether to fall back to an App-level check returns to the user."
 }

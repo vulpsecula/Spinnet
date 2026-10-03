@@ -4,8 +4,10 @@
 # Checks that the draft schema is well formed, that every fixture is
 # accepted or refused as fixtures/index.json says, that the draft
 # candidate.json satisfies the Candidate Contract metadata schema while no
-# Host provides it, and that every scenario declares its manifest's
-# api_level and candidate_contracts as #75 specifies. It implements only the
+# Host provides it and requires the draft namespaces revision beside it
+# (#99), whose catalogue IDs name every operation, and that every scenario
+# declares its manifest's api_level and candidate_contracts as #75
+# specifies. It implements only the
 # JSON Schema (draft 2020-12) keywords Spinnet's own JSONSchemaSubsetValidator
 # implements, and refuses any other keyword, so the draft can move into a real
 # candidate without a richer validator. It needs nothing beyond Python 3.
@@ -25,6 +27,7 @@ CANDIDATES = (HERE / "../../candidates").resolve()
 CANDIDATE_METADATA = CANDIDATES / "schemas/candidate-metadata.schema.json"
 CANDIDATE_DECLARATIONS = CANDIDATES / "schemas/candidate-contracts.schema.json"
 DRAFT = HERE / "candidate.json"
+NAMESPACES = (HERE / "../namespaces").resolve()
 
 ANNOTATIONS = {"$schema", "$id", "$comment", "$defs", "title", "description", "examples"}
 ASSERTIONS = {
@@ -217,9 +220,14 @@ def draft_candidate_errors(draft):
     name, revision = draft.get("name"), draft.get("revision")
     if draft.get("tag") != f"plugin-api-candidate/{name}/r{revision}":
         found.append("candidate.json: tag does not name its own name and revision")
-    published = CANDIDATES / str(name)
-    if published.exists():
-        found.append(f"candidate.json: {published} exists; a draft must not be published as a candidate")
+    names = json.loads((NAMESPACES / "candidate.json").read_text(encoding="utf-8"))
+    wanted = {"name": names["name"], "revision": names["revision"]}
+    if wanted not in draft.get("requires", []):
+        found.append(f"candidate.json: does not require {wanted}, whose catalogue IDs name its operations")
+    for candidate in (name, names["name"]):
+        published = CANDIDATES / str(candidate)
+        if published.exists():
+            found.append(f"candidate.json: {published} exists; a draft must not be published as a candidate")
     provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
     table = provided.split("## Candidate Contracts this Host provides", 1)[-1].split("\n## ", 1)[0]
     if re.search(rf"^\|\s*`?{re.escape(str(name))}`?\s*\|", table, re.MULTILINE):
@@ -243,6 +251,9 @@ def manifest_errors(manifest, draft, illustrative):
             found.append("manifest: declares a candidate twice")
         if not illustrative and {"name": draft["name"], "revision": draft["revision"]} not in manifest["candidate_contracts"]:
             found.append(f"manifest: does not declare the draft {draft['name']} r{draft['revision']}")
+        for required in draft["requires"]:
+            if required not in manifest["candidate_contracts"]:
+                found.append(f"manifest: declares {draft['name']} without the {required} it requires")
         if json_type(level) == "integer" and level < draft["base_level"]:
             found.append("manifest: api_level is below the draft's base_level")
     unknown = set(manifest) - {"api_level", "candidate_contracts"}
@@ -306,7 +317,7 @@ def main():
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"ok: schema well formed, draft candidate.json valid and unpublished, "
+    print(f"ok: schema well formed, draft candidate.json valid, unpublished and requiring namespaces, "
           f"{len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
     return 0
 

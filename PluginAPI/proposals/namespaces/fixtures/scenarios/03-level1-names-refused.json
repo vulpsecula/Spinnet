@@ -1,0 +1,98 @@
+{
+  "title": "A Plugin declaring namespaces names operations only by catalogue ID, except inside a Level 1 view",
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      },
+      {
+        "name": "namespaces",
+        "revision": 1
+      }
+    ]
+  },
+  "covers": [
+    "Level 1 names withdrawn",
+    "Level 1 view kept whole (N5)"
+  ],
+  "variants": [
+    {
+      "name": "manifest",
+      "steps": [
+        {
+          "when": "install_reviewed",
+          "level1_command": {
+            "id": "builtin.open_url",
+            "title": "Open URL",
+            "execution": "host",
+            "is_configurable": true,
+            "host_command": "url.open"
+          }
+        },
+        {
+          "expect": "refused",
+          "message": "url.open is Plugin API Level 1's name; a Plugin declaring namespaces names open.url"
+        }
+      ]
+    },
+    {
+      "name": "call",
+      "steps": [
+        {
+          "when": "script",
+          "level1_call": {
+            "service": "write_clipboard",
+            "input": "😀"
+          }
+        },
+        {
+          "expect": "invocation_failed",
+          "category": "host_service_failed",
+          "message": "write_clipboard is Plugin API Level 1's name; call clipboard.write"
+        }
+      ]
+    },
+    {
+      "name": "page action",
+      "steps": [
+        {
+          "when": "answer",
+          "page_action": {
+            "title": "Copy",
+            "perform": "copy_text",
+            "text": "😀"
+          }
+        },
+        {
+          "expect": "session_ended",
+          "reason": "protocol violation",
+          "message": "copy_text is Level 1's name; perform clipboard.write"
+        }
+      ]
+    },
+    {
+      "name": "Level 1 view",
+      "steps": [
+        {
+          "when": "answer",
+          "level1_action": {
+            "title": "Copy",
+            "perform": "copy_text",
+            "text": "😀"
+          },
+          "in": "a Level 1 view"
+        },
+        {
+          "expect": "shown",
+          "because": "a Level 1 view is Level 1 vocabulary, kept whole (collections C9, choice N5)"
+        }
+      ]
+    }
+  ]
+}

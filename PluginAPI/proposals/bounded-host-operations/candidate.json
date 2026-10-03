@@ -2,11 +2,21 @@
   "name": "host_operations",
   "revision": 1,
   "base_level": 1,
-  "requires": [],
+  "requires": [
+    {"name": "namespaces", "revision": 1}
+  ],
   "conflicts": [],
   "members": [
     {"kind": "behaviour", "name": "answer_operation"},
-    {"kind": "behaviour", "name": "insert_text_operation"},
+    {"kind": "behaviour", "name": "request:settings.show"},
+    {"kind": "behaviour", "name": "request:selection.replace"},
+    {"kind": "behaviour", "name": "request:clipboard.write"},
+    {"kind": "behaviour", "name": "request:clipboard.history.show"},
+    {"kind": "behaviour", "name": "request:open.url"},
+    {"kind": "behaviour", "name": "request:open.path"},
+    {"kind": "behaviour", "name": "request:open.application"},
+    {"kind": "behaviour", "name": "request:apps.perform"},
+    {"kind": "behaviour", "name": "request:apps.openDeepLink"},
     {"kind": "view_event", "name": "operation_finished"},
     {"kind": "behaviour", "name": "shows_insertion_target"},
     {"kind": "behaviour", "name": "execution_time_insertion_target"},

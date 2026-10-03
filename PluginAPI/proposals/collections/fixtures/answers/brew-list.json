@@ -49,7 +49,7 @@
           {
             "id": "copy",
             "title": "Copy Name",
-            "perform": "copy_text"
+            "perform": "clipboard.write"
           }
         ],
         "items": [
