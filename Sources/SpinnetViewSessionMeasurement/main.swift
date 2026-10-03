@@ -94,6 +94,7 @@ let driver = Thread {
         switch options.mode {
         case .sessions: try runSessions(options)
         case .appFootprint: try runAppFootprint(options)
+        case .authority: try runAuthority(options)
         }
         exit(0)
     } catch {

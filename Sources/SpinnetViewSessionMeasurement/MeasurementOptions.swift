@@ -8,11 +8,17 @@ struct MeasurementOptions {
         /// Samples a running Spinnet app and its helpers while the user opens
         /// and uses a Plugin View by hand.
         case appFootprint = "app-footprint"
+        /// Checks the Host's access decisions for a Plugin's View Session:
+        /// install and update review, denied and revoked Capabilities, and
+        /// Accessibility off, over the real helper.
+        case authority
     }
 
     var mode = Mode.sessions
     var helperURL: URL?
     var fixtureURL: URL?
+    /// For authority: a later version of the fixture to update to.
+    var updateURL: URL?
     var outputURL: URL?
     var openSamples = 20
     var eventSamples = 50
@@ -48,7 +54,7 @@ struct MeasurementOptions {
     var helperProcessName = "SpinnetPluginHelper"
 
     static let usage = """
-        usage: SpinnetViewSessionMeasurement [app-footprint] [options]
+        usage: SpinnetViewSessionMeasurement [app-footprint | authority] [options]
 
         Measures View Session latency and memory over the real SpinnetPluginHelper
         (W13 #60), keeps every raw sample and reports p50, p95 and max with the run
@@ -80,6 +86,12 @@ struct MeasurementOptions {
                                       Whether nothing else ran, recorded with the results
           --note TEXT                 Anything else about the run
           --git-revision SHA          The revision measured
+
+        authority checks the Host's access decisions for the fixture instead:
+        install review and disclosure, an update's inherited grants, a
+        denied Insert, Accessibility off and a revocation with the view open:
+          --fixture PATH              Plugin package to install and open
+          --update-to PATH            A later version of it to update to
 
         app-footprint samples a running Spinnet app instead:
           --host-name NAME            Host process name (default SpinnetHost)
@@ -118,6 +130,8 @@ struct MeasurementOptions {
         while let argument = remaining.popFirst() {
             switch argument {
             case "app-footprint": mode = .appFootprint
+            case "authority": mode = .authority
+            case "--update-to": updateURL = URL(fileURLWithPath: try value(for: argument), isDirectory: true)
             case "--helper": helperURL = URL(fileURLWithPath: try value(for: argument))
             case "--fixture": fixtureURL = URL(fileURLWithPath: try value(for: argument), isDirectory: true)
             case "--output": outputURL = URL(fileURLWithPath: try value(for: argument), isDirectory: true)

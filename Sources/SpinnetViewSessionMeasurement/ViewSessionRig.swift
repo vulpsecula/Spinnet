@@ -64,7 +64,9 @@ final class ViewSessionRig {
     /// Main-queue confined.
     private var sessions: PluginViewSessions!
 
-    init(helperURL: URL, fixtureURL: URL) throws {
+    /// With `grantStore`, revoking a Capability ends the session and retires
+    /// the helper, as the Host wires both to its own store.
+    init(helperURL: URL, fixtureURL: URL, grantStore: PluginCapabilityGrantStore? = nil) throws {
         package = try PluginManifestLoader.load(packageAt: fixtureURL)
         try registry.register(package)
         guard let command = package.manifest.commands.first(where: { $0.execution == .javascript }) else {
@@ -74,7 +76,7 @@ final class ViewSessionRig {
                                          input: .null)
         let processes = self.processes
         supervisor = PluginRuntimeSupervisor(
-            helperURL: helperURL, registry: registry,
+            helperURL: helperURL, registry: registry, grantStore: grantStore,
             processFactory: { processes.make() },
             environment: { PluginRuntimeEnvironment(hostVersion: "0.0.0", preferredLanguage: "en") }
         )
@@ -106,6 +108,10 @@ final class ViewSessionRig {
                 showFeedback: { _ in },
                 readView: { _, view in _ = try PluginViewDescription(parsing: view, settingsFields: settingsFields) }
             )
+            if let grantStore {
+                sessions.observe(registry: registry, grantStore: grantStore,
+                                 on: { DispatchQueue.main.async(execute: $0) })
+            }
         }
     }
 
@@ -172,6 +178,9 @@ final class ViewSessionRig {
         interaction.helperLaunches = supervisor.launchCount - launches
         return interaction
     }
+
+    /// Why the last View Session ended, if one has.
+    var lastEnd: PluginViewSessionEnd? { onMain { renderer.lastEnd } }
 
     func closeView() {
         onMain { sessions.session(for: action.pluginID)?.close() }
@@ -279,6 +288,7 @@ private final class ObservingRenderer: PluginViewRenderer {
     typealias Ended = (PluginViewSession, PluginViewSessionEnd) -> Bool
     private var presented: Presented?
     private var ended: Ended?
+    private(set) var lastEnd: PluginViewSessionEnd?
 
     /// The observers answer true once they have seen what they waited for.
     func observe(_ presented: @escaping Presented, ended: @escaping Ended) {
@@ -298,6 +308,7 @@ private final class ObservingRenderer: PluginViewRenderer {
     func showToast(_ toast: String, in session: PluginViewSession) {}
 
     func close(_ session: PluginViewSession, because reason: PluginViewSessionEnd) {
+        lastEnd = reason
         if ended?(session, reason) == true { stopObserving() }
     }
 }
