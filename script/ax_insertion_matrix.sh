@@ -4,6 +4,7 @@
 #
 #   ./script/ax_insertion_matrix.sh                 build, check the grant, run every target
 #   ./script/ax_insertion_matrix.sh --only chrome,vscode
+#   ./script/ax_insertion_matrix.sh --only panel,panel-keys   the Host call under a Plugin View-like panel, and the P3 flow
 #   ./script/ax_insertion_matrix.sh --skip obsidian
 #   ./script/ax_insertion_matrix.sh --dry-run       drive only the probe's own fixture App
 #   ./script/ax_insertion_matrix.sh --build-only    build, sign and self-check

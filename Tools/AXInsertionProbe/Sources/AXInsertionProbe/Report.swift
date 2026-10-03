@@ -154,6 +154,38 @@ struct KeystrokeChannel: Codable, Equatable {
     var skipped: String?
 }
 
+/// The panel variants: what held the keyboard and what the target App's
+/// Accessibility reported while a non-activating panel like the Host's
+/// Plugin View panel was key, and what happened once it was gone.
+struct PanelObservation: Codable, Equatable {
+    /// The App frontmost just before the panel was shown, captured as the
+    /// Host captures a Plugin View's origin
+    /// (`NSWorkspace.shared.frontmostApplication`).
+    var origin: String?
+    var originIsTarget: Bool
+    /// The target's focused element, read by the probe before the panel.
+    var targetFocusBeforePanel: ElementInfo?
+    var panelState: ProbePanel.State?
+    var frontmostWhilePanelKey: String?
+    var targetStillFrontmost: Bool?
+    /// The target's focused element and focused window while the panel is
+    /// key: what the Host's `kAXFocusedUIElement` query of the origin sees.
+    var targetFocusWhilePanelKey: ElementInfo?
+    var targetFocusedWindowWhilePanelKey: String?
+    /// The same Host call made on the main thread while the panel is still
+    /// key, with a text of its own.
+    var hostCallOnMainWhilePanelKey: Attempt?
+    var onMainCheck: IndependentCheck?
+    var frontmostAfterClose: String?
+    var targetFocusAfterClose: ElementInfo?
+    /// The same Host call once the panel is closed, with a text of its own.
+    var hostCallAfterClose: Attempt?
+    var afterCloseCheck: IndependentCheck?
+    /// Panel then keystrokes (P3 flow): how activating the target went.
+    var activation: String?
+    var notes: [String] = []
+}
+
 struct ExperimentInfo: Codable, Equatable {
     var attribute: String
     var setResult: String
@@ -189,6 +221,7 @@ struct ProbeRow: Codable, Equatable {
     var keystrokes: KeystrokeExperiment?
     var selection: SelectionResult?
     var experiment: ExperimentInfo?
+    var panel: PanelObservation?
     var cleanup: String?
     var notes: [String] = []
     var durationSeconds: Double?
@@ -295,6 +328,7 @@ enum ReportWriter {
                     notes.append("\(check.label) holds \(quoted(excerpt))")
                 }
             }
+            if let panel = row.panel { notes.append(contentsOf: panelNotes(panel)) }
             for channel in row.keystrokes?.channels ?? [] {
                 if let skipped = channel.skipped {
                     notes.append("\(channel.channel): not tried, \(skipped)")
@@ -318,6 +352,41 @@ enum ReportWriter {
         }
         lines.append("")
         return lines.joined(separator: "\n")
+    }
+
+    static func focusText(_ info: ElementInfo?) -> String {
+        guard let info else { return "not read" }
+        guard info.present else { return "none (\(info.focusedElementError ?? "?"))" }
+        let role = [info.role, info.subrole].compactMap { $0 }.joined(separator: " / ")
+        return role + (info.windowTitle.map { " in \(quoted($0))" } ?? "")
+    }
+
+    static func panelNotes(_ panel: PanelObservation) -> [String] {
+        var notes: [String] = []
+        notes.append("origin \(panel.origin ?? "none")\(panel.originIsTarget ? " (the target)" : " (NOT the target)")")
+        if let state = panel.panelState {
+            notes.append("panel key \(state.isKey ? "yes" : "no"), non-activating \(state.isNonActivating ? "yes" : "no"), its field first responder \(state.fieldIsFirstResponder ? "yes" : "no"), probe active \(state.probeIsActive ? "yes" : "no")")
+        }
+        if let front = panel.frontmostWhilePanelKey {
+            notes.append("frontmost while panel key: \(front)\(panel.targetStillFrontmost == true ? " (the target)" : "")")
+        }
+        if panel.targetFocusBeforePanel != nil { notes.append("target focus before panel: \(focusText(panel.targetFocusBeforePanel))") }
+        if panel.targetFocusWhilePanelKey != nil || panel.targetFocusedWindowWhilePanelKey != nil {
+            notes.append("target focus while panel key: \(focusText(panel.targetFocusWhilePanelKey)); focused window \(panel.targetFocusedWindowWhilePanelKey ?? "not read")")
+        }
+        if let attempt = panel.hostCallOnMainWhilePanelKey {
+            notes.append("same Host call on the main thread while panel key: \(resultText(attempt))\(attempt.hostError.map { " (`\($0)`)" } ?? "")")
+        }
+        if let check = panel.onMainCheck { notes.append("main-thread call, \(check.summary)") }
+        if let activation = panel.activation { notes.append("activation: \(activation)") }
+        if let front = panel.frontmostAfterClose { notes.append("frontmost after panel closed: \(front)") }
+        if panel.targetFocusAfterClose != nil { notes.append("target focus after panel closed: \(focusText(panel.targetFocusAfterClose))") }
+        if let attempt = panel.hostCallAfterClose {
+            notes.append("same Host call after panel closed: \(resultText(attempt))\(attempt.hostError.map { " (`\($0)`)" } ?? "")")
+        }
+        if let check = panel.afterCloseCheck { notes.append("after close, \(check.summary)") }
+        notes.append(contentsOf: panel.notes)
+        return notes
     }
 
     static func resultText(_ attempt: Attempt) -> String {

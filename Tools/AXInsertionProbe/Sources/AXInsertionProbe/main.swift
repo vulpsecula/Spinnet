@@ -11,7 +11,7 @@ import SpinnetCore
 //   AXInsertionProbe selftest [--out DIR]
 //
 // Groups: fixture, textedit, terminal, safari, chrome, vscode, cursor,
-// obsidian, notes, notion, discord.
+// obsidian, notes, notion, discord, panel, panel-keys.
 
 setlinebuf(stdout)
 

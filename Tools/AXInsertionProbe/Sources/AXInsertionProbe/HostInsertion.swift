@@ -30,17 +30,23 @@ final class HostA2Insertion {
 
     var accessibilityGranted: Bool { provider.isGranted(.accessibility) }
 
-    /// One Host call, then the read-back after `settle`.
-    func attempt(_ text: InsertionText, into processIdentifier: pid_t, settle: TimeInterval = 0.35) -> Attempt {
+    /// One Host call, then the read-back after `settle`. `onMainThread`
+    /// makes the call on the main thread, where the Host makes it while
+    /// handling the Plugin View's key event; the probe's run is on another.
+    func attempt(_ text: InsertionText, into processIdentifier: pid_t, settle: TimeInterval = 0.35,
+                 onMainThread: Bool = false) -> Attempt {
         let started = Date()
         var hostError: PluginHostServiceError?
-        do {
-            try provider.insertText(text.text, intoApplication: processIdentifier)
-        } catch let error as PluginHostServiceError {
-            hostError = error
-        } catch {
-            hostError = .failed(error.localizedDescription)
+        let call = {
+            do {
+                try self.provider.insertText(text.text, intoApplication: processIdentifier)
+            } catch let error as PluginHostServiceError {
+                hostError = error
+            } catch {
+                hostError = .failed(error.localizedDescription)
+            }
         }
+        if onMainThread && !Thread.isMainThread { DispatchQueue.main.sync(execute: call) } else { call() }
         let elapsed = Date().timeIntervalSince(started) * 1000
         if let hostError {
             return Attempt(step: Self.step(for: hostError), hostError: hostError.description, readBack: nil,
