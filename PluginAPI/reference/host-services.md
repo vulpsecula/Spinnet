@@ -62,7 +62,8 @@ pastes and does not touch the clipboard.
 The Host brings that App to the keyboard, which an open Plugin View gives up
 (an unpinned view closes, as it does whenever it loses focus), and types the
 text into it as keyboard events: a line break as Shift-Return and a tab as the
-Tab key, so the App treats them as it treats those keys. The call returns once
+Tab key, so the App treats them as it treats those keys; in a terminal a line
+break runs the line, as pasting it would. The call returns once
 the text has been typed, which for a long text takes a while, and success
 means the Host delivered it, not that the App kept it. The Host refuses, typing
 nothing, when no other App is in front or it does not come to the keyboard
