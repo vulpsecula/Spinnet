@@ -37,15 +37,15 @@ _Avoid_: LocalStorage, cache, Plugin data, Plugin Settings
 ### Commands and Actions
 
 **Command**:
-A callable operation a Plugin declares, before user-specific configuration is applied. A Command either names a Host Command for the Host to perform or runs the Plugin's script, which may call Host Services.
+A callable operation a Plugin declares, before user-specific configuration is applied. A Command either runs one Host Service directly, which makes it a Host Command, or runs the Plugin's script, which may call Host Services.
 _Avoid_: Action type, function
 
 **Host Command**:
-An operation the Host implements itself, such as opening an application or capturing the screen, which a Plugin's Command performs by naming it in its manifest instead of running a script. It is the whole Command, unlike a Host Service, which a script calls. The Host has no Library entries of its own: Open URL, Screenshot and the rest are Bundled Plugins whose Commands name Host Commands, and the user may remove them like any other Plugin.
+A Command that runs one Host Service directly instead of a script, by naming the Service's ID in its manifest, such as `open.url` or `screen.capture`; the Action's configuration supplies the Service's input, and no script runs. Plugin API Level 1 has Host Command names of its own, such as `url.open` and `screen.capture_area`, which Level 1 Plugins keep. The Host has no Library entries of its own: Open URL, Screenshot and the rest are Bundled Plugins whose Commands are Host Commands, and the user may remove them like any other Plugin.
 _Avoid_: Built-in Plugin, Built-in Preset, native Action
 
 **Host Service**:
-A controlled operation a Plugin's script calls on the Host, provided for any Plugin that is granted it and never shaped around one Plugin's feature. Its availability may depend on a Capability and a System Permission.
+A controlled operation the Host performs for any Plugin that is granted it, never shaped around one Plugin's feature, listed once in the Plugin API catalogue under one `namespace.verb` ID, such as `clipboard.write`. From the first new UI contract on, every entry point names it by that ID: a script's call, a Host Command, a View Action and a Requested Host Operation. Plugin API Level 1 names the same operation differently at each entry point (`write_clipboard`, `clipboard.copy`, `copy_text`), and Level 1 Plugins keep those names. Its availability may depend on a Capability and a System Permission.
 _Avoid_: Capability, system API, Plugin-specific service
 
 **Action**:
@@ -157,7 +157,7 @@ One user interaction in a Plugin View, such as editing a field, submitting, or c
 _Avoid_: Callback, UI message
 
 **View Action**:
-A button or menu entry a Plugin View offers, which either asks the Host for a standard operation such as copying or inserting text, or sends the Plugin a View Event. A Plugin never binds keyboard shortcuts to it.
+A button or menu entry a Plugin View offers, which either has the Host perform a Host Service, such as copying or inserting text, or sends the Plugin a View Event. A Plugin never binds keyboard shortcuts to it.
 _Avoid_: Action (a Menu Item's), shortcut, command button
 
 **Item Action**:
@@ -177,7 +177,7 @@ The App that receives text the Host inserts for a Plugin. Under Plugin API Level
 _Avoid_: Origin App, recent App, focused App (when the panel is meant)
 
 **Requested Host Operation**:
-Proposed for the first new UI contract: an operation a script asks the Host to perform after its invocation ends, by naming it in its answer to a user gesture; the Host checks authority, confirms when the kind requires it, resolves the target, performs it and reports one outcome.
+Proposed for the first new UI contract: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host checks authority, confirms when that Service requires it, resolves the target, performs it and reports one outcome.
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
@@ -237,6 +237,10 @@ _Avoid_: Host internals, private API, ABI
 **Plugin API Level**:
 The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level.
 _Avoid_: SDK version, protocol version
+
+**Plugin API Namespace**:
+Proposed for the first new UI contract: a named group of Host Services that act on or read the same thing, such as `selection`, `clipboard` or `open`. It is the first part of each Host Service's ID and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
+_Avoid_: SDK area, module, Capability
 
 **Candidate Contract**:
 An explicitly provisional revision of the Documented Plugin Interface used to evaluate additions before they become part of a stable Plugin API Level.
