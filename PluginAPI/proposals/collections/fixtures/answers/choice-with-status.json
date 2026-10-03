@@ -1,0 +1,55 @@
+{
+  "page": {
+    "id": "search",
+    "title": "Emoji",
+    "shows_insertion_target": true,
+    "content": [
+      {
+        "kind": "row",
+        "id": "bar",
+        "content": [
+          {
+            "kind": "text_field",
+            "id": "query",
+            "title": "Search",
+            "placeholder": "smile, cat, heart or an emoji",
+            "value": "cat",
+            "collection": "results"
+          },
+          {
+            "kind": "choice_field",
+            "id": "category",
+            "title": "Category",
+            "value": "all",
+            "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+            "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"],
+            "status": "10 categories"
+          }
+        ]
+      },
+      {
+        "kind": "grid",
+        "id": "results",
+        "columns": 8,
+        "rows": 6,
+        "empty_text": "No emoji match",
+        "actions": [
+          {
+            "id": "insert",
+            "title": "Insert",
+            "default": true
+          },
+          {
+            "id": "copy",
+            "title": "Copy",
+            "perform": "copy_text"
+          }
+        ],
+        "items": [
+          {"id": "1F408", "title": "cat", "symbol": "🐈"},
+          {"id": "1F431", "title": "cat face", "symbol": "🐱"}
+        ]
+      }
+    ]
+  }
+}

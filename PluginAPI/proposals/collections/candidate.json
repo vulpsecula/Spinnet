@@ -1,0 +1,36 @@
+{
+  "name": "collections",
+  "revision": 1,
+  "base_level": 1,
+  "requires": [
+    {"name": "host_operations", "revision": 1}
+  ],
+  "conflicts": [],
+  "members": [
+    {"kind": "behaviour", "name": "answer_page"},
+    {"kind": "behaviour", "name": "page_identity"},
+    {"kind": "behaviour", "name": "page_memory"},
+    {"kind": "behaviour", "name": "component_identity"},
+    {"kind": "behaviour", "name": "immediate_state_kept"},
+    {"kind": "behaviour", "name": "explicit_reset"},
+    {"kind": "behaviour", "name": "composition_priority"},
+    {"kind": "behaviour", "name": "page_event_provenance"},
+    {"kind": "behaviour", "name": "gesture_snapshots"},
+    {"kind": "behaviour", "name": "collection_keyboard_roles"},
+    {"kind": "behaviour", "name": "collection_selection"},
+    {"kind": "behaviour", "name": "item_standard_actions"},
+    {"kind": "behaviour", "name": "repeated_calls_into_session"},
+    {"kind": "view_component", "name": "row"},
+    {"kind": "view_component", "name": "text_field"},
+    {"kind": "view_component", "name": "choice_field"},
+    {"kind": "view_component", "name": "text"},
+    {"kind": "view_component", "name": "actions"},
+    {"kind": "view_component", "name": "list"},
+    {"kind": "view_component", "name": "grid"},
+    {"kind": "view_event", "name": "item_action"},
+    {"kind": "view_event", "name": "load_more"},
+    {"kind": "view_event", "name": "called"}
+  ],
+  "tag": "plugin-api-candidate/collections/r1",
+  "status": "supported"
+}

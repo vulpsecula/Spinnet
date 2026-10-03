@@ -1,0 +1,14 @@
+{
+  "type": "item_action",
+  "page": "search",
+  "collection": "results",
+  "action": "insert",
+  "item": {
+    "id": "1F408",
+    "text": "🐈"
+  },
+  "values": {
+    "query": "cat",
+    "category": "all"
+  }
+}

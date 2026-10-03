@@ -1,0 +1,27 @@
+{
+  "view": {
+    "title": "Emoji",
+    "form": {
+      "fields": [
+        {
+          "kind": "text",
+          "key": "query",
+          "title": "Search",
+          "value": "cat"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "title": "Insert 🐈",
+        "perform": "insert_text",
+        "text": "🐈",
+        "shortcut": "cmd+1",
+        "closes_view": true
+      }
+    ]
+  },
+  "state": {
+    "query": "cat"
+  }
+}

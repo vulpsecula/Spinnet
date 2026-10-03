@@ -1,0 +1,828 @@
+{
+  "title": "Changing page remembers the last 4 pages' immediate state by ID; it is not a stack",
+  "covers": [
+    "page identity",
+    "page change",
+    "page memory"
+  ],
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
+  "variants": [
+    {
+      "name": "list, detail, back to the list",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "given": "immediate_state",
+          "component": "query",
+          "text": "py",
+          "caret": 2
+        },
+        {
+          "given": "immediate_state",
+          "component": "packages",
+          "selected": "formula:python@3.13",
+          "scroll_anchor": "formula:python@3.13"
+        },
+        {
+          "when": "key",
+          "key": "return",
+          "focus": "query"
+        },
+        {
+          "expect": "event",
+          "event": {
+            "type": "item_action",
+            "page": "packages",
+            "collection": "packages",
+            "action": "details",
+            "item": {
+              "id": "formula:python@3.13",
+              "text": "python@3.13"
+            },
+            "values": {
+              "query": "py",
+              "scope": "all"
+            }
+          }
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "package:python@3.13",
+              "title": "python@3.13",
+              "subtitle": "Homebrew",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "summary",
+                  "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                },
+                {
+                  "kind": "text",
+                  "id": "status",
+                  "title": "Status",
+                  "text": "Outdated"
+                },
+                {
+                  "kind": "actions",
+                  "id": "buttons",
+                  "actions": [
+                    {"id": "back", "title": "Back to Packages"},
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {
+                      "title": "Copy Name",
+                      "perform": "copy_text",
+                      "text": "python@3.13"
+                    }
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "package": "formula:python@3.13"
+            }
+          }
+        },
+        {
+          "expect": "page_shown",
+          "page": "package:python@3.13",
+          "focus": "first key-view stop",
+          "scroll": "top"
+        },
+        {
+          "when": "click",
+          "button": "back"
+        },
+        {
+          "expect": "event",
+          "event": {
+            "type": "action_chosen",
+            "page": "package:python@3.13",
+            "action": "back",
+            "values": {},
+            "selection": {}
+          }
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "query",
+          "text": "py",
+          "caret": 2,
+          "focused": true
+        },
+        {
+          "expect": "immediate_state",
+          "component": "packages",
+          "selected": "formula:python@3.13",
+          "scroll_anchor": "formula:python@3.13"
+        }
+      ]
+    },
+    {
+      "name": "the fifth page forgets the oldest",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "given": "immediate_state",
+          "component": "query",
+          "text": "py"
+        },
+        {
+          "when": "answer_arrives",
+          "answers": [
+            {
+              "page": {
+                "id": "package:python@3.13",
+                "title": "python@3.13",
+                "subtitle": "Homebrew",
+                "content": [
+                  {
+                    "kind": "text",
+                    "id": "summary",
+                    "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                  },
+                  {
+                    "kind": "text",
+                    "id": "status",
+                    "title": "Status",
+                    "text": "Outdated"
+                  },
+                  {
+                    "kind": "actions",
+                    "id": "buttons",
+                    "actions": [
+                      {"id": "back", "title": "Back to Packages"},
+                      {"id": "upgrade", "title": "Upgrade"},
+                      {
+                        "title": "Copy Name",
+                        "perform": "copy_text",
+                        "text": "python@3.13"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "state": {
+                "scope": "all",
+                "query": "py",
+                "package": "formula:python@3.13"
+              }
+            },
+            {
+              "page": {
+                "id": "package:pyenv",
+                "title": "pyenv",
+                "subtitle": "Homebrew",
+                "content": [
+                  {
+                    "kind": "text",
+                    "id": "summary",
+                    "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                  },
+                  {
+                    "kind": "text",
+                    "id": "status",
+                    "title": "Status",
+                    "text": "Outdated"
+                  },
+                  {
+                    "kind": "actions",
+                    "id": "buttons",
+                    "actions": [
+                      {"id": "back", "title": "Back to Packages"},
+                      {"id": "upgrade", "title": "Upgrade"},
+                      {
+                        "title": "Copy Name",
+                        "perform": "copy_text",
+                        "text": "python@3.13"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "state": {
+                "scope": "all",
+                "query": "py",
+                "package": "formula:python@3.13"
+              }
+            },
+            {
+              "page": {
+                "id": "package:pipx",
+                "title": "pipx",
+                "subtitle": "Homebrew",
+                "content": [
+                  {
+                    "kind": "text",
+                    "id": "summary",
+                    "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                  },
+                  {
+                    "kind": "text",
+                    "id": "status",
+                    "title": "Status",
+                    "text": "Outdated"
+                  },
+                  {
+                    "kind": "actions",
+                    "id": "buttons",
+                    "actions": [
+                      {"id": "back", "title": "Back to Packages"},
+                      {"id": "upgrade", "title": "Upgrade"},
+                      {
+                        "title": "Copy Name",
+                        "perform": "copy_text",
+                        "text": "python@3.13"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "state": {
+                "scope": "all",
+                "query": "py",
+                "package": "formula:python@3.13"
+              }
+            },
+            {
+              "page": {
+                "id": "package:jq",
+                "title": "jq",
+                "subtitle": "Homebrew",
+                "content": [
+                  {
+                    "kind": "text",
+                    "id": "summary",
+                    "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                  },
+                  {
+                    "kind": "text",
+                    "id": "status",
+                    "title": "Status",
+                    "text": "Outdated"
+                  },
+                  {
+                    "kind": "actions",
+                    "id": "buttons",
+                    "actions": [
+                      {"id": "back", "title": "Back to Packages"},
+                      {"id": "upgrade", "title": "Upgrade"},
+                      {
+                        "title": "Copy Name",
+                        "perform": "copy_text",
+                        "text": "python@3.13"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "state": {
+                "scope": "all",
+                "query": "py",
+                "package": "formula:python@3.13"
+              }
+            },
+            {
+              "page": {
+                "id": "package:wget",
+                "title": "wget",
+                "subtitle": "Homebrew",
+                "content": [
+                  {
+                    "kind": "text",
+                    "id": "summary",
+                    "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                  },
+                  {
+                    "kind": "text",
+                    "id": "status",
+                    "title": "Status",
+                    "text": "Outdated"
+                  },
+                  {
+                    "kind": "actions",
+                    "id": "buttons",
+                    "actions": [
+                      {"id": "back", "title": "Back to Packages"},
+                      {"id": "upgrade", "title": "Upgrade"},
+                      {
+                        "title": "Copy Name",
+                        "perform": "copy_text",
+                        "text": "python@3.13"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "state": {
+                "scope": "all",
+                "query": "py",
+                "package": "formula:python@3.13"
+              }
+            }
+          ]
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "query",
+          "text": "",
+          "because": "packages was not among the last 4 pages shown, so it is new"
+        }
+      ]
+    },
+    {
+      "name": "a Level 1 view is a page change",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "given": "immediate_state",
+          "component": "query",
+          "text": "py"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "view": {
+              "title": "Emoji",
+              "form": {
+                "fields": [
+                  {
+                    "kind": "text",
+                    "key": "query",
+                    "title": "Search",
+                    "value": "cat"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "title": "Insert 🐈",
+                  "perform": "insert_text",
+                  "text": "🐈",
+                  "shortcut": "cmd+1",
+                  "closes_view": true
+                }
+              ]
+            },
+            "state": {
+              "query": "cat"
+            }
+          }
+        },
+        {
+          "expect": "level1_view",
+          "rules": "Level 1: fields take their value on every answer that does not answer the user's own typing"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "query",
+          "text": "py"
+        }
+      ]
+    }
+  ]
+}

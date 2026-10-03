@@ -1,0 +1,659 @@
+{
+  "title": "Queued page events need their page and component; explicit calls do not",
+  "covers": [
+    "provenance",
+    "repeated calls",
+    "snapshots"
+  ],
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
+  "variants": [
+    {
+      "name": "an event from a page that was replaced is dropped",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "given": "event_running",
+          "event": {
+            "type": "item_action",
+            "page": "packages",
+            "collection": "packages",
+            "action": "details",
+            "item": {
+              "id": "formula:pyenv",
+              "text": "pyenv"
+            },
+            "values": {
+              "query": "py",
+              "scope": "all"
+            }
+          }
+        },
+        {
+          "when": "typing_pause",
+          "component": "query",
+          "text": "pyt"
+        },
+        {
+          "expect": "queued",
+          "event": {
+            "type": "field_changed",
+            "page": "packages",
+            "field": "query",
+            "values": {
+              "query": "pyt",
+              "scope": "all"
+            }
+          }
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "package:python@3.13",
+              "title": "python@3.13",
+              "subtitle": "Homebrew",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "summary",
+                  "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                },
+                {
+                  "kind": "text",
+                  "id": "status",
+                  "title": "Status",
+                  "text": "Outdated"
+                },
+                {
+                  "kind": "actions",
+                  "id": "buttons",
+                  "actions": [
+                    {"id": "back", "title": "Back to Packages"},
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {
+                      "title": "Copy Name",
+                      "perform": "copy_text",
+                      "text": "python@3.13"
+                    }
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "package": "formula:python@3.13"
+            }
+          }
+        },
+        {
+          "expect": "dropped",
+          "event_type": "field_changed",
+          "because": "page packages is no longer on screen",
+          "feedback": "none"
+        }
+      ]
+    },
+    {
+      "name": "an event from a component reset since is dropped",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "given": "event_running",
+          "event": {
+            "type": "load_more",
+            "page": "search",
+            "collection": "results",
+            "loaded": 20
+          }
+        },
+        {
+          "when": "typing_pause",
+          "component": "query",
+          "text": "dog"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "query",
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            },
+            "state": {
+              "query": "",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "dropped",
+          "event_type": "field_changed",
+          "because": "query was reset after the event was made"
+        }
+      ]
+    },
+    {
+      "name": "an item action is delivered after its item left the collection",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "given": "event_running",
+          "event": {
+            "type": "field_changed",
+            "page": "search",
+            "field": "query",
+            "values": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "when": "double_click",
+          "item": "1F63F"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "dispatched",
+          "event": {
+            "type": "item_action",
+            "page": "search",
+            "collection": "results",
+            "action": "insert",
+            "item": {
+              "id": "1F63F",
+              "text": "😿"
+            },
+            "values": {
+              "query": "cat",
+              "category": "all"
+            }
+          },
+          "because": "the page and collection are unchanged; the item travels as a snapshot"
+        }
+      ]
+    },
+    {
+      "name": "an explicit call survives a page change",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "packages",
+              "title": "Homebrew",
+              "focus": "query",
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "Package name",
+                      "collection": "packages"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "scope",
+                      "title": "Show",
+                      "choices": [
+                        "installed",
+                        "outdated",
+                        "all"
+                      ],
+                      "choice_titles": [
+                        "Installed",
+                        "Outdated",
+                        "All Packages"
+                      ],
+                      "value": "all"
+                    }
+                  ]
+                },
+                {
+                  "kind": "list",
+                  "id": "packages",
+                  "rows": 10,
+                  "empty_text": "No packages match",
+                  "actions": [
+                    {
+                      "id": "details",
+                      "title": "Show Details",
+                      "default": true
+                    },
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {"id": "install", "title": "Install"},
+                    {
+                      "id": "copy",
+                      "title": "Copy Name",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+                    {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+                    {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+                  ],
+                  "has_more": true
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "loaded": 3
+            }
+          }
+        },
+        {
+          "given": "event_running",
+          "event": {
+            "type": "item_action",
+            "page": "packages",
+            "collection": "packages",
+            "action": "details",
+            "item": {
+              "id": "formula:pyenv",
+              "text": "pyenv"
+            },
+            "values": {
+              "query": "py",
+              "scope": "all"
+            }
+          }
+        },
+        {
+          "when": "explicit_call",
+          "action": "Menu Item Homebrew, Primary Action"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "package:python@3.13",
+              "title": "python@3.13",
+              "subtitle": "Homebrew",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "summary",
+                  "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+                },
+                {
+                  "kind": "text",
+                  "id": "status",
+                  "title": "Status",
+                  "text": "Outdated"
+                },
+                {
+                  "kind": "actions",
+                  "id": "buttons",
+                  "actions": [
+                    {"id": "back", "title": "Back to Packages"},
+                    {"id": "upgrade", "title": "Upgrade"},
+                    {
+                      "title": "Copy Name",
+                      "perform": "copy_text",
+                      "text": "python@3.13"
+                    }
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "scope": "all",
+              "query": "py",
+              "package": "formula:python@3.13"
+            }
+          }
+        },
+        {
+          "expect": "dispatched",
+          "event": {
+            "type": "called"
+          },
+          "state": "the detail answer's state",
+          "panel": "brought forward when the call was accepted"
+        }
+      ]
+    }
+  ]
+}

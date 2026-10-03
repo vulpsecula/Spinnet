@@ -1,0 +1,540 @@
+{
+  "title": "Without a reset the selection follows its item, else its position",
+  "covers": [
+    "selection"
+  ],
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
+  "variants": [
+    {
+      "name": "the selected item moved",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "given": "immediate_state",
+          "component": "results",
+          "selected": "1F639"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "results",
+          "selected": "1F639"
+        }
+      ]
+    },
+    {
+      "name": "the selected item left",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "given": "immediate_state",
+          "component": "results",
+          "selected": "1F63C",
+          "index": 2
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "results",
+          "selected": "1F639",
+          "because": "the item now at index 2"
+        }
+      ]
+    },
+    {
+      "name": "empty, then items again",
+      "steps": [
+        {
+          "given": "page_shown",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "reset": [
+                "results"
+              ],
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "results",
+          "selected": null,
+          "shows": "No emoji match"
+        },
+        {
+          "when": "answer_arrives",
+          "answer": {
+            "page": {
+              "id": "search",
+              "title": "Emoji",
+              "shows_insertion_target": true,
+              "content": [
+                {
+                  "kind": "row",
+                  "id": "bar",
+                  "content": [
+                    {
+                      "kind": "text_field",
+                      "id": "query",
+                      "title": "Search",
+                      "placeholder": "smile, cat, heart or an emoji",
+                      "value": "cat",
+                      "collection": "results",
+                      "status": "20 matches"
+                    },
+                    {
+                      "kind": "choice_field",
+                      "id": "category",
+                      "title": "Category",
+                      "value": "all",
+                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                    }
+                  ]
+                },
+                {
+                  "kind": "grid",
+                  "id": "results",
+                  "columns": 8,
+                  "rows": 6,
+                  "empty_text": "No emoji match",
+                  "actions": [
+                    {
+                      "id": "insert",
+                      "title": "Insert",
+                      "default": true
+                    },
+                    {
+                      "id": "copy",
+                      "title": "Copy",
+                      "perform": "copy_text"
+                    }
+                  ],
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"}
+                  ]
+                }
+              ]
+            },
+            "state": {
+              "query": "cat",
+              "category": "all"
+            }
+          }
+        },
+        {
+          "expect": "immediate_state",
+          "component": "results",
+          "selected": "1F408"
+        }
+      ]
+    }
+  ]
+}

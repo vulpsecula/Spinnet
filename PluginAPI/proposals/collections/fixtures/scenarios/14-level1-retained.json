@@ -1,0 +1,143 @@
+{
+  "title": "A Level 1 Plugin sees nothing of the candidate",
+  "covers": [
+    "Level 1 retained"
+  ],
+  "manifest": {
+    "api_level": 1
+  },
+  "steps": [
+    {
+      "given": "view_shown",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "subtitle": "Return copies the first result. ⌘1–⌘6 insert, ⇧⌘1–⇧⌘6 copy",
+          "form": {
+            "submit_title": "Copy First",
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "cat",
+                "status": "20 matches, showing the first 6"
+              }
+            ]
+          },
+          "detail": {
+            "sections": [
+              {"id": "r1", "title": "1. cat", "text": "🐈"}
+            ]
+          },
+          "actions": [
+            {
+              "title": "Insert 🐈",
+              "perform": "insert_text",
+              "text": "🐈",
+              "shortcut": "cmd+1",
+              "closes_view": true
+            },
+            {
+              "title": "Copy 🐈",
+              "perform": "copy_text",
+              "text": "🐈",
+              "shortcut": "cmd+shift+1"
+            }
+          ]
+        },
+        "state": {
+          "query": "cat",
+          "category": "all"
+        }
+      }
+    },
+    {
+      "given": "field_text",
+      "field": "query",
+      "text": "cat f"
+    },
+    {
+      "when": "event_dispatched",
+      "event": {
+        "type": "submitted",
+        "values": {
+          "query": "cat f"
+        }
+      }
+    },
+    {
+      "when": "answer_arrives",
+      "answer": {
+        "view": {
+          "title": "Emoji",
+          "subtitle": "Return copies the first result. ⌘1–⌘6 insert, ⇧⌘1–⇧⌘6 copy",
+          "form": {
+            "submit_title": "Copy First",
+            "fields": [
+              {
+                "kind": "text",
+                "key": "query",
+                "title": "Search",
+                "value": "cat",
+                "status": "20 matches, showing the first 6"
+              }
+            ]
+          },
+          "detail": {
+            "sections": [
+              {"id": "r1", "title": "1. cat", "text": "🐈"}
+            ]
+          },
+          "actions": [
+            {
+              "title": "Insert 🐈",
+              "perform": "insert_text",
+              "text": "🐈",
+              "shortcut": "cmd+1",
+              "closes_view": true
+            },
+            {
+              "title": "Copy 🐈",
+              "perform": "copy_text",
+              "text": "🐈",
+              "shortcut": "cmd+shift+1"
+            }
+          ]
+        },
+        "state": {
+          "query": "cat",
+          "category": "all"
+        }
+      }
+    },
+    {
+      "expect": "field_text",
+      "field": "query",
+      "text": "cat",
+      "because": "Level 1: an answer that does not answer the user's own typing sets each field to its value"
+    },
+    {
+      "when": "key",
+      "key": "cmd+1"
+    },
+    {
+      "expect": "executed",
+      "into": "the App the view came from",
+      "text": "🐈"
+    },
+    {
+      "when": "explicit_call",
+      "action": "Menu Item Emoji, Primary Action"
+    },
+    {
+      "expect": "invocation",
+      "globals": "event and state are null",
+      "because": "Level 1 restarts the Action"
+    },
+    {
+      "when": "answer_arrives",
+      "note": "an answer with page, or an event item_action, would be refused by Level 1's schemas: a protocol violation ending the session"
+    }
+  ]
+}

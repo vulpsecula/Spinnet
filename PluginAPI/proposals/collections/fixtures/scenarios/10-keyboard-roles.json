@@ -1,0 +1,214 @@
+{
+  "title": "Search field and grid keyboard roles; the input method comes first",
+  "covers": ["keyboard roles", "caret editing", "IME priority", "grid navigation"],
+  "manifest": {
+    "api_level": 1,
+    "candidate_contracts": [
+      {
+        "name": "collections",
+        "revision": 1
+      },
+      {
+        "name": "host_operations",
+        "revision": 1
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "page_shown",
+      "answer": {
+        "page": {
+          "id": "search",
+          "title": "Emoji",
+          "shows_insertion_target": true,
+          "content": [
+            {
+              "kind": "row",
+              "id": "bar",
+              "content": [
+                {
+                  "kind": "text_field",
+                  "id": "query",
+                  "title": "Search",
+                  "placeholder": "smile, cat, heart or an emoji",
+                  "value": "",
+                  "collection": "results"
+                },
+                {
+                  "kind": "choice_field",
+                  "id": "category",
+                  "title": "Category",
+                  "value": "all",
+                  "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+                  "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+                }
+              ]
+            },
+            {
+              "kind": "grid",
+              "id": "results",
+              "columns": 8,
+              "rows": 6,
+              "empty_text": "No emoji match",
+              "actions": [
+                {
+                  "id": "insert",
+                  "title": "Insert",
+                  "default": true
+                },
+                {
+                  "id": "copy",
+                  "title": "Copy",
+                  "perform": "copy_text"
+                }
+              ],
+              "sections": [
+                {
+                  "id": "recent",
+                  "title": "Recent",
+                  "items": [
+                    {"id": "recent:1F408", "title": "cat", "symbol": "🐈", "text": "🐈"},
+                    {"id": "recent:1F389", "title": "party popper", "symbol": "🎉", "text": "🎉"}
+                  ]
+                },
+                {
+                  "id": "animals-nature",
+                  "title": "Animals & Nature",
+                  "items": [
+                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
+                    {"id": "1F431", "title": "cat face", "symbol": "🐱"}
+                  ]
+                }
+              ],
+              "has_more": true
+            }
+          ],
+          "focus": "query"
+        },
+        "state": {
+          "query": "",
+          "category": "all"
+        }
+      }
+    },
+    {
+      "expect": "immediate_state",
+      "component": "query",
+      "focused": true
+    },
+    {
+      "expect": "immediate_state",
+      "component": "results",
+      "selected": "recent:1F408"
+    },
+    {
+      "when": "type",
+      "text": "smile"
+    },
+    {
+      "when": "key",
+      "key": "left",
+      "focus": "query"
+    },
+    {
+      "expect": "immediate_state",
+      "component": "query",
+      "caret": 4,
+      "because": "Left and Right stay with the text"
+    },
+    {
+      "when": "key",
+      "key": "down",
+      "focus": "query",
+      "pending_choice": "C2"
+    },
+    {
+      "expect": "immediate_state",
+      "component": "results",
+      "selected": "the item one row down, same column",
+      "focused": false
+    },
+    {
+      "when": "key",
+      "key": "tab"
+    },
+    {
+      "expect": "immediate_state",
+      "component": "results",
+      "focused": true
+    },
+    {
+      "when": "key",
+      "key": "right"
+    },
+    {
+      "expect": "immediate_state",
+      "component": "results",
+      "selected": "the next item"
+    },
+    {
+      "when": "key",
+      "key": "down",
+      "repeat": 20
+    },
+    {
+      "expect": "immediate_state",
+      "component": "results",
+      "selected": "crosses into the next section, column clamped"
+    },
+    {
+      "when": "key",
+      "key": "shift+tab"
+    },
+    {
+      "expect": "immediate_state",
+      "component": "query",
+      "focused": true,
+      "caret": 4
+    },
+    {
+      "when": "type_composing",
+      "input_method": "Pinyin",
+      "marked": "mao"
+    },
+    {
+      "when": "key",
+      "key": "down"
+    },
+    {
+      "expect": "input_method",
+      "moves": "to the next candidate",
+      "selection": "unchanged"
+    },
+    {
+      "when": "key",
+      "key": "return"
+    },
+    {
+      "expect": "input_method",
+      "commits": "猫",
+      "emits": "no event for the Return"
+    },
+    {
+      "expect": "typing_pause_event",
+      "event": {
+        "type": "field_changed",
+        "page": "search",
+        "field": "query",
+        "values": {
+          "query": "smil猫e",
+          "category": "all"
+        }
+      }
+    },
+    {
+      "when": "key",
+      "key": "escape"
+    },
+    {
+      "expect": "view_closes",
+      "pending_choice": "C4"
+    }
+  ]
+}
