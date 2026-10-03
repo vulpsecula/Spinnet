@@ -97,6 +97,13 @@ way to repair it, such as opening the Plugin's Plugin Settings to grant access,
 and the view stays open. With `closes_view`, the view closes once the action
 succeeds.
 
+`insert_text` types its text into the App the view came from as
+[`insert_text`](host-services.md#insert_text) does into the App in front,
+after bringing that App back to the keyboard. With `closes_view` the view
+therefore closes before the text is typed, and a failure after that is shown
+by the Host rather than in the view; without it, an unpinned view closes when
+the App takes the keyboard, and a pinned one stays where it is.
+
 | `perform` | Member | Needs |
 | --- | --- | --- |
 | `copy_text` | `text` | `write_clipboard` |

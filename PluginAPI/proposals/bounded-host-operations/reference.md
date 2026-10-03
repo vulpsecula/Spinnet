@@ -140,8 +140,10 @@ confirmation.
 
 `{kind: "insert_text", text}` inserts `text`, at most 128 KiB, in place of the
 selection of the focused element of the App that is frontmost when the Host
-inserts. It needs `insert_into_focused_app` and Accessibility, writes through
-Accessibility only, and never uses the clipboard or a paste.
+inserts. It needs `insert_into_focused_app` and Accessibility, and never uses
+the clipboard or a paste. (Draft note, 2026-10-03: this text predates P3. The
+Host now delivers inserted text as Unicode keyboard events to that App, as
+Level 1's `insert_text` does; see `PluginAPI/reference/host-services.md`.)
 
 ### Where text goes
 
@@ -207,5 +209,5 @@ unknown members at Level 1.
 | `id` | 64 characters | Proposed |
 | Inserted text | 128 KiB of UTF-8 | Level 1's limit |
 | Confirmation expiry | 60 s | Proposed, product choice P8 |
-| Accessibility answer for an insertion | 1 s | To be measured (#69) |
+| Target App coming to the front for an insertion | 1 s | Level 1's bound since P3 (2026-10-03) |
 | Script invocation, gesture or `operation_finished` | 4 s from when the script starts | Level 1 |

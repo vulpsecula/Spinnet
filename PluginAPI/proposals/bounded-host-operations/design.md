@@ -43,9 +43,9 @@ Read from the code at `26819a6`:
 | Every answer carries a generation; answers for an older generation are dropped | `PluginViewSession.receive` | Requests inherit the generation check: an answer that is dropped requests nothing |
 | A failed event (refusal, timeout, crash, script error) keeps the view and the last good state; a protocol violation ends the session | `PluginViewSession.receive` | Commit refusals reuse the "keep last good state, show inline error" path |
 | Presenting again (`replace`) drops in-flight and queued events of the old view | `PluginViewSession.replace/abandonEvents` | Requests must be owned by the session, not by a page, so a replace does not orphan an executing operation |
-| Standard `insert_text` inserts into `origin`, the App frontmost when an Action last *presented* the view, through `AXUIElementCreateApplication(pid)` | `PluginViewWindows.present`, `main.swift` `insertText: { text, origin in … }` | Level 1 standard path; retained unchanged |
-| The `insert_text` Host Service inserts into the system-wide focused element | `AppKitPluginHostServiceProvider.insertText(_:)` | Level 1 script path; inside a View Session it may resolve to the panel's own field (to be verified); retained unchanged for Level 1 |
-| Insertion is Accessibility only: settable `AXSelectedText`, no paste, no clipboard | `insertText(_:into:)` | No new clipboard behaviour is introduced here |
+| Standard `insert_text` inserts into `origin`, the App frontmost when an Action last *presented* the view | `PluginViewWindows.present`, `main.swift` `insertText: { text, origin, finished in … }` | Level 1 standard path; retained unchanged |
+| The `insert_text` Host Service inserts into the App in front | `HostTextInserter.insertAndWait(_:into: .frontmost)` | Level 1 script path; retained for Level 1 |
+| Insertion brings the target App to the front (≤ 1 s), waits until Spinnet holds no key window, refuses a focused `AXSecureTextField`, then posts the text to the App's process as Unicode keyboard events; no paste, no clipboard | `HostTextInserter` | Replaced the Accessibility write (settable `AXSelectedText`) on 2026-10-03 after #69 (P3); no new clipboard behaviour |
 | Standard actions are authorized by the broker's own check against the session's committed Action | `PluginViewHostActions.perform`, `HostServiceBroker.authorize` | Requested operations reuse the same authorization function |
 | Closing, Plugin update/disable/removal and revocation end the session and cancel its events and sections | `PluginViewSessions.observe`, `end` | Pending requests are cancelled by the same observers |
 
@@ -306,7 +306,7 @@ lose the second insertion.
 | Commit to execution start, no confirmation, slot free | Same executor turn; measured, not a timer | To measure |
 | Pending in the queue behind another operation | Bounded by that operation's own bounds | Derived |
 | Confirmation on screen | Proposed 60 s, then `expired` | P8 |
-| Insertion execution (Accessibility messaging) | Proposed 1 s messaging timeout, then `failed` with `target_unresponsive` | To measure (#69) |
+| Insertion execution | Level 1 now waits at most 1 s for the target to come to the front, then types; the typing time grows with the text. An unresponsive App's events queue in it rather than blocking the Host. The `target_unresponsive` bound proposed here for an Accessibility write needs restating for keyboard delivery | Revisit before #76 |
 | Graceful quit wait (illustrative) | Defined by #83 | #83 |
 | Task start (illustrative) | Covers starting only; the task's own lifetime belongs to the reviewed-task tickets and ADR 0017 | Owned elsewhere |
 
@@ -320,7 +320,7 @@ it like any other event.
 | --- | --- |
 | The answer's generation is stale (the session moved on, timed out, was replaced) | Dropped; no request exists |
 | The session ends while the request is pending or confirming | `cancelled`, not executed. Host feedback when the end was not the user's own close: update, disable, removal, revocation |
-| The session ends while executing | The execution finishes (an Accessibility write cannot be withdrawn); the outcome shows as Host feedback; nothing is delivered |
+| The session ends while executing | The execution finishes (keystrokes already posted cannot be withdrawn); the outcome shows as Host feedback; nothing is delivered |
 | Revocation between commit and execution | The revocation ends the session, which cancels the request (above). Execution's own authority check covers the race where revocation lands during execution start |
 | Handler changed to another Command before the result is ready | Outcome shown by the Host, not delivered |
 | Helper retired or crashed after commit | Irrelevant to execution; the result event starts a new helper |

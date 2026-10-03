@@ -95,7 +95,7 @@ in `PluginAPI/`.
   `PluginAPI/candidates/`. This proposal uses that format for its draft
   `host_operations` revision 1; publishing it there is #76's work.
 - **#69** records which Apps and controls accept Accessibility insertion on
-  Level 1. Every decision in `design.md` marked *waits on #69* stays open
+  Level 1; after it, Level 1 delivers inserted text as keyboard events (P3). Every decision in `design.md` marked *waits on #69* stays open
   until that evidence exists.
 - **#76** implements an accepted version of this proposal with insertion as
   its first complete kind; **#83** adds the App-exit kinds.

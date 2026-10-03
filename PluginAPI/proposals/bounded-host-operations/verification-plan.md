@@ -32,7 +32,7 @@ helper's idle exit with an operation pending.
 | Gesture to text inserted, requested path, warm helper, `notify` off | p95 ≤ 150 ms (same as the typing budget) | Extended `script/measure_view_sessions.sh` against a fixture target App that timestamps `AXValueChanged` |
 | Same, cold helper | p95 ≤ 300 ms | As above, helper retired first |
 | Extra cost of `notify: true` | One View Event round trip: report warm/cold p50/p95/max, no new target | Measured, then decide whether Emoji uses it |
-| Accessibility write bound | 1 s messaging timeout | From #69 latencies: choose ≥ 3× the slowest observed successful write, report if that exceeds 1 s |
+| Activation bound (was: Accessibility write bound) | 1 s for the target to come to the front, as Level 1 since P3 | `script/ax_insertion_matrix.sh --host current` records the time per App; report the slowest |
 | Host memory per outstanding operation | Under the existing 512 KiB post-teardown budget after 200 operations | Same harness |
 | Confirmation expiry | 60 s | Product choice P8, not a measurement |
 
