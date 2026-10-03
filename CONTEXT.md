@@ -239,7 +239,7 @@ The version of the Documented Plugin Interface a Plugin requires; a Host install
 _Avoid_: SDK version, protocol version
 
 **Plugin API Namespace**:
-Proposed for the first new UI contract: a named group of Host Services that act on or read the same thing, such as `selection`, `clipboard` or `open`. It is the first part of each Host Service's ID and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
+Proposed for the first new UI contract: the Host Services of one area of Spinnet's domain, ideally the ones a single Capability lets the user grant as a group, such as `selection`, `clipboard`, `clipboardHistory` (the Clipboard History Store) or `host` (Spinnet's own UI and flow, which a Plugin asks the Host to act on). It is the first of exactly two parts of each Host Service's ID (`namespace.verb`) and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
 _Avoid_: SDK area, module, Capability
 
 **Candidate Contract**:

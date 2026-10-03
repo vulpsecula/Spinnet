@@ -11,7 +11,7 @@ reference.
 Service they perform by its ID in the namespace catalogue
 ([`../namespaces/`](../namespaces/README.md)): `clipboard.write` for Level 1's
 `copy_text`, `selection.replace` for `insert_text`, `open.url` for
-`open_url` and `settings.show` for `open_plugin_settings`, with the
+`open_url` and `host.showPluginSettings` for `open_plugin_settings`, with the
 operation's `input`. `collections` therefore requires the draft
 `namespaces` revision as well as `host_operations`. The decision records in
 section 12 keep the names they were decided with.
@@ -142,7 +142,7 @@ Only what Emoji and the Brew check need (section 9), each with an `id`:
 | `text_field` | A one-line field: `title` (its label for VoiceOver and when there is room), `placeholder`, initial `value`, Level 1's `status` and `accent`. `collection` names the page's collection it searches (section 7) | Text, caret and selection, composition, undo, horizontal scroll |
 | `choice_field` | A pop-up of `choices` with `choice_titles` and an initial `value` | The chosen value |
 | `text` | Plain text in Level 1's Markdown subset, with an optional `title`; no Copy button and no `fetch` | None |
-| `actions` | A row of up to 8 buttons: Level 1's event actions (`id`, `title`) and page actions that perform a Host Service by catalogue ID with its `input`, as Level 1's standard actions do (`clipboard.write`, `selection.replace`, `open.url`, `settings.show` and the catalogue's other page-action IDs), **without** `shortcut` | None |
+| `actions` | A row of up to 8 buttons: Level 1's event actions (`id`, `title`) and page actions that perform a Host Service by catalogue ID with its `input`, as Level 1's standard actions do (`clipboard.write`, `selection.replace`, `open.url`, `host.showPluginSettings` and the catalogue's other page-action IDs), **without** `shortcut` | None |
 | `row` | Up to 4 of the components above side by side; a `text_field` takes the spare width | None |
 | `list` | A collection drawn as rows: `symbol`, `title`, `subtitle`, trailing `accessory` | Selection, scroll, load-more |
 | `grid` | A collection drawn as square cells, `columns` across; a cell shows the item's `symbol`, or its `title` when it has none | Selection, scroll, load-more |

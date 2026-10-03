@@ -34,7 +34,7 @@
       "title": "Browse Clipboard History",
       "execution": "host",
       "is_configurable": false,
-      "host_command": "clipboard.history.show"
+      "host_command": "clipboardHistory.show"
     }
   ]
 }

@@ -90,7 +90,7 @@
         },
         {
           "expect": "shown",
-          "because": "a Level 1 view is Level 1 vocabulary, kept whole (collections C9, choice N5)"
+          "because": "a Level 1 view is Level 1 vocabulary, kept whole (collections C9, decision N5)"
         }
       ]
     }

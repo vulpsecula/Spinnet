@@ -48,7 +48,7 @@
       "file": "manifests/run-shortcut.json",
       "definition": "manifest",
       "valid": true,
-      "note": "A configured Shortcut: apps.runShortcut at the Command entry point needs no Capability, as Level 1's shortcut.invoke"
+      "note": "A configured Shortcut: system.runShortcut at the Command entry point needs no Capability, as Level 1's shortcut.invoke"
     },
     {
       "file": "manifests/level1-host-command-name.json",
@@ -120,7 +120,7 @@
       "file": "actions/settings.json",
       "definition": "view_action",
       "valid": true,
-      "note": "settings.show takes no input"
+      "note": "host.showPluginSettings takes no input"
     },
     {
       "file": "actions/open-application.json",
@@ -156,13 +156,13 @@
       "file": "actions/settings-closes-view.json",
       "definition": "view_action",
       "valid": false,
-      "note": "settings.show takes no closes_view, as Level 1's open_plugin_settings"
+      "note": "host.showPluginSettings takes no closes_view, as Level 1's open_plugin_settings"
     },
     {
       "file": "actions/paste.json",
       "definition": "view_action",
       "valid": false,
-      "note": "selection.paste is reserved at this entry point until the user decides N8"
+      "note": "selection.paste is reserved at this entry point in r1 (decision N8)"
     },
     {
       "file": "actions/shortcut.json",
@@ -175,6 +175,12 @@
       "definition": "view_action",
       "valid": false,
       "note": "open.url's input member is url"
+    },
+    {
+      "file": "actions/draft-settings-id.json",
+      "definition": "view_action",
+      "valid": false,
+      "note": "settings.show was the draft's ID; opening the Plugin's settings is host.showPluginSettings (decision N10)"
     },
     {
       "file": "operations/insert.json",
@@ -210,19 +216,25 @@
       "file": "operations/toast.json",
       "definition": "operation",
       "valid": false,
-      "note": "feedback.toast is the answer's toast member, not a request"
+      "note": "host.toast is the answer's toast member, not a request"
     },
     {
       "file": "operations/paste.json",
       "definition": "operation",
       "valid": false,
-      "note": "selection.paste is reserved at this entry point until the user decides N8"
+      "note": "selection.paste is reserved at this entry point in r1 (decision N8)"
     },
     {
       "file": "operations/insert-without-input.json",
       "definition": "operation",
       "valid": false,
       "note": "selection.replace needs its text"
+    },
+    {
+      "file": "operations/run-shortcut.json",
+      "definition": "operation",
+      "valid": false,
+      "note": "A Shortcut the Plugin chooses is reserved at this entry point in r1 (decision N8); system.runShortcut is offered only as a Command"
     },
     {
       "file": "calls/write.json",
@@ -276,7 +288,7 @@
       "file": "calls/history-content.json",
       "definition": "call",
       "valid": true,
-      "note": "spinnet.clipboard.history.content(...)"
+      "note": "spinnet.clipboardHistory.readContent(...)"
     },
     {
       "file": "calls/level1-name.json",
@@ -288,7 +300,7 @@
       "file": "calls/not-callable.json",
       "definition": "call",
       "valid": false,
-      "note": "settings.show opens a Host window after a gesture and is not called"
+      "note": "host.showPluginSettings opens a Host window after a gesture and is not called"
     },
     {
       "file": "calls/paste.json",
@@ -313,6 +325,12 @@
       "definition": "call",
       "valid": false,
       "note": "A chunk is at most 192 KiB"
+    },
+    {
+      "file": "calls/sub-area-id.json",
+      "definition": "call",
+      "valid": false,
+      "note": "An ID is exactly namespace.verb: Clipboard History is its own namespace, clipboardHistory.read"
     }
   ]
 }

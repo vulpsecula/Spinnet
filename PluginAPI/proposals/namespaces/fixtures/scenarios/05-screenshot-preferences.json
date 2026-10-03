@@ -12,7 +12,7 @@
   "covers": [
     "one ID for three Level 1 Host Commands",
     "fixed Command input",
-    "choice N9"
+    "decision N9"
   ],
   "steps": [
     {

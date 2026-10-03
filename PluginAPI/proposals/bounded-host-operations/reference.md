@@ -63,7 +63,7 @@ if (event?.type === "submitted") {
   64 characters, comes back in `operation_finished`. The IDs offered in this
   revision are `selection.replace`, `clipboard.write`, `open.url`,
   `open.path`, `open.application`, `apps.perform`, `apps.openDeepLink`,
-  `settings.show` and `clipboard.history.show`.
+  `host.showPluginSettings` and `clipboardHistory.show`.
 
 ## Commit
 

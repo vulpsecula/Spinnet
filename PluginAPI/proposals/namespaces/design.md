@@ -11,7 +11,7 @@ Each acceptance criterion of #99 is answered here:
 | Candidates already designed fit: collections (#74), host operations (#70), current App (#83) and the other #68 probes; Raycast-style areas not offered stay listed with reasons | Sections 9 and 10 |
 | Level 1 unchanged; the unified names enter as a Candidate Contract in #75's format, grouped with `collections` and `host_operations` | Section 7, [`candidate.json`](candidate.json) |
 | Draft schema, `.d.ts`, SDK namespace layout, reference and fixtures; the #70 and #74 proposals updated; CONTEXT.md updated | Section 5, [`namespaces.schema.json`](namespaces.schema.json), [`namespaces.d.ts`](namespaces.d.ts), [`reference.md`](reference.md), [`fixtures/`](fixtures/), section 9 |
-| Open product choices with recommended defaults | Section 13 |
+| Product choices, with recommended defaults, decided by the user | Section 13 |
 
 ## 1. Problem
 
@@ -38,8 +38,10 @@ which ticket added it, not on any rule.
 
 The user wants Plugins and the Host maintained separately (#66) behind one
 explicit boundary that every Plugin calls the same way, organised by
-namespaces as Raycast's API is, and adopted in the first new UI contract
-(2026-10-04).
+namespaces, and adopted in the first new UI contract (2026-10-04). The user
+accepted this design's direction the same day and asked that its
+categories and names follow Spinnet's own domain and style rather than
+mirror Raycast's API, which served as a comparison (section 10).
 
 ## 2. Principles
 
@@ -49,20 +51,28 @@ namespaces as Raycast's API is, and adopted in the first new UI contract
    Requested Host Operation (`"perform": "clipboard.write"`),
    `operation_finished`, the helper's `host_service_request`, refusal
    messages, Capability disclosure and the test kit all use the same string.
-2. **A namespace groups operations by what they act on or read.** The
-   namespace then says which target and authority apply. Everything in
-   `selection` acts on the focused App's selection and, in a view, follows
-   `host_operations`' target rules (ADR 0018). Nothing in `clipboard`
-   targets an App. `window` acts on the focused window. `open` hands
-   something to another App.
-3. **The catalogue is the boundary.** [`catalogue.json`](catalogue.json)
+2. **A namespace is one area of Spinnet's domain**, ideally one Capability
+   boundary the user grants as a group. `clipboardHistory` is the Clipboard
+   History Store behind `read_clipboard_history`, and `window` the focused
+   window behind `position_focused_window`. The namespace then says which
+   target and authority apply. Everything in `selection` acts on the
+   focused App's selection and, in a view, follows `host_operations`' target
+   rules (ADR 0018). Nothing in `clipboard` targets an App. `open` hands
+   something to another App. `host` asks Spinnet to act on its own UI and
+   flow.
+3. **IDs are exactly two levels, in Level 1's SDK style.** Every ID is
+   `namespace.verb`; no namespace has a sub-area. Verbs keep Level 1's SDK
+   style (camelCase; `read` and `write` for Host data, `get` and `set` for
+   Plugin Storage), so moving a Plugin to the catalogue renames as little
+   as possible (section 4).
+4. **The catalogue is the boundary.** [`catalogue.json`](catalogue.json)
    lists every operation with its input and result, authority, failures,
    entry points and Level 1 names. The Host's registry, the SDK, the schemas,
    the reference and the test kit are each checked against it, and nothing
    reaches the Host outside it.
-4. **Level 1 is unchanged, for Level 1 Plugins, for good.** The catalogue
+5. **Level 1 is unchanged, for Level 1 Plugins, for good.** The catalogue
    maps every Level 1 name and renames nothing at Level 1.
-5. **Coverage follows rules, not history** (section 3.3), and every gap is
+6. **Coverage follows rules, not history** (section 3.3), and every gap is
    stated with its reason.
 
 ## 3. Entry points
@@ -107,20 +117,20 @@ ui.showPage(page, { state, operation: spinnet.selection.replace.operation({ text
 
 | Rule | Operations | Entry points |
 | --- | --- | --- |
-| R1. An operation that returns data is called: only a script can use a result | `selection.readText`, `clipboard.read`, `clipboard.history.read`, `.content`, `window.read`, `http.request`, `text.detectLanguage`, `storage.get`, `storage.keys` | `call` (and `source` for `http.request`) |
+| R1. An operation that returns data is called: only a script can use a result | `selection.readText`, `clipboard.read`, `clipboardHistory.read`, `clipboardHistory.readContent`, `window.read`, `http.request`, `text.detectLanguage`, `storage.get`, `storage.keys` | `call` (and `source` for `http.request`) |
 | R2. Plugin Storage is the Plugin's own data, which its script manages | `storage.*` | `call` |
-| R3. An effect with no result is offered at every perform entry point with the same input: anything a button can do, an answer can request, and a Command can do with configured input | `clipboard.write`, `open.*`, `apps.perform`, `apps.openDeepLink`, `settings.show`, `clipboard.history.show` | `command`, `view_action`, `request` |
+| R3. An effect with no result is offered at every perform entry point with the same input: anything a button can do, an answer can request, and a Command can do with configured input | `clipboard.write`, `open.*`, `apps.perform`, `apps.openDeepLink`, `host.showPluginSettings`, `clipboardHistory.show` | `command`, `view_action`, `request` |
 | R4. An effect is also called only when it completes inside the invocation, needs no Host Confirmation and acts on no Host-shown target | Level 1's call effects, and `open.application` | `call` |
-| R5. Keystrokes sent to the focused App are never sent from inside an invocation, which has no target the Host showed; in a view they would follow `host_operations`' target rules | `selection.cut`, `selection.paste`, `keyboard.pressShortcut` | not `call` |
+| R5. Keystrokes sent to the focused App are never sent from inside an invocation, which has no target the Host showed; in a view they would follow `host_operations`' target rules | `selection.cut`, `selection.paste`, `keyboard.press` | not `call` |
 | R6. An operation that needs a Host Confirmation runs after the answer commits (ADR 0018) | `apps.quit` (force), `tools.startTask` | not `call` |
-| R7. Feedback and closing are members of the answer: a toast shown during the invocation would appear before its answer is accepted, and requesting one would spend the answer's one operation | `feedback.toast`, `host.closeView` | `answer` (and `command` for `feedback.toast`) |
-| R8. No entry point that would let a Plugin choose what Level 1 lets only the user configure is offered without a decision; it is reserved with the question that blocks it | Keystrokes, paste, Shortcuts and Services chosen by a Plugin (N8); insertion from a Command (#70's P2) | reserved |
-| R9. Nothing Level 1 offers is withdrawn | `clipboard.history.show` stays callable | as at Level 1 |
+| R7. A toast and closing are members of the answer: a toast shown during the invocation would appear before its answer is accepted, and requesting one would spend the answer's one operation | `host.toast`, `host.closeView` | `answer` (and `command` for `host.toast`) |
+| R8. No entry point that would let a Plugin choose what Level 1 lets only the user configure is offered until a decision gives it a Capability; it is reserved with the decision or question that keeps it closed | Keystrokes, paste, cut, Shortcuts and Services chosen by a Plugin (decision N8: not in r1); insertion from a Command (#70's P2) | reserved |
+| R9. Nothing Level 1 offers is withdrawn | `clipboardHistory.show` stays callable | as at Level 1 |
 | R10. An effect whose target or presentation in a view has no design yet, and no workload asking for one, is reserved there for a later revision | `window.toggleFullScreen`, `window.restore` (the focused window behind a panel), `screen.capture` (the panel on screen), `selection.copy` (a read of the shown target) | `view_action`, `request` reserved |
 
 R3 and R4 fill the gaps that need no new authority: `open.application`
 becomes callable under `open_local_path` (section 6.3), and Commands can run
-`apps.perform`, `clipboard.history.show`, `settings.show`,
+`apps.perform`, `clipboardHistory.show`, `host.showPluginSettings`,
 `window.toggleFullScreen` and `window.restore` without a script. R8 keeps
 the gaps that do need new authority visible instead of closing them quietly,
 and R10 those that need a design first.
@@ -133,27 +143,27 @@ name; new: added by a draft candidate; res: reserved; –: not offered):
 
 | ID | call | command | view_action | request | Capability | System Permission |
 | --- | --- | --- | --- | --- | --- | --- |
-| `feedback.toast` (answer: L1) | – | L1 | – | – | none | none |
+| `host.toast` (answer: L1) | – | L1 | – | – | none | none |
 | `host.closeView` (answer: L1) | – | – | – | – | none | none |
-| `settings.show` | – | new | L1 | new | none | none |
+| `host.showPluginSettings` | – | new | L1 | new | none | none |
 | `selection.readText` | L1 | – | – | – | `read_selected_text` | Accessibility |
 | `selection.replace` | L1 | res | L1 | new | `insert_into_focused_app` | Accessibility |
 | `selection.copy` | – | L1 | res | res | `read_selected_text`, `write_clipboard` | Accessibility |
 | `selection.cut` | – | L1 | res | res | none | Accessibility |
 | `selection.paste` | – | L1 | res | res | none | Accessibility |
-| `keyboard.pressShortcut` | – | L1 | res | res | none | Accessibility |
+| `keyboard.press` | – | L1 | res | res | none | Accessibility |
 | `clipboard.read` | L1 | – | – | – | `read_current_clipboard` | none |
 | `clipboard.write` | L1 | L1 | L1 | new | `write_clipboard` | none |
-| `clipboard.history.read` | L1 | – | – | – | `read_clipboard_history` | none |
-| `clipboard.history.content` | L1 | – | – | – | `read_clipboard_history` | none |
-| `clipboard.history.show` | L1 | new | new | new | `read_clipboard_history` | none |
+| `clipboardHistory.read` | L1 | – | – | – | `read_clipboard_history` | none |
+| `clipboardHistory.readContent` | L1 | – | – | – | `read_clipboard_history` | none |
+| `clipboardHistory.show` | L1 | new | new | new | `read_clipboard_history` | none |
 | `open.url` | L1 | L1 | L1 | new | `open_url` (none as a Command) | none |
 | `open.path` | L1 | L1 | new | new | `open_local_path` (none as a Command) | none |
 | `open.application` | new | L1 | new | new | `open_local_path` (none as a Command) | none |
 | `apps.perform` | L1 | new | new | new | `control_external_app` | Automation |
 | `apps.openDeepLink` | L1 | L1 | new | new | `control_external_app` | none |
-| `apps.runShortcut` | res | L1 | res | res | none | none |
-| `apps.runService` | res | L1 | res | res | none | none |
+| `system.runShortcut` | res | L1 | res | res | none | none |
+| `system.runService` | res | L1 | res | res | none | none |
 | `window.read` | L1 | – | – | – | `position_focused_window` | Accessibility |
 | `window.setFrame` | L1 | – | – | – | `position_focused_window` | Accessibility |
 | `window.toggleFullScreen` | L1 | new | res | res | `position_focused_window` | Accessibility |
@@ -168,31 +178,42 @@ Level 1 view; its catalogue-ID form is a page action (`collections`).
 
 ## 4. Naming rules
 
-1. **Form.** An ID is `namespace.verb`, or `namespace.sub.verb` where a
-   namespace holds a distinct sub-area (`clipboard.history.*` is the only
-   one in r1). Segments are lowerCamelCase and start with a lowercase letter.
+1. **Form.** An ID is exactly `namespace.verb`: two lowerCamelCase segments,
+   each starting with a lowercase letter. A namespace holds no sub-area; an
+   area that needs one is a namespace of its own. Clipboard History, which
+   Level 1 reaches as `spinnet.clipboard.history`, is `clipboardHistory`,
+   because it is its own store, Capability and Sensitive Data Collection.
 2. **One spelling everywhere.** The ID is the SDK path after `spinnet.`, and
    JSON carries the same string: `"perform": "selection.readText"`, never a
-   snake_case variant to convert (choice N6). Member names keep their
+   snake_case variant to convert (decision N6). Member names keep their
    conventions: snake_case on the wire (`closes_view`, `best_effort`),
    camelCase in SDK options (`closesView`), as at Level 1. IDs are values,
    not members.
-3. **Verbs.** `read` returns data. `write` and `replace` change content.
-   `show` presents a Host window or Host Surface (`settings.show`,
-   `clipboard.history.show`). `open` hands something to another App
-   (`open.url`, `apps.openDeepLink`). `run` starts something another App
-   executes (`apps.runShortcut`). `press` sends keys. `perform` runs an
-   operation of a reviewed interface. Others say what they do
-   (`capture`, `request`, `detectLanguage`, `closeView`).
+3. **Verbs, in Level 1's SDK style.** `read` returns Host data
+   (`selection.readText`, `clipboardHistory.readContent`); `write` and
+   `replace` change it. Plugin Storage keeps Level 1's `get`, `set`,
+   `remove`, `keys` and `clear`, because it is the Plugin's own data rather
+   than the Host's. `show` presents a Host window or Host Surface
+   (`clipboardHistory.show`); in `host`, which presents more than one, the
+   verb names what it shows (`host.showPluginSettings`). `open` hands
+   something to another App (`open.url`, `apps.openDeepLink`). `run`
+   starts something macOS executes (`system.runShortcut`). `press` sends
+   keys (`keyboard.press`). `perform` runs an operation of a reviewed
+   interface. Others say what they do (`toast`, `closeView`, `capture`,
+   `request`, `detectLanguage`).
 4. **Level 1's SDK paths are kept where they fit.** Twenty of Level 1's 23
    wrapper paths become IDs unchanged (`spinnet.selection.readText` is
-   `selection.readText`). Only `clipboard.history`, `historyContent` and
-   `showHistory` move, to `clipboard.history.read`, `.content` and `.show`.
+   `selection.readText`). Only Clipboard History's three move, into their
+   own namespace: `spinnet.clipboard.history`, `historyContent` and
+   `showHistory` become `clipboardHistory.read`, `clipboardHistory.readContent`
+   and `clipboardHistory.show`. Level 1's Host Command names, which follow
+   no SDK path, take the same style (`keyboard_shortcut.invoke` is
+   `keyboard.press`).
 5. **No ID equals a Level 1 name.** No catalogue ID is spelled like a Level 1
    Host Command, Host Service or standard action, so the Host and the test
    kit can always tell a Level 1 name from an ID and name the replacement in
    a refusal. This is one reason Level 1's `clipboard.copy`, `.paste` and
-   `.cut` are not reused (choice N3).
+   `.cut` are not reused (decision N3).
 6. **Inputs are objects.** An operation's input is a JSON object, or null
    when it takes none. When the object has one required string member, its
    *primary member*, a bare string stands for it at every entry point:
@@ -206,16 +227,16 @@ Level 1 view; its catalogue-ID form is a page action (`collections`).
 
 ### 5.1 Namespaces
 
-| Namespace | Acts on | Operations (r1) | Reserved | Capabilities |
+| Namespace | Area of Spinnet's domain | Operations (r1) | Reserved | Capabilities |
 | --- | --- | --- | --- | --- |
-| `feedback` | What the Host shows the user for the Plugin | `toast` | `confirm` | none |
-| `host` | The Plugin's View and Commands as the Host runs them | `closeView` | `launchCommand` | none |
-| `settings` | The Plugin's own Plugin Settings | `show` | | none |
+| `host` | Spinnet's own UI and flow, which the Plugin asks the Host to act on | `toast`, `closeView`, `showPluginSettings` | `confirm`, `launchCommand` | none |
 | `selection` | The focused App's selection | `readText`, `replace`, `copy`, `cut`, `paste` | `readFinderItems` | `read_selected_text`, `insert_into_focused_app`, `write_clipboard` |
-| `keyboard` | Keys pressed in the focused App | `pressShortcut` | | none (Accessibility) |
-| `clipboard` | The clipboard's content and Clipboard History | `read`, `write`, `history.read`, `history.content`, `history.show` | | `read_current_clipboard`, `write_clipboard`, `read_clipboard_history` |
+| `keyboard` | Keys pressed in the focused App | `press` | | none (Accessibility) |
+| `clipboard` | The current clipboard's content | `read`, `write` | | `read_current_clipboard`, `write_clipboard` |
+| `clipboardHistory` | The Clipboard History Store | `read`, `readContent`, `show` | | `read_clipboard_history` |
 | `open` | Handing a link, path or application to the App that opens it | `url`, `path`, `application` | `reveal` | `open_url`, `open_local_path` |
-| `apps` | External Apps | `perform`, `openDeepLink`, `runShortcut`, `runService` | `frontmost`, `quit` (#83) | `control_external_app` |
+| `apps` | External App integration, and the App in front | `perform`, `openDeepLink` | `frontmost`, `quit` (#83) | `control_external_app` |
+| `system` | macOS facilities no single App owns | `runShortcut`, `runService` | `keepAwake` (#84), `metrics` (#86) | none in r1; #84 and #86 add theirs |
 | `window` | The focused window | `read`, `setFrame`, `toggleFullScreen`, `restore` | | `position_focused_window` |
 | `screen` | Screen captures the Plugin never receives | `capture` | | `capture_screen` |
 | `http` | HTTPS requests with Credential Uses | `request` | | `contact_https` |
@@ -223,14 +244,22 @@ Level 1 view; its catalogue-ID form is a page action (`collections`).
 | `storage` | Plugin Storage | `get`, `set`, `remove`, `keys`, `clear` | | none |
 | `ui` | Builders for views, pages, components and answers; requests nothing | Level 1's view builders, `collections`' page builders | `components.image`, `.icon`, `.progress` (#81) | none |
 | `environment` | The Host and the invocation | Level 1's seven values | | none |
-| `system`, `power`, `activities`, `tools` | Reserved for #86, #84, #84 and #88, #87 and #88 | | `system.metrics`, `power.keepAwake`, `activities.stop`, `activities.list`, `tools.read`, `tools.startTask` | defined by those tickets |
+| `activities`, `tools` | Reserved for #84 and #88, #87 and #88 | | `activities.list`, `activities.stop`, `tools.read`, `tools.startTask` | defined by those tickets |
 
-`settings.show` moves Level 1's `open_plugin_settings` into `settings`
-rather than `host` because it acts on the Plugin Settings, where Raycast also
-keeps `openExtensionPreferences`; `host` keeps the Plugin's View and the
-flow between its Commands (choice N10). `selection.copy`, `.cut` and
+`host` is where a Plugin asks Spinnet to act on Spinnet's own UI and flow:
+a toast (with `close`, the HUD; decision N2), closing the Plugin View,
+opening the Plugin's settings (decision N10), and later a Plugin-worded
+question and launching another Command. None of it needs a Capability, so
+one namespace holds what Level 1 spread over an answer member, a feedback
+Host Command and a standard action. `clipboardHistory` is apart from
+`clipboard` because the Clipboard History Store is its own store, Capability
+and Sensitive Data Collection setting: granting `write_clipboard` grants
+nothing in it. `system` holds what macOS offers beyond any one App
+(Shortcuts and Services, later keep-awake and metrics), while `apps` keeps
+External App integration through Reviewed App Interfaces and Deep Link
+Templates and, with #83, the App in front. `selection.copy`, `.cut` and
 `.paste` sit in `selection` because they act on the focused App's
-selection, with that namespace's target rules (choice N3).
+selection, with that namespace's target rules (decision N3).
 
 ### 5.2 The SDK layout
 
@@ -246,13 +275,13 @@ script can reach is at `spinnet.<id>`:
   Requested Host Operation: `spinnet.selection.replace.operation({ text })`.
 
 An operation offered only as a Command or only in the answer has no SDK
-member: `feedback`, `host` and `keyboard` are absent from the r1 object, and
-`ui.toast` and `ui.close` build the answer forms of `feedback.toast` and
-`host.closeView`. `spinnet.ui` keeps Level 1's builders for Level 1 views,
+member: `keyboard` and `system` are absent from the r1 object, `host` holds
+only `showPluginSettings`, and `ui.toast` and `ui.close` build the answer
+forms of `host.toast` and `host.closeView`. `spinnet.ui` keeps Level 1's builders for Level 1 views,
 including `copyText`, `openURL`, `insertText` and `openPluginSettings`, which
 build Level 1's standard actions and only fit a Level 1 view; `collections`
 adds `ui.page`, `ui.showPage` and `ui.components`, and `host_operations`
-adds `operation` to `ui.show` and `ui.request` (choice N4).
+adds `operation` to `ui.show` and `ui.request` (decision N4).
 `requestHostService(id, input)` takes catalogue IDs only, and
 `spinnet.environment` is unchanged.
 
@@ -272,19 +301,20 @@ grant covers, and a refusal names the operation and the Capability
 ("`clipboard.write` needs `write_clipboard`"). `monitor_clipboard` covers no
 operation, as at Level 1. New Capabilities arrive only with the tickets that
 need them: #83's identity read and exit, #86's metrics, #84's effects, #87's
-profiles, and choice N8's keystrokes, Shortcuts and Services.
+profiles, and, in a later revision, the keystrokes, Shortcuts and Services
+decision N8 keeps out of r1.
 
 ### 6.2 Configured input at the command entry point
 
 At `command` the input is the user's configuration, which the Configuration
-Sheet shows and the user can change, so Level 1's rule stays (choice N7):
-`open.url`, `open.path`, `open.application`, `keyboard.pressShortcut`,
-`selection.cut`, `selection.paste`, `apps.runShortcut` and `apps.runService`
+Sheet shows and the user can change, so Level 1's rule stays (decision N7):
+`open.url`, `open.path`, `open.application`, `keyboard.press`,
+`selection.cut`, `selection.paste`, `system.runShortcut` and `system.runService`
 need no Capability as Commands, and a Command's configured link may have any
 scheme, as `url.open` allows. Where Level 1's Host Command needed a
 Capability (`clipboard.write`, `selection.copy`, `screen.capture`,
 `apps.openDeepLink`), the Command still does, and the new Commands
-(`apps.perform`, `clipboard.history.show`, `window.toggleFullScreen`,
+(`apps.perform`, `clipboardHistory.show`, `window.toggleFullScreen`,
 `window.restore`) need the operation's Capability. When the Plugin chooses
 the input, at `call`, `view_action` and `request`, the operation's Capability
 always applies and its input rules hold (an http or https link, for
@@ -363,7 +393,7 @@ is promoted alone.
    `host_service_failed` for a call, and as a protocol violation in a page or
    a request. The exception is a Level 1 `view` answer, which `collections`
    keeps as Level 1 vocabulary, whole (its decision C9): its four standard
-   actions keep Level 1's names (choice N5).
+   actions keep Level 1's names (decision N5).
 2. **The namespaced SDK** of section 5.2 replaces Level 1's `spinnet`
    object.
 3. **Command input.** A Command may fix members of its operation's input in
@@ -375,7 +405,7 @@ is promoted alone.
 4. **Failures** follow section 6.5.
 5. **Screen capture preferences.** `screen.capture` with only a source copies
    or saves as the user's screenshot preferences say, at every entry point
-   (choice N9). Level 1's three screen Host Commands always did; Level 1's
+   (decision N9). Level 1's three screen Host Commands always did; Level 1's
    `capture_screen` call never does.
 
 ### 7.4 #75's member kinds
@@ -412,19 +442,19 @@ builders, 7 `spinnet.environment` members, 4 answer members, 6 View Events,
   `clipboard.write` (text) and `selection.copy` (null).
 - 23 Host Services become 23 IDs, 20 of them spelled as Level 1's SDK path.
 - 4 standard actions become `clipboard.write`, `open.url`,
-  `selection.replace` and `settings.show`.
+  `selection.replace` and `host.showPluginSettings`.
 - Builders, `spinnet.environment`, globals and View Events are unchanged;
-  `toast` and `close` are the answer forms of `feedback.toast` and
+  `toast` and `close` are the answer forms of `host.toast` and
   `host.closeView`; `requestHostService` takes IDs.
 
 What an author moving a Plugin to the candidate meets besides new names:
 
 | Level 1 behaviour | Under the candidate |
 | --- | --- |
-| `feedback.present` draws the Host feedback panel | `feedback.toast` as a Command shows the toast near the pointer, as an answer's toast does without a view (choice N2) |
+| `feedback.present` draws the Host feedback panel | `host.toast` as a Command shows the toast near the pointer, as an answer's toast does without a view (decision N2) |
 | `file.open` refuses a folder and `folder.open` a file | `open.path` opens whichever exists; the configuration field's kind decides what the user can pick |
 | `clipboard.copy` takes text or null | `clipboard.write` takes text; `selection.copy` copies the selection |
-| `screen.capture_*` follow the screenshot preferences; `capture_screen` needs its own options | `screen.capture` follows the preferences whenever copy and save are left out (choice N9) |
+| `screen.capture_*` follow the screenshot preferences; `capture_screen` needs its own options | `screen.capture` follows the preferences whenever copy and save are left out (decision N9) |
 | A Host Command's own failure is `host_command_failed` | The operation's category (section 6.5) |
 | Alias input spellings | One canonical member per input (section 4.6) |
 
@@ -436,26 +466,38 @@ What an author moving a Plugin to the candidate meets besides new names:
 | #74 `collections` | Page actions perform `view_action` IDs with `input`; item actions perform `clipboard.write` or `selection.replace` on the item's text; the target line appears for a `selection.replace` item action |
 | #78 repeated calls | Unaffected: `called` is an event, not an operation |
 | #83 Current App | `apps.frontmost` (a call under an identity-read Capability, returning an opaque target) and `apps.quit` (Command, page action and request; force needs a Host Confirmation) |
-| #84 Coffee | `power.keepAwake` (Command, page action, request) and `activities.stop` |
+| #84 Coffee | `system.keepAwake` (Command, page action, request) and `activities.stop` |
 | #85 Spotify | No new ID: Spotify's Reviewed App Interface is reached through `apps.perform`, its reads return bounded values, and its playback state is a `source` (#82) |
 | #86 System Monitor | `system.metrics`, a `source` while the view is visible, and a call |
 | #87, #88 Homebrew | `tools.read` (a call to a reviewed profile), `tools.startTask` (a request with a Host Confirmation), `activities.list` and `activities.stop` |
 | #71, #82 sources | The `source` entry point generalises Host-Fetched Sections; a data operation becomes a source when #71 defines how |
 | #81 styles, images, Progress | `ui.components.image`, `.icon` and `.progress` builders; loading a granted HTTPS image stays a component member under `contact_https` |
-| README's Candidates | List: `collections`. Progress, Icons, Images: #81. Selected Finder items: `selection.readFinderItems`. The frontmost application: `apps.frontmost`. Revealing a file in Finder: `open.reveal`. Confirmation: `feedback.confirm`. Launching another Command: `host.launchCommand` |
+| README's Candidates | List: `collections`. Progress, Icons, Images: #81. Selected Finder items: `selection.readFinderItems`. The frontmost application: `apps.frontmost`. Revealing a file in Finder: `open.reveal`. Confirmation: `host.confirm`. Launching another Command: `host.launchCommand` |
 
-`feedback.confirm` fits `host_operations` without new machinery: a request
+`host.confirm` fits `host_operations` without new machinery: a request
 whose `operation_finished` outcome is the user's answer, worded by the
 Plugin and authorizing nothing. A Host Confirmation, by contrast, is part of
 an operation's own policy (ADR 0018) and is not an operation.
 
 ## 10. Comparison with Raycast
 
-Raycast's API is asynchronous JavaScript in a resident Node process. Spinnet
-has a bounded synchronous invocation, declarative forms the Host performs
-after a gesture, and Commands that run no script. One Raycast function can
-therefore correspond to two Spinnet forms, a call and a perform, under one
-ID.
+Raycast's API served as a checklist of what a launcher's Plugins ask for,
+not as a template: the namespaces follow Spinnet's domain and Capabilities
+(section 2). Raycast's API is asynchronous JavaScript in a resident Node
+process. Spinnet has a bounded synchronous invocation, declarative forms the
+Host performs after a gesture, and Commands that run no script. One Raycast
+function can therefore correspond to two Spinnet forms, a call and a
+perform, under one ID.
+
+Where the grouping differs, Spinnet's domain decides. Raycast's top-level
+`showToast`, `showHUD`, `closeMainWindow`, `launchCommand` and
+`openExtensionPreferences` are one `host` namespace, because each asks
+Spinnet to act on its own UI and flow and none needs a Capability.
+Raycast's `Clipboard` reads older entries by offset; Spinnet keeps Clipboard
+History in `clipboardHistory`, behind its own Capability and Sensitive Data
+Collection setting. Shortcuts and Services, which Raycast's API does not
+wrap, are `system`, beside keep-awake and metrics; `keyboard.press` and
+`apps.perform` have no Raycast counterpart either.
 
 | Raycast | Spinnet |
 | --- | --- |
@@ -464,12 +506,13 @@ ID.
 | UI: ActionPanel, Action | Level 1 view actions; page and item actions that perform catalogue IDs |
 | UI: navigation | Page IDs and page memory; no stack |
 | UI: Icon, Image, Color | #81 |
-| `showToast` | `feedback.toast` |
-| `showHUD` | `feedback.toast` (merged, choice N2) |
-| `confirmAlert` | `feedback.confirm` (reserved); a Host Confirmation is part of an operation |
+| `showToast` | `host.toast` |
+| `showHUD` | `host.toast` with `close` (merged, decision N2) |
+| `confirmAlert` | `host.confirm` (reserved); a Host Confirmation is part of an operation |
 | `closeMainWindow` | `host.closeView` |
 | `launchCommand` | `host.launchCommand` (reserved) |
 | `Clipboard.copy`, `.paste`, `.read` | `clipboard.write`, `selection.paste`, `clipboard.read` |
+| `Clipboard.read` with an `offset` | `clipboardHistory.read`, `clipboardHistory.readContent` |
 | `getSelectedText` | `selection.readText` |
 | `getSelectedFinderItems` | `selection.readFinderItems` (reserved) |
 | `getFrontmostApplication` | `apps.frontmost` (reserved, #83) |
@@ -478,7 +521,7 @@ ID.
 | `WindowManagement` | `window`, the focused window only |
 | `LocalStorage` | `storage` |
 | `getPreferenceValues` | `input`, which carries the Plugin Settings |
-| `openExtensionPreferences` | `settings.show` |
+| `openExtensionPreferences` | `host.showPluginSettings` |
 | `environment` | `environment` |
 
 Not offered, deliberately:
@@ -531,8 +574,11 @@ The same list, with the Raycast names, is in `catalogue.json` under
 name, read from Level 1's own files, against the catalogue and
 `level1-mapping.md`; each operation's consistency (namespace, entry points,
 Level 1 names, Capabilities, failures, schema definitions, primary member);
-`namespaces.schema.json`'s ID lists, `namespaces.d.ts`'s tags and
-`candidate.json` against the catalogue; the fixtures and scenarios; and that
+that every ID is exactly `namespace.verb` and that operations are grouped
+by namespace in the order the namespaces are listed;
+`namespaces.schema.json`'s ID lists, `namespaces.d.ts`'s tags, the
+namespaces its `spinnet` object holds, and `candidate.json` against the
+catalogue; the fixtures and scenarios; and that
 the `host_operations` and `collections` drafts use catalogue IDs and require
 this candidate. The draft types were also type-checked against Level 1's
 `spinnet.d.ts` with Deno (`deno check --unstable-sloppy-imports`).
@@ -543,20 +589,22 @@ names; and, on the actual Host, that the new Commands start no helper, that
 configured-input authority holds, and that screen capture follows the
 preferences.
 
-## 13. Open product choices
+## 13. Product choices, decided
 
-None of these is decided by this design. Each has a recommended default,
-which the catalogue and fixtures follow so that #76 and #77 can start.
+The user decided all ten on 2026-10-04. Each takes the recommended default,
+with the namespaces adjusted to Spinnet's own needs and style, which moved
+N2's toast and N10's settings sheet into `host`. The catalogue, schemas,
+types and fixtures follow these decisions.
 
-| # | Question | Recommended default | Alternatives | Why it is a product choice |
-| --- | --- | --- | --- | --- |
-| N1 | Is every operation offered at every entry point, or are some script-only or Command-only? | By the rules of section 3.3: data is called; effects with no result at every perform entry point; keystrokes, Shortcuts and Services chosen by a Plugin reserved until N8; every gap stated | Every operation everywhere; or Level 1's coverage only, renamed | It decides what Plugins can do and what #76 and #77 implement |
-| N2 | Do toast and HUD merge? | Yes: one `feedback.toast`, inside the view when one is open, near the pointer otherwise; Raycast's HUD is `close` with a toast. The `feedback.present` Command shows that toast instead of the feedback panel | A separate `feedback.hud` that closes the view and shows near the pointer | Visible feedback for every Plugin |
-| N3 | Where do insertion, copy, cut and paste live? | `selection`: `readText`, `replace`, `copy`, `cut`, `paste`, all acting on the focused App's selection with one set of target rules; `clipboard` holds only the clipboard's content | The draft's `clipboard.paste` and `clipboard.cut` (Raycast's grouping); or an `input` namespace (`input.insertText`, `input.pressShortcut`, `input.paste`) | The names authors search for first |
-| N4 | How are UI builders named? | `ui` keeps structure and answers; a button or request that performs an operation is built from the operation (`spinnet.clipboard.write.action(…)`, `.operation(…)`); page components stay at `ui.components.*` beside Level 1's view builders; Level 1's `ui.copyText` and the like stay for Level 1 views only | Generic `ui.action({perform, input})`; or per-operation builders in `ui` (`ui.copyText`, `ui.paste`, …) growing with the catalogue | The SDK surface authors write every day |
-| N5 | Are Level 1 names accepted from a Plugin that declares `namespaces`? | No, except inside a Level 1 `view`, which keeps Level 1's vocabulary whole (collections C9) | Refused everywhere, so a Level 1 view's standard actions take IDs too; or accepted everywhere as aliases | Strictness of "one name" against the cost of moving a Plugin |
-| N6 | Is the wire ID spelled as the SDK path? | Yes, lowerCamelCase everywhere: `"perform": "selection.readText"` | snake_case on the wire (`selection.read_text`) converted to camelCase in the SDK | One searchable string against JSON's usual casing |
-| N7 | Does a Command's configured input keep Level 1's no-Capability rule? | Yes, where Level 1's Host Command needed none (open a link, path or application, press a shortcut, cut, paste, run a Shortcut or Service) | Every entry point needs the operation's Capability, so the Open URL Plugin asks for `open_url` | Consent prompts for Plugins that only run what the user typed |
-| N8 | May a Plugin choose keystrokes, paste, cut, Shortcuts or Services, from a call, a page action or a request? | Not in r1. Each needs a new Capability and, for paste, the evidence-based decision #68 requires | Add them now, each with a Capability | Authority over other Apps |
-| N9 | Does `screen.capture` with only a source follow the user's screenshot preferences, from any entry point? | Yes: the Plugin learns nothing and the user's preference applies | Only Commands, as at Level 1; or never, so every Command states copy and save | Reverses Level 1's "a Plugin brings its own options" for scripts |
-| N10 | Does opening the Plugin's settings belong to `settings` or `host`? | `settings.show`, by what it acts on, as Raycast groups `openExtensionPreferences` | `host.openPluginSettings`, as the draft had it | A name every Plugin with settings uses |
+| # | Question | Decision | Alternatives not taken |
+| --- | --- | --- | --- |
+| N1 | Is every operation offered at every entry point, or are some script-only or Command-only? | By the rules of section 3.3: data is called; effects with no result at every perform entry point; keystrokes, Shortcuts and Services chosen by a Plugin reserved under N8; every gap stated | Every operation everywhere; or Level 1's coverage only, renamed |
+| N2 | Do toast and HUD merge? | Yes: one `host.toast`, inside the view when one is open, near the pointer otherwise; the HUD is `close` with a toast. The `feedback.present` Command shows that toast instead of the feedback panel | A separate HUD operation that closes the view and shows near the pointer |
+| N3 | Where do insertion, copy, cut and paste live? | `selection`: `readText`, `replace`, `copy`, `cut`, `paste`, all acting on the focused App's selection with one set of target rules; `clipboard` holds only the current clipboard's content, and Clipboard History is `clipboardHistory` | The draft's `clipboard.paste` and `clipboard.cut`; or an `input` namespace (`input.insertText`, `input.press`, `input.paste`) |
+| N4 | How are UI builders named? | `ui` keeps structure and answers; a button or request that performs an operation is built from the operation (`spinnet.clipboard.write.action(…)`, `.operation(…)`); page components stay at `ui.components.*` beside Level 1's view builders; Level 1's `ui.copyText` and the like stay for Level 1 views only | Generic `ui.action({perform, input})`; or per-operation builders in `ui` growing with the catalogue |
+| N5 | Are Level 1 names accepted from a Plugin that declares `namespaces`? | No, except inside a Level 1 `view`, which keeps Level 1's vocabulary whole (collections C9) | Refused everywhere, so a Level 1 view's standard actions take IDs too; or accepted everywhere as aliases |
+| N6 | Is the wire ID spelled as the SDK path? | Yes, lowerCamelCase everywhere: `"perform": "selection.readText"` | snake_case on the wire (`selection.read_text`) converted to camelCase in the SDK |
+| N7 | Does a Command's configured input keep Level 1's no-Capability rule? | Yes, where Level 1's Host Command needed none (open a link, path or application, press keys, cut, paste, run a Shortcut or Service) | Every entry point needs the operation's Capability, so the Open URL Plugin asks for `open_url` |
+| N8 | May a Plugin choose keystrokes, paste, cut, Shortcuts or Services, from a call, a page action or a request? | Not in r1. `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut` and `system.runService` stay reserved at `call`, `view_action` and `request`; each needs a new Capability and, for paste, the evidence-based decision #68 requires. The scriptless Commands equivalent to Level 1's remain, with the user's configured input | Add them now, each with a Capability |
+| N9 | Does `screen.capture` with only a source follow the user's screenshot preferences, from any entry point? | Yes: the Plugin learns nothing and the user's preference applies | Only Commands, as at Level 1; or never, so every Command states copy and save |
+| N10 | Where does opening the Plugin's settings live? | `host.showPluginSettings`: it asks Spinnet to show one of its own sheets, as the rest of `host` does | `settings.show` in a namespace of its own, as Raycast groups `openExtensionPreferences`; or `host.openPluginSettings` |

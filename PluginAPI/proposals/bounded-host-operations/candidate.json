@@ -8,10 +8,10 @@
   "conflicts": [],
   "members": [
     {"kind": "behaviour", "name": "answer_operation"},
-    {"kind": "behaviour", "name": "request:settings.show"},
+    {"kind": "behaviour", "name": "request:host.showPluginSettings"},
     {"kind": "behaviour", "name": "request:selection.replace"},
     {"kind": "behaviour", "name": "request:clipboard.write"},
-    {"kind": "behaviour", "name": "request:clipboard.history.show"},
+    {"kind": "behaviour", "name": "request:clipboardHistory.show"},
     {"kind": "behaviour", "name": "request:open.url"},
     {"kind": "behaviour", "name": "request:open.path"},
     {"kind": "behaviour", "name": "request:open.application"},

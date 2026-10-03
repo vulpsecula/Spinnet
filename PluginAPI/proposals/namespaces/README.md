@@ -18,9 +18,10 @@ still refuse every ID it adds.
 One explicit Plugin API boundary that every Plugin calls the same way and
 the Host only implements, so that Plugins and the Host can be maintained
 separately (#66). Every Host Service gets exactly one ID, `namespace.verb`,
-grouped into namespaces by what it acts on (`selection`, `clipboard`,
-`open`, `apps`, `window`, `screen`, `http`, `text`, `storage`, `settings`,
-`feedback`, `host`, `keyboard`), and that ID is the same in the SDK
+where each namespace is one area of Spinnet's domain, ideally one Capability
+boundary (`host`, `selection`, `keyboard`, `clipboard`, `clipboardHistory`,
+`open`, `apps`, `system`, `window`, `screen`, `http`, `text`, `storage`),
+and that ID is the same in the SDK
 (`spinnet.clipboard.write`), a manifest Command that runs no script
 (`"host_command": "clipboard.write"`), a page action and a Requested Host
 Operation (`"perform": "clipboard.write"`), `operation_finished`, refusals
@@ -28,9 +29,11 @@ and Capability disclosure. Where an operation is offered follows stated
 rules, every gap is recorded with its reason, and every Plugin API Level 1
 name is mapped. Level 1 keeps its names for Level 1 Plugins.
 
-The catalogue is compared with Raycast's API; the areas Spinnet deliberately
-does not offer are listed with reasons. Ten product choices are returned to
-the user with recommended defaults ([`design.md`](design.md) section 13).
+The catalogue is compared with Raycast's API, but its namespaces and names
+follow Spinnet's own domain and Level 1's SDK style; the areas Spinnet
+deliberately does not offer are listed with reasons. The user accepted the
+direction and decided the ten product choices on 2026-10-04
+([`design.md`](design.md) section 13).
 
 ## Declaring the draft candidate
 
@@ -65,7 +68,7 @@ changes while it is a proposal.
 
 | File | Contents |
 | --- | --- |
-| [`design.md`](design.md) | The design: principles, entry points and the rules for which an operation is offered at, naming rules, the namespaces and SDK layout, authority, the declaration and its grouping, how the other candidates and probes fit, the comparison with Raycast, separate maintenance, and the product choices returned to the user |
+| [`design.md`](design.md) | The design: principles, entry points and the rules for which an operation is offered at, naming rules, the namespaces and SDK layout, authority, the declaration and its grouping, how the other candidates and probes fit, the comparison with Raycast, separate maintenance, and the product choices the user decided |
 | [`catalogue.json`](catalogue.json) | The machine-readable catalogue: every operation's ID, namespace, input and result, Capabilities, System Permission, failure categories, entry points and Level 1 names; Level 1's builders, values, globals, answer members, View Events and Capabilities; reserved IDs; areas not offered |
 | [`catalogue.schema.json`](catalogue.schema.json) | JSON Schema (draft 2020-12) for `catalogue.json` |
 | [`level1-mapping.md`](level1-mapping.md) | Every Level 1 name and the catalogue ID it maps to, generated from the catalogue |

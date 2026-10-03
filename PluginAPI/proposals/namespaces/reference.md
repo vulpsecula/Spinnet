@@ -29,9 +29,11 @@ Plugin, as for every candidate.
 
 ## IDs
 
-An ID is `namespace.verb`, or `namespace.sub.verb` for a sub-area such as
-`clipboard.history`, in lowerCamelCase segments. It is spelled the same in
-JSON and in the SDK: `spinnet.selection.readText` calls
+An ID is exactly `namespace.verb`, two lowerCamelCase segments. A namespace
+is one area of Spinnet's domain, usually the operations one Capability
+covers, and its verbs keep Plugin API Level 1's SDK style: `read` and
+`write` for Host data, `get` and `set` for Plugin Storage. An ID is spelled
+the same in JSON and in the SDK: `spinnet.selection.readText` calls
 `selection.readText`. A Plugin declaring this candidate names operations by
 ID only. A Plugin API Level 1 name (`write_clipboard`, `url.open`,
 `copy_text`, …) is refused with a message naming the ID to use instead: when
@@ -123,34 +125,22 @@ const insert = spinnet.selection.replace.operation({ text }, { closesView: true 
 `spinnet.ui` keeps Plugin API Level 1's builders for Level 1 views and adds
 `collections`' page builders; `ui.show` takes an `operation`, `ui.request`
 answers with one, and `ui.toast` and `ui.close` build the answer forms of
-`feedback.toast` and `host.closeView`. `spinnet.environment` is unchanged,
+`host.toast` and `host.closeView`. `spinnet.environment` is unchanged,
 and `requestHostService` takes IDs.
 
 ## Operations
 
-### `feedback`
-
-What the Host shows the user on the Plugin's behalf: a toast, later a Plugin-worded question.
-
-| ID | Input | Result | Offered as | Needs |
-| --- | --- | --- | --- | --- |
-| `feedback.toast` | `text` | null | Command, answer | nothing |
-
 ### `host`
 
-The Plugin's View and Commands as the Host runs them: closing the view, later launching another Command.
+Spinnet's own UI and flow, which the Plugin asks the Host to act on.
+`host.toast` shows inside the view when one is open and near the pointer
+otherwise; an answer with a toast and `close` is a HUD.
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
+| `host.toast` | `text` | null | Command, answer | nothing |
 | `host.closeView` | none | null | answer | nothing |
-
-### `settings`
-
-The Plugin's own Plugin Settings, whose values arrive in `input`.
-
-| ID | Input | Result | Offered as | Needs |
-| --- | --- | --- | --- | --- |
-| `settings.show` | none | null | Command, page action, request | nothing |
+| `host.showPluginSettings` | none | null | Command, page action, request | nothing |
 
 ### `selection`
 
@@ -170,19 +160,27 @@ Keys pressed in the focused App; text is typed by `selection.replace`.
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
-| `keyboard.pressShortcut` | `{key, modifiers?}` or `{key_code, modifiers?}` | null | Command | Accessibility |
+| `keyboard.press` | `{key, modifiers?}` or `{key_code, modifiers?}` | null | Command | Accessibility |
 
 ### `clipboard`
 
-The clipboard's content and Clipboard History; no operation here targets an App.
+The current clipboard's content; no operation here targets an App.
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `clipboard.read` | none | `{text, type}` or null | call | `read_current_clipboard` |
 | `clipboard.write` | `text` | null | call, Command, page action, request | `write_clipboard` |
-| `clipboard.history.read` | none, or `{offset}` | a page | call | `read_clipboard_history` |
-| `clipboard.history.content` | `{entry_id, offset, length}` | a chunk | call | `read_clipboard_history` |
-| `clipboard.history.show` | none | null | call, Command, page action, request | `read_clipboard_history` |
+
+### `clipboardHistory`
+
+The Clipboard History Store, which holds entries only while its Sensitive
+Data Collection setting is on, behind its own Capability.
+
+| ID | Input | Result | Offered as | Needs |
+| --- | --- | --- | --- | --- |
+| `clipboardHistory.read` | none, or `{offset}` | a page | call | `read_clipboard_history` |
+| `clipboardHistory.readContent` | `{entry_id, offset, length}` | a chunk | call | `read_clipboard_history` |
+| `clipboardHistory.show` | none | null | call, Command, page action, request | `read_clipboard_history` |
 
 ### `open`
 
@@ -196,14 +194,26 @@ Handing a link, path or application to the App that opens it.
 
 ### `apps`
 
-External Apps through reviewed interfaces, Deep Link Templates, Shortcuts and Services; later the current App (#83).
+External App integration through Reviewed App Interfaces and Deep Link Templates; later the App in front (#83).
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | null | call, Command, page action, request | `control_external_app`, Automation (macOS asks) |
 | `apps.openDeepLink` | `{template, parameters?}` | null | call, Command, page action, request | `control_external_app` |
-| `apps.runShortcut` | `name`, optionally `{name, input}` | null | Command | nothing |
-| `apps.runService` | `name`, optionally `{name, input}` | null | Command | nothing |
+
+### `system`
+
+macOS facilities no single App owns; later keep-awake (#84) and basic metrics (#86).
+
+| ID | Input | Result | Offered as | Needs |
+| --- | --- | --- | --- | --- |
+| `system.runShortcut` | `name`, optionally `{name, input}` | null | Command | nothing |
+| `system.runService` | `name`, optionally `{name, input}` | null | Command | nothing |
+
+`selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
+and `system.runService` are offered only as Commands, whose input the user
+configures. A script, a page action or a request cannot choose keys, a
+Shortcut or a Service in this revision.
 
 ### `window`
 
@@ -259,12 +269,12 @@ until a revision adds it.
 
 | ID | Owner | For |
 | --- | --- | --- |
-| `feedback.confirm` | #68's local dialogs | A Plugin-worded question whose answer is a request's outcome |
+| `host.confirm` | #68's local dialogs | A Plugin-worded question whose answer is a request's outcome |
 | `host.launchCommand` | README candidate | Running another Command of the Plugin in the same View Session |
 | `selection.readFinderItems` | README candidate | The files selected in Finder |
 | `open.reveal` | README candidate | Showing a file in Finder instead of opening it |
 | `apps.frontmost`, `apps.quit` | #83 | The App in front as an opaque target; quitting it |
+| `system.keepAwake` | #84 | A Host-owned keep-awake effect |
 | `system.metrics` | #86 | Basic metrics while the view is visible |
-| `power.keepAwake` | #84 | A Host-owned keep-awake effect |
 | `activities.list`, `activities.stop` | #84, #88 | The Plugin's running effects and tasks |
 | `tools.read`, `tools.startTask` | #87, #88 | Reviewed tool profiles such as Homebrew |

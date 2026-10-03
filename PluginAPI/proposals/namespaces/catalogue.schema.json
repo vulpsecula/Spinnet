@@ -45,7 +45,12 @@
   "$defs": {
     "text": { "type": "string", "pattern": "\\S" },
     "id": {
-      "description": "namespace.verb or namespace.sub.verb: lowerCamelCase segments, each starting with a lowercase letter. The same string is the wire ID and the SDK path after spinnet.",
+      "description": "An operation's ID: exactly namespace.verb, two lowerCamelCase segments, each starting with a lowercase letter. The same string is the wire ID and the SDK path after spinnet.",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*\\.[a-z][a-zA-Z0-9]*$"
+    },
+    "sdk_path": {
+      "description": "A builder's or value's path in the SDK after spinnet.: lowerCamelCase segments, such as ui.page, ui.components.list or environment.apiLevel. Builders and values are not operations and have no wire ID.",
       "type": "string",
       "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){1,2}$"
     },
@@ -171,7 +176,7 @@
       "required": ["id", "status", "summary", "level1"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
+        "id": { "$ref": "#/$defs/sdk_path" },
         "status": { "enum": ["level1", "candidate", "reserved"] },
         "summary": { "$ref": "#/$defs/text" },
         "operation": { "description": "The operation whose answer form or Level 1 view form the builder builds.", "$ref": "#/$defs/id" },
@@ -185,7 +190,7 @@
       "required": ["id", "status", "summary", "level1"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
+        "id": { "$ref": "#/$defs/sdk_path" },
         "status": { "const": "level1" },
         "summary": { "$ref": "#/$defs/text" },
         "level1": { "$ref": "#/$defs/level1_names" }

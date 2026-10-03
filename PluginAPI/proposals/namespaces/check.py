@@ -10,7 +10,9 @@
 #   standard actions, Capabilities, SDK wrappers and builders,
 #   spinnet.environment, answer members, View Events, script globals) is
 #   mapped, read from Level 1's own files, and level1-mapping.md lists it;
-# - each operation is consistent: one ID in its namespace, no ID reusing a
+# - each operation is consistent: one ID, exactly namespace.verb, in its
+#   namespace, operations grouped by namespace in the namespaces' order, a
+#   namespace holding operations offering at least one, no ID reusing a
 #   Level 1 name, every main entry point stated, Level 1 names where Level 1
 #   offers it, input and result definitions in namespaces.schema.json, the
 #   Capability table derived from the operations, failure categories that
@@ -341,8 +343,8 @@ def operation_errors(catalogue):
         if o["id"] in seen:
             found.append(f"{where}: appears twice")
         seen.add(o["id"])
-        if o["namespace"] != o["id"].split(".")[0]:
-            found.append(f"{where}: namespace {o['namespace']} is not its ID's first segment")
+        if len(o["id"].split(".")) != 2 or o["namespace"] != o["id"].split(".")[0]:
+            found.append(f"{where}: an ID is exactly namespace.verb, and {o['namespace']} is not its first segment")
         if namespaces.get(o["namespace"]) not in ("operations", "reserved"):
             found.append(f"{where}: namespace {o['namespace']} is not declared as holding operations")
         if o["status"] == "reserved":
@@ -398,6 +400,15 @@ def operation_errors(catalogue):
         elif "oneOf" in schema_defs[o["id"] + ".input"] and any(
                 alt.get("type") == "string" for alt in schema_defs[o["id"] + ".input"]["oneOf"]):
             found.append(f"{where}: its input takes a bare string but names no primary member")
+    # Operations are grouped by namespace, in the order the namespaces are listed.
+    listed = [n["name"] for n in catalogue["namespaces"] if n["holds"] in ("operations", "reserved")]
+    grouped = list(dict.fromkeys(o["namespace"] for o in catalogue["operations"]))
+    if grouped != listed:
+        found.append(f"operations are grouped as {grouped}, the namespaces listed as {listed}")
+    for n in catalogue["namespaces"]:
+        live = [o for o in catalogue["operations"] if o["namespace"] == n["name"] and o["status"] != "reserved"]
+        if (n["holds"] == "operations") != bool(live):
+            found.append(f"namespace {n['name']} holds {n['holds']} but offers {len(live)} operations")
     rows = {row["name"]: row for row in catalogue["capabilities"]}
     for row in catalogue["capabilities"]:
         derived = [o["id"] for o in catalogue["operations"] if o["status"] != "reserved" and row["name"] in o["capabilities"]]
@@ -623,6 +634,12 @@ def types_errors(catalogue):
             found.append(f"namespaces.d.ts: {o['id']} should be tagged @entry {' '.join(expected)}, is {tagged.get(o['id'])}")
         if not expected and o["id"] in tagged:
             found.append(f"namespaces.d.ts: {o['id']} has no SDK entry point but is declared")
+    # The spinnet object holds exactly the namespaces a script can reach, then ui and environment.
+    root = text.split("export interface NamespacedSpinnet {", 1)[1].split("\n}", 1)[0]
+    members = re.findall(r"^\s+readonly (\w+):", root, re.MULTILINE)
+    reachable = list(dict.fromkeys(i.split(".")[0] for i in tagged))
+    if members != reachable + ["ui", "environment"]:
+        found.append(f"namespaces.d.ts NamespacedSpinnet holds {members}, the tagged namespaces are {reachable}")
     block = text.split("export interface Operations {", 1)[1].split("\n}", 1)[0]
     typed = re.findall(r'^\s+"([\w.]+)": \{', block, re.MULTILINE)
     expected = [o["id"] for o in catalogue["operations"] if o["status"] != "reserved"]

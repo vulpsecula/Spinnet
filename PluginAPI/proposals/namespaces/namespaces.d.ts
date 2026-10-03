@@ -19,9 +19,10 @@
 //   for the answer to a gesture (host_operations).
 //
 // An operation offered only as a Command (`selection.paste`,
-// `keyboard.pressShortcut`, ...) or only as an answer member
-// (`feedback.toast`, `host.closeView`) has no member here; the manifest and
-// `spinnet.ui` reach those. check.py holds every `@id` and `@entry` tag, and
+// `keyboard.press`, `system.runShortcut`, ...) or only as an answer member
+// (`host.toast`, `host.closeView`) has no member here; the manifest and
+// `spinnet.ui` reach those. IDs are exactly `namespace.verb`, so every
+// namespace is one object directly under `spinnet`. check.py holds every `@id` and `@entry` tag, and
 // the ID lists below, to the catalogue.
 
 import type {
@@ -41,27 +42,27 @@ import type { PageUI } from "../collections/collections";
 
 /** Input and result of every operation offered in r1, by catalogue ID. */
 export interface Operations {
-  "feedback.toast": { input: string | { text: string }; result: null };
+  "host.toast": { input: string | { text: string }; result: null };
   "host.closeView": { input: null; result: null };
-  "settings.show": { input: null; result: null };
+  "host.showPluginSettings": { input: null; result: null };
   "selection.readText": { input: null | { best_effort: true }; result: string | null };
   "selection.replace": { input: string | { text: string }; result: null };
   "selection.copy": { input: null; result: null };
   "selection.cut": { input: null; result: null };
   "selection.paste": { input: null; result: null };
-  "keyboard.pressShortcut": { input: KeyboardShortcut; result: null };
+  "keyboard.press": { input: KeyboardShortcut; result: null };
   "clipboard.read": { input: null; result: ClipboardContent | null };
   "clipboard.write": { input: string | { text: string }; result: null };
-  "clipboard.history.read": { input: null | { offset: number }; result: ClipboardHistoryPage };
-  "clipboard.history.content": { input: { entry_id: string; offset: number; length: number }; result: ClipboardHistoryContent };
-  "clipboard.history.show": { input: null; result: null };
+  "clipboardHistory.read": { input: null | { offset: number }; result: ClipboardHistoryPage };
+  "clipboardHistory.readContent": { input: { entry_id: string; offset: number; length: number }; result: ClipboardHistoryContent };
+  "clipboardHistory.show": { input: null; result: null };
   "open.url": { input: string | { url: string }; result: null };
   "open.path": { input: string | { path: string }; result: null };
   "open.application": { input: string | { application: string }; result: null };
   "apps.perform": { input: { bundle_id: string; operation: string; arguments?: Record<string, JSONValue> }; result: null };
   "apps.openDeepLink": { input: { template: string; parameters?: Record<string, string> }; result: null };
-  "apps.runShortcut": { input: string | { name: string; input?: string }; result: null };
-  "apps.runService": { input: string | { name: string; input?: string }; result: null };
+  "system.runShortcut": { input: string | { name: string; input?: string }; result: null };
+  "system.runService": { input: string | { name: string; input?: string }; result: null };
   "window.read": { input: null; result: FocusedWindow };
   "window.setFrame": { input: WindowRect; result: null };
   "window.toggleFullScreen": { input: null; result: null };
@@ -83,7 +84,7 @@ export type ResultOf<K extends OperationID> = Operations[K]["result"];
 /** IDs a script may call. */
 export type CallID =
   | "selection.readText" | "selection.replace" | "clipboard.read" | "clipboard.write"
-  | "clipboard.history.read" | "clipboard.history.content" | "clipboard.history.show"
+  | "clipboardHistory.read" | "clipboardHistory.readContent" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
   | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture" | "http.request" | "text.detectLanguage"
@@ -91,7 +92,7 @@ export type CallID =
 
 /** IDs a page action may perform and an answer may request; the two lists are the same in r1. */
 export type PerformID =
-  | "settings.show" | "selection.replace" | "clipboard.write" | "clipboard.history.show"
+  | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink";
 
 /** IDs an item action may perform on the item's text. */
@@ -99,10 +100,10 @@ export type ItemActionID = "selection.replace" | "clipboard.write";
 
 /** IDs a manifest Command with `execution: "host"` may name in `host_command`. */
 export type HostCommandID =
-  | "feedback.toast" | "settings.show" | "selection.copy" | "selection.cut" | "selection.paste"
-  | "keyboard.pressShortcut" | "clipboard.write" | "clipboard.history.show"
+  | "host.toast" | "host.showPluginSettings" | "selection.copy" | "selection.cut" | "selection.paste"
+  | "keyboard.press" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.runShortcut" | "apps.runService" | "window.toggleFullScreen" | "window.restore"
+  | "system.runShortcut" | "system.runService" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture";
 
 /** A key by name or by virtual key code (0 to 127), with modifiers. */
@@ -112,7 +113,7 @@ export type KeyboardShortcut =
 
 /**
  * A screen capture. A source alone copies or saves as the user's screenshot
- * preferences say (choice N9); otherwise both members say it, as Level 1's
+ * preferences say (decision N9); otherwise both members say it, as Level 1's
  * `capture_screen` does.
  */
 export type ScreenCapture =
@@ -134,7 +135,7 @@ export interface PerformAction<K extends PerformID = PerformID> {
   input?: InputOf<K>;
   id?: string;
   title?: string;
-  /** Not with `settings.show`. */
+  /** Not with `host.showPluginSettings`. */
   closes_view?: boolean;
 }
 
@@ -147,7 +148,7 @@ export interface RequestedOperation<K extends PerformID = PerformID> {
   input?: InputOf<K>;
   /** A label of at most 64 characters, echoed in `operation_finished`. */
   id?: string;
-  /** Not with `settings.show`. */
+  /** Not with `host.showPluginSettings`. */
   closes_view?: boolean;
   /** Deliver `operation_finished` when the outcome is ready. */
   notify?: boolean;
@@ -174,14 +175,16 @@ export type RequestHostService = <K extends CallID>(name: K, input?: InputOf<K>)
 
 /**
  * The `spinnet` object under namespaces r1. Namespaces whose r1 operations a
- * script cannot reach (`feedback`, `host`, `keyboard`) are absent; they appear
- * when a reserved operation such as `feedback.confirm` or `host.launchCommand`
- * is added.
+ * script cannot reach (`keyboard`, `system`) are absent; they appear when a
+ * later revision offers one of their operations to scripts (decision N8).
+ * `host` holds only `showPluginSettings` in r1; `host.confirm` and
+ * `host.launchCommand` join it when they are defined.
  */
 export interface NamespacedSpinnet {
-  readonly settings: SettingsNamespace;
+  readonly host: HostNamespace;
   readonly selection: SelectionNamespace;
   readonly clipboard: ClipboardNamespace;
+  readonly clipboardHistory: ClipboardHistoryNamespace;
   readonly open: OpenNamespace;
   readonly apps: AppsNamespace;
   readonly window: WindowNamespace;
@@ -193,9 +196,10 @@ export interface NamespacedSpinnet {
   readonly environment: Environment;
 }
 
-export interface SettingsNamespace {
-  /** Opens the Plugin's own Plugin Settings sheet. @id settings.show @entry view_action request */
-  readonly show: Performable<"settings.show">;
+/** Spinnet's own UI and flow, which the Plugin asks the Host to act on. */
+export interface HostNamespace {
+  /** Opens the Plugin's own Plugin Settings sheet. @id host.showPluginSettings @entry view_action request */
+  readonly showPluginSettings: Performable<"host.showPluginSettings">;
 }
 
 /** The focused App's selection. Every operation here targets the focused App. */
@@ -210,22 +214,22 @@ export interface SelectionNamespace {
   readonly replace: Callable<"selection.replace"> & Performable<"selection.replace">;
 }
 
-/** The clipboard's content and Clipboard History; nothing here targets an App. */
+/** The current clipboard's content; nothing here targets an App. */
 export interface ClipboardNamespace {
   /** The current clipboard's text or link. @id clipboard.read @entry call */
   readonly read: Callable<"clipboard.read">;
   /** Puts text on the clipboard. @id clipboard.write @entry call view_action request */
   readonly write: Callable<"clipboard.write"> & Performable<"clipboard.write">;
-  readonly history: ClipboardHistoryNamespace;
 }
 
+/** The Clipboard History Store, under its own Capability, `read_clipboard_history`. */
 export interface ClipboardHistoryNamespace {
-  /** One page of Clipboard History. @id clipboard.history.read @entry call */
-  readonly read: Callable<"clipboard.history.read">;
-  /** A chunk of one entry's retained bytes. @id clipboard.history.content @entry call */
-  readonly content: Callable<"clipboard.history.content">;
-  /** Opens the Clipboard History window, the one Host Surface. @id clipboard.history.show @entry call view_action request */
-  readonly show: Callable<"clipboard.history.show"> & Performable<"clipboard.history.show">;
+  /** One page of Clipboard History. @id clipboardHistory.read @entry call */
+  readonly read: Callable<"clipboardHistory.read">;
+  /** A chunk of one entry's retained bytes. @id clipboardHistory.readContent @entry call */
+  readonly readContent: Callable<"clipboardHistory.readContent">;
+  /** Opens the Clipboard History window, the one Host Surface. @id clipboardHistory.show @entry call view_action request */
+  readonly show: Callable<"clipboardHistory.show"> & Performable<"clipboardHistory.show">;
 }
 
 /** Handing a link, path or application to the App that opens it. */
@@ -294,7 +298,7 @@ export interface StorageNamespace {
  * collections; and host_operations' `show` with `operation` and `request`. A
  * page's buttons that perform an operation come from the operation itself:
  * `spinnet.clipboard.write.action("😀")`. `ui.toast` and `ui.close` build the
- * answer forms of `feedback.toast` and `host.closeView`.
+ * answer forms of `host.toast` and `host.closeView`.
  */
 export type NamespacedUI = UIArea & PageUI & Pick<CandidateUI, "show" | "request">;
 

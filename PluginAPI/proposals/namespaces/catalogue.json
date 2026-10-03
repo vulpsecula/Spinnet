@@ -20,19 +20,9 @@
       "summary": "Pure builders for views, pages, components and answers; requests nothing"
     },
     {
-      "name": "feedback",
-      "holds": "operations",
-      "summary": "What the Host shows the user on the Plugin's behalf: a toast, later a Plugin-worded question"
-    },
-    {
       "name": "host",
       "holds": "operations",
-      "summary": "The Plugin's View and Commands as the Host runs them: closing the view, later launching another Command"
-    },
-    {
-      "name": "settings",
-      "holds": "operations",
-      "summary": "The Plugin's own Plugin Settings, whose values arrive in input"
+      "summary": "Spinnet's own UI and flow, which the Plugin asks the Host to act on: a toast, closing the Plugin View, opening the Plugin's settings; later a Plugin-worded question and launching another Command"
     },
     {
       "name": "selection",
@@ -47,7 +37,12 @@
     {
       "name": "clipboard",
       "holds": "operations",
-      "summary": "The clipboard's content and Clipboard History; no operation here targets an App"
+      "summary": "The current clipboard's content; no operation here targets an App"
+    },
+    {
+      "name": "clipboardHistory",
+      "holds": "operations",
+      "summary": "The Clipboard History Store: its own Capability (read_clipboard_history) and its own Sensitive Data Collection setting"
     },
     {
       "name": "open",
@@ -57,7 +52,12 @@
     {
       "name": "apps",
       "holds": "operations",
-      "summary": "External Apps through reviewed interfaces, Deep Link Templates, Shortcuts and Services; later the current App (#83)"
+      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates; later the App in front (#83)"
+    },
+    {
+      "name": "system",
+      "holds": "operations",
+      "summary": "macOS facilities no single App owns: Shortcuts and Services; later keep-awake (#84) and basic metrics (#86)"
     },
     {
       "name": "window",
@@ -90,16 +90,6 @@
       "summary": "The Host and the invocation the script runs under"
     },
     {
-      "name": "system",
-      "holds": "reserved",
-      "summary": "Basic system metrics (#86)"
-    },
-    {
-      "name": "power",
-      "holds": "reserved",
-      "summary": "Keep-awake effects (#84)"
-    },
-    {
       "name": "activities",
       "holds": "reserved",
       "summary": "The Plugin's running effects and tasks (#84, #88)"
@@ -112,12 +102,12 @@
   ],
   "operations": [
     {
-      "id": "feedback.toast",
-      "namespace": "feedback",
-      "summary": "Shows a short message: inside the Plugin View when one is open, otherwise near the pointer.",
+      "id": "host.toast",
+      "namespace": "host",
+      "summary": "Shows a short message: inside the Plugin View when one is open, otherwise near the pointer. With close it is a HUD: the view closes and the toast shows near the pointer (decision N2).",
       "status": "level1",
-      "input": "namespaces.schema.json#/$defs/feedback.toast.input",
-      "result": "namespaces.schema.json#/$defs/feedback.toast.result",
+      "input": "namespaces.schema.json#/$defs/host.toast.input",
+      "result": "namespaces.schema.json#/$defs/host.toast.result",
       "primary_member": "text",
       "capabilities": [],
       "system_permission": null,
@@ -128,12 +118,12 @@
       "entry_points": {
         "call": {
           "status": "not_offered",
-          "reason": "Feedback commits with the answer that explains it; a message shown during the invocation would appear before that answer is accepted (ADR 0018)"
+          "reason": "A toast commits with the answer that explains it; a message shown during the invocation would appear before that answer is accepted (ADR 0018)"
         },
         "command": {
           "status": "level1",
           "candidate": "namespaces",
-          "note": "Level 1's feedback.present drew the Host feedback panel; the catalogue form shows the toast near the pointer, as an answer's toast does without a view (choice N2)"
+          "note": "Level 1's feedback.present drew the Host feedback panel; the catalogue form shows the toast near the pointer, as an answer's toast does without a view (decision N2)"
         },
         "view_action": {
           "status": "not_offered",
@@ -146,7 +136,7 @@
         "answer": {
           "status": "level1",
           "candidate": "namespaces",
-          "note": "The answer's toast member, built by ui.toast or the toast option of ui.show and ui.close"
+          "note": "The answer's toast member, built by ui.toast or the toast option of ui.show and ui.close; a toast with close is the HUD (decision N2)"
         }
       },
       "level1": [
@@ -159,42 +149,6 @@
           "name": "toast"
         }
       ]
-    },
-    {
-      "id": "feedback.confirm",
-      "namespace": "feedback",
-      "summary": "Asks the user a Plugin-worded question in the view and reports the answer as the operation's outcome; unlike a Host Confirmation it authorizes nothing.",
-      "status": "reserved",
-      "owner": "#68 local dialogs (accepted future direction)",
-      "input": null,
-      "result": null,
-      "primary_member": null,
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "entry_points": {
-        "call": {
-          "status": "not_offered",
-          "reason": "A question waits for the user, which a four-second invocation cannot"
-        },
-        "command": {
-          "status": "not_offered",
-          "reason": "It asks inside a view"
-        },
-        "view_action": {
-          "status": "not_offered",
-          "reason": "A button asks by being an event action whose answer requests the question"
-        },
-        "request": {
-          "status": "reserved",
-          "owner": "#68 local dialogs",
-          "reason": "Fits host_operations as a request whose operation_finished outcome is the answer; its wording, placement and dirty-navigation rules belong to the dialogs work"
-        }
-      },
-      "level1": []
     },
     {
       "id": "host.closeView",
@@ -241,6 +195,85 @@
       ]
     },
     {
+      "id": "host.showPluginSettings",
+      "namespace": "host",
+      "summary": "Opens the Plugin's own Plugin Settings sheet.",
+      "status": "level1",
+      "input": "namespaces.schema.json#/$defs/host.showPluginSettings.input",
+      "result": "namespaces.schema.json#/$defs/host.showPluginSettings.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Plugin Settings",
+      "closes_view": false,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Opening a Host window is a transition that follows the user's gesture, not a step inside an invocation"
+        },
+        "command": {
+          "status": "candidate",
+          "candidate": "namespaces",
+          "note": "A Menu Item can open its Plugin's settings without a script (decision N10)"
+        },
+        "view_action": {
+          "status": "level1",
+          "candidate": "collections"
+        },
+        "request": {
+          "status": "candidate",
+          "candidate": "host_operations",
+          "note": "An answer can open the sheet after a gesture, such as one that found a missing key"
+        }
+      },
+      "level1": [
+        {
+          "kind": "standard_action",
+          "name": "open_plugin_settings"
+        }
+      ]
+    },
+    {
+      "id": "host.confirm",
+      "namespace": "host",
+      "summary": "Asks the user a Plugin-worded question in the view and reports the answer as the operation's outcome; unlike a Host Confirmation it authorizes nothing.",
+      "status": "reserved",
+      "owner": "#68 local dialogs (accepted future direction)",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "A question waits for the user, which a four-second invocation cannot"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It asks inside a view"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "A button asks by being an event action whose answer requests the question"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#68 local dialogs",
+          "reason": "Fits host_operations as a request whose operation_finished outcome is the answer; its wording, placement and dirty-navigation rules belong to the dialogs work"
+        }
+      },
+      "level1": []
+    },
+    {
       "id": "host.launchCommand",
       "namespace": "host",
       "summary": "Runs another Command of the same Plugin with an input, inside the same View Session.",
@@ -276,49 +309,6 @@
         }
       },
       "level1": []
-    },
-    {
-      "id": "settings.show",
-      "namespace": "settings",
-      "summary": "Opens the Plugin's own Plugin Settings sheet.",
-      "status": "level1",
-      "input": "namespaces.schema.json#/$defs/settings.show.input",
-      "result": "namespaces.schema.json#/$defs/settings.show.result",
-      "primary_member": null,
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "default_title": "Plugin Settings",
-      "closes_view": false,
-      "entry_points": {
-        "call": {
-          "status": "not_offered",
-          "reason": "Opening a Host window is a transition that follows the user's gesture, not a step inside an invocation"
-        },
-        "command": {
-          "status": "candidate",
-          "candidate": "namespaces",
-          "note": "A Menu Item can open its Plugin's settings without a script"
-        },
-        "view_action": {
-          "status": "level1",
-          "candidate": "collections"
-        },
-        "request": {
-          "status": "candidate",
-          "candidate": "host_operations",
-          "note": "An answer can open the sheet after a gesture, such as one that found a missing key"
-        }
-      },
-      "level1": [
-        {
-          "kind": "standard_action",
-          "name": "open_plugin_settings"
-        }
-      ]
     },
     {
       "id": "selection.readText",
@@ -500,12 +490,12 @@
         },
         "view_action": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow host_operations' target rules"
         },
         "request": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow host_operations' target rules"
         }
       },
@@ -543,12 +533,12 @@
         },
         "view_action": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow host_operations' target rules"
         },
         "request": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow host_operations' target rules"
         }
       },
@@ -596,12 +586,12 @@
       "level1": []
     },
     {
-      "id": "keyboard.pressShortcut",
+      "id": "keyboard.press",
       "namespace": "keyboard",
       "summary": "Presses a keyboard shortcut in the focused App.",
       "status": "level1",
-      "input": "namespaces.schema.json#/$defs/keyboard.pressShortcut.input",
-      "result": "namespaces.schema.json#/$defs/keyboard.pressShortcut.result",
+      "input": "namespaces.schema.json#/$defs/keyboard.press.input",
+      "result": "namespaces.schema.json#/$defs/keyboard.press.result",
       "primary_member": null,
       "capabilities": [],
       "system_permission": "accessibility",
@@ -622,12 +612,12 @@
         },
         "view_action": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "A shortcut the Plugin chooses acts on the focused App with no Capability that discloses it; it needs a new Capability and host_operations' target rules"
         },
         "request": {
           "status": "reserved",
-          "owner": "user decision N8",
+          "owner": "later revision, decision N8",
           "reason": "A shortcut the Plugin chooses acts on the focused App with no Capability that discloses it; it needs a new Capability and host_operations' target rules"
         }
       },
@@ -744,12 +734,12 @@
       ]
     },
     {
-      "id": "clipboard.history.read",
-      "namespace": "clipboard",
+      "id": "clipboardHistory.read",
+      "namespace": "clipboardHistory",
       "summary": "Reads one page of Clipboard History.",
       "status": "level1",
-      "input": "namespaces.schema.json#/$defs/clipboard.history.read.input",
-      "result": "namespaces.schema.json#/$defs/clipboard.history.read.result",
+      "input": "namespaces.schema.json#/$defs/clipboardHistory.read.input",
+      "result": "namespaces.schema.json#/$defs/clipboardHistory.read.result",
       "primary_member": null,
       "capabilities": [
         "read_clipboard_history"
@@ -790,12 +780,12 @@
       ]
     },
     {
-      "id": "clipboard.history.content",
-      "namespace": "clipboard",
+      "id": "clipboardHistory.readContent",
+      "namespace": "clipboardHistory",
       "summary": "Reads a chunk of one Clipboard History entry's retained bytes.",
       "status": "level1",
-      "input": "namespaces.schema.json#/$defs/clipboard.history.content.input",
-      "result": "namespaces.schema.json#/$defs/clipboard.history.content.result",
+      "input": "namespaces.schema.json#/$defs/clipboardHistory.readContent.input",
+      "result": "namespaces.schema.json#/$defs/clipboardHistory.readContent.result",
       "primary_member": null,
       "capabilities": [
         "read_clipboard_history"
@@ -836,12 +826,12 @@
       ]
     },
     {
-      "id": "clipboard.history.show",
-      "namespace": "clipboard",
+      "id": "clipboardHistory.show",
+      "namespace": "clipboardHistory",
       "summary": "Opens the Clipboard History window, the one Host Surface; the Plugin learns nothing from it.",
       "status": "level1",
-      "input": "namespaces.schema.json#/$defs/clipboard.history.show.input",
-      "result": "namespaces.schema.json#/$defs/clipboard.history.show.result",
+      "input": "namespaces.schema.json#/$defs/clipboardHistory.show.input",
+      "result": "namespaces.schema.json#/$defs/clipboardHistory.show.result",
       "primary_member": null,
       "capabilities": [
         "read_clipboard_history"
@@ -1188,92 +1178,6 @@
       ]
     },
     {
-      "id": "apps.runShortcut",
-      "namespace": "apps",
-      "summary": "Runs a Shortcut by name, optionally with text input.",
-      "status": "level1",
-      "input": "namespaces.schema.json#/$defs/apps.runShortcut.input",
-      "result": "namespaces.schema.json#/$defs/apps.runShortcut.result",
-      "primary_member": "name",
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "entry_points": {
-        "call": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
-        },
-        "command": {
-          "status": "level1",
-          "candidate": "namespaces",
-          "note": "A configured Shortcut, without a Capability, as Level 1"
-        },
-        "view_action": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
-        },
-        "request": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
-        }
-      },
-      "level1": [
-        {
-          "kind": "host_command",
-          "name": "shortcut.invoke"
-        }
-      ]
-    },
-    {
-      "id": "apps.runService",
-      "namespace": "apps",
-      "summary": "Runs a macOS Service by its title in the Services menu, optionally with text input.",
-      "status": "level1",
-      "input": "namespaces.schema.json#/$defs/apps.runService.input",
-      "result": "namespaces.schema.json#/$defs/apps.runService.result",
-      "primary_member": "name",
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "entry_points": {
-        "call": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
-        },
-        "command": {
-          "status": "level1",
-          "candidate": "namespaces",
-          "note": "A configured Service, without a Capability, as Level 1"
-        },
-        "view_action": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
-        },
-        "request": {
-          "status": "reserved",
-          "owner": "user decision N8",
-          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
-        }
-      },
-      "level1": [
-        {
-          "kind": "host_command",
-          "name": "service.invoke"
-        }
-      ]
-    },
-    {
       "id": "apps.frontmost",
       "namespace": "apps",
       "summary": "Identifies the App in front by a bounded, opaque target the Plugin can name back to the Host, without a process list.",
@@ -1343,6 +1247,171 @@
           "status": "reserved",
           "owner": "#83",
           "reason": "Executed through #76's request path with the real target disclosed"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "system.runShortcut",
+      "namespace": "system",
+      "summary": "Runs a Shortcut by name, optionally with text input.",
+      "status": "level1",
+      "input": "namespaces.schema.json#/$defs/system.runShortcut.input",
+      "result": "namespaces.schema.json#/$defs/system.runShortcut.result",
+      "primary_member": "name",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        },
+        "command": {
+          "status": "level1",
+          "candidate": "namespaces",
+          "note": "A configured Shortcut, without a Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "shortcut.invoke"
+        }
+      ]
+    },
+    {
+      "id": "system.runService",
+      "namespace": "system",
+      "summary": "Runs a macOS Service by its title in the Services menu, optionally with text input.",
+      "status": "level1",
+      "input": "namespaces.schema.json#/$defs/system.runService.input",
+      "result": "namespaces.schema.json#/$defs/system.runService.result",
+      "primary_member": "name",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        },
+        "command": {
+          "status": "level1",
+          "candidate": "namespaces",
+          "note": "A configured Service, without a Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later revision, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "service.invoke"
+        }
+      ]
+    },
+    {
+      "id": "system.keepAwake",
+      "namespace": "system",
+      "summary": "Starts a Host-owned keep-awake effect, manual, timed or bound to an App, that outlives the view and is stopped from the Host Status Item (ADR 0017).",
+      "status": "reserved",
+      "owner": "#84",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "An effect that outlives the invocation starts after the answer that asked for it commits (ADR 0018)"
+        },
+        "command": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "A Menu Item could start a timed effect without a view"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "Its modes, lifetime and release rules are #84's"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "Its modes, lifetime and release rules are #84's"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "system.metrics",
+      "namespace": "system",
+      "summary": "Reads basic CPU, memory, disk-capacity and battery figures, refreshed only while the view is visible.",
+      "status": "reserved",
+      "owner": "#86",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "#86",
+          "reason": "Metric meanings, units and authority are #86's"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "source": {
+          "status": "reserved",
+          "owner": "#86",
+          "reason": "A visible-view source run by the Host (#71, #82)"
         }
       },
       "level1": []
@@ -1568,7 +1637,7 @@
         "command": {
           "status": "level1",
           "candidate": "namespaces",
-          "note": "Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (choice N9)"
+          "note": "Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (decision N9)"
         },
         "view_action": {
           "status": "reserved",
@@ -1919,11 +1988,11 @@
       ]
     },
     {
-      "id": "system.metrics",
-      "namespace": "system",
-      "summary": "Reads basic CPU, memory, disk-capacity and battery figures, refreshed only while the view is visible.",
+      "id": "activities.list",
+      "namespace": "activities",
+      "summary": "Lists the effects and tasks the Plugin started that are still running, so a reopened view can show them.",
       "status": "reserved",
-      "owner": "#86",
+      "owner": "#88",
       "input": null,
       "result": null,
       "primary_member": null,
@@ -1936,8 +2005,8 @@
       "entry_points": {
         "call": {
           "status": "reserved",
-          "owner": "#86",
-          "reason": "Metric meanings, units and authority are #86's"
+          "owner": "#88",
+          "reason": "Reopening a Brew view queries its running task"
         },
         "command": {
           "status": "not_offered",
@@ -1950,49 +2019,6 @@
         "request": {
           "status": "not_offered",
           "reason": "It returns data, which only a script can use"
-        },
-        "source": {
-          "status": "reserved",
-          "owner": "#86",
-          "reason": "A visible-view source run by the Host (#71, #82)"
-        }
-      },
-      "level1": []
-    },
-    {
-      "id": "power.keepAwake",
-      "namespace": "power",
-      "summary": "Starts a Host-owned keep-awake effect, manual, timed or bound to an App, that outlives the view and is stopped from the Host Status Item (ADR 0017).",
-      "status": "reserved",
-      "owner": "#84",
-      "input": null,
-      "result": null,
-      "primary_member": null,
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "entry_points": {
-        "call": {
-          "status": "not_offered",
-          "reason": "An effect that outlives the invocation starts after the answer that asked for it commits (ADR 0018)"
-        },
-        "command": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "A Menu Item could start a timed effect without a view"
-        },
-        "view_action": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "Its modes, lifetime and release rules are #84's"
-        },
-        "request": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "Its modes, lifetime and release rules are #84's"
         }
       },
       "level1": []
@@ -2030,42 +2056,6 @@
           "status": "reserved",
           "owner": "#84, #88",
           "reason": "Shares owner, authority and cancellation machinery, not lifetimes (ADR 0017)"
-        }
-      },
-      "level1": []
-    },
-    {
-      "id": "activities.list",
-      "namespace": "activities",
-      "summary": "Lists the effects and tasks the Plugin started that are still running, so a reopened view can show them.",
-      "status": "reserved",
-      "owner": "#88",
-      "input": null,
-      "result": null,
-      "primary_member": null,
-      "capabilities": [],
-      "system_permission": null,
-      "failures": [
-        "host_service_failed"
-      ],
-      "targets": null,
-      "entry_points": {
-        "call": {
-          "status": "reserved",
-          "owner": "#88",
-          "reason": "Reopening a Brew view queries its running task"
-        },
-        "command": {
-          "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
-        },
-        "view_action": {
-          "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
-        },
-        "request": {
-          "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
         }
       },
       "level1": []
@@ -2305,8 +2295,8 @@
     {
       "id": "ui.openPluginSettings",
       "status": "level1",
-      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.settings.show.action(...)",
-      "operation": "settings.show",
+      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.host.showPluginSettings.action(...)",
+      "operation": "host.showPluginSettings",
       "level1": [
         {
           "kind": "sdk_builder",
@@ -2328,8 +2318,8 @@
     {
       "id": "ui.toast",
       "status": "level1",
-      "summary": "Unchanged; builds the answer form of feedback.toast",
-      "operation": "feedback.toast",
+      "summary": "Unchanged; builds the answer form of host.toast",
+      "operation": "host.toast",
       "level1": [
         {
           "kind": "sdk_builder",
@@ -2646,7 +2636,7 @@
   "answer_members": [
     {
       "name": "view",
-      "note": "Unchanged: a Level 1 view, kept whole with Level 1's names (choice N5)",
+      "note": "Unchanged: a Level 1 view, kept whole with Level 1's names (decision N5)",
       "level1": [
         {
           "kind": "answer_member",
@@ -2815,9 +2805,9 @@
     {
       "name": "read_clipboard_history",
       "operations": [
-        "clipboard.history.read",
-        "clipboard.history.content",
-        "clipboard.history.show"
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show"
       ],
       "level1": [
         {
@@ -2981,7 +2971,7 @@
     {
       "area": "Per-Command preferences opened by the Plugin",
       "raycast": "openCommandPreferences",
-      "reason": "A Menu Item's own configuration is the user's, edited in its Configuration Sheet; the Plugin opens only its Plugin Settings (settings.show)"
+      "reason": "A Menu Item's own configuration is the user's, edited in its Configuration Sheet; the Plugin opens only its Plugin Settings (host.showPluginSettings)"
     },
     {
       "area": "A separate cache store",
@@ -3001,7 +2991,7 @@
     {
       "area": "A separate HUD",
       "raycast": "showHUD",
-      "reason": "Merged into feedback.toast: a toast without a view already shows near the pointer, and close with a toast closes the view first (choice N2)"
+      "reason": "Merged into host.toast: a toast without a view already shows near the pointer, and close with a toast closes the view first (decision N2)"
     }
   ],
   "raycast": [
@@ -3027,15 +3017,15 @@
     },
     {
       "raycast": "showToast",
-      "spinnet": "feedback.toast"
+      "spinnet": "host.toast"
     },
     {
       "raycast": "showHUD",
-      "spinnet": "feedback.toast (merged; not offered separately)"
+      "spinnet": "host.toast with close (merged, decision N2)"
     },
     {
       "raycast": "confirmAlert",
-      "spinnet": "feedback.confirm (reserved); a Host Confirmation is part of an operation, not an operation"
+      "spinnet": "host.confirm (reserved); a Host Confirmation is part of an operation, not an operation"
     },
     {
       "raycast": "closeMainWindow",
@@ -3051,7 +3041,7 @@
     },
     {
       "raycast": "Clipboard.copy, Clipboard.paste, Clipboard.read",
-      "spinnet": "clipboard.write, selection.paste, clipboard.read"
+      "spinnet": "clipboard.write, selection.paste, clipboard.read; reading an older entry by offset is clipboardHistory.read, under its own Capability"
     },
     {
       "raycast": "getSelectedText",
@@ -3099,7 +3089,7 @@
     },
     {
       "raycast": "openExtensionPreferences",
-      "spinnet": "settings.show"
+      "spinnet": "host.showPluginSettings"
     },
     {
       "raycast": "OAuth",

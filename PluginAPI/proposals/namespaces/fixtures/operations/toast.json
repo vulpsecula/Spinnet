@@ -1,4 +1,4 @@
 {
-  "perform": "feedback.toast",
+  "perform": "host.toast",
   "input": "Saved"
 }

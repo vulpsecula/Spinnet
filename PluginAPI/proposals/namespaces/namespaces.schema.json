@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Plugin API namespaces (draft candidate namespaces r1)",
-  "description": "PROPOSAL ONLY (#99). Not part of Plugin API Level 1, of any stable Level, or of any published Candidate Contract revision; no Host implements it. The wire shapes of the namespace catalogue (catalogue.json): each operation's input and result under its one ID, the IDs each entry point accepts, a call as the helper carries it, a page action that performs an operation, the input a performed operation takes (shared with host_operations' operation), and a manifest Command that names an operation. A Plugin declaring namespaces r1 names operations only by these IDs, except inside a Level 1 view (choice N5). Level 1's own schemas are unchanged and refuse every ID here.",
+  "description": "PROPOSAL ONLY (#99). Not part of Plugin API Level 1, of any stable Level, or of any published Candidate Contract revision; no Host implements it. The wire shapes of the namespace catalogue (catalogue.json): each operation's input and result under its one ID, the IDs each entry point accepts, a call as the helper carries it, a page action that performs an operation, the input a performed operation takes (shared with host_operations' operation), and a manifest Command that names an operation. A Plugin declaring namespaces r1 names operations only by these IDs, except inside a Level 1 view (decision N5). Level 1's own schemas are unchanged and refuse every ID here.",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",
@@ -42,29 +42,29 @@
       }
     },
     "operation_id": {
-      "description": "Every catalogue ID a Plugin declaring namespaces r1 may name somewhere: namespace.verb, or namespace.sub.verb, in lowerCamelCase segments.",
+      "description": "Every catalogue ID a Plugin declaring namespaces r1 may name somewhere: exactly namespace.verb, two lowerCamelCase segments.",
       "enum": [
-        "feedback.toast",
+        "host.toast",
         "host.closeView",
-        "settings.show",
+        "host.showPluginSettings",
         "selection.readText",
         "selection.replace",
         "selection.copy",
         "selection.cut",
         "selection.paste",
-        "keyboard.pressShortcut",
+        "keyboard.press",
         "clipboard.read",
         "clipboard.write",
-        "clipboard.history.read",
-        "clipboard.history.content",
-        "clipboard.history.show",
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show",
         "open.url",
         "open.path",
         "open.application",
         "apps.perform",
         "apps.openDeepLink",
-        "apps.runShortcut",
-        "apps.runService",
+        "system.runShortcut",
+        "system.runService",
         "window.read",
         "window.setFrame",
         "window.toggleFullScreen",
@@ -86,9 +86,9 @@
         "selection.replace",
         "clipboard.read",
         "clipboard.write",
-        "clipboard.history.read",
-        "clipboard.history.content",
-        "clipboard.history.show",
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show",
         "open.url",
         "open.path",
         "open.application",
@@ -111,21 +111,21 @@
     "host_command_id": {
       "description": "IDs a manifest Command with execution host may name in host_command.",
       "enum": [
-        "feedback.toast",
-        "settings.show",
+        "host.toast",
+        "host.showPluginSettings",
         "selection.copy",
         "selection.cut",
         "selection.paste",
-        "keyboard.pressShortcut",
+        "keyboard.press",
         "clipboard.write",
-        "clipboard.history.show",
+        "clipboardHistory.show",
         "open.url",
         "open.path",
         "open.application",
         "apps.perform",
         "apps.openDeepLink",
-        "apps.runShortcut",
-        "apps.runService",
+        "system.runShortcut",
+        "system.runService",
         "window.toggleFullScreen",
         "window.restore",
         "screen.capture"
@@ -134,10 +134,10 @@
     "view_action_id": {
       "description": "IDs a page action or item action may name in perform (collections).",
       "enum": [
-        "settings.show",
+        "host.showPluginSettings",
         "selection.replace",
         "clipboard.write",
-        "clipboard.history.show",
+        "clipboardHistory.show",
         "open.url",
         "open.path",
         "open.application",
@@ -155,10 +155,10 @@
     "request_id": {
       "description": "IDs an answer may request in operation.perform (host_operations).",
       "enum": [
-        "settings.show",
+        "host.showPluginSettings",
         "selection.replace",
         "clipboard.write",
-        "clipboard.history.show",
+        "clipboardHistory.show",
         "open.url",
         "open.path",
         "open.application",
@@ -166,7 +166,7 @@
         "apps.openDeepLink"
       ]
     },
-    "feedback.toast.input": {
+    "host.toast.input": {
       "description": "The message: a string, or {text}.",
       "oneOf": [
         {
@@ -190,7 +190,7 @@
       "type": "null",
       "description": "No input."
     },
-    "settings.show.input": {
+    "host.showPluginSettings.input": {
       "type": "null",
       "description": "No input."
     },
@@ -246,7 +246,7 @@
       "type": "null",
       "description": "No input."
     },
-    "keyboard.pressShortcut.input": {
+    "keyboard.press.input": {
       "description": "A key by name or by virtual key code, with modifiers. Level 1's string form and its alias member names stay Level 1's.",
       "type": "object",
       "additionalProperties": false,
@@ -315,7 +315,7 @@
         }
       ]
     },
-    "clipboard.history.read.input": {
+    "clipboardHistory.read.input": {
       "description": "null for the newest page, or {offset}.",
       "oneOf": [
         {
@@ -336,7 +336,7 @@
         }
       ]
     },
-    "clipboard.history.content.input": {
+    "clipboardHistory.readContent.input": {
       "type": "object",
       "required": [
         "entry_id",
@@ -360,7 +360,7 @@
         }
       }
     },
-    "clipboard.history.show.input": {
+    "clipboardHistory.show.input": {
       "type": "null",
       "description": "No input."
     },
@@ -436,7 +436,7 @@
     "apps.openDeepLink.input": {
       "$ref": "../../schemas/external-apps.schema.json#/$defs/open_deep_link.input"
     },
-    "apps.runShortcut.input": {
+    "system.runShortcut.input": {
       "description": "The Shortcut's name: a string, or {name, input?} with text input.",
       "oneOf": [
         {
@@ -459,7 +459,7 @@
         }
       ]
     },
-    "apps.runService.input": {
+    "system.runService.input": {
       "description": "The Service's exact title in the Services menu, nested paths separated by /: a string, or {name, input?} with text input.",
       "oneOf": [
         {
@@ -499,7 +499,7 @@
       "description": "No input."
     },
     "screen.capture.input": {
-      "description": "source alone, as a string or {source}, copies or saves as the user's screenshot preferences say (choice N9); otherwise copy_to_clipboard and save together, as Level 1's capture_screen, with at least one of them doing something and save.folder a folder the Action's configuration uses.",
+      "description": "source alone, as a string or {source}, copies or saves as the user's screenshot preferences say (decision N9); otherwise copy_to_clipboard and save together, as Level 1's capture_screen, with at least one of them doing something and save.folder a folder the Action's configuration uses.",
       "oneOf": [
         {
           "enum": [
@@ -656,13 +656,13 @@
       "type": "null",
       "description": "No input."
     },
-    "feedback.toast.result": {
+    "host.toast.result": {
       "type": "null"
     },
     "host.closeView.result": {
       "type": "null"
     },
-    "settings.show.result": {
+    "host.showPluginSettings.result": {
       "type": "null"
     },
     "selection.readText.result": {
@@ -683,7 +683,7 @@
     "selection.paste.result": {
       "type": "null"
     },
-    "keyboard.pressShortcut.result": {
+    "keyboard.press.result": {
       "type": "null"
     },
     "clipboard.read.result": {
@@ -715,7 +715,7 @@
     "clipboard.write.result": {
       "type": "null"
     },
-    "clipboard.history.read.result": {
+    "clipboardHistory.read.result": {
       "type": "object",
       "required": [
         "state",
@@ -744,7 +744,7 @@
         }
       }
     },
-    "clipboard.history.content.result": {
+    "clipboardHistory.readContent.result": {
       "type": "object",
       "required": [
         "data",
@@ -769,7 +769,7 @@
         }
       }
     },
-    "clipboard.history.show.result": {
+    "clipboardHistory.show.result": {
       "type": "null"
     },
     "open.url.result": {
@@ -787,10 +787,10 @@
     "apps.openDeepLink.result": {
       "type": "null"
     },
-    "apps.runShortcut.result": {
+    "system.runShortcut.result": {
       "type": "null"
     },
-    "apps.runService.result": {
+    "system.runService.result": {
       "type": "null"
     },
     "window.read.result": {
@@ -866,14 +866,14 @@
             ],
             "properties": {
               "perform": {
-                "const": "settings.show"
+                "const": "host.showPluginSettings"
               }
             }
           },
           "then": {
             "properties": {
               "input": {
-                "$ref": "#/$defs/settings.show.input"
+                "$ref": "#/$defs/host.showPluginSettings.input"
               },
               "closes_view": false
             }
@@ -930,14 +930,14 @@
             ],
             "properties": {
               "perform": {
-                "const": "clipboard.history.show"
+                "const": "clipboardHistory.show"
               }
             }
           },
           "then": {
             "properties": {
               "input": {
-                "$ref": "#/$defs/clipboard.history.show.input"
+                "$ref": "#/$defs/clipboardHistory.show.input"
               }
             }
           }
@@ -1055,7 +1055,7 @@
       ]
     },
     "view_action": {
-      "description": "A page action that performs a Host Service (collections): the Host performs it on the user's click without a View Event, under the Capability the operation needs at this entry point. title defaults to the catalogue's default_title. No shortcut: pages bind none. A Level 1 view keeps Level 1's standard actions instead (choice N5).",
+      "description": "A page action that performs a Host Service (collections): the Host performs it on the user's click without a View Event, under the Capability the operation needs at this entry point. title defaults to the catalogue's default_title. No shortcut: pages bind none. A Level 1 view keeps Level 1's standard actions instead (decision N5).",
       "type": "object",
       "required": [
         "perform"
@@ -1187,14 +1187,14 @@
             ],
             "properties": {
               "service": {
-                "const": "clipboard.history.read"
+                "const": "clipboardHistory.read"
               }
             }
           },
           "then": {
             "properties": {
               "input": {
-                "$ref": "#/$defs/clipboard.history.read.input"
+                "$ref": "#/$defs/clipboardHistory.read.input"
               }
             }
           }
@@ -1206,14 +1206,14 @@
             ],
             "properties": {
               "service": {
-                "const": "clipboard.history.content"
+                "const": "clipboardHistory.readContent"
               }
             }
           },
           "then": {
             "properties": {
               "input": {
-                "$ref": "#/$defs/clipboard.history.content.input"
+                "$ref": "#/$defs/clipboardHistory.readContent.input"
               }
             },
             "required": [
@@ -1228,14 +1228,14 @@
             ],
             "properties": {
               "service": {
-                "const": "clipboard.history.show"
+                "const": "clipboardHistory.show"
               }
             }
           },
           "then": {
             "properties": {
               "input": {
-                "$ref": "#/$defs/clipboard.history.show.input"
+                "$ref": "#/$defs/clipboardHistory.show.input"
               }
             }
           }

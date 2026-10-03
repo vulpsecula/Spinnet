@@ -12,22 +12,22 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 
 | Level 1 name | Catalogue ID | Reached as | Note |
 | --- | --- | --- | --- |
-| `feedback.present` | `feedback.toast` | `"host_command": "feedback.toast"` | Level 1's feedback.present drew the Host feedback panel; the catalogue form shows the toast near the pointer, as an answer's toast does without a view (choice N2) |
+| `feedback.present` | `host.toast` | `"host_command": "host.toast"` | Level 1's feedback.present drew the Host feedback panel; the catalogue form shows the toast near the pointer, as an answer's toast does without a view (decision N2) |
 | `clipboard.copy` | `selection.copy` | `"host_command": "selection.copy"` | With a null input; The read may fall back to Command-C under a separate read_current_clipboard grant, as at Level 1 |
 | `clipboard.cut` | `selection.cut` | `"host_command": "selection.cut"` | No Capability, as Level 1 |
 | `clipboard.paste` | `selection.paste` | `"host_command": "selection.paste"` | No Capability, as Level 1 |
-| `keyboard_shortcut.invoke` | `keyboard.pressShortcut` | `"host_command": "keyboard.pressShortcut"` | A configured shortcut, without a Capability, as Level 1 |
+| `keyboard_shortcut.invoke` | `keyboard.press` | `"host_command": "keyboard.press"` | A configured shortcut, without a Capability, as Level 1 |
 | `clipboard.copy` | `clipboard.write` | `"host_command": "clipboard.write"` | With a text input; write_clipboard is needed here too, as at Level 1 |
 | `url.open` | `open.url` | `"host_command": "open.url"` | A configured link of any scheme, without a Capability, as Level 1's url.open: the user chose it (design 6.2) |
 | `file.open` | `open.path` | `"host_command": "open.path"` | A configured path, without a Capability, as Level 1's file.open and folder.open; the configuration field's kind (file or folder) decides what the user can pick |
 | `folder.open` | `open.path` | `"host_command": "open.path"` | A configured path, without a Capability, as Level 1's file.open and folder.open; the configuration field's kind (file or folder) decides what the user can pick |
 | `application.open` | `open.application` | `"host_command": "open.application"` | A configured application, without a Capability, as Level 1 |
 | `deep_link.open` | `apps.openDeepLink` | `"host_command": "apps.openDeepLink"` | The Command names its template with deep_link_template and its configuration fields fill parameters, as Level 1 |
-| `shortcut.invoke` | `apps.runShortcut` | `"host_command": "apps.runShortcut"` | A configured Shortcut, without a Capability, as Level 1 |
-| `service.invoke` | `apps.runService` | `"host_command": "apps.runService"` | A configured Service, without a Capability, as Level 1 |
-| `screen.capture_area` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (choice N9) |
-| `screen.capture_full_screen` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (choice N9) |
-| `screen.capture_window` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (choice N9) |
+| `shortcut.invoke` | `system.runShortcut` | `"host_command": "system.runShortcut"` | A configured Shortcut, without a Capability, as Level 1 |
+| `service.invoke` | `system.runService` | `"host_command": "system.runService"` | A configured Service, without a Capability, as Level 1 |
+| `screen.capture_area` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (decision N9) |
+| `screen.capture_full_screen` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (decision N9) |
+| `screen.capture_window` | `screen.capture` | `"host_command": "screen.capture"` | Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (decision N9) |
 
 ## Host Services
 
@@ -37,9 +37,9 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 | `insert_text` | `selection.replace` | `spinnet.selection.replace(…)` | Inside a View Session of a Plugin declaring host_operations it is compared with the target shown at the gesture, and fails with insertion_target_changed on a mismatch (ADR 0018) |
 | `read_current_clipboard` | `clipboard.read` | `spinnet.clipboard.read(…)` |  |
 | `write_clipboard` | `clipboard.write` | `spinnet.clipboard.write(…)` |  |
-| `read_clipboard_history` | `clipboard.history.read` | `spinnet.clipboard.history.read(…)` |  |
-| `read_clipboard_history_content` | `clipboard.history.content` | `spinnet.clipboard.history.content(…)` |  |
-| `present_clipboard_history` | `clipboard.history.show` | `spinnet.clipboard.history.show(…)` | Kept because Level 1 offers it; a new Host window would be perform-only |
+| `read_clipboard_history` | `clipboardHistory.read` | `spinnet.clipboardHistory.read(…)` |  |
+| `read_clipboard_history_content` | `clipboardHistory.readContent` | `spinnet.clipboardHistory.readContent(…)` |  |
+| `present_clipboard_history` | `clipboardHistory.show` | `spinnet.clipboardHistory.show(…)` | Kept because Level 1 offers it; a new Host window would be perform-only |
 | `open_url` | `open.url` | `spinnet.open.url(…)` |  |
 | `open_local_path` | `open.path` | `spinnet.open.path(…)` |  |
 | `perform_app_operation` | `apps.perform` | `spinnet.apps.perform(…)` |  |
@@ -61,7 +61,7 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 
 | Level 1 name | Catalogue ID | Reached as | Note |
 | --- | --- | --- | --- |
-| `open_plugin_settings` | `settings.show` | `spinnet.settings.show.action(...)` in a page |  |
+| `open_plugin_settings` | `host.showPluginSettings` | `spinnet.host.showPluginSettings.action(...)` in a page |  |
 | `insert_text` | `selection.replace` | `spinnet.selection.replace.action(...)` in a page | The App it goes to is named on the action and checked at execution (ADR 0018) |
 | `copy_text` | `clipboard.write` | `spinnet.clipboard.write.action(...)` in a page |  |
 | `open_url` | `open.url` | `spinnet.open.url.action(...)` in a page |  |
@@ -74,9 +74,9 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 | `spinnet.selection.replace` | `selection.replace` | `spinnet.selection.replace(…)` | Inside a View Session of a Plugin declaring host_operations it is compared with the target shown at the gesture, and fails with insertion_target_changed on a mismatch (ADR 0018) |
 | `spinnet.clipboard.read` | `clipboard.read` | `spinnet.clipboard.read(…)` |  |
 | `spinnet.clipboard.write` | `clipboard.write` | `spinnet.clipboard.write(…)` |  |
-| `spinnet.clipboard.history` | `clipboard.history.read` | `spinnet.clipboard.history.read(…)` |  |
-| `spinnet.clipboard.historyContent` | `clipboard.history.content` | `spinnet.clipboard.history.content(…)` |  |
-| `spinnet.clipboard.showHistory` | `clipboard.history.show` | `spinnet.clipboard.history.show(…)` | Kept because Level 1 offers it; a new Host window would be perform-only |
+| `spinnet.clipboard.history` | `clipboardHistory.read` | `spinnet.clipboardHistory.read(…)` |  |
+| `spinnet.clipboard.historyContent` | `clipboardHistory.readContent` | `spinnet.clipboardHistory.readContent(…)` |  |
+| `spinnet.clipboard.showHistory` | `clipboardHistory.show` | `spinnet.clipboardHistory.show(…)` | Kept because Level 1 offers it; a new Host window would be perform-only |
 | `spinnet.open.url` | `open.url` | `spinnet.open.url(…)` |  |
 | `spinnet.open.path` | `open.path` | `spinnet.open.path(…)` |  |
 | `spinnet.apps.perform` | `apps.perform` | `spinnet.apps.perform(…)` |  |
@@ -112,9 +112,9 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 | `spinnet.ui.copyText` | `ui.copyText`, for `clipboard.write` | `spinnet.ui` | Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.clipboard.write.action(...) |
 | `spinnet.ui.openURL` | `ui.openURL`, for `open.url` | `spinnet.ui` | Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.open.url.action(...) |
 | `spinnet.ui.insertText` | `ui.insertText`, for `selection.replace` | `spinnet.ui` | Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.selection.replace.action(...) |
-| `spinnet.ui.openPluginSettings` | `ui.openPluginSettings`, for `settings.show` | `spinnet.ui` | Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.settings.show.action(...) |
+| `spinnet.ui.openPluginSettings` | `ui.openPluginSettings`, for `host.showPluginSettings` | `spinnet.ui` | Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.host.showPluginSettings.action(...) |
 | `spinnet.ui.show` | `ui.show` | `spinnet.ui` | Unchanged; with host_operations it also takes operation |
-| `spinnet.ui.toast` | `ui.toast`, for `feedback.toast` | `spinnet.ui` | Unchanged; builds the answer form of feedback.toast |
+| `spinnet.ui.toast` | `ui.toast`, for `host.toast` | `spinnet.ui` | Unchanged; builds the answer form of host.toast |
 | `spinnet.ui.close` | `ui.close`, for `host.closeView` | `spinnet.ui` | Unchanged; builds the answer form of host.closeView |
 
 ## spinnet.environment
@@ -133,9 +133,9 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 
 | Level 1 name | Catalogue ID | Reached as | Note |
 | --- | --- | --- | --- |
-| `toast` | `feedback.toast` | the answer | The answer's toast member, built by ui.toast or the toast option of ui.show and ui.close |
+| `toast` | `host.toast` | the answer | The answer's toast member, built by ui.toast or the toast option of ui.show and ui.close; a toast with close is the HUD (decision N2) |
 | `close` | `host.closeView` | the answer | The answer's close member, built by ui.close |
-| `view` | `view` | the answer | Unchanged: a Level 1 view, kept whole with Level 1's names (choice N5) |
+| `view` | `view` | the answer | Unchanged: a Level 1 view, kept whole with Level 1's names (decision N5) |
 | `state` | `state` | the answer | Unchanged |
 
 ## View Events
@@ -177,7 +177,7 @@ place it maps to. Level 1 itself is unchanged: a Plugin declaring only
 | `read_selected_text` | `read_selected_text` | `selection.readText`, `selection.copy` | Unchanged; covers these operations |
 | `write_clipboard` | `write_clipboard` | `selection.copy`, `clipboard.write` | Unchanged; covers these operations |
 | `read_current_clipboard` | `read_current_clipboard` | `clipboard.read` | Unchanged; covers these operations |
-| `read_clipboard_history` | `read_clipboard_history` | `clipboard.history.read`, `clipboard.history.content`, `clipboard.history.show` | Unchanged; covers these operations |
+| `read_clipboard_history` | `read_clipboard_history` | `clipboardHistory.read`, `clipboardHistory.readContent`, `clipboardHistory.show` | Unchanged; covers these operations |
 | `monitor_clipboard` | `monitor_clipboard` | none | Declared and granted but used by no operation, as at Level 1: monitoring stays unavailable |
 | `contact_https` | `contact_https` | `http.request` | Unchanged; covers these operations |
 | `control_external_app` | `control_external_app` | `apps.perform`, `apps.openDeepLink` | Unchanged; covers these operations |

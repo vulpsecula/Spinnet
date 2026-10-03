@@ -30,7 +30,7 @@ Level 1's view rules above (value replacement, shortcuts, Return), because
 its description has no IDs or reset to express anything else, and it keeps
 Level 1's vocabulary whole: its standard actions keep their Level 1 names
 (`copy_text`, `insert_text`, …), the one place a Plugin declaring #99's
-`namespaces` may still use them (namespaces choice N5). What the
+`namespaces` may still use them (namespaces decision N5). What the
 candidate changes for it is session-wide only: insertion follows
 `host_operations` r1, and an explicit call arrives as `called` (#78). A
 `view` answer counts as a page change to and from a page with no ID.
@@ -49,7 +49,7 @@ candidate changes for it is session-wide only: insertion follows
 | Detail section with `text` | `text` component | No automatic Copy button; add a `clipboard.write` page action |
 | Detail section with `fetch` (Host-Fetched Section) | None yet | Keep a Level 1 `view`; #71 designs sources |
 | `actions`, event action (`id`) | `actions` component, event action | `action_chosen` also carries `values` and `selection`; no `shortcut` |
-| Standard actions | Page actions in `actions` that perform the same Host Services by catalogue ID with `input` (`clipboard.write`, `open.url`, `selection.replace`, `settings.show`); `clipboard.write` and `selection.replace` also as item actions | No `shortcut`; insertion follows `host_operations`; the names are #99's |
+| Standard actions | Page actions in `actions` that perform the same Host Services by catalogue ID with `input` (`clipboard.write`, `open.url`, `selection.replace`, `host.showPluginSettings`); `clipboard.write` and `selection.replace` also as item actions | No `shortcut`; insertion follows `host_operations`; the names are #99's |
 | Return chooses the first action (no form) | None | Return belongs to the focused field or collection |
 | `toast`, `close`, `state` | Same | |
 | Twenty Detail sections plus twelve buttons as a result list | `list` or `grid` with item actions | Host selection, keyboard, scrolling, load-more |
