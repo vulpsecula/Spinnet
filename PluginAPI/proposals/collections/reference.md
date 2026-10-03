@@ -126,9 +126,10 @@ A `list` or `grid` has `items`, or `sections` of `{id, title?, items}`, up to
 "copy_text" | "insert_text", closes_view?}` is performed by the Host on the
 item's text without an event, under the same Capability as the standard
 action. The `default: true` action (at most one) runs on Return and
-double-click; the others are secondary, in the item's context menu and the
-Host's selection bar under the collection, which also shows the selected
-item, the default action and, for insertion, the target App.
+double-click; the others are secondary and offered only in the item's
+context menu. The Host draws no buttons for item actions and no bar below
+the collection. ⌘C performs a `copy_text` item action when the collection
+has exactly one.
 
 **Selection** is one item, kept by ID across answers; when its item leaves,
 the item now at its position is selected; when nothing is selected and items
@@ -187,10 +188,18 @@ and `section_delivered` are unchanged.
 
 `host_operations` applies to pages: `shows_insertion_target` is a page
 member, `item_action` is a gesture whose answer may request `insert_text`,
-and an `insert_text` item action shows and checks its target as a standard
+and an `insert_text` item action checks its target as a standard
 `insert_text` action does. The target shown when the user pressed Return,
 double-clicked or chose from the menu must be the App in front when the
 Host inserts.
+
+Since no button carries an item action, the Host shows the target in
+`host_operations`' target line: one non-interactive line of Host text at the
+foot of the page, drawn only when the page sets `shows_insertion_target` or
+its collection has an `insert_text` item action. It has no buttons, is not
+a Tab stop, and VoiceOver reads it as text. The context menu's insert item
+also names the App. A page that cannot insert shows nothing below its
+collection.
 
 ## Budgets
 

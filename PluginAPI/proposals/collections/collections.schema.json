@@ -110,7 +110,7 @@
           "type": "string"
         },
         "shows_insertion_target": {
-          "description": "host_operations: the Host draws a line naming the App insertion would go to now. Captured with each gesture.",
+          "description": "host_operations: the Host draws a non-interactive line at the foot of the page naming the App insertion would go to now. It is drawn as well when the collection has an insert_text item action. Captured with each gesture.",
           "type": "boolean"
         },
         "focus": {
@@ -706,7 +706,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return, double-click, the context menu, the selection bar and the Host's own keys are its only triggers.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole copy_text action) are its only triggers. The Host draws no buttons for item actions.",
       "type": "object",
       "required": [
         "id",
@@ -934,7 +934,7 @@
           }
         },
         {
-          "description": "An item action without perform, from Return, double-click, the context menu or the selection bar. A gesture: its answer may request an operation.",
+          "description": "An item action without perform, from Return, double-click or the context menu. A gesture: its answer may request an operation.",
           "if": {
             "properties": {
               "type": {

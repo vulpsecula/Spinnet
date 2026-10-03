@@ -18,10 +18,10 @@
       }
     ]
   },
-  "pending_choice": "C1",
+  "decided_choice": "C1",
   "variants": [
     {
-      "name": "recommended: Return acts on what was typed",
+      "name": "Return acts on what was typed",
       "steps": [
         {
           "given": "frontmost",
@@ -213,109 +213,6 @@
             }
           },
           "because": "the Return waited for its search and acts on the selection it produced"
-        }
-      ]
-    },
-    {
-      "name": "alternative: Return acts on what was shown",
-      "steps": [
-        {
-          "given": "page_shown",
-          "answer": {
-            "page": {
-              "id": "search",
-              "title": "Emoji",
-              "shows_insertion_target": true,
-              "content": [
-                {
-                  "kind": "row",
-                  "id": "bar",
-                  "content": [
-                    {
-                      "kind": "text_field",
-                      "id": "query",
-                      "title": "Search",
-                      "placeholder": "smile, cat, heart or an emoji",
-                      "value": "ca",
-                      "collection": "results",
-                      "status": "20 matches"
-                    },
-                    {
-                      "kind": "choice_field",
-                      "id": "category",
-                      "title": "Category",
-                      "value": "all",
-                      "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
-                      "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
-                    }
-                  ]
-                },
-                {
-                  "kind": "grid",
-                  "id": "results",
-                  "columns": 8,
-                  "rows": 6,
-                  "empty_text": "No emoji match",
-                  "actions": [
-                    {
-                      "id": "insert",
-                      "title": "Insert",
-                      "default": true
-                    },
-                    {
-                      "id": "copy",
-                      "title": "Copy",
-                      "perform": "copy_text"
-                    }
-                  ],
-                  "items": [
-                    {"id": "1F3CE", "title": "racing car", "symbol": "🏎"},
-                    {"id": "1F408", "title": "cat", "symbol": "🐈"},
-                    {"id": "1F431", "title": "cat face", "symbol": "🐱"},
-                    {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
-                    {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
-                    {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
-                    {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
-                    {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
-                    {"id": "1F63D", "title": "kissing cat", "symbol": "😽"}
-                  ]
-                }
-              ]
-            },
-            "state": {
-              "query": "ca",
-              "category": "all"
-            }
-          }
-        },
-        {
-          "given": "immediate_state",
-          "component": "results",
-          "selected": "1F3CE"
-        },
-        {
-          "when": "type",
-          "text": "t",
-          "then": "key",
-          "key": "return",
-          "within_ms": 60
-        },
-        {
-          "expect": "event",
-          "event": {
-            "type": "item_action",
-            "page": "search",
-            "collection": "results",
-            "action": "insert",
-            "item": {
-              "id": "1F3CE",
-              "text": "🏎"
-            },
-            "values": {
-              "query": "cat",
-              "category": "all"
-            }
-          }
         }
       ]
     }

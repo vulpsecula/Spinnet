@@ -22,8 +22,8 @@ and one List or Grid). The Host keeps what the user is doing in a page
 across the Plugin's answers until the Plugin explicitly resets it, and
 remembers the last few pages by ID. A List or Grid gives the Host native
 selection, arrow keys, Return and double-click for the default item action,
-a context menu and selection bar for secondary actions, scrolling and
-bounded load-more; the Plugin keeps the data, search, filtering, sorting
+a context menu for secondary actions (no Host-drawn action buttons),
+scrolling and bounded load-more; the Plugin keeps the data, search, filtering, sorting
 and every batch. No component carries a Plugin-bound shortcut, and the
 search field's caret editing and IME candidates always come first. Gestures
 carry snapshots of the values, selection and item they were made with.

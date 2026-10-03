@@ -16,7 +16,8 @@ Each acceptance criterion of #74 is answered here:
 | Initial row/column/section/scroll composition, public shape and budgets, Level 1 mapped separately, a credible second workflow | 3, 8, 9, [`level1-mapping.md`](level1-mapping.md) |
 | Grouping with input preservation, repeated calls and execution-time insertion; nothing else silently scheduled | 10 |
 
-Product choices returned to the user are in section 12.
+The product choices, which the user decided on 2026-10-03, are in
+section 12.
 
 ## 1. Evidence and requirements
 
@@ -353,19 +354,22 @@ do not each repeat "Insert" and "Copy":
   as Level 1's standard actions are.
 
 At most one is `default: true`. Return and double-click perform the
-default; the others are **secondary** and appear in the item's context menu
-(right click, Control-click) and as buttons in the Host's selection bar
-(6.5), with the default first. No item action, page action or component may
-carry a `shortcut`. The only key bindings are the Host's own, the same for
-every Plugin (section 7).
+default; the others are **secondary** and are offered only in the item's
+context menu (right click, Control-click), after the default (C6). The Host
+draws no buttons for item actions, for any Plugin: there is no quick-action
+bar below a collection. No item action, page action or component may carry
+a `shortcut`. The only key bindings are the Host's own, the same for every
+Plugin (section 7): Return for the default and ⌘C for a single `copy_text`
+item action (C5).
 
 An item action may be offered on some items only (`item.actions`): Brew
 shows "Upgrade" only on outdated packages and "Install" only on packages that
 are not installed.
 
-`insert_text` item actions follow #70's candidate rules: their button and
-menu item show the insertion target, and the frontmost App at execution
-must be the one shown.
+`insert_text` item actions follow #70's candidate rules: their context-menu
+item names the insertion target as #70's secondary label (P1), the page's
+target line shows it for Return and double-click (6.5), and the frontmost
+App at execution must be the one shown.
 
 ### 6.3 Selection
 
@@ -402,13 +406,33 @@ item limits; there is no free-form JSON value per item in this revision.
 
 ### 6.5 Host-drawn collection chrome
 
-Like Clipboard History's footer, and the same for every Plugin, the Host
-draws below a collection a selection bar: the selected item's `symbol` and
-`title`, the default action's title with a Return glyph, the secondary item
-actions as buttons, and, when the page `shows_insertion_target` or an
-`insert_text` item action exists, the insertion target line of #70. The
-Plugin cannot hide or restyle it (product choice C6). Empty, loading and
-failure states:
+The Host draws no controls of its own below a collection, for any Plugin
+(C6): no selection bar, no buttons for the default or secondary item
+actions. The collection's items, its context menu and the Host's keys are
+the only way to act on an item.
+
+**Insertion target line.** #70 needs the Host to show where an insertion
+would go before the user acts (its P1: a secondary label on each insert
+action, plus the optional target line). A Return or double-click on an
+`insert_text` default has no button to carry that label, so for pages the
+Host shows the target in the least intrusive place it owns: #70's target
+line, one line of Host text (the App's name and icon) at the foot of the
+page, below the collection and anything after it. The Host draws it only
+when the page can insert:
+
+- the page sets `shows_insertion_target: true` (required by #70 when a
+  gesture's answer may request `insert_text`, as Emoji's event `insert`
+  does), or
+- the collection has an `insert_text` item action, whatever the page says.
+
+The line is not interactive: it holds no buttons, is not a key-view stop,
+and VoiceOver reads it as static text. A page that cannot insert shows
+nothing below its collection. An `insert_text` button in an `actions`
+component carries the target as its own secondary label, as in #70, and
+needs no line. The Plugin cannot style or move the line, and the App's
+name never reaches the Plugin (#70 section 6.2).
+
+Empty, loading and failure states:
 
 - **Empty**: `empty_text` (default "No items") in place of the items.
 - **Loading more**: a progress row at the end while `load_more` runs.
@@ -461,15 +485,16 @@ Focus has two roles on a collection page: the **search field** (the
 | Click an item | | Select it; the collection takes focus |
 | Right click / Control-click | | Context menu: default action first, then secondary actions |
 | ⌘C | Copies selected text in the field | The selected item's `copy_text` item action, when the collection has exactly one (C5) |
-| Tab / Shift-Tab | Next / previous key-view stop: field → other inputs → collection → selection bar → page actions | Same |
+| Tab / Shift-Tab | Next / previous key-view stop: field → other inputs → collection → page actions; the target line is not a stop | Same |
 | Escape | Closes the view, as in Level 1 (C4) | Same |
 | Space | Types a space | Nothing in this revision |
 | ⌘W, ⌘Q, ⌘Return, other Level 1 view keys | As in Level 1 | As in Level 1 |
 
 Arrow selection crosses section boundaries: Down from a section's last row
 goes to the next section's first row, column clamped. VoiceOver reads the
-collection as a list or grid of its titles, the selection bar's buttons by
-title, and the item actions as the item's custom actions; #77 verifies it.
+collection as a list or grid of its titles, the item actions as the item's
+custom actions (the default first, the same list as the context menu), and
+the insertion target line as static text; #77 verifies it.
 
 The Return of a search field without a `collection` is `submitted` (one
 implicit form per page; several Forms are not in this revision). A
@@ -621,9 +646,10 @@ Interaction with `host_operations`:
   Emoji answers Return with `{"operation": {"kind": "insert_text", "text":
   "😀", "closes_view": true}}` and no page, so nothing is re-described, and
   records the emoji in Plugin Storage for its Recent section.
-- `shows_insertion_target` is a page member. The displayed target is
-  captured with the gesture: Return, double-click or the context-menu
-  choice.
+- `shows_insertion_target` is a page member; the target line is also drawn
+  for a collection with an `insert_text` item action (6.5). The displayed
+  target is captured with the gesture: Return, double-click or the
+  context-menu choice.
 - A double-click in the non-activating panel does not change the frontmost
   App, so the target shown is still the user's App.
 
@@ -651,23 +677,24 @@ proved by fixtures:
 | Pinyin and Japanese composition in the search field with answers arriving mid-composition; Return, Up/Down, digits and Escape taken by the candidate window; no event for marked text | Actual Host, #77; Chinese IME was not run in E1 |
 | Printable-key redirect from the grid into the field starts a composition correctly (C3) | Actual Host prototype, #77 |
 | Refresh, same-page move, kind change, reset, page change with page memory: caret, selection, scroll, focus | Actual Host and test kit |
-| Grid keyboard roles, double-click, context menu, ⌘C, selection bar, VoiceOver labels and custom actions | Actual Host, #77 |
+| Grid keyboard roles, double-click, context menu, ⌘C, no Host buttons below a collection, the non-interactive target line, VoiceOver labels and custom actions | Actual Host, #77 |
 | Insertion target captured at Return, double-click and menu; target change refused (#70) | Actual Host, #76/#79 |
 | Typing p95 and helper memory with 200-item pages; load-more to 1,906; Host memory with 2,000 items | Real helper and Host, #77, with `measure-emoji.js` as the payload baseline |
 | Level 1 Plugins: Emoji 1.1.0, Translator and Smart Jump unchanged on the candidate Host | Existing regression baselines |
 
-## 12. Product choices returned to the user
+## 12. Product choices decided by the user
 
-Each has a recommended default so #77 can start; the user may overrule any.
+Each choice was returned to the user with a recommended default. The user
+decided all nine on 2026-10-03: eight as recommended, and C6 changed.
 
-| # | Question | Recommended default | Why it is a product choice |
+| # | Question | Decision (2026-10-03) | Why it was a product choice |
 | --- | --- | --- | --- |
-| C1 | Return pressed before the answer to the latest typing has arrived: act on the result shown, or on the first result of what was typed? | Act on what was typed: Return sends the pending search at once, waits (bounded by that event's deadline) for its answer, then performs the default action on the selection it produced. Double-click and the context menu act on what is shown | Fast typists expect "cat⏎" to insert 🐈; a strict snapshot would insert a result of "ca" |
-| C2 | Up/Down in the search field: move the selection while focus stays in the field, or leave arrows to the field and require Tab (Clipboard History today)? | Move the selection, focus stays in the field; Tab enters the collection for Left/Right | Typing flow versus strict Clipboard History parity |
-| C3 | Printable keys while the collection has focus | Return focus to the search field and type there, if #77 proves it IME-safe; otherwise ignore them | Raycast-like behaviour versus surprise |
-| C4 | Escape | Closes the view, as in every Level 1 view (after any composition) | Some launchers clear the search first |
-| C5 | ⌘C with the collection focused | Performs the selected item's Copy item action when there is exactly one; no other Host bindings for item actions (no ⌘K menu) | It is the only Host-defined item key besides Return |
-| C6 | Host selection bar under every collection (selected item, Return action, secondary buttons, insertion target) | Yes, always shown, not hideable | Consistent Host chrome versus Plugin control of space |
-| C7 | New results select their first item | Yes | Return then works immediately, as in Clipboard History |
-| C8 | Multiple selection | Not in this revision | Clipboard History has it for Delete; neither Emoji nor Brew needs it |
-| C9 | May a Plugin that raises its Level to the promoted Level still answer Level 1 `view`? | Yes, with exactly Level 1's view semantics; pages are opt-in per answer | Otherwise raising the Level forces rewriting every view; see `level1-mapping.md` |
+| C1 | Return pressed before the answer to the latest typing has arrived: act on the result shown, or on the first result of what was typed? | **Decided as recommended.** Act on what was typed: Return sends the pending search at once, waits (bounded by that event's deadline) for its answer, then performs the default action on the selection it produced. Double-click and the context menu act on what is shown | Fast typists expect "cat⏎" to insert 🐈; a strict snapshot would insert a result of "ca" |
+| C2 | Up/Down in the search field: move the selection while focus stays in the field, or leave arrows to the field and require Tab (Clipboard History today)? | **Decided as recommended.** Move the selection, focus stays in the field; Tab enters the collection for Left/Right | Typing flow versus strict Clipboard History parity |
+| C3 | Printable keys while the collection has focus | **Decided as recommended.** Return focus to the search field and type there, if #77 proves it IME-safe; otherwise ignore them | Raycast-like behaviour versus surprise |
+| C4 | Escape | **Decided as recommended.** Closes the view, as in every Level 1 view (after any composition) | Some launchers clear the search first |
+| C5 | ⌘C with the collection focused | **Decided as recommended.** Performs the selected item's Copy item action when there is exactly one; no other Host bindings for item actions (no ⌘K menu) | It is the only Host-defined item key besides Return |
+| C6 | Host selection bar under every collection (selected item, Return action, secondary buttons, insertion target)? Recommended: yes, always shown, not hideable | **Decided, changed from the recommendation.** No Host-drawn quick-action buttons or selection bar below a collection, for every Plugin. Secondary item actions are offered only in the item's context menu (and ⌘C for a `copy_text` item action, C5); Return and double-click run the default. The insertion target #70 requires is shown only in a non-interactive target line at the foot of a page that can insert (6.5) | Consistent Host chrome versus Plugin control of space |
+| C7 | New results select their first item | **Decided as recommended.** Yes | Return then works immediately, as in Clipboard History |
+| C8 | Multiple selection | **Decided as recommended.** Not in this revision | Clipboard History has it for Delete; neither Emoji nor Brew needs it |
+| C9 | May a Plugin that raises its Level to the promoted Level still answer Level 1 `view`? | **Decided as recommended.** Yes, with exactly Level 1's view semantics; pages are opt-in per answer | Otherwise raising the Level forces rewriting every view; see `level1-mapping.md` |

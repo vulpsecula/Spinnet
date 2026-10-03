@@ -51,9 +51,9 @@ candidate changes for it is session-wide only: insertion follows
 | `toast`, `close`, `state` | Same | |
 | Twenty Detail sections plus twelve buttons as a result list | `list` or `grid` with item actions | Host selection, keyboard, scrolling, load-more |
 
-Promotion question C9 in the design asks whether a Plugin that raises its
-`api_level` to the promoted Level may keep answering `view`. The
-recommendation is yes, with exactly the semantics above: the Host must keep
+Promotion question C9 in the design asked whether a Plugin that raises its
+`api_level` to the promoted Level may keep answering `view`. The user
+decided yes on 2026-10-03, with exactly the semantics above: the Host must keep
 them for Level 1 Plugins anyway, so allowing them for later Levels adds no
 second behaviour, and an author can move one page at a time.
 
@@ -63,8 +63,8 @@ second behaviour, and an author can move one page at a time.
 | --- | --- |
 | Form: `query` text field with status, `category` choice | Row: `text_field` `query` (`collection: "results"`), `choice_field` `category` |
 | Six Detail sections "N. name", each with a Copy button | `grid` `results`, 8 columns: every match, paged 200 at a time, sections by category when browsing |
-| "Insert X" ⌘1–⌘6 (standard, origin App) | Default item action `insert`: Return or double-click → `item_action` → answer requests `insert_text`, frontmost App at execution, target shown |
-| "Copy X" ⇧⌘1–⇧⌘6 (standard) | Secondary item action `copy` (`copy_text`): context menu, selection bar, ⌘C (C5) |
+| "Insert X" ⌘1–⌘6 (standard, origin App) | Default item action `insert`: Return or double-click → `item_action` → answer requests `insert_text`, frontmost App at execution, target shown in the page's non-interactive target line |
+| "Copy X" ⇧⌘1–⇧⌘6 (standard) | Secondary item action `copy` (`copy_text`): context menu and ⌘C (C5); no Host button (C6) |
 | Return copies the first result | Return inserts the selected result; the selection starts on the first |
 | No usage tracking | The `item_action` answer records the emoji in Plugin Storage for a Recent section |
 | Results capped at 6 | All matches reachable; at most 2,000 per collection |

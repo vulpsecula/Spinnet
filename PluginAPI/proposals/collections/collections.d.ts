@@ -24,7 +24,10 @@ export interface Page {
   id: ID;
   title: string;
   subtitle?: string;
-  /** host_operations: draw the line naming the App insertion would go to. */
+  /**
+   * host_operations: draw the non-interactive line naming the App insertion
+   * would go to. Drawn as well when the collection has an `insert_text` item action.
+   */
   shows_insertion_target?: boolean;
   /** Focused when the page is new or reset. Answers cannot move focus otherwise. */
   focus?: ID;
@@ -136,7 +139,11 @@ export interface Item {
   actions?: ID[];
 }
 
-/** No shortcut: Return, double-click, the context menu and the selection bar trigger it. */
+/**
+ * No shortcut. Return and double-click run the default; every action is in the
+ * item's context menu, and ⌘C runs a sole `copy_text` action. The Host draws no
+ * buttons for item actions.
+ */
 export type ItemAction =
   | { id: ID; title: string; default?: true }
   | { id: ID; title: string; default?: true; perform: "copy_text" | "insert_text"; closes_view?: boolean };

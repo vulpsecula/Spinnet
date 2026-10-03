@@ -121,7 +121,7 @@
       "when": "key",
       "key": "down",
       "focus": "query",
-      "pending_choice": "C2"
+      "decided_choice": "C2"
     },
     {
       "expect": "immediate_state",
@@ -208,7 +208,7 @@
     },
     {
       "expect": "view_closes",
-      "pending_choice": "C4"
+      "decided_choice": "C4"
     }
   ]
 }

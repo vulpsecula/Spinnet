@@ -1,9 +1,10 @@
 {
-  "title": "Secondary item actions: context menu, selection bar and the Host's own Copy key",
+  "title": "Secondary item actions: context menu only, the Host's own Copy key, and no Host buttons below the collection",
   "covers": [
     "secondary actions",
     "standard item actions",
-    "selection bar"
+    "no item-action buttons",
+    "insertion target line"
   ],
   "manifest": {
     "api_level": 1,
@@ -117,7 +118,7 @@
       ]
     },
     {
-      "name": "selection bar",
+      "name": "nothing interactive below the collection",
       "steps": [
         {
           "given": "page_shown",
@@ -196,15 +197,34 @@
           "selected": "1F408"
         },
         {
-          "expect": "selection_bar",
-          "shows": ["🐈 cat", "↩ Insert", "Copy", "Insert into <App>"],
-          "pending_choice": "C6"
+          "expect": "no_host_buttons",
+          "below": "results",
+          "because": "secondary item actions are offered only in the context menu, for every Plugin",
+          "decided_choice": "C6"
+        },
+        {
+          "expect": "target_line",
+          "app": "<App>",
+          "interactive": false,
+          "key_view_stop": false,
+          "because": "the page shows_insertion_target, and Return or double-click has no button to carry the target"
+        },
+        {
+          "when": "key",
+          "key": "tab",
+          "focus": "results"
+        },
+        {
+          "expect": "immediate_state",
+          "component": "query",
+          "focused": true,
+          "because": "the target line is not a Tab stop and the page has no page actions, so Tab from the collection wraps to the first stop"
         }
       ]
     },
     {
       "name": "command-C with the grid focused",
-      "pending_choice": "C5",
+      "decided_choice": "C5",
       "steps": [
         {
           "given": "page_shown",
