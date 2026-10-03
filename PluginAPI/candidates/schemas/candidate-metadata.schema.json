@@ -43,11 +43,12 @@
   },
   "$defs": {
     "member": {
+      "description": "One thing a declaring Plugin may use, by kind: a Host Service a script calls (host_service), a Host Service a manifest Command runs directly by naming it in host_command (host_command), a Host Service an answer requests (request), a view component, a standard action, a View Event, or a rule the Host applies (behaviour).",
       "type": "object",
       "required": ["kind", "name"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "enum": ["host_service", "view_component", "standard_action", "view_event", "behaviour"] },
+        "kind": { "enum": ["host_service", "host_command", "request", "view_component", "standard_action", "view_event", "behaviour"] },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 }
       }
     }

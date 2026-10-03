@@ -28,6 +28,12 @@ public struct PluginInterfaceMember: Codable, Hashable {
         case viewComponent = "view_component"
         case standardAction = "standard_action"
         case viewEvent = "view_event"
+        /// A Command that runs one Host Service directly, by the name its
+        /// manifest gives in `host_command`.
+        case hostCommand = "host_command"
+        /// A Host Service a script's answer asks the Host to perform after
+        /// the answer commits, by the name it gives in `perform`.
+        case request
         /// A rule the Host applies, such as how an insertion picks its target,
         /// that a Plugin gets only by declaring the contract defining it.
         case behaviour
@@ -45,6 +51,8 @@ public struct PluginInterfaceMember: Codable, Hashable {
     public static func viewComponent(_ name: String) -> PluginInterfaceMember { .init(kind: .viewComponent, name: name) }
     public static func standardAction(_ name: String) -> PluginInterfaceMember { .init(kind: .standardAction, name: name) }
     public static func viewEvent(_ name: String) -> PluginInterfaceMember { .init(kind: .viewEvent, name: name) }
+    public static func hostCommand(_ name: String) -> PluginInterfaceMember { .init(kind: .hostCommand, name: name) }
+    public static func request(_ name: String) -> PluginInterfaceMember { .init(kind: .request, name: name) }
     public static func behaviour(_ name: String) -> PluginInterfaceMember { .init(kind: .behaviour, name: name) }
 }
 
@@ -204,6 +212,7 @@ public struct PluginInterfaceContracts: Equatable {
     /// What Plugin API Level 1 offers, as `PluginAPI/README.md` catalogues it.
     public static let levelOneMembers: Set<PluginInterfaceMember> = Set(
         PluginHostService.allCases.map { .hostService($0.rawValue) }
+            + HostCommand.allCases.map { .hostCommand($0.rawValue) }
             + ["settings", "form", "detail", "actions"].map(PluginInterfaceMember.viewComponent)
             + ["copy_text", "open_url", "insert_text", "open_plugin_settings"].map(PluginInterfaceMember.standardAction)
             + ["field_changed", "submitted", "action_chosen", "setting_changed", "settings_swapped",

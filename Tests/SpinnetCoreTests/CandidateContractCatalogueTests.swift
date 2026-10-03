@@ -47,11 +47,16 @@ final class CandidateContractCatalogueTests: XCTestCase {
               case .object(let viewDefinitions)? = viewSchema["$defs"], case .object(let view)? = viewDefinitions["view"],
               case .object(let viewMembers)? = view["properties"],
               case .object(let perform)? = try definition("action", in: "plugin-view.schema.json", member: "perform"),
-              case .object(let type)? = try definition("event", in: "view-session.schema.json", member: "type") else {
+              case .object(let type)? = try definition("event", in: "view-session.schema.json", member: "type"),
+              case .object(let manifestSchema) = try json(Self.pluginAPI.appendingPathComponent("schemas/manifest.schema.json")),
+              case .object(let manifestDefinitions)? = manifestSchema["$defs"],
+              case .object(let hostCommand)? = manifestDefinitions["hostCommand"] else {
             return XCTFail("The view schemas do not describe their components")
         }
 
         XCTAssertEqual(names(.hostService), PluginHostService.allCases.map(\.rawValue).sorted())
+        XCTAssertEqual(names(.hostCommand), strings(in: hostCommand["enum"]).sorted())
+        XCTAssertEqual(names(.request), [], "Level 1 has no Requested Host Operations")
         XCTAssertEqual(names(.viewComponent), viewMembers.keys.filter { $0 != "title" && $0 != "subtitle" }.sorted())
         XCTAssertEqual(names(.standardAction), strings(in: perform["enum"]).sorted())
         XCTAssertEqual(names(.viewEvent), strings(in: type["enum"]).sorted())
@@ -94,6 +99,29 @@ final class CandidateContractCatalogueTests: XCTestCase {
             ), "The Host reads and writes the metadata as published")
         }
         XCTAssertFalse(validator.errors(for: .object(["name": .string("language_probe"), "revision": .number(1)])).isEmpty)
+    }
+
+    /// A candidate may add a Command that runs a Host Service directly and a
+    /// Requested Host Operation, each a member of its own kind, which the
+    /// schema and the Host read alike; any other kind is refused by both.
+    func testCandidateMetadataNamesCommandAndRequestMembers() throws {
+        let validator = try JSONSchemaSubsetValidator(
+            schemaAt: Self.candidates.appendingPathComponent("schemas/candidate-metadata.schema.json")
+        )
+        func metadata(_ kind: String) -> JSONValue {
+            .object(["name": .string("operations_probe"), "revision": .number(1), "base_level": .number(1),
+                     "requires": .array([]), "conflicts": .array([]),
+                     "members": .array([.object(["kind": .string(kind), "name": .string("clipboard.write")])]),
+                     "tag": .string("plugin-api-candidate/operations_probe/r1"), "status": .string("supported")])
+        }
+        for (kind, member) in [("host_command", PluginInterfaceMember.hostCommand("clipboard.write")),
+                               ("request", PluginInterfaceMember.request("clipboard.write"))] {
+            XCTAssertEqual(validator.errors(for: metadata(kind)), [], kind)
+            let decoded = try JSONDecoder().decode(CandidateContract.self, from: JSONEncoder().encode(metadata(kind)))
+            XCTAssertEqual(decoded.members, [member])
+        }
+        XCTAssertFalse(validator.errors(for: metadata("command")).isEmpty)
+        XCTAssertThrowsError(try JSONDecoder().decode(CandidateContract.self, from: JSONEncoder().encode(metadata("command"))))
     }
 
     /// The stable manifest schema is unchanged and refuses a candidate

@@ -89,8 +89,10 @@ Each revision is published as `candidates/<name>/r<revision>/candidate.json`
 and any schema or type definitions it adds, at the git tag
 `plugin-api-candidate/<name>/r<revision>`. The metadata names the stable
 Level the candidate builds on, the candidate revisions it requires or
-excludes, and its members: Host Services, view components, standard actions,
-View Events and behaviours. The Host's own record of the revisions it
+excludes, and its members: Host Services a script calls (`host_service`),
+Host Services a Command runs directly (`host_command`), Host Services an
+answer requests (`request`), view components, standard actions, View Events
+and behaviours. The Host's own record of the revisions it
 provides equals these files, which its tests check.
 
 A published revision never changes. An attempt evaluates one revision on one
