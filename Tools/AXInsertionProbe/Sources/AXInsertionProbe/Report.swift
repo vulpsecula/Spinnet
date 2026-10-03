@@ -79,6 +79,81 @@ struct SelectionResult: Codable, Equatable {
     var detail: String?
 }
 
+/// An insertion checked without Accessibility: what the page, the saved
+/// file or the fixture itself holds.
+struct IndependentCheck: Codable, Equatable {
+    /// page, file on disk, note file on disk or fixture.
+    var label: String
+    var source: String
+    /// Whether the source reported a value at all.
+    var observed: Bool
+    var valueLength: Int?
+    var containsInsertedText = false
+    var containsMarker = false
+    var containsEmoji = false
+    /// Up to 40 characters either side of the marker, or the start of the
+    /// value when the marker is not in it.
+    var excerpt: String?
+    /// Pages only: whether the field had the page's focus, and the page the
+    /// window's, before the insertion and when the value was read.
+    var targetFocusedBefore: Bool?
+    var targetFocusedAfter: Bool?
+    /// Pages only: the last DOM events on the field.
+    var events: [String]?
+    var detail: String?
+
+    init(label: String, source: String, observed: Bool, detail: String?) {
+        self.label = label
+        self.source = source
+        self.observed = observed
+        self.detail = detail
+    }
+
+    init(label: String, source: String, value: String, text: InsertionText) {
+        let readBack = HostA2Insertion.evaluate(value, for: text, source: source)
+        self.label = label
+        self.source = source
+        observed = true
+        valueLength = readBack.valueLength
+        containsInsertedText = readBack.containsInsertedText
+        containsMarker = readBack.containsMarker
+        containsEmoji = readBack.containsEmoji
+        excerpt = readBack.excerpt ?? (value.isEmpty ? nil : String(value.prefix(80)))
+    }
+
+    var summary: String {
+        guard observed else { return "\(label): no observation" + (detail.map { " (\($0))" } ?? "") }
+        if containsInsertedText { return "\(label): text present" }
+        if containsMarker { return "\(label): marker without emoji" }
+        return "\(label): text absent (\(valueLength ?? 0) chars)"
+    }
+}
+
+/// The Unicode keystroke experiment: no Host call, the text posted as
+/// keyboard events carrying it as a Unicode string, one key down and up per
+/// character. No clipboard is involved.
+struct KeystrokeExperiment: Codable, Equatable {
+    var channels: [KeystrokeChannel]
+
+    var summary: String {
+        if let received = channels.first(where: { $0.received == true }) { return "received (\(received.channel))" }
+        if channels.contains(where: { $0.received == nil && $0.skipped == nil }) { return "unverified" }
+        return "not received"
+    }
+}
+
+struct KeystrokeChannel: Codable, Equatable {
+    /// "pid" (CGEventPostToPid to the App) or "HID" (the HID event tap,
+    /// only while the App is frontmost).
+    var channel: String
+    var eventsPosted: Int
+    /// What the independent check saw after this channel; nil when it could
+    /// not tell.
+    var received: Bool?
+    var check: IndependentCheck?
+    var skipped: String?
+}
+
 struct ExperimentInfo: Codable, Equatable {
     var attribute: String
     var setResult: String
@@ -108,6 +183,10 @@ struct ProbeRow: Codable, Equatable {
     var retry: Attempt?
     var focusedAfter: ElementInfo?
     var fixtureValue: String?
+    /// The insertion checked without Accessibility, after the Host's last
+    /// call (or after the keystrokes).
+    var independentCheck: IndependentCheck?
+    var keystrokes: KeystrokeExperiment?
     var selection: SelectionResult?
     var experiment: ExperimentInfo?
     var cleanup: String?
@@ -163,11 +242,14 @@ enum ReportWriter {
         lines.append("| Probe trusted for Accessibility | \(report.accessibilityTrusted ? "yes" : "no") |")
         lines.append("| Inserted text | `\(report.insertedTextPattern)` |")
         lines.append("")
-        lines.append("Result is the Host's outcome then the read-back of `kAXValue`. \"Retry\" is a second Host call")
-        lines.append("1 s after a failed first one. \"Host error shown\" is the exact text the Host shows.")
+        lines.append("Result is the Host's outcome then the read-back of `kAXValue`; for a keystroke experiment it is")
+        lines.append("whether the text arrived. \"Independent check\" is what holds the text without asking Accessibility:")
+        lines.append("the page's own script (the DOM value, reported to the probe's local endpoint), the file the editor")
+        lines.append("saved, or the fixture's own report. \"Retry\" is a second Host call 1 s after a failed first one.")
+        lines.append("\"Host error shown\" is the exact text the Host shows.")
         lines.append("")
-        lines.append("| App (version) | Toolkit | Control | Variant | Focused role / subrole | Result | Host error shown | Retry | Selection | Expected | Notes |")
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| App (version) | Toolkit | Control | Variant | Focused role / subrole | Result | Independent check | Host error shown | Retry | Selection | Expected | Notes |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for row in report.rows {
             let app = row.appVersion.map { "\(row.app) (\($0))" } ?? row.app
             let element = row.focusedBefore ?? row.focusedAfter
@@ -185,6 +267,9 @@ enum ReportWriter {
             let result: String
             let error: String
             switch row.status {
+            case "ran" where row.keystrokes != nil:
+                result = "keystrokes " + row.keystrokes!.summary
+                error = ""
             case "ran":
                 result = row.attempt.map(resultText) ?? ""
                 error = row.attempt?.hostError.map { "`\($0)`" } ?? ""
@@ -203,10 +288,26 @@ enum ReportWriter {
                 notes.append("\(experiment.attribute) set: \(experiment.setResult)")
             }
             if let fixture = row.fixtureValue { notes.append("fixture holds \(quoted(fixture))") }
+            if let check = row.independentCheck {
+                if let before = check.targetFocusedBefore { notes.append("page: field focused before \(before ? "yes" : "no")") }
+                if let events = check.events, !events.isEmpty { notes.append("page events: \(events.suffix(6).joined(separator: ", "))") }
+                if check.observed, !check.containsInsertedText, let excerpt = check.excerpt {
+                    notes.append("\(check.label) holds \(quoted(excerpt))")
+                }
+            }
+            for channel in row.keystrokes?.channels ?? [] {
+                if let skipped = channel.skipped {
+                    notes.append("\(channel.channel): not tried, \(skipped)")
+                } else {
+                    let seen = channel.received.map { $0 ? "received" : "not received" } ?? "unverified"
+                    notes.append("\(channel.channel): \(channel.eventsPosted) events, \(seen)")
+                }
+            }
             if let action = row.focusAction { notes.append("focus: \(action)") }
             if let cleanup = row.cleanup, cleanup != "closed" { notes.append("cleanup: \(cleanup)") }
             let control = row.control.contains("<") ? "`\(row.control)`" : row.control
-            lines.append("| " + [app, row.toolkit, control, row.variant, role, result, error, retry, selection,
+            let independent = row.independentCheck?.summary ?? ""
+            lines.append("| " + [app, row.toolkit, control, row.variant, role, result, independent, error, retry, selection,
                                   row.expected, notes.joined(separator: "; ")].map(cell).joined(separator: " | ") + " |")
         }
         if !report.notes.isEmpty {

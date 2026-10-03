@@ -9,11 +9,15 @@ enum TargetGroup: String, CaseIterable {
 enum Variant {
     case asIs
     case experiment(attribute: String)
+    /// No Host call: the text is typed as keyboard events carrying it as a
+    /// Unicode string (evidence for product choice P3).
+    case keystrokes
 
     var label: String {
         switch self {
         case .asIs: return "Host A2 as-is"
         case .experiment(let attribute): return "experiment: \(attribute) set first"
+        case .keystrokes: return "experiment: Unicode keystrokes, no Host call"
         }
     }
 
@@ -21,6 +25,7 @@ enum Variant {
         switch self {
         case .asIs: return "as-is"
         case .experiment(let attribute): return attribute
+        case .keystrokes: return "keystrokes"
         }
     }
 
@@ -54,7 +59,8 @@ final class ProbeRun {
     private(set) var rows: [ProbeRow] = []
     private(set) var notes: [String] = []
     private var counter = 0
-    private var pages: [WebFieldKind: URL] = [:]
+    /// Serves the web pages and receives their own reports of their fields.
+    private var server: ObservationServer?
 
     init(marker: String, work: URL, fixtureAppURL: URL?, dryRun: Bool) {
         self.marker = marker
@@ -76,7 +82,14 @@ final class ProbeRun {
     }
 
     func run(groups: [TargetGroup], record: (ProbeRow) -> Void) throws {
-        pages = try Pages.write(marker: marker, into: work.appendingPathComponent("pages"))
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        let server = ObservationServer(marker: marker)
+        do {
+            try server.start()
+            self.server = server
+        } catch {
+            addNote("No web page rows: \(error.localizedDescription)")
+        }
         for group in groups {
             log("== \(group.rawValue)")
             let before = rows.count
@@ -137,8 +150,12 @@ final class ProbeRun {
     /// does; it is off for Chromium and Electron as-is runs, where the
     /// probe's own query could switch on the App's accessibility before the
     /// Host's call and so change what is measured.
+    ///
+    /// `verify` checks the result without Accessibility, after the Host's
+    /// last call and before the selection pass.
     private func insert(_ row: inout ProbeRow, into processIdentifier: pid_t, preQuery: Bool,
-                        gate: (() -> String?)? = nil, fixtureStatus: URL? = nil) {
+                        gate: (() -> String?)? = nil, fixtureStatus: URL? = nil,
+                        verify: ((InsertionText) -> IndependentCheck)? = nil) {
         let started = Date()
         defer { row.durationSeconds = (Date().timeIntervalSince(started) * 10).rounded() / 10 }
         let text = nextText()
@@ -159,6 +176,7 @@ final class ProbeRun {
                 row.retry = insertion.attempt(text, into: processIdentifier)
             }
         }
+        if let verify { row.independentCheck = verify(text) }
         if trusted { row.focusedAfter = HostA2Insertion.describeFocus(in: processIdentifier).0 }
         if let fixtureStatus { row.fixtureValue = FixtureStatusRead.read(fixtureStatus)?.value }
         if row.finalStep == .inserted, row.focusedAfter?.selectedTextRangeSettable == "yes", gate?() == nil {
@@ -186,6 +204,43 @@ final class ProbeRun {
             if AX.equal(focusedWindow, window) { return nil }
             return "the focused element is in another window (\(AX.title(focusedWindow) ?? "untitled")), not the probe's"
         }
+    }
+
+    /// The keystroke experiment: no Host call. The text goes as Unicode
+    /// keyboard events to the App's process; only if nothing of it arrived,
+    /// a second text goes through the HID event tap, and only while
+    /// `hidGate` confirms the probe's own window is in front. `verify` is
+    /// the only check of what arrived.
+    private func typeKeystrokes(_ row: inout ProbeRow, into processIdentifier: pid_t, gate: (() -> String?)?,
+                                hidGate: () -> String?, verify: (InsertionText) -> IndependentCheck) {
+        let started = Date()
+        defer { row.durationSeconds = (Date().timeIntervalSince(started) * 10).rounded() / 10 }
+        if let gate, let reason = gate() {
+            skip(&row, "not typed: \(reason)")
+            return
+        }
+        row.frontmostAtInsertion = Apps.frontmostDescription()
+        row.status = "ran"
+        func received(_ check: IndependentCheck) -> Bool? { check.observed ? check.containsInsertedText : nil }
+        let text = nextText()
+        let posted = SyntheticInput.typeUnicode(text.text, via: .process(processIdentifier))
+        var check = verify(text)
+        var channels = [KeystrokeChannel(channel: "pid", eventsPosted: posted, received: received(check), check: check)]
+        if check.observed, !check.containsMarker, !check.containsEmoji {
+            if let reason = hidGate() ?? gate?() {
+                let reason = reason + " (frontmost: \(Apps.frontmostDescription() ?? "none"))"
+                channels.append(KeystrokeChannel(channel: "HID", eventsPosted: 0, skipped: reason))
+            } else {
+                // A text of its own, so a late arrival of the first cannot
+                // count for this one.
+                let second = nextText()
+                let posted = SyntheticInput.typeUnicode(second.text, via: .hid)
+                check = verify(second)
+                channels.append(KeystrokeChannel(channel: "HID", eventsPosted: posted, received: received(check), check: check))
+            }
+        }
+        row.independentCheck = check
+        row.keystrokes = KeystrokeExperiment(channels: channels)
     }
 
     private func isGone(_ window: AXUIElement, in app: AXUIElement) -> Bool {
@@ -253,7 +308,7 @@ final class ProbeRun {
             let focused = Apps.poll(8) { FixtureStatusRead.read(status)?.controlHasKeyboardFocus == true }
             row.focusAction = focused ? "first responder, confirmed by the fixture" : "first responder not confirmed by the fixture"
             row.ownership = "the probe's own fixture process"
-            insert(&row, into: pid, preQuery: true, fixtureStatus: status)
+            insert(&row, into: pid, preQuery: true, fixtureStatus: status, verify: IndependentChecks.fixture(status))
             row.cleanup = Apps.end(pid, grace: 2) == "quit" ? "closed" : "fixture ended"
             OwnedProcesses.remove(pid)
         }
@@ -354,13 +409,17 @@ final class ProbeRun {
         let bundleID = "com.apple.Safari"
         let appURL = Apps.url(of: bundleID)
         let wasRunning = !Apps.running(bundleID).isEmpty
-        for kind in WebFieldKind.allCases {
-            var row = newRow("safari.\(kind.rawValue)", app: "Safari", bundleID: bundleID, appURL: appURL,
-                             toolkit: "WebKit", control: kind.control)
+        let plan = WebFieldKind.allCases.map { ($0, Variant.asIs) }
+            + WebFieldKind.allCases.filter { $0 != .addressBar }.map { ($0, Variant.keystrokes) }
+        for (kind, variant) in plan {
+            let id = variant.isAsIs ? "safari.\(kind.rawValue)" : "safari.\(kind.rawValue).\(variant.tag)"
+            var row = newRow(id, app: "Safari", bundleID: bundleID, appURL: appURL,
+                             toolkit: "WebKit", control: kind.control, variant: variant)
             defer { add(row) }
             guard let appURL else { skip(&row, "not installed"); continue }
             guard !dryRun else { continue }
-            guard let page = pages[kind], let app = Apps.open([page], with: appURL) else {
+            guard let server else { skip(&row, "the probe's page server is not running"); continue }
+            guard let app = Apps.open([server.pageURL(kind, row: id)], with: appURL) else {
                 skip(&row, "Safari did not open the probe's page")
                 continue
             }
@@ -380,7 +439,21 @@ final class ProbeRun {
                 row.focusAction = focusWebTarget(pid: pid, window: window)
             }
             row.ownership = "focused element checked to be in the probe's page window"
-            insert(&row, into: pid, preQuery: true, gate: windowGate(pid, window))
+            let verify = kind == .addressBar ? nil : IndependentChecks.page(server, row: id)
+            if case .keystrokes = variant, let verify {
+                // The probe's tab must be the one in front of its window, since
+                // Safari gives the keys to its key window's front tab.
+                let gate: () -> String? = {
+                    if let reason = self.windowGate(pid, window)() { return reason }
+                    return AX.title(window)?.contains(title) == true ? nil : "the probe's tab is not in front"
+                }
+                let hidGate: () -> String? = {
+                    Apps.frontmost()?.processIdentifier == pid ? nil : "Safari is not frontmost"
+                }
+                typeKeystrokes(&row, into: pid, gate: gate, hidGate: hidGate, verify: verify)
+            } else {
+                insert(&row, into: pid, preQuery: true, gate: windowGate(pid, window), verify: verify)
+            }
             row.cleanup = closeSafariTab(window: window, title: title, app: appElement, pid: pid)
         }
         if !dryRun, let quit = Apps.quitIfStartedByProbe(bundleID, wasRunning: wasRunning) {
@@ -449,18 +522,26 @@ final class ProbeRun {
     private func runChrome() {
         let bundleID = "com.google.Chrome"
         let appURL = Apps.url(of: bundleID)
-        for variant in [Variant.asIs, .experiment(attribute: "AXEnhancedUserInterface")] {
+        for variant in [Variant.asIs, .experiment(attribute: "AXEnhancedUserInterface"), .keystrokes] {
             for kind in WebFieldKind.allCases {
-                var row = newRow("chrome.\(kind.rawValue).\(variant.tag)", app: "Google Chrome", bundleID: bundleID,
+                // The address bar takes the Host's text as-is; the keystroke
+                // experiment is for the page fields that do not.
+                if case .keystrokes = variant, kind == .addressBar { continue }
+                let id = "chrome.\(kind.rawValue).\(variant.tag)"
+                var row = newRow(id, app: "Google Chrome", bundleID: bundleID,
                                  appURL: appURL, toolkit: "Chromium", control: kind.control, variant: variant)
                 defer { add(row) }
                 guard let appURL else { skip(&row, "not installed"); continue }
-                guard !dryRun, let page = pages[kind] else { continue }
+                guard !dryRun else { continue }
+                guard let server else { skip(&row, "the probe's page server is not running"); continue }
                 let profile = work.appendingPathComponent("chrome-\(variant.tag)-\(kind.rawValue)", isDirectory: true)
                 let arguments = ["--user-data-dir=\(profile.path)", "--no-first-run", "--no-default-browser-check",
-                                 "--use-mock-keychain", "--disable-sync", "--new-window", page.absoluteString]
+                                 "--use-mock-keychain", "--disable-sync", "--new-window",
+                                 server.pageURL(kind, row: id).absoluteString]
+                let verify: (() -> (InsertionText) -> IndependentCheck)? =
+                    kind == .addressBar ? nil : { IndependentChecks.page(server, row: id) }
                 runIsolated(&row, appURL: appURL, bundleID: bundleID, arguments: arguments, variant: variant,
-                            titleMarker: Pages.title(kind, marker: marker), settle: 2.5) { pid in
+                            titleMarker: Pages.title(kind, marker: marker), settle: 2.5, verify: verify) { pid in
                     if kind == .addressBar {
                         SyntheticInput.keystroke(SyntheticInput.keyL, command: true, to: pid)
                         Thread.sleep(forTimeInterval: 0.6)
@@ -504,7 +585,7 @@ final class ProbeRun {
 
     private func runElectron(_ electron: ElectronApp) {
         let appURL = Apps.url(of: electron.bundleID)
-        for variant in [Variant.asIs, .experiment(attribute: "AXManualAccessibility")] {
+        for variant in [Variant.asIs, .experiment(attribute: "AXManualAccessibility"), .keystrokes] {
             var row = newRow("\(String(describing: electron)).editor.\(variant.tag)", app: electron.name,
                              bundleID: electron.bundleID, appURL: appURL, toolkit: "Electron",
                              control: electron.control, variant: variant)
@@ -518,18 +599,28 @@ final class ProbeRun {
                 skip(&row, "skipped: Obsidian is running, and a second instance would take over and then delete its ~/.obsidian-cli.sock; quit Obsidian and run with --only obsidian")
                 continue
             }
-            let root = work.appendingPathComponent("\(String(describing: electron))-\(variant.tag)", isDirectory: true)
+            // A short path: VS Code and Cursor put their IPC socket in the
+            // user data directory, and a socket path over 103 bytes makes
+            // the instance exit before it shows a window.
+            let short: String
+            switch variant {
+            case .asIs: short = "a"
+            case .experiment: short = "x"
+            case .keystrokes: short = "k"
+            }
+            let root = URL(fileURLWithPath: "/tmp/\(marker)-\(String(describing: electron))-\(short)", isDirectory: true)
+            try? FileManager.default.removeItem(at: root)
             defer { try? FileManager.default.removeItem(at: root) }
-            let titleMarker: String
-            let arguments: [String]
+            let launch: ElectronLaunch
             do {
-                (arguments, titleMarker) = try prepareElectron(electron, in: root)
+                launch = try prepareElectron(electron, in: root)
             } catch {
                 skip(&row, "could not prepare the probe's profile: \(error.localizedDescription)")
                 continue
             }
-            runIsolated(&row, appURL: appURL, bundleID: electron.bundleID, arguments: arguments, variant: variant,
-                        titleMarker: titleMarker, settle: electron == .obsidian ? 5 : 6) { pid in
+            runIsolated(&row, appURL: appURL, bundleID: electron.bundleID, arguments: launch.arguments,
+                        environment: launch.environment, variant: variant, titleMarker: launch.titleMarker,
+                        settle: electron == .obsidian ? 5 : 6, verify: { launch.verify }) { pid in
                 guard electron == .obsidian else { return "editor focused on opening the probe's file" }
                 // Obsidian opens the note without focusing its editor: click
                 // into the note, as a user would, if the window there is the
@@ -544,29 +635,53 @@ final class ProbeRun {
         }
     }
 
+    struct ElectronLaunch {
+        var arguments: [String]
+        var environment: [String: String]
+        var titleMarker: String
+        /// Reads the file the editor saves on its own, without Accessibility.
+        var verify: (InsertionText) -> IndependentCheck
+    }
+
     /// A throwaway profile, and for Obsidian a throwaway vault, so the
     /// separate instance never opens anything of the user's.
-    private func prepareElectron(_ electron: ElectronApp, in root: URL) throws -> ([String], String) {
+    private func prepareElectron(_ electron: ElectronApp, in root: URL) throws -> ElectronLaunch {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        let userData = root.appendingPathComponent("user-data", isDirectory: true)
+        let userData = root.appendingPathComponent("u", isDirectory: true)
         switch electron {
         case .vscode, .cursor:
             let settings = userData.appendingPathComponent("User", isDirectory: true)
             try fileManager.createDirectory(at: settings, withIntermediateDirectories: true)
+            // Auto save writes the probe's file to disk shortly after each
+            // change, which is the check independent of Accessibility.
             let json = """
                 {"workbench.startupEditor": "none", "telemetry.telemetryLevel": "off", "update.mode": "none",
                  "workbench.enableExperiments": false, "security.workspace.trust.enabled": false,
-                 "workbench.tips.enabled": false}
+                 "workbench.tips.enabled": false, "window.restoreWindows": "none",
+                 "files.autoSave": "afterDelay", "files.autoSaveDelay": 300}
                 """
             try Data(json.utf8).write(to: settings.appendingPathComponent("settings.json"))
             let name = "ax-probe-\(marker).txt"
             let file = root.appendingPathComponent(name)
-            try Data("AX probe file. The probe closes it without saving.\n".utf8).write(to: file)
-            return (["--user-data-dir", userData.path,
-                     "--extensions-dir", root.appendingPathComponent("extensions").path,
-                     "--disable-extensions", "--skip-welcome", "--skip-release-notes", "--disable-workspace-trust",
-                     "--new-window", file.path], name)
+            try Data("AX probe file. The probe deletes it afterwards.\n".utf8).write(to: file)
+            return ElectronLaunch(
+                arguments: ["--user-data-dir", userData.path,
+                            "--extensions-dir", root.appendingPathComponent("e").path,
+                            "--disable-extensions", "--skip-welcome", "--skip-release-notes", "--disable-workspace-trust",
+                            // Without these a fresh profile asks the keychain
+                            // for its Safe Storage key, and macOS puts a
+                            // keychain prompt in front of the instance.
+                            "--use-mock-keychain", "--use-inmemory-secretstorage",
+                            "--new-window", file.path],
+                // VS Code keeps state shared by all its profiles under the
+                // home directory (~/.vscode-shared); a throwaway home keeps
+                // the instance out of the user's.
+                environment: ["HOME": root.path],
+                titleMarker: name,
+                verify: IndependentChecks.files({ [file] }, label: "file on disk",
+                                                source: "the probe's file as the editor's auto save wrote it to disk",
+                                                timeout: 4))
         case .obsidian:
             let vaultName = "AX probe vault \(marker)"
             let vault = root.appendingPathComponent(vaultName, isDirectory: true)
@@ -585,19 +700,32 @@ final class ProbeRun {
                 {"vaults":{"\(String(marker.prefix(16)).padding(toLength: 16, withPad: "0", startingAt: 0))":{"path":"\(vault.path)","ts":\(Int(Date().timeIntervalSince1970 * 1000)),"open":true}}}
                 """
             try Data(registry.utf8).write(to: userData.appendingPathComponent("obsidian.json"))
-            return (["--user-data-dir=\(userData.path)"], vaultName)
+            // Every note in the throwaway vault, in case the click made a
+            // new one; Obsidian saves a note about 2 s after an edit.
+            let notes: () -> [URL] = {
+                let enumerator = fileManager.enumerator(at: vault, includingPropertiesForKeys: nil,
+                                                        options: [.skipsHiddenFiles])
+                return (enumerator?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "md" }
+            }
+            return ElectronLaunch(
+                arguments: ["--user-data-dir=\(userData.path)"], environment: [:], titleMarker: vaultName,
+                verify: IndependentChecks.files(notes, label: "note file on disk",
+                                                source: "the throwaway vault's notes as Obsidian saved them to disk",
+                                                timeout: 6))
         }
     }
 
     /// Runs one row in a separate instance of a Chromium or Electron App on
     /// the probe's own profile, which the probe ends afterwards. The instance
     /// must be a new process showing a window titled with the probe's marker;
-    /// otherwise nothing is inserted.
+    /// otherwise nothing is inserted. `verify` makes the check independent of
+    /// Accessibility once the field is focused.
     private func runIsolated(_ row: inout ProbeRow, appURL: URL, bundleID: String, arguments: [String],
-                             variant: Variant, titleMarker: String, settle: TimeInterval,
+                             environment: [String: String] = [:], variant: Variant, titleMarker: String,
+                             settle: TimeInterval, verify: (() -> (InsertionText) -> IndependentCheck)?,
                              focus: (pid_t) -> String) {
         let existing = Set(Apps.running(bundleID).map(\.processIdentifier))
-        guard let app = Apps.launchNewInstance(appURL, arguments: arguments, timeout: 30) else {
+        guard let app = Apps.launchNewInstance(appURL, arguments: arguments, environment: environment, timeout: 30) else {
             skip(&row, "a separate instance did not start")
             return
         }
@@ -619,8 +747,10 @@ final class ProbeRun {
         // them without asking the App's web content for its accessibility.
         guard window(of: pid, titleContaining: titleMarker, timeout: 30) != nil else {
             let titles = AX.windows(AX.application(pid)).compactMap(AX.title)
+            let serverWindows = WindowList.onScreen().filter { $0.ownerPID == pid && $0.layer == 0 }.count
             grace = 15
-            skip(&row, "no window titled with the probe's marker appeared (windows: \(titles.isEmpty ? "none" : titles.joined(separator: ", "))); nothing inserted")
+            let alive = Apps.isAlive(pid) ? "running" : "exited"
+            skip(&row, "no window titled with the probe's marker appeared (windows: \(titles.isEmpty ? "none" : titles.joined(separator: ", ")); window server: \(serverWindows) on screen; instance \(alive)); nothing inserted")
             return
         }
         bringForward(pid)
@@ -634,17 +764,30 @@ final class ProbeRun {
         }
         row.focusAction = focus(pid)
         bringForward(pid)
-        if variant.isAsIs {
+        let check = verify?()
+        switch variant {
+        case .asIs:
             row.notes.append("before the Host's call the probe read only window titles")
-            insert(&row, into: pid, preQuery: false)
-        } else {
+            insert(&row, into: pid, preQuery: false, verify: check)
+        case .experiment:
             let gate: () -> String? = {
                 let (info, _) = HostA2Insertion.describeFocus(in: pid)
                 guard info.present else { return nil }
                 return info.windowTitle?.contains(titleMarker) == true
                     ? nil : "the focused element is not in the probe's window (\(info.windowTitle ?? "no window"))"
             }
-            insert(&row, into: pid, preQuery: true, gate: gate)
+            insert(&row, into: pid, preQuery: true, gate: gate, verify: check)
+        case .keystrokes:
+            guard let check else {
+                skip(&row, "no check independent of Accessibility for this control")
+                return
+            }
+            row.notes.append("before and after typing the probe read only window titles")
+            // Every window of this instance is the probe's own, so keys may
+            // go to it through the HID tap while it is frontmost.
+            typeKeystrokes(&row, into: pid, gate: nil, hidGate: {
+                Apps.frontmost()?.processIdentifier == pid ? nil : "the probe's instance is not frontmost"
+            }, verify: check)
         }
     }
 }

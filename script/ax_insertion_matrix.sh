@@ -23,8 +23,11 @@
 # What a run opens, each in something new it closes afterwards: its own
 # fixture App, a new TextEdit document of its own, a new Terminal window, its
 # own pages in Safari, and separate instances of Chrome, Visual Studio Code,
-# Cursor and Obsidian on throwaway profiles. Results: results.json and
-# results.md in the output directory.
+# Cursor and Obsidian on throwaway profiles. The pages are served by the probe
+# on 127.0.0.1 and report their fields' values back to it, and the editors'
+# files are read from disk, so every web and Electron row is also checked
+# without Accessibility. Results: results.json and results.md in the output
+# directory.
 set -euo pipefail
 
 HOST_A2="af1a45095dbac15eddeb44063809927a373705b1"
@@ -52,7 +55,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run) MODE="dry-run" ;;
         --output) OUTPUT_DIR="$2"; shift ;;
         --only|--skip) PROBE_ARGS+=("$1" "$2"); shift ;;
-        -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
         *) echo "unknown option $1" >&2; exit 2 ;;
     esac
     shift
@@ -217,7 +220,7 @@ if [[ "$(cat "$OUTPUT_DIR/trust.txt" 2>/dev/null)" != "trusted" ]]; then
     exit 3
 fi
 
-echo "Running the AX insertion matrix unattended. It takes about 5 minutes and moves windows to the front;"
+echo "Running the AX insertion matrix unattended. It takes about 8 minutes and moves windows to the front;"
 echo "do not type or click until it finishes. Ctrl-C stops it and ends the probe's own instances."
 run_probe "$OUTPUT_DIR/probe.log" run --out "$OUTPUT_DIR" "${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}"
 echo

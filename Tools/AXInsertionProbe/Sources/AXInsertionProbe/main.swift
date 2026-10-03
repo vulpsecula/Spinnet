@@ -95,7 +95,9 @@ case "run":
         accessibilityTrusted: trusted, insertedTextPattern: "\(InsertionText.emoji)\(marker)NN", rows: [],
         notes: [
             "Pre-Host queries: in Chromium and Electron as-is runs the probe reads only window titles before the Host's call; elsewhere it reads the focused element first to check it is in the probe's own window.",
-            "Each Chromium or Electron row runs in a new separate instance on a throwaway profile, so one row's accessibility state cannot carry into another."
+            "Each Chromium or Electron row runs in a new separate instance on a throwaway profile, so one row's accessibility state cannot carry into another.",
+            "Independent check: Safari and Chrome pages are served by the probe on 127.0.0.1 and report their field's DOM value to it on load, on each input event and on each change a 200 ms poll sees; VS Code and Cursor auto save the probe's file and Obsidian saves the throwaway note, which the probe reads from disk; the fixture reports its control's value. None of these asks Accessibility.",
+            "Unicode keystroke experiment (evidence for P3, no Host change): no Host call; the text is posted as key down/up events carrying it as a Unicode string, one character per pair, first to the App's process (CGEventPostToPid); only if nothing arrived, a fresh text through the HID event tap while the probe's own window is frontmost. No clipboard is involved."
         ]
     )
     if dryRun {

@@ -1,9 +1,13 @@
 import Foundation
 
-/// The local pages Safari and Chrome open, one per field kind. Each focuses
-/// its one field on load (autofocus, and a script for engines that skip
-/// autofocus on a contenteditable), and its title carries the run's marker so
-/// the probe can tell its window from the user's.
+/// The pages Safari and Chrome open, one per field kind, served by the
+/// probe's own `ObservationServer` on 127.0.0.1. Each focuses its one field
+/// on load (autofocus, and a script for engines that skip autofocus on a
+/// contenteditable), and its title carries the run's marker so the probe can
+/// tell its window from the user's. Each page also reports its field's value,
+/// as the DOM holds it, to the probe: on load, on every `input` event and
+/// whenever a 200 ms poll sees the value or the focus change. That report is
+/// the insertion's check independent of Accessibility.
 enum WebFieldKind: String, CaseIterable, Codable {
     case input
     case textarea
@@ -24,7 +28,7 @@ enum WebFieldKind: String, CaseIterable, Codable {
 enum Pages {
     static func title(_ kind: WebFieldKind, marker: String) -> String { "AX probe \(kind.rawValue) \(marker)" }
 
-    static func html(_ kind: WebFieldKind, marker: String) -> String {
+    static func html(_ kind: WebFieldKind, marker: String, row: String) -> String {
         let field: String
         switch kind {
         case .input:
@@ -36,12 +40,43 @@ enum Pages {
         case .addressBar:
             field = "<p>The probe focuses the address bar of this window.</p>"
         }
-        let focusScript = kind == .addressBar ? "" : """
+        let rowLiteral = String(data: try! JSONEncoder().encode(row), encoding: .utf8)!
+        let script = kind == .addressBar ? "" : """
             <script>
-            window.addEventListener('load', function () {
+            (function () {
+              var row = \(rowLiteral);
               var target = document.getElementById('probe-target');
-              if (document.activeElement !== target) { target.focus(); }
-            });
+              var seq = 0, events = [], lastValue = null, lastFocus = null;
+              function value() { return target.isContentEditable ? target.innerText : target.value; }
+              function focused() { return document.activeElement === target && document.hasFocus(); }
+              function report(reason) {
+                seq += 1;
+                lastValue = value();
+                lastFocus = focused();
+                var body = JSON.stringify({ seq: seq, reason: reason, value: lastValue,
+                  activeIsTarget: document.activeElement === target, hasFocus: document.hasFocus(),
+                  events: events.slice(-20) });
+                try {
+                  fetch('/observe?row=' + encodeURIComponent(row),
+                        { method: 'POST', body: body, keepalive: true, headers: { 'Content-Type': 'text/plain' } });
+                } catch (error) {}
+              }
+              ['keydown', 'beforeinput', 'input', 'compositionstart', 'compositionend', 'paste'].forEach(function (type) {
+                target.addEventListener(type, function (event) {
+                  events.push(type + (event.inputType ? ':' + event.inputType : ''));
+                  if (events.length > 40) { events.shift(); }
+                }, true);
+              });
+              target.addEventListener('input', function () { report('input'); });
+              target.addEventListener('focus', function () { report('focus'); });
+              window.addEventListener('load', function () {
+                if (document.activeElement !== target) { target.focus(); }
+                report('load');
+              });
+              setInterval(function () {
+                if (value() !== lastValue || focused() !== lastFocus) { report('poll'); }
+              }, 200);
+            })();
             </script>
             """
         return """
@@ -52,22 +87,9 @@ enum Pages {
             <h1>Spinnet AX insertion probe</h1>
             <p>Field kind: \(kind.rawValue). This page belongs to the probe and is closed without saving.</p>
             \(field)
-            \(focusScript)
+            \(script)
             </body>
             </html>
             """
-    }
-
-    /// Writes every page into `directory` and returns their URLs.
-    @discardableResult
-    static func write(marker: String, into directory: URL) throws -> [WebFieldKind: URL] {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var urls: [WebFieldKind: URL] = [:]
-        for kind in WebFieldKind.allCases {
-            let url = directory.appendingPathComponent("ax-probe-\(kind.rawValue)-\(marker).html")
-            try Data(html(kind, marker: marker).utf8).write(to: url, options: .atomic)
-            urls[kind] = url
-        }
-        return urls
     }
 }

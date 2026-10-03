@@ -33,9 +33,17 @@ enum Apps {
 
     /// Starts a separate instance of an App, as `open -n` does. The App
     /// decides whether it really runs separately; the caller checks.
-    static func launchNewInstance(_ appURL: URL, arguments: [String], timeout: TimeInterval = 20) -> NSRunningApplication? {
+    static func launchNewInstance(_ appURL: URL, arguments: [String], environment: [String: String] = [:],
+                                  timeout: TimeInterval = 20) -> NSRunningApplication? {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.arguments = arguments
+        if !environment.isEmpty {
+            // The configuration's environment replaces the whole
+            // environment, so the overrides go on top of the probe's own.
+            var merged = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("XPC_") && !$0.key.hasPrefix("__CF") }
+            merged.merge(environment) { _, override in override }
+            configuration.environment = merged
+        }
         configuration.createsNewApplicationInstance = true
         configuration.activates = true
         configuration.addsToRecentItems = false

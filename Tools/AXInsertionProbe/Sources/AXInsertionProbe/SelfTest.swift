@@ -71,17 +71,56 @@ enum SelfTest {
         check(excerpt.count <= text.marker.count + 80, "the excerpt is bounded")
     }
 
+    /// The pages and their reports, through a real server on 127.0.0.1:
+    /// the page is served with its title, field and script, and a report
+    /// posted the way the page posts it is kept for its row.
     private static func checkPages() {
         for kind in WebFieldKind.allCases {
-            let html = Pages.html(kind, marker: "axp123456")
+            let html = Pages.html(kind, marker: "axp123456", row: "safari.\(kind.rawValue)")
             check(html.contains("<title>\(Pages.title(kind, marker: "axp123456"))</title>"), "\(kind) page has its title")
             check(kind == .addressBar || html.contains("id=\"probe-target\""), "\(kind) page has its field")
             check(kind == .addressBar || html.contains("autofocus"), "\(kind) page autofocuses")
+            check(kind == .addressBar || html.contains("fetch('/observe?row='"), "\(kind) page reports its field")
+            check(kind == .addressBar || html.contains("\"safari.\(kind.rawValue)\""), "\(kind) page names its row")
         }
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ax-probe-selftest-\(getpid())")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let urls = (try? Pages.write(marker: "axp123456", into: directory)) ?? [:]
-        check(urls.count == WebFieldKind.allCases.count, "every page is written")
+        let server = ObservationServer(marker: "axp123456")
+        do {
+            try server.start()
+        } catch {
+            failures.append("the page server did not start: \(error.localizedDescription)")
+            return
+        }
+        let row = "selftest.input"
+        let url = server.pageURL(.input, row: row)
+        check(url.absoluteString.hasPrefix("http://127.0.0.1:"), "pages are served from 127.0.0.1")
+        let page = fetch(URLRequest(url: url))
+        check(page.status == 200 && String(data: page.body, encoding: .utf8)?.contains(Pages.title(.input, marker: "axp123456")) == true,
+              "the server serves the page (status \(page.status))")
+        let text = InsertionText(marker: "axp123456")
+        var post = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/observe?row=\(row)")!)
+        post.httpMethod = "POST"
+        post.httpBody = Data(#"{"seq":1,"reason":"input","value":"x\#(text.text)y","activeIsTarget":true,"hasFocus":true,"events":["beforeinput:insertText","input:insertText"]}"#.utf8)
+        check(fetch(post).status == 204, "the server takes a report")
+        let observation = server.latest(row: row)
+        check(observation?.value == "x\(text.text)y" && observation?.events.count == 2, "the report is kept for its row")
+        check(server.latest(row: "another.row") == nil, "a report belongs to its row only")
+        let verify = IndependentChecks.page(server, row: row, timeout: 0.2)
+        let seen = verify(text)
+        check(seen.observed && seen.containsInsertedText && seen.targetFocusedBefore == true, "the page check finds the text")
+        check(!verify(InsertionText(marker: "axp999999")).containsMarker, "the page check misses another text")
+        check(fetch(URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/elsewhere")!)).status == 404,
+              "the server serves nothing else")
+    }
+
+    private static func fetch(_ request: URLRequest) -> (status: Int, body: Data) {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = Box<(Int, Data)>((0, Data()))
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            box.value = ((response as? HTTPURLResponse)?.statusCode ?? 0, data ?? Data())
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + 5)
+        return box.value
     }
 
     /// Calls the Host's own insertion into a process that does not exist, so
@@ -142,6 +181,26 @@ enum SelfTest {
                                 elapsedMilliseconds: 1)
         refused.fixtureValue = ""
 
+        var web = ProbeRow(id: "fake.web.as-is", app: "Fake Browser", bundleID: "dev.fake.browser", appVersion: "2.0",
+                           toolkit: "Chromium", control: "<textarea>", variant: Variant.asIs.label, expected: "insert",
+                           status: "ran")
+        web.attempt = Attempt(step: .setOKTextNotFound, hostError: nil,
+                              readBack: HostA2Insertion.evaluate("", for: text, source: "kAXValue of the focused element"),
+                              elapsedMilliseconds: 2)
+        var pageCheck = IndependentCheck(label: "page", source: "test", value: "", text: text)
+        pageCheck.targetFocusedBefore = true
+        web.independentCheck = pageCheck
+
+        var typed = web
+        typed.id = "fake.web.keystrokes"
+        typed.variant = Variant.keystrokes.label
+        typed.attempt = nil
+        let typedCheck = IndependentCheck(label: "page", source: "test", value: text.text, text: text)
+        typed.independentCheck = typedCheck
+        typed.keystrokes = KeystrokeExperiment(channels: [
+            KeystrokeChannel(channel: "pid", eventsPosted: 26, received: true, check: typedCheck)
+        ])
+
         var skipped = ProbeRow(id: "fake.skipped", app: "Fake Chat", bundleID: "dev.fake.chat", appVersion: nil,
                                toolkit: "Electron", control: "Message box", variant: Variant.asIs.label,
                                expected: "n/a", status: "skipped")
@@ -157,7 +216,7 @@ enum SelfTest {
                                  files: HostA2Provenance.files, headIdentical: HostA2Provenance.headIdentical),
             startedAt: "2026-10-02T00:00:00Z", finishedAt: "2026-10-02T00:00:01Z", machine: "fake machine",
             accessibilityTrusted: false, insertedTextPattern: "\(InsertionText.emoji)axp000000NN",
-            rows: [inserted, noFocus, experiment, refused, skipped, planned],
+            rows: [inserted, noFocus, experiment, refused, web, typed, skipped, planned],
             notes: ["This sample comes from a fake runner; no App was driven."]
         )
     }
@@ -179,7 +238,8 @@ enum SelfTest {
             check(rows.allSatisfy { $0[key] != nil }, "every row has \(key)")
         }
         let ran = rows.filter { $0["status"] as? String == "ran" }
-        check(ran.allSatisfy { ($0["attempt"] as? [String: Any])?["step"] != nil }, "every run row has its step")
+        check(ran.allSatisfy { ($0["attempt"] as? [String: Any])?["step"] != nil || $0["keystrokes"] != nil },
+              "every run row has its Host step or its keystroke result")
         check(ran.contains { ($0["attempt"] as? [String: Any])?["hostError"] as? String == "Host Service is unavailable: No focused text field" },
               "the Host's error text is kept exactly")
         check((try? JSONDecoder().decode(ProbeReport.self, from: data)) != nil, "the report decodes again")
@@ -189,5 +249,8 @@ enum SelfTest {
         check(tableRows.count == report.rows.count + 5, "the Markdown has one matrix row per probe row")
         check(markdown.contains("`Host Service is unavailable: No focused text field`"), "the Markdown shows the Host's error")
         check(markdown.contains("AXEnhancedUserInterface set: success"), "the Markdown names the experiment")
+        check(markdown.contains("| set OK, text not found | page: text absent (0 chars) |"),
+              "the Markdown shows the AX read-back beside the page's own check")
+        check(markdown.contains("| keystrokes received (pid) | page: text present |"), "the Markdown shows the keystroke experiment")
     }
 }

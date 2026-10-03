@@ -198,6 +198,48 @@ enum SyntheticInput {
         return true
     }
 
+    enum Channel {
+        /// `CGEventPostToPid`: only the App with this process ID gets them.
+        case process(pid_t)
+        /// The HID event tap: whichever App is frontmost gets them, so the
+        /// caller checks first that it is the probe's own.
+        case hid
+
+        var name: String {
+            switch self {
+            case .process: return "pid"
+            case .hid: return "HID"
+            }
+        }
+    }
+
+    /// Types `text` as keyboard events that carry it as a Unicode string
+    /// (`CGEventKeyboardSetUnicodeString`), one key down and up per
+    /// character, with no modifiers. The clipboard is not touched. Returns
+    /// how many events were posted.
+    @discardableResult
+    static func typeUnicode(_ text: String, via channel: Channel) -> Int {
+        let source = CGEventSource(stateID: .hidSystemState)
+        var posted = 0
+        for character in text {
+            let units = Array(String(character).utf16)
+            for down in [true, false] {
+                guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { continue }
+                event.flags = []
+                units.withUnsafeBufferPointer { buffer in
+                    event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress)
+                }
+                switch channel {
+                case .process(let processIdentifier): event.postToPid(processIdentifier)
+                case .hid: event.post(tap: .cghidEventTap)
+                }
+                posted += 1
+                usleep(15_000)
+            }
+        }
+        return posted
+    }
+
     static let keyL: CGKeyCode = 0x25
     static let keyN: CGKeyCode = 0x2D
 }
