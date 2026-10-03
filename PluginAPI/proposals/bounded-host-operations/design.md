@@ -535,10 +535,12 @@ cases), the check would refuse insertions the user expected to work. Section
 - **Starting a reviewed task** needs the reviewed-tool Capability its ticket
   defines; the Host confirmation does not replace consent.
 - **No paste or clipboard capability is added.** Insertion never writes,
-  reads or restores the clipboard and never synthesizes ⌘V. If #69 shows that
-  Accessibility insertion fails for target Apps that matter, the options go
-  back to the user (P3). The user asking for "insert" is not consent to a
-  clipboard-based mechanism.
+  reads or restores the clipboard and never synthesizes ⌘V. #69 showed that
+  Accessibility writes silently fail in web content and Electron editors, so
+  the user chose (P3, 2026-10-03) to deliver the text as synthesized Unicode
+  keyboard events to the target App, following Clipboard History's
+  activate-then-deliver flow with Copy as the fallback. This needs no new
+  Capability.
 - **Requested operations carry no authority of their own.** Authority comes
   from the requesting Action, is checked at commit, and is checked again at
   execution. A Host confirmation is the user approving one specific
@@ -546,7 +548,19 @@ cases), the check would refuse insertions the user expected to work. Section
 
 ## 8. What waits on #69 evidence
 
-These are deliberately not frozen. #76 must not freeze its Host build for E2
+#69's automated matrix on Host A2 (2026-10-03, recorded in the external
+Emoji repository's PROOF.md) settled items 1, 2 and 5: `AXSelectedText`
+writes work in native AppKit/SwiftUI controls, TextEdit and browser address
+bars, refuse in secure fields and Terminal, and return success without text
+appearing in Safari/Chrome page fields, VS Code and Obsidian (Cursor exposes
+no focused element). Enabling Chromium/Electron accessibility did not help.
+Unicode keyboard events posted to the App reached every one of those
+controls. Under P3 the candidate therefore delivers text as keyboard events;
+`succeeded` means the events were delivered to the App that was frontmost,
+not that the Host read the text back. Items 3, 4 and 6 remain open and must
+be measured on the keyboard-event path, including an open IME composition.
+
+These were deliberately not frozen. #76 must not freeze its Host build for E2
 before they are settled with evidence.
 
 1. **Supported insertion scope.** Which Apps and control types accept
@@ -647,7 +661,7 @@ None of these is decided by this design. Each has a proposed default so that
 | --- | --- | --- | --- |
 | P1 | Where does the insertion target name appear: in each insert button's title ("Insert into Notes"), as a secondary label, or only in a footer line? Are insert controls disabled when no valid target exists (Spinnet frontmost)? | Secondary label on each insert action plus the optional target line; controls stay enabled and refuse with `no_target` | Visible UX of every inserting Plugin |
 | P2 | May a Command without a view insert (Menu Item → text appears) when nothing showed the target? | No: refused with `target_not_shown`, since #68 requires the Host to disclose the target first. The alternative to decide on is allowing it with the frontmost App captured at Menu invocation and re-checked at execution | Disclosure standard differs from views |
-| P3 | If #69 shows Accessibility insertion failing in important Apps: accept a documented narrower scope with Copy as the fallback the user chooses; add a reviewed paste-style insertion Capability (clipboard write, ⌘V, restore rules); or let the Host switch on Chromium/Electron accessibility | Undecided. Wait for #69 evidence; no clipboard or paste behaviour until the user chooses | New permission or behaviour toward other Apps |
+| P3 | How the Host inserts, given #69's evidence that Accessibility writes silently fail in web content and Electron editors | **Decided 2026-10-03:** follow Clipboard History's flow (bring the target App to the front, deliver the text, fall back to Copy with Host feedback) but deliver the text as synthesized Unicode keyboard events to that App, never through the clipboard. No new Capability: `insert_into_focused_app` plus Accessibility cover it. The Host does not switch on Chromium/Electron accessibility | Behaviour toward other Apps |
 | P4 | Which operations need Host confirmation, and how: Quit (none?) vs Force Quit (always); default button; whether Return confirms a destructive operation; any "don't ask again" | Quit: none. Force Quit and task start: always. Default button Cancel; Return does not confirm destructive kinds; no "don't ask again" | Trust and friction |
 | P5 | May Plugin text appear in a Host confirmation (for example a reason line)? | No, Host text only | A Plugin could word it to mislead |
 | P6 | Should the Host announce a refused insertion beyond the inline message (sound, panel flash)? | Inline message only, plus VoiceOver announcement | UX |
