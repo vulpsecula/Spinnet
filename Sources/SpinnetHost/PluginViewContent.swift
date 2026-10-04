@@ -21,6 +21,9 @@ struct PluginViewContent: View {
             if let error = model.error {
                 errorBox(error)
             }
+            if let line = model.insertionTargetLine {
+                insertionTargetLine(line)
+            }
             if let form = model.description.form {
                 formView(form)
             }
@@ -44,10 +47,20 @@ struct PluginViewContent: View {
         }
         .onChange(of: model.toast) { toast in
             guard let toast else { return }
-            NSAccessibility.post(element: NSApplication.shared, notification: .announcementRequested, userInfo: [
-                .announcement: toast, .priority: NSAccessibilityPriorityLevel.high.rawValue
-            ])
+            Self.announce(toast)
         }
+        // A refused or failed insertion is announced as well as shown, so a
+        // VoiceOver user hears that nothing was inserted (P6).
+        .onChange(of: model.error?.message) { message in
+            guard model.showsInsertionTargets, let message else { return }
+            Self.announce(message)
+        }
+    }
+
+    private static func announce(_ text: String) {
+        NSAccessibility.post(element: NSApplication.shared, notification: .announcementRequested, userInfo: [
+            .announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue
+        ])
     }
 
     // MARK: - Header
@@ -68,6 +81,13 @@ struct PluginViewContent: View {
                 ProgressView()
                     .controlSize(.small)
                     .accessibilityLabel(PluginViewModel.busyLabel)
+            }
+            if model.isPerformingOperation {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.secondary)
+                    .help(PluginViewModel.operationBusyLabel)
+                    .accessibilityLabel(PluginViewModel.operationBusyLabel)
             }
             Button { model.isPinned.toggle() } label: {
                 Image(systemName: model.isPinned ? "pin.fill" : "pin")
@@ -144,6 +164,19 @@ struct PluginViewContent: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    // MARK: - Insertion target
+
+    /// The Host's own line naming where text goes. The Plugin chooses only
+    /// whether it is shown; it never learns the name.
+    private func insertionTargetLine(_ line: String) -> some View {
+        Label(line, systemImage: "character.cursor.ibeam")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(line)
     }
 
     // MARK: - Form
@@ -349,14 +382,24 @@ struct PluginViewContent: View {
     private var actionsRow: some View {
         PluginViewFlowLayout(spacing: 6) {
             ForEach(Array(model.description.actions.enumerated()), id: \.offset) { index, action in
-                Button(action.title) { model.choose(action) }
+                Button { model.choose(action) } label: {
+                    if let target = model.insertionTargetLabel(of: action) {
+                        // The Host names the App the action inserts into.
+                        HStack(spacing: 4) {
+                            Text(action.title)
+                            Text(target).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(action.title)
+                    }
+                }
                     .modifier(PluginViewShortcutModifier(
                         shortcut: action.shortcut,
                         // Without a form, Return chooses the first action.
                         isDefault: index == 0 && action.shortcut == nil && model.description.form == nil
                     ))
-                    .help(action.shortcut.map { "\(action.title) (\($0.displayText))" } ?? action.title)
-                    .accessibilityLabel(action.title)
+                    .help(action.shortcut.map { "\(model.actionLabel(action)) (\($0.displayText))" } ?? model.actionLabel(action))
+                    .accessibilityLabel(model.actionLabel(action))
                     .accessibilityHint(action.shortcut?.displayText ?? "")
             }
         }

@@ -15,7 +15,7 @@ final class PluginViewHostActionsTests: XCTestCase {
     private var accessibilityGranted = true
     private var copied: [String] = []
     private var opened: [URL] = []
-    private var inserted: [(String, PluginViewOrigin?)] = []
+    private var inserted: [(String, PluginViewInsertionTarget)] = []
     /// Each insertion's delivery, finished when a test says so.
     private var deliveries: [(PluginHostServiceError?) -> Void] = []
     private var settingsShown: [PluginID] = []
@@ -47,8 +47,8 @@ final class PluginViewHostActionsTests: XCTestCase {
             manifest: { $0 == package.manifest.id ? package.manifest : nil },
             copyText: { [unowned self] in copied.append($0) },
             openURL: { [unowned self] in opened.append($0) },
-            insertText: { [unowned self] text, origin, finished in
-                inserted.append((text, origin))
+            insertText: { [unowned self] text, target, finished in
+                inserted.append((text, target))
                 deliveries.append(finished)
             },
             openPluginSettings: { [unowned self] in settingsShown.append($0) },
@@ -72,7 +72,7 @@ final class PluginViewHostActionsTests: XCTestCase {
         XCTAssertEqual(copied, ["copied"])
         XCTAssertEqual(opened, [URL(string: "https://example.com/page")])
         XCTAssertEqual(inserted.map(\.0), ["inserted"])
-        XCTAssertEqual(inserted.map(\.1), [origin], "Text goes into the App the view came from")
+        XCTAssertEqual(inserted.map(\.1), [.origin(origin)], "Text goes into the App the view came from")
         XCTAssertEqual(settingsShown, [package.manifest.id])
     }
 

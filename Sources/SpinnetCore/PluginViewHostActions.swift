@@ -13,6 +13,16 @@ public struct PluginViewOrigin: Equatable {
     }
 }
 
+/// Where a Plugin View's standard insert action types its text.
+public enum PluginViewInsertionTarget: Equatable {
+    /// Plugin API Level 1: the App in front when an Action last presented
+    /// the view.
+    case origin(PluginViewOrigin?)
+    /// Candidate Contract `host_operations`: the App in front when the Host
+    /// inserts, only if it is the App the button named when it was pressed.
+    case shown(InsertionTargetCapture)
+}
+
 /// Where the user repairs a refusal shown in a Plugin View, chosen by the
 /// failure's category, as a Menu Item's unavailable reason names it.
 public enum PluginViewRepairRoute: Equatable {
@@ -53,9 +63,10 @@ public enum PluginViewRepairRoute: Equatable {
 /// Host Service is (`authorize`, the broker's own check), so it needs the
 /// same Capability and System Permission, and a refusal throws the same
 /// `PluginHostServiceError`. Its effect is the Host's, not the service's:
-/// inserted text goes into the App the view came from, which the Host brings
-/// back to the front and types the text into, so its outcome arrives only
-/// once that is done.
+/// inserted text goes into the App the view came from, or for a Plugin
+/// declaring `host_operations` the App in front if it is the one the button
+/// named, which the Host brings to the front and types the text into, so its
+/// outcome arrives only once that is done.
 public final class PluginViewHostActions {
     public typealias Authorize = (PluginHostService, ActionConfiguration) throws -> Void
 
@@ -63,9 +74,9 @@ public final class PluginViewHostActions {
     private let manifest: (PluginID) -> PluginManifest?
     private let copyText: (String) throws -> Void
     private let openURL: (URL) throws -> Void
-    /// Inserts text into the origin and calls back once, with nil when it
+    /// Inserts text into the target and calls back once, with nil when it
     /// was delivered.
-    public typealias InsertText = (String, PluginViewOrigin?, @escaping (PluginHostServiceError?) -> Void) -> Void
+    public typealias InsertText = (String, PluginViewInsertionTarget, @escaping (PluginHostServiceError?) -> Void) -> Void
 
     private let insertText: InsertText
     private let openPluginSettings: (PluginID) -> Void
@@ -100,6 +111,13 @@ public final class PluginViewHostActions {
     public func perform(_ standard: PluginViewStandardAction, for action: ActionConfiguration,
                         origin: PluginViewOrigin?,
                         finished: @escaping (PluginHostServiceError?) -> Void = { _ in }) throws {
+        try perform(standard, for: action, insertingInto: .origin(origin), finished: finished)
+    }
+
+    /// `perform`, with the insertion target the view's Plugin follows.
+    public func perform(_ standard: PluginViewStandardAction, for action: ActionConfiguration,
+                        insertingInto target: PluginViewInsertionTarget,
+                        finished: @escaping (PluginHostServiceError?) -> Void = { _ in }) throws {
         if let service = standard.service { try authorize(service, action) }
         switch standard {
         case .copyText(let text):
@@ -108,7 +126,7 @@ public final class PluginViewHostActions {
             // The same rule as `open_url`: only an http or https link.
             try openURL(OpenableURL.validate(link))
         case .insertText(let text):
-            insertText(text, origin, finished)
+            insertText(text, target, finished)
             return
         case .openPluginSettings:
             openPluginSettings(action.pluginID)

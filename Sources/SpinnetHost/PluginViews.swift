@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SpinnetCore
 
 /// What the Host's Plugin View renderer needs from the rest of the Host.
@@ -18,6 +19,9 @@ struct PluginViewEnvironment {
     let schedule: (TimeInterval, @escaping () -> Void) -> Void
     /// Tells the user of a failure that comes after the view has closed.
     let report: (String) -> Void
+    /// The App insertion would go to now, which the views of Plugins
+    /// declaring `host_operations` show; nil where no Host tracks it.
+    var insertionTargets: InsertionTargetTracker? = nil
 }
 
 /// What a Detail section shows.
@@ -58,10 +62,13 @@ final class PluginViewModel: ObservableObject {
     @Published private(set) var sectionRevision = 0
     /// The App that was in front when an Action last presented the view.
     var origin: PluginViewOrigin?
+    /// A Requested Host Operation the view committed has run for a while.
+    @Published private(set) var isPerformingOperation = false
 
     private let environment: PluginViewEnvironment
     private var toastCount = 0
     private(set) var view: JSONValue
+    private var targetChanges: AnyCancellable?
 
     init(session: PluginViewSession, presentation: PluginViewPresentation, description: PluginViewDescription,
          environment: PluginViewEnvironment) {
@@ -70,6 +77,42 @@ final class PluginViewModel: ObservableObject {
         self.environment = environment
         view = presentation.view
         update(presentation, description: description, newView: true, answersTyping: false, presentedAnew: true)
+        if session.showsInsertionTargets {
+            targetChanges = environment.insertionTargets?.objectWillChange.sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+        }
+    }
+
+    // MARK: - Insertion target
+
+    /// Whether this view's insertions follow `host_operations`: the Host
+    /// names the App on each insert action and, when the view asks, in a
+    /// target line, and inserts only into the App it named.
+    var showsInsertionTargets: Bool { session.showsInsertionTargets && environment.insertionTargets != nil }
+
+    /// The App the Host names as where text goes now, or nil for none.
+    var insertionTargetName: String? { environment.insertionTargets?.current?.name }
+
+    /// The target line the Host draws when the view asks for it.
+    var insertionTargetLine: String? {
+        guard showsInsertionTargets, description.showsInsertionTarget else { return nil }
+        return insertionTargetName.map { "Inserts into \($0)" } ?? Self.noInsertionTarget
+    }
+
+    /// The label an insert action carries beside its title.
+    func insertionTargetLabel(of action: PluginViewAction) -> String? {
+        guard showsInsertionTargets, case .standard(.insertText, _) = action.kind else { return nil }
+        return insertionTargetName.map { "into \($0)" } ?? Self.noInsertionTarget
+    }
+
+    static let noInsertionTarget = "No App to insert into"
+
+    /// What the user could see as where text would go when making a gesture:
+    /// the App the view names, if it names one.
+    private func shownInsertionTarget(namedByTheView names: Bool) -> InsertionTargetCapture {
+        guard showsInsertionTargets, names, let targets = environment.insertionTargets else { return .notShown }
+        return targets.capture()
     }
 
     var title: String { description.title }
@@ -93,6 +136,7 @@ final class PluginViewModel: ObservableObject {
         view = presentation.view
         self.description = description
         isBusy = presentation.isBusy
+        isPerformingOperation = presentation.isPerformingOperation
         eventError = presentation.error
         if presentedAnew { hostError = nil }
         guard newView else { return }
@@ -124,7 +168,8 @@ final class PluginViewModel: ObservableObject {
     func submit() {
         guard description.form != nil else { return }
         hostError = nil
-        session.send(.submitted(values: .object(values)))
+        session.send(.submitted(values: .object(values)),
+                     insertionTarget: shownInsertionTarget(namedByTheView: description.showsInsertionTarget))
     }
 
     // MARK: - Actions
@@ -133,7 +178,8 @@ final class PluginViewModel: ObservableObject {
         hostError = nil
         switch action.kind {
         case .event(let id):
-            session.send(.actionChosen(id))
+            session.send(.actionChosen(id),
+                         insertionTarget: shownInsertionTarget(namedByTheView: description.showsInsertionTarget))
         case .standard(let standard, let closesView):
             perform(standard, closingView: closesView)
         }
@@ -153,8 +199,14 @@ final class PluginViewModel: ObservableObject {
     /// the Host's message.
     private func perform(_ standard: PluginViewStandardAction, closingView: Bool) {
         let finishedAtOnce = FinishedAtOnce()
+        // An insert action names its App itself, so pressing it is a
+        // gesture made with that App shown.
+        var target = PluginViewInsertionTarget.origin(origin)
+        if showsInsertionTargets, case .insertText = standard {
+            target = .shown(shownInsertionTarget(namedByTheView: true))
+        }
         do {
-            try environment.hostActions.perform(standard, for: session.action, origin: origin) { [weak self] error in
+            try environment.hostActions.perform(standard, for: session.action, insertingInto: target) { [weak self] error in
                 guard !finishedAtOnce.returned else {
                     self?.finishedLater(error)
                     return
@@ -290,8 +342,10 @@ final class PluginViewModel: ObservableObject {
             labels.append(Self.label(of: section, at: index))
             if content(of: section).copyableText != nil { labels.append(Self.copyLabel(of: section, at: index)) }
         }
-        labels += description.actions.map(\.title)
+        if let line = insertionTargetLine { labels.append(line) }
+        labels += description.actions.map(actionLabel)
         if isBusy { labels.append(Self.busyLabel) }
+        if isPerformingOperation { labels.append(Self.operationBusyLabel) }
         if let error { labels.append(error.message) }
         if let route = repairRoute { labels.append(route.title) }
         if let toast { labels.append(toast) }
@@ -300,6 +354,13 @@ final class PluginViewModel: ObservableObject {
 
     static let closeLabel = "Close the view"
     static let busyLabel = "Working"
+    static let operationBusyLabel = "Performing the request"
+
+    /// What VoiceOver reads for an action: its title, and for an insert
+    /// action the App it inserts into.
+    func actionLabel(_ action: PluginViewAction) -> String {
+        insertionTargetLabel(of: action).map { "\(action.title), \($0)" } ?? action.title
+    }
 
     static func pinLabel(_ isPinned: Bool) -> String { isPinned ? "Unpin the view" : "Pin the view" }
 
@@ -382,7 +443,8 @@ final class PluginViewWindows: PluginViewRenderer {
         let description: PluginViewDescription
         do {
             description = try PluginViewDescription(parsing: presentation.view,
-                                                    settingsFields: environment.settingsFields(session.pluginID))
+                                                    settingsFields: environment.settingsFields(session.pluginID),
+                                                    permits: session.permits)
         } catch {
             // The sessions read every view before it gets here, so this is
             // a Host fault; the view cannot be drawn either way.

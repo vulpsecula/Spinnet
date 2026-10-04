@@ -91,7 +91,7 @@ final class PluginViewModelTests: XCTestCase {
         XCTAssertEqual(harness.copied, ["copied"])
         XCTAssertEqual(harness.opened, [URL(string: "https://example.com")])
         XCTAssertEqual(harness.inserted.map { $0.0 }, ["inserted"])
-        XCTAssertEqual(harness.inserted.map { $0.1 }, [harness.frontmost], "Into the App the view came from")
+        XCTAssertEqual(harness.inserted.map { $0.1 }, [.origin(harness.frontmost)], "Into the App the view came from")
         XCTAssertEqual(harness.repairs, [.pluginSettings], "Opening Plugin Settings")
         XCTAssertNil(model.error)
     }

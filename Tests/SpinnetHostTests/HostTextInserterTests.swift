@@ -189,7 +189,7 @@ private extension HostTextInserter.Keystroke {
 }
 
 /// What the inserter sees of the desktop, run synchronously on a fake clock.
-private final class FakeDesktop {
+final class FakeDesktop {
     var trusted = true
     let ownProcess: pid_t = 1
     var running: Set<pid_t> = [7, 42, 99]

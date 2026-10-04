@@ -42,6 +42,18 @@ final class HostTextInserter {
     /// Between key presses, so a busy App's event queue keeps up.
     static let strokeInterval: TimeInterval = 0.002
 
+    // What a failed insertion says. The candidate path (`host_operations`)
+    // reads its reason from which one it is.
+    static let noAppInFront = PluginHostServiceError.unavailable("No App is in front to insert into")
+    static let intoItself = PluginHostServiceError.unavailable("Spinnet does not insert text into itself")
+    static let notOpen = PluginHostServiceError.unavailable("The App to insert into is no longer open")
+    static let didNotComeForward = PluginHostServiceError.unavailable(
+        "The App to insert into did not come to the front; nothing was inserted")
+    static let passwordField = PluginHostServiceError.unavailable("The focused field is a password field; nothing was inserted")
+    static let leftTheFront = PluginHostServiceError.failed(
+        "The App to insert into left the front while the text was typed; only part of it was inserted")
+    static let noKeyboardEvents = PluginHostServiceError.failed("The keyboard events could not be created")
+
     /// What the inserter touches of the desktop. Everything but `post` and
     /// `pause` runs on the main thread; those two run where `deliver` puts
     /// them.
@@ -87,26 +99,18 @@ final class HostTextInserter {
         case .application(let origin):
             processIdentifier = origin
         case .frontmost:
-            guard let frontmost = environment.frontmost() else {
-                return completion(.unavailable("No App is in front to insert into"))
-            }
+            guard let frontmost = environment.frontmost() else { return completion(Self.noAppInFront) }
             processIdentifier = frontmost
         }
-        guard processIdentifier != environment.ownProcessIdentifier else {
-            return completion(.unavailable("Spinnet does not insert text into itself"))
-        }
-        guard environment.isRunning(processIdentifier) else {
-            return completion(.unavailable("The App to insert into is no longer open"))
-        }
+        guard processIdentifier != environment.ownProcessIdentifier else { return completion(Self.intoItself) }
+        guard environment.isRunning(processIdentifier) else { return completion(Self.notOpen) }
         guard !strokes.isEmpty else { return completion(nil) }
         // Always activated, even when already in front: a Plugin View's
         // panel holds the keyboard without taking the front from it.
         environment.activate(processIdentifier)
         let deadline = environment.now().addingTimeInterval(Self.activationTimeout)
         waitUntilReady(processIdentifier, deadline: deadline) { [environment] ready in
-            guard ready else {
-                return completion(.unavailable("The App to insert into did not come to the front; nothing was inserted"))
-            }
+            guard ready else { return completion(Self.didNotComeForward) }
             environment.deliver {
                 let outcome = Self.type(strokes, into: processIdentifier, environment: environment)
                 environment.schedule(0) { completion(outcome) }
@@ -158,18 +162,12 @@ final class HostTextInserter {
     /// Posts every key press, each only while the App is still in front.
     private static func type(_ strokes: [Keystroke], into processIdentifier: pid_t,
                              environment: Environment) -> PluginHostServiceError? {
-        if environment.focusedFieldIsSecure(processIdentifier) {
-            return .unavailable("The focused field is a password field; nothing was inserted")
-        }
+        if environment.focusedFieldIsSecure(processIdentifier) { return passwordField }
         for (index, stroke) in strokes.enumerated() {
             guard environment.frontmost() == processIdentifier else {
-                return index == 0
-                    ? .unavailable("The App to insert into did not come to the front; nothing was inserted")
-                    : .failed("The App to insert into left the front while the text was typed; only part of it was inserted")
+                return index == 0 ? didNotComeForward : leftTheFront
             }
-            guard environment.post(stroke, processIdentifier) else {
-                return .failed("The keyboard events could not be created")
-            }
+            guard environment.post(stroke, processIdentifier) else { return noKeyboardEvents }
             environment.pause(strokeInterval)
         }
         return nil
@@ -237,6 +235,22 @@ final class HostTextInserter {
         }
         if !piece.isEmpty { pieces.append(String(piece)) }
         return pieces
+    }
+}
+
+extension HostTextInserter {
+    /// The element focused in the App, as Accessibility exposes it, or nil
+    /// when it exposes none, as many web and Electron Apps do. Two reads
+    /// compare equal when they name the same element (`CFEqual`), so the
+    /// candidate path can tell whether focus moved inside the App between
+    /// the user's gesture and the insertion.
+    static func focusedElement(of processIdentifier: pid_t) -> AnyHashable? {
+        let app = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        return AnyHashable(focused as! AXUIElement)
     }
 }
 

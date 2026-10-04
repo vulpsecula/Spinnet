@@ -46,6 +46,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let clipboardObservationGate = ClipboardObservationGate()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
     private let textInserter = HostTextInserter()
+    /// The App insertion would go to now, which the Plugin Views of Plugins
+    /// declaring `host_operations` name (ADR 0018).
+    private lazy var insertionTargets = InsertionTargetTracker()
+    /// Every insertion of such a Plugin's View Session goes through it: into
+    /// the App in front only if it is the App the Host showed.
+    private lazy var targetedInserter = TargetedTextInserter(tracker: insertionTargets, inserter: textInserter)
     private lazy var selectedTextReader = SelectedTextReader(
         clipboardObservationGate: clipboardObservationGate
     )
@@ -113,6 +119,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                                         contracts: registry.contracts)
             }
             pluginRuntime = scriptedExecutor
+            // Made here, on the main thread, before a script can insert.
+            let targetedInserter = self.targetedInserter
             let hostServiceBroker = CapabilityCheckedHostServiceBroker(
                 grantStore: capabilityGrants,
                 systemPermissionCheck: { [pluginHostServiceProvider] permission in
@@ -161,6 +169,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 // thread brings the App in front forward.
                 focusedTextInserter: { [textInserter] text in
                     try textInserter.insertAndWait(text, into: .frontmost)
+                },
+                // A synchronous `selection.replace` of a Plugin declaring
+                // `host_operations`, compared with the target its view showed.
+                targetedTextInserter: { text, shown in
+                    try targetedInserter.insertAndWait(text, shown: shown)
                 },
                 localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)
@@ -532,6 +545,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                                 presenter.dismiss()
                                 return
                             }
+                        } catch let refusal as PluginHostServiceError {
+                            // A Requested Host Operation the Action may not
+                            // request refuses its whole answer.
+                            outcome = ActionOutcome(actionID: outcome.actionID, pluginID: outcome.pluginID,
+                                title: outcome.title, terminal: .failed(ActionFailure(pluginID: outcome.pluginID,
+                                    actionID: outcome.actionID, category: refusal.actionFailureCategory,
+                                    message: refusal.description)))
                         } catch {
                             let violation = error as? PluginRuntimeError
                                 ?? .protocolViolation("The script's answer is invalid")
@@ -549,7 +569,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 }
             })
             executions[action.id] = lifecycle
-            lifecycle.start()
+            // Starting an Action is a gesture: it waits while its Plugin has
+            // a Requested Host Operation outstanding (ADR 0018).
+            viewSessions.whenOperationSlotFree(for: action.pluginID) { [weak lifecycle] in lifecycle?.start() }
         } catch {
             feedback.showMessage("Action configuration is unavailable")
         }
@@ -598,13 +620,29 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             },
             showFeedback: { [weak self] toast in self?.toasts.show(toast, near: NSEvent.mouseLocation) },
             // A view the renderer could not draw is the script's protocol
-            // violation, read against the Plugin's own settings.
+            // violation, read against the Plugin's own settings and what its
+            // declarations offer.
             readView: { action, view in
+                let manifest = registry.package(for: action.pluginID)?.manifest
                 _ = try PluginViewDescription(
-                    parsing: view, settingsFields: registry.package(for: action.pluginID)?.manifest.settingsFields ?? []
+                    parsing: view, settingsFields: manifest?.settingsFields ?? [],
+                    permits: manifest.map(registry.contracts.permitting) ?? { _ in false }
                 )
             },
-            fetchedSections: fetchedSections
+            fetchedSections: fetchedSections,
+            permitting: { action in
+                registry.package(for: action.pluginID).map { registry.contracts.permitting($0.manifest) } ?? { _ in false }
+            },
+            operations: HostOperationsPerformer(
+                registry: registry, broker: { [weak self] in self?.clipboardBroker }, inserter: targetedInserter,
+                openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) }
+            ),
+            // An outcome no view shows is told near the pointer, as the
+            // Plugin's own.
+            reportOperation: { [weak self] action, message in
+                let plugin = registry.package(for: action.pluginID)?.manifest.name ?? action.pluginID.rawValue
+                self?.feedback?.showMessage("\(plugin) — \(action.title): \(message)")
+            }
         )
         sessions.observe(registry: registry, grantStore: capabilityGrants, on: { DispatchQueue.main.async(execute: $0) })
         return sessions
@@ -626,9 +664,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             manifest: { registry.package(for: $0)?.manifest },
             copyText: { try provider.writeClipboard($0) },
             openURL: { try provider.openURL($0) },
-            insertText: { [textInserter] text, origin, finished in
-                textInserter.insert(text, into: origin.map { .application($0.processIdentifier) } ?? .frontmost,
-                                    completion: finished)
+            insertText: { [textInserter, targetedInserter] text, target, finished in
+                switch target {
+                case .origin(let origin):
+                    textInserter.insert(text, into: origin.map { .application($0.processIdentifier) } ?? .frontmost,
+                                        completion: finished)
+                case .shown(let shown):
+                    targetedInserter.insert(text, shown: shown, naming: true) { failure in
+                        finished(failure.map(PluginHostServiceError.insertion))
+                    }
+                }
             },
             openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) },
             readSettings: { [weak self] manifest in self?.resolvedPluginSettings(manifest) ?? [:] },
@@ -661,7 +706,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             schedule: { delay, operation in
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
             },
-            report: { [weak self] message in self?.feedback?.showMessage(message) }
+            report: { [weak self] message in self?.feedback?.showMessage(message) },
+            insertionTargets: insertionTargets
         )
         return PluginViewWindows(
             environment: environment,

@@ -177,7 +177,7 @@ final class PluginViewHarness {
     var stored: [String: JSONValue] = [:]
     var copied: [String] = []
     var opened: [URL] = []
-    var inserted: [(String, PluginViewOrigin?)] = []
+    var inserted: [(String, PluginViewInsertionTarget)] = []
     /// How an insertion finishes before `perform` returns; nil holds it in
     /// `deliveries` until the test finishes it.
     var insertionFinishesAtOnce: PluginHostServiceError?? = .some(nil)
@@ -189,7 +189,10 @@ final class PluginViewHarness {
     private(set) var windows: PluginViewWindows!
     private(set) var sessions: PluginViewSessions!
 
-    init() throws {
+    /// `insertionTargets`, when given, is the App the Host shows as where
+    /// text goes, and `declaresHostOperations` makes the fixture's views
+    /// those of a Plugin declaring Candidate Contract `host_operations`.
+    init(insertionTargets: InsertionTargetTracker? = nil, declaresHostOperations: Bool = false) throws {
         package = try PluginManifestLoader.load(packageAt: Self.fixture)
         let manifest = package.manifest
         let hostActions = PluginViewHostActions(
@@ -202,8 +205,8 @@ final class PluginViewHarness {
             manifest: { $0 == manifest.id ? manifest : nil },
             copyText: { [unowned self] in copied.append($0) },
             openURL: { [unowned self] in opened.append($0) },
-            insertText: { [unowned self] text, origin, finished in
-                inserted.append((text, origin))
+            insertText: { [unowned self] text, target, finished in
+                inserted.append((text, target))
                 if let outcome = insertionFinishesAtOnce { finished(outcome) } else { deliveries.append(finished) }
             },
             openPluginSettings: { [unowned self] _ in repairs.append(.pluginSettings) },
@@ -218,7 +221,8 @@ final class PluginViewHarness {
             repair: { [unowned self] route, _ in repairs.append(route) },
             copy: { [unowned self] in copied.append($0) },
             schedule: { [unowned self] delay, operation in scheduled.append((delay, operation)) },
-            report: { [unowned self] in reports.append($0) }
+            report: { [unowned self] in reports.append($0) },
+            insertionTargets: insertionTargets
         )
         windows = PluginViewWindows(
             environment: environment,
@@ -234,15 +238,17 @@ final class PluginViewHarness {
         sessions = PluginViewSessions(
             renderer: windows,
             runEvent: { [unowned self] action, delivery, _, started, finish in
-                events.append(HeldEvent(event: delivery.event, finish: finish, action: action))
+                events.append(HeldEvent(event: delivery.event, finish: finish, action: action, delivery: delivery))
                 started()
             },
             schedule: { _, _ in },
             showFeedback: { [unowned self] in feedback.append($0) },
             readView: { [unowned self] action, view in
                 _ = try PluginViewDescription(parsing: view, settingsFields: action.pluginID == pluginID
-                                                ? package.manifest.settingsFields : [])
-            }
+                                                ? package.manifest.settingsFields : [],
+                                              permits: Self.permits(declaresHostOperations))
+            },
+            permitting: { _ in Self.permits(declaresHostOperations) }
         )
     }
 
@@ -301,6 +307,17 @@ struct HeldEvent {
     let event: PluginViewEvent?
     let finish: (ActionOutcome) -> Void
     let action: ActionConfiguration
+    var delivery = ViewEventDelivery.actionStart
+}
+
+extension PluginViewHarness {
+    /// What a Plugin declaring `host_operations` and `namespaces` may use, or
+    /// a Level 1 Plugin.
+    static func permits(_ declaresHostOperations: Bool) -> (PluginInterfaceMember) -> Bool {
+        { member in
+            declaresHostOperations && PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
+        }
+    }
 }
 
 final class FakePluginViewWindow: PluginViewWindow {
