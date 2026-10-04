@@ -17,6 +17,8 @@ struct SessionReport: Codable {
         let targetMs: Double?
         let p95WithinTarget: Bool?
         let maxWithinTarget: Bool?
+        /// The size of the view or page each answer described, in bytes.
+        let answerBytes: Distribution?
     }
 
     struct MemoryGroup: Codable {
@@ -80,6 +82,7 @@ struct SessionReport: Codable {
             let total = Distribution(samples.compactMap(\.totalMs))
             let exits = samples.compactMap(\.helperExitMs)
             let target = Self.target(scenario: first.scenario, helper: first.helper)
+            let bytes = samples.compactMap(\.answerBytes).map(Double.init)
             return LatencyGroup(
                 scenario: first.scenario, helper: first.helper, keystrokeIntervalMs: first.keystrokeIntervalMs,
                 failures: samples.filter { $0.failure != nil }.count,
@@ -89,7 +92,8 @@ struct SessionReport: Codable {
                 helperExitMs: exits.isEmpty ? nil : Distribution(exits),
                 targetMs: target,
                 p95WithinTarget: target.flatMap { target in total.p95.map { $0 <= target } },
-                maxWithinTarget: target.flatMap { target in total.max.map { $0 <= target } }
+                maxWithinTarget: target.flatMap { target in total.max.map { $0 <= target } },
+                answerBytes: bytes.isEmpty ? nil : Distribution(bytes)
             )
         }
 
@@ -119,7 +123,7 @@ struct SessionReport: Codable {
         lines.append("its answer; for typing that is from the pause, debounce included. Invoke is the helper's part.")
         lines.append(table(
             ["Scenario", "Helper", "Keys every", "n", "Failed", "p50", "p95", "max", "Invoke p50", "Invoke p95",
-             "Target", "p95 ok", "max ok"],
+             "Target", "p95 ok", "max ok", "Answer KB p50", "Answer KB max"],
             latency.map { group in
                 [group.scenario, group.helper, group.keystrokeIntervalMs.map { "\($0) ms" } ?? "",
                  "\(group.totalMs.count)", "\(group.failures)",
@@ -127,7 +131,9 @@ struct SessionReport: Codable {
                  milliseconds(group.invokeMs.p50), milliseconds(group.invokeMs.p95),
                  group.targetMs.map { milliseconds($0) } ?? "",
                  group.p95WithinTarget.map { $0 ? "yes" : "NO" } ?? "",
-                 group.maxWithinTarget.map { $0 ? "yes" : "NO" } ?? ""]
+                 group.maxWithinTarget.map { $0 ? "yes" : "NO" } ?? "",
+                 group.answerBytes?.p50.map { String(format: "%.1f", $0 / 1024) } ?? "",
+                 group.answerBytes?.max.map { String(format: "%.1f", $0 / 1024) } ?? ""]
             }
         ))
         for group in latency {

@@ -80,13 +80,20 @@ final class ViewSessionRig {
             processFactory: { processes.make() },
             environment: { PluginRuntimeEnvironment(hostVersion: "0.0.0", preferredLanguage: "en") }
         )
-        runner = HostActionRunner(executor: NoHostCommands(), scriptedExecutor: supervisor)
+        // Plugin Storage is the only Host Service the rig answers, as the
+        // Host does, over a directory of its own, so a Plugin that keeps
+        // recent items can be measured.
+        let storage = PluginStorage(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinnet-measure-storage-\(UUID().uuidString)", isDirectory: true))
+        runner = HostActionRunner(executor: NoHostCommands(), scriptedExecutor: supervisor,
+                                  hostServiceBroker: StorageOnlyBroker(storage: storage))
         pluginQueue = DispatchQueue(label: "com.vulpsecula.Spinnet.measure.plugin", qos: .userInitiated)
         let registry = self.registry
         let runner = self.runner
         let runLog = self.runLog
         let pluginQueue = self.pluginQueue
         let settingsFields = package.manifest.settingsFields
+        let permits = PluginInterfaceContracts.host.permitting(package.manifest)
         onMain {
             sessions = PluginViewSessions(
                 renderer: renderer,
@@ -106,7 +113,12 @@ final class ViewSessionRig {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
                 },
                 showFeedback: { _ in },
-                readView: { _, view in _ = try PluginViewDescription(parsing: view, settingsFields: settingsFields) }
+                readView: { _, view in
+                    _ = try PluginViewDescription(parsing: view, settingsFields: settingsFields, permits: permits)
+                },
+                // A Plugin declaring candidates answers as the Host reads
+                // it, pages included.
+                permitting: { _ in permits }
             )
             if let grantStore {
                 sessions.observe(registry: registry, grantStore: grantStore,
@@ -247,6 +259,19 @@ final class ViewSessionRig {
 struct MeasurementError: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) { self.description = description }
+}
+
+/// Answers Plugin Storage the Host's way and refuses every other service.
+private struct StorageOnlyBroker: PluginHostServiceBroker {
+    let storage: PluginStorage
+
+    func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
+                 action: ActionConfiguration) throws -> JSONValue {
+        guard request.service.isPluginStorage else {
+            throw PluginHostServiceError.unavailable("The measurement answers Plugin Storage only")
+        }
+        return try storage.answer(request.service, input: request.input, for: package.manifest.id)
+    }
 }
 
 private struct NoHostCommands: HostCommandExecutor {

@@ -30,12 +30,12 @@ func runSessions(_ options: MeasurementOptions) throws {
     try output.writeCSV(
         "samples.csv",
         header: ["scenario", "helper", "keystroke_interval_ms", "index", "query", "inputs", "total_ms", "dispatch_ms",
-                 "invoke_ms", "apply_ms", "events_run", "helper_launches", "helper_exit_ms", "failure"],
+                 "invoke_ms", "apply_ms", "events_run", "helper_launches", "helper_exit_ms", "failure", "answer_bytes"],
         rows: measurement.latency.map { sample in
             [sample.scenario, sample.helper, optional(sample.keystrokeIntervalMs), "\(sample.index)",
              sample.query ?? "", "\(sample.inputs)", optional(sample.totalMs), optional(sample.dispatchMs),
              optional(sample.invokeMs), optional(sample.applyMs), "\(sample.eventsRun)", "\(sample.helperLaunches)",
-             optional(sample.helperExitMs), sample.failure ?? ""]
+             optional(sample.helperExitMs), sample.failure ?? "", sample.answerBytes.map { "\($0)" } ?? ""]
         }
     )
     try output.writeCSV(

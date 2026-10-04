@@ -31,6 +31,9 @@ struct LatencySample: Codable {
     /// For `idle-exit`: from the helper going idle to its process exiting.
     let helperExitMs: Double?
     let failure: String?
+    /// The UTF-8 size of the view or page the answer described, as the
+    /// budgets count it; nil when the answer had none.
+    var answerBytes: Int? = nil
 }
 
 /// One reading of one process's `phys_footprint`.
@@ -68,7 +71,21 @@ final class SessionMeasurement {
     /// action (`--event-query`).
     private var againEvent: PluginViewEvent {
         guard let query = options.eventQuery else { return .actionChosen("again") }
-        return .fieldChanged(field: "query", values: .object(["query": .string(query)]))
+        return typed(query)
+    }
+
+    /// The field change typing `text` into the `query` field sends: a page's
+    /// (Candidate Contract `collections`) with every input of the page, or a
+    /// Level 1 form's.
+    private func typed(_ text: String) -> PluginViewEvent {
+        let field = options.pageField
+        guard let page = rig.session?.page else {
+            return .fieldChanged(field: field, values: .object([field: .string(text)]))
+        }
+        var memory = PluginPageMemory()
+        memory.show(page)
+        memory.setText(text, of: field)
+        return .pageFieldChanged(page: page.id, field: field, values: memory.values)
     }
 
     func run(progress: (String) -> Void) throws {
@@ -79,6 +96,10 @@ final class SessionMeasurement {
         for interval in options.keystrokeIntervals {
             progress("Typing every \(interval) ms, cold and warm (\(options.typingSamples) each)")
             try measureTyping(every: interval)
+        }
+        if options.loadMoreRounds > 0 {
+            progress("Loading more into a page's collection (\(options.loadMoreRounds) rounds)")
+            try measureLoadingMore()
         }
         progress("Memory over \(options.memoryCycles) cycles")
         try measureMemory()
@@ -128,8 +149,10 @@ final class SessionMeasurement {
                 if helper == "cold" { try rig.retireHelper() }
                 settle()
                 let interaction = try type(query, every: interval)
-                latency.append(sample("typing", helper, interval: interval, index: index, query: query,
-                                      inputs: query.count, interaction))
+                var typed = sample("typing", helper, interval: interval, index: index, query: query,
+                                   inputs: query.count, interaction)
+                typed.answerBytes = rig.session.map { PluginScriptAnswer.encodedSize(of: $0.view) }
+                latency.append(typed)
             }
         }
     }
@@ -166,9 +189,32 @@ final class SessionMeasurement {
         var text = ""
         let keystrokes = query.enumerated().map { offset, character -> (offset: Int, event: PluginViewEvent) in
             text.append(character)
-            return (offset * interval, .fieldChanged(field: "query", values: .object(["query": .string(text)])))
+            return (offset * interval, typed(text))
         }
         return try rig.interact(keystrokes)
+    }
+
+    /// From a freshly opened page, asks for more items until the Plugin has
+    /// none, as nearing the end of a collection does, timing each answer and
+    /// its size. Every answer carries all items loaded so far.
+    private func measureLoadingMore() throws {
+        for round in 0..<options.loadMoreRounds {
+            rig.closeView()
+            settle()
+            guard try rig.openView().failure == nil else { throw MeasurementError("The view did not open") }
+            var index = 0
+            while let page = rig.session?.page, let collection = page.collection, collection.hasMore {
+                settle()
+                let interaction = try rig.interact([(0, .loadMore(page: page.id, collection: collection.id,
+                                                                  loaded: collection.items.count))])
+                var sample = sample("load-more", "warm", index: round * 1000 + index, query: "\(collection.items.count)",
+                                    inputs: 1, interaction)
+                sample.answerBytes = rig.session.map { PluginScriptAnswer.encodedSize(of: $0.view) }
+                latency.append(sample)
+                if interaction.failure != nil { break }
+                index += 1
+            }
+        }
     }
 
     // MARK: Memory
