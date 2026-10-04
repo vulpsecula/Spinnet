@@ -501,6 +501,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // Calling a Plugin whose View Session is open runs the Action in
+        // that session when the Plugin declares collections r2 (#78): the
+        // panel comes forward and the view shows the call's progress.
+        if viewSessions.call(configuredAction) { return }
         do {
             let action = try configuredAction.newInvocation()
             #if DEBUG

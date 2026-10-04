@@ -48,6 +48,32 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertEqual(window.closes, 0)
     }
 
+    /// Calling the Plugin again while its view is open (Candidate Contract
+    /// `collections` r2) brings the window forward where it is as soon as
+    /// the call is accepted; the call's view then updates it in place.
+    /// Under Level 1 the call is not taken: the Action starts again.
+    func testACallBringsTheViewForwardWhereItIs() throws {
+        harness = try PluginViewHarness(declaresHostOperations: true)
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let window = try XCTUnwrap(harness.window())
+
+        XCTAssertTrue(harness.sessions.call(try harness.action()))
+        XCTAssertEqual(window.focuses, 1, "Forward before the call runs")
+        XCTAssertEqual(harness.events.last?.event, .called)
+        harness.finishEvent(with: .object(["view": PluginViewHarness.form(title: "Second"), "state": .null]))
+
+        XCTAssertTrue(harness.window() === window)
+        XCTAssertEqual(harness.windows.model(for: harness.pluginID)?.description.title, "Second")
+        XCTAssertEqual(window.focuses, 1, "Its answer does not take the keyboard again")
+        XCTAssertEqual(window.shownNear.count, 1)
+        XCTAssertEqual(window.closes, 0)
+
+        harness = try PluginViewHarness()
+        try harness.present(PluginViewHarness.form(title: "First"))
+        XCTAssertFalse(harness.sessions.call(try harness.action()))
+        XCTAssertEqual(harness.window()?.focuses, 0)
+    }
+
     func testViewsOfDifferentPluginsCoexist() throws {
         try harness.present(PluginViewHarness.form(title: "Mine"))
         let other = PluginID("com.example.other")

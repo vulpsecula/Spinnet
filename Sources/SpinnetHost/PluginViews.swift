@@ -546,6 +546,14 @@ final class PluginViewWindows: PluginViewRenderer {
         entry.window.close()
     }
 
+    /// The user called the Plugin again while its view is open: the window
+    /// comes to the front where it is and takes the keyboard, keeping its
+    /// pin and what the user is doing in it.
+    func bringForward(_ session: PluginViewSession) {
+        guard let entry = entries[session.pluginID], entry.session === session else { return }
+        entry.window.focus()
+    }
+
     func showToast(_ toast: String, in session: PluginViewSession) {
         guard let entry = entries[session.pluginID], entry.session === session else { return }
         entry.model?.showToast(toast)
