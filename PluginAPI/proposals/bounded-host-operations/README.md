@@ -1,12 +1,20 @@
 # Proposal: bounded script-requested Host operations
 
-> **Status: proposal only.** Nothing in this directory is part of Plugin API
-> Level 1, of any later stable Level, or of any published Candidate Contract
-> revision. No Host, helper, SDK or test kit implements it. A Plugin must not
-> declare or rely on anything described here. The files exist so the design
-> for GitHub issue #70 can be reviewed as a diff; the implementation ticket
-> (#76) turns an accepted version of them into a real candidate revision
-> under [`../../candidates/`](../../candidates/README.md).
+> **Status: design record; revision 1 is published.** #76 published
+> Candidate Contract `host_operations` revision 1 from this proposal under
+> [`../../candidates/host_operations/r1/`](../../candidates/host_operations/r1/reference.md),
+> which the Host, helper, SDK and test kit implement: write Plugins against
+> that revision, not against the files here. Its `candidate.json` records
+> the operations an answer may request as `request` members, the kind #100
+> added to #75's metadata, where the draft here used `request:<id>`
+> behaviours. Its reasons drop `no_text_input` and `text_rejected`, which
+> keyboard-event insertion (P3) cannot tell apart, and add the failure
+> categories the other request IDs fail with; its SDK adds the
+> `.operation(...)` builders, `host.showPluginSettings`, `ui.request` and
+> `showsInsertionTarget` on `ui.view`. Focus moving inside the App refuses
+> only where Accessibility exposed the focused element when the user acted;
+> elsewhere the App alone is compared (#69). This directory stays as the
+> design for issue #70.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal. Where these drafts reference a Level 1 schema,
@@ -59,20 +67,17 @@ written against it would declare, beside its stable Level:
 }
 ```
 
-[`candidate.json`](candidate.json) is the draft metadata that revision would
-publish: it builds on Level 1, requires the draft
-[`namespaces` revision 1](../namespaces/README.md) whose IDs name its
-operations, excludes no other candidate, and lists its members (the
-`operation` answer member, one `request:<id>` member per catalogue ID it may
-request, `selection.replace` among them, the `operation_finished` View Event, the
+[`candidate.json`](candidate.json) is the draft metadata that revision was
+published from: it builds on Level 1, requires
+[`namespaces` revision 1](../../candidates/namespaces/r1/reference.md) whose
+IDs name its operations, excludes no other candidate, and lists its members
+(the `operation` answer member, one `request:<id>` member per catalogue ID
+it may request, the `operation_finished` View Event, the
 `shows_insertion_target` view member, execution-time insertion targeting on
-every View Session insertion path, and the `insertion_target_changed` failure
-category). It is a draft that no Host provides. Its `status` reads
-`supported` only because that is what the metadata schema allows for a
-revision a Host would provide; it is not under `../../candidates/`, the
-table of Candidate Contracts the Host provides does not list it, its tag does
-not exist, and `check.py` fails if either of those changes while it is still
-a proposal.
+every View Session insertion path, and the `insertion_target_changed`
+failure category). `check.py` checks that the published
+[`candidate.json`](../../candidates/host_operations/r1/candidate.json) has
+the same members, with requests as `request` members.
 
 ## Files
 
@@ -80,7 +85,7 @@ a proposal.
 | --- | --- |
 | [`design.md`](design.md) | The design: ownership, commit, confirmation, results, busy behaviour, deadlines, stale results, the insertion rules, permissions, what waits on #69, and the product choices returned to the user |
 | [`reference.md`](reference.md) | A draft of the reference page a candidate revision would publish |
-| [`candidate.json`](candidate.json) | Draft Candidate Contract metadata for `host_operations` revision 1, provided by no Host |
+| [`candidate.json`](candidate.json) | Draft Candidate Contract metadata for `host_operations` revision 1, as published with requests recorded as behaviours |
 | [`host-operations.schema.json`](host-operations.schema.json) | Draft JSON Schema (draft 2020-12) for the answer member, the `operation_finished` event and the view member that shows the insertion target |
 | [`host-operations.d.ts`](host-operations.d.ts) | Draft types and proposed `spinnet.ui` builders |
 | [`verification-plan.md`](verification-plan.md) | Budgets to measure and the real-App verification matrix |

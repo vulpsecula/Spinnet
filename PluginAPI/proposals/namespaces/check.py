@@ -670,7 +670,8 @@ def draft_errors(catalogue):
     listed = [m for m in members if m[0] == "host_service" or m[1].startswith("host_command:")]
     if listed != expected:
         found.append("candidate.json's host_service and host_command members are not the catalogue's call and command IDs")
-    for name in ("host_operations", "collections"):
+    # host_operations r1 is published (#76); collections is a draft.
+    for name in ("collections",):
         if (CANDIDATES / name).exists():
             found.append(f"candidates/{name} exists; a draft must not be published as a candidate")
         provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
