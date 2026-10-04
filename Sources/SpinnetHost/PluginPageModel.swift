@@ -47,6 +47,8 @@ final class PluginPageModel: ObservableObject {
     let hoverState = PageHoverState()
     /// The collection's selected item.
     var selectedItem: String? { collectionState.selectedItem }
+    /// A pinned page stays open when it loses focus and when an action or
+    /// operation with `closes_view` succeeds.
     @Published var isPinned = false
     @Published private(set) var isBusy = false
     @Published private(set) var isPerformingOperation = false

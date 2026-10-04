@@ -95,14 +95,15 @@ Standard actions are performed by the Host itself, without a View Event, under
 the Capability their Host Service needs. A refusal shows in the view with the
 way to repair it, such as opening the Plugin's Plugin Settings to grant access,
 and the view stays open. With `closes_view`, the view closes once the action
-succeeds.
+succeeds, unless the user pinned it.
 
 `insert_text` types its text into the App the view came from as
 [`insert_text`](host-services.md#insert_text) does into the App in front,
-after bringing that App back to the keyboard. With `closes_view` the view
-therefore closes before the text is typed, and a failure after that is shown
-by the Host rather than in the view; without it, an unpinned view closes when
-the App takes the keyboard, and a pinned one stays where it is.
+after bringing that App back to the keyboard. With `closes_view` an unpinned
+view therefore closes before the text is typed, and a failure after that is
+shown by the Host rather than in the view; without it, an unpinned view
+closes when the App takes the keyboard. A pinned view stays where it is
+either way, without the keyboard, and shows a later failure itself.
 
 | `perform` | Member | Needs |
 | --- | --- | --- |
@@ -117,7 +118,14 @@ Each Plugin has at most one view. Presenting again replaces it in place and
 keeps its pin; views of different Plugins may be open together. A view opens
 near the pointer and takes the keyboard without bringing Spinnet forward, so
 the App the user was in stays in front. An unpinned view closes when it loses
-focus; Escape or its close button closes any view. While an event runs the
+focus; Escape or its close button closes any view.
+
+Pin means the user keeps the view beside their App. `closes_view` closes the
+view unless the user pinned it: on a standard action here, and on whatever
+else a Plugin marks with it under a Candidate Contract, such as a Requested
+Host Operation (`host_operations`) or a page or item action (`collections`).
+A pinned view stays open after such an action succeeds. The Plugin's own
+`{close: true}` and the user's close close a pinned view as any other. While an event runs the
 view shows its own busy state, not the Action's progress. Every component
 carries an accessibility label: fields, setting controls and actions their
 titles, sections their titles (or "Details" and their position), and the pin,

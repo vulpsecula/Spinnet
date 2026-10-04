@@ -36,7 +36,8 @@ public enum PluginViewSessionEnd: Equatable {
     /// The view was closed: by the user, or by the Host, as when an unpinned
     /// view loses focus or the Host cannot show it.
     case viewClosed
-    /// The script answered `{close: true}`.
+    /// The script answered `{close: true}`, or an operation or action with
+    /// `closes_view` succeeded in a view the user had not pinned.
     case closedByPlugin
     /// The Plugin was updated, disabled or removed.
     case pluginChanged
@@ -71,10 +72,15 @@ public protocol PluginViewRenderer: AnyObject {
     /// Brings the session's view to the front where it is and gives it the
     /// keyboard, as when the user calls the Plugin again while it is open.
     func bringForward(_ session: PluginViewSession)
+    /// Whether the user pinned the session's view. Pin keeps the panel
+    /// beside the user's App, so `closes_view` leaves a pinned view open;
+    /// an explicit close and the user's own still close it.
+    func isPinned(_ session: PluginViewSession) -> Bool
 }
 
 public extension PluginViewRenderer {
     func bringForward(_ session: PluginViewSession) {}
+    func isPinned(_ session: PluginViewSession) -> Bool { false }
 }
 
 /// One View Session (ADR 0010): the Host keeps the view's state and hands
@@ -593,14 +599,14 @@ public final class PluginViewSession {
 
     /// Shows a committed operation's outcome where the user is looking: a
     /// refusal or failure inline with its repair route, and a success that
-    /// asked to close the view by closing it.
+    /// asked to close the view by closing it unless the user pinned it.
     func show(_ result: HostOperationResult, of operation: RequestedHostOperation, for requester: ActionConfiguration) {
         guard !isEnded else { return }
         if let failure = result.failure(for: requester) {
             error = failure
             errorEvent = nil
             present()
-        } else if operation.closesView {
+        } else if operation.closesView, renderer?.isPinned(self) != true {
             end(.closedByPlugin)
         }
     }

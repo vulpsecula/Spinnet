@@ -50,7 +50,8 @@ final class PluginViewModel: ObservableObject {
     @Published private(set) var description: PluginViewDescription
     /// Each form field's value, keyed by field.
     @Published private(set) var values: [String: JSONValue] = [:]
-    /// A pinned view stays open when it loses focus.
+    /// A pinned view stays open when it loses focus and when an action or
+    /// operation with `closes_view` succeeds.
     @Published var isPinned = false
     @Published private(set) var isBusy = false
     /// The last event's failure, from the session.
@@ -192,7 +193,7 @@ final class PluginViewModel: ObservableObject {
     }
 
     /// Performs a standard action and closes the view if asked once it has
-    /// succeeded. Inserted text is typed only after the Host brings its App
+    /// succeeded, unless the user pinned it. Inserted text is typed only after the Host brings its App
     /// forward, which takes the keyboard from this view, so a view that
     /// closes on inserting closes as soon as the insert is under way, and
     /// a later failure is shown in the view if it is still open, or else as
@@ -222,7 +223,7 @@ final class PluginViewModel: ObservableObject {
             hostError = environment.hostActions.failure(error, for: session.action)
             return
         }
-        if closingView { session.close() }
+        if closingView, !isPinned { session.close() }
     }
 
     private func finishedLater(_ error: PluginHostServiceError?) {
@@ -552,6 +553,11 @@ final class PluginViewWindows: PluginViewRenderer {
     func bringForward(_ session: PluginViewSession) {
         guard let entry = entries[session.pluginID], entry.session === session else { return }
         entry.window.focus()
+    }
+
+    func isPinned(_ session: PluginViewSession) -> Bool {
+        guard let entry = entries[session.pluginID], entry.session === session else { return false }
+        return entry.isPinned
     }
 
     func showToast(_ toast: String, in session: PluginViewSession) {

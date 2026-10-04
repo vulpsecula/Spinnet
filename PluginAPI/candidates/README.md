@@ -119,6 +119,13 @@ A Host may provide more than one revision of a candidate, as this one
 provides `collections` r1 and r2; a Plugin declares exactly one of them and
 gets exactly that revision's members.
 
+The window rules of [Plugin Views](../reference/views.md#windows) apply to
+every revision's views and pages. Among them, `closes_view` closes the view
+unless the user pinned it, whether a requested operation, a page action or
+an item action carries it. A revision's reference says only that it closes
+the view; since a published revision never changes, the clarification lives
+there rather than in each revision.
+
 ## Promotion and retirement
 
 Promoting a candidate gives the members of its latest provided revision the

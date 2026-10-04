@@ -142,6 +142,44 @@ final class HostOperationSessionTests: XCTestCase {
         XCTAssertEqual(performer.performed.count, 1)
     }
 
+    // MARK: - Pin
+
+    /// Pin means the user keeps the panel beside their App: `closes_view`
+    /// closes a view only when it is not pinned, for a requested operation
+    /// and for a page or item action alike.
+    func testClosesViewLeavesAPinnedViewOpen() throws {
+        renderer.pinned = true
+        let session = try start()
+        session.send(.submitted(values: .null), insertionTarget: Self.shownA)
+        let insert = RequestedHostOperation(perform: "selection.replace", input: .string("😀"), closesView: true)
+        finish(0, view: "picked", operation: insert)
+        performer.finish(0, .succeeded)
+        XCTAssertFalse(session.isEnded, "A pinned view stays open")
+        XCTAssertEqual(renderer.closes, [])
+
+        session.perform(RequestedHostOperation(perform: "clipboard.write", input: .string("😀"), closesView: true),
+                        insertionTarget: .notShown)
+        performer.finish(1, .succeeded)
+        XCTAssertFalse(session.isEnded, "A page or item action leaves a pinned view open too")
+
+        renderer.pinned = false
+        session.perform(RequestedHostOperation(perform: "clipboard.write", input: .string("😀"), closesView: true),
+                        insertionTarget: .notShown)
+        performer.finish(2, .succeeded)
+        XCTAssertTrue(session.isEnded, "Once unpinned, closes_view closes the view")
+        XCTAssertEqual(renderer.closes, [.closedByPlugin])
+    }
+
+    /// The Plugin's explicit `{close: true}` closes a pinned view.
+    func testAnExplicitCloseClosesAPinnedView() throws {
+        renderer.pinned = true
+        let session = try start()
+        session.send(.actionChosen("done"))
+        runner.runs[0].finish(.succeeded(.object(["close": .bool(true)])))
+        XCTAssertTrue(session.isEnded)
+        XCTAssertEqual(renderer.closes, [.closedByPlugin])
+    }
+
     // MARK: - Busy
 
     /// Scenario 07: while an operation is outstanding, gestures wait in order

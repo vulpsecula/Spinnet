@@ -247,6 +247,52 @@ final class PluginPageModelTests: XCTestCase {
         XCTAssertEqual(harness.levelOneWindows.first?.closes, 1)
     }
 
+    /// Pin means the user keeps the panel beside their App: an item
+    /// action's `closes_view` and a requested operation's leave a pinned
+    /// page open, and close it once it is unpinned.
+    func testClosesViewLeavesAPinnedPageOpen() throws {
+        try harness.open(PageHarness.search(insertsItself: true, closesView: true))
+        model.isPinned = true
+        model.returnPressedInCollection()
+        XCTAssertEqual(harness.performer.performed.last?.operation.perform, "selection.replace")
+        XCTAssertNotNil(harness.windows.pageModel(for: PageHarness.pluginID), "The pinned page stays after inserting")
+        XCTAssertEqual(harness.pageWindows.last?.closes, 0)
+        _ = model.copySelection()
+        XCTAssertEqual(harness.performer.performed.last?.operation.perform, "clipboard.write")
+        XCTAssertNotNil(harness.sessions.session(for: PageHarness.pluginID))
+
+        model.isPinned = false
+        _ = model.copySelection()
+        XCTAssertNil(harness.sessions.session(for: PageHarness.pluginID), "Unpinned, closes_view closes it")
+        XCTAssertEqual(harness.pageWindows.last?.closes, 1)
+    }
+
+    func testARequestedOperationThatClosesTheViewLeavesAPinnedPageOpen() throws {
+        try harness.open(PageHarness.search())
+        model.isPinned = true
+        model.returnPressedInCollection()
+        harness.finish(.object(["operation": RequestedHostOperation(perform: "selection.replace", input: .string("★"),
+                                                                   closesView: true).json]))
+        XCTAssertEqual(harness.performer.performed.map(\.operation.perform), ["selection.replace"])
+        XCTAssertNotNil(harness.sessions.session(for: PageHarness.pluginID))
+        XCTAssertEqual(harness.pageWindows.last?.closes, 0)
+    }
+
+    /// The Plugin's `{close: true}` and the user's own close still close a
+    /// pinned page.
+    func testAnExplicitCloseOrTheUsersCloseClosesAPinnedPage() throws {
+        try harness.open(PageHarness.search())
+        model.isPinned = true
+        model.returnPressedInCollection()
+        harness.finish(.object(["close": .bool(true)]))
+        XCTAssertNil(harness.sessions.session(for: PageHarness.pluginID), "The Plugin closed it")
+
+        try harness.open(PageHarness.search())
+        model.isPinned = true
+        harness.pageWindows.last?.onUserClose?()
+        XCTAssertNil(harness.sessions.session(for: PageHarness.pluginID), "The user closed it")
+    }
+
     func testAnUnpinnedPageClosesWhenItLosesFocus() throws {
         try harness.open(PageHarness.search())
         harness.pageWindows.last?.onResignKey?()
@@ -354,11 +400,13 @@ final class PageHarness {
 
     static func search(query: String = "", items: [String] = ["A", "B", "C", "D"], reset: [String]? = nil,
                        hasMore: Bool = false, insertsItself: Bool = false, showsTarget: Bool = true,
-                       copyOnly: Bool = false) -> JSONValue {
+                       copyOnly: Bool = false, closesView: Bool = false) -> JSONValue {
+        let closes: [String: JSONValue] = closesView ? ["closes_view": .bool(true)] : [:]
         var actions: [JSONValue] = [
             .object(["id": .string("insert"), "title": .string("Insert"), "default": .bool(true)]
-                .merging(insertsItself ? ["perform": .string("selection.replace")] : [:]) { $1 }),
-            .object(["id": .string("copy"), "title": .string("Copy"), "perform": .string("clipboard.write")])
+                .merging(insertsItself ? ["perform": .string("selection.replace")].merging(closes) { $1 } : [:]) { $1 }),
+            .object(["id": .string("copy"), "title": .string("Copy"), "perform": .string("clipboard.write")]
+                .merging(closes) { $1 })
         ]
         if copyOnly { actions.removeFirst() }
         var grid: [String: JSONValue] = ["kind": .string("grid"), "id": .string("results"), "columns": .number(8),

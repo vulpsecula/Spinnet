@@ -183,6 +183,53 @@ final class PluginViewModelTests: XCTestCase {
         XCTAssertEqual(harness.reports, [])
     }
 
+    /// Pin means the user keeps the panel beside their App: a standard
+    /// action's `closes_view` leaves a pinned view open, an insert included,
+    /// whose later failure then shows in the view.
+    func testAStandardActionThatClosesTheViewLeavesAPinnedViewOpen() throws {
+        harness.insertionFinishesAtOnce = nil
+        try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
+            .object(["title": .string("Copy"), "perform": .string("copy_text"), "text": .string("c"),
+                     "closes_view": .bool(true)]),
+            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+                     "closes_view": .bool(true)])
+        ]))
+        let model = try model()
+        let window = try XCTUnwrap(harness.window())
+        model.isPinned = true
+        model.choose(model.description.actions[0])
+        XCTAssertEqual(harness.copied, ["c"])
+        XCTAssertFalse(model.session.isEnded)
+
+        model.choose(model.description.actions[1])
+        XCTAssertEqual(harness.inserted.map(\.0), ["x"])
+        XCTAssertFalse(model.session.isEnded)
+        XCTAssertEqual(window.closes, 0)
+        harness.deliveries.first?(.unavailable("The focused field is a password field; nothing was inserted"))
+        XCTAssertEqual(model.error?.message,
+                       "Host Service is unavailable: The focused field is a password field; nothing was inserted")
+        XCTAssertEqual(harness.reports, [])
+    }
+
+    /// The Plugin's `{close: true}` and the user's own close still close a
+    /// pinned view.
+    func testAnExplicitCloseOrTheUsersCloseClosesAPinnedView() throws {
+        let view = PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])],
+                                            actions: [.object(["id": .string("done"), "title": .string("Done")])])
+        try harness.present(view)
+        var model = try model()
+        model.isPinned = true
+        model.choose(try XCTUnwrap(model.description.actions.first))
+        harness.finishEvent(with: .object(["close": .bool(true)]))
+        XCTAssertTrue(model.session.isEnded, "The Plugin closed it")
+
+        try harness.present(view)
+        model = try self.model()
+        model.isPinned = true
+        try XCTUnwrap(harness.window()).onUserClose?()
+        XCTAssertTrue(model.session.isEnded, "The user closed it")
+    }
+
     /// An event's refusal shows inline with its repair route too.
     func testARefusedEventShowsItsRepairRoute() throws {
         try harness.present(PluginViewHarness.form(title: "Form"))

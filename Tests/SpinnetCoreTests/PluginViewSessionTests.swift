@@ -743,6 +743,10 @@ final class RecordingRenderer: PluginViewRenderer {
     private(set) var closes: [PluginViewSessionEnd] = []
     /// How many times a session asked for its panel to come forward.
     private(set) var broughtForward = 0
+    /// Whether the user pinned the view.
+    var pinned = false
+
+    func isPinned(_ session: PluginViewSession) -> Bool { pinned }
 
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
         presentations.append(presentation)
