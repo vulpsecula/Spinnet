@@ -23,12 +23,41 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// outcome (Candidate Contract `host_operations`). `id` is the Plugin's
     /// own label for it, `perform` its catalogue ID.
     case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome)
+    /// Candidate Contract `collections`: the user changed `field` of `page`.
+    /// `values` holds every input of the page as committed text, never text
+    /// an input method is still composing.
+    case pageFieldChanged(page: String, field: String, values: JSONValue)
+    /// Return in a page's `text_field` that searches no collection.
+    /// `selection` maps the page's collection, if any, to its selected item.
+    case pageSubmitted(page: String, field: String, values: JSONValue, selection: JSONValue)
+    /// The user chose a page button that delivers an event.
+    case pageActionChosen(page: String, action: String, values: JSONValue, selection: JSONValue)
+    /// The user performed an item action that delivers an event: the default
+    /// one by Return or double-click, any one from the item's context menu.
+    case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue)
+    /// The user neared the end of a collection that has more items.
+    case loadMore(page: String, collection: String, loaded: Int)
 
     /// A field change waits out the debounce and gives way to a later one;
     /// every other event is delivered, in order.
     public var coalesces: Bool {
-        if case .fieldChanged = self { return true }
-        return false
+        switch self {
+        case .fieldChanged, .pageFieldChanged: return true
+        default: return false
+        }
+    }
+
+    /// The page an event of a page was made in and the component it came
+    /// from, which must both still be on screen, unchanged in kind and not
+    /// reset, when it is dispatched. `action_chosen` names its button, which
+    /// the session resolves to the `actions` component holding it.
+    public var pageOrigin: (page: String, component: String)? {
+        switch self {
+        case .pageFieldChanged(let page, let field, _), .pageSubmitted(let page, let field, _, _): return (page, field)
+        case .pageActionChosen(let page, let action, _, _): return (page, action)
+        case .itemAction(let page, let collection, _, _, _), .loadMore(let page, let collection, _): return (page, collection)
+        default: return nil
+        }
     }
 
     /// The `type` the script reads.
@@ -43,8 +72,10 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// so they never cause an effect by themselves.
     public var isGesture: Bool {
         switch self {
-        case .submitted, .actionChosen: return true
-        case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished: return false
+        case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction: return true
+        case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished, .pageFieldChanged,
+             .loadMore:
+            return false
         }
     }
 
@@ -69,6 +100,20 @@ public enum PluginViewEvent: Equatable, Hashable {
             if let id { members["operation"] = .string(id) }
             if let reason = outcome.reason { members["reason"] = .string(reason.rawValue) }
             return .object(members)
+        case .pageFieldChanged(let page, let field, let values):
+            return .object(["type": .string("field_changed"), "page": .string(page), "field": .string(field), "values": values])
+        case .pageSubmitted(let page, let field, let values, let selection):
+            return .object(["type": .string("submitted"), "page": .string(page), "field": .string(field), "values": values,
+                            "selection": selection])
+        case .pageActionChosen(let page, let action, let values, let selection):
+            return .object(["type": .string("action_chosen"), "page": .string(page), "action": .string(action),
+                            "values": values, "selection": selection])
+        case .itemAction(let page, let collection, let action, let item, let values):
+            return .object(["type": .string("item_action"), "page": .string(page), "collection": .string(collection),
+                            "action": .string(action), "item": item.json, "values": values])
+        case .loadMore(let page, let collection, let loaded):
+            return .object(["type": .string("load_more"), "page": .string(page), "collection": .string(collection),
+                            "loaded": .number(Double(loaded))])
         }
     }
 }
@@ -108,6 +153,11 @@ public struct ViewEventDelivery: Equatable, Hashable {
 /// The view is opaque here beyond being an object; the renderer reads it.
 public struct PluginScriptAnswer: Equatable {
     public let view: JSONValue?
+    /// The page the answer describes instead of a view, under Candidate
+    /// Contract `collections`, already read as the Host draws it.
+    public let page: PluginPage?
+    /// The page as the script wrote it.
+    public let pageJSON: JSONValue?
     /// The state the Host keeps for the next View Event. Only an answer with
     /// a view sets it; `null` otherwise.
     public let state: JSONValue
@@ -118,8 +168,10 @@ public struct PluginScriptAnswer: Equatable {
     public let operation: RequestedHostOperation?
 
     public init(view: JSONValue? = nil, state: JSONValue = .null, close: Bool = false, toast: String? = nil,
-                operation: RequestedHostOperation? = nil) {
+                operation: RequestedHostOperation? = nil, page: PluginPage? = nil, pageJSON: JSONValue? = nil) {
         self.view = view
+        self.page = page
+        self.pageJSON = pageJSON
         self.state = state
         self.close = close
         self.toast = toast
@@ -134,8 +186,9 @@ public struct PluginScriptAnswer: Equatable {
     /// Reads an answer of a Plugin to which `permits` says which interface
     /// members its declarations offer: one declaring `host_operations` may
     /// add `operation`, which may come with a view, a toast, both or
-    /// neither, but not with `close`. Whether the answer answers a gesture
-    /// is the View Session's to check.
+    /// neither, but not with `close`, and one declaring `collections` may
+    /// describe a `page` instead of a `view`, never both. Whether the answer
+    /// answers a gesture is the View Session's to check.
     public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
         guard case .object(let members) = value else {
             guard value == .null else { throw Self.violation("must be an object or null") }
@@ -143,7 +196,9 @@ public struct PluginScriptAnswer: Equatable {
             return
         }
         let allowsOperation = permits(HostOperationsContract.answerOperation)
-        let unknown = Set(members.keys).subtracting(["view", "state", "close", "toast"] + (allowsOperation ? ["operation"] : []))
+        let allowsPage = permits(CollectionsContract.answerPage)
+        let unknown = Set(members.keys).subtracting(["view", "state", "close", "toast"] + (allowsOperation ? ["operation"] : [])
+                                                    + (allowsPage ? ["page"] : []))
         guard unknown.isEmpty else {
             throw Self.violation("has unknown member \(unknown.sorted().joined(separator: ", "))")
         }
@@ -161,7 +216,7 @@ public struct PluginScriptAnswer: Equatable {
         case nil:
             break
         case .bool(true):
-            guard members["view"] == nil, members["state"] == nil else {
+            guard members["view"] == nil, members["page"] == nil, members["state"] == nil else {
                 throw Self.violation("closes the view and describes one")
             }
             guard operation == nil else {
@@ -172,6 +227,14 @@ public struct PluginScriptAnswer: Equatable {
         default:
             throw Self.violation("has a close that is not true")
         }
+        if let pageJSON = members["page"] {
+            guard members["view"] == nil else { throw Self.violation("describes both a view and a page") }
+            let state = members["state"] ?? .null
+            try Self.checkBudgets(description: pageJSON, named: "page", state: state)
+            let page = try PluginPage(parsing: pageJSON, permits: permits)
+            self.init(state: state, toast: toast, operation: operation, page: page, pageJSON: pageJSON)
+            return
+        }
         guard let view = members["view"] else {
             guard members["state"] == nil else { throw Self.violation("has a state but no view") }
             self.init(toast: toast, operation: operation)
@@ -179,14 +242,23 @@ public struct PluginScriptAnswer: Equatable {
         }
         guard case .object = view else { throw Self.violation("has a view that is not an object") }
         let state = members["state"] ?? .null
-        guard Self.encodedSize(of: view) <= ScriptedActionBudgets.viewDescriptionBytes else {
-            throw Self.violation("describes a view larger than 256 KiB")
-        }
-        guard Self.encodedSize(of: state) <= ScriptedActionBudgets.viewStateBytes else {
-            throw Self.violation("returns a state larger than 64 KiB")
-        }
+        try Self.checkBudgets(description: view, named: "view", state: state)
         self.init(view: view, state: state, toast: toast, operation: operation)
     }
+
+    /// A view or page counts against the 256 KiB description budget and its
+    /// state against 64 KiB.
+    private static func checkBudgets(description: JSONValue, named noun: String, state: JSONValue) throws {
+        guard encodedSize(of: description) <= ScriptedActionBudgets.viewDescriptionBytes else {
+            throw violation("describes a \(noun) larger than 256 KiB")
+        }
+        guard encodedSize(of: state) <= ScriptedActionBudgets.viewStateBytes else {
+            throw violation("returns a state larger than 64 KiB")
+        }
+    }
+
+    /// The description to show: the page's JSON or the view.
+    public var description: JSONValue? { pageJSON ?? view }
 
     /// Reads an answer to `event`, or to the Action's start when it is nil,
     /// as a View Session reads it: only an answer to a gesture may request an
@@ -212,3 +284,4 @@ public struct PluginScriptAnswer: Equatable {
         .protocolViolation("The script's answer " + problem)
     }
 }
+

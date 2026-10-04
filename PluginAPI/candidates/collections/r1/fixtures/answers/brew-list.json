@@ -1,0 +1,69 @@
+{
+  "page": {
+    "id": "packages",
+    "title": "Homebrew",
+    "focus": "query",
+    "content": [
+      {
+        "kind": "row",
+        "id": "bar",
+        "content": [
+          {
+            "kind": "text_field",
+            "id": "query",
+            "title": "Search",
+            "placeholder": "Package name",
+            "collection": "packages"
+          },
+          {
+            "kind": "choice_field",
+            "id": "scope",
+            "title": "Show",
+            "choices": [
+              "installed",
+              "outdated",
+              "all"
+            ],
+            "choice_titles": [
+              "Installed",
+              "Outdated",
+              "All Packages"
+            ],
+            "value": "all"
+          }
+        ]
+      },
+      {
+        "kind": "list",
+        "id": "packages",
+        "rows": 10,
+        "empty_text": "No packages match",
+        "actions": [
+          {
+            "id": "details",
+            "title": "Show Details",
+            "default": true
+          },
+          {"id": "upgrade", "title": "Upgrade"},
+          {"id": "install", "title": "Install"},
+          {
+            "id": "copy",
+            "title": "Copy Name",
+            "perform": "clipboard.write"
+          }
+        ],
+        "items": [
+          {"id": "formula:python@3.13", "title": "python@3.13", "subtitle": "Interpreted, interactive, object-oriented programming language", "accessory": "3.13.7 · Outdated", "text": "python@3.13", "actions": ["details", "upgrade", "copy"]},
+          {"id": "formula:pyenv", "title": "pyenv", "subtitle": "Python version management", "accessory": "2.6.8", "text": "pyenv", "actions": ["details", "copy"]},
+          {"id": "formula:pipx", "title": "pipx", "subtitle": "Execute binaries from Python packages in isolated environments", "accessory": "Not installed", "text": "pipx", "actions": ["details", "install", "copy"]}
+        ],
+        "has_more": true
+      }
+    ]
+  },
+  "state": {
+    "scope": "all",
+    "query": "py",
+    "loaded": 3
+  }
+}

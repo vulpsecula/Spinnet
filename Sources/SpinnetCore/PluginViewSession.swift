@@ -3,8 +3,12 @@ import Foundation
 /// What a Plugin View shows at one moment: the view the script last
 /// described, whether an event is running, and why the last one failed.
 public struct PluginViewPresentation: Equatable {
-    /// The view description, opaque here; the renderer reads it.
+    /// The view description, opaque here; the renderer reads it. For a page
+    /// it is the page as the script wrote it.
     public let view: JSONValue
+    /// The page shown, under Candidate Contract `collections`, already read;
+    /// nil for a Level 1 view.
+    public let page: PluginPage?
     /// An event is in flight. The view shows its own busy state; the Host
     /// shows no Action progress for View Events.
     public let isBusy: Bool
@@ -17,8 +21,10 @@ public struct PluginViewPresentation: Equatable {
     /// state, distinct from an event's.
     public let isPerformingOperation: Bool
 
-    public init(view: JSONValue, isBusy: Bool, error: ActionFailure?, isPerformingOperation: Bool = false) {
+    public init(view: JSONValue, isBusy: Bool, error: ActionFailure?, isPerformingOperation: Bool = false,
+                page: PluginPage? = nil) {
         self.view = view
+        self.page = page
         self.isBusy = isBusy
         self.error = error
         self.isPerformingOperation = isPerformingOperation
@@ -82,9 +88,14 @@ public final class PluginViewSession {
     public private(set) var action: ActionConfiguration
     public var pluginID: PluginID { action.pluginID }
     public private(set) var view: JSONValue
+    /// The page shown, when the last description was a page (Candidate
+    /// Contract `collections`); nil while a Level 1 view is shown.
+    public private(set) var page: PluginPage?
     /// The state from the last answer that had a view: the last good state.
     public private(set) var state: JSONValue
     public private(set) var error: ActionFailure?
+    /// The event whose failure `error` is, when an event failed.
+    public private(set) var errorEvent: PluginViewEvent?
     public private(set) var generation = 0
     /// How many times an Action has presented the view: 1 when the session
     /// starts, and one more each time presenting again replaces it. An
@@ -123,23 +134,29 @@ public final class PluginViewSession {
         let event: PluginViewEvent
         let insertionTarget: InsertionTargetCapture
         let result: (serial: Int, requestedBy: ActionConfiguration)?
+        /// For an event of a page, the page and component it was made in.
+        let origin: PageIdentity.Stamp?
 
         init(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown,
-             result: (serial: Int, requestedBy: ActionConfiguration)? = nil) {
+             result: (serial: Int, requestedBy: ActionConfiguration)? = nil, origin: PageIdentity.Stamp? = nil) {
             self.event = event
             self.insertionTarget = insertionTarget
             self.result = result
+            self.origin = origin
         }
     }
 
     private var inFlight: (generation: Int, control: ActionExecutionControl, entry: Entry)?
     private var queue: [Entry] = []
-    private var debouncing: PluginViewEvent?
+    private var debouncing: Entry?
+    /// Which page and components are on screen, for page event provenance.
+    private var identity = PageIdentity()
     private var debounceToken = 0
     /// The Plugin's Requested Host Operations, when the Host performs any.
     private weak var operations: HostOperationRequests?
 
-    init(action: ActionConfiguration, view: JSONValue, state: JSONValue, renderer: PluginViewRenderer,
+    init(action: ActionConfiguration, view: JSONValue, page: PluginPage? = nil, state: JSONValue,
+         renderer: PluginViewRenderer,
          runEvent: @escaping RunEvent, readView: @escaping ReadView, schedule: @escaping Schedule,
          showFeedback: @escaping (String) -> Void,
          sectionDelivery: @escaping (String, JSONValue, HostFetchedSections.Delivery) -> Void = { _, _, _ in },
@@ -148,6 +165,7 @@ public final class PluginViewSession {
          onEnd: @escaping (PluginViewSession) -> Void) {
         self.action = action
         self.view = view
+        self.page = page
         self.state = state
         self.renderer = renderer
         self.runEvent = runEvent
@@ -158,6 +176,7 @@ public final class PluginViewSession {
         self.permits = permits
         self.operations = operations
         self.onEnd = onEnd
+        identity.show(page)
     }
 
     /// Whether the Plugin's insertions follow `host_operations`: the
@@ -167,10 +186,26 @@ public final class PluginViewSession {
     /// Hands one user interaction to the script. `insertionTarget` is what
     /// the Host showed as where text would go when the user made it, for a
     /// gesture of a Plugin declaring `host_operations`.
+    ///
+    /// An event of a page (Candidate Contract `collections`) is stamped with
+    /// the page and component it came from; one whose page is not on screen
+    /// is dropped at once, and one whose page or component changed kind or
+    /// was reset before it runs is dropped then, without a run or feedback.
     public func send(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown) {
         guard !isEnded else { return }
+        var origin: PageIdentity.Stamp?
+        if let made = event.pageOrigin {
+            var component = made.component
+            if case .pageActionChosen(_, let action, _, _) = event {
+                guard let holder = page?.actionsComponent(holding: action) else { return }
+                component = holder
+            }
+            guard let stamp = identity.stamp(page: made.page, component: component) else { return }
+            origin = stamp
+        }
+        let entry = Entry(event, insertionTarget: event.isGesture ? insertionTarget : .notShown, origin: origin)
         if event.coalesces {
-            debouncing = event
+            debouncing = entry
             debounceToken += 1
             let token = debounceToken
             schedule(ScriptedActionBudgets.fieldChangeDebounce) { [weak self] in
@@ -182,8 +217,49 @@ public final class PluginViewSession {
         }
         // A pending change happened first, so it goes first.
         flushDebounced()
-        enqueue(Entry(event, insertionTarget: event.isGesture ? insertionTarget : .notShown))
+        enqueue(entry)
         dispatchNext()
+    }
+
+    /// Whether an event matching `matches` waits out the debounce, waits in
+    /// the queue or runs.
+    public func isPending(where matches: (PluginViewEvent) -> Bool) -> Bool {
+        debouncing.map { matches($0.event) } == true || queue.contains { matches($0.event) }
+            || inFlight.map { matches($0.entry.event) } == true
+    }
+
+    /// Whether a field change has yet to be answered.
+    public var hasPendingFieldChange: Bool { isPending(where: \.coalesces) }
+
+    /// Sends a field change waiting out the debounce at once, as Return in a
+    /// page's search field does before acting on what was typed (C1).
+    public func flushFieldChanges() {
+        guard !isEnded, debouncing != nil else { return }
+        flushDebounced()
+        dispatchNext()
+    }
+
+    /// Performs a page action or item action that names a Host Service, as
+    /// the Host performs a standard action: without a View Event, under the
+    /// Action's authority, in the Plugin's operation slot after anything it
+    /// requested before. A refusal shows in the view with its repair route;
+    /// one that closes the view closes it once it succeeds.
+    public func perform(_ operation: RequestedHostOperation, insertionTarget: InsertionTargetCapture) {
+        guard !isEnded else { return }
+        do {
+            guard let operations else {
+                throw PluginHostServiceError.unavailable("This Host performs no Host Services for page actions")
+            }
+            try operations.authorize(operation, for: action)
+        } catch {
+            let refusal = error as? PluginHostServiceError ?? .failed(error.localizedDescription)
+            self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
+                                       category: refusal.actionFailureCategory, message: refusal.description)
+            errorEvent = nil
+            present()
+            return
+        }
+        operations?.commit(operation, for: action, owner: self, target: insertionTarget)
     }
 
     /// The view was closed. Its renderer calls this when the user closes it
@@ -193,7 +269,7 @@ public final class PluginViewSession {
     func present() {
         guard !isEnded else { return }
         renderer?.present(PluginViewPresentation(view: view, isBusy: isBusy, error: error,
-                                                 isPerformingOperation: isPerformingOperation), of: self)
+                                                 isPerformingOperation: isPerformingOperation, page: page), of: self)
     }
 
     func showToast(_ toast: String?) {
@@ -203,13 +279,16 @@ public final class PluginViewSession {
 
     /// Presenting again replaces the view in place. Events meant for the old
     /// view, in flight or waiting, are dropped.
-    func replace(action: ActionConfiguration, view: JSONValue, state: JSONValue) {
+    func replace(action: ActionConfiguration, view: JSONValue, page: PluginPage? = nil, state: JSONValue) {
         guard !isEnded else { return }
         let results = abandonEvents()
         self.action = action
         self.view = view
+        self.page = page
+        identity.show(page)
         self.state = state
         error = nil
+        errorEvent = nil
         presentationCount += 1
         viewRevision += 1
         answeredEvent = nil
@@ -262,7 +341,7 @@ public final class PluginViewSession {
         guard let pending = debouncing else { return }
         debouncing = nil
         debounceToken += 1
-        enqueue(Entry(pending))
+        enqueue(pending)
     }
 
     private func enqueue(_ entry: Entry) {
@@ -282,6 +361,11 @@ public final class PluginViewSession {
         let busy = operations?.isBusy(pluginID) ?? false
         guard let index = queue.firstIndex(where: { !busy || !$0.event.isGesture }) else { return }
         let entry = queue.remove(at: index)
+        if let origin = entry.origin, !identity.isCurrent(origin) {
+            // The page or component it was made in was replaced, changed
+            // kind or was reset: the user is looking at what replaced it.
+            return dispatchNext()
+        }
         if let result = entry.result, !action.isSameConfiguration(as: result.requestedBy) {
             // Another Command handles the view now; the outcome was shown by
             // the Host and is not this Command's to read.
@@ -317,6 +401,7 @@ public final class PluginViewSession {
         let error = PluginRuntimeError.timedOut
         self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
                                    category: error.failureCategory, message: error.description)
+        errorEvent = current.entry.event
         present()
         finished(current.entry, .failed(error.description))
         dispatchNext()
@@ -352,6 +437,7 @@ public final class PluginViewSession {
                     let refusal = error as? PluginHostServiceError ?? .failed(error.localizedDescription)
                     self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
                                                category: refusal.actionFailureCategory, message: refusal.description)
+                    errorEvent = event
                     present()
                     finished(current.entry, .failed(refusal.description))
                     dispatchNext()
@@ -364,13 +450,16 @@ public final class PluginViewSession {
                 if let toast = answer.toast { showFeedback(toast) }
                 return
             }
-            if let view = answer.view {
-                self.view = view
+            if let description = answer.description {
+                self.view = description
+                page = answer.page
+                identity.show(answer.page)
                 state = answer.state
                 viewRevision += 1
                 answeredEvent = event
             }
             error = nil
+            errorEvent = nil
             present()
             showToast(answer.toast)
             // The request commits in the same turn as the view and state, so
@@ -388,6 +477,7 @@ public final class PluginViewSession {
             // A refusal, a crash, a timeout or a script error keeps the view
             // and the last good state; the next event may succeed.
             error = failure
+            errorEvent = event
             present()
             finished(current.entry, .failed(failure.message))
         }
@@ -417,6 +507,7 @@ public final class PluginViewSession {
         guard !isEnded else { return }
         if let failure = result.failure(for: requester) {
             error = failure
+            errorEvent = nil
             present()
         } else if operation.closesView {
             end(.closedByPlugin)
@@ -554,21 +645,22 @@ public final class PluginViewSessions {
             try operations.authorize(operation, for: action)
         }
         let existing = sessions[action.pluginID]
-        if let view = answer.view {
-            try readView(action, view)
+        if let view = answer.description {
+            if answer.page == nil { try readView(action, view) }
             if let existing {
                 // Another Command's view may not rely on what the first one
                 // was allowed to fetch.
                 if existing.action.commandID != action.commandID {
                     fetchedSections?.end(pluginID: action.pluginID)
                 }
-                existing.replace(action: action, view: view, state: answer.state)
+                existing.replace(action: action, view: view, page: answer.page, state: answer.state)
                 existing.showToast(answer.toast)
                 commit(answer.operation, for: action, owner: existing)
                 return true
             }
             let pluginID = action.pluginID
-            let session = PluginViewSession(action: action, view: view, state: answer.state, renderer: renderer,
+            let session = PluginViewSession(action: action, view: view, page: answer.page, state: answer.state,
+                                            renderer: renderer,
                                             runEvent: runEvent, readView: readView, schedule: schedule,
                                             showFeedback: showFeedback,
                                             sectionDelivery: { [weak fetchedSections] section, response, outcome in
@@ -608,5 +700,59 @@ public final class PluginViewSessions {
         if reason == .pluginChanged || reason == .capabilityRevoked {
             operations?.cancelWaiting(of: pluginID, because: reason)
         }
+    }
+}
+
+/// Which View Page is on screen and which instance of each of its
+/// components, so an event of a page reaches the script only while the page
+/// and the component it was made in are unchanged: same page ID, not reset,
+/// the component still there with the same kind and not reset since.
+/// Changing page and coming back is a new instance of the page.
+struct PageIdentity {
+    struct Stamp: Equatable {
+        let page: Int
+        let component: String
+        let instance: Int
+    }
+
+    private(set) var pageID: String?
+    private var pageInstance = 0
+    private var components: [String: (kind: PluginPageComponent.Kind, instance: Int)] = [:]
+    private var counter = 0
+
+    /// A page, or a Level 1 view when nil, was committed.
+    mutating func show(_ page: PluginPage?) {
+        guard let page else {
+            pageID = nil
+            counter += 1
+            pageInstance = counter
+            components = [:]
+            return
+        }
+        if pageID != page.id || page.reset == .page {
+            counter += 1
+            pageInstance = counter
+            components = [:]
+        }
+        pageID = page.id
+        var shown: [String: (kind: PluginPageComponent.Kind, instance: Int)] = [:]
+        for component in page.components {
+            if let kept = components[component.id], kept.kind == component.kind, page.reset?.resets(component.id) != true {
+                shown[component.id] = kept
+            } else {
+                counter += 1
+                shown[component.id] = (component.kind, counter)
+            }
+        }
+        components = shown
+    }
+
+    func stamp(page: String, component: String) -> Stamp? {
+        guard pageID == page, let shown = components[component] else { return nil }
+        return Stamp(page: pageInstance, component: component, instance: shown.instance)
+    }
+
+    func isCurrent(_ stamp: Stamp) -> Bool {
+        stamp.page == pageInstance && components[stamp.component]?.instance == stamp.instance
     }
 }

@@ -1,0 +1,34 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "candidate_contracts": [
+    {"name": "collections", "revision": 1},
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
+  ],
+  "id": "com.example.emoji-pages",
+  "name": "Emoji Pages",
+  "version": "1.0.0",
+  "capabilities": ["insert_into_focused_app", "write_clipboard"],
+  "capability_scopes": [{
+    "capability": "insert_into_focused_app",
+    "command_ids": ["emoji.search"],
+    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "emoji.search",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "emoji.search",
+      "title": "Search Emoji",
+      "description": "Searches 1,906 emoji-shaped items in a grid, inserts the chosen one and remembers it as recent.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "emoji.js"
+    }
+  ]
+}

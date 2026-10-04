@@ -1,0 +1,14 @@
+{
+  "type": "item_action",
+  "page": "packages",
+  "collection": "packages",
+  "action": "details",
+  "item": {
+    "id": "formula:python@3.13",
+    "text": "python@3.13"
+  },
+  "values": {
+    "query": "py",
+    "scope": "all"
+  }
+}

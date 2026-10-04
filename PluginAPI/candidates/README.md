@@ -12,6 +12,7 @@ promises. A Plugin that declares no candidate is unaffected by any of it.
 | [`schemas/candidate-metadata.schema.json`](schemas/candidate-metadata.schema.json) | The `candidate.json` that pins one revision of a candidate |
 | [`namespaces/r1/`](namespaces/r1/reference.md) | Candidate `namespaces` revision 1: one `namespace.verb` ID for every Host Service, its catalogue, schema, SDK and types |
 | [`host_operations/r1/`](host_operations/r1/reference.md) | Candidate `host_operations` revision 1: Requested Host Operations an answer commits and the Host performs, and where insertion goes in a View Session; its schema, fixtures, SDK and types |
+| [`collections/r1/`](collections/r1/reference.md) | Candidate `collections` revision 1: pages of identified components with a List or Grid, whose input the Host keeps across answers; its schema, fixtures, SDK and types |
 
 ## Declaring a candidate
 
@@ -103,9 +104,10 @@ revision or the Host starts a fresh two-round attempt, under a new revision
 if the contract changed. Candidate SDK wrappers and type definitions, when a
 candidate adds them, live with its revision and never in the stable
 `spinnet.js` or `spinnet.d.ts`: the helper injects a candidate's SDK, such as
-`namespaces/r1/namespaces.js`, only into a Plugin that declares it, and
+`namespaces/r1/namespaces.js`, only into a Plugin that declares it,
 `host_operations/r1/host_operations.js` over it into one that also declares
-`host_operations`. Until a
+`host_operations`, and `collections/r1/collections.js` over that into one
+that also declares `collections`. Until a
 candidate adds one, a script reaches its Host Services with
 `requestHostService`, which the Host checks as above.
 
@@ -127,6 +129,7 @@ binds every later Host.
 | --- | --- | --- | --- |
 | [`namespaces`](namespaces/r1/reference.md) | 1 | Level 1 | `plugin-api-candidate/namespaces/r1` |
 | [`host_operations`](host_operations/r1/reference.md) | 1 | Level 1, with `namespaces` r1 | `plugin-api-candidate/host_operations/r1` |
+| [`collections`](collections/r1/reference.md) | 1 | Level 1, with `host_operations` r1 and `namespaces` r1 | `plugin-api-candidate/collections/r1` |
 
 ## Retired candidate declarations
 

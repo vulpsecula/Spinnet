@@ -1,0 +1,40 @@
+{
+  "page": {
+    "id": "package:python@3.13",
+    "title": "python@3.13",
+    "subtitle": "Homebrew",
+    "content": [
+      {
+        "kind": "text",
+        "id": "summary",
+        "text": "**Interpreted, interactive, object-oriented programming language**\n\nInstalled 3.13.7, latest 3.13.8. [Homepage](https://www.python.org/)"
+      },
+      {
+        "kind": "text",
+        "id": "status",
+        "title": "Status",
+        "text": "Outdated"
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "title": "Back"
+          },
+          {"id": "upgrade", "title": "Upgrade"},
+          {
+            "title": "Copy Name",
+            "perform": "clipboard.write",
+            "input": "python@3.13"
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "scope": "all",
+    "query": "py",
+    "package": "formula:python@3.13"
+  }
+}

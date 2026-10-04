@@ -244,3 +244,36 @@ for a Capability the Command does not declare or the test lists in
 repository use this to run a Bundled Plugin through the Host's broker and
 Action runner while part of its behaviour still lives in the Host. A Plugin in
 its own repository should use recorded answers.
+
+## Pages and collections
+
+A Plugin declaring Candidate Contract `collections` r1 (see
+`PluginAPI/candidates/collections/r1/reference.md`) may answer with a page.
+`run.answer()` reads it as the Host does, page rules included: `answer.page`
+is the page the Host would draw, and a page it would not draw throws the
+protocol violation that would end the View Session.
+
+`PluginTestPage` drives a whole View Session by recorded gestures. It applies
+every answer through the same page memory the Host uses, so what the user
+typed, chose and selected survives refreshes and comes back with a
+remembered page exactly as in the Host, and each gesture sends the event, with
+its snapshot, the Host would send:
+
+```swift
+let page = PluginTestPage("emoji.search", of: plugin, helper: helper,
+                          answering: RecordedHostServices(storage: PluginStorage(directory: directory)))
+try page.open()
+try page.type("cat", into: "query")        // field_changed, as after a pause in typing
+try page.press(.down)                      // Up/Down in the search field move a grid row
+try page.pressReturn(in: "query")          // the default item action on the selection
+XCTAssertEqual(page.performed.first?.perform, "selection.replace")
+```
+
+`choose(_:in:)`, `select(_:)`, `doubleClick(_:)`, `menu(of:)`,
+`choose(itemAction:on:)`, `copySelection()` (⌘C), `click(_:)` and
+`scrollToEnd()` stand for the other gestures; nearing the end of a
+collection that has more sends `load_more` once per loaded count, as the Host
+does. Page and item actions that name a Host Service are performed by the
+Host without running the script and are listed, with requested operations,
+in `performed`. `composing` names text fields with an open input-method
+composition, whose reset the Host drops.

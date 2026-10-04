@@ -37,10 +37,14 @@ let package = Package(
                       "candidates/namespaces/r1/namespaces.schema.json",
                       "candidates/host_operations/r1/reference.md", "candidates/host_operations/r1/candidate.json",
                       "candidates/host_operations/r1/host-operations.schema.json",
-                      "candidates/host_operations/r1/host-operations.d.ts", "candidates/host_operations/r1/fixtures"],
+                      "candidates/host_operations/r1/host-operations.d.ts", "candidates/host_operations/r1/fixtures",
+                      "candidates/collections/r1/reference.md", "candidates/collections/r1/candidate.json",
+                      "candidates/collections/r1/collections.schema.json", "candidates/collections/r1/collections.d.ts",
+                      "candidates/collections/r1/fixtures"],
             sources: ["SpinnetSDK.swift"],
             resources: [.embedInCode("spinnet.js"), .embedInCode("candidates/namespaces/r1/namespaces.js"),
-                        .embedInCode("candidates/host_operations/r1/host_operations.js")]
+                        .embedInCode("candidates/host_operations/r1/host_operations.js"),
+                        .embedInCode("candidates/collections/r1/collections.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",
