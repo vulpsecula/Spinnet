@@ -55,6 +55,9 @@ enum ArchitectureGuard {
         /// user's decision carries over to what replaced it.
         case retiredReview
         case testFixture
+        /// A Plugin API catalogue ID that a Plugin also happens to use as a
+        /// Command ID; the Host names the operation, not the Plugin.
+        case catalogueID
         /// The W ticket under the plugin architecture map, #47, that removes it.
         case removedBy(String)
 
@@ -64,6 +67,7 @@ enum ArchitectureGuard {
             case .reviewedAppInterface: return "Reviewed App Interface"
             case .retiredReview: return "retired review carried into a grant"
             case .testFixture: return "test fixture"
+            case .catalogueID: return "Plugin API catalogue ID"
             case .removedBy(let ticket): return "removed by \(ticket)"
             }
         }

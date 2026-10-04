@@ -79,6 +79,24 @@ public enum PluginRuntimeProtocol {
         }
     }
 
+    public static func encodeHostServiceCall(_ call: PluginRuntimeHostServiceCall) throws -> Data {
+        try validate(call)
+        return try encode(call, description: "Host Service request")
+    }
+
+    public static func decodeHostServiceCall(_ data: Data) throws -> PluginRuntimeHostServiceCall {
+        try validateMessageSize(data, description: "Host Service request")
+        do {
+            let call = try JSONDecoder().decode(PluginRuntimeHostServiceCall.self, from: data)
+            try validate(call)
+            return call
+        } catch let error as PluginRuntimeError {
+            throw error
+        } catch {
+            throw PluginRuntimeError.protocolViolation("Host Service request is malformed")
+        }
+    }
+
     public static func encodeHostServiceResponse(
         _ response: PluginRuntimeHostServiceResponse
     ) throws -> Data {
@@ -221,6 +239,16 @@ public enum PluginRuntimeProtocol {
         try validateIdentifier(request.requestID, named: "Host Service request ID")
     }
 
+    public static func validate(_ call: PluginRuntimeHostServiceCall) throws {
+        guard call.protocolVersion == version else {
+            throw PluginRuntimeError.protocolViolation("Unsupported protocol version " + call.protocolVersion)
+        }
+        try validateIdentifier(call.invocationID, named: "Invocation ID")
+        try validateIdentifier(call.actionID.rawValue, named: "Action ID")
+        try validateIdentifier(call.requestID, named: "Host Service request ID")
+        try validateIdentifier(call.name, named: "Host Service name")
+    }
+
     public static func validate(_ response: PluginRuntimeHostServiceResponse) throws {
         guard response.protocolVersion == version else {
             throw PluginRuntimeError.protocolViolation(
@@ -326,6 +354,10 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     public let event: JSONValue
     /// The state the script returned with its last view, or null.
     public let state: JSONValue
+    /// The Candidate Contract revisions the Plugin declares, which decide
+    /// the SDK the helper injects and the names it sends the Host. Sent only
+    /// when there are any, so a Level 1 Plugin's invocation is unchanged.
+    public let candidateContracts: [CandidateContractRevision]
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -338,7 +370,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         input: JSONValue,
         environment: PluginRuntimeEnvironment = .current,
         event: JSONValue = .null,
-        state: JSONValue = .null
+        state: JSONValue = .null,
+        candidateContracts: [CandidateContractRevision] = []
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -351,12 +384,14 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         self.environment = environment
         self.event = event
         self.state = state
+        self.candidateContracts = candidateContracts
     }
 
     private enum CodingKeys: String, CodingKey {
         case type
         case protocolVersion = "protocol_version"
         case invocationID = "invocation_id"
+        case candidateContracts = "candidate_contracts"
         case pluginID = "plugin_id"
         case actionID = "action_id"
         case commandID = "command_id"
@@ -383,6 +418,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         try container.encode(environment, forKey: .environment)
         try container.encode(event, forKey: .event)
         try container.encode(state, forKey: .state)
+        if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -402,7 +438,9 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
             input: try container.decode(JSONValue.self, forKey: .input),
             environment: try container.decode(PluginRuntimeEnvironment.self, forKey: .environment),
             event: try container.decode(JSONValue.self, forKey: .event),
-            state: try container.decode(JSONValue.self, forKey: .state)
+            state: try container.decode(JSONValue.self, forKey: .state),
+            candidateContracts: try container.decodeIfPresent([CandidateContractRevision].self,
+                                                              forKey: .candidateContracts) ?? []
         )
         try PluginRuntimeProtocol.validate(invocation)
         self = invocation
@@ -417,8 +455,14 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
     public let invocationID: String
     public let actionID: ActionID
     public let requestID: String
+    /// The Host Service that performs the request.
     public let service: PluginHostService
+    /// Its input, as `service` takes it.
     public let input: JSONValue
+    /// The catalogue ID the Plugin named, under Candidate Contract
+    /// `namespaces`, when the Host resolved it to `service`; nil for a Level 1
+    /// name. The Host sets it and never reads it from a message.
+    public let operation: String?
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -426,7 +470,8 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
         actionID: ActionID,
         requestID: String = UUID().uuidString,
         service: PluginHostService,
-        input: JSONValue = .null
+        input: JSONValue = .null,
+        operation: String? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -434,6 +479,7 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
         self.requestID = requestID
         self.service = service
         self.input = input
+        self.operation = operation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -479,6 +525,69 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
         )
         try PluginRuntimeProtocol.validate(request)
         self = request
+    }
+}
+
+/// A Host Service request as the helper sends it, before the Host resolves
+/// the name the script gave: a Level 1 Host Service name, or under Candidate
+/// Contract `namespaces` a catalogue ID. It is the same message as
+/// `PluginRuntimeHostServiceRequest`, with `service` read as any name, so the
+/// Host can refuse a name with a reason rather than as a broken message.
+public struct PluginRuntimeHostServiceCall: Codable, Equatable, Hashable {
+    public let protocolVersion: String
+    public let invocationID: String
+    public let actionID: ActionID
+    public let requestID: String
+    public let name: String
+    public let input: JSONValue
+
+    public init(protocolVersion: String = PluginRuntimeProtocol.version, invocationID: String, actionID: ActionID,
+                requestID: String = UUID().uuidString, name: String, input: JSONValue = .null) {
+        self.protocolVersion = protocolVersion
+        self.invocationID = invocationID
+        self.actionID = actionID
+        self.requestID = requestID
+        self.name = name
+        self.input = input
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case protocolVersion = "protocol_version"
+        case invocationID = "invocation_id"
+        case actionID = "action_id"
+        case requestID = "request_id"
+        case name = "service"
+        case input
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try PluginRuntimeProtocol.validate(self)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(PluginRuntimeProtocol.MessageType.hostServiceRequest, forKey: .type)
+        try container.encode(protocolVersion, forKey: .protocolVersion)
+        try container.encode(invocationID, forKey: .invocationID)
+        try container.encode(actionID, forKey: .actionID)
+        try container.encode(requestID, forKey: .requestID)
+        try container.encode(name, forKey: .name)
+        try container.encode(input, forKey: .input)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(PluginRuntimeProtocol.MessageType.self, forKey: .type) == .hostServiceRequest else {
+            throw PluginRuntimeError.protocolViolation("Unsupported Host Service request message type")
+        }
+        let call = PluginRuntimeHostServiceCall(
+            protocolVersion: try container.decode(String.self, forKey: .protocolVersion),
+            invocationID: try container.decode(String.self, forKey: .invocationID),
+            actionID: try container.decode(ActionID.self, forKey: .actionID),
+            requestID: try container.decode(String.self, forKey: .requestID),
+            name: try container.decode(String.self, forKey: .name),
+            input: try container.decode(JSONValue.self, forKey: .input)
+        )
+        try PluginRuntimeProtocol.validate(call)
+        self = call
     }
 }
 
@@ -909,23 +1018,41 @@ public final class PluginRuntimeConnection {
     public func acceptHostServiceRequest(
         _ request: PluginRuntimeHostServiceRequest
     ) throws -> PluginRuntimeHostServiceRequest {
+        try accept(invocationID: request.invocationID, actionID: request.actionID, requestID: request.requestID) {
+            try PluginRuntimeProtocol.validate(request)
+        }
+        return request
+    }
+
+    /// Accepts one helper Host Service request for the current Action, before
+    /// the Host resolves the name it gives.
+    @discardableResult
+    public func acceptHostServiceCall(_ call: PluginRuntimeHostServiceCall) throws -> PluginRuntimeHostServiceCall {
+        try accept(invocationID: call.invocationID, actionID: call.actionID, requestID: call.requestID) {
+            try PluginRuntimeProtocol.validate(call)
+        }
+        return call
+    }
+
+    private func accept(invocationID requestInvocationID: String, actionID requestActionID: ActionID,
+                        requestID: String, validate: () throws -> Void) throws {
         guard case .awaitingResponse(let invocationID, let actionID) = state else {
             return try fail("Host Service request is out of order")
         }
 
         do {
-            try PluginRuntimeProtocol.validate(request)
-            guard request.invocationID == invocationID else {
+            try validate()
+            guard requestInvocationID == invocationID else {
                 throw PluginRuntimeError.protocolViolation(
                     "Host Service request has the wrong invocation ID"
                 )
             }
-            guard request.actionID == actionID else {
+            guard requestActionID == actionID else {
                 throw PluginRuntimeError.protocolViolation(
                     "Host Service request has the wrong Action ID"
                 )
             }
-            guard hostServiceRequestIDs.insert(request.requestID).inserted else {
+            guard hostServiceRequestIDs.insert(requestID).inserted else {
                 throw PluginRuntimeError.protocolViolation(
                     "Host Service request ID is duplicated"
                 )
@@ -933,9 +1060,8 @@ public final class PluginRuntimeConnection {
             state = .awaitingHostServiceResponse(
                 invocationID: invocationID,
                 actionID: actionID,
-                requestID: request.requestID
+                requestID: requestID
             )
-            return request
         } catch {
             state = .closed
             throw error
@@ -1221,7 +1347,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             input: action.input,
             environment: environment(),
             event: delivery.event?.json ?? .null,
-            state: delivery.state
+            state: delivery.state,
+            candidateContracts: package.manifest.candidateContracts
         )
         let connection = PluginRuntimeConnection(pluginID: package.manifest.id)
         let requestData: Data
@@ -1398,26 +1525,23 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             switch try PluginRuntimeProtocol.decodeMessageType(frame) {
             case .hostServiceRequest:
                 try control.check()
-                let request = try PluginRuntimeProtocol.decodeHostServiceRequest(frame)
-                _ = try connection.acceptHostServiceRequest(request)
+                let request = try PluginRuntimeProtocol.decodeHostServiceCall(frame)
+                _ = try connection.acceptHostServiceCall(request)
+                // A name the Plugin may not use is refused as a Host Service
+                // failure; only a Level 1 Plugin's unknown name breaks the
+                // protocol, as it always has.
+                let resolved = try contracts.resolve(request, declaredBy: package.manifest)
                 let response: PluginRuntimeHostServiceResponse
                 do {
-                    guard contracts.permits(.hostService(request.service.rawValue), declaredBy: package.manifest) else {
-                        throw PluginHostServiceError.unavailable(
-                            "\(request.service.rawValue) is not part of Plugin API Level \(package.manifest.apiLevel) "
-                                + "or a Candidate Contract \(package.manifest.name) declares"
-                        )
-                    }
+                    let resolvedRequest = try resolved.get()
                     guard let hostServiceBroker else {
                         throw PluginHostServiceError.unavailable(
                             "No Host Service broker is configured"
                         )
                     }
-                    let result = try hostServiceBroker.execute(
-                        request: request,
-                        for: package,
-                        action: action
-                    )
+                    let result = try resolvedRequest.namingItsOperation {
+                        try hostServiceBroker.execute(request: resolvedRequest, for: package, action: action)
+                    }
                     response = PluginRuntimeHostServiceResponse(
                         invocationID: request.invocationID,
                         actionID: request.actionID,

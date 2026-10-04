@@ -190,7 +190,7 @@ final class AppKitHostCommandAdapter: HostCommandAdapter {
 /// The Host-level executor validates and authorizes a Command before handing
 /// it to an external adapter. Contextual execution is used by the registry
 /// path so a Plugin cannot bypass its current Capability decision.
-final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
+final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueCommandExecutor {
     private let adapter: HostCommandAdapter
     private let grantStore: PluginCapabilityGrantStore?
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
@@ -199,6 +199,10 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
     /// Starts a capture of the source a Screenshot Host Command names, as the
     /// Screenshot Plugin Settings say.
     private let screenCapture: (ScreenCaptureSource) throws -> Void
+    /// Shows a `host.toast` Command's message near the pointer.
+    private let toastPresenter: (String) -> Void
+    /// Opens a Plugin's Plugin Settings sheet, for `host.showPluginSettings`.
+    private let pluginSettingsPresenter: (PluginID) -> Void
 
     init(
         adapter: HostCommandAdapter = AppKitHostCommandAdapter(),
@@ -215,7 +219,9 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
         feedbackPresenter: @escaping (String) -> Void = { _ in },
         screenCapture: @escaping (ScreenCaptureSource) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Screen capture")
-        }
+        },
+        toastPresenter: @escaping (String) -> Void = { _ in },
+        pluginSettingsPresenter: @escaping (PluginID) -> Void = { _ in }
     ) {
         self.adapter = adapter
         self.grantStore = grantStore
@@ -223,6 +229,8 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
         self.selectedTextProvider = selectedTextProvider
         self.feedbackPresenter = feedbackPresenter
         self.screenCapture = screenCapture
+        self.toastPresenter = toastPresenter
+        self.pluginSettingsPresenter = pluginSettingsPresenter
     }
 
     func execute(_ action: ActionConfiguration) throws -> JSONValue {
@@ -242,6 +250,35 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             throw HostCommandExecutionError.invalidInput("Action does not contain a Host Command")
         }
 
+        try checkRegistration(of: action, in: package)
+        try authorize(action, package: package)
+        return try perform(command, input: action.input, for: action, package: package)
+    }
+
+    // MARK: Commands naming a catalogue ID
+
+    /// A Command naming a catalogue ID that Level 1 performs as `command`:
+    /// the same registration and authority checks, with the operation's
+    /// Capabilities, and the same effect.
+    func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration,
+                 in package: PluginPackage) throws -> JSONValue {
+        try checkRegistration(of: action, in: package)
+        try authorize(action, package: package)
+        return try perform(command, input: input, for: action, package: package)
+    }
+
+    func showToast(_ text: String, for action: ActionConfiguration) throws {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw HostCommandExecutionError.invalidInput("Expected a message")
+        }
+        toastPresenter(text)
+    }
+
+    func showPluginSettings(for action: ActionConfiguration) throws {
+        pluginSettingsPresenter(action.pluginID)
+    }
+
+    private func checkRegistration(of action: ActionConfiguration, in package: PluginPackage?) throws {
         if let package {
             guard package.manifest.id == action.pluginID,
                   let declared = package.manifest.commands.first(where: { $0.id == action.commandID }),
@@ -249,9 +286,11 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 throw HostCommandExecutionError.unavailable("Command is no longer registered")
             }
         }
+    }
 
-        try authorize(action, package: package)
-        guard command.isValidInput(action.input) else {
+    private func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration,
+                         package: PluginPackage?) throws -> JSONValue {
+        guard command.isValidInput(input) else {
             throw HostCommandExecutionError.invalidInput(
                 "Input is invalid for \(command.rawValue)"
             )
@@ -259,8 +298,8 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
 
         switch command {
         case .openURL:
-            guard let url = command.resolvedURL(from: action.input),
-                  let value = stringValue(from: action.input, keys: ["url"]) else {
+            guard let url = command.resolvedURL(from: input),
+                  let value = stringValue(from: input, keys: ["url"]) else {
                 throw HostCommandExecutionError.invalidInput("Expected a URL string")
             }
             guard adapter.openURL(url) else {
@@ -269,7 +308,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["opened": .string(value)])
         case .openApplication:
             let value = try requiredString(
-                from: action.input,
+                from: input,
                 keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"],
                 description: "an application path or bundle identifier"
             )
@@ -279,7 +318,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["opened": .string(value)])
         case .openFile:
             let path = try requiredString(
-                from: action.input,
+                from: input,
                 keys: ["path"],
                 description: "a file path"
             )
@@ -289,7 +328,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["opened": .string(path)])
         case .openFolder:
             let path = try requiredString(
-                from: action.input,
+                from: input,
                 keys: ["path"],
                 description: "a folder path"
             )
@@ -298,14 +337,14 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             }
             return .object(["opened": .string(path)])
         case .invokeKeyboardShortcut:
-            let shortcut = try parseKeyboardShortcut(action.input)
+            let shortcut = try parseKeyboardShortcut(input)
             guard adapter.invokeKeyboardShortcut(shortcut) else {
                 throw HostCommandExecutionError.failed("The keyboard shortcut could not be sent")
             }
             return .object(["posted": .bool(true)])
         case .invokeService:
             let request = try namedRequest(
-                from: action.input,
+                from: input,
                 primaryKey: "service",
                 description: "a macOS Service name"
             )
@@ -315,7 +354,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["invoked": .string(request.name)])
         case .invokeShortcut:
             let request = try namedRequest(
-                from: action.input,
+                from: input,
                 primaryKey: "shortcut",
                 description: "a Shortcut name"
             )
@@ -325,7 +364,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["invoked": .string(request.name)])
         case .copyText:
             let text: String
-            if action.input == .null {
+            if input == .null {
                 guard let selectedTextProvider else {
                     throw HostCommandExecutionError.unavailable(
                         "Selected text is unavailable from the Host"
@@ -337,7 +376,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
                 text = try selectedTextProvider(copyFallbackIsAllowed)
             } else {
                 text = try requiredString(
-                    from: action.input,
+                    from: input,
                     keys: ["text"],
                     description: "text to copy",
                     allowEmpty: true
@@ -359,7 +398,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor {
             return .object(["cut": .bool(true)])
         case .presentFeedback:
             let message = try requiredString(
-                from: action.input,
+                from: input,
                 keys: ["message", "text"],
                 description: "a feedback message"
             )

@@ -23,14 +23,20 @@ let package = Package(
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]
         ),
-        // The published contract (ADR 0013). Only the SDK's source is built,
-        // embedded in the helper so it never reads a file at run time.
+        // The published contract (ADR 0013). Only the SDKs' sources are
+        // built: Level 1's and each provided candidate revision's, embedded
+        // in the helper so it never reads a file at run time.
         .target(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
-            exclude: ["LICENSE", "README.md", "candidates", "proposals", "reference", "schemas", "spinnet.d.ts"],
+            exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
+                      "candidates/README.md", "candidates/schemas",
+                      "candidates/namespaces/r1/reference.md", "candidates/namespaces/r1/candidate.json",
+                      "candidates/namespaces/r1/catalogue.json", "candidates/namespaces/r1/catalogue.schema.json",
+                      "candidates/namespaces/r1/level1-mapping.md", "candidates/namespaces/r1/namespaces.d.ts",
+                      "candidates/namespaces/r1/namespaces.schema.json"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("candidates/namespaces/r1/namespaces.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

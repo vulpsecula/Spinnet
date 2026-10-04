@@ -22,6 +22,11 @@ public extension PluginManifest {
         }
         var required = capabilityScopes.filter { $0.commandIDs.contains(command.id) }.map(\.capability)
         if let capability = command.hostCommand?.requiredCapability, !required.contains(capability) { required.append(capability) }
+        // A Command naming a catalogue ID needs what its operation needs as a
+        // Command, which is nothing where the user configures the target.
+        if let operation = command.hostServiceID.flatMap(HostServiceCatalogue.operation), operation.isOffered(at: .command) {
+            for capability in operation.commandCapabilities where !required.contains(capability) { required.append(capability) }
+        }
         if command.hostCommand == .copyText, input == nil || input == .null {
             if !required.contains(.readSelectedText) { required.append(.readSelectedText) }
         }
@@ -48,7 +53,8 @@ public extension PluginManifest {
         var permissions: [PluginSystemPermission] = []
         if capabilities.contains(.readSelectedText) || capabilities.contains(.positionFocusedWindow)
             || capabilities.contains(.insertIntoFocusedApp)
-            || command.hostCommand?.requiredSystemPermission == .accessibility {
+            || command.hostCommand?.requiredSystemPermission == .accessibility
+            || command.hostServiceID.flatMap(HostServiceCatalogue.operation)?.systemPermission?.checked == .accessibility {
             permissions.append(.accessibility)
         }
         if capabilities.contains(.captureScreen) {
@@ -162,6 +168,12 @@ public struct PluginPermissionDisclosure {
         case .monitors, .contacts: return nil
         case .controls:
             var affected = commands.compactMap { command -> String? in
+                // A Command naming a catalogue ID that needs no Capability
+                // acts on what the user configures, as Level 1's do.
+                if let id = command.hostServiceID, let operation = HostServiceCatalogue.operation(id),
+                   operation.commandCapabilities.isEmpty, operation.namespace != "host" {
+                    return "\(command.title): \(id) (target configured per Menu Item)"
+                }
                 guard let operation = command.hostCommand, operation.captureSource == nil,
                       ![HostCommand.copyText, .presentFeedback, .openDeepLink].contains(operation) else { return nil }
                 return "\(command.title): \(operation.rawValue) (target configured per Menu Item)"

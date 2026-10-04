@@ -352,6 +352,74 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(feedback, ["fixture feedback"])
     }
 
+    /// A Plugin declaring Candidate Contract `namespaces` names the Host
+    /// Service a Command runs by catalogue ID; the Host performs it through
+    /// the same adapters and checks as Level 1's Host Command, shows a toast
+    /// near the pointer for `host.toast`, and opens the Plugin's settings for
+    /// `host.showPluginSettings`.
+    func testCatalogueCommandsRunThroughTheSameAdaptersAndChecks() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func command(_ id: String, _ service: String, fixed: JSONValue? = nil,
+                     field: CommandConfigurationFieldKind? = nil) -> CommandDeclaration {
+            CommandDeclaration(id: CommandID(id), title: id, isConfigurable: field != nil,
+                               configurationField: field.map { CommandConfigurationField(kind: $0) },
+                               hostServiceID: service, fixedInput: fixed)
+        }
+        let commands = [
+            command("fixture.copy", "clipboard.write", fixed: .object(["text": .string("copied")])),
+            command("fixture.folder", "open.path", field: .folder),
+            command("fixture.paste", "selection.paste"),
+            command("fixture.toast", "host.toast", fixed: .object(["text": .string("Done")])),
+            command("fixture.settings", "host.showPluginSettings")
+        ]
+        let manifest = try PluginManifest(
+            candidateContracts: [HostServiceCatalogue.declaration], id: PluginID("com.example.catalogue"),
+            name: "Catalogue Fixture", version: "1.0.0", capabilities: [.writeClipboard], commands: commands,
+            preset: MenuItemPresetDeclaration(readiness: .setupRequired)
+        )
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/catalogue.spinnetplugin"),
+                                            manifest: manifest))
+        let grants = PluginCapabilityGrantStore()
+        let adapter = RecordingHostCommandAdapter()
+        var toasts: [String] = []
+        var settings: [PluginID] = []
+        let runner = HostActionRunner(executor: AppKitHostCommandExecutor(
+            adapter: adapter, grantStore: grants, systemPermissionCheck: { _ in true },
+            toastPresenter: { toasts.append($0) }, pluginSettingsPresenter: { settings.append($0) }
+        ))
+        func run(_ command: CommandDeclaration, _ input: JSONValue = .null) throws -> ActionTerminalOutcome {
+            runner.invoke(try ActionConfiguration(id: ActionID(command.id.rawValue), pluginID: manifest.id,
+                                                  command: command, input: input), using: registry).terminal
+        }
+
+        guard case .failed(let refused) = try run(commands[0]) else { return XCTFail("Copying needs its grant") }
+        XCTAssertEqual(refused.category, .capabilityDenied)
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .writeClipboard)
+        for (command, input) in [(commands[0], JSONValue.null), (commands[1], .string(folder.path)),
+                                 (commands[2], .null), (commands[3], .null), (commands[4], .null)] {
+            guard case .succeeded = try run(command, input) else { return XCTFail("\(command.id.rawValue) failed") }
+        }
+        let refusing = HostActionRunner(executor: AppKitHostCommandExecutor(
+            adapter: RecordingHostCommandAdapter(accepted: false), grantStore: grants, systemPermissionCheck: { _ in true }
+        ))
+        guard case .failed(let missing) = refusing.invoke(try ActionConfiguration(
+            id: ActionID("missing"), pluginID: manifest.id, command: commands[1],
+            input: .string(folder.appendingPathComponent("gone").path)
+        ), using: registry).terminal else {
+            return XCTFail("A missing file cannot open")
+        }
+
+        XCTAssertEqual(adapter.copiedTexts, ["copied"])
+        XCTAssertEqual(adapter.openedFolders, [folder.path])
+        XCTAssertEqual(adapter.pasteCount, 1)
+        XCTAssertEqual(toasts, ["Done"])
+        XCTAssertEqual(settings, [manifest.id])
+        XCTAssertEqual(missing.category, .hostServiceFailed, "An unavailable target is the operation's failure")
+    }
+
     func testCopyTextRequiresTheDeclaredCapabilityAndCurrentGrant() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.copy_text"),

@@ -176,6 +176,31 @@ let helper = try PluginTestHelper(contracts: PluginInterfaceContracts(
 `spinnet.environment.apiLevel` then reports the highest stable Level of those
 contracts. `RecordedHostFetchedSections(contracts:)` takes the same value.
 
+## Catalogue IDs
+
+A Plugin declaring Candidate Contract `namespaces` r1 (see
+`PluginAPI/candidates/namespaces/r1/reference.md`) calls Host Services by
+catalogue ID, such as `clipboard.write`, and its scripts run with the
+namespaced `spinnet` object. Answer its operations by ID, and read what a
+run performed the same way; each input is the one the Host performs, a bare
+string where the script gave the primary member alone:
+
+```swift
+let run = helper.run(PluginTestInvocation("example.shout"), of: plugin, answering: RecordedHostServices(operations: [
+    "selection.readText": .value(.string("hello")),
+    "clipboard.write": .value(.null)
+]))
+XCTAssertEqual(run.inputs(to: "clipboard.write"), [.string("HELLO")])
+```
+
+A Level 1 name, a reserved ID or one not offered to a script fails the run
+with `hostServiceFailed` naming the ID to use, as the Host fails it. A
+Command that names an ID in `host_command` runs without a script, as the
+Host runs it: `run.performed` lists its operation, no helper starts, and its
+result is its value or the `ActionFailure` it ended with. A Command the Host
+would refuse, such as one naming a Level 1 Host Command, fails with the
+refusal as an `invalidAction`.
+
 ## Using the Host's own services
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and

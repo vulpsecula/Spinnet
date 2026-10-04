@@ -201,7 +201,9 @@ struct SpinnetPluginHelperMain {
     }
 
     /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
-    /// `requestHostService` already in `context`.
+    /// `requestHostService` already in `context`, or for a Plugin declaring
+    /// Candidate Contract `namespaces` r1 the namespaced object its
+    /// `namespaces.js` builds over Level 1's.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,
@@ -214,8 +216,16 @@ struct SpinnetPluginHelperMain {
         ]
         guard let makeSDK = context.evaluateScript(SpinnetSDK.source), makeSDK.isObject,
               let requestHostService = context.objectForKeyedSubscript("requestHostService"),
-              let sdk = makeSDK.call(withArguments: [requestHostService, environment]), sdk.isObject else {
+              var sdk = makeSDK.call(withArguments: [requestHostService, environment]), sdk.isObject else {
             return false
+        }
+        if invocation.namesCatalogueIDs {
+            guard let makeNamespaced = context.evaluateScript(SpinnetSDK.namespacesSource), makeNamespaced.isObject,
+                  let namespaced = makeNamespaced.call(withArguments: [requestHostService, environment, sdk]),
+                  namespaced.isObject else {
+                return false
+            }
+            sdk = namespaced
         }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
@@ -280,12 +290,20 @@ private final class PluginRuntimeHostServiceClient {
     }
 
     func request(serviceName: String, inputJSON: String) throws -> String {
-        guard let service = PluginHostService(rawValue: serviceName) else {
+        // A Plugin declaring the catalogue names operations by ID, which the
+        // Host resolves and refuses with its reason; any other Plugin may
+        // name only Level 1's Host Services, as before.
+        let namesCatalogueIDs = invocation.namesCatalogueIDs
+        guard namesCatalogueIDs
+                ? !serviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && serviceName.count <= 256
+                : PluginHostService(rawValue: serviceName) != nil else {
             throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
                 category: .helperError,
                 message: "Unsupported Host Service"
             ))
         }
+        let writesStorage = serviceName == PluginHostService.setStorageValue.rawValue
+            || (namesCatalogueIDs && serviceName == "storage.set")
         guard let inputData = inputJSON.data(using: .utf8),
               let input = try? JSONDecoder().decode(JSONValue.self, from: inputData) else {
             throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
@@ -295,18 +313,18 @@ private final class PluginRuntimeHostServiceClient {
         }
 
         requestSequence += 1
-        let request = PluginRuntimeHostServiceRequest(
+        let request = PluginRuntimeHostServiceCall(
             invocationID: invocation.invocationID,
             actionID: invocation.actionID,
             requestID: "host-service-\(requestSequence)",
-            service: service,
+            name: serviceName,
             input: input
         )
         do {
             let data: Data
             do {
-                data = try PluginRuntimeProtocol.encodeHostServiceRequest(request)
-            } catch where service == .setStorageValue && inputData.count > PluginStorageBudgets.maximumValueBytes {
+                data = try PluginRuntimeProtocol.encodeHostServiceCall(request)
+            } catch where writesStorage && inputData.count > PluginStorageBudgets.maximumValueBytes {
                 // A value too large to send in one message is larger than
                 // any Plugin Storage keeps, so it fails as the Host fails a
                 // value over the limit: nothing stored, and catchable. Any
@@ -360,6 +378,10 @@ private final class PluginRuntimeHostServiceClient {
 }
 
 private extension PluginRuntimeInvocation {
+    /// Whether the Plugin declares Candidate Contract `namespaces` r1, whose
+    /// SDK and names the helper then uses.
+    var namesCatalogueIDs: Bool { candidateContracts.contains(HostServiceCatalogue.declaration) }
+
     var inputJSON: String {
         guard let data = try? JSONEncoder().encode(input) else { return "null" }
         return String(decoding: data, as: UTF8.self)

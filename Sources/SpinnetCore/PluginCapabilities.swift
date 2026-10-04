@@ -674,6 +674,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let appleEventSender: (AppleEventRequest) throws -> Void
     private let deepLinkOpener: (DeepLink) throws -> Void
     private let pluginStorage: PluginStorage?
+    /// Opens an application by path or bundle identifier, for a call of
+    /// `open.application` under Candidate Contract `namespaces`.
+    private let applicationOpener: (String) throws -> Void
+    /// Starts a capture that copies or saves as the user's screenshot
+    /// preferences say, for a call of `screen.capture` naming only a source
+    /// (decision N9).
+    private let preferredScreenCapturer: (ScreenCaptureSource) throws -> Void
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -722,7 +729,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         deepLinkOpener: @escaping (DeepLink) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Deep links")
         },
-        pluginStorage: PluginStorage? = nil
+        pluginStorage: PluginStorage? = nil,
+        applicationOpener: @escaping (String) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Opening applications")
+        },
+        preferredScreenCapturer: @escaping (ScreenCaptureSource) throws -> Void = { _ in
+            throw PluginHostServiceError.unavailable("Screen capture")
+        }
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -747,6 +760,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.appleEventSender = appleEventSender
         self.deepLinkOpener = deepLinkOpener
         self.pluginStorage = pluginStorage
+        self.applicationOpener = applicationOpener
+        self.preferredScreenCapturer = preferredScreenCapturer
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -885,6 +900,16 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             try focusedWindowFrameRestorer()
             return .null
+        case .openLocalPath where request.operation == "open.application":
+            // An application by path or bundle identifier, under the grant
+            // that already lets a script launch one by its path.
+            guard case .string(let application) = request.input,
+                  !application.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  application.utf8.count <= OpenableLocalPath.maximumBytes else {
+                throw PluginHostServiceError.invalidInput("open.application expects an application's path or bundle identifier")
+            }
+            try applicationOpener(application)
+            return .null
         case .openLocalPath:
             guard case .string(let path) = request.input else {
                 throw PluginHostServiceError.invalidInput("open_local_path expects a local path")
@@ -898,6 +923,16 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             // Validated here, not trusted from the script: only an http or
             // https link reaches the browser, and nothing comes back.
             try urlOpener(OpenableURL.validate(text))
+            return .null
+        case .captureScreen where request.operation != nil && request.input.isSourceAlone:
+            // The Plugin names only what to capture; the user's screenshot
+            // preferences say whether to copy or save (decision N9), and the
+            // Plugin learns neither.
+            guard case .object(let fields) = request.input, case .string(let raw)? = fields["source"],
+                  let source = ScreenCaptureSource(rawValue: raw) else {
+                throw PluginHostServiceError.invalidInput("screen.capture expects source: area, fullscreen or window")
+            }
+            try preferredScreenCapturer(source)
             return .null
         case .captureScreen:
             // The folder comes from the Action the user configured, never from
@@ -1072,5 +1107,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         do { return try read() }
         catch let error as PluginHostServiceError { throw error }
         catch { throw PluginHostServiceError.failed("Clipboard History could not be read") }
+    }
+}
+
+private extension JSONValue {
+    /// An object with `source` as its only member.
+    var isSourceAlone: Bool {
+        guard case .object(let fields) = self else { return false }
+        return fields.count == 1 && fields["source"] != nil
     }
 }

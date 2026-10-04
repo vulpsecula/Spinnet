@@ -366,6 +366,15 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     /// `deep_link_template`: the Plugin, not the Host, says which link each
     /// Command uses.
     public let deepLinkTemplate: String?
+    /// The catalogue ID of the Host Service the Command runs, when its
+    /// `host_command` is not a Plugin API Level 1 Host Command: under
+    /// Candidate Contract `namespaces`, such as `open.url`. The Host checks
+    /// it against the Plugin's declarations, not when decoding.
+    public let hostServiceID: String?
+    /// Members of that Host Service's input the Command fixes, written as
+    /// `input`; the Action's configured input supplies the rest. Only a
+    /// Command with a `hostServiceID` has one.
+    public let fixedInput: JSONValue?
 
     public init(
         id: CommandID,
@@ -377,7 +386,9 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         configurationField: CommandConfigurationField? = nil,
         explanation: String? = nil,
         configurationFields: [CommandConfigurationField] = [],
-        deepLinkTemplate: String? = nil
+        deepLinkTemplate: String? = nil,
+        hostServiceID: String? = nil,
+        fixedInput: JSONValue? = nil
     ) {
         self.id = id
         self.title = title
@@ -389,6 +400,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         self.explanation = explanation
         self.configurationFields = configurationFields
         self.deepLinkTemplate = deepLinkTemplate
+        self.hostServiceID = hostCommand == nil ? hostServiceID : nil
+        self.fixedInput = self.hostServiceID == nil ? nil : fixedInput
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -425,6 +438,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         case explanation = "description"
         case configurationFields = "configuration_fields"
         case deepLinkTemplate = "deep_link_template"
+        case fixedInput = "input"
     }
 
     public init(from decoder: Decoder) throws {
@@ -439,12 +453,18 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             CommandConfigurationField.self,
             forKey: .configuration
         )
+        // A Level 1 Host Command keeps its enum; any other name is a catalogue
+        // ID, held to the Plugin's declarations when the Host checks it, and
+        // only then is `input` read.
+        let hostCommandName = try container.decodeIfPresent(String.self, forKey: .hostCommand)
+        let hostCommand = hostCommandName.flatMap(HostCommand.init(rawValue:))
+        let hostServiceID = hostCommand == nil ? hostCommandName : nil
         self.init(
             id: try container.decode(CommandID.self, forKey: .id),
             title: try container.decode(String.self, forKey: .title),
             execution: try container.decode(CommandExecution.self, forKey: .execution),
             isConfigurable: try container.decodeIfPresent(Bool.self, forKey: .isConfigurable) ?? true,
-            hostCommand: try container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
+            hostCommand: hostCommand,
             script: script,
             configurationField: configurationField,
             explanation: try container.decodeIfPresent(String.self, forKey: .explanation),
@@ -452,7 +472,9 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
                 [CommandConfigurationField].self,
                 forKey: .configurationFields
             ) ?? [],
-            deepLinkTemplate: try container.decodeIfPresent(String.self, forKey: .deepLinkTemplate)
+            deepLinkTemplate: try container.decodeIfPresent(String.self, forKey: .deepLinkTemplate),
+            hostServiceID: hostServiceID,
+            fixedInput: hostServiceID == nil ? nil : try container.decodeIfPresent(JSONValue.self, forKey: .fixedInput)
         )
     }
 
@@ -462,7 +484,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
         try container.encode(title, forKey: .title)
         try container.encode(execution, forKey: .execution)
         try container.encode(isConfigurable, forKey: .isConfigurable)
-        try container.encodeIfPresent(hostCommand, forKey: .hostCommand)
+        try container.encodeIfPresent(hostCommand?.rawValue ?? hostServiceID, forKey: .hostCommand)
+        try container.encodeIfPresent(fixedInput, forKey: .fixedInput)
         try container.encodeIfPresent(script, forKey: .script)
         try container.encodeIfPresent(configurationField, forKey: .configurationField)
         try container.encodeIfPresent(explanation, forKey: .explanation)
@@ -480,6 +503,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             && title == other.title
             && execution == other.execution
             && hostCommand == other.hostCommand
+            && hostServiceID == other.hostServiceID
             && script == other.script
             && deepLinkTemplate == other.deepLinkTemplate
     }
@@ -773,20 +797,22 @@ public struct PluginManifest: Codable, Equatable {
     }
 
     private func validate(_ command: CommandDeclaration) throws {
-        guard (command.hostCommand == .openDeepLink) == (command.deepLinkTemplate != nil) else {
+        let opensDeepLink = command.hostCommand == .openDeepLink
+            || command.hostServiceID == HostServiceCatalogue.deepLinkOperation
+        guard opensDeepLink == (command.deepLinkTemplate != nil) else {
             throw ConfigurationError.invalidManifest(
                 "Command \(command.id.rawValue) names a deep_link_template exactly when it runs deep_link.open"
             )
         }
         switch command.execution {
         case .host:
-            guard let hostCommand = command.hostCommand, command.script == nil else {
+            guard command.hostCommand != nil || command.hostServiceID != nil, command.script == nil else {
                 throw ConfigurationError.invalidManifest(
                     "Host Command \(command.id.rawValue) must declare host_command only"
                 )
             }
-            if hostCommand == .openDeepLink { try validateDeepLinkCommand(command) }
-            if let requiredCapability = hostCommand.requiredCapability,
+            if opensDeepLink { try validateDeepLinkCommand(command) }
+            if let requiredCapability = command.hostCommand?.requiredCapability,
                !capabilities.contains(requiredCapability) {
                 throw ConfigurationError.invalidManifest(
                     "Host Command \(command.id.rawValue) requires Capability \(requiredCapability.rawValue)"
@@ -795,7 +821,7 @@ public struct PluginManifest: Codable, Equatable {
         case .javascript:
             guard let script = command.script,
                   isValidScriptReference(script),
-                  command.hostCommand == nil else {
+                  command.hostCommand == nil, command.hostServiceID == nil else {
                 throw ConfigurationError.invalidManifest(
                     "JavaScript Command \(command.id.rawValue) must declare a relative script only"
                 )
@@ -1039,7 +1065,11 @@ public struct PluginManifest: Codable, Equatable {
     private func validDefaultInput(_ input: JSONValue, for command: CommandDeclaration) -> Bool {
         switch command.execution {
         case .host:
-            guard let hostCommand = command.hostCommand else { return false }
+            guard let hostCommand = command.hostCommand else {
+                // A catalogue ID's input is checked when the Command runs.
+                if let field = command.configurationField, !field.isValidInput(input) { return false }
+                return command.configurationField != nil || acceptsActionInput(input, for: command)
+            }
             if hostCommand == .openDeepLink { return acceptsActionInput(input, for: command) }
             return hostCommand.isValidInput(input)
         case .javascript:
@@ -1144,6 +1174,9 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     /// The Deep Link Template a `deep_link.open` Action opens, recorded so a
     /// Plugin that points the Command at another link is noticed.
     public let deepLinkTemplate: String?
+    /// The catalogue ID of the Host Service the Action's Command runs, under
+    /// Candidate Contract `namespaces`; nil for a Level 1 Host Command.
+    public let hostServiceID: String?
     public let input: JSONValue
 
     public init(
@@ -1166,7 +1199,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         }
         switch command.execution {
         case .host:
-            guard command.hostCommand != nil, command.script == nil else {
+            guard command.hostCommand != nil || command.hostServiceID != nil, command.script == nil else {
                 throw ConfigurationError.invalidAction("Host Action is missing its Host Command")
             }
         case .javascript:
@@ -1184,6 +1217,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         self.hostCommand = command.hostCommand
         self.script = command.script
         self.deepLinkTemplate = command.deepLinkTemplate
+        self.hostServiceID = command.hostServiceID
         self.input = input
     }
 
@@ -1197,7 +1231,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
             isConfigurable: isConfigurable,
             hostCommand: hostCommand,
             script: script,
-            deepLinkTemplate: deepLinkTemplate
+            deepLinkTemplate: deepLinkTemplate,
+            hostServiceID: hostServiceID
         )
     }
 
@@ -1211,6 +1246,7 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
         case hostCommand
         case script
         case deepLinkTemplate
+        case hostServiceID
         case input
     }
 
@@ -1229,7 +1265,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
                     ) ?? true,
                     hostCommand: container.decodeIfPresent(HostCommand.self, forKey: .hostCommand),
                     script: container.decodeIfPresent(String.self, forKey: .script),
-                    deepLinkTemplate: container.decodeIfPresent(String.self, forKey: .deepLinkTemplate)
+                    deepLinkTemplate: container.decodeIfPresent(String.self, forKey: .deepLinkTemplate),
+                    hostServiceID: container.decodeIfPresent(String.self, forKey: .hostServiceID)
                 ),
             input: container.decode(JSONValue.self, forKey: .input)
         )
@@ -1615,6 +1652,15 @@ public struct HostActionRunner {
             resourceAvailability: resourceAvailability
         ) {
         case .available:
+            // A Command naming a catalogue ID runs its operation's
+            // implementation; no helper starts.
+            if action.hostServiceID != nil {
+                guard let package = registry.package(for: action.pluginID) else {
+                    return failure(for: action, category: .commandUnavailable,
+                                   message: ActionUnavailableReason.pluginMissing.description)
+                }
+                return invokeCatalogueCommand(action, in: package, executor: executor, broker: hostServiceBroker)
+            }
             // A Deep Link Template opens through the Host Service a script
             // would ask for, with the same scope and grant checks; no helper
             // starts.

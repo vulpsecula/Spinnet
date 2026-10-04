@@ -2,8 +2,11 @@ import Foundation
 
 /// Local paths have their own authority; they never pass the web URL gate.
 public enum OpenableLocalPath {
+    /// The longest path, in UTF-8 bytes, the Host opens.
+    public static let maximumBytes = 4096
+
     public static func validate(_ path: String) throws -> URL {
-        guard !path.isEmpty, path.utf8.count <= 4096,
+        guard !path.isEmpty, path.utf8.count <= maximumBytes,
               path.hasPrefix("/") || path.hasPrefix("~/"),
               !path.hasPrefix("//"),
               !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {

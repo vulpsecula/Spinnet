@@ -22,6 +22,9 @@ final class ArchitectureGuardTests: XCTestCase {
         // The links the Host reviewed for Shottr before they became Deep Link
         // Templates, kept only to check that a grant may carry over to them.
         .init("Sources/SpinnetHost/DeepLinkMigration.swift", "cc.ffitch.shottr", .retiredReview),
+        // Window Position's Command ID is also the catalogue ID of the Host
+        // Service any Plugin may name (ADR 0020).
+        .init("Sources/SpinnetCore/HostServiceCatalogue.swift", "window.restore", count: 2, .catalogueID),
 
         // The retired Screenshot Plugin's Menu Items and grant move onto
         // another Plugin, which no manifest's `migrations` can declare.

@@ -10,6 +10,7 @@ promises. A Plugin that declares no candidate is unaffected by any of it.
 | --- | --- |
 | [`schemas/candidate-contracts.schema.json`](schemas/candidate-contracts.schema.json) | The `candidate_contracts` member a manifest adds to declare candidates |
 | [`schemas/candidate-metadata.schema.json`](schemas/candidate-metadata.schema.json) | The `candidate.json` that pins one revision of a candidate |
+| [`namespaces/r1/`](namespaces/r1/reference.md) | Candidate `namespaces` revision 1: one `namespace.verb` ID for every Host Service, its catalogue, schema, SDK and types |
 
 ## Declaring a candidate
 
@@ -100,8 +101,10 @@ frozen Host build through two external Plugin rounds; changing either the
 revision or the Host starts a fresh two-round attempt, under a new revision
 if the contract changed. Candidate SDK wrappers and type definitions, when a
 candidate adds them, live with its revision and never in the stable
-`spinnet.js` or `spinnet.d.ts`; until then a script reaches a candidate's
-Host Services with `requestHostService`, which the Host checks as above.
+`spinnet.js` or `spinnet.d.ts`: the helper injects a candidate's SDK, such as
+`namespaces/r1/namespaces.js`, only into a Plugin that declares it. Until a
+candidate adds one, a script reaches its Host Services with
+`requestHostService`, which the Host checks as above.
 
 ## Promotion and retirement
 
@@ -119,7 +122,7 @@ binds every later Host.
 
 | Candidate | Revision | Builds on | Tag |
 | --- | --- | --- | --- |
-| None yet | | | |
+| [`namespaces`](namespaces/r1/reference.md) | 1 | Level 1 | `plugin-api-candidate/namespaces/r1` |
 
 ## Retired candidate declarations
 

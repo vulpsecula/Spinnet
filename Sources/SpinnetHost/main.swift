@@ -168,7 +168,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 languageDetector: { text in TextLanguage.detect(text) },
                 appleEventSender: { request in try AppleEventSender().send(request) },
                 deepLinkOpener: { link in try DeepLinkOpener().open(link) },
-                pluginStorage: pluginStorage
+                pluginStorage: pluginStorage,
+                // `open.application` and a `screen.capture` naming only its
+                // source, called by a Plugin declaring the catalogue.
+                applicationOpener: { application in
+                    guard AppKitHostCommandAdapter().openApplication(application) else {
+                        throw PluginHostServiceError.unavailable("The application is not available")
+                    }
+                },
+                preferredScreenCapturer: captureScreen
             )
             clipboardBroker = hostServiceBroker
             actionRunner = HostActionRunner(
@@ -185,7 +193,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                             self?.feedback?.showMessage(message)
                         }
                     },
-                    screenCapture: captureScreen
+                    screenCapture: captureScreen,
+                    toastPresenter: { [weak self] message in
+                        DispatchQueue.main.async { [weak self] in self?.toasts.show(message, near: NSEvent.mouseLocation) }
+                    },
+                    pluginSettingsPresenter: { [weak self] pluginID in
+                        DispatchQueue.main.async { [weak self] in self?.settings?.showPluginSettings(pluginID) }
+                    }
                 ),
                 scriptedExecutor: scriptedExecutor,
                 hostServiceBroker: hostServiceBroker,

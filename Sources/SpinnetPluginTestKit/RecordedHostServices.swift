@@ -26,14 +26,21 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     }
 
     private let answers: [PluginHostService: Answer]
+    private let operations: [String: Answer]
     private let storage: PluginStorage?
 
     /// `storage`, when given, answers the Plugin Storage services the Host's
     /// own way, for the Plugin under test, unless a recorded answer is given
     /// for one. Give it a temporary directory, and a store over the same
     /// directory in a later run to stand for a relaunch.
-    public init(_ answers: [PluginHostService: Answer] = [:], storage: PluginStorage? = nil) {
+    ///
+    /// `operations` answers a Plugin declaring Candidate Contract
+    /// `namespaces` by catalogue ID, such as `"clipboard.write"`, ahead of
+    /// `answers` for the Host Service performing it.
+    public init(_ answers: [PluginHostService: Answer] = [:], operations: [String: Answer] = [:],
+                storage: PluginStorage? = nil) {
         self.answers = answers
+        self.operations = operations
         self.storage = storage
     }
 
@@ -47,7 +54,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
            !package.manifest.declares(capability, for: action.commandID) {
             throw PluginHostServiceError.capabilityDenied(capability)
         }
-        switch answers[request.service] {
+        switch request.operation.flatMap({ operations[$0] }) ?? answers[request.service] {
         case .value(let value):
             return value
         case .failure(let error):
@@ -58,7 +65,38 @@ public final class RecordedHostServices: PluginHostServiceBroker {
             if let storage, request.service.isPluginStorage {
                 return try storage.answer(request.service, input: request.input, for: package.manifest.id)
             }
-            throw PluginHostServiceError.unavailable("No recorded answer for \(request.service.rawValue)")
+            throw PluginHostServiceError.unavailable("No recorded answer for \(request.operation ?? request.service.rawValue)")
+        }
+    }
+}
+
+/// A scriptless Command naming a catalogue ID is answered by that ID from
+/// `operations`, as a call is, whether the Host would perform it as a Host
+/// Command or show its own UI.
+extension RecordedHostServices: CatalogueCommandExecutor {
+    public func execute(_ action: ActionConfiguration) throws -> JSONValue {
+        throw HostCommandExecutionError.unavailable("The test kit runs only Commands that name a catalogue ID")
+    }
+
+    public func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration,
+                        in package: PluginPackage) throws -> JSONValue {
+        try answer(action.hostServiceID ?? command.rawValue, input: input)
+    }
+
+    public func showToast(_ text: String, for action: ActionConfiguration) throws {
+        _ = try answer(action.hostServiceID ?? "host.toast", input: .string(text))
+    }
+
+    public func showPluginSettings(for action: ActionConfiguration) throws {
+        _ = try answer(action.hostServiceID ?? "host.showPluginSettings", input: .null)
+    }
+
+    private func answer(_ id: String, input: JSONValue) throws -> JSONValue {
+        switch operations[id] {
+        case .value(let value): return value
+        case .failure(let error): throw error
+        case .answer(let answer): return try answer(input)
+        case nil: throw PluginHostServiceError.unavailable("No recorded answer for \(id)")
         }
     }
 }

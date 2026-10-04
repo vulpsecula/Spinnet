@@ -1,0 +1,34 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "candidate_contracts": [{"name": "namespaces", "revision": 1}],
+  "id": "com.example.namespaces-probe",
+  "name": "Namespaces Probe",
+  "version": "1.0.0",
+  "capabilities": ["read_selected_text", "write_clipboard"],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.shout",
+    "default_alternate_command_ids": ["probe.copy_greeting"]
+  },
+  "commands": [
+    {
+      "id": "probe.shout",
+      "title": "Shout",
+      "description": "Copies the selected text in capitals, calling Host Services by their catalogue IDs.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "shout.js"
+    },
+    {
+      "id": "probe.copy_greeting",
+      "title": "Copy Greeting",
+      "description": "Copies a fixed greeting through a Host Command, without running a script.",
+      "execution": "host",
+      "is_configurable": false,
+      "host_command": "clipboard.write",
+      "input": {"text": "Hello from a Host Command"}
+    }
+  ]
+}

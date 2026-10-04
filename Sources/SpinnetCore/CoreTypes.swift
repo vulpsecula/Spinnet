@@ -173,6 +173,12 @@ public struct ActionFailure: Codable, Equatable, Hashable {
     }
 }
 
+/// A failed Action is also an error, such as the Plugin test kit's result
+/// for a Command that runs no script.
+extension ActionFailure: LocalizedError {
+    public var errorDescription: String? { message }
+}
+
 public enum ActionTerminalOutcome: Codable, Equatable, Hashable {
     case succeeded(JSONValue)
     case failed(ActionFailure)

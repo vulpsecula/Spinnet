@@ -219,9 +219,11 @@ public struct PluginInterfaceContracts: Equatable {
                "section_delivered"].map(PluginInterfaceMember.viewEvent)
     )
 
-    /// This Host: Level 1, and no Candidate Contract yet. A Level added
-    /// later is keyed at its own number beside Level 1.
-    public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers])
+    /// This Host: Level 1, and Candidate Contract `namespaces` revision 1,
+    /// the Plugin API catalogue. A Level added later is keyed at its own
+    /// number beside Level 1.
+    public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers],
+                                                      candidates: [HostServiceCatalogue.candidate])
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -265,16 +267,18 @@ public struct PluginInterfaceContracts: Equatable {
                                                         conflictingCandidate: other.name)
             }
         }
+        try HostServiceCatalogue.checkCommands(of: manifest, under: self)
     }
 
     /// Whether `manifest` may use `member`: one of the stable Levels it
     /// declares, or a candidate it declares, offers it. `check` has already
     /// accepted the manifest.
     ///
-    /// Only Host Service requests are held to it at run time. Every View
-    /// Component, Standard Action and View Event is a Level 1 member, so
-    /// checking them would refuse nothing yet; wire it into view parsing when
-    /// a candidate first adds one.
+    /// Host Service requests are held to it at run time and scriptless
+    /// Commands whenever the manifest is checked. Every View Component,
+    /// Standard Action and View Event is a Level 1 member, so checking them
+    /// would refuse nothing yet; wire it into view parsing when a candidate
+    /// first adds one.
     public func permits(_ member: PluginInterfaceMember, declaredBy manifest: PluginManifest) -> Bool {
         levels.contains { $0.key <= manifest.apiLevel && $0.value.contains(member) }
             || manifest.candidateContracts.contains { supported($0)?.members.contains(member) == true }
