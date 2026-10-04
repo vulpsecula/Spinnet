@@ -324,8 +324,9 @@ def draft_candidate_errors(draft):
     wanted = {"name": names["name"], "revision": names["revision"]}
     if wanted not in draft.get("requires", []):
         found.append(f"candidate.json: does not require {wanted}, whose catalogue IDs page and item actions perform")
-    # #77 published revision 1 from this draft, without repeated calls
-    # (#78); the draft keeps them as the design record.
+    # #77 published revision 1 from this draft, without repeated calls, and
+    # #78 revision 2 with them: every member the draft has. The draft keeps
+    # its revision number as the design record.
     published = json.loads((CANDIDATES / str(name) / f"r{revision}" / "candidate.json").read_text(encoding="utf-8"))
     later = {("behaviour", "repeated_calls_into_session"), ("view_event", "called")}
     drafted = [(m.get("kind"), m.get("name")) for m in draft.get("members", [])]
@@ -335,6 +336,14 @@ def draft_candidate_errors(draft):
     for key in ("name", "revision", "base_level", "requires", "conflicts", "tag", "status"):
         if published.get(key) != draft.get(key):
             found.append(f"candidates/{name}/r{revision}/candidate.json differs from this draft in {key}")
+    second = json.loads((CANDIDATES / str(name) / "r2" / "candidate.json").read_text(encoding="utf-8"))
+    if sorted(drafted) != sorted((m["kind"], m["name"]) for m in second["members"]):
+        found.append(f"candidates/{name}/r2/candidate.json does not publish every member of this draft")
+    for key in ("name", "base_level", "requires", "conflicts", "status"):
+        if second.get(key) != draft.get(key):
+            found.append(f"candidates/{name}/r2/candidate.json differs from this draft in {key}")
+    if second.get("revision") != 2 or second.get("tag") != f"plugin-api-candidate/{name}/r2":
+        found.append(f"candidates/{name}/r2/candidate.json is not revision 2 at its own tag")
     return found
 
 
@@ -517,7 +526,7 @@ def main():
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"ok: schema well formed, draft candidate.json valid, published as r1 and requiring host_operations and namespaces, "
+    print(f"ok: schema well formed, draft candidate.json valid, published as r1 and r2 and requiring host_operations and namespaces, "
           f"budgets agree with reference.md, {len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
     return 0
 

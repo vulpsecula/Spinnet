@@ -1,18 +1,22 @@
 # Proposal: minimal composable pages and collections
 
-> **Status: design record; revision 1 is published.** #77 published
+> **Status: design record; revisions 1 and 2 are published.** #77 published
 > Candidate Contract `collections` revision 1 from this proposal under
 > [`../../candidates/collections/r1/`](../../candidates/collections/r1/reference.md),
-> which the Host, helper, SDK and test kit implement: write Plugins against
-> that revision, not against the files here. Revision 1 leaves out repeated
-> calls into an open View Session (the `called` event and the
-> `repeated_calls_into_session` behaviour), which #78 implements in a later
-> revision, since a published revision never changes. Beside the draft's
-> builders its SDK adds `ui.components.button` for an event button. A key
-> typed in the collection goes to the search field only with a keyboard
-> layout selected; with an input method it is ignored (C3's fallback). A
-> Return that waited for its search does nothing if that search fails. This
-> directory stays as the design for issue #74.
+> without repeated calls into an open View Session; #78 published revision 2
+> under [`../../candidates/collections/r2/`](../../candidates/collections/r2/reference.md),
+> which adds them (the `called` event and the `repeated_calls_into_session`
+> behaviour), so revision 2 carries every member drafted here. The Host,
+> helper, SDK and test kit implement both: write Plugins against revision 2,
+> not against the files here. Beside the draft's builders the SDK adds
+> `ui.components.button` for an event button, and revision 2 adds no builder.
+> A key typed in the collection goes to the search field only with a
+> keyboard layout selected; with an input method it is ignored (C3's
+> fallback). A Return that waited for its search does nothing if that search
+> fails. A call's answer is read under the called Action, insertion it asks
+> for is refused as at the Action's start, and a call's Level 1 view drops
+> the old view's waiting events. This directory stays as the design for
+> issue #74.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal, and `check.py` verifies that Level 1's schemas
@@ -106,8 +110,9 @@ in `PluginAPI/`.
 - **#99** (`namespaces`) names every operation a page action, an item action
   or a request performs by its catalogue ID; `collections` requires it.
 - **#75** defined the candidate format used here.
-- **#77** implements pages and collections; **#78** implements repeated
-  calls, entering through the `called` event defined here; **#76** implements
+- **#77** implements pages and collections (revision 1); **#78** implements
+  repeated calls (revision 2), entering through the `called` event defined
+  here; **#76** implements
   requested insertion. **#79** proves Emoji on them and promotes the group.
 - **#81** (styles, images, Progress) and **#71** (Host-run sources) add
   components and deliveries to the same tree later; this revision does not
