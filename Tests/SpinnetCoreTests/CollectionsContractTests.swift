@@ -10,6 +10,8 @@ enum CollectionsFixtures {
     static let emoji = NamespacesProbeFixture.fixtures.appendingPathComponent("EmojiPages.spinnetplugin", isDirectory: true)
     static let brew = NamespacesProbeFixture.fixtures.appendingPathComponent("BrewPages.spinnetplugin", isDirectory: true)
 
+    static let emojiID = PluginID("com.example.emoji-pages")
+
     static func manifest(_ package: URL = emoji) throws -> PluginManifest {
         try PluginManifestLoader.load(packageAt: package).manifest
     }
@@ -17,6 +19,27 @@ enum CollectionsFixtures {
     /// What a Plugin declaring the three candidates may use.
     static var permits: (PluginInterfaceMember) -> Bool {
         PluginInterfaceContracts.host.permitting(try! manifest())
+    }
+
+    /// What a Plugin declaring `collections` r1, which has no repeated
+    /// calls, and the candidates it requires may use.
+    static var revisionOne: (PluginInterfaceMember) -> Bool {
+        PluginInterfaceContracts.host.permitting(try! manifest(declaringCollections: 1))
+    }
+
+    /// The Emoji fixture's manifest declaring `collections` at `revision`.
+    static func manifest(declaringCollections revision: Int, of package: URL = emoji) throws -> PluginManifest {
+        let data = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
+        guard case .object(var manifest) = try JSONDecoder().decode(JSONValue.self, from: data),
+              case .array(let declared)? = manifest["candidate_contracts"] else { throw CocoaError(.fileReadCorruptFile) }
+        manifest["candidate_contracts"] = .array(declared.map { declaration in
+            guard case .object(var members) = declaration, members["name"] == .string(CollectionsContract.name) else {
+                return declaration
+            }
+            members["revision"] = .number(Double(revision))
+            return .object(members)
+        })
+        return try PluginManifestLoader.decode(JSONEncoder().encode(JSONValue.object(manifest)))
     }
 
     /// What a Plugin declaring `host_operations` and `namespaces` but not
@@ -30,12 +53,17 @@ enum CollectionsFixtures {
 /// `PluginAPI/candidates/collections/r1/` and as the Host reads it: the
 /// answers and events its fixtures hold, the page rules beyond the schema,
 /// the candidate's members, its SDK and types, and Level 1 left as it was.
-final class CollectionsContractTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
+/// `CollectionsRevisionTwoContractTests` runs the same checks on r2.
+class CollectionsContractTests: XCTestCase {
+    static let pluginAPI = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("PluginAPI")
-    static let published = pluginAPI.appendingPathComponent("candidates/collections/r1")
-    private static let schema = published.appendingPathComponent("collections.schema.json")
+    /// The revision these tests check.
+    class var revision: Int { 1 }
+    /// The Host's record of that revision.
+    class var candidate: CandidateContract { CollectionsContract.revisionOne }
+    static var published: URL { pluginAPI.appendingPathComponent("candidates/collections/r\(revision)") }
+    private static var schema: URL { published.appendingPathComponent("collections.schema.json") }
 
     private struct Fixture: Decodable {
         let file: String
@@ -55,7 +83,11 @@ final class CollectionsContractTests: XCTestCase {
         try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent("fixtures/\(file)")))
     }
 
-    private var permits: (PluginInterfaceMember) -> Bool { CollectionsFixtures.permits }
+    /// What a Plugin declaring this revision, and the candidates it
+    /// requires, may use.
+    private var permits: (PluginInterfaceMember) -> Bool {
+        PluginInterfaceContracts.host.permitting(try! CollectionsFixtures.manifest(declaringCollections: Self.revision))
+    }
 
     /// The fixtures the schema alone can judge follow it; the ones it cannot
     /// (the page rules) are left to the Host, below.
@@ -105,6 +137,11 @@ final class CollectionsContractTests: XCTestCase {
             .loadMore(page: "search", collection: "results", loaded: 200)
         ]
         for event in events { XCTAssertEqual(validator.errors(for: event.json), [], "\(event)") }
+        // An explicit call is revision 2's.
+        XCTAssertEqual(validator.errors(for: PluginViewEvent.called.json).isEmpty, Self.revision >= 2)
+        XCTAssertTrue(PluginViewEvent.called.isGesture)
+        XCTAssertFalse(PluginViewEvent.called.coalesces)
+        XCTAssertNil(PluginViewEvent.called.pageOrigin, "No page change drops a call")
         XCTAssertEqual(PluginPageItemSnapshot(id: "x", section: nil, text: "x").json, .object(["id": .string("x")]),
                        "The text travels only where it differs from the ID")
         XCTAssertEqual(events.map(\.isGesture), [false, true, true, true, true, false])
@@ -221,8 +258,10 @@ final class CollectionsContractTests: XCTestCase {
     func testTheCandidatesMembersAreTheCataloguesAndThePublishedOnes() throws {
         let published = try JSONDecoder().decode(CandidateContract.self,
                                                  from: Data(contentsOf: Self.published.appendingPathComponent("candidate.json")))
-        XCTAssertEqual(published, CollectionsContract.candidate)
-        XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(CollectionsContract.candidate))
+        XCTAssertEqual(published, Self.candidate)
+        XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(Self.candidate))
+        XCTAssertEqual(published.members.contains(CollectionsContract.repeatedCallsIntoSession), Self.revision >= 2)
+        XCTAssertEqual(published.members.contains(.viewEvent("called")), Self.revision >= 2)
         XCTAssertEqual(published.requires, [HostOperationsContract.declaration, HostServiceCatalogue.declaration])
         let viewActions = HostServiceCatalogue.operations.filter { $0.isOffered(at: .viewAction) }.map(\.id)
         XCTAssertEqual(published.members.filter { $0.kind == .standardAction }.map(\.name), viewActions)
@@ -252,7 +291,11 @@ final class CollectionsContractTests: XCTestCase {
     func testTheTypesReferenceAndSDKNameEveryMember() throws {
         let types = try String(contentsOf: Self.published.appendingPathComponent("collections.d.ts"), encoding: .utf8)
         let reference = try String(contentsOf: Self.published.appendingPathComponent("reference.md"), encoding: .utf8)
-        let sdk = try String(contentsOf: Self.published.appendingPathComponent("collections.js"), encoding: .utf8)
+        // Revision 2 adds no builder: the helper adds revision 1's SDK for it.
+        let sdk = try String(contentsOf: Self.pluginAPI.appendingPathComponent("candidates/collections/r1/collections.js"),
+                             encoding: .utf8)
+        XCTAssertEqual(FileManager.default.fileExists(atPath: Self.published.appendingPathComponent("collections.js").path),
+                       Self.revision == 1)
         for id in CollectionsContract.viewActionIDs {
             XCTAssertTrue(types.contains("\"\(id)\""), "collections.d.ts does not list \(id)")
             XCTAssertTrue(reference.contains("`\(id)`"), "reference.md does not name \(id)")
@@ -266,6 +309,46 @@ final class CollectionsContractTests: XCTestCase {
         for event in CollectionsContract.events {
             XCTAssertTrue(types.contains("type: \"\(event)\""), "collections.d.ts has no \(event)")
         }
-        XCTAssertFalse(types.contains("\"called\""), "Repeated calls are not part of revision 1")
+        if Self.revision == 1 {
+            XCTAssertFalse(types.contains("\"called\""), "Repeated calls are not part of revision 1")
+        } else {
+            XCTAssertTrue(types.contains("type: \"called\""), "collections.d.ts has no called")
+            XCTAssertTrue(reference.contains("`called`"), "reference.md does not name called")
+            XCTAssertTrue(reference.contains("`repeated_calls_into_session`"))
+        }
+    }
+}
+
+/// Candidate Contract `collections` r2, published under
+/// `PluginAPI/candidates/collections/r2/`: revision 1's checks, and the
+/// `called` event and `repeated_calls_into_session` behaviour it adds.
+final class CollectionsRevisionTwoContractTests: CollectionsContractTests {
+    override class var revision: Int { 2 }
+    override class var candidate: CandidateContract { CollectionsContract.candidate }
+
+    /// Revision 2 is revision 1 with repeated calls, and nothing else: the
+    /// same schema apart from `called`, the same fixtures and two more.
+    func testRevisionTwoIsRevisionOneWithRepeatedCalls() throws {
+        let one = CollectionsContract.revisionOne, two = CollectionsContract.candidate
+        XCTAssertEqual(two.revision, 2)
+        XCTAssertEqual(Set(two.members).subtracting(one.members),
+                       [CollectionsContract.repeatedCallsIntoSession, .viewEvent("called")])
+        XCTAssertTrue(Set(one.members).isSubset(of: two.members))
+        XCTAssertEqual(two.requires, one.requires)
+        let host = PluginInterfaceContracts.host
+        XCTAssertTrue(host.candidates.contains(one) && host.candidates.contains(two), "Revision 1 is still provided")
+
+        let r1 = Self.pluginAPI.appendingPathComponent("candidates/collections/r1/fixtures")
+        let r2 = Self.published.appendingPathComponent("fixtures")
+        for folder in ["answers", "events"] {
+            let first = Set(try FileManager.default.contentsOfDirectory(atPath: r1.appendingPathComponent(folder).path))
+            let second = Set(try FileManager.default.contentsOfDirectory(atPath: r2.appendingPathComponent(folder).path))
+            XCTAssertEqual(second.subtracting(first), folder == "events" ? ["called.json", "called-with-input.json"] : [])
+            XCTAssertEqual(first.subtracting(second), [])
+            for file in first {
+                XCTAssertEqual(try Data(contentsOf: r1.appendingPathComponent("\(folder)/\(file)")),
+                               try Data(contentsOf: r2.appendingPathComponent("\(folder)/\(file)")), file)
+            }
+        }
     }
 }

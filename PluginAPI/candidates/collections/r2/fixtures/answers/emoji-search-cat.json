@@ -1,0 +1,80 @@
+{
+  "page": {
+    "id": "search",
+    "title": "Emoji",
+    "shows_insertion_target": true,
+    "reset": [
+      "results"
+    ],
+    "content": [
+      {
+        "kind": "row",
+        "id": "bar",
+        "content": [
+          {
+            "kind": "text_field",
+            "id": "query",
+            "title": "Search",
+            "placeholder": "smile, cat, heart or an emoji",
+            "value": "cat",
+            "collection": "results",
+            "status": "20 matches"
+          },
+          {
+            "kind": "choice_field",
+            "id": "category",
+            "title": "Category",
+            "value": "all",
+            "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
+            "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+          }
+        ]
+      },
+      {
+        "kind": "grid",
+        "id": "results",
+        "columns": 8,
+        "rows": 6,
+        "empty_text": "No emoji match",
+        "actions": [
+          {
+            "id": "insert",
+            "title": "Insert",
+            "default": true
+          },
+          {
+            "id": "copy",
+            "title": "Copy",
+            "perform": "clipboard.write"
+          }
+        ],
+        "items": [
+          {"id": "1F408", "title": "cat", "symbol": "🐈"},
+          {"id": "1F431", "title": "cat face", "symbol": "🐱"},
+          {"id": "1F63C", "title": "cat with wry smile", "symbol": "😼"},
+          {"id": "1F639", "title": "cat with tears of joy", "symbol": "😹"},
+          {"id": "1F640", "title": "weary cat", "symbol": "🙀"},
+          {"id": "1F408-200D-2B1B", "title": "black cat", "symbol": "🐈‍⬛"},
+          {"id": "1F63F", "title": "crying cat", "symbol": "😿"},
+          {"id": "1F63D", "title": "kissing cat", "symbol": "😽"},
+          {"id": "1F63E", "title": "pouting cat", "symbol": "😾"},
+          {"id": "1F63A", "title": "grinning cat", "symbol": "😺"},
+          {"id": "1F63B", "title": "smiling cat with heart-eyes", "symbol": "😻"},
+          {"id": "1F638", "title": "grinning cat with smiling eyes", "symbol": "😸"},
+          {"id": "1F405", "title": "tiger", "symbol": "🐅"},
+          {"id": "1F406", "title": "leopard", "symbol": "🐆"},
+          {"id": "1F42F", "title": "tiger face", "symbol": "🐯"},
+          {"id": "1FA9D", "title": "hook", "symbol": "🪝"},
+          {"id": "1FAF4", "title": "palm up hand", "symbol": "🫴"},
+          {"id": "1F93E-200D-2642-FE0F", "title": "man playing handball", "symbol": "🤾‍♂️"},
+          {"id": "1F93E-200D-2640-FE0F", "title": "woman playing handball", "symbol": "🤾‍♀️"},
+          {"id": "1F93E", "title": "person playing handball", "symbol": "🤾"}
+        ]
+      }
+    ]
+  },
+  "state": {
+    "query": "cat",
+    "category": "all"
+  }
+}

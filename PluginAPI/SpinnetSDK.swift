@@ -23,6 +23,7 @@ public enum SpinnetSDK {
     /// `candidates/collections/r1/collections.js`: a script whose value is a
     /// function of `requestHostService`, the environment and the object
     /// `host_operations.js` built that returns the `spinnet` object a Plugin
-    /// declaring Candidate Contract `collections` r1 runs with.
+    /// declaring Candidate Contract `collections` r1 or r2 runs with:
+    /// revision 2 adds no builder.
     public static let collectionsSource = String(decoding: PackageResources.collections_js, as: UTF8.self)
 }

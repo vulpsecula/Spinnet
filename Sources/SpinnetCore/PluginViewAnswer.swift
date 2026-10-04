@@ -37,6 +37,12 @@ public enum PluginViewEvent: Equatable, Hashable {
     case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue)
     /// The user neared the end of a collection that has more items.
     case loadMore(page: String, collection: String, loaded: Int)
+    /// Candidate Contract `collections` r2: the user called one of the
+    /// Plugin's Actions while its View Session was open. It carries nothing:
+    /// the invocation's input is the called Action's and its state the
+    /// session's last good state. It names no page, so no page change drops
+    /// it.
+    case called
 
     /// A field change waits out the debounce and gives way to a later one;
     /// every other event is delivered, in order.
@@ -68,11 +74,11 @@ public enum PluginViewEvent: Equatable, Hashable {
 
     /// A user gesture that may lead to an operation (ADR 0018): submitting
     /// a form or choosing an action. The Action's start, which has no event,
-    /// is one too. Typing, setting changes, deliveries and results are not,
+    /// is one too, and so is an explicit call into the session. Typing, setting changes, deliveries and results are not,
     /// so they never cause an effect by themselves.
     public var isGesture: Bool {
         switch self {
-        case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction: return true
+        case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction, .called: return true
         case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished, .pageFieldChanged,
              .loadMore:
             return false
@@ -114,6 +120,8 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .loadMore(let page, let collection, let loaded):
             return .object(["type": .string("load_more"), "page": .string(page), "collection": .string(collection),
                             "loaded": .number(Double(loaded))])
+        case .called:
+            return .object(["type": .string("called")])
         }
     }
 }

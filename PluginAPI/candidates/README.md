@@ -13,6 +13,7 @@ promises. A Plugin that declares no candidate is unaffected by any of it.
 | [`namespaces/r1/`](namespaces/r1/reference.md) | Candidate `namespaces` revision 1: one `namespace.verb` ID for every Host Service, its catalogue, schema, SDK and types |
 | [`host_operations/r1/`](host_operations/r1/reference.md) | Candidate `host_operations` revision 1: Requested Host Operations an answer commits and the Host performs, and where insertion goes in a View Session; its schema, fixtures, SDK and types |
 | [`collections/r1/`](collections/r1/reference.md) | Candidate `collections` revision 1: pages of identified components with a List or Grid, whose input the Host keeps across answers; its schema, fixtures, SDK and types |
+| [`collections/r2/`](collections/r2/reference.md) | Candidate `collections` revision 2: revision 1 with repeated calls, which run a called Action in the open View Session as `called`; its schema, fixtures and types |
 
 ## Declaring a candidate
 
@@ -50,9 +51,10 @@ this order and for each declared candidate in turn:
 2. it ships with Spinnet and declares any candidate;
 3. it declares a revision the Host has retired, which names the stable Level
    the candidate became, if it was promoted;
-4. the Host provides another revision of the candidate, or none: revisions
-   must match exactly, so a Host providing revision 3 refuses a Plugin
-   declaring revision 2 or 4;
+4. the Host provides other revisions of the candidate, or none, but not the
+   declared one: revisions must match exactly, so a Host providing revision
+   3 refuses a Plugin declaring revision 2 or 4, and its refusal names the
+   latest revision it provides;
 5. its `api_level` is lower than the stable Level the candidate builds on;
 6. it leaves out a candidate revision the declared one requires;
 7. it declares two candidates either of which excludes the other.
@@ -107,14 +109,21 @@ candidate adds them, live with its revision and never in the stable
 `namespaces/r1/namespaces.js`, only into a Plugin that declares it,
 `host_operations/r1/host_operations.js` over it into one that also declares
 `host_operations`, and `collections/r1/collections.js` over that into one
-that also declares `collections`. Until a
+that also declares `collections` r1 or r2: a revision that adds no builder,
+as `collections` r2 adds none, publishes no SDK of its own and gets the
+earlier revision's. Until a
 candidate adds one, a script reaches its Host Services with
 `requestHostService`, which the Host checks as above.
 
+A Host may provide more than one revision of a candidate, as this one
+provides `collections` r1 and r2; a Plugin declares exactly one of them and
+gets exactly that revision's members.
+
 ## Promotion and retirement
 
-Promoting a candidate gives its members the next stable Level and retires
-its revision in the same Host change. Earlier Levels keep their vocabulary
+Promoting a candidate gives the members of its latest provided revision the
+next stable Level and retires every revision of it the Host provides in the
+same Host change. Earlier Levels keep their vocabulary
 and the behaviour Plugins declared against them. A Plugin moves by declaring
 the new `api_level` and dropping the candidate; the Host then refuses the
 retired declaration with the Level to declare instead, so no Plugin keeps
@@ -130,6 +139,7 @@ binds every later Host.
 | [`namespaces`](namespaces/r1/reference.md) | 1 | Level 1 | `plugin-api-candidate/namespaces/r1` |
 | [`host_operations`](host_operations/r1/reference.md) | 1 | Level 1, with `namespaces` r1 | `plugin-api-candidate/host_operations/r1` |
 | [`collections`](collections/r1/reference.md) | 1 | Level 1, with `host_operations` r1 and `namespaces` r1 | `plugin-api-candidate/collections/r1` |
+| [`collections`](collections/r2/reference.md) | 2 | Level 1, with `host_operations` r1 and `namespaces` r1 | `plugin-api-candidate/collections/r2` |
 
 ## Retired candidate declarations
 

@@ -194,4 +194,30 @@ final class CandidateContractCatalogueTests: XCTestCase {
             XCTAssertEqual($0 as? CandidateContractPromotionError, .notProvided(candidate: "language_probe"))
         }
     }
+
+    /// This Host provides `collections` r1 and r2: a Plugin declaring either
+    /// runs, one declaring another revision is refused with the latest named,
+    /// and promotion gives the latest revision's members the next Level and
+    /// retires both.
+    func testAHostMayProvideTwoRevisionsOfOneCandidate() throws {
+        let host = PluginInterfaceContracts.host
+        for revision in [1, 2] {
+            XCTAssertNoThrow(try host.check(CollectionsFixtures.manifest(declaringCollections: revision), origin: .installed))
+        }
+        let three = CandidateContractRevision(name: "collections", revision: 3)
+        XCTAssertThrowsError(try host.check(CollectionsFixtures.manifest(declaringCollections: 3), origin: .installed)) {
+            XCTAssertEqual($0 as? CandidateContractRefusal,
+                           .revisionMismatch(plugin: "Emoji Pages", declared: three, provided: 2))
+        }
+
+        let promoted = try host.promoting("collections", toLevel: 2)
+        XCTAssertEqual(promoted.levels[2], Set(CollectionsContract.candidate.members))
+        XCTAssertEqual(promoted.candidates.filter { $0.name == "collections" }.map(\.status),
+                       [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
+        XCTAssertThrowsError(try promoted.check(CollectionsFixtures.manifest(declaringCollections: 1), origin: .installed)) {
+            XCTAssertEqual($0 as? CandidateContractRefusal,
+                           .retired(plugin: "Emoji Pages", declared: CandidateContractRevision(name: "collections", revision: 1),
+                                    promotedToLevel: 2))
+        }
+    }
 }

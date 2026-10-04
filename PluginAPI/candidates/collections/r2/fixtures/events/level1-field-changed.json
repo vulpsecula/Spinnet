@@ -1,0 +1,7 @@
+{
+  "type": "field_changed",
+  "field": "query",
+  "values": {
+    "query": "cat"
+  }
+}

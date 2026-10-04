@@ -206,7 +206,7 @@ struct SpinnetPluginHelperMain {
     /// `namespaces.js` builds over Level 1's, with `host_operations.js`'s
     /// request builders for a Plugin also declaring `host_operations` r1, and
     /// `collections.js`'s page builders over those for one also declaring
-    /// `collections` r1.
+    /// `collections` r1 or r2.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,
@@ -410,9 +410,12 @@ private extension PluginRuntimeInvocation {
     /// whose request builders the helper then adds.
     var requestsHostOperations: Bool { candidateContracts.contains(HostOperationsContract.declaration) }
 
-    /// Whether the Plugin declares Candidate Contract `collections` r1,
-    /// whose page builders the helper then adds.
-    var composesPages: Bool { candidateContracts.contains(CollectionsContract.declaration) }
+    /// Whether the Plugin declares a revision of Candidate Contract
+    /// `collections` the Host provides, whose page builders the helper then
+    /// adds: revision 2 adds no builder, so both get revision 1's.
+    var composesPages: Bool {
+        candidateContracts.contains { declared in CollectionsContract.candidates.contains { $0.declaration == declared } }
+    }
 
     var inputJSON: String {
         guard let data = try? JSONEncoder().encode(input) else { return "null" }

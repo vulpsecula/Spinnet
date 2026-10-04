@@ -221,12 +221,13 @@ public struct PluginInterfaceContracts: Equatable {
 
     /// This Host: Level 1, Candidate Contract `namespaces` revision 1, the
     /// Plugin API catalogue, `host_operations` revision 1, Requested Host
-    /// Operations, and `collections` revision 1, pages with Lists and Grids.
+    /// Operations, and `collections` revisions 1 and 2, pages with Lists and
+    /// Grids, the second with repeated calls into an open View Session.
     /// A Level added later is keyed at its own number beside Level 1.
     public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers],
                                                       candidates: [HostServiceCatalogue.candidate,
-                                                                   HostOperationsContract.candidate,
-                                                                   CollectionsContract.candidate])
+                                                                   HostOperationsContract.candidate]
+                                                          + CollectionsContract.candidates)
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -249,7 +250,8 @@ public struct PluginInterfaceContracts: Equatable {
                 throw CandidateContractRefusal.retired(plugin: plugin, declared: declaration, promotedToLevel: level)
             }
             guard let contract = supported(declaration) else {
-                if let other = candidates.first(where: { $0.name == declaration.name && $0.status == .supported }) {
+                if let other = candidates.filter({ $0.name == declaration.name && $0.status == .supported })
+                    .max(by: { $0.revision < $1.revision }) {
                     throw CandidateContractRefusal.revisionMismatch(plugin: plugin, declared: declaration,
                                                                     provided: other.revision)
                 }
@@ -287,27 +289,29 @@ public struct PluginInterfaceContracts: Equatable {
             || manifest.candidateContracts.contains { supported($0)?.members.contains(member) == true }
     }
 
-    /// The Host after promoting the provided revision of candidate `name` to
-    /// stable Level `level`, the next one: its members become that Level,
-    /// earlier Levels stay as they are, and the revision is retired with the
-    /// Level it became, so a Plugin still declaring it is told what to
-    /// install instead.
+    /// The Host after promoting candidate `name` to stable Level `level`, the
+    /// next one: the members of its latest provided revision become that
+    /// Level, earlier Levels stay as they are, and every revision of it the
+    /// Host provides is retired with the Level it became, so a Plugin still
+    /// declaring one is told what to install instead.
     public func promoting(_ name: String, toLevel level: Int) throws -> PluginInterfaceContracts {
-        guard let index = candidates.firstIndex(where: { $0.name == name && $0.status == .supported }) else {
+        guard let latest = candidates.filter({ $0.name == name && $0.status == .supported })
+            .max(by: { $0.revision < $1.revision }) else {
             throw CandidateContractPromotionError.notProvided(candidate: name)
         }
         guard level == highestStableLevel + 1 else {
             throw CandidateContractPromotionError.notTheNextLevel(level, next: highestStableLevel + 1)
         }
-        let candidate = candidates[index]
         var levels = levels
-        levels[level] = Set(candidate.members)
-        var candidates = candidates
-        candidates[index] = CandidateContract(
-            name: candidate.name, revision: candidate.revision, baseLevel: candidate.baseLevel,
-            requires: candidate.requires, conflicts: candidate.conflicts, members: candidate.members,
-            tag: candidate.tag, status: .retired(promotedToLevel: level)
-        )
+        levels[level] = Set(latest.members)
+        let candidates = candidates.map { candidate in
+            guard candidate.name == name, candidate.status == .supported else { return candidate }
+            return CandidateContract(
+                name: candidate.name, revision: candidate.revision, baseLevel: candidate.baseLevel,
+                requires: candidate.requires, conflicts: candidate.conflicts, members: candidate.members,
+                tag: candidate.tag, status: .retired(promotedToLevel: level)
+            )
+        }
         return PluginInterfaceContracts(levels: levels, candidates: candidates)
     }
 }

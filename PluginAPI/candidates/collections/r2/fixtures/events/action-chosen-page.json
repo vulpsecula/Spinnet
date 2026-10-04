@@ -1,0 +1,7 @@
+{
+  "type": "action_chosen",
+  "page": "package:python@3.13",
+  "action": "upgrade",
+  "values": {},
+  "selection": {}
+}

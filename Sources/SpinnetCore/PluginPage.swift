@@ -1,13 +1,18 @@
 import Foundation
 
-/// Candidate Contract `collections` revision 1 (ADR 0019): a declaring
-/// Plugin may answer with a page, a tree of identified View Components with
-/// at most one List or Grid, whose immediate state the Host keeps across
-/// answers until the Plugin resets it. Its `candidate.json` under
-/// `PluginAPI/candidates/collections/r1/` is `candidate` as JSON.
+/// Candidate Contract `collections` (ADR 0019): a declaring Plugin may answer
+/// with a page, a tree of identified View Components with at most one List or
+/// Grid, whose immediate state the Host keeps across answers until the Plugin
+/// resets it. The Host provides two revisions, each published under
+/// `PluginAPI/candidates/collections/r<revision>/` as `candidate.json`:
+/// revision 1, pages and collections, and revision 2, which adds repeated
+/// calls (#78): calling the Plugin again while its View Session is open runs
+/// the called Action in the session as `called` instead of restarting it.
 public enum CollectionsContract {
     public static let name = "collections"
-    public static let revision = 1
+    /// The latest revision, the one the Plugins of this Host's fixtures
+    /// declare.
+    public static let revision = 2
 
     public static var declaration: CandidateContractRevision {
         CandidateContractRevision(name: name, revision: revision)
@@ -16,7 +21,12 @@ public enum CollectionsContract {
     /// An answer may carry `page` in place of a Level 1 `view`.
     public static let answerPage = PluginInterfaceMember.behaviour("answer_page")
 
-    /// The rules a declaring Plugin gets, as `candidate.json` lists them.
+    /// Revision 2: an explicit call of one of the Plugin's Actions while its
+    /// View Session is open is queued into the session as `called`.
+    public static let repeatedCallsIntoSession = PluginInterfaceMember.behaviour("repeated_calls_into_session")
+
+    /// The rules a declaring Plugin gets, as revision 1's `candidate.json`
+    /// lists them; revision 2 adds `repeated_calls_into_session`.
     public static let behaviours = [
         "answer_page", "page_identity", "page_memory", "component_identity", "immediate_state_kept",
         "explicit_reset", "composition_priority", "page_event_provenance", "gesture_snapshots",
@@ -24,6 +34,7 @@ public enum CollectionsContract {
     ]
 
     public static let componentKinds = PluginPageComponent.Kind.allCases.map(\.rawValue)
+    /// Revision 1's View Events; revision 2 adds `called`.
     public static let events = ["item_action", "load_more"]
 
     /// The catalogue IDs a page action may perform, in the catalogue's order.
@@ -37,16 +48,28 @@ public enum CollectionsContract {
     /// The catalogue IDs an item action may perform on the item's text.
     public static let itemActionIDs = ["selection.replace", "clipboard.write"]
 
-    /// The revision as its `candidate.json` publishes it.
-    public static let candidate = CandidateContract(
-        name: name, revision: revision, baseLevel: 1,
-        requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
-        members: behaviours.map(PluginInterfaceMember.behaviour)
-            + viewActionIDs.map(PluginInterfaceMember.standardAction)
-            + componentKinds.map(PluginInterfaceMember.viewComponent)
-            + events.map(PluginInterfaceMember.viewEvent),
-        tag: "plugin-api-candidate/\(name)/r\(revision)"
-    )
+    /// Revision 1 as its `candidate.json` publishes it.
+    public static let revisionOne = makeRevision(1, behaviours: behaviours, events: events)
+
+    /// Revision 2 as its `candidate.json` publishes it: revision 1's members
+    /// with repeated calls.
+    public static let candidate = makeRevision(2, behaviours: behaviours + ["repeated_calls_into_session"],
+                                            events: events + ["called"])
+
+    /// Every revision this Host provides, oldest first.
+    public static let candidates = [revisionOne, candidate]
+
+    private static func makeRevision(_ revision: Int, behaviours: [String], events: [String]) -> CandidateContract {
+        CandidateContract(
+            name: name, revision: revision, baseLevel: 1,
+            requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
+            members: behaviours.map(PluginInterfaceMember.behaviour)
+                + viewActionIDs.map(PluginInterfaceMember.standardAction)
+                + componentKinds.map(PluginInterfaceMember.viewComponent)
+                + events.map(PluginInterfaceMember.viewEvent),
+            tag: "plugin-api-candidate/\(name)/r\(revision)"
+        )
+    }
 
     // MARK: Limits
 

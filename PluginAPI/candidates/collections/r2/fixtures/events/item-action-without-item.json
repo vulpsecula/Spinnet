@@ -1,0 +1,10 @@
+{
+  "type": "item_action",
+  "page": "search",
+  "collection": "results",
+  "action": "insert",
+  "values": {
+    "query": "cat",
+    "category": "all"
+  }
+}
