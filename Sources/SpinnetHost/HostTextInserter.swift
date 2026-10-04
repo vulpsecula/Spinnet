@@ -277,6 +277,11 @@ extension HostTextInserter.Environment {
                 } else {
                     app.activate(options: [])
                 }
+                // A Plugin View's panel can keep the keyboard while the App
+                // is already reported in front, and activating that App then
+                // changes nothing; Spinnet steps back itself so the App's own
+                // window takes the keyboard again.
+                if NSApp.keyWindow != nil { NSApp.deactivate() }
             },
             holdsKeyboard: { NSApp.keyWindow != nil },
             focusedFieldIsSecure: { processIdentifier in
