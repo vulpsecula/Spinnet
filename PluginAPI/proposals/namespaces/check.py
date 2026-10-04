@@ -670,13 +670,20 @@ def draft_errors(catalogue):
     listed = [m for m in members if m[0] == "host_service" or m[1].startswith("host_command:")]
     if listed != expected:
         found.append("candidate.json's host_service and host_command members are not the catalogue's call and command IDs")
-    for name in ("namespaces", "host_operations", "collections"):
+    for name in ("host_operations", "collections"):
         if (CANDIDATES / name).exists():
             found.append(f"candidates/{name} exists; a draft must not be published as a candidate")
         provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
         table = provided.split("## Candidate Contracts this Host provides", 1)[-1].split("\n## ", 1)[0]
         if re.search(rf"^\|\s*`?{name}`?\s*\|", table, re.MULTILINE):
             found.append(f"candidates/README.md lists {name} as provided; it is a draft")
+    # #100 published revision 1 from this draft, with Commands as host_command
+    # members; the draft keeps its behaviours as the design record.
+    published = json.loads((CANDIDATES / "namespaces" / "r1" / "candidate.json").read_text(encoding="utf-8"))
+    as_published = [("host_command", n[len("host_command:"):]) if k == "behaviour" and n.startswith("host_command:")
+                    else (k, n) for k, n in members]
+    if as_published != [(m["kind"], m["name"]) for m in published["members"]]:
+        found.append("candidates/namespaces/r1/candidate.json does not publish this draft's members")
     return found
 
 

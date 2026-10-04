@@ -224,7 +224,8 @@ def draft_candidate_errors(draft):
     wanted = {"name": names["name"], "revision": names["revision"]}
     if wanted not in draft.get("requires", []):
         found.append(f"candidate.json: does not require {wanted}, whose catalogue IDs name its operations")
-    for candidate in (name, names["name"]):
+    # namespaces r1 is published (#100); this draft is not.
+    for candidate in (name,):
         published = CANDIDATES / str(candidate)
         if published.exists():
             found.append(f"candidate.json: {published} exists; a draft must not be published as a candidate")

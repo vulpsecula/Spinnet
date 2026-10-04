@@ -1,13 +1,15 @@
 # Proposal: the Plugin API namespace boundary
 
-> **Status: proposal only.** Nothing in this directory is part of Plugin API
-> Level 1, of any later stable Level, or of any published Candidate Contract
-> revision. No Host, helper, SDK or test kit implements it. A Plugin must not
-> declare or rely on anything described here. The files exist so the design
-> for GitHub issue #99 can be reviewed as a diff; the first new UI contract's
-> implementation tickets (#76, #77) build on an accepted version of it, and it
-> becomes a real candidate revision under
-> [`../../candidates/`](../../candidates/README.md) with them.
+> **Status: design record; revision 1 is published.** #100 published
+> Candidate Contract `namespaces` revision 1 from this proposal under
+> [`../../candidates/namespaces/r1/`](../../candidates/namespaces/r1/reference.md),
+> which the Host, helper, SDK and test kit implement: write Plugins against
+> that revision, not against the files here. Its `candidate.json` records
+> Commands as `host_command` members, the kind #100 added to #75's metadata,
+> where the draft here used `host_command:<id>` behaviours, and its SDK and
+> types leave the page-action and request builders to `collections` and
+> `host_operations`. This directory stays as the design for issue #99, with
+> the `host_operations` and `collections` drafts that build on it.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal, and `check.py` verifies that Level 1's schemas
@@ -57,12 +59,10 @@ uses all three declares:
 }
 ```
 
-[`candidate.json`](candidate.json) is the draft metadata that revision would
-publish. Its `status` reads `supported` only because that is what the
-metadata schema allows for a revision a Host would provide; it is not under
-`../../candidates/`, the table of Candidate Contracts the Host provides does
-not list it, its tag does not exist, and `check.py` fails if any of those
-changes while it is a proposal.
+[`candidate.json`](candidate.json) is the draft metadata that revision was
+published from; `check.py` checks that the published
+[`candidate.json`](../../candidates/namespaces/r1/candidate.json) has the
+same members, with Commands as `host_command` members.
 
 ## Files
 
@@ -73,7 +73,7 @@ changes while it is a proposal.
 | [`catalogue.schema.json`](catalogue.schema.json) | JSON Schema (draft 2020-12) for `catalogue.json` |
 | [`level1-mapping.md`](level1-mapping.md) | Every Level 1 name and the catalogue ID it maps to, generated from the catalogue |
 | [`reference.md`](reference.md) | A draft of the reference page a candidate revision would publish |
-| [`candidate.json`](candidate.json) | Draft Candidate Contract metadata for `namespaces` revision 1, provided by no Host |
+| [`candidate.json`](candidate.json) | Draft Candidate Contract metadata for `namespaces` revision 1, as published with Commands recorded as behaviours |
 | [`namespaces.schema.json`](namespaces.schema.json) | Draft JSON Schema for each operation's input and result, the IDs each entry point accepts, a call, a page action, the input a performed operation takes, and a manifest Command |
 | [`namespaces.d.ts`](namespaces.d.ts) | Draft types for the namespaced SDK |
 | [`fixtures/`](fixtures/) | Valid and invalid manifests, page actions, requests and calls, and given/when/expect scenarios, each stating its manifest |
