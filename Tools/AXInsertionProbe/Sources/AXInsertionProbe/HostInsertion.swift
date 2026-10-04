@@ -39,6 +39,10 @@ enum HostCallMode: String, Codable {
     /// The synchronous `insert_text` Host Service from a View Event, while
     /// the panel is key: the Host inserts into the App in front.
     case script = "insert_text from a View Event"
+    /// Candidate Contract `host_operations`: the target is captured while
+    /// the panel is key, as at the gesture, and compared when the Host
+    /// inserts, with the panel still on screen.
+    case candidate = "host_operations, target captured at the gesture"
 }
 #endif
 
@@ -59,6 +63,11 @@ final class HostInsertion {
 #if HOST_CURRENT
     private let inserter = HostTextInserter()
     var mode: HostCallMode = .viewCloses
+    /// The current Host's candidate path, made on the main thread.
+    private lazy var targeted: (tracker: InsertionTargetTracker, inserter: TargetedTextInserter) = DispatchQueue.main.sync {
+        let tracker = InsertionTargetTracker()
+        return (tracker, TargetedTextInserter(tracker: tracker, inserter: HostTextInserter()))
+    }
 
     var accessibilityGranted: Bool { AXIsProcessTrusted() }
 
@@ -78,10 +87,27 @@ final class HostInsertion {
         let shown = panel.state()
         notes.append("panel key \(shown.isKey ? "yes" : "no"), probe active \(shown.probeIsActive ? "yes" : "no"), target in front while panel key \(Apps.frontmost()?.processIdentifier == processIdentifier ? "yes" : "no")")
         if mode == .viewCloses { panel.close() }
+        var captured = InsertionTargetCapture.notShown
+        if mode == .candidate {
+            let (tracker, _) = targeted
+            captured = DispatchQueue.main.sync {
+                tracker.refresh()
+                return tracker.capture()
+            }
+            guard case .shown(let app, let focus) = captured else { fatalError("The tracker always shows a target") }
+            notes.append("captured at the gesture: \(app.map { "\($0.name) pid \($0.processIdentifier)" } ?? "no App"), focused element \(focus == nil ? "not exposed" : "exposed")")
+            Thread.sleep(forTimeInterval: 0.3)
+            let again = app.flatMap { HostTextInserter.focusedElement(of: $0.processIdentifier) }
+            notes.append("0.3 s later: focused element \(again == nil ? "not exposed" : (again == focus ? "the same" : "a different one"))")
+        }
         let started = Date()
         var hostError: PluginHostServiceError?
         do {
-            try inserter.insertAndWait(text.text, into: mode == .script ? .frontmost : .application(processIdentifier))
+            if mode == .candidate {
+                try targeted.inserter.insertAndWait(text.text, shown: captured)
+            } else {
+                try inserter.insertAndWait(text.text, into: mode == .script ? .frontmost : .application(processIdentifier))
+            }
         } catch let error as PluginHostServiceError {
             hostError = error
         } catch {
@@ -115,6 +141,14 @@ final class HostInsertion {
         case .unavailable("Spinnet does not insert text into itself"): return .refusedSpinnetItself
         case .failed("The App to insert into left the front while the text was typed; only part of it was inserted"):
             return .stoppedLostFront
+        case .insertion(let failure):
+            switch failure.reason {
+            case .secureInput: return .refusedPasswordField
+            case .targetUnresponsive: return .refusedNotFrontmost
+            case .systemPermissionDenied: return .accessibilityNotGranted
+            case .targetChanged where !failure.isRefusal: return .stoppedLostFront
+            default: return .otherError
+            }
         default: return .otherError
         }
     }
