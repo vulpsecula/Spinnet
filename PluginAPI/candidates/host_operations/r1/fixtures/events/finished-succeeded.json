@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "operation": "insert",
+  "perform": "selection.replace",
+  "outcome": "succeeded"
+}

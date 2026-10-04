@@ -34,9 +34,13 @@ let package = Package(
                       "candidates/namespaces/r1/reference.md", "candidates/namespaces/r1/candidate.json",
                       "candidates/namespaces/r1/catalogue.json", "candidates/namespaces/r1/catalogue.schema.json",
                       "candidates/namespaces/r1/level1-mapping.md", "candidates/namespaces/r1/namespaces.d.ts",
-                      "candidates/namespaces/r1/namespaces.schema.json"],
+                      "candidates/namespaces/r1/namespaces.schema.json",
+                      "candidates/host_operations/r1/reference.md", "candidates/host_operations/r1/candidate.json",
+                      "candidates/host_operations/r1/host-operations.schema.json",
+                      "candidates/host_operations/r1/host-operations.d.ts", "candidates/host_operations/r1/fixtures"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("candidates/namespaces/r1/namespaces.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("candidates/namespaces/r1/namespaces.js"),
+                        .embedInCode("candidates/host_operations/r1/host_operations.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

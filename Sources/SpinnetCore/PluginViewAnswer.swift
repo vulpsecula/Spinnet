@@ -19,12 +19,33 @@ public enum PluginViewEvent: Equatable, Hashable {
     case settingsSwapped(first: String, second: String)
     /// A Host-Fetched Section in `deliver` mode received its answer.
     case sectionDelivered(section: String, response: JSONValue)
+    /// A Requested Host Operation that asked to `notify` reached its
+    /// outcome (Candidate Contract `host_operations`). `id` is the Plugin's
+    /// own label for it, `perform` its catalogue ID.
+    case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome)
 
     /// A field change waits out the debounce and gives way to a later one;
     /// every other event is delivered, in order.
     public var coalesces: Bool {
         if case .fieldChanged = self { return true }
         return false
+    }
+
+    /// The `type` the script reads.
+    public var typeName: String {
+        if case .object(let members) = json, case .string(let type)? = members["type"] { return type }
+        return "an event"
+    }
+
+    /// A user gesture that may lead to an operation (ADR 0018): submitting
+    /// a form or choosing an action. The Action's start, which has no event,
+    /// is one too. Typing, setting changes, deliveries and results are not,
+    /// so they never cause an effect by themselves.
+    public var isGesture: Bool {
+        switch self {
+        case .submitted, .actionChosen: return true
+        case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished: return false
+        }
     }
 
     public var json: JSONValue {
@@ -42,6 +63,12 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .sectionDelivered(let section, let response):
             return .object(["type": .string("section_delivered"), "section": .string(section),
                             "response": response])
+        case .operationFinished(let id, let perform, let outcome):
+            var members: [String: JSONValue] = ["type": .string("operation_finished"), "perform": .string(perform),
+                                                "outcome": .string(outcome.name)]
+            if let id { members["operation"] = .string(id) }
+            if let reason = outcome.reason { members["reason"] = .string(reason.rawValue) }
+            return .object(members)
         }
     }
 }
@@ -52,11 +79,21 @@ public enum PluginViewEvent: Equatable, Hashable {
 public struct ViewEventDelivery: Equatable, Hashable {
     public let event: PluginViewEvent?
     public let state: JSONValue
+    /// What the Host showed as where text would go when the user made the
+    /// gesture this invocation answers. It stays in the Host: a
+    /// synchronous `selection.replace` of a Plugin declaring
+    /// `host_operations` is compared with it, and the script never sees it.
+    public let insertionTarget: InsertionTargetCapture
 
-    public init(event: PluginViewEvent?, state: JSONValue) {
+    public init(event: PluginViewEvent?, state: JSONValue, insertionTarget: InsertionTargetCapture = .notShown) {
         self.event = event
         self.state = state
+        self.insertionTarget = insertionTarget
     }
+
+    /// Whether the invocation answers a gesture: the Action's start or a
+    /// gesture event.
+    public var answersGesture: Bool { event?.isGesture ?? true }
 
     /// The Action's own invocation, before any view exists.
     public static let actionStart = ViewEventDelivery(event: nil, state: .null)
@@ -76,24 +113,41 @@ public struct PluginScriptAnswer: Equatable {
     public let state: JSONValue
     public let close: Bool
     public let toast: String?
+    /// The Requested Host Operation the answer carries, under Candidate
+    /// Contract `host_operations`; it commits with the rest of the answer.
+    public let operation: RequestedHostOperation?
 
-    public init(view: JSONValue? = nil, state: JSONValue = .null, close: Bool = false, toast: String? = nil) {
+    public init(view: JSONValue? = nil, state: JSONValue = .null, close: Bool = false, toast: String? = nil,
+                operation: RequestedHostOperation? = nil) {
         self.view = view
         self.state = state
         self.close = close
         self.toast = toast
+        self.operation = operation
     }
 
+    /// Reads a Plugin API Level 1 answer.
     public init(parsing value: JSONValue) throws {
+        try self.init(parsing: value, permits: { _ in false })
+    }
+
+    /// Reads an answer of a Plugin to which `permits` says which interface
+    /// members its declarations offer: one declaring `host_operations` may
+    /// add `operation`, which may come with a view, a toast, both or
+    /// neither, but not with `close`. Whether the answer answers a gesture
+    /// is the View Session's to check.
+    public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
         guard case .object(let members) = value else {
             guard value == .null else { throw Self.violation("must be an object or null") }
             self.init()
             return
         }
-        let unknown = Set(members.keys).subtracting(["view", "state", "close", "toast"])
+        let allowsOperation = permits(HostOperationsContract.answerOperation)
+        let unknown = Set(members.keys).subtracting(["view", "state", "close", "toast"] + (allowsOperation ? ["operation"] : []))
         guard unknown.isEmpty else {
             throw Self.violation("has unknown member \(unknown.sorted().joined(separator: ", "))")
         }
+        let operation = try members["operation"].map { try RequestedHostOperation(parsing: $0, permits: permits) }
         var toast: String?
         switch members["toast"] {
         case nil:
@@ -110,6 +164,9 @@ public struct PluginScriptAnswer: Equatable {
             guard members["view"] == nil, members["state"] == nil else {
                 throw Self.violation("closes the view and describes one")
             }
+            guard operation == nil else {
+                throw Self.violation("closes the view and requests an operation; an operation closes it with closes_view")
+            }
             self.init(close: true, toast: toast)
             return
         default:
@@ -117,7 +174,7 @@ public struct PluginScriptAnswer: Equatable {
         }
         guard let view = members["view"] else {
             guard members["state"] == nil else { throw Self.violation("has a state but no view") }
-            self.init(toast: toast)
+            self.init(toast: toast, operation: operation)
             return
         }
         guard case .object = view else { throw Self.violation("has a view that is not an object") }
@@ -128,7 +185,19 @@ public struct PluginScriptAnswer: Equatable {
         guard Self.encodedSize(of: state) <= ScriptedActionBudgets.viewStateBytes else {
             throw Self.violation("returns a state larger than 64 KiB")
         }
-        self.init(view: view, state: state, toast: toast)
+        self.init(view: view, state: state, toast: toast, operation: operation)
+    }
+
+    /// Reads an answer to `event`, or to the Action's start when it is nil,
+    /// as a View Session reads it: only an answer to a gesture may request an
+    /// operation, so typing, deliveries and results never cause an effect,
+    /// and a script cannot loop by answering its result with a request.
+    public init(parsing value: JSONValue, answering event: PluginViewEvent?,
+                permits: (PluginInterfaceMember) -> Bool) throws {
+        try self.init(parsing: value, permits: permits)
+        if operation != nil, let event, !event.isGesture {
+            throw Self.violation("to \(event.typeName) requests an operation; only an answer to a gesture may")
+        }
     }
 
     /// The UTF-8 size of the value's JSON as a helper message carries it,

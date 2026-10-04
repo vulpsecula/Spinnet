@@ -57,17 +57,39 @@ public struct PluginTestInvocation {
     public var event: PluginViewEvent?
     /// The state the script returned with its last view, its `state` global.
     public var state: JSONValue
+    /// The view the user made the event in, as the script last answered it.
+    /// For a Plugin declaring `host_operations`, a gesture in a view that
+    /// sets `shows_insertion_target` is one the Host showed a target for, so
+    /// an insertion the invocation makes or requests may go ahead; without
+    /// it, as when the Action starts, it is refused with `target_not_shown`.
+    public var view: JSONValue?
 
     public init(_ commandID: String, input: JSONValue = .null, actionID: String? = nil,
-                event: PluginViewEvent? = nil, state: JSONValue = .null) {
+                event: PluginViewEvent? = nil, state: JSONValue = .null, view: JSONValue? = nil) {
         self.commandID = CommandID(commandID)
         self.input = input
         self.actionID = ActionID(actionID ?? commandID)
         self.event = event
         self.state = state
+        self.view = view
     }
 
-    var delivery: ViewEventDelivery { ViewEventDelivery(event: event, state: state) }
+    /// The App the kit stands for wherever the Host would show one. The
+    /// Plugin never sees it.
+    static let recordedTarget = InsertionTargetApp(processIdentifier: 0, bundleIdentifier: "com.example.recorded-target",
+                                                   launchDate: nil, name: "Recorded App")
+
+    /// What the Host hands the invocation, for a Plugin that may use what
+    /// `permits` allows: the event, the state, and whether the Host showed
+    /// where text would go when the user made the gesture.
+    func delivery(permits: (PluginInterfaceMember) -> Bool) -> ViewEventDelivery {
+        var shown = InsertionTargetCapture.notShown
+        if let event, event.isGesture, permits(HostOperationsContract.showsInsertionTarget),
+           case .object(let members)? = view, members["shows_insertion_target"] == .bool(true) {
+            shown = .shown(app: Self.recordedTarget, focus: nil)
+        }
+        return ViewEventDelivery(event: event, state: state, insertionTarget: shown)
+    }
 }
 
 public enum PluginTestKitError: Error, Equatable, CustomStringConvertible {

@@ -49,6 +49,7 @@ public final class PluginTestHelper {
     public func run(_ invocation: PluginTestInvocation, of plugin: PluginUnderTest,
                     answering hostServices: PluginHostServiceBroker) -> PluginTestRun {
         let recorder = RecordingHostServiceBroker(answering: hostServices)
+        let permits = contracts.permitting(plugin.manifest)
         let result: Result<JSONValue, Error>
         if let action = try? plugin.action(for: invocation), action.execution == .host,
            action.hostServiceID != nil || contracts.permits(HostServiceCatalogue.catalogueIDsOnly, declaredBy: plugin.manifest) {
@@ -57,10 +58,12 @@ public final class PluginTestHelper {
         } else {
             result = Result {
                 try execute(plugin.action(for: invocation), in: plugin.package, using: recorder,
-                            control: ActionExecutionControl(), delivering: invocation.delivery)
+                            control: ActionExecutionControl(), delivering: invocation.delivery(permits: permits))
             }
         }
-        return PluginTestRun(result: result, requests: recorder.requests, performed: recorder.performed)
+        var run = PluginTestRun(result: result, requests: recorder.requests, performed: recorder.performed)
+        run.reading = (invocation.event, permits)
+        return run
     }
 
     /// A scriptless Command through the Host's own Action runner, held to
@@ -148,6 +151,10 @@ public struct PluginTestRun {
     /// `namespaces`), in order: a script's calls, as the Host performs them.
     public let performed: [PluginTestOperation]
 
+    /// The event the run answered and what the Plugin may use, so its answer
+    /// is read as the Host reads it.
+    var reading: (event: PluginViewEvent?, permits: (PluginInterfaceMember) -> Bool) = (nil, { _ in false })
+
     public init(result: Result<JSONValue, Error>, requests: [PluginTestRequest], performed: [PluginTestOperation] = []) {
         self.result = result
         self.requests = requests
@@ -167,10 +174,13 @@ public struct PluginTestRun {
     }
 
     /// The script's answer as the Host reads it: the view and state it
-    /// returned, whether it closed its view, and its toast. Throws the run's
-    /// failure, or a protocol violation for a value that is no answer.
+    /// returned, whether it closed its view, its toast, and the operation it
+    /// requested under `host_operations`. Throws the run's failure, or the
+    /// protocol violation the Host would end the View Session with: a value
+    /// that is no answer, a member the Plugin's declarations do not offer,
+    /// or an operation in an answer to an event that is no gesture.
     public func answer() throws -> PluginScriptAnswer {
-        try PluginScriptAnswer(parsing: result.get())
+        try PluginScriptAnswer(parsing: result.get(), answering: reading.event, permits: reading.permits)
     }
 }
 

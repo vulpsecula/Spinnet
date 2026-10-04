@@ -1,0 +1,11 @@
+{
+  "toast": "Inserting",
+  "operation": {
+    "perform": "selection.replace",
+    "input": {
+      "text": "→"
+    },
+    "id": "arrow",
+    "notify": true
+  }
+}

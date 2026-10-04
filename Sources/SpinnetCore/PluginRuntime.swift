@@ -463,6 +463,12 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
     /// `namespaces`, when the Host resolved it to `service`; nil for a Level 1
     /// name. The Host sets it and never reads it from a message.
     public let operation: String?
+    /// For an `insert_text` of a Plugin declaring `host_operations`, made in
+    /// a View Session invocation answering a gesture: what the Host showed
+    /// as where text would go when the user acted, which the insertion is
+    /// compared with. Host data, never part of a message; nil for any other
+    /// request, which inserts as Level 1 does.
+    public var insertionTarget: InsertionTargetCapture?
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -603,6 +609,10 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case hostServiceFailed = "host_service_failed"
     /// A Plugin Storage write over a limit, which stored nothing.
     case storageLimitExceeded = "storage_limit_exceeded"
+    /// A synchronous `selection.replace` in a View Session of a Plugin
+    /// declaring `host_operations` found another App in front than the one
+    /// the Host showed (ADR 0018).
+    case insertionTargetChanged = "insertion_target_changed"
 
     /// Whether the helper hands this Host Service failure to the script as
     /// an error it may catch. Every other failure ends the invocation, so a
@@ -856,6 +866,8 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
     case externalAppMissing(String)
     case externalAppOperationUnsupported(String)
     case hostServiceFailed(String)
+    /// `host_operations`' synchronous insertion found its target changed.
+    case insertionTargetChanged(String)
 
     public var description: String {
         switch self {
@@ -888,6 +900,8 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return message
         case .hostServiceFailed(let message):
             return "Plugin Host Service failed: \(message)"
+        case .insertionTargetChanged(let message):
+            return message
         }
     }
 
@@ -921,6 +935,8 @@ public enum PluginRuntimeError: Error, Equatable, CustomStringConvertible, Local
             return .externalAppOperationUnsupported
         case .hostServiceFailed:
             return .hostServiceFailed
+        case .insertionTargetChanged:
+            return .insertionTargetChanged
         }
     }
 }
@@ -1439,7 +1455,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 package: package,
                 action: action,
                 hostServiceBroker: hostServiceBroker,
-                helper: helper
+                helper: helper,
+                delivery: delivery
             )
         } catch {
             let helperError = helper.invalidationError()
@@ -1494,6 +1511,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .externalAppOperationUnsupported(failure.message)
             case .hostServiceFailed, .storageLimitExceeded:
                 runtimeError = .hostServiceFailed(failure.message)
+            case .insertionTargetChanged:
+                runtimeError = .insertionTargetChanged(failure.message)
             }
             try fail(action: action, error: runtimeError)
         }
@@ -1514,7 +1533,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         package: PluginPackage,
         action: ActionConfiguration,
         hostServiceBroker: PluginHostServiceBroker?,
-        helper: PluginHelperProcess
+        helper: PluginHelperProcess,
+        delivery: ViewEventDelivery
     ) throws -> PluginRuntimeTerminal {
         while true {
             try control.check()
@@ -1533,7 +1553,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 let resolved = try contracts.resolve(request, declaredBy: package.manifest)
                 let response: PluginRuntimeHostServiceResponse
                 do {
-                    let resolvedRequest = try resolved.get()
+                    let resolvedRequest = try contracts.targetingInsertion(resolved.get(), declaredBy: package.manifest,
+                                                                           answering: delivery)
                     guard let hostServiceBroker else {
                         throw PluginHostServiceError.unavailable(
                             "No Host Service broker is configured"

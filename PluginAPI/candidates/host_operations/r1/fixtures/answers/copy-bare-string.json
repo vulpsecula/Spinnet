@@ -1,0 +1,7 @@
+{
+  "toast": "Copied",
+  "operation": {
+    "perform": "clipboard.write",
+    "input": "😀"
+  }
+}

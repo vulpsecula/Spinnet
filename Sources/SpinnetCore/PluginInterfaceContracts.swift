@@ -219,11 +219,13 @@ public struct PluginInterfaceContracts: Equatable {
                "section_delivered"].map(PluginInterfaceMember.viewEvent)
     )
 
-    /// This Host: Level 1, and Candidate Contract `namespaces` revision 1,
-    /// the Plugin API catalogue. A Level added later is keyed at its own
-    /// number beside Level 1.
+    /// This Host: Level 1, Candidate Contract `namespaces` revision 1, the
+    /// Plugin API catalogue, and `host_operations` revision 1, Requested
+    /// Host Operations. A Level added later is keyed at its own number
+    /// beside Level 1.
     public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers],
-                                                      candidates: [HostServiceCatalogue.candidate])
+                                                      candidates: [HostServiceCatalogue.candidate,
+                                                                   HostOperationsContract.candidate])
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -274,11 +276,11 @@ public struct PluginInterfaceContracts: Equatable {
     /// declares, or a candidate it declares, offers it. `check` has already
     /// accepted the manifest.
     ///
-    /// Host Service requests are held to it at run time and scriptless
-    /// Commands whenever the manifest is checked. Every View Component,
-    /// Standard Action and View Event is a Level 1 member, so checking them
-    /// would refuse nothing yet; wire it into view parsing when a candidate
-    /// first adds one.
+    /// Host Service requests are held to it at run time, scriptless
+    /// Commands whenever the manifest is checked, and answers and views as
+    /// they are read: `host_operations` adds the `operation` answer member,
+    /// the `shows_insertion_target` view member and the
+    /// `operation_finished` View Event, which only the Host sends.
     public func permits(_ member: PluginInterfaceMember, declaredBy manifest: PluginManifest) -> Bool {
         levels.contains { $0.key <= manifest.apiLevel && $0.value.contains(member) }
             || manifest.candidateContracts.contains { supported($0)?.members.contains(member) == true }

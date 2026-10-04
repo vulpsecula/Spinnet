@@ -1,0 +1,173 @@
+{
+  "description": "Each fixture names the definition of host-operations.schema.json it is checked against and whether it is valid. The Host reads every answer fixture as it reads an answer of a Plugin declaring host_operations r1 and namespaces r1: it accepts the valid ones and refuses the invalid ones as protocol violations.",
+  "fixtures": [
+    {
+      "file": "answers/insert-with-view.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Emoji answers Return: a view that shows the insertion target, its state, and one insertion that closes the view on success"
+    },
+    {
+      "file": "answers/insert-without-view.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "An Action without a view requests one insertion: a valid shape, which the Host refuses at execution with target_not_shown because nothing showed a target"
+    },
+    {
+      "file": "answers/insert-with-toast-and-notify.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "An insertion with a toast and a request to be told the outcome"
+    },
+    {
+      "file": "answers/copy-bare-string.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A bare string stands for the primary member: clipboard.write copies only once the answer is accepted"
+    },
+    {
+      "file": "answers/open-link.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "open.url requested after a gesture, its link http or https"
+    },
+    {
+      "file": "answers/show-settings.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "host.showPluginSettings takes no input"
+    },
+    {
+      "file": "answers/level1-answer.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Every Level 1 answer stays valid for a candidate script"
+    },
+    {
+      "file": "answers/null.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "null still means nothing to show"
+    },
+    {
+      "file": "answers/operation-with-close.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "close cannot carry an operation; use closes_view so a refusal keeps the view"
+    },
+    {
+      "file": "answers/two-operations.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "At most one operation per answer: operations is not a member"
+    },
+    {
+      "file": "answers/reserved-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "apps.quit is reserved for #83 and not an operation this revision requests"
+    },
+    {
+      "file": "answers/level1-name.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A request names the catalogue ID, selection.replace, not Level 1's insert_text"
+    },
+    {
+      "file": "answers/call-only-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "selection.readText returns data, which only a script's call can use"
+    },
+    {
+      "file": "answers/insert-missing-text.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "selection.replace needs its input"
+    },
+    {
+      "file": "answers/insert-names-target.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A Plugin cannot choose the App; the Host resolves it"
+    },
+    {
+      "file": "answers/settings-closes-view.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "host.showPluginSettings opens a sheet beside the view and takes no closes_view"
+    },
+    {
+      "file": "answers/id-too-long.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "id is at most 64 characters"
+    },
+    {
+      "file": "answers/blank-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "id is not blank"
+    },
+    {
+      "file": "events/finished-succeeded.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Success carries no reason"
+    },
+    {
+      "file": "events/finished-refused-target-changed.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The App in front was not the one the Host showed; the reason names no App"
+    },
+    {
+      "file": "events/finished-without-id.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A request without an id is reported without operation"
+    },
+    {
+      "file": "events/finished-cancelled.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The owner ended before the operation ran"
+    },
+    {
+      "file": "events/level1-submitted.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Level 1 events are unchanged"
+    },
+    {
+      "file": "events/finished-refused-without-reason.json",
+      "definition": "event",
+      "valid": false,
+      "note": "A refusal says why"
+    },
+    {
+      "file": "events/finished-succeeded-with-reason.json",
+      "definition": "event",
+      "valid": false,
+      "note": "Only refused and failed carry a reason"
+    },
+    {
+      "file": "events/finished-names-app.json",
+      "definition": "event",
+      "valid": false,
+      "note": "The target's identity is Host data and never reaches the Plugin"
+    },
+    {
+      "file": "events/finished-unknown-reason.json",
+      "definition": "event",
+      "valid": false,
+      "note": "Reasons come from the published list"
+    },
+    {
+      "file": "events/finished-text-rejected.json",
+      "definition": "event",
+      "valid": false,
+      "note": "Keyboard-event insertion cannot tell whether the App took the text, so text_rejected is not a reason of this revision"
+    }
+  ]
+}

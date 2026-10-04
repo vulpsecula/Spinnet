@@ -8,14 +8,20 @@ public struct PluginViewPresentation: Equatable {
     /// An event is in flight. The view shows its own busy state; the Host
     /// shows no Action progress for View Events.
     public let isBusy: Bool
-    /// The failure of the last event, shown inline with a repair route
-    /// chosen by its category; nil once an event succeeds.
+    /// The failure of the last event, or of a Requested Host Operation,
+    /// shown inline with a repair route chosen by its category; nil once an
+    /// event succeeds.
     public let error: ActionFailure?
+    /// A Requested Host Operation the view committed has run for longer
+    /// than the progress delay: the view shows the operation's own busy
+    /// state, distinct from an event's.
+    public let isPerformingOperation: Bool
 
-    public init(view: JSONValue, isBusy: Bool, error: ActionFailure?) {
+    public init(view: JSONValue, isBusy: Bool, error: ActionFailure?, isPerformingOperation: Bool = false) {
         self.view = view
         self.isBusy = isBusy
         self.error = error
+        self.isPerformingOperation = isPerformingOperation
     }
 }
 
@@ -69,6 +75,8 @@ public final class PluginViewSession {
     /// Reads a view the script described before it is drawn, and throws a
     /// protocol violation for one the Host would not draw.
     public typealias ReadView = (ActionConfiguration, JSONValue) throws -> Void
+    /// Which interface members the declarations of an Action's Plugin offer.
+    public typealias Permitting = (ActionConfiguration) -> (PluginInterfaceMember) -> Bool
 
     /// The configured Action whose Command presented the view.
     public private(set) var action: ActionConfiguration
@@ -92,6 +100,12 @@ public final class PluginViewSession {
     public private(set) var answeredEvent: PluginViewEvent?
     public private(set) var isEnded = false
     public var isBusy: Bool { inFlight != nil }
+    /// A Requested Host Operation the session committed has been running
+    /// longer than the progress delay.
+    public private(set) var isPerformingOperation = false
+    /// Which interface members the Plugin's declarations offer; one
+    /// declaring `host_operations` may answer a gesture with an operation.
+    public let permits: (PluginInterfaceMember) -> Bool
 
     private weak var renderer: PluginViewRenderer?
     private let runEvent: RunEvent
@@ -102,15 +116,35 @@ public final class PluginViewSession {
     /// Tells the view's Host-Fetched Sections how the script took a
     /// `section_delivered` event: answered, failed, or dropped unrun.
     private let sectionDelivery: (String, JSONValue, HostFetchedSections.Delivery) -> Void
-    private var inFlight: (generation: Int, control: ActionExecutionControl, event: PluginViewEvent)?
-    private var queue: [PluginViewEvent] = []
+    /// One event waiting or in flight, with what the Host showed as where
+    /// text would go when the user made it, and for `operation_finished`
+    /// the request it reports.
+    private struct Entry {
+        let event: PluginViewEvent
+        let insertionTarget: InsertionTargetCapture
+        let result: (serial: Int, requestedBy: ActionConfiguration)?
+
+        init(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown,
+             result: (serial: Int, requestedBy: ActionConfiguration)? = nil) {
+            self.event = event
+            self.insertionTarget = insertionTarget
+            self.result = result
+        }
+    }
+
+    private var inFlight: (generation: Int, control: ActionExecutionControl, entry: Entry)?
+    private var queue: [Entry] = []
     private var debouncing: PluginViewEvent?
     private var debounceToken = 0
+    /// The Plugin's Requested Host Operations, when the Host performs any.
+    private weak var operations: HostOperationRequests?
 
     init(action: ActionConfiguration, view: JSONValue, state: JSONValue, renderer: PluginViewRenderer,
          runEvent: @escaping RunEvent, readView: @escaping ReadView, schedule: @escaping Schedule,
          showFeedback: @escaping (String) -> Void,
          sectionDelivery: @escaping (String, JSONValue, HostFetchedSections.Delivery) -> Void = { _, _, _ in },
+         permits: @escaping (PluginInterfaceMember) -> Bool = { _ in false },
+         operations: HostOperationRequests? = nil,
          onEnd: @escaping (PluginViewSession) -> Void) {
         self.action = action
         self.view = view
@@ -121,11 +155,19 @@ public final class PluginViewSession {
         self.schedule = schedule
         self.showFeedback = showFeedback
         self.sectionDelivery = sectionDelivery
+        self.permits = permits
+        self.operations = operations
         self.onEnd = onEnd
     }
 
-    /// Hands one user interaction to the script.
-    public func send(_ event: PluginViewEvent) {
+    /// Whether the Plugin's insertions follow `host_operations`: the
+    /// target the Host shows, compared at execution.
+    public var showsInsertionTargets: Bool { permits(HostOperationsContract.executionTimeInsertionTarget) }
+
+    /// Hands one user interaction to the script. `insertionTarget` is what
+    /// the Host showed as where text would go when the user made it, for a
+    /// gesture of a Plugin declaring `host_operations`.
+    public func send(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown) {
         guard !isEnded else { return }
         if event.coalesces {
             debouncing = event
@@ -140,7 +182,7 @@ public final class PluginViewSession {
         }
         // A pending change happened first, so it goes first.
         flushDebounced()
-        enqueue(event)
+        enqueue(Entry(event, insertionTarget: event.isGesture ? insertionTarget : .notShown))
         dispatchNext()
     }
 
@@ -150,7 +192,8 @@ public final class PluginViewSession {
 
     func present() {
         guard !isEnded else { return }
-        renderer?.present(PluginViewPresentation(view: view, isBusy: isBusy, error: error), of: self)
+        renderer?.present(PluginViewPresentation(view: view, isBusy: isBusy, error: error,
+                                                 isPerformingOperation: isPerformingOperation), of: self)
     }
 
     func showToast(_ toast: String?) {
@@ -162,7 +205,7 @@ public final class PluginViewSession {
     /// view, in flight or waiting, are dropped.
     func replace(action: ActionConfiguration, view: JSONValue, state: JSONValue) {
         guard !isEnded else { return }
-        abandonEvents()
+        let results = abandonEvents()
         self.action = action
         self.view = view
         self.state = state
@@ -171,6 +214,10 @@ public final class PluginViewSession {
         viewRevision += 1
         answeredEvent = nil
         present()
+        // A committed operation is not the old view's: its result, not yet
+        // dispatched, still reaches the Action that requested it, if that
+        // Action handles the view that replaces it.
+        for entry in results { queueResult(entry) }
     }
 
     /// Ends the session at once: the event in flight is cancelled, waiting
@@ -180,52 +227,76 @@ public final class PluginViewSession {
         isEnded = true
         abandonEvents()
         renderer?.close(self, because: reason)
+        operations?.ownerEnded(self, because: reason)
         onEnd(self)
     }
 
-    private func abandonEvents() {
+    /// Drops the events meant for the view shown now and returns the
+    /// results not yet dispatched, for a view that replaces it.
+    @discardableResult
+    private func abandonEvents() -> [Entry] {
         generation += 1
         inFlight?.control.stop(.cancelled)
         // A delivery dropped with the old view is delivered again to the
-        // one that replaces it; after the session ends nothing is.
-        let dropped = ([inFlight?.event].compactMap { $0 } + queue)
+        // one that replaces it; after the session ends nothing is. A result
+        // already being answered is not delivered again: no outcome is
+        // replayed.
+        if let result = inFlight?.entry.result {
+            operations?.resultAnswered(pluginID, serial: result.serial)
+        }
+        let dropped = ([inFlight?.entry].compactMap { $0 } + queue)
+        let waitingResults = queue.filter { $0.result != nil }
         inFlight = nil
         queue.removeAll()
         if !isEnded {
-            for case .sectionDelivered(let section, let response) in dropped {
+            for case .sectionDelivered(let section, let response) in dropped.map(\.event) {
                 sectionDelivery(section, response, .abandoned)
             }
         }
         debouncing = nil
         debounceToken += 1
+        return waitingResults
     }
 
     private func flushDebounced() {
         guard let pending = debouncing else { return }
         debouncing = nil
         debounceToken += 1
-        enqueue(pending)
+        enqueue(Entry(pending))
     }
 
-    private func enqueue(_ event: PluginViewEvent) {
-        if event.coalesces, let last = queue.last, last.coalesces {
-            queue[queue.count - 1] = event
+    private func enqueue(_ entry: Entry) {
+        if entry.event.coalesces, let last = queue.last, last.event.coalesces {
+            queue[queue.count - 1] = entry
         } else {
-            queue.append(event)
+            queue.append(entry)
         }
     }
 
-    private func dispatchNext() {
-        guard !isEnded, inFlight == nil, !queue.isEmpty else { return }
-        let event = queue.removeFirst()
+    /// Dispatches the next event that may run: the first waiting one, but
+    /// while the Plugin has an operation outstanding the first that is no
+    /// gesture, so typing never waits for an insertion and the requesting
+    /// Action answers its result before the next gesture runs.
+    func dispatchNext() {
+        guard !isEnded, inFlight == nil else { return }
+        let busy = operations?.isBusy(pluginID) ?? false
+        guard let index = queue.firstIndex(where: { !busy || !$0.event.isGesture }) else { return }
+        let entry = queue.remove(at: index)
+        if let result = entry.result, !action.isSameConfiguration(as: result.requestedBy) {
+            // Another Command handles the view now; the outcome was shown by
+            // the Host and is not this Command's to read.
+            operations?.resultAnswered(pluginID, serial: result.serial)
+            return dispatchNext()
+        }
         generation += 1
         let dispatched = generation
         let control = ActionExecutionControl()
-        inFlight = (dispatched, control, event)
+        inFlight = (dispatched, control, entry)
         present()
         // Each event is a new invocation, so it never reuses an Action ID.
         let invocation = (try? action.newInvocation()) ?? action
-        runEvent(invocation, ViewEventDelivery(event: event, state: state), control, { [weak self] in
+        runEvent(invocation, ViewEventDelivery(event: entry.event, state: state, insertionTarget: entry.insertionTarget),
+                 control, { [weak self] in
             self?.started(dispatched)
         }, { [weak self] outcome in
             self?.receive(outcome, for: dispatched)
@@ -247,29 +318,48 @@ public final class PluginViewSession {
         self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
                                    category: error.failureCategory, message: error.description)
         present()
-        reportDelivery(of: current.event, .failed(error.description))
+        finished(current.entry, .failed(error.description))
         dispatchNext()
     }
 
     private func receive(_ outcome: ActionOutcome, for dispatched: Int) {
         guard !isEnded, let current = inFlight, current.generation == dispatched else { return }
         inFlight = nil
+        let event = current.entry.event
         switch outcome.terminal {
         case .succeeded(let value):
             let answer: PluginScriptAnswer
             do {
-                answer = try PluginScriptAnswer(parsing: value)
-                // View Components, Standard Actions and View Events are all
-                // Level 1 members today. When a Candidate Contract adds one,
-                // hold the view to `PluginInterfaceContracts.permits` here.
+                answer = try PluginScriptAnswer(parsing: value, answering: event, permits: permits)
                 if let view = answer.view { try readView(action, view) }
             } catch {
                 let violation = error as? PluginRuntimeError ?? .protocolViolation("The script's answer is invalid")
+                finished(current.entry, nil)
                 end(.failed(ActionFailure(pluginID: outcome.pluginID, actionID: outcome.actionID,
                                           category: violation.failureCategory, message: violation.description)))
                 return
             }
+            if let operation = answer.operation {
+                // A refused Capability or System Permission refuses the whole
+                // answer, as a refused Host Service refuses an invocation:
+                // the last good view and state stay, and nothing is requested.
+                do {
+                    guard let operations else {
+                        throw PluginHostServiceError.unavailable("This Host performs no Requested Host Operations")
+                    }
+                    try operations.authorize(operation, for: action)
+                } catch {
+                    let refusal = error as? PluginHostServiceError ?? .failed(error.localizedDescription)
+                    self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
+                                               category: refusal.actionFailureCategory, message: refusal.description)
+                    present()
+                    finished(current.entry, .failed(refusal.description))
+                    dispatchNext()
+                    return
+                }
+            }
             if answer.close {
+                finished(current.entry, .answered)
                 end(.closedByPlugin)
                 if let toast = answer.toast { showFeedback(toast) }
                 return
@@ -278,14 +368,20 @@ public final class PluginViewSession {
                 self.view = view
                 state = answer.state
                 viewRevision += 1
-                answeredEvent = current.event
+                answeredEvent = event
             }
             error = nil
             present()
             showToast(answer.toast)
-            reportDelivery(of: current.event, .answered)
+            // The request commits in the same turn as the view and state, so
+            // nothing can see one without the other.
+            if let operation = answer.operation {
+                operations?.commit(operation, for: action, owner: self, target: current.entry.insertionTarget)
+            }
+            finished(current.entry, .answered)
         case .failed(let failure):
             guard failure.category != .runtimeProtocolFailed else {
+                finished(current.entry, nil)
                 end(.failed(failure))
                 return
             }
@@ -293,14 +389,60 @@ public final class PluginViewSession {
             // and the last good state; the next event may succeed.
             error = failure
             present()
-            reportDelivery(of: current.event, .failed(failure.message))
+            finished(current.entry, .failed(failure.message))
         }
         dispatchNext()
     }
 
-    private func reportDelivery(of event: PluginViewEvent, _ outcome: HostFetchedSections.Delivery) {
-        guard !isEnded, case .sectionDelivered(let section, let response) = event else { return }
+    /// An event's invocation ended: a section delivery hears how, and the
+    /// Plugin's operation slot, held while it answered a result, frees.
+    private func finished(_ entry: Entry, _ outcome: HostFetchedSections.Delivery?) {
+        if let result = entry.result { operations?.resultAnswered(pluginID, serial: result.serial) }
+        guard let outcome, !isEnded, case .sectionDelivered(let section, let response) = entry.event else { return }
         sectionDelivery(section, response, outcome)
+    }
+
+    // MARK: Requested Host Operations
+
+    func setPerformingOperation(_ performing: Bool) {
+        guard !isEnded, isPerformingOperation != performing else { return }
+        isPerformingOperation = performing
+        present()
+    }
+
+    /// Shows a committed operation's outcome where the user is looking: a
+    /// refusal or failure inline with its repair route, and a success that
+    /// asked to close the view by closing it.
+    func show(_ result: HostOperationResult, of operation: RequestedHostOperation, for requester: ActionConfiguration) {
+        guard !isEnded else { return }
+        if let failure = result.failure(for: requester) {
+            error = failure
+            present()
+        } else if operation.closesView {
+            end(.closedByPlugin)
+        }
+    }
+
+    /// Queues `operation_finished` for the Action that requested it, behind
+    /// the events already waiting and ahead of any gesture that waits for
+    /// the operation slot.
+    func deliver(_ event: PluginViewEvent, answering serial: Int, requestedBy requester: ActionConfiguration) {
+        guard !isEnded else {
+            operations?.resultAnswered(pluginID, serial: serial)
+            return
+        }
+        enqueue(Entry(event, result: (serial, requester)))
+        dispatchNext()
+    }
+
+    private func queueResult(_ entry: Entry) {
+        guard let result = entry.result else { return }
+        if action.isSameConfiguration(as: result.requestedBy) {
+            enqueue(entry)
+            dispatchNext()
+        } else {
+            operations?.resultAnswered(pluginID, serial: result.serial)
+        }
     }
 }
 
@@ -315,6 +457,10 @@ public final class PluginViewSessions {
     private let schedule: PluginViewSession.Schedule
     private let showFeedback: (String) -> Void
     private let fetchedSections: HostFetchedSections?
+    private let permitting: PluginViewSession.Permitting
+    /// The Requested Host Operations of every Plugin, when the Host was
+    /// given something to perform them.
+    private let operations: HostOperationRequests?
     private var sessions: [PluginID: PluginViewSession] = [:]
     private var registry: PluginRegistry?
     private var grantStore: PluginCapabilityGrantStore?
@@ -327,17 +473,32 @@ public final class PluginViewSessions {
     /// by default any object passes. `fetchedSections` sends the Host-Fetched
     /// Sections of these sessions' views; it delivers responses through them,
     /// and every session that ends cancels its sections.
+    ///
+    /// `permitting` says which interface members an Action's Plugin may use,
+    /// so a Plugin declaring `host_operations` may answer a gesture with an
+    /// operation, which `operations` checks and performs after the answer
+    /// commits; `reportOperation` tells the user of an outcome no view
+    /// shows, by default as feedback near the pointer.
     public init(renderer: PluginViewRenderer, runEvent: @escaping PluginViewSession.RunEvent,
                 schedule: @escaping PluginViewSession.Schedule, showFeedback: @escaping (String) -> Void,
                 readView: @escaping PluginViewSession.ReadView = { _, _ in },
-                fetchedSections: HostFetchedSections? = nil) {
+                fetchedSections: HostFetchedSections? = nil,
+                permitting: @escaping PluginViewSession.Permitting = { _ in { _ in false } },
+                operations performer: HostOperationPerformer? = nil,
+                reportOperation: ((ActionConfiguration, String) -> Void)? = nil) {
         self.renderer = renderer
         self.runEvent = runEvent
         self.readView = readView
         self.schedule = schedule
         self.showFeedback = showFeedback
         self.fetchedSections = fetchedSections
+        self.permitting = permitting
+        operations = performer.map {
+            HostOperationRequests(performer: $0, schedule: schedule,
+                                  report: reportOperation ?? { _, message in showFeedback(message) })
+        }
         fetchedSections?.sessions = self
+        operations?.onSlotFree = { [weak self] pluginID in self?.sessions[pluginID]?.dispatchNext() }
     }
 
     deinit {
@@ -363,13 +524,35 @@ public final class PluginViewSessions {
         }
     }
 
+    /// Runs `work`, such as an Action's start from the Menu, once the Plugin
+    /// has no Requested Host Operation outstanding: a gesture waits behind
+    /// one. Runs it at once when there is none.
+    public func whenOperationSlotFree(for pluginID: PluginID, _ work: @escaping () -> Void) {
+        guard let operations else { return work() }
+        operations.whenFree(pluginID, work)
+    }
+
     /// Acts on what the Action's first invocation answered and says whether
     /// that showed the user anything: a view, a closed view, or a toast.
     /// Throws a protocol violation, and starts nothing, for a value that is
     /// no answer.
+    ///
+    /// An answer that requests an operation commits it with the view it
+    /// shows, if any, which then owns it. Nothing was shown where text would
+    /// go when the Action started, so an insertion it requests is refused.
+    /// A refused Capability or System Permission refuses the whole answer:
+    /// this throws the `PluginHostServiceError`, and nothing is shown.
     @discardableResult
     public func actionAnswered(_ action: ActionConfiguration, with value: JSONValue) throws -> Bool {
-        let answer = try PluginScriptAnswer(parsing: value)
+        let permits = permitting(action)
+        let answer = try PluginScriptAnswer(parsing: value, permits: permits)
+        if let operation = answer.operation {
+            guard let operations else {
+                throw PluginHostServiceError.unavailable("This Host performs no Requested Host Operations")
+            }
+            if let view = answer.view { try readView(action, view) }
+            try operations.authorize(operation, for: action)
+        }
         let existing = sessions[action.pluginID]
         if let view = answer.view {
             try readView(action, view)
@@ -381,6 +564,7 @@ public final class PluginViewSessions {
                 }
                 existing.replace(action: action, view: view, state: answer.state)
                 existing.showToast(answer.toast)
+                commit(answer.operation, for: action, owner: existing)
                 return true
             }
             let pluginID = action.pluginID
@@ -391,6 +575,8 @@ public final class PluginViewSessions {
                                                 fetchedSections?.delivery(of: section, response: response,
                                                                           for: pluginID, outcome)
                                             },
+                                            permits: permits,
+                                            operations: operations,
                                             onEnd: { [weak self] ended in
                                                 guard self?.sessions[ended.pluginID] === ended else { return }
                                                 self?.sessions.removeValue(forKey: ended.pluginID)
@@ -399,14 +585,28 @@ public final class PluginViewSessions {
             sessions[action.pluginID] = session
             session.present()
             session.showToast(answer.toast)
+            commit(answer.operation, for: action, owner: session)
             return true
         }
         if answer.close { existing?.end(.closedByPlugin) }
         if let toast = answer.toast { showFeedback(toast) }
-        return answer.toast != nil || (answer.close && existing != nil)
+        // Without a view the request belongs to the Action alone; the Host
+        // shows its outcome near the pointer.
+        commit(answer.operation, for: action, owner: nil)
+        return answer.toast != nil || (answer.close && existing != nil) || answer.operation != nil
     }
 
+    private func commit(_ operation: RequestedHostOperation?, for action: ActionConfiguration, owner: PluginViewSession?) {
+        guard let operation else { return }
+        operations?.commit(operation, for: action, owner: owner, target: .notShown)
+    }
+
+    /// Ends the Plugin's session, and when its Plugin changed or lost a
+    /// Capability cancels its requests that have not started, a view's or not.
     public func end(pluginID: PluginID, because reason: PluginViewSessionEnd) {
         sessions[pluginID]?.end(reason)
+        if reason == .pluginChanged || reason == .capabilityRevoked {
+            operations?.cancelWaiting(of: pluginID, because: reason)
+        }
     }
 }

@@ -13,4 +13,10 @@ public enum SpinnetSDK {
     /// object that returns the `spinnet` object a Plugin declaring
     /// Candidate Contract `namespaces` r1 runs with.
     public static let namespacesSource = String(decoding: PackageResources.namespaces_js, as: UTF8.self)
+
+    /// `candidates/host_operations/r1/host_operations.js`: a script whose
+    /// value is a function of `requestHostService`, the environment and the
+    /// namespaced object that returns the `spinnet` object a Plugin
+    /// declaring Candidate Contract `host_operations` r1 runs with.
+    public static let hostOperationsSource = String(decoding: PackageResources.host_operations_js, as: UTF8.self)
 }

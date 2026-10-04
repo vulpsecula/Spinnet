@@ -201,6 +201,42 @@ result is its value or the `ActionFailure` it ended with. A Command the Host
 would refuse, such as one naming a Level 1 Host Command, fails with the
 refusal as an `invalidAction`.
 
+## Requested Host Operations
+
+A Plugin declaring Candidate Contract `host_operations` r1 (see
+`PluginAPI/candidates/host_operations/r1/reference.md`) may answer a gesture
+with an operation the Host performs after the answer commits. `run.answer()`
+reads it as the Host does: `answer.operation` is the request, and an
+operation in an answer to an event that is no gesture, or from a Plugin that
+does not declare the candidate, is the protocol violation the Host would end
+the View Session with.
+
+Give an event the view the user made it in, as the script last answered it.
+A gesture in a view that sets `shows_insertion_target` is one the Host
+showed a target for, so an insertion the invocation makes or requests may go
+ahead; any other, and the Action's start, is refused with
+`target_not_shown`, as in the Host. `RecordedHostOperations` performs what an
+answer requested with recorded outcomes, by default success, and gives the
+`operation_finished` event to run next when the request asked to `notify`:
+
+```swift
+let submit = PluginTestInvocation("emoji.search", event: .submitted(values: .object(["query": .string("smile")])),
+                                  state: opened.state, view: opened.view)
+let run = helper.run(submit, of: plugin, answering: RecordedHostServices())
+XCTAssertEqual(try run.answer().operation?.perform, "selection.replace")
+
+let operations = RecordedHostOperations(["selection.replace": .refused(.targetChanged)])
+let delivery = try XCTUnwrap(operations.perform(run, of: plugin, for: submit)?.delivery)
+let finished = helper.run(PluginTestInvocation("emoji.search", event: delivery, state: try run.answer().state),
+                          of: plugin, answering: RecordedHostServices())
+```
+
+`perform` throws `capabilityDenied`, as the Host refuses the whole answer,
+for a Capability the Command does not declare or the test lists in
+`deniedCapabilities`. A synchronous `selection.replace` answered with
+`.failure(.insertion(.changedWithoutNames))` fails the run with
+`insertion_target_changed`, as a changed target fails it in the Host.
+
 ## Using the Host's own services
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and

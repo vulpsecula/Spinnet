@@ -177,11 +177,11 @@ The App that receives text the Host inserts for a Plugin. Under Plugin API Level
 _Avoid_: Origin App, recent App, focused App (when the panel is meant)
 
 **Requested Host Operation**:
-Proposed for the first new UI contract: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host checks authority, confirms when that Service requires it, resolves the target, performs it and reports one outcome.
+Part of the first new UI contract, offered by Candidate Contract `host_operations`: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome.
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-Proposed for the first new UI contract: a trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it.
+Proposed for the first new UI contract: a trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. No operation `host_operations` revision 1 offers requires one.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
 
 ### Authority

@@ -1,0 +1,14 @@
+{
+  "view": {
+    "title": "Greeter",
+    "actions": [
+      {
+        "id": "go",
+        "title": "Go"
+      }
+    ]
+  },
+  "state": {
+    "n": 1
+  }
+}

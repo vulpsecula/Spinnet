@@ -1,0 +1,41 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 1,
+  "candidate_contracts": [
+    {"name": "host_operations", "revision": 1},
+    {"name": "namespaces", "revision": 1}
+  ],
+  "id": "com.example.operations-probe",
+  "name": "Operations Probe",
+  "version": "1.0.0",
+  "capabilities": ["insert_into_focused_app", "write_clipboard"],
+  "capability_scopes": [{
+    "capability": "insert_into_focused_app",
+    "command_ids": ["probe.pick", "probe.stamp"],
+    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.pick",
+    "default_alternate_command_ids": ["probe.stamp"]
+  },
+  "commands": [
+    {
+      "id": "probe.pick",
+      "title": "Pick a Symbol",
+      "description": "Shows a picker that names where text goes and inserts the chosen symbol after the answer commits.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "pick.js"
+    },
+    {
+      "id": "probe.stamp",
+      "title": "Insert Stamp",
+      "description": "Inserts a fixed stamp without showing a view.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "stamp.js"
+    }
+  ]
+}

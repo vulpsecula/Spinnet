@@ -1,0 +1,27 @@
+{
+  "name": "host_operations",
+  "revision": 1,
+  "base_level": 1,
+  "requires": [
+    {"name": "namespaces", "revision": 1}
+  ],
+  "conflicts": [],
+  "members": [
+    {"kind": "behaviour", "name": "answer_operation"},
+    {"kind": "request", "name": "host.showPluginSettings"},
+    {"kind": "request", "name": "selection.replace"},
+    {"kind": "request", "name": "clipboard.write"},
+    {"kind": "request", "name": "clipboardHistory.show"},
+    {"kind": "request", "name": "open.url"},
+    {"kind": "request", "name": "open.path"},
+    {"kind": "request", "name": "open.application"},
+    {"kind": "request", "name": "apps.perform"},
+    {"kind": "request", "name": "apps.openDeepLink"},
+    {"kind": "view_event", "name": "operation_finished"},
+    {"kind": "behaviour", "name": "shows_insertion_target"},
+    {"kind": "behaviour", "name": "execution_time_insertion_target"},
+    {"kind": "behaviour", "name": "insertion_target_changed_failure"}
+  ],
+  "tag": "plugin-api-candidate/host_operations/r1",
+  "status": "supported"
+}

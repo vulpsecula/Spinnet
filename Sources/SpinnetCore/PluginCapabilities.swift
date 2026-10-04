@@ -566,6 +566,9 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// A Plugin Storage write over a limit. It stored nothing, and unlike
     /// every other failure the script may catch it and carry on.
     case storageLimitExceeded(String)
+    /// An insertion under Candidate Contract `host_operations` refused or
+    /// failed because of its target.
+    case insertion(InsertionFailure)
 
     public var description: String {
         switch self {
@@ -587,6 +590,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Host Service failed: \(message)"
         case .storageLimitExceeded(let message):
             return message
+        case .insertion(let failure):
+            return failure.message
         }
     }
 
@@ -608,6 +613,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .hostServiceFailed
         case .storageLimitExceeded:
             return .storageLimitExceeded
+        case .insertion(let failure):
+            return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
     }
 
@@ -625,6 +632,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
+        case .insertion(let failure):
+            return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
     }
 }
@@ -666,6 +675,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
+    /// Inserts for a Plugin declaring `host_operations`, into the App in
+    /// front only if it is the one the Host showed when the user acted.
+    private let targetedTextInserter: (String, InsertionTargetCapture) throws -> Void
     private let languageDetector: (String) -> String?
     /// Answers to repeated requests, for the Host-Fetched Sections of every
     /// Plugin.
@@ -718,6 +730,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         focusedTextInserter: @escaping (String) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Text insertion")
         },
+        targetedTextInserter: @escaping (String, InsertionTargetCapture) throws -> Void = { _, _ in
+            throw PluginHostServiceError.unavailable("Text insertion")
+        },
         localPathOpener: @escaping (URL) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Opening local paths")
         },
@@ -754,6 +769,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.httpsTransport = httpsTransport
         self.credentialStore = credentialStore
         self.focusedTextInserter = focusedTextInserter
+        self.targetedTextInserter = targetedTextInserter
         self.languageDetector = languageDetector
         self.responseCache = responseCache
         self.localPathOpener = localPathOpener
@@ -976,7 +992,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                   text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
                 throw PluginHostServiceError.invalidInput("insert_text expects a text string of at most 128 KiB")
             }
-            try focusedTextInserter(text)
+            if let target = request.insertionTarget {
+                try targetedTextInserter(text, target)
+            } else {
+                try focusedTextInserter(text)
+            }
             return .null
         case .detectLanguage:
             guard case .string(let text) = request.input else {

@@ -203,7 +203,8 @@ struct SpinnetPluginHelperMain {
     /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
     /// `requestHostService` already in `context`, or for a Plugin declaring
     /// Candidate Contract `namespaces` r1 the namespaced object its
-    /// `namespaces.js` builds over Level 1's.
+    /// `namespaces.js` builds over Level 1's, with `host_operations.js`'s
+    /// request builders for a Plugin also declaring `host_operations` r1.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,
@@ -226,6 +227,16 @@ struct SpinnetPluginHelperMain {
                 return false
             }
             sdk = namespaced
+            // host_operations requires namespaces, so its additions build on
+            // the namespaced object.
+            if invocation.requestsHostOperations {
+                guard let makeOperations = context.evaluateScript(SpinnetSDK.hostOperationsSource), makeOperations.isObject,
+                      let operations = makeOperations.call(withArguments: [requestHostService, environment, sdk]),
+                      operations.isObject else {
+                    return false
+                }
+                sdk = operations
+            }
         }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
@@ -381,6 +392,10 @@ private extension PluginRuntimeInvocation {
     /// Whether the Plugin declares Candidate Contract `namespaces` r1, whose
     /// SDK and names the helper then uses.
     var namesCatalogueIDs: Bool { candidateContracts.contains(HostServiceCatalogue.declaration) }
+
+    /// Whether the Plugin declares Candidate Contract `host_operations` r1,
+    /// whose request builders the helper then adds.
+    var requestsHostOperations: Bool { candidateContracts.contains(HostOperationsContract.declaration) }
 
     var inputJSON: String {
         guard let data = try? JSONEncoder().encode(input) else { return "null" }

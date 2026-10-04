@@ -18,6 +18,10 @@ public struct PluginViewDescription: Equatable {
     public let form: PluginViewForm?
     public let detail: PluginViewDetail?
     public let actions: [PluginViewAction]
+    /// The view asks the Host to draw a line naming the App insertion would
+    /// go to now (Candidate Contract `host_operations`). The name is the
+    /// Host's; the Plugin never learns it.
+    public let showsInsertionTarget: Bool
 
     /// Most setting controls one view may offer.
     public static let maximumSettings = 6
@@ -30,7 +34,22 @@ public struct PluginViewDescription: Equatable {
     /// `settingsFields` are the Plugin's declared `settings_fields`, which a
     /// setting control must name.
     public init(parsing view: JSONValue, settingsFields: [CommandConfigurationField]) throws {
-        let members = try Self.object(view, "The view", allowed: ["title", "subtitle", "settings", "form", "detail", "actions"])
+        try self.init(parsing: view, settingsFields: settingsFields, permits: { _ in false })
+    }
+
+    /// Reads the view of a Plugin to which `permits` says which interface
+    /// members its declarations offer: one declaring `host_operations` may
+    /// set `shows_insertion_target`.
+    public init(parsing view: JSONValue, settingsFields: [CommandConfigurationField],
+                permits: (PluginInterfaceMember) -> Bool) throws {
+        let candidateMembers: Set<String> = permits(HostOperationsContract.showsInsertionTarget) ? ["shows_insertion_target"] : []
+        let members = try Self.object(view, "The view", allowed: Set(["title", "subtitle", "settings", "form", "detail", "actions"])
+                                        .union(candidateMembers))
+        switch members["shows_insertion_target"] {
+        case nil: showsInsertionTarget = false
+        case .bool(let shows): showsInsertionTarget = shows
+        default: throw Self.violation("The view's shows_insertion_target is not true or false")
+        }
         title = try Self.text(members["title"], "The view's title")
         subtitle = try members["subtitle"].map { try Self.text($0, "The view's subtitle", allowsBlank: true) }
         settings = try Self.settings(members["settings"], declared: settingsFields)

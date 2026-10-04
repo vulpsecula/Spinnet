@@ -142,6 +142,9 @@ public enum ActionFailureCategory: String, Codable, CaseIterable, Hashable {
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
+    /// `host_operations`: a synchronous insertion in a View Session found
+    /// another App in front than the one the Host showed.
+    case insertionTargetChanged = "insertion_target_changed"
     case cancelled
     case timedOut = "timed_out"
     case helperTerminated = "helper_terminated"

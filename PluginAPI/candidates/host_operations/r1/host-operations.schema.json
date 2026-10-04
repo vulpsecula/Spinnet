@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Requested Host Operations (Candidate Contract host_operations r1)",
+  "description": "Candidate Contract host_operations, revision 1 (candidate.json). Not part of any stable Plugin API Level. A Plugin declaring it, beside the namespaces revision 1 it requires, may answer a gesture with one Requested Host Operation, which the Host commits with the rest of the answer and performs after the script's invocation ends. An operation names a Host Service by its catalogue ID (../../namespaces/r1/catalogue.json) in perform and gives that operation's input in input. Besides these shapes the Host checks what a shape cannot say: only an answer to a gesture (the Action's start, submitted, action_chosen) may carry an operation, inserted text is at most 128 KiB of UTF-8 with no control character but tabs and line breaks, a link is http or https with a host, and the requesting Command declares the operation's Capability and the user granted it. An answer that breaks a shape, a pre-check or the gesture rule is a protocol violation and ends the View Session; a refused Capability or System Permission refuses the whole answer and keeps the last good view and state.",
+  "$defs": {
+    "text": { "$ref": "../../../schemas/plugin-view.schema.json#/$defs/text" },
+    "operation_id": {
+      "description": "A Plugin-chosen label echoed in operation_finished, never interpreted by the Host: not blank, at most 64 characters.",
+      "type": "string",
+      "pattern": "\\S",
+      "maxLength": 64
+    },
+    "operation": {
+      "description": "One Requested Host Operation. perform names the Host Service by its catalogue ID, one the catalogue offers at the request entry point; input is that operation's input, exactly as a script's call gives it (a bare string stands for its primary member), left out only when the operation takes none. id, closes_view and notify are common to every operation. closes_view closes the view once the operation succeeds and only then, so a refusal keeps the view to show why; host.showPluginSettings, which opens a sheet beside the view, takes no closes_view. notify asks for an operation_finished View Event when the outcome is ready, delivered only while the session exists and the requesting Action still handles it.",
+      "type": "object",
+      "required": ["perform"],
+      "additionalProperties": false,
+      "properties": {
+        "perform": { "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/request_id" },
+        "input": { "description": "The operation's input, as ../../namespaces/r1/namespaces.schema.json defines it under <perform>.input." },
+        "id": { "$ref": "#/$defs/operation_id" },
+        "closes_view": { "type": "boolean" },
+        "notify": { "type": "boolean" }
+      },
+      "allOf": [
+        { "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/perform_input" },
+        {
+          "if": { "properties": { "perform": { "const": "selection.replace" } } },
+          "then": { "$ref": "#/$defs/selection_replace_operation" }
+        }
+      ]
+    },
+    "selection_replace_operation": {
+      "description": "selection.replace, the insertion: types text into the App frontmost at execution, in place of the selection of its focused element, as Unicode keyboard events: never the clipboard, never a paste. The Host refuses without typing when the App in front is not the one it showed when the user acted, or focus has moved to another element of that App where Accessibility exposes one (target_changed), when nothing showed a target, including every insertion from an Action without a view (target_not_shown), when Spinnet or no App is in front (no_target), and when the focused element is a password field (secure_input). Needs insert_into_focused_app and Accessibility. No Host Confirmation. Its text, at most 128 KiB of UTF-8, is checked by the Host; empty text types nothing.",
+      "type": "object",
+      "required": ["perform", "input"]
+    },
+    "view_additions": {
+      "description": "Members a candidate view may carry besides those of Level 1's view (../../../schemas/plugin-view.schema.json). shows_insertion_target asks the Host to draw a target line naming the App insertion would go to now, which the Host keeps current and never reveals to the Plugin. A view without it may still insert through Level 1's standard insert_text action, whose button carries the target itself; a requested or synchronous selection.replace from a gesture made in a view that showed no target is refused with target_not_shown.",
+      "type": "object",
+      "properties": {
+        "shows_insertion_target": { "type": "boolean" }
+      }
+    },
+    "answer": {
+      "description": "A candidate script's answer: Level 1's answer plus an optional operation. An operation may come with a view, a toast, both or neither, but not with close: an operation that should close the view says closes_view.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "view": {
+          "description": "A Level 1 view, optionally with view_additions.",
+          "type": "object"
+        },
+        "state": { "description": "Any JSON, at most 64 KiB; null when absent." },
+        "close": { "const": true },
+        "toast": { "$ref": "#/$defs/text" },
+        "operation": { "$ref": "#/$defs/operation" }
+      },
+      "allOf": [
+        {
+          "description": "An answer that closes the view describes none and requests nothing; use closes_view on the operation instead.",
+          "if": { "required": ["close"] },
+          "then": { "properties": { "view": false, "state": false, "operation": false } }
+        },
+        {
+          "description": "Only an answer with a view keeps a state.",
+          "if": { "properties": { "view": false } },
+          "then": { "properties": { "state": false } }
+        }
+      ]
+    },
+    "outcome": {
+      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation, or closed the view while it was shown. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran. failed: the effect itself failed after the Host began it. No operation of this revision asks for a Host Confirmation, so declined and expired are not reported by it.",
+      "enum": ["succeeded", "refused", "declined", "expired", "cancelled", "failed"]
+    },
+    "reason": {
+      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../../namespaces/r1/reference.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace a reason about its target. No reason names the App, its bundle ID, process or window.",
+      "enum": [
+        "capability_denied",
+        "system_permission_denied",
+        "automation_permission_denied",
+        "external_app_missing",
+        "external_app_operation_unsupported",
+        "host_service_failed",
+        "command_unavailable",
+        "target_changed",
+        "target_not_shown",
+        "no_target",
+        "secure_input",
+        "target_unresponsive"
+      ]
+    },
+    "operation_finished": {
+      "description": "Delivered as the event global when an operation that asked to notify reaches its outcome, while its session exists and the requesting Action still handles it. It runs before any gesture that waited for the operation, behind other earlier events, with the four-second deadline, and is not a gesture: its answer may update the view and state but carries no operation. operation echoes the request's id when it had one.",
+      "type": "object",
+      "required": ["type", "perform", "outcome"],
+      "propertyNames": { "enum": ["type", "operation", "perform", "outcome", "reason"] },
+      "properties": {
+        "type": { "const": "operation_finished" },
+        "operation": { "$ref": "#/$defs/operation_id" },
+        "perform": { "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/request_id" },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "reason": { "$ref": "#/$defs/reason" }
+      },
+      "allOf": [
+        {
+          "description": "A refusal or failure says why; no other outcome carries a reason.",
+          "if": { "properties": { "outcome": { "enum": ["refused", "failed"] } } },
+          "then": { "required": ["reason"] }
+        },
+        {
+          "if": { "properties": { "outcome": { "enum": ["succeeded", "declined", "expired", "cancelled"] } } },
+          "then": { "properties": { "reason": false } }
+        }
+      ]
+    },
+    "event": {
+      "description": "A candidate script's event global: a Level 1 View Event or operation_finished. Gestures, which alone may be answered with an operation, are the Action's start (event null), submitted and action_chosen.",
+      "oneOf": [
+        { "$ref": "../../../schemas/view-session.schema.json#/$defs/event" },
+        { "$ref": "#/$defs/operation_finished" }
+      ]
+    },
+    "failure_category_additions": {
+      "description": "Action failure categories this candidate adds. insertion_target_changed: a synchronous selection.replace call inside a View Session found another App in front than the one the Host showed when the user acted, or focus moved to another element of it; nothing was inserted, the invocation fails as a refused Host Service does, and the target line updates.",
+      "enum": ["insertion_target_changed"]
+    }
+  }
+}
