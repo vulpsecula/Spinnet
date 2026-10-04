@@ -1,9 +1,13 @@
-// A Brew-shaped Plugin written against Candidate Contract collections r1: a
+// A Brew-shaped Plugin written against Candidate Contract collections r2: a
 // searchable list of 800 generated formulae and casks with descriptions,
 // versions and per-item actions (Upgrade only when outdated, Install only
 // when not installed), paged 150 at a time, and a detail page with its own
 // ID from which Back returns to the list as the user left it. Install and
-// Upgrade only say what a reviewed task would do (#88).
+// Upgrade only say what a reviewed task would do (#88). Which packages the
+// list shows first is the Plugin Setting `scope`, which a Menu Item may
+// override, so "Outdated Packages" and "Installed Packages" can be two Menu
+// Items of one Command; calling either while the list is open shows its
+// scope in the same panel, keeping what was typed.
 (() => {
   const ui = spinnet.ui, c = ui.components;
   const PAGE_SIZE = 150;
@@ -87,9 +91,17 @@
     });
   }
 
-  const kept = state || { query: "", scope: "installed", loaded: PAGE_SIZE };
+  const called = (input && input.scope) || "installed";
+  const kept = state || { query: "", scope: called, loaded: PAGE_SIZE };
   if (event === null) return ui.showPage(list(kept), { state: kept });
   switch (event.type) {
+    case "called": {
+      // Back to the list, from a detail page too. Another scope starts the
+      // scope and the results again; the query stays as the user typed it.
+      if (called === kept.scope) return ui.showPage(list(kept), { state: kept });
+      const next = Object.assign({}, kept, { scope: called, loaded: PAGE_SIZE });
+      return ui.showPage(list(next, ["scope", "packages"]), { state: next });
+    }
     case "field_changed": {
       const next = Object.assign({}, kept, { query: event.values.query, scope: event.values.scope, loaded: PAGE_SIZE });
       return ui.showPage(list(next, ["packages"]), { state: next });

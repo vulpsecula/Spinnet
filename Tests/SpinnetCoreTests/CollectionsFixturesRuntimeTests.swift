@@ -233,6 +233,166 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         XCTAssertEqual(brew.collection?.emptyText, "No packages match")
     }
 
+    // MARK: Repeated calls (collections r2)
+
+    /// Calling Emoji again while it is open runs `called` from the last good
+    /// state: the answer keeps the page, so what was typed and the selection
+    /// stay, and Recent shows what was inserted meanwhile.
+    func testCallingEmojiAgainKeepsTheSearchAndReadsRecent() throws {
+        let store = storage()
+        let emoji = try emoji(storage: store)
+        try emoji.open()
+        try emoji.press(.right)
+        let selected = try XCTUnwrap(emoji.selectedItem)
+        let other = try XCTUnwrap(emoji.collection?.items[20])
+        try store.setValue(.array([.string(other.id)]), forKey: "recent", of: CollectionsFixtures.emojiID)
+
+        try emoji.call()
+        XCTAssertEqual(emoji.events.last, .called)
+        XCTAssertEqual(emoji.collection?.sections.first?.items.map(\.id), ["recent:\(other.id)"])
+        XCTAssertEqual(emoji.selectedItem?.id, selected.id, "The selection stays on its item")
+        XCTAssertEqual(emoji.focus, "query")
+        XCTAssertEqual(emoji.runs.count, 2, "One run for the call, no restart")
+    }
+
+    /// A call that fails keeps the page, the state and the handler; the next
+    /// call continues from the last good state.
+    func testAFailedCallKeepsThePageAndTheNextOneContinues() throws {
+        let store = storage()
+        var failing = false
+        let services = RecordedHostServices([.getStorageValue: .answer { input in
+            if failing { throw PluginHostServiceError.unavailable("Plugin Storage is unavailable") }
+            return try store.answer(.getStorageValue, input: input, for: CollectionsFixtures.emojiID)
+        }], storage: store)
+        let emoji = PluginTestPage("emoji.search", of: try PluginUnderTest(packageAt: CollectionsFixtures.emoji),
+                                   helper: try helper(), answering: services)
+        try emoji.open()
+        try emoji.type("cat", into: "query")
+        let state = emoji.state
+        let page = emoji.pageJSON
+
+        failing = true
+        XCTAssertThrowsError(try emoji.call())
+        XCTAssertEqual(emoji.state, state)
+        XCTAssertEqual(emoji.pageJSON, page)
+        XCTAssertEqual(emoji.text(of: "query"), "cat")
+        XCTAssertFalse(emoji.isClosed)
+
+        failing = false
+        try emoji.call()
+        XCTAssertEqual(emoji.text(of: "query"), "cat")
+        XCTAssertTrue(emoji.collection?.items.allSatisfy { $0.title.contains("cat") } ?? false)
+    }
+
+    /// One Command, two Menu Items: calling "Outdated" while "Installed" is
+    /// open shows the outdated scope in the same page and keeps the query;
+    /// calling it again from a detail page returns to the list as the user
+    /// left it, under the same handler.
+    func testCallingBrewWithAnotherOverrideChangesScopeAndKeepsTheQuery() throws {
+        let brew = try brew()
+        try brew.open()
+        try brew.type("py", into: "query")
+        XCTAssertEqual(brew.choice(of: "scope"), "installed")
+
+        try brew.call(input: .object(["scope": .string("outdated")]))
+        XCTAssertEqual(brew.handler.input, .object(["scope": .string("outdated")]))
+        XCTAssertEqual(brew.choice(of: "scope"), "outdated", "The Plugin reset the scope it was called with")
+        XCTAssertEqual(brew.text(of: "query"), "py", "and kept what was typed")
+        let outdated = try XCTUnwrap(brew.collection?.items)
+        XCTAssertFalse(outdated.isEmpty)
+        XCTAssertTrue(outdated.allSatisfy { $0.accessory == "Outdated" && $0.title.contains("py") })
+
+        let package = outdated[outdated.count - 1]
+        try brew.select(package.id)
+        try brew.pressReturn(in: "query")
+        XCTAssertEqual(brew.page?.id, "package:\(package.title)")
+        try brew.call()
+        XCTAssertEqual(brew.page?.id, "packages")
+        XCTAssertEqual(brew.text(of: "query"), "py")
+        XCTAssertEqual(brew.selectedItem?.id, package.id, "Page memory restores the selection")
+    }
+
+    /// A Plugin declaring `collections` r1 keeps Level 1's rule: calling it
+    /// again starts the Action again, with no event and no state.
+    func testARevisionOnePluginRestartsWhenCalled() throws {
+        let manifest = try CollectionsFixtures.manifest(declaringCollections: 1, of: CollectionsFixtures.brew)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("BrewR1-\(UUID().uuidString).spinnetplugin")
+        directories.append(root)
+        try FileManager.default.copyItem(at: CollectionsFixtures.brew, to: root)
+        let data = try Data(contentsOf: CollectionsFixtures.brew.appendingPathComponent("manifest.json"))
+        let text = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: #"{"name": "collections", "revision": 2}"#, with: #"{"name": "collections", "revision": 1}"#)
+        try text.write(to: root.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(try PluginUnderTest(packageAt: root).manifest, manifest)
+        let brew = PluginTestPage("brew.packages", of: try PluginUnderTest(packageAt: root), helper: try helper())
+        try brew.open()
+        try brew.choose("all", in: "scope")
+
+        try brew.call(input: .object(["scope": .string("outdated")]))
+        XCTAssertNotEqual(brew.events.last, .called)
+        guard case .object(let state) = brew.state else { return XCTFail("No state") }
+        XCTAssertEqual(state["scope"], .string("outdated"), "The script started again from no state")
+    }
+
+    /// Calls run through the Host's own Action runner over the real helper,
+    /// queued in the open session: each reads Plugin Settings and its Menu
+    /// Item's overrides when it runs, and closing the view cancels the one
+    /// still waiting and says so.
+    func testBrewCallsQueueReadSettingsWhenTheyRunAndCloseCancelsTheRest() throws {
+        let plugin = try PluginUnderTest(packageAt: CollectionsFixtures.brew)
+        let registry = PluginRegistry()
+        try registry.register(plugin.package)
+        var settings: [String: JSONValue] = ["scope": .string("installed")]
+        let runner = HostActionRunner(executor: NoHostCommands(), scriptedExecutor: try helper(),
+                                      hostServiceBroker: RecordedHostServices(),
+                                      pluginSettings: { _ in settings })
+        var held: [() -> Void] = []
+        var reported: [String] = []
+        let renderer = RecordingRenderer()
+        let sessions = PluginViewSessions(renderer: renderer, runEvent: { action, delivery, control, started, finish in
+            held.append {
+                started()
+                finish(runner.invoke(action, using: registry, control: control, delivering: delivery))
+            }
+        }, schedule: ManualClock().schedule, showFeedback: { _ in },
+        permitting: { _ in registry.contracts.permitting(plugin.manifest) },
+        reportOperation: { action, message in reported.append("\(action.title): \(message)") })
+        let installed = try plugin.action(for: PluginTestInvocation("brew.packages"))
+        let outdated = try plugin.action(for: PluginTestInvocation("brew.packages", input: .object(["scope": .string("outdated")]),
+                                                                   actionID: "outdated-item"))
+        guard case .succeeded(let opened) = runner.invoke(installed, using: registry).terminal else {
+            return XCTFail("Brew should open")
+        }
+        try sessions.actionAnswered(installed, with: opened)
+        let session = try XCTUnwrap(sessions.session(for: plugin.manifest.id))
+
+        XCTAssertTrue(sessions.call(installed))
+        XCTAssertTrue(sessions.call(outdated))
+        XCTAssertEqual(renderer.broughtForward, 2)
+        settings["scope"] = .string("all")
+        held.removeFirst()()
+        XCTAssertEqual(Self.scope(of: session), "all", "Plugin Settings are read when the call runs")
+        held.removeFirst()()
+        XCTAssertEqual(Self.scope(of: session), "outdated", "The Menu Item's override wins")
+        XCTAssertTrue(session.action.isSameConfiguration(as: outdated))
+        XCTAssertEqual(session.page?.collection?.items.allSatisfy { $0.accessory == "Outdated" }, true)
+
+        XCTAssertTrue(sessions.call(installed))
+        XCTAssertTrue(sessions.call(outdated))
+        held.removeFirst()()
+        session.close()
+        XCTAssertEqual(reported, ["Homebrew Packages: Cancelled: the view was closed"])
+        let shown = renderer.presentations.count
+        held.forEach { $0() }
+        XCTAssertEqual(renderer.presentations.count, shown, "Nothing is replayed")
+        XCTAssertEqual(Self.scope(of: session), "all")
+    }
+
+    private static func scope(of session: PluginViewSession) -> String? {
+        guard case .object(let state) = session.state, case .string(let scope)? = state["scope"] else { return nil }
+        return scope
+    }
+
     // MARK: The SDK
 
     /// The helper adds the page builders only for a Plugin declaring the
@@ -244,27 +404,34 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
                 spinnet.open.url.action ? spinnet.open.url.action("https://brew.sh", { title: "Home", closesView: true }) : null,
                 typeof spinnet.selection.replace, typeof spinnet.selection.replace.operation])()
         """
-        let declaring = try OperationsProbeFixture.write(scripts: ["pick.js": probe]) { manifest in
-            manifest["candidate_contracts"] = .array([
-                .object(["name": .string("collections"), "revision": .number(1)]),
-                .object(["name": .string("host_operations"), "revision": .number(1)]),
-                .object(["name": .string("namespaces"), "revision": .number(1)])
-            ])
+        // Revision 2 adds no builder: both revisions get revision 1's SDK.
+        for revision in [1, 2] {
+            let declaring = try OperationsProbeFixture.write(scripts: ["pick.js": probe]) { manifest in
+                manifest["candidate_contracts"] = .array([
+                    .object(["name": .string("collections"), "revision": .number(Double(revision))]),
+                    .object(["name": .string("host_operations"), "revision": .number(1)]),
+                    .object(["name": .string("namespaces"), "revision": .number(1)])
+                ])
+            }
+            let run = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: declaring),
+                                       answering: RecordedHostServices())
+            XCTAssertEqual(try run.result.get(), .array([
+                .string("function"), .string("function"),
+                .object(["kind": .string("grid"), "id": .string("g"), "items": .array([]), "empty_text": .string("None"),
+                         "has_more": .bool(true), "columns": .number(4)]),
+                .object(["perform": .string("open.url"), "input": .string("https://brew.sh"), "title": .string("Home"),
+                         "closes_view": .bool(true)]),
+                .string("function"), .string("function")
+            ]), "collections r\(revision)")
         }
-        let run = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: declaring),
-                                   answering: RecordedHostServices())
-        XCTAssertEqual(try run.result.get(), .array([
-            .string("function"), .string("function"),
-            .object(["kind": .string("grid"), "id": .string("g"), "items": .array([]), "empty_text": .string("None"),
-                     "has_more": .bool(true), "columns": .number(4)]),
-            .object(["perform": .string("open.url"), "input": .string("https://brew.sh"), "title": .string("Home"),
-                     "closes_view": .bool(true)]),
-            .string("function"), .string("function")
-        ]))
         let without = try OperationsProbeFixture.write(scripts: ["pick.js": probe])
         let other = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: without),
                                      answering: RecordedHostServices())
         XCTAssertEqual(try other.result.get(), .array([.string("undefined"), .string("undefined"), .null, .null,
                                                        .string("function"), .string("function")]))
     }
+}
+
+private struct NoHostCommands: HostCommandExecutor {
+    func execute(_ action: ActionConfiguration) throws -> JSONValue { .null }
 }

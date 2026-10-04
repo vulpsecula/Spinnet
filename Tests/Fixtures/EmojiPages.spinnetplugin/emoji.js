@@ -1,10 +1,12 @@
-// An Emoji-shaped Plugin written against Candidate Contract collections r1:
+// An Emoji-shaped Plugin written against Candidate Contract collections r2:
 // 1,906 items in nine categories, the size and shape of the external Emoji
 // probe's data, with generated names in place of Unicode's. A search row
 // above a sectioned grid; Return or a double-click inserts through a
 // Requested Host Operation and records the emoji as recent; Copy is a
 // standard item action the Host performs. Answers to typing carry the first
-// 200 results and the Host asks for more as the user nears the end.
+// 200 results and the Host asks for more as the user nears the end. Calling
+// Emoji again while it is open keeps the search as the user left it and
+// reads Recent again.
 (() => {
   const ui = spinnet.ui, c = ui.components;
   const PAGE_SIZE = 200;
@@ -127,6 +129,12 @@
     }
     case "load_more": {
       const next = Object.assign({}, kept, { loaded: Math.min(event.loaded + PAGE_SIZE, ALL.length) });
+      return ui.showPage(page(next), { state: next });
+    }
+    case "called": {
+      // The same page with no reset: what was typed, the selection and the
+      // scroll stay, and Recent shows what was inserted since.
+      const next = Object.assign({}, kept, { recent: spinnet.storage.get("recent") || [] });
       return ui.showPage(page(next), { state: next });
     }
     case "item_action": {

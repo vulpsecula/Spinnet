@@ -247,8 +247,8 @@ its own repository should use recorded answers.
 
 ## Pages and collections
 
-A Plugin declaring Candidate Contract `collections` r1 (see
-`PluginAPI/candidates/collections/r1/reference.md`) may answer with a page.
+A Plugin declaring Candidate Contract `collections` r1 or r2 (see
+`PluginAPI/candidates/collections/r2/reference.md`) may answer with a page.
 `run.answer()` reads it as the Host does, page rules included: `answer.page`
 is the page the Host would draw, and a page it would not draw throws the
 protocol violation that would end the View Session.
@@ -277,3 +277,19 @@ does. Page and item actions that name a Host Service are performed by the
 Host without running the script and are listed, with requested operations,
 in `performed`. `composing` names text fields with an open input-method
 composition, whose reset the Host drops.
+
+`call(_:input:)` stands for calling the Plugin again while the session is
+open, as a Menu Item does: by default the Action that handles the session,
+or another Command of the Plugin with its input, Plugin Settings and the
+Menu Item's overrides already merged. Under `collections` r2 it runs as
+`called` from the last good state; only an answer with a page or view makes
+that Action the `handler`, and a failed call throws and keeps the page, the
+state and the handler. Under r1 or Level 1 the Action starts again:
+
+```swift
+try brew.call(input: .object(["scope": .string("outdated")]))   // the "Outdated" Menu Item
+XCTAssertEqual(brew.choice(of: "scope"), "outdated")
+XCTAssertEqual(brew.text(of: "query"), "py")  // what was typed stays
+```
+
+An answer the Host would end the session for closes the page (`isClosed`).

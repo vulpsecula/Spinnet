@@ -156,6 +156,10 @@ _Avoid_: UI state, view state, draft
 One user interaction in a Plugin View, such as editing a field, submitting, or choosing a View Action, delivered to the Plugin, which answers with its next description of the view and its own state.
 _Avoid_: Callback, UI message
 
+**Explicit Call**:
+The user executing one of a Plugin's Actions, as from a Menu Item. Under the first new UI contract, while that Plugin's View Session is open, it runs inside the session as a View Event and its Action handles the session only once it answers with a view; under Plugin API Level 1 it starts the Action again and replaces the view.
+_Avoid_: Re-invocation, relaunch, refresh
+
 **View Action**:
 A button or menu entry a Plugin View offers, which either has the Host perform a Host Service, such as copying or inserting text, or sends the Plugin a View Event. A Plugin never binds keyboard shortcuts to it.
 _Avoid_: Action (a Menu Item's), shortcut, command button

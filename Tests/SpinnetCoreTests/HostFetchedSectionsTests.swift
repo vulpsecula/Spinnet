@@ -377,6 +377,48 @@ final class HostFetchedSectionsTests: XCTestCase {
         XCTAssertEqual(sent[1].action.commandID, CommandID("example.other"))
     }
 
+    /// Under `collections` r2 a call's view from the same Command keeps a
+    /// section with the same ID and fetch, even with other overrides, and a
+    /// delivery waiting behind the call is delivered again, not fetched
+    /// again; a call's view from another Command sends the sections afresh
+    /// under it; a call that answers no view changes nothing.
+    func testACallKeepsTheSameCommandsSectionsAndSendsAnotherCommandsAfresh() throws {
+        sessions = PluginViewSessions(renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
+                                      showFeedback: { _ in }, fetchedSections: engine,
+                                      permitting: { _ in CollectionsFixtures.permits })
+        let response = Self.response(#"{"text":"one"}"#)
+        answers["https://api.example.com/translate"] = .success(response)
+        let session = try start([Self.show("deepl")])
+        background.runAll()
+        let overridden = try ActionConfiguration(id: ActionID("other-item"), pluginID: Self.pluginID,
+                                                 command: CommandDeclaration(id: CommandID("example.view"), title: "View",
+                                                                             execution: .javascript, script: "view.js"),
+                                                 input: .object(["into": .string("fr")]))
+
+        XCTAssertTrue(sessions.call(overridden))
+        runner.runs[0].finish(.succeeded(Self.answer([Self.show("deepl"), Self.deliver("rate")])))
+        XCTAssertEqual(state("deepl"), .text("one"), "Kept: same Command, same ID and fetch")
+        XCTAssertTrue(sessions.call(overridden))
+        background.runAll()
+        XCTAssertEqual(sent.count, 2, "Only the new section was sent")
+        XCTAssertEqual(runner.runs.count, 2, "The delivery waits behind the call")
+        runner.runs[1].finish(.succeeded(Self.answer([Self.show("deepl"), Self.deliver("rate")])))
+        XCTAssertEqual(runner.runs[2].delivery.event, .sectionDelivered(section: "rate", response: response))
+        XCTAssertEqual(sent.count, 2, "Delivered again, not fetched again")
+        runner.runs[2].finish(.succeeded(.null))
+
+        XCTAssertTrue(sessions.call(try Self.action(command: "example.other")))
+        runner.runs[3].finish(.succeeded(.null))
+        XCTAssertEqual(state("deepl"), .text("one"), "No view, no change")
+        XCTAssertTrue(sessions.call(try Self.action(command: "example.other")))
+        runner.runs[4].finish(.succeeded(Self.answer([Self.show("deepl")])))
+        XCTAssertEqual(state("deepl"), .loading)
+        background.runAll()
+        XCTAssertEqual(sent.last?.action.commandID, CommandID("example.other"))
+        XCTAssertEqual(state("deepl"), .text("one"))
+        XCTAssertFalse(session.isEnded)
+    }
+
     func testAnInvalidFetchFailsOnlyItsOwnSection() throws {
         answers["https://api.example.com/translate"] = .success(Self.response(#"{"text":"fine"}"#))
         try start([

@@ -741,10 +741,14 @@ final class RecordingRenderer: PluginViewRenderer {
     private(set) var presentations: [PluginViewPresentation] = []
     private(set) var toasts: [String] = []
     private(set) var closes: [PluginViewSessionEnd] = []
+    /// How many times a session asked for its panel to come forward.
+    private(set) var broughtForward = 0
 
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
         presentations.append(presentation)
     }
+
+    func bringForward(_ session: PluginViewSession) { broughtForward += 1 }
 
     func showToast(_ toast: String, in session: PluginViewSession) { toasts.append(toast) }
 

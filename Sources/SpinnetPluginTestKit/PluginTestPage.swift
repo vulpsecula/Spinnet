@@ -35,21 +35,23 @@ public final class PluginTestPage {
     /// open: a reset of one of them is dropped, as the Host drops it.
     public var composing: Set<String> = []
 
+    /// The Command and input of the Action handling the session: the one
+    /// that opened it, or the last call whose answer committed a page or
+    /// view (Candidate Contract `collections` r2).
+    public private(set) var handler: (commandID: String, input: JSONValue)
+
     private let helper: PluginTestHelper
     private let plugin: PluginUnderTest
-    private let commandID: String
-    private let input: JSONValue
     private let services: PluginHostServiceBroker
     /// The loaded count the Host last asked for more at, per collection.
     private var askedAt: [String: Int] = [:]
 
     public init(_ commandID: String, of plugin: PluginUnderTest, helper: PluginTestHelper,
                 answering services: PluginHostServiceBroker = RecordedHostServices(), input: JSONValue = .null) {
-        self.commandID = commandID
+        handler = (commandID, input)
         self.plugin = plugin
         self.helper = helper
         self.services = services
-        self.input = input
     }
 
     // MARK: What the Host shows
@@ -65,7 +67,7 @@ public final class PluginTestPage {
 
     /// The script's last answer, as the Host read it.
     public func lastAnswer() throws -> PluginScriptAnswer {
-        guard let run = runs.last else { throw PluginTestKitError.unknownCommand(commandID) }
+        guard let run = runs.last else { throw PluginTestKitError.unknownCommand(handler.commandID) }
         return try run.answer()
     }
 
@@ -75,6 +77,26 @@ public final class PluginTestPage {
     @discardableResult
     public func open() throws -> PluginScriptAnswer {
         try run(nil)
+    }
+
+    /// The user calls an Action of the Plugin while this session is open, as
+    /// a Menu Item does: the Action of `commandID` with `input`, the Plugin
+    /// Settings and the Menu Item's overrides already merged, by default the
+    /// handler's own.
+    ///
+    /// For a Plugin declaring `collections` r2 the call runs in the session
+    /// as `called`, from the last good state, as a gesture with no insertion
+    /// target shown; only an answer with a page or view makes it the handler,
+    /// and a failure throws and keeps the handler, page and state. For any
+    /// other Plugin, Level 1's rule: the Action starts again with no event
+    /// and no state, and an answer with a view replaces the session's.
+    @discardableResult
+    public func call(_ commandID: String? = nil, input: JSONValue? = nil) throws -> PluginScriptAnswer {
+        let called = (commandID ?? handler.commandID, input ?? handler.input)
+        let intoSession = PluginInterfaceContracts.host.permitting(plugin.manifest)(CollectionsContract.repeatedCallsIntoSession)
+        let answer = try intoSession ? run(.called, as: called) : run(nil, as: called, state: .null)
+        if answer.description != nil { handler = called }
+        return answer
     }
 
     /// The user typed until `field` holds `text` and paused.
@@ -208,15 +230,26 @@ public final class PluginTestPage {
         try run(.loadMore(page: page.id, collection: collection.id, loaded: collection.items.count))
     }
 
+    /// Runs the handler, or for a call the Action called, once for `event`
+    /// from the last good state, and applies its answer. An answer the Host
+    /// would end the session for closes it.
     @discardableResult
-    private func run(_ event: PluginViewEvent?) throws -> PluginScriptAnswer {
+    private func run(_ event: PluginViewEvent?, as action: (commandID: String, input: JSONValue)? = nil,
+                     state: JSONValue? = nil) throws -> PluginScriptAnswer {
         guard !isClosed else { throw PluginTestPageError.closed }
         if let event { events.append(event) }
-        let invocation = PluginTestInvocation(commandID, input: input, event: event, state: state,
-                                              view: pageJSON ?? levelOneView)
+        let runner = action ?? handler
+        let invocation = PluginTestInvocation(runner.commandID, input: runner.input, event: event,
+                                              state: state ?? self.state, view: pageJSON ?? levelOneView)
         let run = helper.run(invocation, of: plugin, answering: services)
         runs.append(run)
-        let answer = try run.answer()
+        let answer: PluginScriptAnswer
+        do {
+            answer = try run.answer()
+        } catch let error as PluginRuntimeError where error.failureCategory == .runtimeProtocolFailed {
+            isClosed = true
+            throw error
+        }
         apply(answer)
         return answer
     }

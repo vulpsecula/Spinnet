@@ -44,6 +44,17 @@ public enum PluginViewSessionEnd: Equatable {
     case capabilityRevoked
     /// The script broke the Documented Plugin Interface.
     case failed(ActionFailure)
+
+    /// Why, as the Host tells the user of work the end cancelled.
+    var explanation: String {
+        switch self {
+        case .viewClosed: return "the view was closed"
+        case .closedByPlugin: return "the Plugin closed its view"
+        case .pluginChanged: return "the Plugin was updated, disabled or removed"
+        case .capabilityRevoked: return "a Capability it uses was revoked"
+        case .failed(let failure): return failure.message
+        }
+    }
 }
 
 /// The seam between View Sessions and whatever draws Plugin Views. All calls
@@ -57,6 +68,13 @@ public protocol PluginViewRenderer: AnyObject {
     /// Removes the session's view; the session has ended and sends nothing
     /// more.
     func close(_ session: PluginViewSession, because reason: PluginViewSessionEnd)
+    /// Brings the session's view to the front where it is and gives it the
+    /// keyboard, as when the user calls the Plugin again while it is open.
+    func bringForward(_ session: PluginViewSession)
+}
+
+public extension PluginViewRenderer {
+    func bringForward(_ session: PluginViewSession) {}
 }
 
 /// One View Session (ADR 0010): the Host keeps the view's state and hands
@@ -84,7 +102,9 @@ public final class PluginViewSession {
     /// Which interface members the declarations of an Action's Plugin offer.
     public typealias Permitting = (ActionConfiguration) -> (PluginInterfaceMember) -> Bool
 
-    /// The configured Action whose Command presented the view.
+    /// The configured Action whose Command presented the view: the
+    /// session's handler. Under `collections` r2 an explicit call's Action
+    /// becomes the handler when its answer commits a view.
     public private(set) var action: ActionConfiguration
     public var pluginID: PluginID { action.pluginID }
     public private(set) var view: JSONValue
@@ -136,13 +156,28 @@ public final class PluginViewSession {
         let result: (serial: Int, requestedBy: ActionConfiguration)?
         /// For an event of a page, the page and component it was made in.
         let origin: PageIdentity.Stamp?
+        /// For `called`, the complete Action the user called, which runs it
+        /// and under which its answer is read; every other event runs under
+        /// the handler.
+        let call: ActionConfiguration?
 
         init(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown,
-             result: (serial: Int, requestedBy: ActionConfiguration)? = nil, origin: PageIdentity.Stamp? = nil) {
+             result: (serial: Int, requestedBy: ActionConfiguration)? = nil, origin: PageIdentity.Stamp? = nil,
+             call: ActionConfiguration? = nil) {
             self.event = event
             self.insertionTarget = insertionTarget
             self.result = result
             self.origin = origin
+            self.call = call
+        }
+
+        /// Whether a view that replaces the one it was made in drops it:
+        /// an event of a Level 1 view, which has no page provenance.
+        var isLevelOneViewEvent: Bool {
+            switch event {
+            case .fieldChanged, .submitted, .actionChosen, .sectionDelivered: return true
+            default: return false
+            }
         }
     }
 
@@ -154,6 +189,10 @@ public final class PluginViewSession {
     private var debounceToken = 0
     /// The Plugin's Requested Host Operations, when the Host performs any.
     private weak var operations: HostOperationRequests?
+    /// Tells the user of an explicit call the session's end cancelled.
+    private let reportCall: (ActionConfiguration, String) -> Void
+    /// Another Command now handles the session.
+    private let commandChanged: () -> Void
 
     init(action: ActionConfiguration, view: JSONValue, page: PluginPage? = nil, state: JSONValue,
          renderer: PluginViewRenderer,
@@ -162,6 +201,8 @@ public final class PluginViewSession {
          sectionDelivery: @escaping (String, JSONValue, HostFetchedSections.Delivery) -> Void = { _, _, _ in },
          permits: @escaping (PluginInterfaceMember) -> Bool = { _ in false },
          operations: HostOperationRequests? = nil,
+         reportCall: @escaping (ActionConfiguration, String) -> Void = { _, _ in },
+         commandChanged: @escaping () -> Void = {},
          onEnd: @escaping (PluginViewSession) -> Void) {
         self.action = action
         self.view = view
@@ -175,6 +216,8 @@ public final class PluginViewSession {
         self.sectionDelivery = sectionDelivery
         self.permits = permits
         self.operations = operations
+        self.reportCall = reportCall
+        self.commandChanged = commandChanged
         self.onEnd = onEnd
         identity.show(page)
     }
@@ -266,6 +309,22 @@ public final class PluginViewSession {
     /// or the Host does.
     public func close() { end(.viewClosed) }
 
+    /// Queues an explicit call of `action`, a complete Action of the
+    /// session's Plugin (Candidate Contract `collections` r2): it runs as
+    /// `called` in order behind what is waiting, never merged with another
+    /// call, from the last good state when its turn comes, and as a gesture
+    /// waits while the Plugin has an operation outstanding. The view comes
+    /// forward now; the deadline starts when the script does. Nothing showed
+    /// where text would go, so an insertion it makes or requests is refused.
+    func call(_ action: ActionConfiguration) {
+        guard !isEnded else { return }
+        // A pending change happened first, so it goes first.
+        flushDebounced()
+        enqueue(Entry(.called, call: action))
+        renderer?.bringForward(self)
+        dispatchNext()
+    }
+
     func present() {
         guard !isEnded else { return }
         renderer?.present(PluginViewPresentation(view: view, isBusy: isBusy, error: error,
@@ -300,11 +359,14 @@ public final class PluginViewSession {
     }
 
     /// Ends the session at once: the event in flight is cancelled, waiting
-    /// ones are dropped, and nothing that arrives later has any effect.
+    /// ones are dropped, and nothing that arrives later has any effect. Each
+    /// explicit call it cancels is reported and never replayed.
     func end(_ reason: PluginViewSessionEnd) {
         guard !isEnded else { return }
         isEnded = true
+        let calls = ([inFlight?.entry].compactMap { $0 } + queue).compactMap(\.call)
         abandonEvents()
+        for call in calls { reportCall(call, "Cancelled: \(reason.explanation)") }
         renderer?.close(self, because: reason)
         operations?.ownerEnded(self, because: reason)
         onEnd(self)
@@ -377,8 +439,10 @@ public final class PluginViewSession {
         let control = ActionExecutionControl()
         inFlight = (dispatched, control, entry)
         present()
-        // Each event is a new invocation, so it never reuses an Action ID.
-        let invocation = (try? action.newInvocation()) ?? action
+        // Each event is a new invocation, so it never reuses an Action ID. A
+        // call runs the Action called; every other event the handler.
+        let runner = entry.call ?? action
+        let invocation = (try? runner.newInvocation()) ?? runner
         runEvent(invocation, ViewEventDelivery(event: entry.event, state: state, insertionTarget: entry.insertionTarget),
                  control, { [weak self] in
             self?.started(dispatched)
@@ -399,6 +463,7 @@ public final class PluginViewSession {
         current.control.stop(.timedOut)
         inFlight = nil
         let error = PluginRuntimeError.timedOut
+        let action = current.entry.call ?? self.action
         self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
                                    category: error.failureCategory, message: error.description)
         errorEvent = current.entry.event
@@ -411,6 +476,9 @@ public final class PluginViewSession {
         guard !isEnded, let current = inFlight, current.generation == dispatched else { return }
         inFlight = nil
         let event = current.entry.event
+        // The answer is read under the Action that generated it: a call's
+        // own, else the handler's.
+        let action = current.entry.call ?? self.action
         switch outcome.terminal {
         case .succeeded(let value):
             let answer: PluginScriptAnswer
@@ -451,6 +519,8 @@ public final class PluginViewSession {
                 return
             }
             if let description = answer.description {
+                // Only a view or page commits a call's Action as handler.
+                if current.entry.call != nil { handOver(to: action) }
                 self.view = description
                 page = answer.page
                 identity.show(answer.page)
@@ -482,6 +552,27 @@ public final class PluginViewSession {
             finished(current.entry, .failed(failure.message))
         }
         dispatchNext()
+    }
+
+    /// A call's answer committed a view: its Action handles the session
+    /// from now on. Another Command's view may not rely on what the first
+    /// one was allowed to fetch, so its sections end. Events of a Level 1
+    /// view, which have no page provenance, are dropped as when Level 1
+    /// presents again, a delivery to be redelivered if its section is still
+    /// shown; page events keep their provenance, and calls, Settings
+    /// notifications and results stay.
+    private func handOver(to caller: ActionConfiguration) {
+        if caller.commandID != action.commandID { commandChanged() }
+        action = caller
+        let (dropped, kept) = queue.partitioned { $0.isLevelOneViewEvent }
+        queue = kept
+        if let pending = debouncing, pending.isLevelOneViewEvent {
+            debouncing = nil
+            debounceToken += 1
+        }
+        for case .sectionDelivered(let section, let response) in dropped.map(\.event) {
+            sectionDelivery(section, response, .abandoned)
+        }
     }
 
     /// An event's invocation ended: a section delivery hears how, and the
@@ -552,6 +643,8 @@ public final class PluginViewSessions {
     /// The Requested Host Operations of every Plugin, when the Host was
     /// given something to perform them.
     private let operations: HostOperationRequests?
+    /// Tells the user of an outcome no view shows.
+    private let report: (ActionConfiguration, String) -> Void
     private var sessions: [PluginID: PluginViewSession] = [:]
     private var registry: PluginRegistry?
     private var grantStore: PluginCapabilityGrantStore?
@@ -584,9 +677,10 @@ public final class PluginViewSessions {
         self.showFeedback = showFeedback
         self.fetchedSections = fetchedSections
         self.permitting = permitting
+        let report = reportOperation ?? { _, message in showFeedback(message) }
+        self.report = report
         operations = performer.map {
-            HostOperationRequests(performer: $0, schedule: schedule,
-                                  report: reportOperation ?? { _, message in showFeedback(message) })
+            HostOperationRequests(performer: $0, schedule: schedule, report: report)
         }
         fetchedSections?.sessions = self
         operations?.onSlotFree = { [weak self] pluginID in self?.sessions[pluginID]?.dispatchNext() }
@@ -621,6 +715,20 @@ public final class PluginViewSessions {
     public func whenOperationSlotFree(for pluginID: PluginID, _ work: @escaping () -> Void) {
         guard let operations else { return work() }
         operations.whenFree(pluginID, work)
+    }
+
+    /// Calls `action` into its Plugin's open View Session and says whether
+    /// the session took it. A Plugin declaring `collections` r2 takes every
+    /// explicit call of a scripted Action while its session is open: the
+    /// call is queued as `called` and the view comes forward. Otherwise,
+    /// with no session open, for a Plugin under Level 1's rule, and for a
+    /// Host Command, which keeps its native path, the caller starts the
+    /// Action as usual, and an answer with a view replaces the session's.
+    public func call(_ action: ActionConfiguration) -> Bool {
+        guard action.execution == .javascript, let session = sessions[action.pluginID], !session.isEnded,
+              permitting(action)(CollectionsContract.repeatedCallsIntoSession) else { return false }
+        session.call(action)
+        return true
     }
 
     /// Acts on what the Action's first invocation answered and says whether
@@ -669,6 +777,10 @@ public final class PluginViewSessions {
                                             },
                                             permits: permits,
                                             operations: operations,
+                                            reportCall: report,
+                                            commandChanged: { [weak fetchedSections] in
+                                                fetchedSections?.end(pluginID: pluginID)
+                                            },
                                             onEnd: { [weak self] ended in
                                                 guard self?.sessions[ended.pluginID] === ended else { return }
                                                 self?.sessions.removeValue(forKey: ended.pluginID)

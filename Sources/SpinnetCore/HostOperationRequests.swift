@@ -203,19 +203,9 @@ final class HostOperationRequests {
         // doing, which the user should hear of.
         guard reason != .viewClosed else { return }
         let message = request.operation.perform == "selection.replace"
-            ? "Nothing was inserted: \(Self.describe(reason))"
-            : "\(request.operation.perform) was cancelled: \(Self.describe(reason))"
+            ? "Nothing was inserted: \(reason.explanation)"
+            : "\(request.operation.perform) was cancelled: \(reason.explanation)"
         report(request.action, message)
-    }
-
-    private static func describe(_ reason: PluginViewSessionEnd) -> String {
-        switch reason {
-        case .viewClosed: return "the view was closed"
-        case .closedByPlugin: return "the Plugin closed its view"
-        case .pluginChanged: return "the Plugin was updated, disabled or removed"
-        case .capabilityRevoked: return "a Capability it uses was revoked"
-        case .failed(let failure): return failure.message
-        }
     }
 
     private func release(_ pluginID: PluginID, serial: Int) {
@@ -233,7 +223,7 @@ final class HostOperationRequests {
     }
 }
 
-private extension Array {
+extension Array {
     func partitioned(by belongs: (Element) -> Bool) -> ([Element], [Element]) {
         var matching: [Element] = []
         var rest: [Element] = []

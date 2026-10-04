@@ -86,7 +86,9 @@ public struct PluginTestInvocation {
     /// where text would go when the user made the gesture.
     func delivery(permits: (PluginInterfaceMember) -> Bool) -> ViewEventDelivery {
         var shown = InsertionTargetCapture.notShown
-        if let event, event.isGesture, permits(HostOperationsContract.showsInsertionTarget),
+        // An explicit call, like the Action's start, is made where no view
+        // showed a target.
+        if let event, event.isGesture, event != .called, permits(HostOperationsContract.showsInsertionTarget),
            case .object(let members)? = view {
             let page = members["content"] != nil ? try? PluginPage(parsing: .object(members), permits: permits) : nil
             if members["shows_insertion_target"] == .bool(true) || page?.drawsInsertionTarget == true {
