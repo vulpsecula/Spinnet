@@ -1,13 +1,18 @@
 # Proposal: minimal composable pages and collections
 
-> **Status: proposal only.** Nothing in this directory is part of Plugin API
-> Level 1, of any later stable Level, or of any published Candidate Contract
-> revision. No Host, helper, SDK or test kit implements it. A Plugin must not
-> declare or rely on anything described here. The files exist so the design
-> for GitHub issue #74 can be reviewed as a diff; the implementation tickets
-> (#77 for pages and collections, #78 for repeated calls) turn an accepted
-> version of them into a real candidate revision under
-> [`../../candidates/`](../../candidates/README.md).
+> **Status: design record; revision 1 is published.** #77 published
+> Candidate Contract `collections` revision 1 from this proposal under
+> [`../../candidates/collections/r1/`](../../candidates/collections/r1/reference.md),
+> which the Host, helper, SDK and test kit implement: write Plugins against
+> that revision, not against the files here. Revision 1 leaves out repeated
+> calls into an open View Session (the `called` event and the
+> `repeated_calls_into_session` behaviour), which #78 implements in a later
+> revision, since a published revision never changes. Beside the draft's
+> builders its SDK adds `ui.components.button` for an event button. A key
+> typed in the collection goes to the search field only with a keyboard
+> layout selected; with an input method it is ignored (C3's fallback). A
+> Return that waited for its search does nothing if that search fails. This
+> directory stays as the design for issue #74.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal, and `check.py` verifies that Level 1's schemas

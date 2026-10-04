@@ -324,15 +324,17 @@ def draft_candidate_errors(draft):
     wanted = {"name": names["name"], "revision": names["revision"]}
     if wanted not in draft.get("requires", []):
         found.append(f"candidate.json: does not require {wanted}, whose catalogue IDs page and item actions perform")
-    # namespaces r1 (#100) and host_operations r1 (#76) are published; this
-    # draft is not.
-    for candidate in (name,):
-        if (CANDIDATES / str(candidate)).exists():
-            found.append(f"candidate.json: candidates/{candidate} exists; a draft must not be published as a candidate")
-    provided = (CANDIDATES / "README.md").read_text(encoding="utf-8")
-    table = provided.split("## Candidate Contracts this Host provides", 1)[-1].split("\n## ", 1)[0]
-    if re.search(rf"^\|\s*`?{re.escape(str(name))}`?\s*\|", table, re.MULTILINE):
-        found.append(f"candidate.json: candidates/README.md lists {name} as provided; this proposal is a draft")
+    # #77 published revision 1 from this draft, without repeated calls
+    # (#78); the draft keeps them as the design record.
+    published = json.loads((CANDIDATES / str(name) / f"r{revision}" / "candidate.json").read_text(encoding="utf-8"))
+    later = {("behaviour", "repeated_calls_into_session"), ("view_event", "called")}
+    drafted = [(m.get("kind"), m.get("name")) for m in draft.get("members", [])]
+    in_published = [(m["kind"], m["name"]) for m in published["members"]]
+    if sorted(m for m in drafted if m not in later) != sorted(in_published):
+        found.append(f"candidates/{name}/r{revision}/candidate.json does not publish this draft's members")
+    for key in ("name", "revision", "base_level", "requires", "conflicts", "tag", "status"):
+        if published.get(key) != draft.get(key):
+            found.append(f"candidates/{name}/r{revision}/candidate.json differs from this draft in {key}")
     return found
 
 
@@ -515,7 +517,7 @@ def main():
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"ok: schema well formed, draft candidate.json valid, unpublished and requiring host_operations and namespaces, "
+    print(f"ok: schema well formed, draft candidate.json valid, published as r1 and requiring host_operations and namespaces, "
           f"budgets agree with reference.md, {len(index['fixtures'])} fixtures and {len(scenarios)} scenarios agree")
     return 0
 
