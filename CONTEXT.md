@@ -161,7 +161,7 @@ A button or menu entry a Plugin View offers, which either has the Host perform a
 _Avoid_: Action (a Menu Item's), shortcut, command button
 
 **Item Action**:
-A View Action a Collection offers on each of its items. Its default Item Action runs on Return or double-click; the others are in the item's context menu.
+A View Action a Collection offers on each of its items. Its default Item Action runs on Return or double-click; the item's context menu offers every one, the default first, and the Host draws no buttons for them.
 _Avoid_: Primary Action (a Menu Item's), row button, shortcut
 
 **Host-Fetched Section**:

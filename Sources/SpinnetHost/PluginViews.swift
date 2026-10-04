@@ -408,14 +408,21 @@ protocol PluginViewWindow: AnyObject {
 /// pointer and takes keyboard focus without bringing Spinnet forward.
 final class PluginViewWindows: PluginViewRenderer {
     private struct Entry {
-        let model: PluginViewModel
+        /// The Level 1 view shown, or nil while a page is.
+        let model: PluginViewModel?
+        /// The page shown (Candidate Contract `collections`), or nil.
+        let page: PluginPageModel?
         let window: PluginViewWindow
         var presentationCount: Int
         var viewRevision: Int
+
+        var session: PluginViewSession? { model?.session ?? page?.session }
+        var isPinned: Bool { model?.isPinned ?? page?.isPinned ?? false }
     }
 
     private let environment: PluginViewEnvironment
     private let makeWindow: (PluginViewModel) -> PluginViewWindow
+    private let makePageWindow: (PluginPageModel) -> PluginViewWindow
     private let pointer: () -> NSPoint
     private let frontmostApplication: () -> PluginViewOrigin?
     private let report: (String) -> Void
@@ -424,22 +431,35 @@ final class PluginViewWindows: PluginViewRenderer {
     /// `report` tells the user why a view closed when the Plugin broke the
     /// interface.
     init(environment: PluginViewEnvironment, makeWindow: @escaping (PluginViewModel) -> PluginViewWindow,
+         makePageWindow: @escaping (PluginPageModel) -> PluginViewWindow = { PluginViewPanelWindow(pageModel: $0) },
          pointer: @escaping () -> NSPoint, frontmostApplication: @escaping () -> PluginViewOrigin?,
          report: @escaping (String) -> Void) {
         self.environment = environment
         self.makeWindow = makeWindow
+        self.makePageWindow = makePageWindow
         self.pointer = pointer
         self.frontmostApplication = frontmostApplication
         self.report = report
         environment.sections.onChange = { [weak self] session, id in
-            guard let entry = self?.entries[session.pluginID], entry.model.session === session else { return }
-            entry.model.sectionChanged(id)
+            guard let entry = self?.entries[session.pluginID], entry.session === session else { return }
+            entry.model?.sectionChanged(id)
         }
     }
 
     func model(for pluginID: PluginID) -> PluginViewModel? { entries[pluginID]?.model }
 
+    /// The page shown for the Plugin, under Candidate Contract `collections`.
+    func pageModel(for pluginID: PluginID) -> PluginPageModel? { entries[pluginID]?.page }
+
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
+        if let page = presentation.page { return present(page, presentation, of: session) }
+        // A page gave way to a Level 1 view: the page's window goes, and the
+        // view gets a window of its own, keeping the pin.
+        var keepsPin = false
+        if let entry = entries[session.pluginID], entry.session === session, entry.page != nil {
+            keepsPin = entry.isPinned
+            closeWindow(of: session)
+        }
         let description: PluginViewDescription
         do {
             description = try PluginViewDescription(parsing: presentation.view,
@@ -453,14 +473,14 @@ final class PluginViewWindows: PluginViewRenderer {
             return
         }
         let fetched = description.detail?.sections.filter(\.isHostFetched) ?? []
-        if var entry = entries[session.pluginID], entry.model.session === session {
+        if var entry = entries[session.pluginID], let model = entry.model, model.session === session {
             let presentedAnew = session.presentationCount != entry.presentationCount
             let newView = session.viewRevision != entry.viewRevision
-            entry.model.update(presentation, description: description, newView: newView,
-                               answersTyping: session.answeredEvent?.coalesces ?? false, presentedAnew: presentedAnew)
+            model.update(presentation, description: description, newView: newView,
+                         answersTyping: session.answeredEvent?.coalesces ?? false, presentedAnew: presentedAnew)
             entry.window.title = description.title
             if presentedAnew {
-                entry.model.origin = frontmostApplication()
+                model.origin = frontmostApplication()
                 entry.window.focus()
             }
             entry.presentationCount = session.presentationCount
@@ -472,32 +492,76 @@ final class PluginViewWindows: PluginViewRenderer {
         let model = PluginViewModel(session: session, presentation: presentation, description: description,
                                     environment: environment)
         model.origin = frontmostApplication()
+        model.isPinned = keepsPin
         let window = makeWindow(model)
         window.onResignKey = { [weak model] in
             guard let model, !model.isPinned else { return }
             model.close()
         }
         window.onUserClose = { [weak model] in model?.close() }
-        entries[session.pluginID] = Entry(model: model, window: window, presentationCount: session.presentationCount,
-                                          viewRevision: session.viewRevision)
+        entries[session.pluginID] = Entry(model: model, page: nil, window: window,
+                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision)
         environment.sections.sectionsPresented(fetched, in: session)
         window.show(near: pointer())
     }
 
+    /// Shows a page, or updates the page shown in place.
+    private func present(_ page: PluginPage, _ presentation: PluginViewPresentation, of session: PluginViewSession) {
+        var keepsPin = false
+        if var entry = entries[session.pluginID], entry.session === session {
+            if let model = entry.page {
+                let presentedAnew = session.presentationCount != entry.presentationCount
+                let newView = session.viewRevision != entry.viewRevision
+                model.update(presentation, page: page, newView: newView, presentedAnew: presentedAnew)
+                entry.window.title = page.title
+                if presentedAnew { entry.window.focus() }
+                entry.presentationCount = session.presentationCount
+                entry.viewRevision = session.viewRevision
+                entries[session.pluginID] = entry
+                return
+            }
+            // A Level 1 view gave way to a page.
+            keepsPin = entry.isPinned
+            closeWindow(of: session)
+        }
+        let model = PluginPageModel(session: session, presentation: presentation, page: page, environment: environment)
+        model.isPinned = keepsPin
+        let window = makePageWindow(model)
+        window.title = page.title
+        window.onResignKey = { [weak model] in
+            guard let model, !model.isPinned else { return }
+            model.close()
+        }
+        window.onUserClose = { [weak model] in model?.close() }
+        entries[session.pluginID] = Entry(model: nil, page: model, window: window,
+                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision)
+        window.show(near: pointer())
+    }
+
+    /// Removes the window shown for `session` without ending it.
+    private func closeWindow(of session: PluginViewSession) {
+        guard let entry = entries.removeValue(forKey: session.pluginID) else { return }
+        entry.window.onResignKey = nil
+        entry.window.onUserClose = nil
+        entry.window.close()
+    }
+
     func showToast(_ toast: String, in session: PluginViewSession) {
-        guard let entry = entries[session.pluginID], entry.model.session === session else { return }
-        entry.model.showToast(toast)
+        guard let entry = entries[session.pluginID], entry.session === session else { return }
+        entry.model?.showToast(toast)
+        entry.page?.showToast(toast)
     }
 
     func close(_ session: PluginViewSession, because reason: PluginViewSessionEnd) {
-        guard let entry = entries[session.pluginID], entry.model.session === session else { return }
+        guard let entry = entries[session.pluginID], entry.session === session else { return }
         entries.removeValue(forKey: session.pluginID)
         entry.window.onResignKey = nil
         entry.window.onUserClose = nil
         entry.window.close()
         environment.sections.sessionEnded(session)
         if case .failed(let failure) = reason {
-            report("\(environment.pluginName(session.pluginID)) — \(entry.model.title) closed: \(failure.message)")
+            let title = entry.model?.title ?? entry.page?.title ?? session.action.title
+            report("\(environment.pluginName(session.pluginID)) — \(title) closed: \(failure.message)")
         }
     }
 }

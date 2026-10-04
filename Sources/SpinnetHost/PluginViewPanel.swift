@@ -2,6 +2,21 @@ import AppKit
 import SpinnetCore
 import SwiftUI
 
+/// What the panel asks of its SwiftUI content: to size the window to it
+/// and to run under the transparent title bar.
+private protocol HostingSizing {
+    func sizeToPreferredContent()
+}
+
+extension NSHostingController: HostingSizing {
+    func sizeToPreferredContent() {
+        sizingOptions = [.preferredContentSize]
+        // The view draws its own header, so the content runs under the
+        // transparent title bar instead of leaving an empty band above it.
+        if #available(macOS 13.3, *) { safeAreaRegions = [] }
+    }
+}
+
 /// A panel that takes typing without activating Spinnet, so the App the
 /// user was in stays frontmost behind it and inserted text can go there.
 private final class PluginViewNSPanel: NSPanel {
@@ -28,16 +43,21 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     private var top: CGFloat = 0
     private var isClosing = false
 
-    init(model: PluginViewModel) {
+    convenience init(model: PluginViewModel) {
+        self.init(content: NSHostingController(rootView: PluginViewContent(model: model)), title: model.title)
+    }
+
+    /// The window of a page (Candidate Contract `collections`).
+    convenience init(pageModel: PluginPageModel) {
+        self.init(content: NSHostingController(rootView: PluginPageContent(model: pageModel)), title: pageModel.title)
+    }
+
+    private init(content hosting: NSViewController & HostingSizing, title: String) {
         panel = PluginViewNSPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 160),
                                   styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                                   backing: .buffered, defer: false)
         super.init()
-        let hosting = NSHostingController(rootView: PluginViewContent(model: model))
-        hosting.sizingOptions = [.preferredContentSize]
-        // The view draws its own header, so the content runs under the
-        // transparent title bar instead of leaving an empty band above it.
-        if #available(macOS 13.3, *) { hosting.safeAreaRegions = [] }
+        hosting.sizeToPreferredContent()
         panel.contentViewController = hosting
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
@@ -52,7 +72,7 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true
         }
-        title = model.title
+        self.title = title
         panel.onCancel = { [weak self] in self?.userClosed() }
         panel.delegate = self
     }
