@@ -202,6 +202,10 @@ final class SessionMeasurement {
             rig.closeView()
             settle()
             guard try rig.openView().failure == nil else { throw MeasurementError("The view did not open") }
+            if rig.session?.page?.collection?.isWindowed == true {
+                try measureLoadingRanges(round: round)
+                continue
+            }
             var index = 0
             while let page = rig.session?.page, let collection = page.collection, collection.hasMore {
                 settle()
@@ -214,6 +218,35 @@ final class SessionMeasurement {
                 if interaction.failure != nil { break }
                 index += 1
             }
+        }
+    }
+
+    /// Under `collections` r3: scrolls a windowed collection from its first
+    /// screen to its last, one screen at a time, keeping the window as the
+    /// Host does, and times each `load_range` it asks for and its answer's
+    /// size.
+    private func measureLoadingRanges(round: Int) throws {
+        guard let first = rig.session?.page else { return }
+        var memory = PluginPageMemory()
+        memory.show(first)
+        var index = 0
+        var position = 0
+        while let window = memory.window, position < window.total {
+            memory.setViewport(position..<min(position + window.screen, window.total))
+            while let range = memory.missingRange, let page = memory.page, let collection = page.collection {
+                settle()
+                let interaction = try rig.interact([(0, .loadRange(page: page.id, collection: collection.id,
+                                                                   start: range.lowerBound, count: range.count))])
+                var sample = sample("load-range", "warm", index: round * 1000 + index, query: "\(range.lowerBound)+\(range.count)",
+                                    inputs: 1, interaction)
+                sample.answerBytes = rig.session.map { PluginScriptAnswer.encodedSize(of: $0.view) }
+                latency.append(sample)
+                index += 1
+                if let answered = rig.session?.page { memory.show(answered, answersRange: true) }
+                memory.settleRange(range)
+                if interaction.failure != nil { return }
+            }
+            position += window.screen
         }
     }
 

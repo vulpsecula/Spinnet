@@ -87,7 +87,9 @@ struct MeasurementOptions {
           --field ID                  The field typed into (default query); for a page,
                                       its other inputs keep their values
           --load-more-rounds N        For a page with a collection: load from the first batch
-                                      to the last N times, timing each answer (default 0)
+                                      to the last N times, timing each answer (default 0);
+                                      a windowed one (collections r3) is scrolled screen by
+                                      screen and each load_range timed
           --memory-cycles N           Open-type-retire-close cycles sampled (default 5)
           --memory-samples N          Samples per memory phase, 100 ms apart (default 10)
           --idle-retirements N        Helpers left to retire after 30 s idle (default 2)
