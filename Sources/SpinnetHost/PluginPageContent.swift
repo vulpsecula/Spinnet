@@ -266,7 +266,15 @@ struct PageCollectionView: View {
     static let listRowHeight: CGFloat = 26
     static let listRowWithSubtitleHeight: CGFloat = 38
 
-    static func cellSide(columns: Int) -> CGFloat { (contentWidth / CGFloat(columns)).rounded(.down) }
+    /// The width items are laid out in: the content width less a scroll bar
+    /// that takes room ("Show scroll bars: Always"), so the grid never runs
+    /// under it and is never pushed sideways.
+    static var itemsWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return contentWidth }
+        return contentWidth - NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
+
+    static func cellSide(columns: Int) -> CGFloat { (itemsWidth / CGFloat(columns)).rounded(.down) }
 
     static func rowHeight(of collection: PluginPageCollection) -> CGFloat {
         if collection.style == .grid { return cellSide(columns: collection.columns) }
@@ -293,7 +301,6 @@ struct PageCollectionView: View {
                     Text(collection.emptyText).foregroundStyle(.secondary).accessibilityAddTraits(.isStaticText)
                 }
             }
-            .overlay { PageFocusRing(state: model.collectionState) }
             .modifier(PageHoverTitle(hover: model.hoverState))
         }
         .accessibilityElement(children: .contain)
@@ -358,7 +365,7 @@ struct PageCollectionView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
-                .frame(width: Self.contentWidth, height: Self.headerHeight, alignment: .leading)
+                .frame(width: Self.itemsWidth, height: Self.headerHeight, alignment: .leading)
                 .background(Color(nsColor: .windowBackgroundColor).opacity(0.97))
                 .accessibilityAddTraits(.isHeader)
         }
@@ -372,7 +379,7 @@ struct PageCollectionView: View {
                 ProgressView().controlSize(.small)
                 Text("Loading more…").font(.caption).foregroundStyle(.secondary)
             }
-            .frame(width: Self.contentWidth, height: 28)
+            .frame(width: Self.itemsWidth, height: 28)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading more")
         case .failed:
@@ -380,7 +387,7 @@ struct PageCollectionView: View {
                 Text("Couldn't load more").font(.caption).foregroundStyle(.secondary)
                 Button("Retry") { model.retryLoadingMore() }.controlSize(.small)
             }
-            .frame(width: Self.contentWidth, height: 32)
+            .frame(width: Self.itemsWidth, height: 32)
         case .idle:
             EmptyView()
         }
@@ -442,18 +449,6 @@ private struct PageHoverTitle: ViewModifier {
 
     func body(content: Content) -> some View {
         content.help(hover.title ?? "")
-    }
-}
-
-/// The collection's border, which shows when it has the keyboard.
-private struct PageFocusRing: View {
-    @ObservedObject var state: PageCollectionState
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .strokeBorder(state.isFocused ? Color.accentColor.opacity(0.6) : Color(nsColor: .separatorColor),
-                          lineWidth: state.isFocused ? 2 : 1)
-            .allowsHitTesting(false)
     }
 }
 
@@ -542,7 +537,7 @@ private struct PageListRow: View, Equatable {
         }
         .foregroundStyle(selectedAndFocused ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
         .padding(.horizontal, 8)
-        .frame(width: PageCollectionView.contentWidth, height: height, alignment: .leading)
+        .frame(width: PageCollectionView.itemsWidth, height: height, alignment: .leading)
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
