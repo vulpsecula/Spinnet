@@ -109,6 +109,21 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertNotNil(harness.sessions.session(for: harness.pluginID))
     }
 
+    /// macOS's window-capture highlight tints only normal-level windows, so a
+    /// view floats above other Apps only while pinned, which is when the
+    /// user keeps it beside their work.
+    func testAViewFloatsOnlyWhilePinned() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let window = try XCTUnwrap(harness.window())
+        XCTAssertFalse(window.floats)
+
+        harness.windows.model(for: harness.pluginID)?.isPinned = true
+        XCTAssertTrue(window.floats)
+
+        harness.windows.model(for: harness.pluginID)?.isPinned = false
+        XCTAssertFalse(window.floats)
+    }
+
     /// Escape or the close button closes the view and ends its session.
     func testClosingTheWindowEndsTheSession() throws {
         try harness.present(PluginViewHarness.form(title: "First"))
@@ -353,6 +368,7 @@ final class FakePluginViewWindow: PluginViewWindow {
     private(set) var closes = 0
     private(set) var focuses = 0
     var title = ""
+    var floats = false
 
     func show(near pointer: NSPoint) { shownNear.append(pointer) }
     func focus() { focuses += 1 }

@@ -62,8 +62,9 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
-        panel.level = .floating
-        panel.isFloatingPanel = true
+        // Normal level until pinned (`floats`).
+        panel.level = .normal
+        panel.isFloatingPanel = false
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
@@ -75,6 +76,14 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         self.title = title
         panel.onCancel = { [weak self] in self?.userClosed() }
         panel.delegate = self
+    }
+
+    var floats: Bool {
+        get { panel.isFloatingPanel }
+        set {
+            panel.isFloatingPanel = newValue
+            panel.level = newValue ? .floating : .normal
+        }
     }
 
     var title: String {
@@ -91,13 +100,21 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         let topLeft = Self.topLeft(for: panel.frame.size, near: pointer, within: visible)
         top = topLeft.y
         panel.setFrameTopLeftPoint(topLeft)
-        // Key without activating: the panel is non-activating, so Spinnet
-        // does not come forward and the user's App keeps its focus state.
-        panel.makeKeyAndOrderFront(nil)
+        bringForward()
     }
 
     func focus() {
+        bringForward()
+    }
+
+    /// Key without activating: the panel is non-activating, so Spinnet does
+    /// not come forward and the user's App keeps its focus state. Unpinned,
+    /// the panel is at the normal level, where ordering a window of an App
+    /// that is not active leaves it behind the active App's windows, so it
+    /// is ordered front regardless.
+    private func bringForward() {
         panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     func close() {

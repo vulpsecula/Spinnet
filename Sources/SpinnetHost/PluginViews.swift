@@ -393,6 +393,10 @@ protocol PluginViewWindow: AnyObject {
     var onUserClose: (() -> Void)? { get set }
     /// The view's title, which the window carries for VoiceOver.
     var title: String { get set }
+    /// Whether the window floats above other Apps' windows. Only a pinned
+    /// view does: macOS's window-capture highlight tints only normal-level
+    /// windows, and an unpinned view closes once another App takes focus.
+    var floats: Bool { get set }
     /// Shows the window near the pointer, in front and taking keyboard
     /// focus, without activating Spinnet.
     func show(near pointer: NSPoint)
@@ -416,6 +420,8 @@ final class PluginViewWindows: PluginViewRenderer {
         let window: PluginViewWindow
         var presentationCount: Int
         var viewRevision: Int
+        /// Keeps the window floating while the view is pinned.
+        var pinWatch: AnyCancellable?
 
         var session: PluginViewSession? { model?.session ?? page?.session }
         var isPinned: Bool { model?.isPinned ?? page?.isPinned ?? false }
@@ -500,8 +506,10 @@ final class PluginViewWindows: PluginViewRenderer {
             model.close()
         }
         window.onUserClose = { [weak model] in model?.close() }
+        let pinWatch = model.$isPinned.sink { [weak window] in window?.floats = $0 }
         entries[session.pluginID] = Entry(model: model, page: nil, window: window,
-                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision)
+                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision,
+                                          pinWatch: pinWatch)
         environment.sections.sectionsPresented(fetched, in: session)
         window.show(near: pointer())
     }
@@ -534,8 +542,10 @@ final class PluginViewWindows: PluginViewRenderer {
             model.close()
         }
         window.onUserClose = { [weak model] in model?.close() }
+        let pinWatch = model.$isPinned.sink { [weak window] in window?.floats = $0 }
         entries[session.pluginID] = Entry(model: nil, page: model, window: window,
-                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision)
+                                          presentationCount: session.presentationCount, viewRevision: session.viewRevision,
+                                          pinWatch: pinWatch)
         window.show(near: pointer())
     }
 
