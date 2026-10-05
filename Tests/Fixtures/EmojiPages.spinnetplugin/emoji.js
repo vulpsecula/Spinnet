@@ -1,16 +1,19 @@
-// An Emoji-shaped Plugin written against Candidate Contract collections r2:
+// An Emoji-shaped Plugin written against Candidate Contract collections r3:
 // 1,906 items in nine categories, the size and shape of the external Emoji
 // probe's data, with generated names in place of Unicode's. A search row
-// above a sectioned grid; Return or a double-click inserts through a
-// Requested Host Operation and records the emoji as recent; Copy is a
-// standard item action the Host performs. Answers to typing carry the first
-// 200 results and the Host asks for more as the user nears the end. Calling
-// Emoji again while it is open keeps the search as the user left it and
-// reads Recent again.
+// above a sectioned grid that gives its total and one slice of its items:
+// the Host keeps a window of them and asks for the rest with load_range.
+// Return or a double-click inserts the emoji, Copy and ⌘C copy it, both
+// performed by the Host with notify, and the emoji joins Recent only once
+// its insertion or copy succeeded, even after the view closed. Favourites is
+// a toggle item action, each favourite carrying the mark. Calling Emoji
+// again while it is open keeps the search as the user left it and reads
+// Recent and Favourites again.
 (() => {
   const ui = spinnet.ui, c = ui.components;
-  const PAGE_SIZE = 200;
+  const SLICE = 200;
   const RECENT_LIMIT = 16;
+  const FAVOURITE_LIMIT = 32;
   const CATEGORIES = [
     ["smileys-emotion", "Smileys & Emotion", 168],
     ["people-body", "People & Body", 386],
@@ -67,27 +70,32 @@
     return exact.concat(prefix, other);
   }
 
-  const item = (e, prefix) => c.item({ id: (prefix || "") + e.hex, title: e.name, symbol: e.emoji });
-
-  function results(query, category, loaded, recent) {
-    const found = matches(query, category);
-    const shown = found.slice(0, loaded);
-    const hasMore = shown.length < found.length;
-    if (query.trim() !== "") return { found, options: { items: shown.map((e) => item(e)), hasMore } };
-    const sections = [];
-    if (category === "all" && recent.length > 0) {
-      sections.push(c.section({ id: "recent", title: "Recent", items: recent.map((hex) => item(BY_HEX[hex], "recent:")) }));
+  // Every position of the grid, in order: [emoji, ID prefix], and its
+  // section headers with their counts.
+  function layout(s) {
+    const found = matches(s.query, s.category);
+    if (s.query.trim() !== "") return { found, positions: found.map((e) => [e, ""]), sections: undefined };
+    const positions = [], sections = [];
+    function section(id, title, list, prefix) {
+      if (list.length === 0) return;
+      sections.push(c.section({ id, title, count: list.length }));
+      for (const e of list) positions.push([e, prefix]);
     }
-    for (const [id, title] of CATEGORIES) {
-      const items = shown.filter((e) => e.category === id).map((e) => item(e));
-      if (items.length > 0) sections.push(c.section({ id, title, items }));
+    if (s.category === "all") {
+      section("favourites", "Favourites", s.favourites.map((hex) => BY_HEX[hex]), "fav:");
+      section("recent", "Recent", s.recent.map((hex) => BY_HEX[hex]), "recent:");
     }
-    if (sections.length === 0) return { found, options: { items: [], hasMore } };
-    return { found, options: { sections, hasMore } };
+    for (const [id, title] of CATEGORIES) section(id, title, found.filter((e) => e.category === id), "");
+    return { found, positions, sections };
   }
 
-  function page(s, reset) {
-    const { found, options } = results(s.query, s.category, s.loaded, s.recent);
+  function page(s, start, count, reset) {
+    const { found, positions, sections } = layout(s);
+    const first = Math.min(start, positions.length);
+    const items = positions.slice(first, first + count).map(([e, prefix]) => c.item({
+      id: prefix + e.hex, title: e.name, symbol: e.emoji,
+      marks: s.favourites.includes(e.hex) ? ["favourite"] : undefined
+    }));
     return ui.page({
       id: "search",
       title: "Emoji",
@@ -101,22 +109,28 @@
                           choices: ["all"].concat(CATEGORIES.map((x) => x[0])),
                           choiceTitles: ["All Categories"].concat(CATEGORIES.map((x) => x[1])) })
         ] }),
-        c.grid(Object.assign({
+        c.grid({
           id: "results", columns: 8, rows: 6, emptyText: "No emoji match",
+          total: positions.length, start: first, items, sections,
           actions: [
-            c.itemAction({ id: "insert", title: "Insert", default: true }),
-            c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write" })
+            c.itemAction({ id: "insert", title: "Insert", default: true, perform: "selection.replace",
+                           closesView: true, notify: true }),
+            c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write", notify: true }),
+            c.itemAction({ id: "favourite", title: "Favourite", toggle: "favourite" })
           ]
-        }, options))
+        })
       ]
     });
   }
 
-  const kept = state || { query: "", category: "all", loaded: PAGE_SIZE, recent: [] };
+  const hexOf = (id) => id.replace(/^(recent|fav):/, "");
+  const stored = (key) => spinnet.storage.get(key) || [];
+  const kept = state || { query: "", category: "all", recent: [], favourites: [] };
+  const show = (s, start, count, reset, toast) => ui.showPage(page(s, start, count, reset), { state: s, toast });
+
   if (event === null) {
-    const recent = spinnet.storage.get("recent") || [];
-    const opened = { query: "", category: "all", loaded: PAGE_SIZE, recent };
-    return ui.showPage(page(opened), { state: opened });
+    const opened = { query: "", category: "all", recent: stored("recent"), favourites: stored("favourites") };
+    return show(opened, 0, SLICE);
   }
   switch (event.type) {
     case "field_changed": {
@@ -124,25 +138,37 @@
       // A new search starts on its first result; the field keeps what the
       // user typed, so it is never reset here.
       const changed = next.query !== kept.query || next.category !== kept.category;
-      if (changed) next.loaded = PAGE_SIZE;
-      return ui.showPage(page(next, changed ? ["results"] : undefined), { state: next });
+      return show(next, 0, SLICE, changed ? ["results"] : undefined);
     }
-    case "load_more": {
-      const next = Object.assign({}, kept, { loaded: Math.min(event.loaded + PAGE_SIZE, ALL.length) });
-      return ui.showPage(page(next), { state: next });
-    }
+    case "load_range":
+      return show(kept, event.start, event.count);
     case "called": {
       // The same page with no reset: what was typed, the selection and the
-      // scroll stay, and Recent shows what was inserted since.
-      const next = Object.assign({}, kept, { recent: spinnet.storage.get("recent") || [] });
-      return ui.showPage(page(next), { state: next });
+      // scroll stay, and Recent and Favourites show what changed since.
+      const next = Object.assign({}, kept, { recent: stored("recent"), favourites: stored("favourites") });
+      return show(next, 0, SLICE);
+    }
+    case "operation_finished": {
+      // Recent records what was inserted or copied, once that succeeded;
+      // after the view closed there is no page to answer with.
+      if (event.outcome !== "succeeded" || !event.item) return null;
+      const hex = hexOf(event.item.id);
+      const recent = [hex].concat(stored("recent").filter((h) => h !== hex)).slice(0, RECENT_LIMIT);
+      spinnet.storage.set({ key: "recent", value: recent });
+      if (event.view_closed) return null;
+      return show(Object.assign({}, kept, { recent }), 0, SLICE);
     }
     case "item_action": {
-      const hex = event.item.id.replace(/^recent:/, "");
-      const text = event.item.text || (BY_HEX[hex] && BY_HEX[hex].emoji) || hex;
-      const recent = [hex].concat(kept.recent.filter((h) => h !== hex)).slice(0, RECENT_LIMIT);
-      spinnet.storage.set({ key: "recent", value: recent });
-      return ui.request(spinnet.selection.replace.operation({ text }, { id: "insert", closesView: true }));
+      if (event.action !== "favourite") return null;
+      const hex = hexOf(event.item.id);
+      const favourites = stored("favourites");
+      const marked = (event.item.marks || []).includes("favourite");
+      if (!marked && favourites.length >= FAVOURITE_LIMIT) {
+        return { toast: "Favourites holds " + FAVOURITE_LIMIT + " emoji" };
+      }
+      const next = marked ? favourites.filter((h) => h !== hex) : [hex].concat(favourites.filter((h) => h !== hex));
+      spinnet.storage.set({ key: "favourites", value: next });
+      return show(Object.assign({}, kept, { favourites: next }), 0, SLICE);
     }
     default:
       return null;

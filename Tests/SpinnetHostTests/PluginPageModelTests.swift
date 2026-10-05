@@ -211,7 +211,7 @@ final class PluginPageModelTests: XCTestCase {
         model.click("i1")
         XCTAssertEqual(harness.events.last?.event, .loadMore(page: "search", collection: "results", loaded: 10))
         XCTAssertEqual(model.loadingMore, .loading)
-        model.itemAppeared(at: 9)
+        model.viewportChanged(2..<10)
         XCTAssertEqual(harness.events.count, 1, "One outstanding per collection")
         harness.fail(.helperCrashed)
         XCTAssertEqual(model.loadingMore, .failed)
@@ -222,7 +222,7 @@ final class PluginPageModelTests: XCTestCase {
         XCTAssertEqual(model.loadingMore, .idle)
         XCTAssertEqual(model.selectedItem, "i1")
         XCTAssertEqual(model.collection?.items.count, 26)
-        model.itemAppeared(at: 25)
+        model.viewportChanged(18..<26)
         XCTAssertEqual(harness.events.count, 2, "No has_more, no asking")
     }
 
@@ -301,6 +301,124 @@ final class PluginPageModelTests: XCTestCase {
     }
 }
 
+// MARK: - Windows, toggles and outcomes (collections r3)
+
+final class PluginPageWindowModelTests: XCTestCase {
+    private var harness: PageHarness!
+
+    override func setUp() {
+        harness = try! PageHarness()
+    }
+
+    private var model: PluginPageModel { harness.windows.pageModel(for: PageHarness.pluginID)! }
+
+    /// The Host holds the first screens of a window and draws placeholders
+    /// for the rest; End selects the last position, asks for its range,
+    /// and selects the item that comes, which Return then acts on.
+    func testEndAsksForItsRangeAndSelectsItsItemWhenItComes() throws {
+        try harness.open(PageHarness.windowed())
+        XCTAssertEqual(model.window?.total, 1906)
+        XCTAssertEqual(model.window?.heldCount, 144)
+        XCTAssertNotNil(model.item(at: 143))
+        XCTAssertNil(model.item(at: 144), "A placeholder")
+        XCTAssertTrue(harness.events.isEmpty)
+
+        XCTAssertTrue(model.moveSelection(.end))
+        XCTAssertEqual(model.selectedPosition, 1905)
+        XCTAssertNil(model.selectedItem)
+        XCTAssertEqual(model.scrollRequest?.position, 1905)
+        guard case .loadRange("search", "results", let start, let count)? = harness.events.last?.event else {
+            return XCTFail("End asked for nothing: \(harness.events.map(\.event))")
+        }
+        XCTAssertEqual(start + count, 1906)
+        model.returnPressedInCollection()
+        XCTAssertEqual(harness.events.count, 1, "Return waits for nothing and does nothing on a placeholder")
+
+        try harness.answerRanges()
+        XCTAssertEqual(model.selectedItem, "i1905")
+        XCTAssertNil(model.item(at: 0), "The first screens were let go")
+        model.returnPressedInCollection()
+        guard case .itemAction(_, _, "insert", let item, _)? = harness.events.last?.event else { return XCTFail("No insert") }
+        XCTAssertEqual(item.id, "i1905")
+    }
+
+    /// At most one `load_range` runs per collection: a newer screen waits
+    /// for its answer, and is asked for when it comes.
+    func testOneRangeAtATime() throws {
+        try harness.open(PageHarness.windowed())
+        model.viewportChanged(1000..<1048)
+        XCTAssertEqual(harness.events.count, 1)
+        model.viewportChanged(1500..<1548)
+        model.viewportChanged(1600..<1648)
+        XCTAssertEqual(harness.events.count, 1, "The first is still running")
+        try harness.answer(PageHarness.windowed(start: 904, count: 240))
+        XCTAssertEqual(harness.events.count, 2, "The screen the user is on now is asked for")
+        guard case .loadRange(_, _, let start, let count)? = harness.events.last?.event else { return XCTFail("No range") }
+        XCTAssertTrue((start..<start + count).contains(1600))
+        try harness.answerRanges()
+        XCTAssertNotNil(model.item(at: 1600))
+        XCTAssertLessThanOrEqual(model.window?.heldCount ?? 0, CollectionsContract.maximumWindowItems)
+    }
+
+    /// A range that does not come is not asked for again until the user
+    /// moves onto it; a failed one shows inline.
+    func testARangeThatFailsIsNotAskedForAgainByScrolling() throws {
+        try harness.open(PageHarness.windowed())
+        model.viewportChanged(1000..<1048)
+        harness.fail(.scriptedActionFailed)
+        XCTAssertEqual(model.error?.category, .scriptedActionFailed)
+        model.viewportChanged(1008..<1056)
+        XCTAssertEqual(harness.events.count, 1)
+        model.click(at: 1010)
+        XCTAssertEqual(harness.events.count, 2, "Moving onto it asks again")
+    }
+
+    /// A toggle item action is checked in the menu of an item carrying its
+    /// mark, and VoiceOver says so; choosing it sends the marks as shown.
+    func testAToggleIsCheckedForAMarkedItem() throws {
+        try harness.open(PageHarness.windowed(marked: [1]))
+        XCTAssertEqual(model.menu(of: "i1").map(\.isChecked), [false, false, true])
+        XCTAssertEqual(model.menu(of: "i0").map(\.isChecked), [false, false, false])
+        XCTAssertEqual(model.accessibilityActions(of: "i1"), ["Insert", "Copy", "Favourite, checked"])
+        XCTAssertEqual(model.accessibilityActions(of: "i0"), ["Insert", "Copy", "Favourite, not checked"])
+        model.choose(try XCTUnwrap(model.menu(of: "i1").last).action, on: "i1")
+        guard case .itemAction(_, _, "favourite", let item, _)? = harness.events.last?.event else { return XCTFail("No toggle") }
+        XCTAssertEqual(item.marks, ["favourite"])
+        XCTAssertEqual(model.selectedItem, "i1", "The menu's item is selected")
+    }
+
+    /// ⌘C performs Copy, which asked to notify: its outcome reaches the
+    /// Plugin with the item, in the view.
+    func testCopyWithNotifyIsHeard() throws {
+        try harness.open(PageHarness.windowed())
+        XCTAssertTrue(model.copySelection())
+        let copy = try XCTUnwrap(harness.performer.performed.last?.operation)
+        XCTAssertEqual(copy.item, PluginPageItemSnapshot(id: "i0", section: nil, text: "★"))
+        XCTAssertEqual(harness.events.last?.event, .operationFinished(id: "copy", perform: "clipboard.write",
+                                                                      outcome: .succeeded, item: copy.item))
+    }
+
+    /// An answer to another event with the same layout keeps what it does
+    /// not give on screen and asks for it again; one with another total
+    /// keeps the item the user looks at in place.
+    func testAnswersToOtherEventsRefreshTheScreen() throws {
+        try harness.open(PageHarness.windowed())
+        model.viewportChanged(1000..<1048)
+        try harness.answerRanges()
+        model.click(at: 1001)
+        model.choose(try XCTUnwrap(model.menu(of: "i1001").last).action, on: "i1001")
+        try harness.answer(PageHarness.windowed(marked: [1001]))
+        XCTAssertEqual(model.item(at: 1001)?.marks, [], "Still shown until it comes again")
+        guard case .loadRange(_, _, let start, let count)? = harness.events.last?.event else {
+            return XCTFail("The screen was not asked for again")
+        }
+        XCTAssertTrue((start..<start + count).contains(1001))
+        try harness.answerRanges(marked: [1001])
+        XCTAssertEqual(model.item(at: 1001)?.marks, ["favourite"])
+        XCTAssertEqual(model.selectedItem, "i1001")
+    }
+}
+
 // MARK: - Harness
 
 /// The Host's renderer over View Sessions of a Plugin declaring
@@ -313,6 +431,8 @@ final class PageHarness {
     let tracker: InsertionTargetTracker
     private let apps: FakeApps
     private(set) var events: [HeldEvent] = []
+    /// The events `answerRanges` answered, by index.
+    private var answeredEvents: Set<Int> = []
     private(set) var pageWindows: [FakePluginViewWindow] = []
     private(set) var levelOneWindows: [FakePluginViewWindow] = []
     private(set) var windows: PluginViewWindows!
@@ -427,6 +547,54 @@ final class PageHarness {
         if showsTarget { page["shows_insertion_target"] = .bool(true) }
         if let reset { page["reset"] = .array(reset.map(JSONValue.string)) }
         return .object(page)
+    }
+
+    /// The Emoji search page under `collections` r3: a grid of `total`
+    /// items `i0`… of which the answer gives `start..<start + count`, with
+    /// Insert, Copy (which asks to hear its outcome) and a Favourite toggle,
+    /// the items in `marked` carrying its mark.
+    static func windowed(total: Int = 1906, start: Int = 0, count: Int = 200, marked: Set<Int> = [],
+                         sections: [(String, Int)]? = nil, reset: [String]? = nil) -> JSONValue {
+        guard case .object(var page) = search(reset: reset), case .array(var content) = page["content"],
+              case .object(var grid) = content[1] else { return .null }
+        let end = min(start + count, total)
+        grid["items"] = .array((start..<end).map { index in
+            var item: [String: JSONValue] = ["id": .string("i\(index)"), "title": .string("item \(index)"),
+                                             "symbol": .string("★")]
+            if marked.contains(index) { item["marks"] = .array([.string("favourite")]) }
+            return .object(item)
+        })
+        grid["total"] = .number(Double(total))
+        grid["start"] = .number(Double(start))
+        if let sections {
+            grid["sections"] = .array(sections.map { .object(["id": .string($0.0), "title": .string($0.0),
+                                                              "count": .number(Double($0.1))]) })
+        }
+        grid["actions"] = .array([
+            .object(["id": .string("insert"), "title": .string("Insert"), "default": .bool(true)]),
+            .object(["id": .string("copy"), "title": .string("Copy"), "perform": .string("clipboard.write"),
+                     "notify": .bool(true)]),
+            .object(["id": .string("favourite"), "title": .string("Favourite"), "toggle": .string("favourite")])
+        ])
+        content[1] = .object(grid)
+        page["content"] = .array(content)
+        return .object(page)
+    }
+
+    /// Answers every `load_range` waiting, as a Plugin with `total` items
+    /// would, until none is left; returns how many it answered.
+    @discardableResult
+    func answerRanges(total: Int = 1906, marked: Set<Int> = [], sections: [(String, Int)]? = nil,
+                      page: (Int, Int) -> JSONValue? = { _, _ in nil }) throws -> Int {
+        var answered = 0
+        while let last = events.last, !answeredEvents.contains(events.count - 1),
+              case .loadRange(_, _, let start, let count)? = last.event {
+            answeredEvents.insert(events.count - 1)
+            try answer(page(start, count) ?? Self.windowed(total: total, start: start, count: count, marked: marked,
+                                                           sections: sections))
+            answered += 1
+        }
+        return answered
     }
 
     static func page(_ id: String, _ content: [JSONValue]) -> JSONValue {

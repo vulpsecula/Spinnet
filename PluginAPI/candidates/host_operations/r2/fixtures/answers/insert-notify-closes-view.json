@@ -1,0 +1,9 @@
+{
+  "operation": {
+    "perform": "selection.replace",
+    "input": "😀",
+    "id": "insert",
+    "closes_view": true,
+    "notify": true
+  }
+}

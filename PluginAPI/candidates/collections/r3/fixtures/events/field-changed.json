@@ -1,0 +1,9 @@
+{
+  "type": "field_changed",
+  "page": "search",
+  "field": "query",
+  "values": {
+    "query": "cat",
+    "category": "all"
+  }
+}

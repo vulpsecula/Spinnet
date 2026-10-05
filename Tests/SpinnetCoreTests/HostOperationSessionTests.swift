@@ -30,8 +30,12 @@ final class HostOperationSessionTests: XCTestCase {
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
             showFeedback: { [unowned self] in feedback.append($0) },
+            // Revision 1's rules: an outcome whose view closed is shown by
+            // the Host and not delivered (`OutcomeAfterCloseSessionTests`
+            // covers revision 2's).
             permitting: { _ in { member in
-                PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
+                member != HostOperationsContract.outcomeAfterClose
+                    && PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
             } },
             operations: performer,
             reportOperation: { [unowned self] _, message in reported.append(message) }

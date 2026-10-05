@@ -1,0 +1,1188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet pages and collections (Candidate Contract collections r3)",
+  "description": "Candidate Contract collections, revision 3 (candidate.json). Not part of any stable Plugin API Level. What a script declaring it, beside the host_operations revision 2 and namespaces revision 1 it requires, may answer and receive: an answer with a page, the page's components and collection, the page events, the called event of an explicit call into the open View Session, and operation_finished. Revision 3 is revision 2 with load_range in place of load_more: a collection may give its total and one slice of its items from start, with sections as headers that count their items, and the Host keeps a window of them around what the user sees; with toggle item actions and the marks items carry; and with notify on page and item actions the Host performs. Level 1 answers and events stay valid and keep their meaning; Level 1's own schemas are unchanged and refuse everything here. Page and item actions name the Host Service they perform by its catalogue ID (../../namespaces/r1/catalogue.json).",
+  "$defs": {
+    "text": {
+      "description": "A string with at least one character that is not white space.",
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "identifier": {
+      "description": "A page, component, section, item or action ID: not blank, at most 64 characters.",
+      "type": "string",
+      "pattern": "\\S",
+      "maxLength": 64
+    },
+    "answer": {
+      "description": "A candidate script's answer: Level 1's answer with view or, instead, page, plus host_operations' operation. An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "view": {
+          "description": "A Level 1 view, checked against plugin-view.schema.json with host_operations' view_additions. It keeps Level 1's view rules.",
+          "type": "object"
+        },
+        "page": {
+          "$ref": "#/$defs/page"
+        },
+        "state": {
+          "description": "Any JSON, at most 64 KiB; null when absent."
+        },
+        "close": {
+          "const": true
+        },
+        "toast": {
+          "$ref": "#/$defs/text"
+        },
+        "operation": {
+          "$ref": "../../host_operations/r2/host-operations.schema.json#/$defs/operation"
+        }
+      },
+      "allOf": [
+        {
+          "description": "An answer that closes the view describes nothing and requests nothing.",
+          "if": {
+            "required": [
+              "close"
+            ]
+          },
+          "then": {
+            "properties": {
+              "view": false,
+              "page": false,
+              "state": false,
+              "operation": false
+            }
+          }
+        },
+        {
+          "description": "An answer describes a view or a page, not both.",
+          "if": {
+            "required": [
+              "page"
+            ]
+          },
+          "then": {
+            "properties": {
+              "view": false
+            }
+          }
+        },
+        {
+          "description": "Only an answer with a view or a page keeps a state.",
+          "if": {
+            "properties": {
+              "view": false,
+              "page": false
+            }
+          },
+          "then": {
+            "properties": {
+              "state": false
+            }
+          }
+        }
+      ]
+    },
+    "page": {
+      "description": "A View Page: an ID and a tree of identified components. Besides this shape the Host checks that component IDs are unique in the page (row children included), that there is at most one collection, that a text_field's collection names it, that focus and reset name components of the page, that item IDs are unique in the collection and its items number at most 2,000, that at most one item action is the default, that an item's actions name the collection's, and that the description is at most 256 KiB. A page that breaks any of these ends the View Session as a protocol violation.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier",
+          "description": "The View Page. The same ID refreshes the page on screen and keeps its immediate state; another ID changes page, remembering the last 4 pages' immediate state by ID."
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "shows_insertion_target": {
+          "description": "host_operations: the Host draws a non-interactive line at the foot of the page naming the App insertion would go to now. It is drawn as well when the collection has an selection.replace item action. Captured with each gesture.",
+          "type": "boolean"
+        },
+        "focus": {
+          "$ref": "#/$defs/identifier",
+          "description": "The component focused when the page is new or reset; else the first text_field, else the collection."
+        },
+        "reset": {
+          "description": "One-shot: \"page\" starts every component and the page's memory again from this description; a list starts those components again. A reset of a text_field with an open input-method composition is dropped for that field.",
+          "oneOf": [
+            {
+              "const": "page"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 40,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          ]
+        },
+        "content": {
+          "description": "Laid out top to bottom. At most 40 components counting row children, and at most one list or grid.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        }
+      }
+    },
+    "component": {
+      "description": "A View Component of a page, by kind.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/row"
+        },
+        {
+          "$ref": "#/$defs/text_field"
+        },
+        {
+          "$ref": "#/$defs/choice_field"
+        },
+        {
+          "$ref": "#/$defs/text_block"
+        },
+        {
+          "$ref": "#/$defs/actions"
+        },
+        {
+          "$ref": "#/$defs/list"
+        },
+        {
+          "$ref": "#/$defs/grid"
+        }
+      ]
+    },
+    "leaf": {
+      "description": "What a row may hold.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text_field"
+        },
+        {
+          "$ref": "#/$defs/choice_field"
+        },
+        {
+          "$ref": "#/$defs/text_block"
+        },
+        {
+          "$ref": "#/$defs/actions"
+        }
+      ]
+    },
+    "row": {
+      "description": "Up to 4 leaf components side by side; a text_field takes the spare width. Rows do not nest and hold no collection.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "row"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/leaf"
+          }
+        }
+      }
+    },
+    "text_field": {
+      "description": "A one-line text field, Level 1's text field with an ID. Its text, caret, selection and composition belong to the Host until the Plugin resets it.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text_field"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "value": {
+          "description": "The initial text, applied only when the field is new or reset.",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "../../../schemas/plugin-view.schema.json#/$defs/text"
+        },
+        "accent": {
+          "enum": [
+            "blue",
+            "indigo",
+            "purple",
+            "pink",
+            "red",
+            "orange",
+            "green",
+            "teal",
+            "gray"
+          ]
+        },
+        "collection": {
+          "$ref": "#/$defs/identifier",
+          "description": "The page's collection this field searches: Up and Down move its selection and Return performs its default item action. Without it, Return sends submitted."
+        }
+      }
+    },
+    "choice_field": {
+      "description": "A pop-up of choices. A change is delivered at once as field_changed.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "choice_field"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "choice_titles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "value": {
+          "description": "The initial choice, applied only when the field is new or reset.",
+          "type": "string"
+        }
+      }
+    },
+    "text_block": {
+      "description": "Text in Level 1's Markdown subset (views.md), with an optional title.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "actions": {
+      "description": "A row of buttons. No button has a shortcut.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "actions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "actions"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/page_action"
+          }
+        }
+      }
+    },
+    "page_action": {
+      "description": "A button: an event action with id and title, delivering action_chosen with the page's values and selection, or a page action that names a Host Service by its catalogue ID in perform with its input, which the Host performs without a View Event, as Level 1's standard actions are; with notify its outcome reaches the Plugin as operation_finished. No shortcut.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "title"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "title": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/performed_page_action"
+        }
+      ]
+    },
+    "performed_page_action": {
+      "description": "namespaces' view_action with notify: the Host performs it on the user's click without a View Event, under the Capability the operation needs; with notify: true the outcome reaches the Plugin as operation_finished, in the view or, when the view closed meanwhile, after it (host_operations r2). title defaults to the catalogue's default_title.",
+      "type": "object",
+      "required": [
+        "perform"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "perform": {
+          "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/view_action_id"
+        },
+        "input": {},
+        "id": {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 64
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "closes_view": {
+          "type": "boolean"
+        },
+        "notify": {
+          "description": "Deliver operation_finished with the outcome.",
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/perform_input"
+        }
+      ]
+    },
+    "list": {
+      "description": "A collection drawn as rows: symbol, title, subtitle and accessory.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "list"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "items": {
+          "description": "The items: all of them, or with total the slice from start.",
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "sections": {
+          "description": "Titled groups of items: with total, headers that count their items, which come in items; without, each with its items.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/section"
+              },
+              {
+                "$ref": "#/$defs/section_header"
+              }
+            ]
+          }
+        },
+        "selected": {
+          "$ref": "#/$defs/identifier",
+          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept."
+        },
+        "empty_text": {
+          "$ref": "#/$defs/text"
+        },
+        "actions": {
+          "description": "Item actions offered on every item, unless an item lists its own subset. At most one is the default, which Return and double-click perform.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/item_action"
+          }
+        },
+        "rows": {
+          "description": "Rows visible initially, 1 to 12; 8 by default.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "total": {
+          "description": "How many items the collection has. With it the answer gives one slice of them in items, from start; the Host keeps a window of items around what the user sees, draws placeholders for the rest, and asks for them with load_range. The scroll bar spans all of them.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "start": {
+          "description": "With total, the position of the first item given; 0 by default. start plus the number of items is at most total.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      },
+      "allOf": [
+        {
+          "description": "Without total, every item is given: items, or sections with their items.",
+          "if": {
+            "properties": {
+              "total": false
+            }
+          },
+          "then": {
+            "properties": {
+              "start": false,
+              "sections": {
+                "items": {
+                  "$ref": "#/$defs/section"
+                }
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "sections": false
+                }
+              },
+              {
+                "required": [
+                  "sections"
+                ],
+                "properties": {
+                  "items": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "description": "With total, sections are headers that count their items, and their counts add up to total.",
+          "if": {
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sections": {
+                "items": {
+                  "$ref": "#/$defs/section_header"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "grid": {
+      "description": "A collection drawn as square cells showing each item's symbol, or its title when it has none.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "grid"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "items": {
+          "description": "The items: all of them, or with total the slice from start.",
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "sections": {
+          "description": "Titled groups of items: with total, headers that count their items, which come in items; without, each with its items.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/section"
+              },
+              {
+                "$ref": "#/$defs/section_header"
+              }
+            ]
+          }
+        },
+        "selected": {
+          "$ref": "#/$defs/identifier",
+          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept."
+        },
+        "empty_text": {
+          "$ref": "#/$defs/text"
+        },
+        "actions": {
+          "description": "Item actions offered on every item, unless an item lists its own subset. At most one is the default, which Return and double-click perform.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/item_action"
+          }
+        },
+        "columns": {
+          "description": "Cells across, 2 to 12; 8 by default. Cells are square and divide the width.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 12
+        },
+        "rows": {
+          "description": "Rows visible initially, 1 to 12; 6 by default.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "total": {
+          "description": "How many items the collection has. With it the answer gives one slice of them in items, from start; the Host keeps a window of items around what the user sees, draws placeholders for the rest, and asks for them with load_range. The scroll bar spans all of them.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "start": {
+          "description": "With total, the position of the first item given; 0 by default. start plus the number of items is at most total.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      },
+      "allOf": [
+        {
+          "description": "Without total, every item is given: items, or sections with their items.",
+          "if": {
+            "properties": {
+              "total": false
+            }
+          },
+          "then": {
+            "properties": {
+              "start": false,
+              "sections": {
+                "items": {
+                  "$ref": "#/$defs/section"
+                }
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "sections": false
+                }
+              },
+              {
+                "required": [
+                  "sections"
+                ],
+                "properties": {
+                  "items": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "description": "With total, sections are headers that count their items, and their counts add up to total.",
+          "if": {
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sections": {
+                "items": {
+                  "$ref": "#/$defs/section_header"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "section": {
+      "description": "A titled group of items. Its header stays visible while its items scroll.",
+      "type": "object",
+      "required": [
+        "id",
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    },
+    "section_header": {
+      "description": "A titled group of a collection with total: how many of its items it holds. Its items come in the collection's items, by position. Its header stays visible while its items scroll.",
+      "type": "object",
+      "required": [
+        "id",
+        "count"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      }
+    },
+    "item": {
+      "description": "One item of a collection. Images and icons are not part of this revision.",
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier",
+          "description": "Unique in the collection, sections included."
+        },
+        "title": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256,
+          "description": "The row text, the cell's tooltip, and the VoiceOver label."
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "symbol": {
+          "description": "A short glyph: the grid cell's content, a list row's leading glyph.",
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 32
+        },
+        "accessory": {
+          "description": "Trailing list text, such as a version.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "text": {
+          "description": "What clipboard.write and selection.replace item actions use, and what item_action's snapshot carries; without it, symbol, else title.",
+          "type": "string",
+          "maxLength": 4096
+        },
+        "actions": {
+          "description": "The collection's item actions this item offers, by ID; all of them when absent. Valid but discouraged where a toggle item action and marks can say the same.",
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "marks": {
+          "description": "The marks this item carries, each one a toggle item action of its collection names; that action shows checked for it.",
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier",
+            "maxLength": 32
+          }
+        }
+      }
+    },
+    "item_action": {
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "default": {
+          "description": "Return and double-click perform this action. At most one per collection.",
+          "const": true
+        },
+        "perform": {
+          "description": "A Host Service, by catalogue ID, that the Host performs on the item's text without a View Event: the text becomes the operation's primary member text. Without perform the action delivers item_action.",
+          "$ref": "../../namespaces/r1/namespaces.schema.json#/$defs/item_action_id"
+        },
+        "closes_view": {
+          "type": "boolean"
+        },
+        "toggle": {
+          "description": "The mark this action toggles: it delivers item_action like any event action, and its context menu entry shows checked for an item whose marks include it. Two actions of one collection never toggle the same mark.",
+          "$ref": "#/$defs/identifier",
+          "maxLength": 32
+        },
+        "notify": {
+          "description": "For an action with perform: deliver operation_finished, with the item as shown, once the Host has performed it.",
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "perform": false
+            }
+          },
+          "then": {
+            "properties": {
+              "closes_view": false,
+              "notify": false
+            }
+          }
+        },
+        {
+          "description": "Only the Plugin can toggle a mark, so a toggle performs nothing.",
+          "if": {
+            "required": [
+              "toggle"
+            ]
+          },
+          "then": {
+            "properties": {
+              "perform": false
+            }
+          }
+        }
+      ]
+    },
+    "values": {
+      "$ref": "../../../schemas/view-session.schema.json#/$defs/values"
+    },
+    "selection": {
+      "description": "The page's collection mapped to its selected item ID, or null when nothing is selected. Empty for a page without a collection.",
+      "type": "object",
+      "maxProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "item_snapshot": {
+      "description": "The item as shown when the user acted: its ID, its section, its resolved text when that differs from its ID, and its marks when it carried any.",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "section": {
+          "$ref": "#/$defs/identifier"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "marks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "event": {
+      "description": "One View Event under the candidate: a Level 1 event (from a Level 1 view, and setting or section events), a page event, called, or operation_finished.",
+      "oneOf": [
+        {
+          "$ref": "../../../schemas/view-session.schema.json#/$defs/event"
+        },
+        {
+          "$ref": "#/$defs/page_event"
+        },
+        {
+          "$ref": "#/$defs/operation_finished"
+        }
+      ]
+    },
+    "page_event": {
+      "description": "An event from a page, or an explicit call. Every page event names its page; the Host drops it unless that page, and the component it came from, are still on screen, unchanged in kind and not reset since. called names no page and is never dropped for a page change.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "field_changed",
+            "submitted",
+            "action_chosen",
+            "item_action",
+            "load_range",
+            "called"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "field_changed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "field",
+              "values"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "field",
+                "values"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "field": {
+                "$ref": "#/$defs/identifier"
+              },
+              "values": {
+                "$ref": "#/$defs/values"
+              }
+            }
+          }
+        },
+        {
+          "description": "Return in a text_field without a collection.",
+          "if": {
+            "properties": {
+              "type": {
+                "const": "submitted"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "field",
+              "values",
+              "selection"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "field",
+                "values",
+                "selection"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "field": {
+                "$ref": "#/$defs/identifier"
+              },
+              "values": {
+                "$ref": "#/$defs/values"
+              },
+              "selection": {
+                "$ref": "#/$defs/selection"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "action_chosen"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "action",
+              "values",
+              "selection"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "action",
+                "values",
+                "selection"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "action": {
+                "$ref": "#/$defs/identifier"
+              },
+              "values": {
+                "$ref": "#/$defs/values"
+              },
+              "selection": {
+                "$ref": "#/$defs/selection"
+              }
+            }
+          }
+        },
+        {
+          "description": "An item action without perform, from Return, double-click or the context menu. A gesture: its answer may request an operation.",
+          "if": {
+            "properties": {
+              "type": {
+                "const": "item_action"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "collection",
+              "action",
+              "item",
+              "values"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "collection",
+                "action",
+                "item",
+                "values"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "collection": {
+                "$ref": "#/$defs/identifier"
+              },
+              "action": {
+                "$ref": "#/$defs/identifier"
+              },
+              "item": {
+                "$ref": "#/$defs/item_snapshot"
+              },
+              "values": {
+                "$ref": "#/$defs/values"
+              }
+            }
+          }
+        },
+        {
+          "description": "The Host needs the items at start up to start + count of a collection with total, because they are on screen or about to be. At most one is outstanding per collection; a newer one replaces one still waiting. Answer with the page, the collection giving at least that slice. Not a gesture.",
+          "if": {
+            "properties": {
+              "type": {
+                "const": "load_range"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "collection",
+              "start",
+              "count"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "collection",
+                "start",
+                "count"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "collection": {
+                "$ref": "#/$defs/identifier"
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1999
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600
+              }
+            }
+          }
+        },
+        {
+          "description": "An explicit call of one of the Plugin's Actions while its View Session is open. It carries nothing: the input global holds that Action's effective input and state the session's last good state. Not bound to a page. A gesture.",
+          "if": {
+            "properties": {
+              "type": {
+                "const": "called"
+              }
+            }
+          },
+          "then": {
+            "propertyNames": {
+              "enum": [
+                "type"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "operation_finished": {
+      "description": "host_operations r2's operation_finished, with item when it reports a page's item action the Host performed: the item as shown when the user acted.",
+      "type": "object",
+      "required": [
+        "type",
+        "perform",
+        "outcome"
+      ],
+      "propertyNames": {
+        "enum": [
+          "type",
+          "operation",
+          "perform",
+          "outcome",
+          "reason",
+          "view_closed",
+          "item"
+        ]
+      },
+      "properties": {
+        "type": {
+          "const": "operation_finished"
+        },
+        "item": {
+          "$ref": "#/$defs/item_snapshot"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../host_operations/r2/host-operations.schema.json#/$defs/operation_finished_members"
+        }
+      ]
+    }
+  }
+}

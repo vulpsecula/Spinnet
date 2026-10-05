@@ -64,7 +64,14 @@ enum PageBuilder {
 
     static func page(_ id: String = "search", _ content: [JSONValue], reset: JSONValue? = nil,
                      focus: String? = nil) throws -> PluginPage {
-        try PluginPage(parsing: pageJSON(id, content, reset: reset, focus: focus), permits: CollectionsFixtures.permits)
+        try PluginPage(parsing: pageJSON(id, content, reset: reset, focus: focus), permits: permits)
+    }
+
+    /// Revisions 2 and 3 together, so the pages may append with `has_more`
+    /// or give a window with `total`.
+    static var permits: (PluginInterfaceMember) -> Bool {
+        let two = CollectionsFixtures.revisionTwo, three = CollectionsFixtures.permits
+        return { two($0) || three($0) }
     }
 
     /// The Emoji search page: a row with the query and category, and a grid.
@@ -241,9 +248,9 @@ final class PluginPageMemoryTests: XCTestCase {
         // Section a: 10 items in rows of 4 (4, 4, 2); section b: 3 items.
         let ids = (0..<10).map { "a\($0)" }
         let page = try B.page("search", [B.field(), B.grid(sections: [("a", ids), ("b", ["b0", "b1", "b2"])], columns: 4, rows: 2)])
-        let grid = try XCTUnwrap(page.collection)
+        let grid = PluginCollectionWindow(try XCTUnwrap(page.collection))
         func move(_ move: PluginPageCollection.Move, from id: String) -> String? {
-            grid.index(moving: move, from: grid.positions[id]).map { grid.items[$0].id }
+            grid.index(moving: move, from: grid.position(of: id)).flatMap { grid.item(at: $0)?.id }
         }
         XCTAssertEqual(move(.down, from: "a1"), "a5")
         XCTAssertEqual(move(.down, from: "a7"), "a9", "The last row is shorter: the column is clamped")
@@ -261,11 +268,12 @@ final class PluginPageMemoryTests: XCTestCase {
         XCTAssertEqual(move(.end, from: "a0"), "b2")
         XCTAssertEqual(grid.index(moving: .down, from: nil), 0, "From no selection any move selects the first")
 
-        let list = try XCTUnwrap(try B.page("p", [B.grid(items: ["x", "y", "z"], kind: "list")]).collection)
+        let list = PluginCollectionWindow(try XCTUnwrap(try B.page("p", [B.grid(items: ["x", "y", "z"], kind: "list")]).collection))
         XCTAssertEqual(list.columns, 1)
         XCTAssertEqual(list.index(moving: .down, from: 0), 1)
         XCTAssertEqual(list.index(moving: .up, from: 1), 0)
-        XCTAssertNil(try B.page("p", [B.grid(items: [])]).collection?.index(moving: .down, from: nil))
+        XCTAssertNil(PluginCollectionWindow(try XCTUnwrap(try B.page("p", [B.grid(items: [])]).collection))
+            .index(moving: .down, from: nil))
     }
 
     /// Scenario 09: the Host asks for more within a screenful of the end.
@@ -281,8 +289,9 @@ final class PluginPageMemoryTests: XCTestCase {
     func testMovingTheSelectionSelects() throws {
         var memory = PluginPageMemory()
         memory.show(try B.search(items: ["A", "B", "C", "D", "E", "F", "G", "H", "I"]))
-        XCTAssertEqual(memory.moveSelection(.down)?.id, "I", "One grid row of 8 down from A")
+        XCTAssertEqual(memory.moveSelection(.down), 8, "One grid row of 8 down from A")
         XCTAssertEqual(memory.selectedItem?.id, "I")
-        XCTAssertEqual(memory.moveSelection(.left)?.id, "H")
+        XCTAssertEqual(memory.moveSelection(.left), 7)
+        XCTAssertEqual(memory.selectedItem?.id, "H")
     }
 }

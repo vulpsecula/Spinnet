@@ -1,0 +1,45 @@
+{
+  "view": {
+    "title": "Emoji",
+    "shows_insertion_target": true,
+    "form": {
+      "fields": [
+        {
+          "kind": "text",
+          "key": "query",
+          "title": "Search",
+          "value": "smile"
+        }
+      ],
+      "submit_on_return": true
+    },
+    "detail": {
+      "sections": [
+        {
+          "id": "results",
+          "text": "😀 grinning face\n😄 grinning face with smiling eyes"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "title": "Copy 😀",
+        "perform": "copy_text",
+        "text": "😀"
+      }
+    ]
+  },
+  "state": {
+    "recent": [
+      "😀"
+    ]
+  },
+  "operation": {
+    "perform": "selection.replace",
+    "input": {
+      "text": "😀"
+    },
+    "id": "insert",
+    "closes_view": true
+  }
+}

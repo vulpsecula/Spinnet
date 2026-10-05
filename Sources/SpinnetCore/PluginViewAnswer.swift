@@ -21,8 +21,12 @@ public enum PluginViewEvent: Equatable, Hashable {
     case sectionDelivered(section: String, response: JSONValue)
     /// A Requested Host Operation that asked to `notify` reached its
     /// outcome (Candidate Contract `host_operations`). `id` is the Plugin's
-    /// own label for it, `perform` its catalogue ID.
-    case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome)
+    /// own label for it, `perform` its catalogue ID. `viewClosed` marks one
+    /// delivered after its view closed, to a viewless invocation
+    /// (`host_operations` r2); `item` is the item a Host-performed item
+    /// action acted on, as shown then (`collections` r3).
+    case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome, viewClosed: Bool = false,
+                           item: PluginPageItemSnapshot? = nil)
     /// Candidate Contract `collections`: the user changed `field` of `page`.
     /// `values` holds every input of the page as committed text, never text
     /// an input method is still composing.
@@ -37,6 +41,11 @@ public enum PluginViewEvent: Equatable, Hashable {
     case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue)
     /// The user neared the end of a collection that has more items.
     case loadMore(page: String, collection: String, loaded: Int)
+    /// Candidate Contract `collections` r3: the Host needs the items at
+    /// positions `start..<start + count` of a windowed collection, because
+    /// they are on screen or about to be. A newer request for the same
+    /// collection replaces one still waiting.
+    case loadRange(page: String, collection: String, start: Int, count: Int)
     /// Candidate Contract `collections` r2: the user called one of the
     /// Plugin's Actions while its View Session was open. It carries nothing:
     /// the invocation's input is the called Action's and its state the
@@ -53,6 +62,15 @@ public enum PluginViewEvent: Equatable, Hashable {
         }
     }
 
+    /// A `load_range` still waiting gives way to a newer one for the same
+    /// collection, without a debounce: the Host asks only for what the user
+    /// is looking at now.
+    func replaces(_ waiting: PluginViewEvent) -> Bool {
+        guard case .loadRange(let page, let collection, _, _) = self,
+              case .loadRange(let waitingPage, let waitingCollection, _, _) = waiting else { return false }
+        return page == waitingPage && collection == waitingCollection
+    }
+
     /// The page an event of a page was made in and the component it came
     /// from, which must both still be on screen, unchanged in kind and not
     /// reset, when it is dispatched. `action_chosen` names its button, which
@@ -61,7 +79,9 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .pageFieldChanged(let page, let field, _), .pageSubmitted(let page, let field, _, _): return (page, field)
         case .pageActionChosen(let page, let action, _, _): return (page, action)
-        case .itemAction(let page, let collection, _, _, _), .loadMore(let page, let collection, _): return (page, collection)
+        case .itemAction(let page, let collection, _, _, _), .loadMore(let page, let collection, _),
+             .loadRange(let page, let collection, _, _):
+            return (page, collection)
         default: return nil
         }
     }
@@ -80,7 +100,7 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction, .called: return true
         case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished, .pageFieldChanged,
-             .loadMore:
+             .loadMore, .loadRange:
             return false
         }
     }
@@ -100,11 +120,13 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .sectionDelivered(let section, let response):
             return .object(["type": .string("section_delivered"), "section": .string(section),
                             "response": response])
-        case .operationFinished(let id, let perform, let outcome):
+        case .operationFinished(let id, let perform, let outcome, let viewClosed, let item):
             var members: [String: JSONValue] = ["type": .string("operation_finished"), "perform": .string(perform),
                                                 "outcome": .string(outcome.name)]
             if let id { members["operation"] = .string(id) }
             if let reason = outcome.reason { members["reason"] = .string(reason.rawValue) }
+            if viewClosed { members["view_closed"] = .bool(true) }
+            if let item { members["item"] = item.json }
             return .object(members)
         case .pageFieldChanged(let page, let field, let values):
             return .object(["type": .string("field_changed"), "page": .string(page), "field": .string(field), "values": values])
@@ -120,6 +142,9 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .loadMore(let page, let collection, let loaded):
             return .object(["type": .string("load_more"), "page": .string(page), "collection": .string(collection),
                             "loaded": .number(Double(loaded))])
+        case .loadRange(let page, let collection, let start, let count):
+            return .object(["type": .string("load_range"), "page": .string(page), "collection": .string(collection),
+                            "start": .number(Double(start)), "count": .number(Double(count))])
         case .called:
             return .object(["type": .string("called")])
         }

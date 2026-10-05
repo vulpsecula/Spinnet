@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "clipboard.write",
+  "outcome": "succeeded",
+  "view_closed": false
+}

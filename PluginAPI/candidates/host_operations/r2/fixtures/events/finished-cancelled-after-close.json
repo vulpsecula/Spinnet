@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "selection.replace",
+  "outcome": "cancelled",
+  "view_closed": true
+}

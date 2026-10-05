@@ -220,13 +220,15 @@ public struct PluginInterfaceContracts: Equatable {
     )
 
     /// This Host: Level 1, Candidate Contract `namespaces` revision 1, the
-    /// Plugin API catalogue, `host_operations` revision 1, Requested Host
-    /// Operations, and `collections` revisions 1 and 2, pages with Lists and
-    /// Grids, the second with repeated calls into an open View Session.
+    /// Plugin API catalogue, `host_operations` revisions 1 and 2, Requested
+    /// Host Operations, the second delivering an outcome after its view
+    /// closed, and `collections` revisions 1 to 3, pages with Lists and
+    /// Grids, the second with repeated calls into an open View Session, the
+    /// third with windows of items, toggles and performed actions' outcomes.
     /// A Level added later is keyed at its own number beside Level 1.
     public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers],
-                                                      candidates: [HostServiceCatalogue.candidate,
-                                                                   HostOperationsContract.candidate]
+                                                      candidates: [HostServiceCatalogue.candidate]
+                                                          + HostOperationsContract.candidates
                                                           + CollectionsContract.candidates)
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {

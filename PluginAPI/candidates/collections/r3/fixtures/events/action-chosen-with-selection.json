@@ -1,0 +1,12 @@
+{
+  "type": "action_chosen",
+  "page": "packages",
+  "action": "refresh",
+  "values": {
+    "query": "py",
+    "scope": "all"
+  },
+  "selection": {
+    "packages": "formula:pyenv"
+  }
+}

@@ -34,13 +34,37 @@ public enum HostOperationsContract {
             .map(\.id)
     }
 
-    /// The revision as its `candidate.json` publishes it.
-    public static let candidate = CandidateContract(
-        name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
-        members: [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
-            + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure],
-        tag: "plugin-api-candidate/\(name)/r\(revision)"
-    )
+    /// Revision 2: an operation that asked to `notify` and whose view closed
+    /// before its outcome, by its own `closes_view` or otherwise once it had
+    /// started, delivers `operation_finished` to one viewless invocation of
+    /// the Action that requested it.
+    public static let outcomeAfterClose = PluginInterfaceMember.behaviour("outcome_after_close")
+
+    /// Revision 1 as its `candidate.json` publishes it.
+    public static let candidate = makeRevision(1, extra: [])
+
+    /// Revision 2 as its `candidate.json` publishes it: revision 1's members
+    /// with the outcome delivered after the view closed.
+    public static let revisionTwo = makeRevision(2, extra: [outcomeAfterClose])
+
+    public static var revisionTwoDeclaration: CandidateContractRevision { revisionTwo.declaration }
+
+    /// Every revision this Host provides, oldest first.
+    public static let candidates = [candidate, revisionTwo]
+
+    private static func makeRevision(_ revision: Int, extra: [PluginInterfaceMember]) -> CandidateContract {
+        CandidateContract(
+            name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
+            members: [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
+                + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure]
+                + extra,
+            tag: "plugin-api-candidate/\(name)/r\(revision)"
+        )
+    }
+
+    /// How long an outcome delivered after its view closed may wait for its
+    /// script to start before the Host drops it.
+    public static let afterCloseStartDeadline = ScriptedActionBudgets.viewEventDeadline
 
     /// Longest Plugin-chosen operation `id`, in characters.
     public static let maximumIDLength = 64
@@ -66,14 +90,19 @@ public struct RequestedHostOperation: Equatable, Hashable {
     public let closesView: Bool
     /// Deliver `operation_finished` when the outcome is ready.
     public let notify: Bool
+    /// For an item action the Host performs (Candidate Contract
+    /// `collections` r3), the item as shown when the user acted, which its
+    /// `operation_finished` carries. Never part of the request's JSON.
+    public let item: PluginPageItemSnapshot?
 
     public init(perform: String, input: JSONValue = .null, id: String? = nil, closesView: Bool = false,
-                notify: Bool = false) {
+                notify: Bool = false, item: PluginPageItemSnapshot? = nil) {
         self.perform = perform
         self.input = input
         self.id = id
         self.closesView = closesView
         self.notify = notify
+        self.item = item
     }
 
     /// Reads an answer's `operation` for a Plugin to which `permits` says

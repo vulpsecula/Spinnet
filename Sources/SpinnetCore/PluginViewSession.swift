@@ -277,6 +277,11 @@ public final class PluginViewSession {
             || inFlight.map { matches($0.entry.event) } == true
     }
 
+    /// Whether an event matching `matches` runs now, rather than waiting.
+    public func isDispatched(where matches: (PluginViewEvent) -> Bool) -> Bool {
+        inFlight.map { matches($0.entry.event) } == true
+    }
+
     /// Whether a field change has yet to be answered.
     public var hasPendingFieldChange: Bool { isPending(where: \.coalesces) }
 
@@ -308,7 +313,8 @@ public final class PluginViewSession {
             present()
             return
         }
-        operations?.commit(operation, for: action, owner: self, target: insertionTarget)
+        operations?.commit(operation, for: action, owner: self, target: insertionTarget,
+                           deliversAfterClose: permits(HostOperationsContract.outcomeAfterClose))
     }
 
     /// The view was closed. Its renderer calls this when the user closes it
@@ -415,6 +421,10 @@ public final class PluginViewSession {
     private func enqueue(_ entry: Entry) {
         if entry.event.coalesces, let last = queue.last, last.event.coalesces {
             queue[queue.count - 1] = entry
+        } else if let index = queue.firstIndex(where: { entry.event.replaces($0.event) }) {
+            // A range the user scrolled away from before it was asked for
+            // gives way to the one they look at now.
+            queue[index] = entry
         } else {
             queue.append(entry)
         }
@@ -541,7 +551,8 @@ public final class PluginViewSession {
             // The request commits in the same turn as the view and state, so
             // nothing can see one without the other.
             if let operation = answer.operation {
-                operations?.commit(operation, for: action, owner: self, target: current.entry.insertionTarget)
+                operations?.commit(operation, for: action, owner: self, target: current.entry.insertionTarget,
+                                   deliversAfterClose: permits(HostOperationsContract.outcomeAfterClose))
             }
             finished(current.entry, .answered)
         case .failed(let failure):
@@ -690,6 +701,72 @@ public final class PluginViewSessions {
         }
         fetchedSections?.sessions = self
         operations?.onSlotFree = { [weak self] pluginID in self?.sessions[pluginID]?.dispatchNext() }
+        operations?.deliverAfterClose = { [weak self] action, event, state, done in
+            guard let self else { return done() }
+            self.runAfterClose(action, event, state: state, done: done)
+        }
+    }
+
+    /// Runs `operation_finished` for a request whose view has closed, under
+    /// `host_operations` r2: one invocation of the Action that requested it,
+    /// with that Action's input and the view's last good state, and no view.
+    /// It must start within its deadline and answer within the usual four
+    /// seconds. Its answer may show a toast and nothing else: a view, page,
+    /// state, operation or `close` breaks the interface, which the Host
+    /// reports and otherwise ignores, since there is no view to end. What
+    /// its script did, such as a Plugin Storage write, stays done.
+    private func runAfterClose(_ action: ActionConfiguration, _ event: PluginViewEvent, state: JSONValue,
+                               done: @escaping () -> Void) {
+        final class Progress {
+            var started = false
+            var ended = false
+        }
+        let progress = Progress()
+        let control = ActionExecutionControl()
+        let end = {
+            guard !progress.ended else { return }
+            progress.ended = true
+            done()
+        }
+        schedule(HostOperationsContract.afterCloseStartDeadline) {
+            guard !progress.started, !progress.ended else { return }
+            control.stop(.cancelled)
+            end()
+        }
+        let invocation = (try? action.newInvocation()) ?? action
+        let permits = permitting(action)
+        let report = self.report
+        let showFeedback = self.showFeedback
+        runEvent(invocation, ViewEventDelivery(event: event, state: state), control, { [schedule] in
+            guard !progress.ended else { return }
+            progress.started = true
+            schedule(ScriptedActionBudgets.viewEventDeadline) {
+                guard !progress.ended else { return }
+                control.stop(.timedOut)
+                report(action, PluginRuntimeError.timedOut.description)
+                end()
+            }
+        }, { outcome in
+            guard !progress.ended else { return }
+            defer { end() }
+            switch outcome.terminal {
+            case .succeeded(let value):
+                do {
+                    let answer = try PluginScriptAnswer(parsing: value, answering: event, permits: permits)
+                    guard answer.description == nil, !answer.close else {
+                        throw PluginRuntimeError.protocolViolation(
+                            "The script's answer to operation_finished after its view closed shows a view or closes one; "
+                                + "there is no view")
+                    }
+                    if let toast = answer.toast { showFeedback(toast) }
+                } catch {
+                    let violation = error as? PluginRuntimeError ?? .protocolViolation("The script's answer is invalid")
+                    report(action, violation.description)
+                }
+            case .failed(let failure):
+                report(action, failure.message)
+            }
+        })
     }
 
     deinit {
@@ -808,7 +885,8 @@ public final class PluginViewSessions {
 
     private func commit(_ operation: RequestedHostOperation?, for action: ActionConfiguration, owner: PluginViewSession?) {
         guard let operation else { return }
-        operations?.commit(operation, for: action, owner: owner, target: .notShown)
+        operations?.commit(operation, for: action, owner: owner, target: .notShown,
+                           deliversAfterClose: permitting(action)(HostOperationsContract.outcomeAfterClose))
     }
 
     /// Ends the Plugin's session, and when its Plugin changed or lost a

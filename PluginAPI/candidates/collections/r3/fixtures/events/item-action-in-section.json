@@ -1,0 +1,15 @@
+{
+  "type": "item_action",
+  "page": "search",
+  "collection": "results",
+  "action": "insert",
+  "item": {
+    "id": "recent:1F408",
+    "section": "recent",
+    "text": "🐈"
+  },
+  "values": {
+    "query": "",
+    "category": "all"
+  }
+}

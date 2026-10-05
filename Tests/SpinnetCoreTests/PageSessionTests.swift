@@ -214,4 +214,44 @@ final class PageSessionTests: XCTestCase {
         answer(1, page: Self.searchPage())
         XCTAssertEqual(session.page?.id, "search")
     }
+
+    // MARK: collections r3
+
+    /// A `load_range` still waiting gives way to a newer one for the same
+    /// collection; one already running is answered first; one whose
+    /// collection was reset since is dropped.
+    func testANewerRangeReplacesOneStillWaiting() throws {
+        let session = try start(Self.searchPage())
+        session.send(itemAction("A"))
+        session.send(.loadRange(page: "search", collection: "results", start: 100, count: 50))
+        session.send(.loadRange(page: "search", collection: "results", start: 400, count: 50))
+        XCTAssertTrue(session.isDispatched { if case .itemAction = $0 { return true } else { return false } })
+        answer(0, page: nil)
+        XCTAssertEqual(runner.runs.count, 2)
+        XCTAssertEqual(runner.runs[1].delivery.event, .loadRange(page: "search", collection: "results", start: 400, count: 50),
+                       "Only the newer range is asked for")
+        session.send(.loadRange(page: "search", collection: "results", start: 800, count: 50))
+        answer(1, page: Self.searchPage(reset: .array([.string("results")])))
+        XCTAssertEqual(runner.runs.count, 2, "Its collection was reset since")
+    }
+
+    /// A page or item action the Host performs with `notify` is heard as
+    /// `operation_finished`, an item action's with the item.
+    func testAPerformedItemActionWithNotifyIsHeardWithItsItem() throws {
+        let session = try start(Self.searchPage())
+        let item = PluginPageItemSnapshot(id: "B", section: nil, text: "★")
+        let copy = RequestedHostOperation(perform: "clipboard.write", input: .object(["text": .string("★")]), id: "copy",
+                                          notify: true, item: item)
+        session.perform(copy, insertionTarget: .notShown)
+        XCTAssertEqual(runner.runs.count, 0, "No View Event for the gesture")
+        session.send(itemAction("A"))
+        performer.finish(0, .succeeded)
+        XCTAssertEqual(runner.runs.count, 1)
+        XCTAssertEqual(runner.runs[0].delivery.event?.json, .object([
+            "type": .string("operation_finished"), "operation": .string("copy"), "perform": .string("clipboard.write"),
+            "outcome": .string("succeeded"), "item": .object(["id": .string("B"), "text": .string("★")])
+        ]))
+        answer(0, page: nil)
+        XCTAssertEqual(runner.runs.count, 2, "The gesture that waited runs after the outcome is answered")
+    }
 }

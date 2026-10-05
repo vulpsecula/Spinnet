@@ -3,16 +3,20 @@ import Foundation
 /// Candidate Contract `collections` (ADR 0019): a declaring Plugin may answer
 /// with a page, a tree of identified View Components with at most one List or
 /// Grid, whose immediate state the Host keeps across answers until the Plugin
-/// resets it. The Host provides two revisions, each published under
+/// resets it. The Host provides three revisions, each published under
 /// `PluginAPI/candidates/collections/r<revision>/` as `candidate.json`:
-/// revision 1, pages and collections, and revision 2, which adds repeated
-/// calls (#78): calling the Plugin again while its View Session is open runs
-/// the called Action in the session as `called` instead of restarting it.
+/// revision 1, pages and collections; revision 2, which adds repeated calls
+/// (#78): calling the Plugin again while its View Session is open runs the
+/// called Action in the session as `called` instead of restarting it; and
+/// revision 3, which replaces append-only `load_more` with a window the Host
+/// keeps of a collection of `total` items, filled by `load_range`, and adds
+/// toggle item actions with item marks and outcomes of Host-performed page
+/// and item actions (E2 findings, #79).
 public enum CollectionsContract {
     public static let name = "collections"
     /// The latest revision, the one the Plugins of this Host's fixtures
     /// declare.
-    public static let revision = 2
+    public static let revision = 3
 
     public static var declaration: CandidateContractRevision {
         CandidateContractRevision(name: name, revision: revision)
@@ -25,8 +29,24 @@ public enum CollectionsContract {
     /// View Session is open is queued into the session as `called`.
     public static let repeatedCallsIntoSession = PluginInterfaceMember.behaviour("repeated_calls_into_session")
 
+    /// Revision 3: a collection may give its `total` and a slice of its
+    /// items; the Host keeps only a window of them around what the user sees
+    /// and asks for the rest with `load_range`.
+    public static let collectionWindow = PluginInterfaceMember.behaviour("collection_window")
+    /// Revision 3: an item action may toggle a mark items carry, which its
+    /// context menu entry shows checked.
+    public static let toggleItemActions = PluginInterfaceMember.behaviour("toggle_item_actions")
+    /// Revision 3: a page or item action the Host performs may ask to
+    /// `notify`, and its outcome reaches the Plugin as `operation_finished`.
+    public static let performedActionOutcomes = PluginInterfaceMember.behaviour("performed_action_outcomes")
+    /// Revisions 1 and 2's append-only paging event.
+    public static let loadMore = PluginInterfaceMember.viewEvent("load_more")
+    /// Revision 3's range request.
+    public static let loadRange = PluginInterfaceMember.viewEvent("load_range")
+
     /// The rules a declaring Plugin gets, as revision 1's `candidate.json`
-    /// lists them; revision 2 adds `repeated_calls_into_session`.
+    /// lists them; revision 2 adds `repeated_calls_into_session`, revision 3
+    /// the window, toggles and performed actions' outcomes.
     public static let behaviours = [
         "answer_page", "page_identity", "page_memory", "component_identity", "immediate_state_kept",
         "explicit_reset", "composition_priority", "page_event_provenance", "gesture_snapshots",
@@ -34,7 +54,8 @@ public enum CollectionsContract {
     ]
 
     public static let componentKinds = PluginPageComponent.Kind.allCases.map(\.rawValue)
-    /// Revision 1's View Events; revision 2 adds `called`.
+    /// Revision 1's View Events; revision 2 adds `called`; revision 3 has
+    /// `load_range` in place of `load_more`.
     public static let events = ["item_action", "load_more"]
 
     /// The catalogue IDs a page action may perform, in the catalogue's order.
@@ -49,20 +70,31 @@ public enum CollectionsContract {
     public static let itemActionIDs = ["selection.replace", "clipboard.write"]
 
     /// Revision 1 as its `candidate.json` publishes it.
-    public static let revisionOne = makeRevision(1, behaviours: behaviours, events: events)
+    public static let revisionOne = makeRevision(1, behaviours: behaviours, events: events,
+                                                 operations: HostOperationsContract.declaration)
 
     /// Revision 2 as its `candidate.json` publishes it: revision 1's members
     /// with repeated calls.
-    public static let candidate = makeRevision(2, behaviours: behaviours + ["repeated_calls_into_session"],
-                                            events: events + ["called"])
+    public static let revisionTwo = makeRevision(2, behaviours: behaviours + ["repeated_calls_into_session"],
+                                                 events: events + ["called"], operations: HostOperationsContract.declaration)
+
+    /// Revision 3 as its `candidate.json` publishes it: revision 2's members
+    /// with `load_range` in place of `load_more`, the window, toggles and
+    /// performed actions' outcomes; it requires `host_operations` r2.
+    public static let candidate = makeRevision(
+        3, behaviours: behaviours + ["repeated_calls_into_session", "collection_window", "toggle_item_actions",
+                                     "performed_action_outcomes"],
+        events: ["item_action", "load_range", "called"], operations: HostOperationsContract.revisionTwoDeclaration
+    )
 
     /// Every revision this Host provides, oldest first.
-    public static let candidates = [revisionOne, candidate]
+    public static let candidates = [revisionOne, revisionTwo, candidate]
 
-    private static func makeRevision(_ revision: Int, behaviours: [String], events: [String]) -> CandidateContract {
+    private static func makeRevision(_ revision: Int, behaviours: [String], events: [String],
+                                     operations: CandidateContractRevision) -> CandidateContract {
         CandidateContract(
             name: name, revision: revision, baseLevel: 1,
-            requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
+            requires: [operations, HostServiceCatalogue.declaration],
             members: behaviours.map(PluginInterfaceMember.behaviour)
                 + viewActionIDs.map(PluginInterfaceMember.standardAction)
                 + componentKinds.map(PluginInterfaceMember.viewComponent)
@@ -91,6 +123,14 @@ public enum CollectionsContract {
     public static let maximumAccessoryLength = 64
     public static let maximumItemTextLength = 4_096
     public static let maximumChoices = 100
+    /// Revision 3: the most items the Host holds of one collection's window.
+    public static let maximumWindowItems = 600
+    /// Revision 3: the Host keeps the items within this many screens of
+    /// what is on screen, and asks for missing ones within one screen.
+    public static let windowScreens = 2
+    public static let prefetchScreens = 1
+    /// Revision 3: the longest mark a toggle item action names.
+    public static let maximumMarkLength = 32
 
     /// The title a page action without one shows: the catalogue's
     /// `default_title` for its ID.
@@ -442,7 +482,10 @@ public struct PluginPageAction: Equatable {
             return
         }
         let declaredTitle = members.removeValue(forKey: "title")
-        guard members["notify"] == nil else { throw PluginPage.violation("A page action has unknown member notify") }
+        // Revision 3 lets a performed action ask for its outcome.
+        guard members["notify"] == nil || permits(CollectionsContract.performedActionOutcomes) else {
+            throw PluginPage.violation("A page action has unknown member notify")
+        }
         // A page action takes what a request takes, by the IDs this
         // candidate offers as page actions.
         let operation: RequestedHostOperation
@@ -465,14 +508,22 @@ public struct PluginPageAction: Equatable {
 
 /// A List or Grid: items the Host draws, selects, scrolls and asks for more
 /// of, whose data, search, order and batches are the Plugin's.
+///
+/// A collection is whole, every item given at once (revisions 1 and 2, and
+/// revision 3 without `total`), or windowed (revision 3 with `total`): the
+/// answer gives `total` positions and the items of one slice of them from
+/// `start`, and sections only as headers with their `count`. Positions are
+/// always counted from the collection's first item.
 public struct PluginPageCollection: Equatable {
     public enum Style: Equatable { case list, grid }
 
     public let id: String
     public let style: Style
-    /// The collection's sections in order; a collection with `items` has one
-    /// untitled section whose `id` is nil.
+    /// The collection's sections in order; a collection with plain `items`
+    /// has one untitled section whose `id` is nil. Each section's `items`
+    /// are those of the answer's slice that fall within it.
     public let sections: [PluginPageSection]
+    /// Revisions 1 and 2: the Plugin has more items to append.
     public let hasMore: Bool
     public let selected: String?
     public let emptyText: String
@@ -481,17 +532,24 @@ public struct PluginPageCollection: Equatable {
     public let columns: Int
     /// Rows visible initially.
     public let rows: Int
-    /// Every item, in order, sections included.
+    /// How many items the collection has, given or not.
+    public let total: Int
+    /// The position of the first given item.
+    public let start: Int
+    /// Revision 3: the answer gave `total` and one slice of the items.
+    public let isWindowed: Bool
+    /// The given items, in order, sections included: positions `start`
+    /// onwards.
     public let items: [PluginPageItem]
-    /// Each item's position in `items`.
+    /// Each given item's position.
     public let positions: [String: Int]
-    /// The section each item is in, by position: an index into `sections`.
-    public let sectionOfItem: [Int]
 
     init(parsing value: JSONValue, style: Style, permits: (PluginInterfaceMember) -> Bool) throws {
         let kind = style == .grid ? "grid" : "list"
-        var allowed: Set<String> = ["kind", "id", "items", "sections", "has_more", "selected", "empty_text", "actions", "rows"]
+        var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "empty_text", "actions", "rows"]
         if style == .grid { allowed.insert("columns") }
+        if permits(CollectionsContract.loadMore) { allowed.insert("has_more") }
+        if permits(CollectionsContract.collectionWindow) { allowed.formUnion(["total", "start"]) }
         let members = try PluginPage.object(value, "A \(kind)", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "A \(kind)'s id")
         self.id = id
@@ -507,40 +565,86 @@ public struct PluginPageCollection: Equatable {
         guard actions.filter(\.isDefault).count <= 1 else {
             throw PluginPage.violation("The \(kind) \(id) has more than one default item action")
         }
-        switch (members["items"], members["sections"]) {
-        case (let items?, nil):
-            sections = [PluginPageSection(id: nil, title: nil, items: try PluginPage.array(
-                items, "The \(kind) \(id)'s items", maximum: CollectionsContract.maximumItems
-            ).map { try PluginPageItem(parsing: $0, offering: actionIDs) })]
-        case (nil, let declared?):
-            sections = try PluginPage.array(declared, "The \(kind) \(id)'s sections", minimum: 1,
-                                            maximum: CollectionsContract.maximumSections)
-                .map { try PluginPageSection(parsing: $0, offering: actionIDs) }
-            var sectionIDs: Set<String> = []
-            for section in sections where !sectionIDs.insert(section.id ?? "").inserted {
-                throw PluginPage.violation("The \(kind) \(id) has two sections with the ID \(section.id ?? "")")
+        var marks: Set<String> = []
+        for case let mark? in actions.map(\.toggle) where !marks.insert(mark).inserted {
+            throw PluginPage.violation("The \(kind) \(id) has two item actions toggling the mark \(mark)")
+        }
+        let offering = PluginPageItem.Offering(actions: actionIDs, marks: marks, allowsMarks: permits(CollectionsContract.toggleItemActions))
+        isWindowed = members["total"] != nil
+        if isWindowed {
+            guard members["has_more"] == nil else {
+                throw PluginPage.violation("The \(kind) \(id) gives a total, so it has no has_more: the Host asks for ranges")
             }
-        default:
-            throw PluginPage.violation("The \(kind) \(id) needs either items or sections, not both")
+            let total = try PluginPage.integer(members["total"], "The \(kind) \(id)'s total",
+                                               in: 0...CollectionsContract.maximumItems, default: 0)
+            let start = try PluginPage.integer(members["start"], "The \(kind) \(id)'s start", in: 0...total, default: 0)
+            let items = try PluginPage.array(members["items"] ?? .array([]), "The \(kind) \(id)'s items",
+                                             maximum: CollectionsContract.maximumItems)
+                .map { try PluginPageItem(parsing: $0, offering: offering) }
+            guard start + items.count <= total else {
+                throw PluginPage.violation("The \(kind) \(id) gives items past its total of \(total)")
+            }
+            var sections: [PluginPageSection] = []
+            if let declared = members["sections"] {
+                var next = 0
+                for value in try PluginPage.array(declared, "The \(kind) \(id)'s sections", minimum: 1,
+                                                  maximum: CollectionsContract.maximumSections) {
+                    let header = try PluginPageSection(parsingHeader: value, at: next)
+                    next += header.count
+                    let slice = items.indices.filter { (header.start..<next).contains(start + $0) }.map { items[$0] }
+                    sections.append(PluginPageSection(id: header.id, title: header.title, items: slice,
+                                                      start: header.start, count: header.count))
+                }
+                guard next == total else {
+                    throw PluginPage.violation("The \(kind) \(id)'s sections count \(next) items, not its total of \(total)")
+                }
+            } else {
+                sections = [PluginPageSection(id: nil, title: nil, items: items, start: 0, count: total)]
+            }
+            self.sections = sections
+            self.items = items
+            self.total = total
+            self.start = start
+            hasMore = false
+        } else {
+            guard members["start"] == nil else {
+                throw PluginPage.violation("The \(kind) \(id) gives a start without a total")
+            }
+            switch (members["items"], members["sections"]) {
+            case (let items?, nil):
+                let parsed = try PluginPage.array(items, "The \(kind) \(id)'s items", maximum: CollectionsContract.maximumItems)
+                    .map { try PluginPageItem(parsing: $0, offering: offering) }
+                sections = [PluginPageSection(id: nil, title: nil, items: parsed, start: 0, count: parsed.count)]
+            case (nil, let declared?):
+                var next = 0
+                sections = try PluginPage.array(declared, "The \(kind) \(id)'s sections", minimum: 1,
+                                                maximum: CollectionsContract.maximumSections)
+                    .map { value in
+                        let section = try PluginPageSection(parsing: value, offering: offering, at: next)
+                        next += section.count
+                        return section
+                    }
+            default:
+                throw PluginPage.violation("The \(kind) \(id) needs either items or sections, not both")
+            }
+            items = sections.flatMap(\.items)
+            guard items.count <= CollectionsContract.maximumItems else {
+                throw PluginPage.violation("The \(kind) \(id) has more than \(CollectionsContract.maximumItems) items")
+            }
+            total = items.count
+            start = 0
+            hasMore = try PluginPage.flag(members["has_more"], "The \(kind) \(id)'s has_more")
         }
-        var items: [PluginPageItem] = []
-        var sectionOfItem: [Int] = []
-        for (index, section) in sections.enumerated() {
-            items += section.items
-            sectionOfItem += Array(repeating: index, count: section.items.count)
-        }
-        guard items.count <= CollectionsContract.maximumItems else {
-            throw PluginPage.violation("The \(kind) \(id) has more than \(CollectionsContract.maximumItems) items")
+        var sectionIDs: Set<String> = []
+        for section in sections where section.id != nil && !sectionIDs.insert(section.id ?? "").inserted {
+            throw PluginPage.violation("The \(kind) \(id) has two sections with the ID \(section.id ?? "")")
         }
         var positions: [String: Int] = [:]
         positions.reserveCapacity(items.count)
-        for (index, item) in items.enumerated() where positions.updateValue(index, forKey: item.id) != nil {
+        for (index, item) in items.enumerated() where positions.updateValue(start + index, forKey: item.id) != nil {
             throw PluginPage.violation("The \(kind) \(id) has two items with the ID \(item.id)")
         }
-        self.items = items
         self.positions = positions
-        self.sectionOfItem = sectionOfItem
-        hasMore = try PluginPage.flag(members["has_more"], "The \(kind) \(id)'s has_more")
         selected = try members["selected"].map { try PluginPage.identifier($0, "The \(kind) \(id)'s selected") }
         if let selected, positions[selected] == nil {
             throw PluginPage.violation("The \(kind) \(id)'s selected names \(selected), which is not one of its items")
@@ -554,15 +658,25 @@ public struct PluginPageCollection: Equatable {
                                       default: style == .grid ? CollectionsContract.defaultGridRows : CollectionsContract.defaultListRows)
     }
 
-    /// The item at `index`.
-    public func item(at index: Int) -> PluginPageItem? { items.indices.contains(index) ? items[index] : nil }
+    /// The given item at position `position`.
+    public func item(at position: Int) -> PluginPageItem? {
+        items.indices.contains(position - start) ? items[position - start] : nil
+    }
 
-    public func item(_ id: String) -> PluginPageItem? { positions[id].map { items[$0] } }
+    public func item(_ id: String) -> PluginPageItem? { positions[id].flatMap(item(at:)) }
+
+    /// The positions the answer gave items for.
+    public var slice: Range<Int> { start..<(start + items.count) }
+
+    /// The index in `sections` of the section holding `position`.
+    public func sectionIndex(at position: Int) -> Int? {
+        sections.firstIndex { ($0.start..<($0.start + $0.count)).contains(position) }
+    }
 
     /// The section of the item with `id`: its ID, or nil for a collection of
     /// plain items.
     public func section(of id: String) -> String? {
-        positions[id].flatMap { sections[sectionOfItem[$0]].id }
+        positions[id].flatMap(sectionIndex(at:)).flatMap { sections[$0].id }
     }
 
     public var defaultAction: PluginPageItemAction? { actions.first(where: \.isDefault) }
@@ -583,7 +697,7 @@ public struct PluginPageCollection: Equatable {
 
     /// What the gesture on `item` carries.
     public func snapshot(of item: PluginPageItem) -> PluginPageItemSnapshot {
-        PluginPageItemSnapshot(id: item.id, section: section(of: item.id), text: item.resolvedText)
+        PluginPageItemSnapshot(id: item.id, section: section(of: item.id), text: item.resolvedText, marks: item.marks)
     }
 }
 
@@ -591,26 +705,59 @@ public struct PluginPageSection: Equatable {
     /// Nil for the one section of a collection with plain `items`.
     public let id: String?
     public let title: String?
+    /// The given items within it.
     public let items: [PluginPageItem]
+    /// The position of its first item, and how many it holds, given or not.
+    public let start: Int
+    public let count: Int
 
-    init(id: String?, title: String?, items: [PluginPageItem]) {
+    init(id: String?, title: String?, items: [PluginPageItem], start: Int, count: Int) {
         self.id = id
         self.title = title
         self.items = items
+        self.start = start
+        self.count = count
     }
 
-    init(parsing value: JSONValue, offering actions: Set<String>) throws {
+    /// A section of a whole collection, its items given.
+    init(parsing value: JSONValue, offering: PluginPageItem.Offering, at start: Int) throws {
         let members = try PluginPage.object(value, "A section", allowed: ["id", "title", "items"])
         let id = try PluginPage.identifier(members["id"], "A section's id")
         self.id = id
         title = try members["title"].map { try PluginPage.text($0, "The section \(id)'s title") }
         items = try PluginPage.array(members["items"] ?? .null, "The section \(id)'s items",
                                      maximum: CollectionsContract.maximumItems)
-            .map { try PluginPageItem(parsing: $0, offering: actions) }
+            .map { try PluginPageItem(parsing: $0, offering: offering) }
+        self.start = start
+        count = items.count
+    }
+
+    /// A section header of a windowed collection: its `count` of items,
+    /// which come in the collection's slice.
+    init(parsingHeader value: JSONValue, at start: Int) throws {
+        let members = try PluginPage.object(value, "A section of a collection with a total", allowed: ["id", "title", "count"])
+        let id = try PluginPage.identifier(members["id"], "A section's id")
+        self.id = id
+        title = try members["title"].map { try PluginPage.text($0, "The section \(id)'s title") }
+        guard members["count"] != nil else {
+            throw PluginPage.violation("The section \(id) gives no count: a collection with a total gives its items apart")
+        }
+        count = try PluginPage.integer(members["count"], "The section \(id)'s count", in: 0...CollectionsContract.maximumItems,
+                                       default: 0)
+        items = []
+        self.start = start
     }
 }
 
 public struct PluginPageItem: Equatable, Identifiable {
+    /// What an item may name: its collection's item actions and the marks
+    /// its toggle actions declare.
+    struct Offering {
+        let actions: Set<String>
+        let marks: Set<String>
+        let allowsMarks: Bool
+    }
+
     public let id: String
     public let title: String
     public let subtitle: String?
@@ -619,9 +766,12 @@ public struct PluginPageItem: Equatable, Identifiable {
     public let text: String?
     /// The item actions it offers by ID; all of the collection's when nil.
     public let actions: [String]?
+    /// Revision 3: the marks it carries, each one a toggle item action of its
+    /// collection names; such an action shows checked for it.
+    public let marks: [String]
 
     public init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, accessory: String? = nil,
-                text: String? = nil, actions: [String]? = nil) {
+                text: String? = nil, actions: [String]? = nil, marks: [String] = []) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
@@ -629,12 +779,13 @@ public struct PluginPageItem: Equatable, Identifiable {
         self.accessory = accessory
         self.text = text
         self.actions = actions
+        self.marks = marks
     }
 
-    init(parsing value: JSONValue, offering declared: Set<String>) throws {
-        let members = try PluginPage.object(value, "An item", allowed: [
-            "id", "title", "subtitle", "symbol", "accessory", "text", "actions"
-        ])
+    init(parsing value: JSONValue, offering declared: Offering) throws {
+        var allowed: Set<String> = ["id", "title", "subtitle", "symbol", "accessory", "text", "actions"]
+        if declared.allowsMarks { allowed.insert("marks") }
+        let members = try PluginPage.object(value, "An item", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "An item's id")
         self.id = id
         title = try PluginPage.text(members["title"], "The item \(id)'s title", maximum: CollectionsContract.maximumTitleLength)
@@ -654,12 +805,23 @@ public struct PluginPageItem: Equatable, Identifiable {
             let names = try PluginPage.array(listed, "The item \(id)'s actions", maximum: CollectionsContract.maximumItemActions)
                 .map { try PluginPage.identifier($0, "An item action of \(id)") }
             guard Set(names).count == names.count else { throw PluginPage.violation("The item \(id) offers an action twice") }
-            if let unknown = names.first(where: { !declared.contains($0) }) {
+            if let unknown = names.first(where: { !declared.actions.contains($0) }) {
                 throw PluginPage.violation("The item \(id) offers \(unknown), which its collection does not declare")
             }
             actions = names
         } else {
             actions = nil
+        }
+        if let listed = members["marks"] {
+            let names = try PluginPage.array(listed, "The item \(id)'s marks", maximum: CollectionsContract.maximumItemActions)
+                .map { try PluginPage.identifier($0, "A mark of \(id)") }
+            guard Set(names).count == names.count else { throw PluginPage.violation("The item \(id) carries a mark twice") }
+            if let unknown = names.first(where: { !declared.marks.contains($0) }) {
+                throw PluginPage.violation("The item \(id) carries the mark \(unknown), which no toggle item action of its collection names")
+            }
+            marks = names
+        } else {
+            marks = []
         }
     }
 
@@ -667,8 +829,10 @@ public struct PluginPageItem: Equatable, Identifiable {
     public var resolvedText: String { text ?? symbol ?? title }
 }
 
-/// An action offered on items: one delivering `item_action`, or one the Host
-/// performs on the item's text by catalogue ID.
+/// An action offered on items: one delivering `item_action`, one toggling a
+/// mark (revision 3), which delivers `item_action` too and shows checked
+/// for an item carrying its mark, or one the Host performs on the item's
+/// text by catalogue ID.
 public struct PluginPageItemAction: Equatable {
     public let id: String
     public let title: String
@@ -676,9 +840,16 @@ public struct PluginPageItemAction: Equatable {
     /// `selection.replace` or `clipboard.write`, performed by the Host.
     public let perform: String?
     public let closesView: Bool
+    /// Revision 3: the mark this action toggles.
+    public let toggle: String?
+    /// Revision 3: a performed action's outcome reaches the Plugin.
+    public let notify: Bool
 
     init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
-        let members = try PluginPage.object(value, "An item action", allowed: ["id", "title", "default", "perform", "closes_view"])
+        var allowed: Set<String> = ["id", "title", "default", "perform", "closes_view"]
+        if permits(CollectionsContract.toggleItemActions) { allowed.insert("toggle") }
+        if permits(CollectionsContract.performedActionOutcomes) { allowed.insert("notify") }
+        let members = try PluginPage.object(value, "An item action", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "An item action's id")
         self.id = id
         title = try PluginPage.text(members["title"], "The item action \(id)'s title")
@@ -687,29 +858,51 @@ public struct PluginPageItemAction: Equatable {
         case .bool(true)?: isDefault = true
         default: throw PluginPage.violation("The item action \(id)'s default is not true")
         }
+        toggle = try members["toggle"].map { mark in
+            let name = try PluginPage.identifier(mark, "The item action \(id)'s toggle")
+            guard name.count <= CollectionsContract.maximumMarkLength else {
+                throw PluginPage.violation("The item action \(id)'s toggle is longer than \(CollectionsContract.maximumMarkLength) characters")
+            }
+            return name
+        }
         switch members["perform"] {
         case nil:
             perform = nil
             guard members["closes_view"] == nil else {
                 throw PluginPage.violation("The item action \(id) delivers an event, so it has no closes_view; its answer closes the view")
             }
+            guard members["notify"] == nil else {
+                throw PluginPage.violation("The item action \(id) delivers an event, so it has no notify: the Plugin hears it anyway")
+            }
             closesView = false
+            notify = false
         case .string(let name)? where CollectionsContract.itemActionIDs.contains(name):
             guard permits(.standardAction(name)) else {
                 throw PluginPage.violation("The item action \(id) performs \(name), which is not offered to this Plugin")
             }
+            guard toggle == nil else {
+                throw PluginPage.violation("The item action \(id) toggles a mark, which only the Plugin can do, so it performs nothing")
+            }
             perform = name
             closesView = try PluginPage.flag(members["closes_view"], "The item action \(id)'s closes_view")
+            notify = try PluginPage.flag(members["notify"], "The item action \(id)'s notify")
         default:
             throw PluginPage.violation("The item action \(id) may perform only "
                 + CollectionsContract.itemActionIDs.joined(separator: " or "))
         }
     }
 
-    /// The operation the Host performs for `item`, for one that performs.
-    public func operation(on item: PluginPageItem) -> RequestedHostOperation? {
+    /// The operation the Host performs for `item`, for one that performs;
+    /// `snapshot` is the item as shown, which its outcome carries.
+    public func operation(on item: PluginPageItem, snapshot: PluginPageItemSnapshot? = nil) -> RequestedHostOperation? {
         perform.map { RequestedHostOperation(perform: $0, input: .object(["text": .string(item.resolvedText)]), id: id,
-                                             closesView: closesView) }
+                                             closesView: closesView, notify: notify, item: notify ? snapshot : nil) }
+    }
+
+    /// Whether this action shows checked for `item`: it toggles a mark the
+    /// item carries.
+    public func isChecked(for item: PluginPageItem) -> Bool {
+        toggle.map(item.marks.contains) ?? false
     }
 }
 
@@ -719,18 +912,23 @@ public struct PluginPageItemSnapshot: Equatable, Hashable {
     public let section: String?
     /// The item's resolved text.
     public let text: String
+    /// Revision 3: the marks it carried.
+    public let marks: [String]
 
-    public init(id: String, section: String?, text: String) {
+    public init(id: String, section: String?, text: String, marks: [String] = []) {
         self.id = id
         self.section = section
         self.text = text
+        self.marks = marks
     }
 
-    /// Its JSON: the resolved text only where it differs from the ID.
+    /// Its JSON: the resolved text only where it differs from the ID, and
+    /// marks only when it carried any.
     public var json: JSONValue {
         var members: [String: JSONValue] = ["id": .string(id)]
         if let section { members["section"] = .string(section) }
         if text != id { members["text"] = .string(text) }
+        if !marks.isEmpty { members["marks"] = .array(marks.map(JSONValue.string)) }
         return .object(members)
     }
 }

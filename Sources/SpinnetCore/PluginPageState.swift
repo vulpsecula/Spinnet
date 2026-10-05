@@ -15,6 +15,203 @@ public struct PluginPageCaret: Equatable, Hashable {
     public static func end(of text: String) -> PluginPageCaret { PluginPageCaret(location: text.utf16.count) }
 }
 
+/// The items the Host holds of one collection, by position, and the layout
+/// they sit in: `total` positions in sections, `columns` across.
+///
+/// A whole collection (revisions 1 and 2, or revision 3 without `total`) is
+/// held entire, every answer replacing it. A windowed one (revision 3) is
+/// held only around what the user sees: each answer's slice is merged in,
+/// items further than `CollectionsContract.windowScreens` screens from the
+/// screen are dropped, at most `CollectionsContract.maximumWindowItems` are
+/// kept, and the positions the screen needs that are missing, or were
+/// outdated by an answer to something else, are what the Host asks for next
+/// with `load_range`.
+public struct PluginCollectionWindow: Equatable {
+    /// A section header as the window lays it out.
+    public struct Section: Equatable {
+        public let id: String?
+        public let title: String?
+        public let start: Int
+        public let count: Int
+
+        public var range: Range<Int> { start..<(start + count) }
+    }
+
+    public private(set) var total = 0
+    public private(set) var sections: [Section] = []
+    public private(set) var columns = 1
+    public private(set) var rows = 1
+    public private(set) var isWindowed = false
+    /// Revisions 1 and 2: the Plugin has more items to append.
+    public private(set) var hasMore = false
+    /// Counts the times positions stopped meaning what they meant: a new
+    /// collection, or an answer with another total or other sections.
+    public private(set) var layoutRevision = 0
+    private var items: [Int: PluginPageItem] = [:]
+    private var positions: [String: Int] = [:]
+    /// Held items an answer to something other than `load_range` did not
+    /// give again: they stay shown until the Host has them again.
+    private var stale: Set<Int> = []
+    /// Positions the Host asked for that did not come; asked again only
+    /// after the layout changes or the user moves onto one.
+    private var declined: Set<Int> = []
+
+    public init() {}
+
+    public init(_ collection: PluginPageCollection) {
+        replace(with: collection)
+    }
+
+    /// One screenful of positions.
+    public var screen: Int { max(columns * rows, 1) }
+
+    /// How many items are held.
+    public var heldCount: Int { items.count }
+
+    public func item(at position: Int) -> PluginPageItem? { items[position] }
+
+    public func position(of id: String) -> Int? { positions[id] }
+
+    public func isHeld(_ position: Int) -> Bool { items[position] != nil }
+
+    public func isStale(_ position: Int) -> Bool { stale.contains(position) }
+
+    /// The positions held, in order.
+    public var heldPositions: [Int] { items.keys.sorted() }
+
+    /// The index in `sections` of the section holding `position`.
+    public func sectionIndex(at position: Int) -> Int? {
+        sections.firstIndex { $0.range.contains(position) }
+    }
+
+    /// The item at `position` as a gesture carries it.
+    public func snapshot(at position: Int) -> PluginPageItemSnapshot? {
+        guard let item = items[position] else { return nil }
+        return PluginPageItemSnapshot(id: item.id, section: sectionIndex(at: position).flatMap { sections[$0].id },
+                                      text: item.resolvedText, marks: item.marks)
+    }
+
+    // MARK: Answers
+
+    private static func layout(of collection: PluginPageCollection) -> [Section] {
+        collection.sections.map { Section(id: $0.id, title: $0.title, start: $0.start, count: $0.count) }
+    }
+
+    /// A new or reset collection: only what the answer gave.
+    mutating func replace(with collection: PluginPageCollection) {
+        total = collection.total
+        sections = Self.layout(of: collection)
+        columns = collection.columns
+        rows = collection.rows
+        isWindowed = collection.isWindowed
+        hasMore = collection.hasMore
+        items = [:]
+        positions = [:]
+        stale = []
+        declined = []
+        layoutRevision += 1
+        hold(collection)
+    }
+
+    /// Merges an answer for a collection the Host keeps. A whole collection,
+    /// or a windowed one whose total or sections changed, is replaced: its
+    /// positions mean something else now. Otherwise the slice replaces what
+    /// is held at its positions, and, unless the answer answers
+    /// `load_range`, whatever else is held may be outdated: it stays shown
+    /// and the Host asks for it again where the user sees it. Returns
+    /// whether the layout changed.
+    @discardableResult
+    mutating func merge(_ collection: PluginPageCollection, answersRange: Bool) -> Bool {
+        let layout = Self.layout(of: collection)
+        let sameLayout = collection.isWindowed && isWindowed && total == collection.total
+            && layout.map(\.id) == sections.map(\.id) && layout.map(\.count) == sections.map(\.count)
+        guard sameLayout else {
+            replace(with: collection)
+            return true
+        }
+        sections = layout
+        columns = collection.columns
+        rows = collection.rows
+        if !answersRange {
+            stale.formUnion(items.keys.filter { !collection.slice.contains($0) })
+        }
+        hold(collection)
+        return false
+    }
+
+    private mutating func hold(_ collection: PluginPageCollection) {
+        for (offset, item) in collection.items.enumerated() {
+            let position = collection.start + offset
+            if let previous = items[position], positions[previous.id] == position { positions[previous.id] = nil }
+            items[position] = item
+            positions[item.id] = position
+            stale.remove(position)
+            declined.remove(position)
+        }
+    }
+
+    // MARK: The window
+
+    /// The positions within `screens` screens of `viewport`.
+    private func zone(around viewport: Range<Int>, screens: Int) -> Range<Int> {
+        let lower = max(viewport.lowerBound - screens * screen, 0)
+        let upper = min(viewport.upperBound + screens * screen, total)
+        return lower..<max(lower, upper)
+    }
+
+    /// The positions a windowed collection keeps around `viewport`: two
+    /// screens either side, at most the window's maximum, centred on it.
+    public func keptRange(around viewport: Range<Int>) -> Range<Int> {
+        let zone = zone(around: viewport, screens: CollectionsContract.windowScreens)
+        guard zone.count > CollectionsContract.maximumWindowItems else { return zone }
+        let centre = (viewport.lowerBound + viewport.upperBound) / 2
+        let lower = min(max(centre - CollectionsContract.maximumWindowItems / 2, 0), total - CollectionsContract.maximumWindowItems)
+        return lower..<(lower + CollectionsContract.maximumWindowItems)
+    }
+
+    /// Drops what lies outside the window around `viewport`. A whole
+    /// collection keeps everything.
+    mutating func evict(around viewport: Range<Int>) {
+        guard isWindowed else { return }
+        let kept = keptRange(around: viewport)
+        for position in items.keys where !kept.contains(position) {
+            if let item = items.removeValue(forKey: position), positions[item.id] == position { positions[item.id] = nil }
+        }
+        stale = stale.filter(kept.contains)
+        declined = declined.filter(kept.contains)
+    }
+
+    /// The range of positions the Host should ask for, if any: when a
+    /// position within a screen of `viewport` is missing or outdated, every
+    /// such position within the window around it, at most the window's
+    /// maximum.
+    public func missingRange(around viewport: Range<Int>) -> Range<Int>? {
+        guard isWindowed, total > 0 else { return nil }
+        func needed(_ position: Int) -> Bool {
+            (items[position] == nil && !declined.contains(position)) || stale.contains(position)
+        }
+        let near = zone(around: viewport, screens: CollectionsContract.prefetchScreens)
+        guard near.contains(where: needed) else { return nil }
+        let kept = keptRange(around: viewport)
+        guard let first = kept.first(where: needed), let last = kept.last(where: needed) else { return nil }
+        return first..<min(last + 1, first + CollectionsContract.maximumWindowItems)
+    }
+
+    /// The Host asked for `range` and the answer, if any, has come: what did
+    /// not come is not asked for again until the layout changes or the user
+    /// moves onto it.
+    mutating func settle(_ range: Range<Int>) {
+        for position in range where items[position] == nil || stale.contains(position) {
+            declined.insert(position)
+        }
+    }
+
+    /// The user moved onto `position`: it may be asked for again.
+    mutating func reconsider(_ position: Int) {
+        declined.remove(position)
+    }
+}
+
 /// The Immediate State of one View Page (ADR 0019): what the user is doing in
 /// it, which the Host keeps across the Plugin's answers. It is never part of
 /// the Plugin's `state`; events carry snapshots of it.
@@ -25,14 +222,24 @@ public struct PluginPageImmediateState: Equatable {
     public var carets: [String: PluginPageCaret] = [:]
     /// Each choice field's choice.
     public var choices: [String: String] = [:]
-    /// The collection's selected item, by collection ID; absent for none.
+    /// The collection's selected item, by collection ID; absent for none,
+    /// and while the selection is on a position whose item the Host does not
+    /// hold yet.
     public var selections: [String: String] = [:]
-    /// Where the selected item was, so another item can take its place when
-    /// it leaves.
+    /// Where the selected item is, so another item can take its place when
+    /// it leaves, and where a selection waiting for its item is.
     public var selectionPositions: [String: Int] = [:]
+    /// The selected item as last held, so it can be acted on after the
+    /// window let it go.
+    public var selectedItems: [String: PluginPageItem] = [:]
     /// The first visible item of each collection, which scrolling keeps in
     /// place; absent at the top.
     public var scrollAnchors: [String: String] = [:]
+    /// The positions on screen in each collection, as the Host last saw
+    /// them.
+    public var viewports: [String: Range<Int>] = [:]
+    /// The items held of each collection.
+    public var windows: [String: PluginCollectionWindow] = [:]
     /// The focused component.
     public var focus: String?
 
@@ -60,6 +267,9 @@ public struct PluginPageMemory: Equatable {
         /// Text fields whose reset was dropped because a composition was
         /// open in them.
         public var keptComposing: Set<String> = []
+        /// A kept collection's positions changed meaning: its total or
+        /// sections changed.
+        public var layoutChanged = false
     }
 
     public private(set) var page: PluginPage?
@@ -80,9 +290,11 @@ public struct PluginPageMemory: Equatable {
 
     /// Applies an answer's page. `composing` names the text fields in which
     /// an input-method composition is open now: their reset is dropped, so
-    /// no answer interrupts a composition.
+    /// no answer interrupts a composition. `answersRange` says the answer
+    /// answers `load_range`, so the items it does not give again are as
+    /// they were.
     @discardableResult
-    public mutating func show(_ next: PluginPage, composing: Set<String> = []) -> Applied {
+    public mutating func show(_ next: PluginPage, composing: Set<String> = [], answersRange: Bool = false) -> Applied {
         var applied = Applied()
         var composing = composing
         if page?.id != next.id {
@@ -112,7 +324,8 @@ public struct PluginPageMemory: Equatable {
             let keepsComposition = resets && sameKind && component.kind == .textField && composing.contains(id)
             if keepsComposition { applied.keptComposing.insert(id) }
             if sameKind, !resets || keepsComposition {
-                carry(id, from: state, to: &kept, reconciling: component.collection, previous: previous?.component(id)?.collection)
+                let changed = carry(id, from: state, to: &kept, reconciling: component.collection, answersRange: answersRange)
+                if changed { applied.layoutChanged = true }
             } else {
                 applied.renewed.insert(id)
                 start(component, in: &kept)
@@ -147,23 +360,60 @@ public struct PluginPageMemory: Equatable {
         if remembered.count > CollectionsContract.pageMemory { remembered.removeLast(remembered.count - CollectionsContract.pageMemory) }
     }
 
+    /// Carries a kept component's state into the new answer, and for a
+    /// collection merges the answer into its window and reconciles the
+    /// selection. Returns whether the collection's layout changed.
     private func carry(_ id: String, from old: PluginPageImmediateState, to kept: inout PluginPageImmediateState,
-                       reconciling collection: PluginPageCollection?, previous: PluginPageCollection?) {
+                       reconciling collection: PluginPageCollection?, answersRange: Bool) -> Bool {
         if let text = old.texts[id] { kept.texts[id] = text }
         if let caret = old.carets[id] { kept.carets[id] = caret }
         if let choice = old.choices[id] { kept.choices[id] = choice }
         if let anchor = old.scrollAnchors[id] { kept.scrollAnchors[id] = anchor }
-        guard let collection else { return }
+        guard let collection else { return false }
+        var window = old.windows[id] ?? PluginCollectionWindow(collection)
+        let layoutChanged = old.windows[id] == nil ? false : window.merge(collection, answersRange: answersRange)
+        let viewport = Self.clamp(old.viewports[id] ?? 0..<window.screen, to: window.total)
+        kept.viewports[id] = viewport
         // The selected item stays selected wherever it moved; else the item
-        // now at its place, clamped to the last; else the first.
-        if let selected = old.selections[id], let position = collection.positions[selected] {
-            kept.selections[id] = selected
-            kept.selectionPositions[id] = position
-        } else if !collection.items.isEmpty {
-            let position = old.selections[id] != nil ? min(old.selectionPositions[id] ?? 0, collection.items.count - 1) : 0
-            kept.selections[id] = collection.items[position].id
-            kept.selectionPositions[id] = position
+        // now at its place, clamped to the last; else the first. A windowed
+        // collection keeps the selected item by ID while it is not held,
+        // until an answer shows what is at its place.
+        if window.total == 0 {
+            // Nothing to select.
+        } else if let selected = old.selections[id] {
+            let place = min(old.selectionPositions[id] ?? 0, window.total - 1)
+            if let position = window.position(of: selected), let item = window.item(at: position) {
+                Self.select(item, at: position, of: id, in: &kept)
+            } else if collection.slice.contains(place) || !window.isWindowed, let item = window.item(at: place) {
+                Self.select(item, at: place, of: id, in: &kept)
+            } else {
+                kept.selections[id] = selected
+                kept.selectionPositions[id] = place
+                kept.selectedItems[id] = old.selectedItems[id]
+            }
+        } else {
+            let place = min(old.selectionPositions[id] ?? 0, window.total - 1)
+            if let item = window.item(at: place) {
+                Self.select(item, at: place, of: id, in: &kept)
+            } else {
+                kept.selectionPositions[id] = place
+            }
         }
+        window.evict(around: viewport)
+        kept.windows[id] = window
+        return layoutChanged
+    }
+
+    private static func select(_ item: PluginPageItem, at position: Int, of collection: String,
+                               in state: inout PluginPageImmediateState) {
+        state.selections[collection] = item.id
+        state.selectionPositions[collection] = position
+        state.selectedItems[collection] = item
+    }
+
+    private static func clamp(_ viewport: Range<Int>, to total: Int) -> Range<Int> {
+        let lower = min(viewport.lowerBound, max(total - viewport.count, 0))
+        return lower..<min(lower + viewport.count, total)
     }
 
     private func start(_ component: PluginPageComponent, in kept: inout PluginPageImmediateState) {
@@ -174,9 +424,20 @@ public struct PluginPageMemory: Equatable {
         case .choiceField(let field):
             kept.choices[field.id] = field.value
         case .collection(let collection):
-            if let first = collection.selected ?? collection.items.first?.id {
-                kept.selections[collection.id] = first
-                kept.selectionPositions[collection.id] = collection.positions[first]
+            var window = PluginCollectionWindow(collection)
+            let viewport = Self.clamp(0..<window.screen, to: window.total)
+            window.evict(around: viewport)
+            kept.windows[collection.id] = window
+            kept.viewports[collection.id] = viewport
+            if let selected = collection.selected, let position = collection.positions[selected],
+               let item = collection.item(at: position) {
+                Self.select(item, at: position, of: collection.id, in: &kept)
+            } else if window.total > 0 {
+                if let item = window.item(at: 0) {
+                    Self.select(item, at: 0, of: collection.id, in: &kept)
+                } else {
+                    kept.selectionPositions[collection.id] = 0
+                }
             }
         default:
             break
@@ -205,34 +466,90 @@ public struct PluginPageMemory: Equatable {
         state.choices[field] = value
     }
 
-    /// Selects `item` of the page's collection.
+    /// The page's collection's window: the items the Host holds.
+    public var window: PluginCollectionWindow? {
+        page?.collection.flatMap { state.windows[$0.id] }
+    }
+
+    /// Selects `item` of the page's collection, if the Host holds it.
     public mutating func select(_ item: String) {
-        guard let collection = page?.collection, let position = collection.positions[item] else { return }
-        state.selections[collection.id] = item
-        state.selectionPositions[collection.id] = position
+        guard let collection = page?.collection, let window = state.windows[collection.id],
+              let position = window.position(of: item) else { return }
+        select(position: position)
+    }
+
+    /// Selects whatever is at `position`, held or not: a selection waiting
+    /// for its item takes it when it comes.
+    public mutating func select(position: Int) {
+        guard let collection = page?.collection, var window = state.windows[collection.id],
+              (0..<window.total).contains(position) else { return }
+        if let item = window.item(at: position) {
+            Self.select(item, at: position, of: collection.id, in: &state)
+        } else {
+            state.selections[collection.id] = nil
+            state.selectedItems[collection.id] = nil
+            state.selectionPositions[collection.id] = position
+            window.reconsider(position)
+            state.windows[collection.id] = window
+        }
     }
 
     /// Moves the collection's selection as an arrow, Page or Home/End key
-    /// does, and returns the item now selected.
+    /// does, and returns the position now selected, whose item the Host may
+    /// not hold yet.
     @discardableResult
-    public mutating func moveSelection(_ move: PluginPageCollection.Move) -> PluginPageItem? {
-        guard let collection = page?.collection,
-              let index = collection.index(moving: move, from: selectedPosition) else { return nil }
-        select(collection.items[index].id)
-        return collection.items[index]
+    public mutating func moveSelection(_ move: PluginPageCollection.Move) -> Int? {
+        guard let window,
+              let position = window.index(moving: move, from: selectedPosition) else { return nil }
+        select(position: position)
+        return position
+    }
+
+    /// The user scrolled: `viewport` is on screen now. A windowed collection
+    /// lets go of what is far from it.
+    public mutating func setViewport(_ viewport: Range<Int>) {
+        guard let collection = page?.collection, var window = state.windows[collection.id] else { return }
+        let clamped = Self.clamp(viewport, to: window.total)
+        state.viewports[collection.id] = clamped
+        window.evict(around: clamped)
+        state.windows[collection.id] = window
+    }
+
+    /// The range the Host should ask for with `load_range`, if any.
+    public var missingRange: Range<Int>? {
+        guard let collection = page?.collection, let window = state.windows[collection.id],
+              let viewport = state.viewports[collection.id] else { return nil }
+        // The selection is on screen whenever the user moves it, so a
+        // selection waiting for its item is covered too.
+        return window.missingRange(around: viewport)
+    }
+
+    /// The `load_range` for `range` was answered, failed or dropped.
+    public mutating func settleRange(_ range: Range<Int>) {
+        guard let collection = page?.collection, var window = state.windows[collection.id] else { return }
+        window.settle(range)
+        state.windows[collection.id] = window
     }
 
     // MARK: Snapshots
 
-    /// The page's collection's selected item.
+    /// The page's collection's selected item, as last held.
     public var selectedItem: PluginPageItem? {
-        guard let collection = page?.collection, let id = state.selections[collection.id] else { return nil }
-        return collection.item(id)
+        guard let collection = page?.collection, state.selections[collection.id] != nil else { return nil }
+        return state.selectedItems[collection.id]
     }
 
+    /// Where the selection is, its item held or not.
     public var selectedPosition: Int? {
-        guard let collection = page?.collection, let id = state.selections[collection.id] else { return nil }
-        return collection.positions[id]
+        guard let collection = page?.collection else { return nil }
+        return state.selectionPositions[collection.id]
+    }
+
+    /// The selected item as a gesture carries it.
+    public var selectedSnapshot: PluginPageItemSnapshot? {
+        guard let item = selectedItem, let position = selectedPosition else { return nil }
+        let section = window?.sectionIndex(at: position).flatMap { window?.sections[$0].id }
+        return PluginPageItemSnapshot(id: item.id, section: section, text: item.resolvedText, marks: item.marks)
     }
 
     /// Every input of the page, as `values` carries it.
@@ -268,20 +585,28 @@ public extension PluginPageCollection {
         case left, right
         /// A screenful of rows.
         case pageUp, pageDown
-        /// The first or last loaded item.
+        /// The first or last item.
         case home, end
     }
 
+    /// Whether the user, at `position`, is within a screenful of the last
+    /// loaded item of a collection with more (revisions 1 and 2).
+    func isNearEnd(_ position: Int?) -> Bool {
+        hasMore && total - 1 - (position ?? 0) < columns * rows
+    }
+}
+
+public extension PluginCollectionWindow {
     /// Where `move` takes the selection from `index`: from no selection,
     /// any move selects the first item. Nil when there are no items.
-    func index(moving move: Move, from index: Int?) -> Int? {
-        guard !items.isEmpty else { return nil }
-        guard let index, items.indices.contains(index) else { return 0 }
+    func index(moving move: PluginPageCollection.Move, from index: Int?) -> Int? {
+        guard total > 0 else { return nil }
+        guard let index, (0..<total).contains(index) else { return 0 }
         switch move {
         case .left: return max(index - 1, 0)
-        case .right: return min(index + 1, items.count - 1)
+        case .right: return min(index + 1, total - 1)
         case .home: return 0
-        case .end: return items.count - 1
+        case .end: return total - 1
         case .up: return row(from: index, by: -1)
         case .down: return row(from: index, by: 1)
         case .pageUp, .pageDown:
@@ -291,20 +616,16 @@ public extension PluginPageCollection {
         }
     }
 
-    /// Whether the user, at `index`, is within a screenful of the last
-    /// loaded item of a collection with more.
-    func isNearEnd(_ index: Int?) -> Bool {
-        hasMore && items.count - 1 - (index ?? 0) < columns * rows
-    }
-
-    private func sectionStart(_ section: Int) -> Int {
-        sections[..<section].reduce(0) { $0 + $1.items.count }
+    /// Whether the user, at `position`, is within a screenful of the last
+    /// item of a whole collection with more (revisions 1 and 2).
+    func isNearEnd(_ position: Int?) -> Bool {
+        hasMore && total - 1 - (position ?? 0) < screen
     }
 
     private func row(from index: Int, by step: Int) -> Int {
-        let section = sectionOfItem[index]
-        let start = sectionStart(section)
-        let count = sections[section].items.count
+        guard let section = sectionIndex(at: index) else { return index }
+        let start = sections[section].start
+        let count = sections[section].count
         let local = index - start
         let row = local / columns
         let column = local % columns
@@ -314,11 +635,10 @@ public extension PluginPageCollection {
         }
         // Into the nearest section with items in that direction.
         var other = section + step
-        while sections.indices.contains(other), sections[other].items.isEmpty { other += step }
+        while sections.indices.contains(other), sections[other].count == 0 { other += step }
         guard sections.indices.contains(other) else { return index }
-        let otherStart = sectionStart(other)
-        let otherCount = sections[other].items.count
+        let otherCount = sections[other].count
         let targetRow = step > 0 ? 0 : (otherCount - 1) / columns
-        return otherStart + min(targetRow * columns + column, otherCount - 1)
+        return sections[other].start + min(targetRow * columns + column, otherCount - 1)
     }
 }

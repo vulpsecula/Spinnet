@@ -3,8 +3,8 @@ import XCTest
 @testable import SpinnetCore
 
 /// `Tests/Fixtures/EmojiPages.spinnetplugin` and `BrewPages.spinnetplugin`
-/// are external Plugins declaring Candidate Contract `collections` r1 and the
-/// `host_operations` and `namespaces` revisions it requires: an Emoji-shaped
+/// are external Plugins declaring Candidate Contract `collections` r3 and the
+/// `host_operations` r2 and `namespaces` r1 it requires: an Emoji-shaped
 /// grid and a Brew-shaped list with a detail page.
 enum CollectionsFixtures {
     static let emoji = NamespacesProbeFixture.fixtures.appendingPathComponent("EmojiPages.spinnetplugin", isDirectory: true)
@@ -27,16 +27,25 @@ enum CollectionsFixtures {
         PluginInterfaceContracts.host.permitting(try! manifest(declaringCollections: 1))
     }
 
+    /// What a Plugin declaring `collections` r2, whose collections are whole
+    /// and append with `load_more`, and the candidates it requires may use.
+    static var revisionTwo: (PluginInterfaceMember) -> Bool {
+        PluginInterfaceContracts.host.permitting(try! manifest(declaringCollections: 2))
+    }
+
     /// The Emoji fixture's manifest declaring `collections` at `revision`.
     static func manifest(declaringCollections revision: Int, of package: URL = emoji) throws -> PluginManifest {
         let data = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
         guard case .object(var manifest) = try JSONDecoder().decode(JSONValue.self, from: data),
               case .array(let declared)? = manifest["candidate_contracts"] else { throw CocoaError(.fileReadCorruptFile) }
+        // Revisions 1 and 2 require host_operations r1, revision 3 r2.
         manifest["candidate_contracts"] = .array(declared.map { declaration in
-            guard case .object(var members) = declaration, members["name"] == .string(CollectionsContract.name) else {
-                return declaration
+            guard case .object(var members) = declaration else { return declaration }
+            if members["name"] == .string(CollectionsContract.name) {
+                members["revision"] = .number(Double(revision))
+            } else if members["name"] == .string(HostOperationsContract.name) {
+                members["revision"] = .number(revision >= 3 ? 2 : 1)
             }
-            members["revision"] = .number(Double(revision))
             return .object(members)
         })
         return try PluginManifestLoader.decode(JSONEncoder().encode(JSONValue.object(manifest)))
@@ -63,9 +72,9 @@ class CollectionsContractTests: XCTestCase {
     /// The Host's record of that revision.
     class var candidate: CandidateContract { CollectionsContract.revisionOne }
     static var published: URL { pluginAPI.appendingPathComponent("candidates/collections/r\(revision)") }
-    private static var schema: URL { published.appendingPathComponent("collections.schema.json") }
+    static var schema: URL { published.appendingPathComponent("collections.schema.json") }
 
-    private struct Fixture: Decodable {
+    struct Fixture: Decodable {
         let file: String
         let definition: String
         let valid: Bool
@@ -73,19 +82,19 @@ class CollectionsContractTests: XCTestCase {
         let level1: Bool?
     }
 
-    private func fixtures() throws -> [Fixture] {
+    func fixtures() throws -> [Fixture] {
         struct Index: Decodable { let fixtures: [Fixture] }
         return try JSONDecoder().decode(Index.self, from: Data(contentsOf: Self.published.appendingPathComponent("fixtures/index.json")))
             .fixtures
     }
 
-    private func value(_ file: String) throws -> JSONValue {
+    func value(_ file: String) throws -> JSONValue {
         try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent("fixtures/\(file)")))
     }
 
     /// What a Plugin declaring this revision, and the candidates it
     /// requires, may use.
-    private var permits: (PluginInterfaceMember) -> Bool {
+    var permits: (PluginInterfaceMember) -> Bool {
         PluginInterfaceContracts.host.permitting(try! CollectionsFixtures.manifest(declaringCollections: Self.revision))
     }
 
@@ -262,7 +271,9 @@ class CollectionsContractTests: XCTestCase {
         XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(Self.candidate))
         XCTAssertEqual(published.members.contains(CollectionsContract.repeatedCallsIntoSession), Self.revision >= 2)
         XCTAssertEqual(published.members.contains(.viewEvent("called")), Self.revision >= 2)
-        XCTAssertEqual(published.requires, [HostOperationsContract.declaration, HostServiceCatalogue.declaration])
+        XCTAssertEqual(published.requires, [Self.revision >= 3 ? HostOperationsContract.revisionTwoDeclaration
+                                                                : HostOperationsContract.declaration,
+                                            HostServiceCatalogue.declaration])
         let viewActions = HostServiceCatalogue.operations.filter { $0.isOffered(at: .viewAction) }.map(\.id)
         XCTAssertEqual(published.members.filter { $0.kind == .standardAction }.map(\.name), viewActions)
         guard case .object(let schema) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf:
@@ -324,12 +335,12 @@ class CollectionsContractTests: XCTestCase {
 /// `called` event and `repeated_calls_into_session` behaviour it adds.
 final class CollectionsRevisionTwoContractTests: CollectionsContractTests {
     override class var revision: Int { 2 }
-    override class var candidate: CandidateContract { CollectionsContract.candidate }
+    override class var candidate: CandidateContract { CollectionsContract.revisionTwo }
 
     /// Revision 2 is revision 1 with repeated calls, and nothing else: the
     /// same schema apart from `called`, the same fixtures and two more.
     func testRevisionTwoIsRevisionOneWithRepeatedCalls() throws {
-        let one = CollectionsContract.revisionOne, two = CollectionsContract.candidate
+        let one = CollectionsContract.revisionOne, two = CollectionsContract.revisionTwo
         XCTAssertEqual(two.revision, 2)
         XCTAssertEqual(Set(two.members).subtracting(one.members),
                        [CollectionsContract.repeatedCallsIntoSession, .viewEvent("called")])

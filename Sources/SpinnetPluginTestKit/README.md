@@ -247,8 +247,8 @@ its own repository should use recorded answers.
 
 ## Pages and collections
 
-A Plugin declaring Candidate Contract `collections` r1 or r2 (see
-`PluginAPI/candidates/collections/r2/reference.md`) may answer with a page.
+A Plugin declaring Candidate Contract `collections` r1, r2 or r3 (see
+`PluginAPI/candidates/collections/r3/reference.md`) may answer with a page.
 `run.answer()` reads it as the Host does, page rules included: `answer.page`
 is the page the Host would draw, and a page it would not draw throws the
 protocol violation that would end the View Session.
@@ -293,3 +293,28 @@ XCTAssertEqual(brew.text(of: "query"), "py")  // what was typed stays
 ```
 
 An answer the Host would end the session for closes the page (`isClosed`).
+
+### Windows, toggles and outcomes (`collections` r3)
+
+For a collection that gives its `total`, `PluginTestPage` keeps the window
+the Host keeps: `window` holds the items by position, `item(at:)` reads one,
+and `selectedPosition` is where the selection is, its item held or not. The
+screen follows the selection, or `scroll(to:)`; after every gesture and
+answer the page asks for what the screen lacks with `load_range`, as the
+Host does, and `scrollToEnd()` scrolls to the last item. `select(at:)` clicks
+a position, a placeholder included.
+
+```swift
+try emoji.press(.end)                       // selects position 1905 and asks for its range
+XCTAssertEqual(emoji.selectedItem?.id, emoji.item(at: 1905)?.id)
+XCTAssertEqual(try emoji.menu(of: id), ["Insert", "Copy", "✓ Favourite"])  // a toggle checked by the item's marks
+```
+
+Page and item actions and requested operations reach the outcome recorded
+in `operationOutcomes` (success by default; an insertion after a gesture
+with no target shown is refused with `target_not_shown`), listed in
+`outcomes`. A successful `closes_view` closes the page unless `isPinned`.
+With `notify` the outcome runs as `operation_finished` in the session, an
+item action's with the item; when the view closed, it runs once more without
+a view under `host_operations` r2, listed in `afterClose`, and its answer
+may hold a toast and nothing else.

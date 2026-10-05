@@ -1,0 +1,10 @@
+{
+  "type": "operation_finished",
+  "operation": "copy",
+  "perform": "clipboard.write",
+  "outcome": "succeeded",
+  "item": {
+    "id": "1F408",
+    "text": "🐈"
+  }
+}

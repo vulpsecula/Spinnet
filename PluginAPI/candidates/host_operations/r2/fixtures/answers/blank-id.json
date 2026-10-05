@@ -1,0 +1,9 @@
+{
+  "operation": {
+    "perform": "selection.replace",
+    "input": {
+      "text": "x"
+    },
+    "id": "  "
+  }
+}

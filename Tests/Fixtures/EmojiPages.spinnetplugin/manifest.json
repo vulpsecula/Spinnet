@@ -2,13 +2,13 @@
   "protocol_version": "1.0",
   "api_level": 1,
   "candidate_contracts": [
-    {"name": "collections", "revision": 2},
-    {"name": "host_operations", "revision": 1},
+    {"name": "collections", "revision": 3},
+    {"name": "host_operations", "revision": 2},
     {"name": "namespaces", "revision": 1}
   ],
   "id": "com.example.emoji-pages",
   "name": "Emoji Pages",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "capabilities": ["insert_into_focused_app", "write_clipboard"],
   "capability_scopes": [{
     "capability": "insert_into_focused_app",
@@ -25,7 +25,7 @@
     {
       "id": "emoji.search",
       "title": "Search Emoji",
-      "description": "Searches 1,906 emoji-shaped items in a grid, inserts the chosen one and remembers it as recent.",
+      "description": "Searches 1,906 emoji-shaped items in a grid the Host fills by range, inserts or copies the chosen one, remembers it as recent once that succeeded, and keeps favourites.",
       "execution": "javascript",
       "is_configurable": false,
       "script": "emoji.js"

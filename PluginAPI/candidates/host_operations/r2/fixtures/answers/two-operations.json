@@ -1,0 +1,20 @@
+{
+  "operations": [
+    {
+      "perform": "selection.replace",
+      "input": {
+        "text": "😀"
+      },
+      "id": "insert",
+      "closes_view": true
+    },
+    {
+      "perform": "selection.replace",
+      "input": {
+        "text": "😀"
+      },
+      "id": "insert",
+      "closes_view": true
+    }
+  ]
+}

@@ -22,8 +22,10 @@ final class PluginPageModel: ObservableObject {
         let serial: Int
     }
 
-    /// Asks the collection to scroll: to an item, or to the top when nil.
+    /// Asks the collection to scroll: to a position, or to the top when nil.
     struct ScrollRequest: Equatable {
+        let position: Int?
+        /// The item at that position, if the Host holds it.
         let item: String?
         /// Keep the item at the top, rather than just in view.
         let atTop: Bool
@@ -35,18 +37,22 @@ final class PluginPageModel: ObservableObject {
         let action: PluginPageItemAction
         /// The title with the App an insert action inserts into.
         let title: String
+        /// A toggle item action whose mark the item carries.
+        let isChecked: Bool
     }
 
     let session: PluginViewSession
     @Published private(set) var page: PluginPage
-    /// What only the collection's items and scrolling read: the selection,
-    /// whether the collection has the keyboard, and where to scroll. Kept
-    /// apart so a selection move redraws the visible items, not the page.
-    let collectionState = PageCollectionState()
-    /// The grid cell under the pointer, whose title is the grid's tooltip.
-    let hoverState = PageHoverState()
+    /// The AppKit collection drawing the page's List or Grid, which the
+    /// model tells what changed rather than republishing the page: a
+    /// selection move redraws two cells, not the page.
+    weak var collectionDisplay: PageCollectionDisplay?
+    /// Whether the collection has the keyboard, which tints its selection.
+    private(set) var collectionIsFocused = false
     /// The collection's selected item.
-    var selectedItem: String? { collectionState.selectedItem }
+    var selectedItem: String? { memory.selectedItem?.id }
+    /// Where the collection's selection is, its item held or not.
+    var selectedPosition: Int? { memory.selectedPosition }
     /// A pinned page stays open when it loses focus and when an action or
     /// operation with `closes_view` succeeds.
     @Published var isPinned = false
@@ -56,7 +62,8 @@ final class PluginPageModel: ObservableObject {
     @Published private(set) var toast: String?
     @Published private(set) var loadingMore = LoadingMore.idle
     private(set) var focusRequest: FocusRequest?
-    var scrollRequest: ScrollRequest? { collectionState.scrollRequest }
+    /// The last scroll the model asked the collection for.
+    private(set) var scrollRequest: ScrollRequest?
     /// Counts, per text field, the times the Host replaced its text: a new
     /// or reset field. The field view writes the text only then.
     @Published private(set) var textRevisions: [String: Int] = [:]
@@ -67,9 +74,10 @@ final class PluginPageModel: ObservableObject {
     private(set) var memory = PluginPageMemory()
     /// Text fields with an open input-method composition.
     private(set) var composing: Set<String> = []
-    /// The items on screen in the collection, by position.
-    private var visible: Set<Int> = []
     private var askedAt: Int?
+    /// The `load_range` the Host sent last and has not settled, with the
+    /// collection's layout it was asked under.
+    private var requestedRange: (range: Range<Int>, layout: Int)?
     /// A Return in the search field waiting for the answer to the typing
     /// before it (C1), with what the Host showed when it was pressed.
     private var pendingReturn: InsertionTargetCapture?
@@ -113,7 +121,13 @@ final class PluginPageModel: ObservableObject {
         return eventError
     }
     var repairRoute: PluginViewRepairRoute? { error.flatMap(PluginViewRepairRoute.init) }
+    /// The collection as the last answer described it.
     var collection: PluginPageCollection? { page.collection }
+    /// The items the Host holds of the collection, and their layout.
+    var window: PluginCollectionWindow? { memory.window }
+
+    /// The item the Host holds at `position`, or nil for a placeholder.
+    func item(at position: Int) -> PluginPageItem? { memory.window?.item(at: position) }
 
     // MARK: - Answers
 
@@ -126,16 +140,25 @@ final class PluginPageModel: ObservableObject {
         eventError = presentation.error
         if newView { apply(next, presentedAnew: presentedAnew) }
         settleLoadingMore()
+        settleRange()
+        // An answer to anything else may have outdated what is on screen.
+        if newView { requestRangeIfNeeded() }
         settlePendingReturn()
     }
 
     private func apply(_ next: PluginPage, presentedAnew: Bool) {
-        let previous = memory.page
-        if let previous, let id = previous.collection?.id { memory.state.scrollAnchors[id] = firstVisibleItem(of: previous) }
+        let previous = memory.window
+        let id = next.collection?.id
+        let anchor = id.flatMap { memory.state.viewports[$0] }.flatMap { viewport in
+            previous?.item(at: viewport.lowerBound).map { (id: $0.id, position: viewport.lowerBound) }
+        }
+        if let id, let anchor { memory.state.scrollAnchors[id] = anchor.id }
         saveCarets()
-        let applied = memory.show(next, composing: composing)
+        let answersRange: Bool
+        if case .loadRange? = session.answeredEvent { answersRange = true } else { answersRange = false }
+        let selectedBefore = memory.selectedPosition
+        let applied = memory.show(next, composing: composing, answersRange: answersRange)
         page = next
-        collectionState.select(memory.selectedItem?.id)
         for case .textField(let field) in next.components where applied.renewed.contains(field.id) {
             textRevisions[field.id, default: 0] += 1
         }
@@ -143,35 +166,37 @@ final class PluginPageModel: ObservableObject {
             // Every field of another page is drawn anew from the memory.
             for case .textField(let field) in next.components { textRevisions[field.id, default: 0] += 1 }
             composing = []
-            visible = []
         }
         if let collection = next.collection {
             if applied.pageChanged || applied.renewed.contains(collection.id) {
                 askedAt = nil
                 loadingMore = .idle
-                let anchor = memory.state.scrollAnchors[collection.id]
-                requestScroll(to: applied.restored ? anchor : nil, atTop: true)
-            } else if let anchor = previous?.collection.flatMap({ firstVisibleItem(of: $0) }),
-                      let before = previous?.collection?.positions[anchor], let after = collection.positions[anchor],
-                      before != after {
-                // Items arrived above what the user is looking at: keep it in place.
-                requestScroll(to: anchor, atTop: true)
+                requestedRange = nil
+                collectionDisplay?.reloadCollection()
+                if applied.restored, let anchor = memory.state.scrollAnchors[collection.id],
+                   let position = memory.window?.position(of: anchor) {
+                    requestScroll(to: position, atTop: true)
+                } else {
+                    requestScroll(to: nil, atTop: true)
+                }
+            } else {
+                collectionDisplay?.reloadCollection()
+                // Items arrived above what the user is looking at: keep it
+                // in place.
+                if let anchor, let now = memory.window?.position(of: anchor.id), now != anchor.position {
+                    requestScroll(to: now, atTop: true)
+                } else if selectedBefore != memory.selectedPosition {
+                    collectionDisplay?.selectionMoved(from: selectedBefore, to: memory.selectedPosition)
+                }
             }
+        } else {
+            collectionDisplay?.reloadCollection()
         }
         if applied.pageChanged || next.reset == .page || presentedAnew, let focus = memory.state.focus {
             requestFocus(focus)
         } else if let focused, next.component(focused) == nil, let fallback = memory.state.focus {
             requestFocus(fallback)
         }
-    }
-
-    private func firstVisibleItem(of page: PluginPage) -> String? {
-        firstVisibleItem(of: page.collection)
-    }
-
-    private func firstVisibleItem(of collection: PluginPageCollection?) -> String? {
-        guard let collection, let first = visible.min(), collection.items.indices.contains(first) else { return nil }
-        return collection.items[first].id
     }
 
     private func saveCarets() {
@@ -225,7 +250,10 @@ final class PluginPageModel: ObservableObject {
         focused = component
         memory.state.focus = component
         let collectionFocused = component == collection?.id
-        if collectionState.isFocused != collectionFocused { collectionState.isFocused = collectionFocused }
+        if collectionIsFocused != collectionFocused {
+            collectionIsFocused = collectionFocused
+            collectionDisplay?.focusChanged()
+        }
     }
 
     private func requestFocus(_ component: String) {
@@ -279,14 +307,28 @@ final class PluginPageModel: ObservableObject {
     }
 
     /// Up or Down in a search field, or any arrow, Page or Home/End key in
-    /// the collection: moves the selection and keeps it in view.
+    /// the collection: moves the selection and keeps it in view. A position
+    /// whose item the Host does not hold yet is asked for.
     @discardableResult
     func moveSelection(_ move: PluginPageCollection.Move) -> Bool {
-        guard let item = memory.moveSelection(move) else { return false }
-        collectionState.select(item.id)
-        requestScroll(to: item.id, atTop: false)
-        askForMoreIfNeeded(at: memory.selectedPosition)
+        let before = memory.selectedPosition
+        guard let position = memory.moveSelection(move) else { return false }
+        selectionMoved(from: before, to: position)
         return true
+    }
+
+    private func selectionMoved(from before: Int?, to position: Int) {
+        collectionDisplay?.selectionMoved(from: before, to: position)
+        requestScroll(to: position, atTop: false)
+        if collectionDisplay == nil, let window = memory.window, let viewport = memory.state.viewports[collection?.id ?? ""],
+           !viewport.contains(position) {
+            // Nothing draws the collection: the selection's row is on screen.
+            let row = position / window.columns * window.columns
+            let first = position < viewport.lowerBound ? row : max(row - (window.rows - 1) * window.columns, 0)
+            viewportChanged(first..<min(first + window.screen, window.total))
+        }
+        requestRangeIfNeeded()
+        askForMoreIfNeeded(at: position)
     }
 
     /// Whether `field` searches the page's collection, so Up, Down and
@@ -325,16 +367,18 @@ final class PluginPageModel: ObservableObject {
         performDefaultOnSelection(shown: shown)
     }
 
+    /// The default item action on the selection; nothing while the
+    /// selection waits for its item.
     private func performDefaultOnSelection(shown: InsertionTargetCapture) {
-        guard let collection, let id = memory.selectedItem?.id, let item = collection.item(id),
-              let action = collection.defaultAction, collection.actions(of: item).contains(action) else { return }
+        guard let collection, let item = memory.selectedItem, let action = collection.defaultAction,
+              collection.actions(of: item).contains(action) else { return }
         perform(action, on: item, shown: shown)
     }
 
     /// ⌘C with the collection focused: the sole `clipboard.write` item action.
     func copySelection() -> Bool {
-        guard let collection, let copy = collection.copyAction, let id = memory.selectedItem?.id,
-              let item = collection.item(id), collection.actions(of: item).contains(copy) else { return false }
+        guard let collection, let copy = collection.copyAction, let item = memory.selectedItem,
+              collection.actions(of: item).contains(copy) else { return false }
         perform(copy, on: item, shown: shownTarget())
         return true
     }
@@ -357,45 +401,80 @@ final class PluginPageModel: ObservableObject {
 
     // MARK: - Pointer
 
+    /// A click on the item with `item`, which the Host holds.
     func click(_ item: String) {
-        guard collection?.positions[item] != nil else { return }
-        memory.select(item)
-        collectionState.select(item)
+        guard let position = memory.window?.position(of: item) else { return }
+        click(at: position)
+    }
+
+    /// A click on the cell at `position`, an item or a placeholder.
+    func click(at position: Int) {
+        guard let window = memory.window, (0..<window.total).contains(position) else { return }
+        let before = memory.selectedPosition
+        memory.select(position: position)
         if let collection { requestFocus(collection.id) }
-        askForMoreIfNeeded(at: memory.selectedPosition)
+        collectionDisplay?.selectionMoved(from: before, to: position)
+        requestRangeIfNeeded()
+        askForMoreIfNeeded(at: position)
     }
 
     func doubleClick(_ item: String) {
-        click(item)
-        guard let collection, let found = collection.item(item), let action = collection.defaultAction,
+        guard let position = memory.window?.position(of: item) else { return }
+        doubleClick(at: position)
+    }
+
+    func doubleClick(at position: Int) {
+        click(at: position)
+        guard let collection, let found = memory.selectedItem, let action = collection.defaultAction,
               collection.actions(of: found).contains(action) else { return }
         perform(action, on: found, shown: shownTarget())
     }
 
     /// What `item`'s context menu offers: the default first.
     func menu(of item: String) -> [MenuEntry] {
-        guard let collection, let found = collection.item(item) else { return [] }
+        guard let position = memory.window?.position(of: item) else { return [] }
+        return menu(at: position)
+    }
+
+    /// What the context menu of the item at `position` offers; nothing for
+    /// a placeholder.
+    func menu(at position: Int) -> [MenuEntry] {
+        guard let collection, let found = memory.window?.item(at: position) else { return [] }
         return collection.actions(of: found).map { action in
             MenuEntry(action: action, title: action.perform == "selection.replace"
                       ? "\(action.title) \(insertionTargetName.map { "into \($0)" } ?? Self.noInsertionTarget)"
-                      : action.title)
+                      : action.title,
+                      isChecked: action.isChecked(for: found))
         }
     }
 
     func choose(_ action: PluginPageItemAction, on item: String) {
-        guard let found = collection?.item(item) else { return }
+        guard let position = memory.window?.position(of: item) else { return }
+        choose(action, at: position)
+    }
+
+    /// The user chose `action` from the context menu of the item at
+    /// `position`, which the menu selected.
+    func choose(_ action: PluginPageItemAction, at position: Int) {
+        if memory.selectedPosition != position {
+            let before = memory.selectedPosition
+            memory.select(position: position)
+            collectionDisplay?.selectionMoved(from: before, to: position)
+        }
+        guard let found = memory.selectedItem else { return }
         perform(action, on: found, shown: shownTarget())
     }
 
     private func perform(_ action: PluginPageItemAction, on item: PluginPageItem, shown: InsertionTargetCapture) {
         guard let collection else { return }
+        let snapshot = memory.selectedSnapshot ?? collection.snapshot(of: item)
         eventError = nil
-        if let operation = action.operation(on: item) {
+        if let operation = action.operation(on: item, snapshot: snapshot) {
             session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
             return
         }
-        session.send(.itemAction(page: page.id, collection: collection.id, action: action.id,
-                                 item: collection.snapshot(of: item), values: memory.values),
+        session.send(.itemAction(page: page.id, collection: collection.id, action: action.id, item: snapshot,
+                                 values: memory.values),
                      insertionTarget: shown)
     }
 
@@ -421,31 +500,63 @@ final class PluginPageModel: ObservableObject {
                         insertionTarget: .notShown)
     }
 
-    // MARK: - Scrolling and more items
+    // MARK: - Scrolling, windows and more items
 
-    func itemAppeared(at index: Int) {
-        visible.insert(index)
-        if let collection, index >= collection.items.count - collection.columns { askForMoreIfNeeded(atEnd: true) }
+    /// The collection shows `viewport` now: the window lets go of what is
+    /// far from it, the Host asks for what it lacks, and a whole collection
+    /// with more asks for more when its end is in view.
+    func viewportChanged(_ viewport: Range<Int>) {
+        guard let window = memory.window else { return }
+        memory.setViewport(viewport)
+        requestRangeIfNeeded()
+        if !window.isWindowed, viewport.upperBound >= window.total - window.columns { askForMoreIfNeeded(atEnd: true) }
     }
 
-    func itemDisappeared(at index: Int) { visible.remove(index) }
-
-    private func requestScroll(to item: String?, atTop: Bool) {
+    private func requestScroll(to position: Int?, atTop: Bool) {
         serial += 1
-        collectionState.scrollRequest = ScrollRequest(item: item, atTop: atTop, serial: serial)
+        let request = ScrollRequest(position: position, item: position.flatMap { memory.window?.item(at: $0)?.id },
+                                    atTop: atTop, serial: serial)
+        scrollRequest = request
+        collectionDisplay?.scroll(to: request)
+    }
+
+    /// Asks for the range the screen lacks with `load_range`: at most one
+    /// running per collection, a newer one replacing one still waiting.
+    private func requestRangeIfNeeded() {
+        guard let collection, let window = memory.window, window.isWindowed, let range = memory.missingRange else { return }
+        if session.isDispatched(where: Self.isLoadRange) { return }
+        if requestedRange?.range == range, session.isPending(where: Self.isLoadRange) { return }
+        requestedRange = (range, window.layoutRevision)
+        session.send(.loadRange(page: page.id, collection: collection.id, start: range.lowerBound, count: range.count))
+    }
+
+    /// The `load_range` asked for is answered, failed or was dropped: what
+    /// did not come is not asked for again, and the Host asks for what the
+    /// screen still lacks.
+    private func settleRange() {
+        guard let requested = requestedRange, !session.isPending(where: Self.isLoadRange) else { return }
+        requestedRange = nil
+        if memory.window?.layoutRevision == requested.layout { memory.settleRange(requested.range) }
+        requestRangeIfNeeded()
+    }
+
+    private static func isLoadRange(_ event: PluginViewEvent) -> Bool {
+        if case .loadRange = event { return true }
+        return false
     }
 
     private func askForMoreIfNeeded(at position: Int?) {
-        guard let collection, collection.isNearEnd(position) else { return }
+        guard let window = memory.window, !window.isWindowed, window.isNearEnd(position) else { return }
         askForMoreIfNeeded(atEnd: true)
     }
 
     private func askForMoreIfNeeded(atEnd: Bool) {
-        guard atEnd, let collection, collection.hasMore, loadingMore == .idle,
-              askedAt != collection.items.count else { return }
-        askedAt = collection.items.count
+        guard atEnd, let collection, let window = memory.window, !window.isWindowed, window.hasMore,
+              loadingMore == .idle, askedAt != window.total else { return }
+        askedAt = window.total
         loadingMore = .loading
-        session.send(.loadMore(page: page.id, collection: collection.id, loaded: collection.items.count))
+        collectionDisplay?.reloadCollection()
+        session.send(.loadMore(page: page.id, collection: collection.id, loaded: window.total))
     }
 
     /// Retry after a failed `load_more`.
@@ -465,6 +576,7 @@ final class PluginPageModel: ObservableObject {
         } else {
             loadingMore = .idle
         }
+        collectionDisplay?.reloadCollection()
     }
 
     // MARK: - Insertion target
@@ -519,13 +631,24 @@ final class PluginPageModel: ObservableObject {
 
     // MARK: - Accessibility
 
-    /// What VoiceOver reads for an item: its title, and whether it is selected.
+    /// What VoiceOver reads for an item: its title, subtitle and accessory.
     func accessibilityLabel(of item: PluginPageItem) -> String {
         [item.title, item.subtitle, item.accessory].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// The custom actions VoiceOver offers on an item: the context menu's.
-    func accessibilityActions(of item: String) -> [String] { menu(of: item).map(\.title) }
+    /// The custom actions VoiceOver offers on an item: the context menu's,
+    /// a toggle's saying whether it is checked.
+    func accessibilityActions(of item: String) -> [String] {
+        menu(of: item).map(Self.accessibilityName)
+    }
+
+    static func accessibilityName(of entry: MenuEntry) -> String {
+        guard entry.action.toggle != nil else { return entry.title }
+        return "\(entry.title), \(entry.isChecked ? "checked" : "not checked")"
+    }
+
+    /// What VoiceOver reads for a position whose item is still to come.
+    static let placeholderLabel = "Loading"
 
     /// The collection's label: its search field's title, else the page's.
     var collectionLabel: String {
@@ -538,19 +661,14 @@ final class PluginPageModel: ObservableObject {
     static func liveInputMethodIsSelected() -> Bool { HostInputSource.isInputMethodSelected() }
 }
 
-/// The collection's selection, keyboard focus and scroll requests, which its
-/// items and scroll view observe without the rest of the page.
-final class PageCollectionState: ObservableObject {
-    @Published private(set) var selectedItem: String?
-    @Published var isFocused = false
-    @Published var scrollRequest: PluginPageModel.ScrollRequest?
-
-    func select(_ item: String?) {
-        if selectedItem != item { selectedItem = item }
-    }
-}
-
-/// The title of the grid cell under the pointer.
-final class PageHoverState: ObservableObject {
-    @Published var title: String?
+/// What draws a page's collection: the model tells it what changed.
+protocol PageCollectionDisplay: AnyObject {
+    /// The items, their layout or the footer changed.
+    func reloadCollection()
+    /// The selection moved between two positions; only their cells change.
+    func selectionMoved(from: Int?, to: Int?)
+    /// Scroll to a position, or to the top.
+    func scroll(to request: PluginPageModel.ScrollRequest)
+    /// The collection gained or lost the keyboard.
+    func focusChanged()
 }

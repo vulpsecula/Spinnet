@@ -69,6 +69,12 @@ final class HostOperationRequests {
         let action: ActionConfiguration
         weak var owner: PluginViewSession?
         let target: InsertionTargetCapture
+        /// The Plugin declares `host_operations` r2: an outcome it asked to
+        /// hear reaches it after its view closed.
+        let deliversAfterClose: Bool
+        /// The owner's last good state when it ended while this request ran,
+        /// and why it ended.
+        var ownerEnded: (state: JSONValue, reason: PluginViewSessionEnd)?
     }
 
     private enum Phase {
@@ -89,6 +95,12 @@ final class HostOperationRequests {
     /// Called once a Plugin's slot is free, so its sessions dispatch the
     /// gestures that waited.
     var onSlotFree: (PluginID) -> Void = { _ in }
+    /// Runs `operation_finished` in a viewless invocation of the Action that
+    /// requested it, from the state its view last had, and calls back once
+    /// that invocation has ended however it ended (`host_operations` r2).
+    var deliverAfterClose: (ActionConfiguration, PluginViewEvent, JSONValue, @escaping () -> Void) -> Void = { _, _, _, done in
+        done()
+    }
 
     init(performer: HostOperationPerformer, schedule: @escaping PluginViewSession.Schedule,
          report: @escaping (ActionConfiguration, String) -> Void) {
@@ -116,26 +128,32 @@ final class HostOperationRequests {
     /// Takes a request that committed with its answer. It starts at once
     /// when the Plugin's slot is free, in the same executor turn.
     func commit(_ operation: RequestedHostOperation, for action: ActionConfiguration, owner: PluginViewSession?,
-                target: InsertionTargetCapture) {
+                target: InsertionTargetCapture, deliversAfterClose: Bool = false) {
         serials += 1
-        let request = Request(serial: serials, operation: operation, action: action, owner: owner, target: target)
+        let request = Request(serial: serials, operation: operation, action: action, owner: owner, target: target,
+                              deliversAfterClose: deliversAfterClose)
         waiting[action.pluginID, default: []].append(request)
         startNext(action.pluginID)
     }
 
     /// The owning session ended: requests it committed that have not
     /// started are cancelled, and one waiting for its result to be answered
-    /// frees the slot. One that runs finishes, its outcome shown by the Host.
+    /// frees the slot. One that runs finishes, its outcome shown by the Host
+    /// and, under `host_operations` r2, delivered after the close when it
+    /// asked to be told.
     func ownerEnded(_ session: PluginViewSession, because reason: PluginViewSessionEnd) {
         let pluginID = session.pluginID
         let (cancelled, kept) = (waiting[pluginID] ?? []).partitioned { $0.owner === session }
         waiting[pluginID] = kept
         for request in cancelled { cancel(request, because: reason) }
-        if let current = active[pluginID], current.request.owner === session, current.phase == .awaitingAnswer {
-            release(pluginID, serial: current.request.serial)
-        } else {
-            freeIfIdle(pluginID)
+        if var current = active[pluginID], current.request.owner === session {
+            if current.phase == .awaitingAnswer {
+                return release(pluginID, serial: current.request.serial)
+            }
+            current.request.ownerEnded = (session.state, reason)
+            active[pluginID] = current
         }
+        freeIfIdle(pluginID)
     }
 
     /// The Plugin was updated, disabled or removed, or lost a Capability:
@@ -191,11 +209,27 @@ final class HostOperationRequests {
         if request.operation.notify, let owner, !owner.isEnded, owner.action.isSameConfiguration(as: request.action) {
             active[pluginID] = (request, .awaitingAnswer)
             owner.deliver(.operationFinished(id: request.operation.id, perform: request.operation.perform,
-                                             outcome: result.outcome),
+                                             outcome: result.outcome, item: request.operation.item),
                           answering: serial, requestedBy: request.action)
-        } else {
-            release(pluginID, serial: serial)
+            return
         }
+        // Under `host_operations` r2 an outcome whose view closed while the
+        // operation ran, by the user, by the Host or by its own
+        // `closes_view`, still reaches the Action that asked, once and
+        // without a view. One whose Plugin changed, lost a Capability or
+        // broke the interface does not.
+        if request.operation.notify, request.deliversAfterClose, result.outcome != .cancelled,
+           let ended = active[pluginID]?.request.ownerEnded, ended.reason == .viewClosed || ended.reason == .closedByPlugin {
+            active[pluginID]?.phase = .awaitingAnswer
+            deliverAfterClose(request.action,
+                              .operationFinished(id: request.operation.id, perform: request.operation.perform,
+                                                 outcome: result.outcome, viewClosed: true, item: request.operation.item),
+                              ended.state) { [weak self] in
+                self?.resultAnswered(pluginID, serial: serial)
+            }
+            return
+        }
+        release(pluginID, serial: serial)
     }
 
     private func cancel(_ request: Request, because reason: PluginViewSessionEnd) {

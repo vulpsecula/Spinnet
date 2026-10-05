@@ -10,7 +10,10 @@ import SpinnetCore
 /// Host Service are performed by the Host without running the script.
 ///
 /// Every event runs the Command once in the real helper, in order. Nothing is
-/// debounced: each `type` stands for a pause in typing.
+/// debounced: each `type` stands for a pause in typing. For a windowed
+/// collection (revision 3) the screen is the rows around the selection, or
+/// where the test scrolled, and the kit asks for what it lacks with
+/// `load_range` after every gesture and answer, as the Host does.
 public final class PluginTestPage {
     /// What the Host keeps: the page on screen with its immediate state, and
     /// the pages remembered.
@@ -21,19 +24,33 @@ public final class PluginTestPage {
     public private(set) var levelOneView: JSONValue?
     /// The page as the script last wrote it.
     public private(set) var pageJSON: JSONValue?
-    /// Every event delivered to the script, in order.
+    /// Every event delivered to the script in the session, in order.
     public private(set) var events: [PluginViewEvent] = []
-    /// Every run, in order, the Action's start first.
+    /// Every run, in order, the Action's start first, and those after the
+    /// view closed.
     public private(set) var runs: [PluginTestRun] = []
     /// What the Host performed: page and item actions naming a Host
     /// Service, and operations the script's answers requested, in order.
     public private(set) var performed: [RequestedHostOperation] = []
-    /// The toasts the answers carried.
+    /// The outcome of each, in the same order.
+    public private(set) var outcomes: [HostOperationOutcome] = []
+    /// The toasts the answers carried, those shown near the pointer after
+    /// the view closed included.
     public private(set) var toasts: [String] = []
     public private(set) var isClosed = false
+    /// `operation_finished` events delivered after the view closed
+    /// (`host_operations` r2), each to a viewless invocation.
+    public private(set) var afterClose: [PluginViewEvent] = []
     /// Text fields in which the test says an input-method composition is
     /// open: a reset of one of them is dropped, as the Host drops it.
     public var composing: Set<String> = []
+    /// Whether the user pinned the panel: a pinned view stays open when an
+    /// operation or action with `closes_view` succeeds.
+    public var isPinned = false
+    /// The outcome the Host reaches for each catalogue ID, when not success.
+    /// An insertion after a gesture with no target shown is refused with
+    /// `target_not_shown` whatever is recorded, as in the Host.
+    public var operationOutcomes: [String: HostOperationOutcome] = [:]
 
     /// The Command and input of the Action handling the session: the one
     /// that opened it, or the last call whose answer committed a page or
@@ -43,6 +60,7 @@ public final class PluginTestPage {
     private let helper: PluginTestHelper
     private let plugin: PluginUnderTest
     private let services: PluginHostServiceBroker
+    private let permits: (PluginInterfaceMember) -> Bool
     /// The loaded count the Host last asked for more at, per collection.
     private var askedAt: [String: Int] = [:]
 
@@ -52,18 +70,28 @@ public final class PluginTestPage {
         self.plugin = plugin
         self.helper = helper
         self.services = services
+        permits = PluginInterfaceContracts.host.permitting(plugin.manifest)
     }
 
     // MARK: What the Host shows
 
     public var page: PluginPage? { memory.page }
+    /// The collection as the last answer described it; its items are that
+    /// answer's slice. `window` holds what the Host keeps.
     public var collection: PluginPageCollection? { page?.collection }
+    /// The items the Host holds of the collection, by position.
+    public var window: PluginCollectionWindow? { memory.window }
     public var values: JSONValue { memory.values }
     public var selectedItem: PluginPageItem? { memory.selectedItem }
+    /// Where the selection is, its item held or not.
+    public var selectedPosition: Int? { memory.selectedPosition }
     public var focus: String? { memory.state.focus }
 
     public func text(of field: String) -> String? { memory.state.texts[field] }
     public func choice(of field: String) -> String? { memory.state.choices[field] }
+
+    /// The item the Host holds at `position` of the collection.
+    public func item(at position: Int) -> PluginPageItem? { window?.item(at: position) }
 
     /// The script's last answer, as the Host read it.
     public func lastAnswer() throws -> PluginScriptAnswer {
@@ -84,16 +112,17 @@ public final class PluginTestPage {
     /// Settings and the Menu Item's overrides already merged, by default the
     /// handler's own.
     ///
-    /// For a Plugin declaring `collections` r2 the call runs in the session
-    /// as `called`, from the last good state, as a gesture with no insertion
-    /// target shown; only an answer with a page or view makes it the handler,
-    /// and a failure throws and keeps the handler, page and state. For any
-    /// other Plugin, Level 1's rule: the Action starts again with no event
-    /// and no state, and an answer with a view replaces the session's.
+    /// For a Plugin declaring `collections` r2 or later the call runs in the
+    /// session as `called`, from the last good state, as a gesture with no
+    /// insertion target shown; only an answer with a page or view makes it
+    /// the handler, and a failure throws and keeps the handler, page and
+    /// state. For any other Plugin, Level 1's rule: the Action starts again
+    /// with no event and no state, and an answer with a view replaces the
+    /// session's.
     @discardableResult
     public func call(_ commandID: String? = nil, input: JSONValue? = nil) throws -> PluginScriptAnswer {
         let called = (commandID ?? handler.commandID, input ?? handler.input)
-        let intoSession = PluginInterfaceContracts.host.permitting(plugin.manifest)(CollectionsContract.repeatedCallsIntoSession)
+        let intoSession = permits(CollectionsContract.repeatedCallsIntoSession)
         let answer = try intoSession ? run(.called, as: called) : run(nil, as: called, state: .null)
         if answer.description != nil { handler = called }
         return answer
@@ -116,37 +145,58 @@ public final class PluginTestPage {
         return try run(.pageFieldChanged(page: page.id, field: field, values: memory.values))
     }
 
-    /// The user clicked `item`, which selects it.
+    /// The user clicked `item`, which selects it. The Host must hold it.
     public func select(_ item: String) throws {
-        guard collection?.positions[item] != nil else { throw PluginTestPageError.noItem(item) }
-        memory.select(item)
+        guard let position = window?.position(of: item) else { throw PluginTestPageError.noItem(item) }
+        try select(at: position)
+    }
+
+    /// The user clicked the cell at `position`, held or still a placeholder.
+    public func select(at position: Int) throws {
+        guard let total = window?.total, (0..<total).contains(position) else { throw PluginTestPageError.noItem("\(position)") }
+        memory.select(position: position)
         if let collection { memory.state.focus = collection.id }
-        try askForMoreIfNeeded()
+        try selectionMoved()
     }
 
     /// An arrow, Page or Home/End key that moves the selection, in the
-    /// search field (Up and Down) or the collection. Reaching within a
-    /// screenful of the end asks for more, as the Host does.
+    /// search field (Up and Down) or the collection. The selection is kept
+    /// on screen; reaching within a screenful of the end asks for more, and
+    /// reaching positions the Host does not hold asks for them, as the Host
+    /// does.
     public func press(_ move: PluginPageCollection.Move) throws {
         memory.moveSelection(move)
-        try askForMoreIfNeeded()
+        try selectionMoved()
     }
 
-    /// The user scrolled to the end of what is loaded.
+    /// The user scrolled the collection so that `position`'s row is the
+    /// first on screen, leaving the selection where it was.
+    public func scroll(to position: Int) throws {
+        guard let window else { return }
+        let first = max(min(position, window.total - window.screen), 0) / window.columns * window.columns
+        memory.setViewport(first..<min(first + window.screen, window.total))
+        try loadRanges()
+    }
+
+    /// The user scrolled to the end of the collection: of what is loaded,
+    /// under revisions 1 and 2, or of every item of a windowed collection.
     public func scrollToEnd() throws {
-        guard let collection else { return }
+        guard let collection, let window else { return }
+        if window.isWindowed { return try scroll(to: window.total - 1) }
         try askForMore(collection, nearEnd: collection.hasMore)
     }
 
     /// Return: in a search field or the collection, the default item action
     /// on the selection; in a text field that searches nothing, `submitted`.
+    /// Nothing happens while the selection waits for its item.
     @discardableResult
     public func pressReturn(in field: String? = nil) throws -> PluginScriptAnswer? {
         guard let page else { return nil }
         if let field, case .textField(let declared)? = page.component(field), declared.collection == nil {
             return try run(.pageSubmitted(page: page.id, field: field, values: memory.values, selection: memory.selection))
         }
-        guard let item = memory.selectedItem, let action = collection?.defaultAction else { return nil }
+        guard let item = memory.selectedItem, let action = collection?.defaultAction,
+              offers(action, on: item) else { return nil }
         return try perform(action, on: item)
     }
 
@@ -154,20 +204,27 @@ public final class PluginTestPage {
     @discardableResult
     public func doubleClick(_ item: String) throws -> PluginScriptAnswer? {
         try select(item)
-        guard let found = collection?.item(item), let action = collection?.defaultAction else { return nil }
+        guard let found = memory.selectedItem, let action = collection?.defaultAction, offers(action, on: found) else {
+            return nil
+        }
         return try perform(action, on: found)
     }
 
-    /// The titles `item`'s context menu offers, the default first.
+    /// The titles `item`'s context menu offers, the default first; a toggle
+    /// item action the item's marks check reads "✓ title".
     public func menu(of item: String) throws -> [String] {
-        guard let collection, let found = collection.item(item) else { throw PluginTestPageError.noItem(item) }
-        return collection.actions(of: found).map(\.title)
+        guard let collection, let found = window?.position(of: item).flatMap({ window?.item(at: $0) }) else {
+            throw PluginTestPageError.noItem(item)
+        }
+        return collection.actions(of: found).map { $0.isChecked(for: found) ? "✓ \($0.title)" : $0.title }
     }
 
     /// The user chose the item action `action` from `item`'s context menu.
     @discardableResult
     public func choose(itemAction action: String, on item: String) throws -> PluginScriptAnswer? {
-        guard let collection, let found = collection.item(item) else { throw PluginTestPageError.noItem(item) }
+        guard let collection, let position = window?.position(of: item) else { throw PluginTestPageError.noItem(item) }
+        memory.select(position: position)
+        guard let found = memory.selectedItem else { throw PluginTestPageError.noItem(item) }
         guard let chosen = collection.actions(of: found).first(where: { $0.id == action }) else {
             throw PluginTestPageError.noAction(action)
         }
@@ -177,7 +234,7 @@ public final class PluginTestPage {
     /// ⌘C with the collection focused: the selected item's `clipboard.write`
     /// item action, when the collection has exactly one; else nothing.
     public func copySelection() throws {
-        guard let item = memory.selectedItem, let copy = collection?.copyAction else { return }
+        guard let item = memory.selectedItem, let copy = collection?.copyAction, offers(copy, on: item) else { return }
         try perform(copy, on: item)
     }
 
@@ -192,7 +249,8 @@ public final class PluginTestPage {
                     return try run(.pageActionChosen(page: page.id, action: id, values: memory.values,
                                                      selection: memory.selection))
                 case .perform(let operation) where action.title == button || operation.id == button:
-                    hostPerforms(operation)
+                    // An insert button names its App itself.
+                    try hostPerforms(operation, targetShown: true)
                     return nil
                 default:
                     continue
@@ -204,30 +262,101 @@ public final class PluginTestPage {
 
     // MARK: Running
 
-    private func perform(_ action: PluginPageItemAction, on item: PluginPageItem) throws -> PluginScriptAnswer? {
-        if let operation = action.operation(on: item) {
-            hostPerforms(operation)
-            return nil
-        }
-        guard let page, let collection else { return nil }
-        return try run(.itemAction(page: page.id, collection: collection.id, action: action.id,
-                                   item: collection.snapshot(of: item), values: memory.values))
+    private func offers(_ action: PluginPageItemAction, on item: PluginPageItem) -> Bool {
+        collection?.actions(of: item).contains(action) ?? false
     }
 
-    private func hostPerforms(_ operation: RequestedHostOperation) {
+    private func perform(_ action: PluginPageItemAction, on item: PluginPageItem) throws -> PluginScriptAnswer? {
+        let snapshot = memory.selectedSnapshot ?? collection?.snapshot(of: item)
+        if let operation = action.operation(on: item, snapshot: snapshot) {
+            try hostPerforms(operation, targetShown: page?.drawsInsertionTarget == true)
+            return nil
+        }
+        guard let page, let collection, let snapshot else { return nil }
+        return try run(.itemAction(page: page.id, collection: collection.id, action: action.id, item: snapshot,
+                                   values: memory.values))
+    }
+
+    /// The Host performs `operation`, reaching its recorded outcome, closes
+    /// the view on success when asked and the user did not pin it, and
+    /// tells the Plugin when it asked: in the session, or after the view
+    /// closed under `host_operations` r2.
+    private func hostPerforms(_ operation: RequestedHostOperation, targetShown: Bool) throws {
+        let outcome: HostOperationOutcome = operation.perform == "selection.replace" && !targetShown
+            ? .refused(.targetNotShown)
+            : operationOutcomes[operation.perform] ?? .succeeded
         performed.append(operation)
-        if operation.closesView { isClosed = true }
+        outcomes.append(outcome)
+        if operation.closesView, outcome == .succeeded, !isPinned { isClosed = true }
+        guard operation.notify else { return }
+        if !isClosed {
+            try run(.operationFinished(id: operation.id, perform: operation.perform, outcome: outcome, item: operation.item))
+        } else if permits(HostOperationsContract.outcomeAfterClose) {
+            try runAfterClose(.operationFinished(id: operation.id, perform: operation.perform, outcome: outcome,
+                                                 viewClosed: true, item: operation.item))
+        }
+    }
+
+    /// The viewless invocation that hears an outcome after the view closed:
+    /// the handler, from the last good state; its answer may show a toast
+    /// and nothing else.
+    private func runAfterClose(_ event: PluginViewEvent) throws {
+        afterClose.append(event)
+        let invocation = PluginTestInvocation(handler.commandID, input: handler.input, event: event, state: state)
+        let run = helper.run(invocation, of: plugin, answering: services)
+        runs.append(run)
+        let answer = try run.answer()
+        guard answer.description == nil, !answer.close else {
+            throw PluginRuntimeError.protocolViolation(
+                "The script's answer to operation_finished after its view closed shows a view or closes one; there is no view")
+        }
+        if let toast = answer.toast { toasts.append(toast) }
+    }
+
+    /// The selection moved: it is kept on screen, and the Host asks for
+    /// what it needs.
+    private func selectionMoved() throws {
+        if let window, let position = memory.selectedPosition, let viewport = memory.state.viewports[collection?.id ?? ""],
+           !viewport.contains(position) {
+            let row = position / window.columns * window.columns
+            let first = position < viewport.lowerBound ? row : max(row - (window.rows - 1) * window.columns, 0)
+            memory.setViewport(first..<min(first + window.screen, window.total))
+        }
+        try loadRanges()
+        try askForMoreIfNeeded()
     }
 
     private func askForMoreIfNeeded() throws {
-        guard let collection else { return }
-        try askForMore(collection, nearEnd: collection.isNearEnd(memory.selectedPosition))
+        guard let collection, let window, !window.isWindowed else { return }
+        try askForMore(collection, nearEnd: window.isNearEnd(memory.selectedPosition))
     }
 
     private func askForMore(_ collection: PluginPageCollection, nearEnd: Bool) throws {
-        guard nearEnd, collection.hasMore, let page, askedAt[collection.id] != collection.items.count else { return }
-        askedAt[collection.id] = collection.items.count
-        try run(.loadMore(page: page.id, collection: collection.id, loaded: collection.items.count))
+        guard nearEnd, collection.hasMore, let page, askedAt[collection.id] != collection.total else { return }
+        askedAt[collection.id] = collection.total
+        try run(.loadMore(page: page.id, collection: collection.id, loaded: collection.total))
+    }
+
+    /// Asks for what the screen lacks, one range at a time, until nothing
+    /// is missing or what is missing was asked for and did not come.
+    private func loadRanges() throws {
+        var asked = 0
+        while !isClosed, let page, let collection, let range = memory.missingRange {
+            asked += 1
+            guard asked <= 64 else { throw PluginTestPageError.rangesKeepChanging }
+            let revision = memory.window?.layoutRevision
+            do {
+                try run(.loadRange(page: page.id, collection: collection.id, start: range.lowerBound, count: range.count))
+            } catch let error as PluginRuntimeError where error.failureCategory == .runtimeProtocolFailed {
+                throw error
+            } catch {
+                // A failed range is shown inline; the Host asks again only
+                // when the user moves onto it.
+                if memory.window?.layoutRevision == revision { memory.settleRange(range) }
+                throw error
+            }
+            if memory.window?.layoutRevision == revision { memory.settleRange(range) }
+        }
     }
 
     /// Runs the handler, or for a call the Action called, once for `event`
@@ -250,18 +379,21 @@ public final class PluginTestPage {
             isClosed = true
             throw error
         }
-        apply(answer)
+        let answersRange: Bool
+        if case .loadRange? = event { answersRange = true } else { answersRange = false }
+        try apply(answer, answersRange: answersRange,
+                  targetShown: invocation.delivery(permits: permits).insertionTarget.isShown)
         return answer
     }
 
-    private func apply(_ answer: PluginScriptAnswer) {
+    private func apply(_ answer: PluginScriptAnswer, answersRange: Bool, targetShown: Bool) throws {
         if let toast = answer.toast { toasts.append(toast) }
         if answer.close {
             isClosed = true
             return
         }
         if let page = answer.page {
-            let applied = memory.show(page, composing: composing)
+            let applied = memory.show(page, composing: composing, answersRange: answersRange)
             if let id = page.collection?.id, applied.pageChanged || applied.renewed.contains(id) { askedAt[id] = nil }
             pageJSON = answer.pageJSON
             levelOneView = nil
@@ -272,7 +404,9 @@ public final class PluginTestPage {
             pageJSON = nil
             state = answer.state
         }
-        if let operation = answer.operation { hostPerforms(operation) }
+        if let operation = answer.operation { try hostPerforms(operation, targetShown: targetShown) }
+        // A range's own answer is settled by whoever asked for it.
+        if !answersRange, answer.page != nil { try loadRanges() }
     }
 }
 
@@ -281,6 +415,9 @@ public enum PluginTestPageError: Error, Equatable, CustomStringConvertible {
     case noItem(String)
     case noAction(String)
     case closed
+    /// Every answer to `load_range` changed the collection's total or
+    /// sections again, so the Host would never hold what it shows.
+    case rangesKeepChanging
 
     public var description: String {
         switch self {
@@ -288,6 +425,7 @@ public enum PluginTestPageError: Error, Equatable, CustomStringConvertible {
         case .noItem(let id): return "The collection has no item \(id)"
         case .noAction(let id): return "There is no action \(id) to choose"
         case .closed: return "The view is closed"
+        case .rangesKeepChanging: return "Every answer to load_range changed the collection's total or sections"
         }
     }
 }

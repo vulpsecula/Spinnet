@@ -26,4 +26,9 @@ public enum SpinnetSDK {
     /// declaring Candidate Contract `collections` r1 or r2 runs with:
     /// revision 2 adds no builder.
     public static let collectionsSource = String(decoding: PackageResources.collections_js, as: UTF8.self)
+
+    /// `candidates/collections/r3/collections-r3.js`: the same for a Plugin
+    /// declaring `collections` r3, whose builders add windows, toggles,
+    /// marks and `notify`.
+    public static let collectionsRevisionThreeSource = String(decoding: PackageResources.collections_r3_js, as: UTF8.self)
 }

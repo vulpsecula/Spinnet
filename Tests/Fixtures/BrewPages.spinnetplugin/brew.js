@@ -1,7 +1,8 @@
-// A Brew-shaped Plugin written against Candidate Contract collections r2: a
+// A Brew-shaped Plugin written against Candidate Contract collections r3: a
 // searchable list of 800 generated formulae and casks with descriptions,
 // versions and per-item actions (Upgrade only when outdated, Install only
-// when not installed), paged 150 at a time, and a detail page with its own
+// when not installed), which give the list's total and 150 at a time while
+// the Host asks for the ranges the user scrolls to, and a detail page with its own
 // ID from which Back returns to the list as the user left it. Install and
 // Upgrade only say what a reviewed task would do (#88). Which packages the
 // list shows first is the Plugin Setting `scope`, which a Menu Item may
@@ -10,7 +11,7 @@
 // scope in the same panel, keeping what was typed.
 (() => {
   const ui = spinnet.ui, c = ui.components;
-  const PAGE_SIZE = 150;
+  const SLICE = 150;
   const STEMS = ["lib", "py", "node", "go", "rust", "open", "git", "zlib", "jpeg", "ffmpeg", "sqlite", "curl",
                  "wget", "pyenv", "pipx", "ruby", "lua", "perl", "qt", "gtk"];
   const TAILS = ["", "-utils", "-dev", "-cli", "@3.13", "@2", "-tools", "-core", "lite", "x", "-server", "-gui",
@@ -52,8 +53,9 @@
                     accessory: p.outdated ? "Outdated" : p.version, text: p.name, actions });
   }
 
-  function list(s, reset) {
+  function list(s, reset, start, count) {
     const found = matching(s.query, s.scope);
+    const first = Math.min(start || 0, found.length);
     return ui.page({
       id: "packages", title: "Homebrew", reset,
       content: [
@@ -63,8 +65,8 @@
           c.choiceField({ id: "scope", title: "Show", value: s.scope, choices: ["installed", "outdated", "all"],
                           choiceTitles: ["Installed", "Outdated", "All"] })
         ] }),
-        c.list({ id: "packages", rows: 8, emptyText: "No packages match", hasMore: found.length > s.loaded,
-                 items: found.slice(0, s.loaded).map(item),
+        c.list({ id: "packages", rows: 8, emptyText: "No packages match", total: found.length, start: first,
+                 items: found.slice(first, first + (count || SLICE)).map(item),
                  actions: [
                    c.itemAction({ id: "details", title: "Show Details", default: true }),
                    c.itemAction({ id: "install", title: "Install" }),
@@ -92,24 +94,22 @@
   }
 
   const called = (input && input.scope) || "installed";
-  const kept = state || { query: "", scope: called, loaded: PAGE_SIZE };
+  const kept = state || { query: "", scope: called };
   if (event === null) return ui.showPage(list(kept), { state: kept });
   switch (event.type) {
     case "called": {
       // Back to the list, from a detail page too. Another scope starts the
       // scope and the results again; the query stays as the user typed it.
       if (called === kept.scope) return ui.showPage(list(kept), { state: kept });
-      const next = Object.assign({}, kept, { scope: called, loaded: PAGE_SIZE });
+      const next = Object.assign({}, kept, { scope: called });
       return ui.showPage(list(next, ["scope", "packages"]), { state: next });
     }
     case "field_changed": {
-      const next = Object.assign({}, kept, { query: event.values.query, scope: event.values.scope, loaded: PAGE_SIZE });
+      const next = Object.assign({}, kept, { query: event.values.query, scope: event.values.scope });
       return ui.showPage(list(next, ["packages"]), { state: next });
     }
-    case "load_more": {
-      const next = Object.assign({}, kept, { loaded: event.loaded + PAGE_SIZE });
-      return ui.showPage(list(next), { state: next });
-    }
+    case "load_range":
+      return ui.showPage(list(kept, undefined, event.start, event.count), { state: kept });
     case "item_action": {
       const p = BY_NAME[event.item.text];
       if (event.action === "details") return ui.showPage(detail(p), { state: kept });

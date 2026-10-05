@@ -195,25 +195,35 @@ final class CandidateContractCatalogueTests: XCTestCase {
         }
     }
 
-    /// This Host provides `collections` r1 and r2: a Plugin declaring either
-    /// runs, one declaring another revision is refused with the latest named,
-    /// and promotion gives the latest revision's members the next Level and
-    /// retires both.
-    func testAHostMayProvideTwoRevisionsOfOneCandidate() throws {
+    /// This Host provides `collections` r1, r2 and r3 and `host_operations`
+    /// r1 and r2: a Plugin declaring any of them, with what it requires,
+    /// runs; one declaring another revision is refused with the latest
+    /// named, or without what its revision requires; and promotion gives the
+    /// latest revision's members the next Level and retires every one.
+    func testAHostMayProvideSeveralRevisionsOfOneCandidate() throws {
         let host = PluginInterfaceContracts.host
-        for revision in [1, 2] {
+        for revision in [1, 2, 3] {
             XCTAssertNoThrow(try host.check(CollectionsFixtures.manifest(declaringCollections: revision), origin: .installed))
         }
-        let three = CandidateContractRevision(name: "collections", revision: 3)
-        XCTAssertThrowsError(try host.check(CollectionsFixtures.manifest(declaringCollections: 3), origin: .installed)) {
+        let four = CandidateContractRevision(name: "collections", revision: 4)
+        XCTAssertThrowsError(try host.check(CollectionsFixtures.manifest(declaringCollections: 4), origin: .installed)) {
             XCTAssertEqual($0 as? CandidateContractRefusal,
-                           .revisionMismatch(plugin: "Emoji Pages", declared: three, provided: 2))
+                           .revisionMismatch(plugin: "Emoji Pages", declared: four, provided: 3))
+        }
+        // Revision 3 needs host_operations r2, which revision 1 of it lacks.
+        let data = try Data(contentsOf: CollectionsFixtures.emoji.appendingPathComponent("manifest.json"))
+        let mixed = try PluginManifestLoader.decode(Data(String(decoding: data, as: UTF8.self).replacingOccurrences(
+            of: #"{"name": "host_operations", "revision": 2}"#, with: #"{"name": "host_operations", "revision": 1}"#).utf8))
+        XCTAssertThrowsError(try host.check(mixed, origin: .installed)) {
+            XCTAssertEqual($0 as? CandidateContractRefusal,
+                           .missingDependency(plugin: "Emoji Pages", declared: CollectionsContract.declaration,
+                                              needs: HostOperationsContract.revisionTwoDeclaration))
         }
 
         let promoted = try host.promoting("collections", toLevel: 2)
         XCTAssertEqual(promoted.levels[2], Set(CollectionsContract.candidate.members))
         XCTAssertEqual(promoted.candidates.filter { $0.name == "collections" }.map(\.status),
-                       [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
+                       [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
         XCTAssertThrowsError(try promoted.check(CollectionsFixtures.manifest(declaringCollections: 1), origin: .installed)) {
             XCTAssertEqual($0 as? CandidateContractRefusal,
                            .retired(plugin: "Emoji Pages", declared: CandidateContractRevision(name: "collections", revision: 1),

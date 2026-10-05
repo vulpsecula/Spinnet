@@ -2,13 +2,13 @@
   "protocol_version": "1.0",
   "api_level": 1,
   "candidate_contracts": [
-    {"name": "collections", "revision": 2},
-    {"name": "host_operations", "revision": 1},
+    {"name": "collections", "revision": 3},
+    {"name": "host_operations", "revision": 2},
     {"name": "namespaces", "revision": 1}
   ],
   "id": "com.example.brew-pages",
   "name": "Brew Pages",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "capabilities": ["write_clipboard", "open_url"],
   "settings_fields": [
     {"key": "scope", "kind": "choice", "title": "Show", "choices": ["installed", "outdated", "all"],

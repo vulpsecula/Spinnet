@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "selection.replace",
+  "outcome": "failed",
+  "reason": "text_rejected"
+}

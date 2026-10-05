@@ -1,0 +1,510 @@
+{
+  "description": "Each fixture names the definition of collections.schema.json it is checked against and whether it is valid. The Host reads every answer fixture as it reads an answer of a Plugin declaring collections r3, host_operations r2 and namespaces r1: it accepts the valid ones and refuses the invalid ones as protocol violations, its page rules included. level1 says whether Level 1's own published schemas accept (true) or refuse (false) the same value.",
+  "fixtures": [
+    {
+      "file": "answers/emoji-open.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Emoji opens on its first 200 emoji of 1,906 in sections: the grid gives its total and section counts, the slice from position 0, and Recent first",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-search-cat.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Answer to typing 'cat': the results are reset so the new search starts on its first result; the query field is not reset and keeps what the user typed",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-smile-first-batch.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "An answer to typing: the first results of a longer search, given as a slice of the total",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-smile-load-range.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "The answer to load_range: the slice from start, which the Host merges into its window",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-insert-request.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Answer to item_action: an insertion request (host_operations) without re-describing the page; the page and state stay",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-recent-section.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Browsing with Recent: the window's sections count their items, Recent's sixteen first",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-favourites-toggle.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Favourites as a toggle item action: one declaration for the collection, a short mark on each favourite, and Copy asking to hear its outcome",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-last-range.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A slice at the end of the total, as the Host asks for after End",
+      "level1": false
+    },
+    {
+      "file": "answers/windowed-sections.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Sections of a collection with a total are headers that count their items",
+      "level1": false
+    },
+    {
+      "file": "answers/emoji-insert-notify.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Return inserts, closes the view on success, and asks to hear the outcome, which host_operations r2 delivers after the view closed",
+      "level1": false
+    },
+    {
+      "file": "answers/page-action-notify.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A page action the Host performs may ask to hear its outcome",
+      "level1": false
+    },
+    {
+      "file": "answers/brew-list.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A Brew-shaped list with per-item actions, which stay valid, and a total the Host fills by load_range",
+      "level1": false
+    },
+    {
+      "file": "answers/brew-detail.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Brew-shaped detail page with its own page ID: text blocks and a button row, no collection, so the page scrolls as a whole",
+      "level1": false
+    },
+    {
+      "file": "answers/level1-view.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A candidate Plugin may still answer a Level 1 view, with Level 1's view rules",
+      "level1": true
+    },
+    {
+      "file": "answers/close.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Closing with a toast is unchanged",
+      "level1": true
+    },
+    {
+      "file": "answers/null.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "null still means nothing changes",
+      "level1": true
+    },
+    {
+      "file": "answers/reset-page.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "reset 'page' starts every component and the page's memory again",
+      "level1": false
+    },
+    {
+      "file": "answers/page-and-view.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An answer describes a view or a page, not both"
+    },
+    {
+      "file": "answers/item-action-shortcut.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "No Plugin-bound shortcuts: item actions have none"
+    },
+    {
+      "file": "answers/page-action-shortcut.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "No Plugin-bound shortcuts: page buttons have none"
+    },
+    {
+      "file": "answers/two-collections.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "At most one collection per page"
+    },
+    {
+      "file": "answers/duplicate-component-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Component IDs are unique in the page, row children included"
+    },
+    {
+      "file": "answers/duplicate-item-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Item IDs are unique across sections; Recent needs its own IDs"
+    },
+    {
+      "file": "answers/two-default-actions.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "At most one default item action"
+    },
+    {
+      "file": "answers/field-searches-missing-collection.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A text_field's collection names the page's collection"
+    },
+    {
+      "file": "answers/item-offers-undeclared-action.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An item offers only item actions the collection declares"
+    },
+    {
+      "file": "answers/items-and-sections.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A collection has items or sections, not both"
+    },
+    {
+      "file": "answers/row-holds-grid.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A row holds no collection"
+    },
+    {
+      "file": "answers/nested-row.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Rows do not nest"
+    },
+    {
+      "file": "answers/reset-unknown-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "reset names components of the page"
+    },
+    {
+      "file": "answers/focus-unknown-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "focus names a component of the page"
+    },
+    {
+      "file": "answers/selected-unknown-item.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "selected names an item of the collection"
+    },
+    {
+      "file": "answers/grid-13-columns.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A grid has 2 to 12 columns"
+    },
+    {
+      "file": "answers/choice-with-status.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Only a text_field has a status"
+    },
+    {
+      "file": "answers/page-without-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Every page has an ID"
+    },
+    {
+      "file": "answers/component-without-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Every component has an ID"
+    },
+    {
+      "file": "answers/state-without-page.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Only an answer with a view or a page keeps a state"
+    },
+    {
+      "file": "answers/close-with-operation.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "close requests nothing; an operation that should close the view says closes_view"
+    },
+    {
+      "file": "answers/event-button-without-id.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A button without perform delivers action_chosen and needs an id"
+    },
+    {
+      "file": "answers/event-item-action-closes-view.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "closes_view belongs to standard item actions; an event action's answer closes the view or requests an operation that does"
+    },
+    {
+      "file": "answers/symbol-too-long.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A symbol is at most 32 characters"
+    },
+    {
+      "file": "answers/unknown-kind.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "multiline_text is not a component of this revision"
+    },
+    {
+      "file": "events/field-changed.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Typing in a page field names the page",
+      "level1": false
+    },
+    {
+      "file": "events/item-action.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Return or double-click: the default item action with the item as shown and the page's values",
+      "level1": false
+    },
+    {
+      "file": "events/item-action-in-section.json",
+      "definition": "event",
+      "valid": true,
+      "note": "An item chosen in a section carries the section",
+      "level1": false
+    },
+    {
+      "file": "events/item-action-brew.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Brew's default action; the item's text is its ID-less name",
+      "level1": false
+    },
+    {
+      "file": "events/action-chosen-page.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A page button carries the page's values and selection",
+      "level1": false
+    },
+    {
+      "file": "events/action-chosen-with-selection.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A button on a page with a collection carries its selection",
+      "level1": false
+    },
+    {
+      "file": "events/submitted-page.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Return in a text_field without a collection",
+      "level1": false
+    },
+    {
+      "file": "events/load-range.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The Host needs positions 400 to 543, which the user scrolled to: not a gesture",
+      "level1": false
+    },
+    {
+      "file": "events/called.json",
+      "definition": "event",
+      "valid": true,
+      "note": "An explicit call of one of the Plugin's Actions while its View Session is open: the Action's effective input is the input global and the session's last good state the state global",
+      "level1": false
+    },
+    {
+      "file": "events/item-action-with-marks.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A toggle item action's snapshot carries the item's marks as shown, so the Plugin knows which way the user toggled",
+      "level1": false
+    },
+    {
+      "file": "events/finished-copy-item.json",
+      "definition": "event",
+      "valid": true,
+      "note": "⌘C performed a Copy item action that asked to notify: the outcome names the item",
+      "level1": false
+    },
+    {
+      "file": "events/finished-insert-item-after-close.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A performed insert closed the view; its outcome reaches a viewless invocation with the item",
+      "level1": false
+    },
+    {
+      "file": "events/level1-field-changed.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A Level 1 view's event is unchanged",
+      "level1": true
+    },
+    {
+      "file": "events/level1-setting-changed.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Persisted Settings notifications are unchanged",
+      "level1": true
+    },
+    {
+      "file": "events/item-action-without-item.json",
+      "definition": "event",
+      "valid": false,
+      "note": "An item action carries its item"
+    },
+    {
+      "file": "events/item-action-full-item.json",
+      "definition": "event",
+      "valid": false,
+      "note": "The snapshot is the item's ID, section and text, not its description"
+    },
+    {
+      "file": "events/load-range-without-page.json",
+      "definition": "event",
+      "valid": false,
+      "note": "A page event names its page"
+    },
+    {
+      "file": "events/action-chosen-page-without-values.json",
+      "definition": "event",
+      "valid": false,
+      "note": "A page button's event carries values and selection"
+    },
+    {
+      "file": "events/field-changed-with-composition.json",
+      "definition": "event",
+      "valid": false,
+      "note": "Text being composed never reaches the Plugin"
+    },
+    {
+      "file": "events/selection-of-two-collections.json",
+      "definition": "event",
+      "valid": false,
+      "note": "A page has one collection"
+    },
+    {
+      "file": "events/item-action-names-target.json",
+      "definition": "event",
+      "valid": false,
+      "note": "The insertion target is Host data"
+    },
+    {
+      "file": "events/selection-changed.json",
+      "definition": "event",
+      "valid": false,
+      "note": "No selection-change event in this revision"
+    },
+    {
+      "file": "events/called-with-input.json",
+      "definition": "event",
+      "valid": false,
+      "note": "called carries nothing: the Action's input is the input global"
+    },
+    {
+      "file": "answers/has-more-gone.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Revision 3 has no has_more or load_more: give the total and the Host asks for ranges"
+    },
+    {
+      "file": "answers/start-without-total.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "start places a slice within a total, so it needs one"
+    },
+    {
+      "file": "answers/items-past-total.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "start plus the items given is at most total"
+    },
+    {
+      "file": "answers/total-over-2000.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A collection has at most 2,000 items, given or not"
+    },
+    {
+      "file": "answers/section-counts-not-total.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "The sections of a collection with a total count all of its items"
+    },
+    {
+      "file": "answers/windowed-section-with-items.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "With a total, sections count their items, which come in items"
+    },
+    {
+      "file": "answers/section-header-without-total.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Without a total, every section gives its items"
+    },
+    {
+      "file": "answers/mark-without-toggle.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An item's marks are those its collection's toggle item actions name"
+    },
+    {
+      "file": "answers/toggle-with-perform.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Only the Plugin can toggle a mark: a toggle delivers item_action and performs nothing"
+    },
+    {
+      "file": "answers/notify-on-event-item-action.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An item action that delivers an event has no notify: the Plugin hears it anyway"
+    },
+    {
+      "file": "answers/two-toggles-same-mark.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Two item actions of one collection toggle different marks"
+    },
+    {
+      "file": "events/load-more-gone.json",
+      "definition": "event",
+      "valid": false,
+      "note": "Revision 3 asks for ranges, never for more"
+    },
+    {
+      "file": "events/load-range-past-window.json",
+      "definition": "event",
+      "valid": false,
+      "note": "The Host asks for at most 600 positions, its window"
+    },
+    {
+      "file": "events/finished-item-without-id.json",
+      "definition": "event",
+      "valid": false,
+      "note": "An item snapshot names its item"
+    }
+  ]
+}

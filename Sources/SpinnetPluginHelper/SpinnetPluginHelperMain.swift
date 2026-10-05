@@ -206,7 +206,7 @@ struct SpinnetPluginHelperMain {
     /// `namespaces.js` builds over Level 1's, with `host_operations.js`'s
     /// request builders for a Plugin also declaring `host_operations` r1, and
     /// `collections.js`'s page builders over those for one also declaring
-    /// `collections` r1 or r2.
+    /// `collections` r1 or r2, and `collections-r3.js`'s for `collections` r3.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,
@@ -240,8 +240,8 @@ struct SpinnetPluginHelperMain {
                 sdk = operations
                 // collections requires host_operations, so its page
                 // builders build on that object.
-                if invocation.composesPages {
-                    guard let makeCollections = context.evaluateScript(SpinnetSDK.collectionsSource),
+                if let source = invocation.pageBuilders {
+                    guard let makeCollections = context.evaluateScript(source),
                           makeCollections.isObject,
                           let collections = makeCollections.call(withArguments: [requestHostService, environment, sdk]),
                           collections.isObject else {
@@ -406,15 +406,22 @@ private extension PluginRuntimeInvocation {
     /// SDK and names the helper then uses.
     var namesCatalogueIDs: Bool { candidateContracts.contains(HostServiceCatalogue.declaration) }
 
-    /// Whether the Plugin declares Candidate Contract `host_operations` r1,
-    /// whose request builders the helper then adds.
-    var requestsHostOperations: Bool { candidateContracts.contains(HostOperationsContract.declaration) }
+    /// Whether the Plugin declares Candidate Contract `host_operations` r1
+    /// or r2, whose request builders the helper then adds: revision 2 adds
+    /// no builder, so both get revision 1's.
+    var requestsHostOperations: Bool {
+        candidateContracts.contains { declared in HostOperationsContract.candidates.contains { $0.declaration == declared } }
+    }
 
-    /// Whether the Plugin declares a revision of Candidate Contract
-    /// `collections` the Host provides, whose page builders the helper then
-    /// adds: revision 2 adds no builder, so both get revision 1's.
-    var composesPages: Bool {
-        candidateContracts.contains { declared in CollectionsContract.candidates.contains { $0.declaration == declared } }
+    /// The page builders of the revision of Candidate Contract `collections`
+    /// the Plugin declares, if the Host provides it: revision 1's for
+    /// revisions 1 and 2, since revision 2 adds no builder, and revision 3's
+    /// own.
+    var pageBuilders: String? {
+        guard let declared = candidateContracts.first(where: { declared in
+            CollectionsContract.candidates.contains { $0.declaration == declared }
+        }) else { return nil }
+        return declared.revision >= 3 ? SpinnetSDK.collectionsRevisionThreeSource : SpinnetSDK.collectionsSource
     }
 
     var inputJSON: String {
