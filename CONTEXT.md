@@ -145,8 +145,12 @@ A supported element of a Plugin View, such as a field, collection or layout cont
 _Avoid_: Native control, custom widget, HTML element
 
 **Collection**:
-A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order.
+A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order. From `collections` revision 3 a Collection may give its total and one slice of its items at a time, and the Host keeps a Collection Window of them.
 _Avoid_: Table, results list, data source
+
+**Collection Window**:
+The items of a Collection the Host holds around what the user sees, by position among the Collection's total; positions it does not hold show placeholders, and the Host asks the Plugin for the ranges the screen needs.
+_Avoid_: Page of results, batch, cache
 
 **Immediate State**:
 What the Host keeps for a View Component while the user works with it: typed text, caret, input-method composition, focus, selection and scroll. It survives the Plugin's answers until the Plugin explicitly resets that component or its View Page, and it is separate from the state the Plugin keeps for itself.
@@ -165,8 +169,12 @@ A button or menu entry a Plugin View offers, which either has the Host perform a
 _Avoid_: Action (a Menu Item's), shortcut, command button
 
 **Item Action**:
-A View Action a Collection offers on each of its items. Its default Item Action runs on Return or double-click; the item's context menu offers every one, the default first, and the Host draws no buttons for them.
+A View Action a Collection offers on each of its items. Its default Item Action runs on Return or double-click; the item's context menu offers every one, the default first, and the Host draws no buttons for them. A toggle Item Action names an Item Mark and shows checked for an item carrying it.
 _Avoid_: Primary Action (a Menu Item's), row button, shortcut
+
+**Item Mark**:
+A short name an item of a Collection carries, such as `favourite`, which the toggle Item Action naming it shows as checked. The Plugin decides which items carry it.
+_Avoid_: Flag, tag, checked state
 
 **Host-Fetched Section**:
 A part of a Plugin View whose request the Host sends and whose answer the Host shows, so the Plugin need not see the answer; the Plugin declares whether the answer is also delivered to it.
@@ -181,7 +189,7 @@ The App that receives text the Host inserts for a Plugin. Under Plugin API Level
 _Avoid_: Origin App, recent App, focused App (when the panel is meant)
 
 **Requested Host Operation**:
-Part of the first new UI contract, offered by Candidate Contract `host_operations`: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome.
+Part of the first new UI contract, offered by Candidate Contract `host_operations`: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome. From `host_operations` revision 2, an outcome the Plugin asked for whose view closed meanwhile reaches one viewless invocation of the requesting Action.
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:

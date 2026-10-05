@@ -14,7 +14,10 @@
 > `showsInsertionTarget` on `ui.view`. Focus moving inside the App refuses
 > only where Accessibility exposed the focused element when the user acted;
 > elsewhere the App alone is compared (#69). This directory stays as the
-> design for issue #70.
+> design for issue #70. Revision 2 (#79, 2026-10-05), published under
+> [`../../candidates/host_operations/r2/`](../../candidates/host_operations/r2/reference.md),
+> delivers an outcome after its view closed; [`revision-2.md`](revision-2.md)
+> is its design record.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal. Where these drafts reference a Level 1 schema,

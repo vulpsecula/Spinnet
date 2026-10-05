@@ -16,7 +16,11 @@
 > fails. A call's answer is read under the called Action, insertion it asks
 > for is refused as at the Action's start, and a call's Level 1 view drops
 > the old view's waiting events. This directory stays as the design for
-> issue #74.
+> issue #74. Revision 3 (#79, 2026-10-05), published under
+> [`../../candidates/collections/r3/`](../../candidates/collections/r3/reference.md),
+> answers the external Emoji proof's findings: windows of items filled by
+> `load_range`, toggle item actions with marks, and outcomes of Host-performed
+> actions; [`revision-3.md`](revision-3.md) is its design record.
 
 The Level 1 catalogue, reference pages and schemas one directory up are
 unchanged by this proposal, and `check.py` verifies that Level 1's schemas
