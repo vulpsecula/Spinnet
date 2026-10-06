@@ -479,7 +479,7 @@ struct AppKitSelectedTextCopyClient: SelectedTextCopyClient {
                         representation = Representation(type: type, value: .data(data), byteCount: data.count)
                     } else if let value = copiedPropertyList(item.propertyList(forType: type)) {
                         representation = Representation(type: type, value: .propertyList(value.value), byteCount: value.byteCount)
-                    } else if isPlainText(type), let string = item.string(forType: type) {
+                    } else if Self.isPlainText(type), let string = item.string(forType: type) {
                         representation = Representation(type: type, value: .propertyList(string), byteCount: string.utf8.count)
                     } else {
                         // Promised or unreadable representations make a full
@@ -523,19 +523,20 @@ struct AppKitSelectedTextCopyClient: SelectedTextCopyClient {
     }
 
     func copiedPlainText() -> String? {
-        onMain {
-            guard let items = NSPasteboard.general.pasteboardItems else { return nil }
-            for item in items {
-                for type in item.types where isPlainText(type) {
-                    if let text = item.string(forType: type) { return text }
-                    if let data = item.data(forType: type),
-                       let text = decodeText(data, type: type) {
-                        return text
-                    }
+        onMain { Self.plainText(in: .general) }
+    }
+
+    static func plainText(in pasteboard: NSPasteboard) -> String? {
+        for item in pasteboard.pasteboardItems ?? [] {
+            for type in item.types where isPlainText(type) {
+                if let text = PasteboardText.string(in: item, format: type) { return text }
+                if let data = item.data(forType: type),
+                   let text = String(data: data, encoding: .utf8) {
+                    return text
                 }
             }
-            return nil
         }
+        return nil
     }
 
     func restoreClipboard(
@@ -584,7 +585,7 @@ struct AppKitSelectedTextCopyClient: SelectedTextCopyClient {
         return (copied, data.count)
     }
 
-    private func isPlainText(_ type: NSPasteboard.PasteboardType) -> Bool {
+    private static func isPlainText(_ type: NSPasteboard.PasteboardType) -> Bool {
         if type == .string { return true }
         let stringTypeIdentifiers: Set<String> = [
             UTType.plainText.identifier,
@@ -596,15 +597,6 @@ struct AppKitSelectedTextCopyClient: SelectedTextCopyClient {
         ]
         return stringTypeIdentifiers.contains(type.rawValue)
             || UTType(type.rawValue)?.conforms(to: .plainText) == true
-    }
-
-    private func decodeText(_ data: Data, type: NSPasteboard.PasteboardType) -> String? {
-        if type.rawValue.contains("utf16") {
-            return String(data: data, encoding: .utf16)
-                ?? String(data: data, encoding: .utf16LittleEndian)
-                ?? String(data: data, encoding: .utf16BigEndian)
-        }
-        return String(data: data, encoding: .utf8)
     }
 
     private func onMain<Value>(_ work: () -> Value) -> Value {

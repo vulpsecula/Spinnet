@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 import SpinnetCore
 @testable import SpinnetHost
@@ -219,6 +220,19 @@ final class SelectedTextCopyFallbackTests: XCTestCase {
             observationGate.disposition(for: sample, changeCount: client.changeCount),
             .suppressed
         )
+    }
+
+    /// Microsoft Word copies a selection as BOM-less little-endian
+    /// `public.utf16-plain-text`, which `string(forType:)` would read as UTF-8.
+    func testCopiedUTF16SelectionIsDecodedInNativeByteOrder() throws {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let item = NSPasteboardItem()
+        item.setData(try XCTUnwrap("proofread my work.".data(using: .utf16LittleEndian)),
+                     forType: NSPasteboard.PasteboardType("public.utf16-plain-text"))
+        board.writeObjects([item])
+
+        XCTAssertEqual(AppKitSelectedTextCopyClient.plainText(in: board), "proofread my work.")
     }
 
     func testDoesNotReturnClipboardTextWhenCopyDoesNotChangePasteboard() throws {

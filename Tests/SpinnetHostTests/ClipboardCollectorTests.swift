@@ -81,6 +81,28 @@ final class ClipboardCollectorTests: XCTestCase {
         XCTAssertEqual(imageName([:]), "Image")
     }
 
+    /// Microsoft Word writes `public.utf16-plain-text` in native (little-endian)
+    /// order without a byte-order mark; the external variant defaults to big-endian.
+    func testUTF16TextIsDecodedInTheByteOrderItsTypeDeclares() throws {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let text = "proofread my work."
+        func read(_ format: String, _ data: Data) -> [String?] {
+            board.clearContents()
+            let item = NSPasteboardItem()
+            item.setData(data, forType: NSPasteboard.PasteboardType(format))
+            board.writeObjects([item])
+            return [ClipboardCollector.readAll(from: board).first?.text, ClipboardCollector.readCurrent(from: board)?.text]
+        }
+        let littleEndian = try XCTUnwrap(text.data(using: .utf16LittleEndian))
+        let bigEndian = try XCTUnwrap(text.data(using: .utf16BigEndian))
+
+        XCTAssertEqual(read("public.utf16-plain-text", littleEndian), [text, text])
+        XCTAssertEqual(read("public.utf16-plain-text", Data([0xFE, 0xFF]) + bigEndian), [text, text])
+        XCTAssertEqual(read("public.utf16-external-plain-text", bigEndian), [text, text])
+        XCTAssertEqual(read("public.utf16-external-plain-text", Data([0xFF, 0xFE]) + littleEndian), [text, text])
+    }
+
     func testHistoryWindowRefreshDoesNotBlockMainOnPersistenceOrPublishAfterClose() throws {
         let writing = expectation(description: "slow payload write")
         let sampled = expectation(description: "sample completed")

@@ -217,11 +217,7 @@ final class ClipboardCollector {
         let type: ClipboardContent.ContentType = [ClipboardMarkdown.format, "public.markdown"].contains(format.rawValue)
             ? .text : ClipboardContent.contentType(forFormat: format.rawValue)
         guard type == .text || type == .url else { return nil }
-        let text: String?
-        if format.rawValue == "public.utf16-plain-text" || format.rawValue == "public.utf16-external-plain-text" {
-            text = item.data(forType: format).flatMap { String(data: $0, encoding: .utf16) }
-        } else { text = item.string(forType: format) }
-        guard let text else { return nil }
+        guard let text = PasteboardText.string(in: item, format: format) else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let url = URL(string: trimmed)
         guard !(type == .url && url?.isFileURL == true) else { return nil }
