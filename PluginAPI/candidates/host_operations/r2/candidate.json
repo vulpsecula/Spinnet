@@ -24,5 +24,6 @@
     {"kind": "behaviour", "name": "outcome_after_close"}
   ],
   "tag": "plugin-api-candidate/host_operations/r2",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 2
 }

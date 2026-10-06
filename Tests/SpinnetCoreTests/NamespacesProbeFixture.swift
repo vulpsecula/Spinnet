@@ -2,7 +2,8 @@ import Foundation
 @testable import SpinnetCore
 
 /// `Tests/Fixtures/NamespacesProbe.spinnetplugin` is a tiny external Plugin
-/// that declares Candidate Contract `namespaces` revision 1: a script that
+/// declaring Plugin API Level 2, written against Candidate Contract
+/// `namespaces` revision 1 before Level 2 promoted it: a script that
 /// calls Host Services by their catalogue IDs, and a Command that runs one
 /// directly without a script. Its variants name Level 1 names and reserved
 /// IDs, which the Host refuses.
@@ -13,7 +14,7 @@ enum NamespacesProbeFixture {
     static let package = fixtures.appendingPathComponent("NamespacesProbe.spinnetplugin", isDirectory: true)
     static let pluginID = PluginID("com.example.namespaces-probe")
 
-    /// The Host this repository builds, which provides the candidate.
+    /// The Host this repository builds, which provides Level 2.
     static var host: PluginInterfaceContracts { .host }
 
     /// A copy of the probe in a temporary directory, its manifest changed by
@@ -60,5 +61,5 @@ enum NamespacesProbeFixture {
     }
 
     /// The probe declaring no candidate: a Level 1 Plugin.
-    static let levelOne: (inout [String: JSONValue]) -> Void = { $0["candidate_contracts"] = nil }
+    static let levelOne = CandidateVariant.levelOne
 }

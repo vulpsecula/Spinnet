@@ -219,17 +219,37 @@ public struct PluginInterfaceContracts: Equatable {
                "section_delivered"].map(PluginInterfaceMember.viewEvent)
     )
 
-    /// This Host: Level 1, Candidate Contract `namespaces` revision 1, the
-    /// Plugin API catalogue, `host_operations` revisions 1 and 2, Requested
-    /// Host Operations, the second delivering an outcome after its view
-    /// closed, and `collections` revisions 1 to 3, pages with Lists and
-    /// Grids, the second with repeated calls into an open View Session, the
-    /// third with windows of items, toggles and performed actions' outcomes.
-    /// A Level added later is keyed at its own number beside Level 1.
-    public static let host = PluginInterfaceContracts(levels: [1: levelOneMembers],
-                                                      candidates: [HostServiceCatalogue.candidate]
-                                                          + HostOperationsContract.candidates
-                                                          + CollectionsContract.candidates)
+    /// The candidate Host: Plugin API Level 1 and every Candidate Contract
+    /// revision the Host provided before Level 2, as the external proofs
+    /// froze it (#79). `namespaces` revision 1, the Plugin API catalogue;
+    /// `host_operations` revisions 1 and 2, Requested Host Operations, the
+    /// second delivering an outcome after its view closed; and `collections`
+    /// revisions 1 to 3, pages with Lists and Grids, the second with
+    /// repeated calls into an open View Session, the third with windows of
+    /// items, toggles and performed actions' outcomes. Promotion starts from
+    /// it, and a check of promotion runs a Plugin's candidate revision
+    /// against it beside its Level 2 revision against `host`.
+    public static let candidateHost = PluginInterfaceContracts(levels: [1: levelOneMembers],
+                                                               candidates: [HostServiceCatalogue.candidate]
+                                                                   + HostOperationsContract.candidates
+                                                                   + CollectionsContract.candidates)
+
+    /// The candidates promoted together to Plugin API Level 2.
+    public static let levelTwoCandidates = [HostServiceCatalogue.candidateName, HostOperationsContract.name,
+                                            CollectionsContract.name]
+
+    /// This Host: Plugin API Levels 1 and 2. Level 2 is the latest revisions
+    /// of `namespaces`, `host_operations` and `collections` promoted
+    /// together; every revision of the three is retired with the Level it
+    /// became, so a Plugin still declaring one is refused with the Level to
+    /// declare instead. A Level added later is keyed at its own number.
+    public static let host: PluginInterfaceContracts = {
+        do {
+            return try candidateHost.promoting(levelTwoCandidates, toLevel: 2)
+        } catch {
+            preconditionFailure("Level 2 cannot be promoted: \(error.localizedDescription)")
+        }
+    }()
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -291,23 +311,42 @@ public struct PluginInterfaceContracts: Equatable {
             || manifest.candidateContracts.contains { supported($0)?.members.contains(member) == true }
     }
 
-    /// The Host after promoting candidate `name` to stable Level `level`, the
-    /// next one: the members of its latest provided revision become that
-    /// Level, earlier Levels stay as they are, and every revision of it the
-    /// Host provides is retired with the Level it became, so a Plugin still
-    /// declaring one is told what to install instead.
+    /// The Host after promoting candidate `name` to stable Level `level`,
+    /// the next one; see `promoting(_:toLevel:)` for several at once.
     public func promoting(_ name: String, toLevel level: Int) throws -> PluginInterfaceContracts {
-        guard let latest = candidates.filter({ $0.name == name && $0.status == .supported })
-            .max(by: { $0.revision < $1.revision }) else {
-            throw CandidateContractPromotionError.notProvided(candidate: name)
+        try promoting([name], toLevel: level)
+    }
+
+    /// The Host after promoting candidates `names` together to stable Level
+    /// `level`, the next one: the members of the latest provided revision of
+    /// each become that Level, earlier Levels stay as they are, and every
+    /// revision of them the Host provides is retired with the Level it
+    /// became, so a Plugin still declaring one is told what to install
+    /// instead. A candidate whose latest revision requires another the Host
+    /// still provides is promoted only together with it.
+    public func promoting(_ names: [String], toLevel level: Int) throws -> PluginInterfaceContracts {
+        var latest: [CandidateContract] = []
+        for name in names {
+            guard let revision = candidates.filter({ $0.name == name && $0.status == .supported })
+                .max(by: { $0.revision < $1.revision }) else {
+                throw CandidateContractPromotionError.notProvided(candidate: name)
+            }
+            latest.append(revision)
         }
         guard level == highestStableLevel + 1 else {
             throw CandidateContractPromotionError.notTheNextLevel(level, next: highestStableLevel + 1)
         }
+        for contract in latest {
+            if let needed = contract.requires.first(where: { required in
+                !names.contains(required.name) && supported(required) != nil
+            }) {
+                throw CandidateContractPromotionError.requiresUnpromoted(candidate: contract.name, needs: needed.name)
+            }
+        }
         var levels = levels
-        levels[level] = Set(latest.members)
+        levels[level] = Set(latest.flatMap(\.members))
         let candidates = candidates.map { candidate in
-            guard candidate.name == name, candidate.status == .supported else { return candidate }
+            guard names.contains(candidate.name), candidate.status == .supported else { return candidate }
             return CandidateContract(
                 name: candidate.name, revision: candidate.revision, baseLevel: candidate.baseLevel,
                 requires: candidate.requires, conflicts: candidate.conflicts, members: candidate.members,
@@ -325,6 +364,9 @@ public enum CandidateContractPromotionError: Error, Equatable, LocalizedError {
     case notProvided(candidate: String)
     /// Promotion assigns only the stable Level after the highest one.
     case notTheNextLevel(Int, next: Int)
+    /// The latest revision of `candidate` requires `needs`, which the Host
+    /// still provides as a candidate and which is not promoted with it.
+    case requiresUnpromoted(candidate: String, needs: String)
 
     public var errorDescription: String? {
         switch self {
@@ -332,6 +374,8 @@ public enum CandidateContractPromotionError: Error, Equatable, LocalizedError {
             return "No provided Candidate Contract is named \(candidate)"
         case let .notTheNextLevel(level, next):
             return "Promotion assigns the next stable Level, \(next), not Level \(level)"
+        case let .requiresUnpromoted(candidate, needs):
+            return "\(candidate) requires the \(needs) Candidate Contract, which must be promoted with it"
         }
     }
 }

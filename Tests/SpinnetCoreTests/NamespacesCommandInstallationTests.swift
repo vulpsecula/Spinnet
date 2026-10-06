@@ -76,10 +76,10 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     func testALevelOneHostCommandNameIsRefusedWithTheIDToUseInstead() throws {
         try assertRefused(NamespacesProbeFixture.naming("url.open"), with:
             "Command probe.copy_greeting of Namespaces Probe names url.open, a Plugin API Level 1 Host Command; "
-                + "a Plugin declaring the namespaces Candidate Contract names it open.url.")
+                + "a Plugin API Level 2 Plugin names it open.url.")
         try assertRefused(NamespacesProbeFixture.naming("clipboard.copy"), with:
             "Command probe.copy_greeting of Namespaces Probe names clipboard.copy, a Plugin API Level 1 Host Command; "
-                + "a Plugin declaring the namespaces Candidate Contract names it selection.copy or clipboard.write.")
+                + "a Plugin API Level 2 Plugin names it selection.copy or clipboard.write.")
     }
 
     /// Decision N8 and the catalogue's reservations: an ID kept for a later
@@ -87,8 +87,8 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     func testAnIDReservedAsACommandIsRefused() throws {
         for id in ["selection.replace", "apps.quit", "open.reveal", "system.keepAwake"] {
             try assertRefused(NamespacesProbeFixture.naming(id), with:
-                "Command probe.copy_greeting of Namespaces Probe names \(id), which is reserved: no revision of the "
-                    + "namespaces Candidate Contract runs it as a Command yet.")
+                "Command probe.copy_greeting of Namespaces Probe names \(id), which is reserved: no Plugin API Level "
+                    + "runs it as a Command yet.")
         }
     }
 

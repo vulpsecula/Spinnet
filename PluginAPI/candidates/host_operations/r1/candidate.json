@@ -23,5 +23,6 @@
     {"kind": "behaviour", "name": "insertion_target_changed_failure"}
   ],
   "tag": "plugin-api-candidate/host_operations/r1",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 2
 }

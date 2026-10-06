@@ -42,5 +42,6 @@
     {"kind": "view_event", "name": "called"}
   ],
   "tag": "plugin-api-candidate/collections/r2",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 2
 }

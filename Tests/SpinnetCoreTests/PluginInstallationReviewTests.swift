@@ -55,7 +55,7 @@ final class PluginInstallationReviewTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
         try Data("""
-        {"protocol_version": "1.0", "api_level": 2, "id": "com.example.newer", "name": "Newer",
+        {"protocol_version": "1.0", "api_level": 3, "id": "com.example.newer", "name": "Newer",
          "version": "1.0.0",
          "commands": [{"id": "newer.run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
         """.utf8).write(to: source.appendingPathComponent("manifest.json"))
@@ -63,8 +63,8 @@ final class PluginInstallationReviewTests: XCTestCase {
 
         XCTAssertThrowsError(try store.review(source)) { error in
             let refusal = error as? UnsupportedPluginAPILevel
-            XCTAssertEqual(refusal?.requiredLevel, 2)
-            XCTAssertEqual(refusal?.supportedLevel, 1)
+            XCTAssertEqual(refusal?.requiredLevel, 3)
+            XCTAssertEqual(refusal?.supportedLevel, 2)
         }
     }
 

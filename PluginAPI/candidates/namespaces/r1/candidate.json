@@ -56,5 +56,6 @@
     {"kind": "behaviour", "name": "namespaced_sdk"}
   ],
   "tag": "plugin-api-candidate/namespaces/r1",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 2
 }

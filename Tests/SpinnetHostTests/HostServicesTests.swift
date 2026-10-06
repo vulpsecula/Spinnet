@@ -375,7 +375,7 @@ final class HostServicesTests: XCTestCase {
             command("fixture.settings", "host.showPluginSettings")
         ]
         let manifest = try PluginManifest(
-            candidateContracts: [HostServiceCatalogue.declaration], id: PluginID("com.example.catalogue"),
+            apiLevel: 2, id: PluginID("com.example.catalogue"),
             name: "Catalogue Fixture", version: "1.0.0", capabilities: [.writeClipboard], commands: commands,
             preset: MenuItemPresetDeclaration(readiness: .setupRequired)
         )

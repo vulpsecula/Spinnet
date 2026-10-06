@@ -1,10 +1,13 @@
 import Foundation
 
-/// Candidate Contract `host_operations` revision 1 (ADR 0018): a script may
-/// answer a user's gesture with one Requested Host Operation, which the Host
-/// commits with the rest of the answer and performs after the invocation
-/// has ended. Its `candidate.json` under
-/// `PluginAPI/candidates/host_operations/r1/` is `candidate` as JSON.
+/// Requested Host Operations (ADR 0018), proved as Candidate Contract
+/// `host_operations` and part of Plugin API Level 2 since revision 2 was
+/// promoted (#79): a script may answer a user's gesture with one Requested
+/// Host Operation, which the Host commits with the rest of the answer and
+/// performs after the invocation has ended. `candidate` and `revisionTwo`
+/// are the retired revisions' records, as their `candidate.json` under
+/// `PluginAPI/candidates/host_operations/` publishes them before
+/// retirement; Level 2 holds `revisionTwo`'s members.
 public enum HostOperationsContract {
     public static let name = "host_operations"
     public static let revision = 1
@@ -185,10 +188,9 @@ public struct RequestedHostOperation: Equatable, Hashable {
         case .offered where permits(.request(name)):
             return definition
         case .offered:
-            throw violation("names \(name), which no Candidate Contract the Plugin declares lets an answer request")
+            throw violation("names \(name), which nothing the Plugin declares lets an answer request")
         case .reserved:
-            throw violation("names \(name), which is reserved: no revision of the \(HostOperationsContract.name) "
-                + "Candidate Contract requests it yet")
+            throw violation("names \(name), which is reserved: no Plugin API Level requests it yet")
         case .notOffered:
             throw violation("names \(name), which cannot be requested in an answer")
         }

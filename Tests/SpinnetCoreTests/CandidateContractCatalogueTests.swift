@@ -61,7 +61,7 @@ final class CandidateContractCatalogueTests: XCTestCase {
         XCTAssertEqual(names(.standardAction), strings(in: perform["enum"]).sorted())
         XCTAssertEqual(names(.viewEvent), strings(in: type["enum"]).sorted())
         XCTAssertEqual(names(.behaviour), [], "Level 1 behaviour is the published pages, not a declared member")
-        XCTAssertEqual(PluginInterfaceContracts.host.levels, [1: members])
+        XCTAssertEqual(PluginInterfaceContracts.host.levels[1], members)
         XCTAssertEqual(PluginInterfaceContracts.host.highestStableLevel, PluginAPILevel.highestSupported)
     }
 
@@ -195,13 +195,14 @@ final class CandidateContractCatalogueTests: XCTestCase {
         }
     }
 
-    /// This Host provides `collections` r1, r2 and r3 and `host_operations`
-    /// r1 and r2: a Plugin declaring any of them, with what it requires,
-    /// runs; one declaring another revision is refused with the latest
-    /// named, or without what its revision requires; and promotion gives the
-    /// latest revision's members the next Level and retires every one.
+    /// The candidate Host provided `collections` r1, r2 and r3 and
+    /// `host_operations` r1 and r2: a Plugin declaring any of them, with what
+    /// it requires, ran; one declaring another revision was refused with the
+    /// latest named, or without what its revision requires; and promotion
+    /// gives the latest revision's members the next Level and retires every
+    /// one.
     func testAHostMayProvideSeveralRevisionsOfOneCandidate() throws {
-        let host = PluginInterfaceContracts.host
+        let host = PluginInterfaceContracts.candidateHost
         for revision in [1, 2, 3] {
             XCTAssertNoThrow(try host.check(CollectionsFixtures.manifest(declaringCollections: revision), origin: .installed))
         }
@@ -211,17 +212,18 @@ final class CandidateContractCatalogueTests: XCTestCase {
                            .revisionMismatch(plugin: "Emoji Pages", declared: four, provided: 3))
         }
         // Revision 3 needs host_operations r2, which revision 1 of it lacks.
-        let data = try Data(contentsOf: CollectionsFixtures.emoji.appendingPathComponent("manifest.json"))
-        let mixed = try PluginManifestLoader.decode(Data(String(decoding: data, as: UTF8.self).replacingOccurrences(
-            of: #"{"name": "host_operations", "revision": 2}"#, with: #"{"name": "host_operations", "revision": 1}"#).utf8))
+        let mixed = try CandidateVariant.manifest(of: CollectionsFixtures.emoji, CandidateVariant.declaring([
+            CollectionsContract.declaration, HostOperationsContract.declaration, HostServiceCatalogue.declaration
+        ]))
         XCTAssertThrowsError(try host.check(mixed, origin: .installed)) {
             XCTAssertEqual($0 as? CandidateContractRefusal,
                            .missingDependency(plugin: "Emoji Pages", declared: CollectionsContract.declaration,
                                               needs: HostOperationsContract.revisionTwoDeclaration))
         }
 
-        let promoted = try host.promoting("collections", toLevel: 2)
-        XCTAssertEqual(promoted.levels[2], Set(CollectionsContract.candidate.members))
+        let promoted = try host.promoting(PluginInterfaceContracts.levelTwoCandidates, toLevel: 2)
+        XCTAssertTrue(Set(CollectionsContract.candidate.members).isSubset(of: try XCTUnwrap(promoted.levels[2])))
+        XCTAssertFalse(try XCTUnwrap(promoted.levels[2]).contains(CollectionsContract.loadMore))
         XCTAssertEqual(promoted.candidates.filter { $0.name == "collections" }.map(\.status),
                        [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
         XCTAssertThrowsError(try promoted.check(CollectionsFixtures.manifest(declaringCollections: 1), origin: .installed)) {

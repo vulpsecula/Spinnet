@@ -1,11 +1,6 @@
 {
   "protocol_version": "1.0",
-  "api_level": 1,
-  "candidate_contracts": [
-    {"name": "collections", "revision": 3},
-    {"name": "host_operations", "revision": 2},
-    {"name": "namespaces", "revision": 1}
-  ],
+  "api_level": 2,
   "id": "com.example.brew-pages",
   "name": "Brew Pages",
   "version": "2.0.0",

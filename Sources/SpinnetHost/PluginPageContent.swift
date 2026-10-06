@@ -2,8 +2,7 @@ import AppKit
 import SpinnetCore
 import SwiftUI
 
-/// Draws one page of a Plugin declaring Candidate Contract `collections`:
-/// the Host's header, the page's components top to bottom with its one List
+/// Draws one page of a Plugin API Level 2 Plugin: the Host's header, the page's components top to bottom with its one List
 /// or Grid taking the height it asks for, and at the foot the Host's
 /// non-interactive insertion target line when the page can insert. The Host
 /// draws no buttons for item actions. The collection is AppKit's

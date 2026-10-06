@@ -4,7 +4,15 @@ A Candidate Contract is an explicitly provisional revision of the Documented
 Plugin Interface, used to try an addition out before it joins a stable Plugin
 API Level (ADR 0013). Nothing on this page or under this directory is part of
 a stable Level, and nothing here changes what [Level 1](../README.md#what-level-1-offers)
-promises. A Plugin that declares no candidate is unaffected by any of it.
+or [Level 2](../README.md#what-level-2-offers) promises. A Plugin that
+declares no candidate is unaffected by any of it.
+
+Every revision below is **retired**: `namespaces` r1, `host_operations` r2
+and `collections` r3 were promoted together to Plugin API Level 2 on
+2026-10-06 (#79), and the earlier revisions of the same candidates were
+retired with them. This Host provides no candidate. The directories stay as
+the record of what Level 2 was proved as; only each `candidate.json`'s
+`status` changed, to `retired` with `promoted_to_level: 2`.
 
 | File | Contents |
 | --- | --- |
@@ -116,15 +124,19 @@ into one that also declares `collections` r1 or r2, or
 no builder, as `collections` r2 and `host_operations` r2 add none, publishes
 no SDK of its own and gets the earlier revision's, and a revision whose
 builders change publishes its own file, named apart because the helper
-embeds every revision's SDK side by side. Until a
+embeds every revision's SDK side by side. The helper still embeds the
+retired revisions' SDKs so that a test can run a Plugin's candidate
+revision against the candidate Host and check promotion; the Host refuses
+a Plugin declaring one before it starts a helper. Until a
 candidate adds one, a script reaches its Host Services with
 `requestHostService`, which the Host checks as above.
 
-A Host may provide more than one revision of a candidate, as this one
-provides `collections` r1, r2 and r3 and `host_operations` r1 and r2; a
-Plugin declares exactly one of each and gets exactly that revision's
-members, with the revisions it requires: `collections` r3 requires
-`host_operations` r2, and r1 and r2 require `host_operations` r1.
+A Host may provide more than one revision of a candidate, as the candidate
+Host before Level 2 provided `collections` r1, r2 and r3 and
+`host_operations` r1 and r2; a Plugin declares exactly one of each and gets
+exactly that revision's members, with the revisions it requires:
+`collections` r3 requires `host_operations` r2, and r1 and r2 require
+`host_operations` r1.
 
 The window rules of [Plugin Views](../reference/views.md#windows) apply to
 every revision's views and pages. Among them, `closes_view` closes the view
@@ -144,21 +156,40 @@ retired declaration with the Level to declare instead, so no Plugin keeps
 running against a provisional contract. Promotion is verified by running the
 Plugin's candidate revision on the candidate Host and its stable revision on
 the promoted Host, with the same result. Any stable promise, once published,
-binds every later Host.
+binds every later Host. Candidates that require one another are promoted
+together, as `namespaces`, `host_operations` and `collections` were into
+Level 2, whose members are the three latest revisions' members.
+
+Level 2's promotion was verified this way: the Host's own probes (Emoji-
+and Brew-shaped pages, the Operations and Namespaces probes) run their
+candidate revisions on the candidate Host and their Level 2 revisions on
+this Host through the test kit and the real helper with identical answers,
+events, operations, outcomes and storage, and the external Emoji Plugin
+moved from its candidate revision 2.3.1 to its Level 2 revision 3.0.0. The
+proposed tags are `plugin-api-level-2` for Level 2 and
+`plugin-api-candidate/<name>/r<revision>` for each retired revision, at
+`10b1a5b`, Host C, the last commit that provided them; no tag is created
+here.
 
 ## Candidate Contracts this Host provides
 
 | Candidate | Revision | Builds on | Tag |
 | --- | --- | --- | --- |
-| [`namespaces`](namespaces/r1/reference.md) | 1 | Level 1 | `plugin-api-candidate/namespaces/r1` |
-| [`host_operations`](host_operations/r1/reference.md) | 1 | Level 1, with `namespaces` r1 | `plugin-api-candidate/host_operations/r1` |
-| [`collections`](collections/r1/reference.md) | 1 | Level 1, with `host_operations` r1 and `namespaces` r1 | `plugin-api-candidate/collections/r1` |
-| [`collections`](collections/r2/reference.md) | 2 | Level 1, with `host_operations` r1 and `namespaces` r1 | `plugin-api-candidate/collections/r2` |
-| [`host_operations`](host_operations/r2/reference.md) | 2 | Level 1, with `namespaces` r1 | `plugin-api-candidate/host_operations/r2` |
-| [`collections`](collections/r3/reference.md) | 3 | Level 1, with `host_operations` r2 and `namespaces` r1 | `plugin-api-candidate/collections/r3` |
+| None | | | |
 
 ## Retired candidate declarations
 
-| Candidate | Revision | Became |
-| --- | --- | --- |
-| None yet | | |
+Promoted together to [Plugin API Level 2](../README.md#what-level-2-offers)
+by #79 on 2026-10-06. A Plugin declaring any of these revisions, at any
+Level, is refused with the Level to declare instead; each revision's
+material stays here, unchanged but for its `candidate.json`'s status, as
+the history of what Level 2 was proved as.
+
+| Candidate | Revision | Became | Tag |
+| --- | --- | --- | --- |
+| [`namespaces`](namespaces/r1/reference.md) | 1 | Plugin API Level 2 | `plugin-api-candidate/namespaces/r1` |
+| [`host_operations`](host_operations/r1/reference.md) | 1 | Plugin API Level 2 (as revision 2) | `plugin-api-candidate/host_operations/r1` |
+| [`host_operations`](host_operations/r2/reference.md) | 2 | Plugin API Level 2 | `plugin-api-candidate/host_operations/r2` |
+| [`collections`](collections/r1/reference.md) | 1 | Plugin API Level 2 (as revision 3) | `plugin-api-candidate/collections/r1` |
+| [`collections`](collections/r2/reference.md) | 2 | Plugin API Level 2 (as revision 3) | `plugin-api-candidate/collections/r2` |
+| [`collections`](collections/r3/reference.md) | 3 | Plugin API Level 2 | `plugin-api-candidate/collections/r3` |

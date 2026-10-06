@@ -40,5 +40,6 @@
     {"kind": "view_event", "name": "load_more"}
   ],
   "tag": "plugin-api-candidate/collections/r1",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 2
 }

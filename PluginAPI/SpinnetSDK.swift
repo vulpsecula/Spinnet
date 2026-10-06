@@ -1,12 +1,23 @@
 // SPDX-License-Identifier: MIT
 
-/// The sources of the `spinnet` SDK object, `spinnet.js` and the SDK of each
-/// Candidate Contract revision the Host provides, compiled into whatever
-/// links this module so the helper never looks for a file at run time.
+/// The sources of the `spinnet` SDK object, Level 1's `spinnet.js`, Level
+/// 2's `spinnet-level-2.js` and the SDK of each Candidate Contract revision
+/// the candidate Host provided, compiled into whatever links this module so
+/// the helper never looks for a file at run time.
 public enum SpinnetSDK {
     /// A script whose value is a function of `requestHostService` and the
     /// invocation's environment that returns the `spinnet` object.
     public static let source = String(decoding: PackageResources.spinnet_js, as: UTF8.self)
+
+    /// `spinnet-level-2.js`: a script whose value is a function of
+    /// `requestHostService`, the environment and Level 1's object that
+    /// returns the `spinnet` object a Plugin declaring Plugin API Level 2
+    /// runs with.
+    public static let levelTwoSource = String(decoding: PackageResources.spinnet_level_2_js, as: UTF8.self)
+
+    // The candidates' SDKs below are retired with their revisions: the Host
+    // refuses a Plugin declaring one, so only a test running a Plugin
+    // against the candidate Host, to check promotion, reaches them.
 
     /// `candidates/namespaces/r1/namespaces.js`: a script whose value is a
     /// function of `requestHostService`, the environment and Level 1's

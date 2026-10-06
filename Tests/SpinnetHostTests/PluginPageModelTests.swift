@@ -467,8 +467,10 @@ final class PageHarness {
             },
             pointer: { NSPoint(x: 200, y: 200) }, frontmostApplication: { nil }, report: { _ in }
         )
+        // Everything the candidate Host offered, retired revisions' `load_more`
+        // included, so the paging path the Host still draws stays covered.
         let permits: (PluginInterfaceMember) -> Bool = { member in
-            PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
+            PluginInterfaceContracts.candidateHost.candidates.contains { $0.members.contains(member) }
         }
         sessions = PluginViewSessions(
             renderer: windows,

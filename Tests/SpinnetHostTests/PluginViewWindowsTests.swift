@@ -352,12 +352,10 @@ struct HeldEvent {
 }
 
 extension PluginViewHarness {
-    /// What a Plugin declaring `host_operations` and `namespaces` may use, or
-    /// a Level 1 Plugin.
-    static func permits(_ declaresHostOperations: Bool) -> (PluginInterfaceMember) -> Bool {
-        { member in
-            declaresHostOperations && PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
-        }
+    /// What Plugin API Level 2 adds for a Level 2 Plugin, or nothing for a
+    /// Level 1 Plugin.
+    static func permits(_ levelTwo: Bool) -> (PluginInterfaceMember) -> Bool {
+        { member in levelTwo && PluginInterfaceContracts.host.levels[2]?.contains(member) == true }
     }
 }
 

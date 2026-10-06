@@ -30,10 +30,11 @@ final class HostOperationsContractTests: XCTestCase {
         try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent("fixtures/\(file)")))
     }
 
-    /// What the Operations Probe, which declares `host_operations` r1 and the
-    /// `namespaces` r1 it requires, may use.
+    /// What the Operations Probe declaring `host_operations` r1 and the
+    /// `namespaces` r1 it requires could use on the candidate Host.
     static var permits: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! OperationsProbeFixture.manifest())
+        PluginInterfaceContracts.candidateHost.permitting(try! CandidateVariant.manifest(
+            of: OperationsProbeFixture.package, CandidateVariant.declaring(CandidateVariant.operations(revision: 1))))
     }
 
     func testThePublishedFixturesFollowTheSchema() throws {
@@ -99,7 +100,7 @@ final class HostOperationsContractTests: XCTestCase {
             (.object(["perform": .string("insert_text"), "input": .string("x")]),
              "The script's operation names insert_text, a Plugin API Level 1 name; a request names selection.replace"),
             (.object(["perform": .string("apps.quit")]),
-             "The script's operation names apps.quit, which is reserved: no revision of the host_operations Candidate Contract requests it yet"),
+             "The script's operation names apps.quit, which is reserved: no Plugin API Level requests it yet"),
             (.object(["perform": .string("storage.get"), "input": .string("k")]),
              "The script's operation names storage.get, which cannot be requested in an answer"),
             (.object(["perform": .string("clipboard.write"), "input": .string("x"), "notify": .string("yes")]),
@@ -148,7 +149,7 @@ final class HostOperationsContractTests: XCTestCase {
               case .array(let ids)? = requests["enum"] else { return XCTFail("namespaces.schema.json lists no request IDs") }
         XCTAssertEqual(ids, catalogue.map(JSONValue.string))
         XCTAssertEqual(HostOperationsContract.candidate.requires, [HostServiceCatalogue.declaration])
-        XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(HostOperationsContract.candidate))
+        XCTAssertTrue(PluginInterfaceContracts.candidateHost.candidates.contains(HostOperationsContract.candidate))
     }
 
     /// Every `operation_finished` the Host can deliver is one the schema

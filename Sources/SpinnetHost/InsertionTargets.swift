@@ -98,7 +98,7 @@ extension InsertionTargetApp {
     }
 }
 
-/// Inserts for a Plugin declaring `host_operations`: into the App in front
+/// Inserts for a Plugin API Level 2 Plugin: into the App in front
 /// at that moment, only if it is the App the Host showed when the user
 /// acted and, where Accessibility exposed the element focused in it then,
 /// only if that element is still focused. Every insertion path of such a

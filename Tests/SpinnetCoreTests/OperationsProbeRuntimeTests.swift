@@ -17,8 +17,8 @@ final class OperationsProbeRuntimeTests: XCTestCase {
         helpers = []
     }
 
-    private func helper() throws -> PluginTestHelper {
-        let helper = try PluginTestHelper()
+    private func helper(_ contracts: PluginInterfaceContracts = .host) throws -> PluginTestHelper {
+        let helper = try PluginTestHelper(contracts: contracts)
         helpers.append(helper)
         return helper
     }
@@ -283,15 +283,20 @@ final class OperationsProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(built["frozen"], .bool(true))
     }
 
-    /// A Plugin declaring `namespaces` alone gets no request builders.
+    /// A Plugin declaring `namespaces` alone got no request builders on
+    /// the candidate Host; a Level 2 Plugin has them.
     func testTheBuildersNeedTheCandidate() throws {
-        let source = try OperationsProbeFixture.write(scripts: ["pick.js": """
+        let script = ["pick.js": """
             [typeof spinnet.host, typeof spinnet.selection.replace.operation, typeof spinnet.ui.request]
-            """]) { manifest in
-            manifest["candidate_contracts"] = .array([.object(["name": .string("namespaces"), "revision": .number(1)])])
-        }
-        let run = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: source),
-                                   answering: RecordedHostServices())
+            """]
+        let source = try OperationsProbeFixture.write(scripts: script, CandidateVariant.declaring([CandidateVariant.namespaces]))
+        let run = try helper(.candidateHost).run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: source),
+                                                 answering: RecordedHostServices())
         XCTAssertEqual(try run.result.get(), .array(["undefined", "undefined", "undefined"].map(JSONValue.string)))
+
+        let levelTwo = try helper().run(PluginTestInvocation("probe.pick"),
+                                        of: PluginUnderTest(packageAt: OperationsProbeFixture.write(scripts: script)),
+                                        answering: RecordedHostServices())
+        XCTAssertEqual(try levelTwo.result.get(), .array(["object", "function", "function"].map(JSONValue.string)))
     }
 }

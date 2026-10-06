@@ -105,12 +105,15 @@ public struct HostServiceDefinition: Hashable {
     public var commandCapabilities: [PluginCapability] { commandCapabilityOverride ?? capabilities }
 }
 
-/// The Plugin API catalogue this Host provides: Candidate Contract
-/// `namespaces` revision 1, published in
-/// `PluginAPI/candidates/namespaces/r1/catalogue.json`. Every operation has
-/// one ID, which a declaring Plugin uses at every entry point; inside the
-/// Host each is routed to the implementation Level 1 already has, so Level 1
-/// names and catalogue IDs reach the same effect.
+/// The Plugin API catalogue this Host provides: Plugin API Level 2's,
+/// published in `PluginAPI/catalogue.json`, which Candidate Contract
+/// `namespaces` revision 1 (`PluginAPI/candidates/namespaces/r1/`, retired
+/// into Level 2) proved. Every operation has one ID, which a Level 2 Plugin
+/// uses at every entry point; inside the Host each is routed to the
+/// implementation Level 1 already has, so Level 1 names and catalogue IDs
+/// reach the same effect. `candidate` is the retired revision's record,
+/// whose members Level 2 holds; an offering's candidate names the revision
+/// that first offered the ID there.
 public enum HostServiceCatalogue {
     public static let candidateName = "namespaces"
     public static let revision = 1
@@ -329,18 +332,16 @@ public enum HostServiceRefusal: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case let .levelOneName(name, replacements, .call):
-            return "\(name) is a Plugin API Level 1 name; a Plugin declaring the \(HostServiceCatalogue.candidateName) "
-                + "Candidate Contract calls \(replacements.joined(separator: " or "))"
+            return "\(name) is a Plugin API Level 1 name; a Plugin API Level 2 Plugin calls "
+                + replacements.joined(separator: " or ")
         case let .levelOneName(name, replacements, .command(command, plugin)):
             return "Command \(command.rawValue) of \(plugin) names \(name), a Plugin API Level 1 Host Command; a Plugin "
-                + "declaring the \(HostServiceCatalogue.candidateName) Candidate Contract names it "
-                + "\(replacements.joined(separator: " or "))."
+                + "API Level 2 Plugin names it \(replacements.joined(separator: " or "))."
         case let .reserved(id, .call):
-            return "\(id) is reserved: no revision of the \(HostServiceCatalogue.candidateName) Candidate Contract lets "
-                + "a script call it yet"
+            return "\(id) is reserved: no Plugin API Level lets a script call it yet"
         case let .reserved(id, .command(command, plugin)):
-            return "Command \(command.rawValue) of \(plugin) names \(id), which is reserved: no revision of the "
-                + "\(HostServiceCatalogue.candidateName) Candidate Contract runs it as a Command yet."
+            return "Command \(command.rawValue) of \(plugin) names \(id), which is reserved: no Plugin API Level runs "
+                + "it as a Command yet."
         case let .notOffered(id, .call):
             let hint = HostServiceCatalogue.operation(id)?.isOffered(at: .command) == true ? "; a Command can run it" : ""
             return "\(id) cannot be called from a script\(hint)"

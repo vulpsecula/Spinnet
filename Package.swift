@@ -24,8 +24,8 @@ let package = Package(
             ]
         ),
         // The published contract (ADR 0013). Only the SDKs' sources are
-        // built: Level 1's and each provided candidate revision's, embedded
-        // in the helper so it never reads a file at run time.
+        // built: Level 1's, Level 2's and each retired candidate revision's,
+        // embedded in the helper so it never reads a file at run time.
         .target(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
@@ -51,7 +51,8 @@ let package = Package(
                       "candidates/collections/r3/collections.schema.json", "candidates/collections/r3/collections.d.ts",
                       "candidates/collections/r3/fixtures"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("candidates/namespaces/r1/namespaces.js"),
+            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"),
+                        .embedInCode("candidates/namespaces/r1/namespaces.js"),
                         .embedInCode("candidates/host_operations/r1/host_operations.js"),
                         .embedInCode("candidates/collections/r1/collections.js"),
                         .embedInCode("candidates/collections/r3/collections-r3.js")]

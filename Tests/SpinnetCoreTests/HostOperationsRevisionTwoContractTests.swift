@@ -30,26 +30,22 @@ final class HostOperationsRevisionTwoContractTests: XCTestCase {
         try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent("fixtures/\(file)")))
     }
 
-    /// What a Plugin declaring `host_operations` r2 and `namespaces` r1 may use.
+    /// What a Plugin declaring `host_operations` r2 and `namespaces` r1
+    /// could use on the candidate Host.
     private static var permits: (PluginInterfaceMember) -> Bool {
-        let data = try! Data(contentsOf: OperationsProbeFixture.package.appendingPathComponent("manifest.json"))
-        let text = String(decoding: data, as: UTF8.self)
-            .replacingOccurrences(of: #"{"name": "host_operations", "revision": 1}"#,
-                                  with: #"{"name": "host_operations", "revision": 2}"#)
-        let manifest = try! PluginManifestLoader.decode(Data(text.utf8))
-        precondition(manifest.candidateContracts.contains(HostOperationsContract.revisionTwoDeclaration))
-        return PluginInterfaceContracts.host.permitting(manifest)
+        PluginInterfaceContracts.candidateHost.permitting(try! CandidateVariant.manifest(
+            of: OperationsProbeFixture.package, CandidateVariant.declaring(CandidateVariant.operations(revision: 2))))
     }
 
     func testThePublishedRevisionIsTheHosts() throws {
         let published = try JSONDecoder().decode(CandidateContract.self,
                                                  from: Data(contentsOf: Self.published.appendingPathComponent("candidate.json")))
-        XCTAssertEqual(published, HostOperationsContract.revisionTwo)
+        XCTAssertEqual(published, CandidateVariant.retired(HostOperationsContract.revisionTwo))
         XCTAssertEqual(Set(published.members).subtracting(HostOperationsContract.candidate.members),
                        [HostOperationsContract.outcomeAfterClose])
         XCTAssertTrue(Set(HostOperationsContract.candidate.members).isSubset(of: published.members))
-        XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(HostOperationsContract.candidate),
-                      "Revision 1 is still provided")
+        XCTAssertTrue(PluginInterfaceContracts.candidateHost.candidates.contains(HostOperationsContract.candidate),
+                      "The candidate Host provided revision 1 beside it")
         XCTAssertTrue(Self.permits(HostOperationsContract.outcomeAfterClose))
         XCTAssertFalse(HostOperationsContractTests.permits(HostOperationsContract.outcomeAfterClose))
     }

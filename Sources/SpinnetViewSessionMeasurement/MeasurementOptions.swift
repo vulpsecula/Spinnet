@@ -41,7 +41,7 @@ struct MeasurementOptions {
     /// page's text field ID.
     var pageField = "query"
     /// Times a page's collection is loaded from its first batch to its last
-    /// (Candidate Contract `collections`); 0 skips it.
+    /// (Plugin API Level 2's pages); 0 skips it.
     var loadMoreRounds = 0
     /// Each lets the helper retire after its real idle period, so each costs
     /// about 31 seconds.

@@ -200,6 +200,9 @@ public enum PluginRuntimeProtocol {
         try validateIdentifier(invocation.pluginID.rawValue, named: "Plugin ID")
         try validateIdentifier(invocation.actionID.rawValue, named: "Action ID")
         try validateIdentifier(invocation.commandID.rawValue, named: "Command ID")
+        guard invocation.apiLevel >= 1 else {
+            throw PluginRuntimeError.protocolViolation("Invocation names Plugin API Level \(invocation.apiLevel)")
+        }
 
         let path = invocation.scriptPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty,
@@ -358,6 +361,11 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     /// the SDK the helper injects and the names it sends the Host. Sent only
     /// when there are any, so a Level 1 Plugin's invocation is unchanged.
     public let candidateContracts: [CandidateContractRevision]
+    /// The Plugin API Level the Plugin's manifest declares, which decides
+    /// the SDK the helper injects and the names it sends the Host from
+    /// Level 2 on. Sent as `api_level` only above Level 1, so a Level 1
+    /// Plugin's invocation is unchanged; `environment.apiLevel` is the Host's.
+    public let apiLevel: Int
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -371,7 +379,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         environment: PluginRuntimeEnvironment = .current,
         event: JSONValue = .null,
         state: JSONValue = .null,
-        candidateContracts: [CandidateContractRevision] = []
+        candidateContracts: [CandidateContractRevision] = [],
+        apiLevel: Int = 1
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -385,6 +394,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         self.event = event
         self.state = state
         self.candidateContracts = candidateContracts
+        self.apiLevel = apiLevel
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -392,6 +402,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         case protocolVersion = "protocol_version"
         case invocationID = "invocation_id"
         case candidateContracts = "candidate_contracts"
+        case apiLevel = "api_level"
         case pluginID = "plugin_id"
         case actionID = "action_id"
         case commandID = "command_id"
@@ -419,6 +430,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         try container.encode(event, forKey: .event)
         try container.encode(state, forKey: .state)
         if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
+        if apiLevel > 1 { try container.encode(apiLevel, forKey: .apiLevel) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -440,7 +452,8 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
             event: try container.decode(JSONValue.self, forKey: .event),
             state: try container.decode(JSONValue.self, forKey: .state),
             candidateContracts: try container.decodeIfPresent([CandidateContractRevision].self,
-                                                              forKey: .candidateContracts) ?? []
+                                                              forKey: .candidateContracts) ?? [],
+            apiLevel: try container.decodeIfPresent(Int.self, forKey: .apiLevel) ?? 1
         )
         try PluginRuntimeProtocol.validate(invocation)
         self = invocation
@@ -1364,7 +1377,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             environment: environment(),
             event: delivery.event?.json ?? .null,
             state: delivery.state,
-            candidateContracts: package.manifest.candidateContracts
+            candidateContracts: package.manifest.candidateContracts,
+            apiLevel: package.manifest.apiLevel
         )
         let connection = PluginRuntimeConnection(pluginID: package.manifest.id)
         let requestData: Data

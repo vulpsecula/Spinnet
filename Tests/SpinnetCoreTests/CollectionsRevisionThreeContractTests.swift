@@ -23,7 +23,7 @@ final class CollectionsRevisionThreeContractTests: CollectionsContractTests {
         ])
         XCTAssertEqual(Set(two.members).subtracting(three.members), [CollectionsContract.loadMore])
         XCTAssertEqual(three.requires, [HostOperationsContract.revisionTwoDeclaration, HostServiceCatalogue.declaration])
-        let host = PluginInterfaceContracts.host
+        let host = PluginInterfaceContracts.candidateHost
         XCTAssertTrue([CollectionsContract.revisionOne, two, three].allSatisfy(host.candidates.contains))
     }
 

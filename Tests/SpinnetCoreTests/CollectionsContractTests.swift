@@ -3,8 +3,9 @@ import XCTest
 @testable import SpinnetCore
 
 /// `Tests/Fixtures/EmojiPages.spinnetplugin` and `BrewPages.spinnetplugin`
-/// are external Plugins declaring Candidate Contract `collections` r3 and the
-/// `host_operations` r2 and `namespaces` r1 it requires: an Emoji-shaped
+/// are external Plugins declaring Plugin API Level 2, written against
+/// Candidate Contract `collections` r3 and the `host_operations` r2 and
+/// `namespaces` r1 it required before Level 2 promoted them: an Emoji-shaped
 /// grid and a Brew-shaped list with a detail page.
 enum CollectionsFixtures {
     static let emoji = NamespacesProbeFixture.fixtures.appendingPathComponent("EmojiPages.spinnetplugin", isDirectory: true)
@@ -16,45 +17,35 @@ enum CollectionsFixtures {
         try PluginManifestLoader.load(packageAt: package).manifest
     }
 
-    /// What a Plugin declaring the three candidates may use.
+    /// What a Level 2 Plugin may use.
     static var permits: (PluginInterfaceMember) -> Bool {
         PluginInterfaceContracts.host.permitting(try! manifest())
     }
 
     /// What a Plugin declaring `collections` r1, which has no repeated
-    /// calls, and the candidates it requires may use.
+    /// calls, and the candidates it requires could use on the candidate Host.
     static var revisionOne: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! manifest(declaringCollections: 1))
+        PluginInterfaceContracts.candidateHost.permitting(try! manifest(declaringCollections: 1))
     }
 
     /// What a Plugin declaring `collections` r2, whose collections are whole
-    /// and append with `load_more`, and the candidates it requires may use.
+    /// and append with `load_more`, and the candidates it requires could use
+    /// on the candidate Host.
     static var revisionTwo: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! manifest(declaringCollections: 2))
+        PluginInterfaceContracts.candidateHost.permitting(try! manifest(declaringCollections: 2))
     }
 
-    /// The Emoji fixture's manifest declaring `collections` at `revision`.
+    /// The Emoji fixture's manifest declaring `collections` at `revision`
+    /// and what it requires, at Level 1, as before promotion.
     static func manifest(declaringCollections revision: Int, of package: URL = emoji) throws -> PluginManifest {
-        let data = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
-        guard case .object(var manifest) = try JSONDecoder().decode(JSONValue.self, from: data),
-              case .array(let declared)? = manifest["candidate_contracts"] else { throw CocoaError(.fileReadCorruptFile) }
-        // Revisions 1 and 2 require host_operations r1, revision 3 r2.
-        manifest["candidate_contracts"] = .array(declared.map { declaration in
-            guard case .object(var members) = declaration else { return declaration }
-            if members["name"] == .string(CollectionsContract.name) {
-                members["revision"] = .number(Double(revision))
-            } else if members["name"] == .string(HostOperationsContract.name) {
-                members["revision"] = .number(revision >= 3 ? 2 : 1)
-            }
-            return .object(members)
-        })
-        return try PluginManifestLoader.decode(JSONEncoder().encode(JSONValue.object(manifest)))
+        try CandidateVariant.manifest(of: package, CandidateVariant.declaring(CandidateVariant.pages(collections: revision)))
     }
 
     /// What a Plugin declaring `host_operations` and `namespaces` but not
-    /// `collections` may use.
+    /// `collections` could use on the candidate Host.
     static var withoutCollections: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! OperationsProbeFixture.manifest())
+        PluginInterfaceContracts.candidateHost.permitting(try! CandidateVariant.manifest(
+            of: OperationsProbeFixture.package, CandidateVariant.declaring(CandidateVariant.operations(revision: 1))))
     }
 }
 
@@ -93,9 +84,9 @@ class CollectionsContractTests: XCTestCase {
     }
 
     /// What a Plugin declaring this revision, and the candidates it
-    /// requires, may use.
+    /// requires, could use on the candidate Host.
     var permits: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! CollectionsFixtures.manifest(declaringCollections: Self.revision))
+        PluginInterfaceContracts.candidateHost.permitting(try! CollectionsFixtures.manifest(declaringCollections: Self.revision))
     }
 
     /// The fixtures the schema alone can judge follow it; the ones it cannot
@@ -267,8 +258,8 @@ class CollectionsContractTests: XCTestCase {
     func testTheCandidatesMembersAreTheCataloguesAndThePublishedOnes() throws {
         let published = try JSONDecoder().decode(CandidateContract.self,
                                                  from: Data(contentsOf: Self.published.appendingPathComponent("candidate.json")))
-        XCTAssertEqual(published, Self.candidate)
-        XCTAssertTrue(PluginInterfaceContracts.host.candidates.contains(Self.candidate))
+        XCTAssertEqual(published, CandidateVariant.retired(Self.candidate))
+        XCTAssertTrue(PluginInterfaceContracts.candidateHost.candidates.contains(Self.candidate))
         XCTAssertEqual(published.members.contains(CollectionsContract.repeatedCallsIntoSession), Self.revision >= 2)
         XCTAssertEqual(published.members.contains(.viewEvent("called")), Self.revision >= 2)
         XCTAssertEqual(published.requires, [Self.revision >= 3 ? HostOperationsContract.revisionTwoDeclaration
@@ -346,8 +337,9 @@ final class CollectionsRevisionTwoContractTests: CollectionsContractTests {
                        [CollectionsContract.repeatedCallsIntoSession, .viewEvent("called")])
         XCTAssertTrue(Set(one.members).isSubset(of: two.members))
         XCTAssertEqual(two.requires, one.requires)
-        let host = PluginInterfaceContracts.host
-        XCTAssertTrue(host.candidates.contains(one) && host.candidates.contains(two), "Revision 1 is still provided")
+        let host = PluginInterfaceContracts.candidateHost
+        XCTAssertTrue(host.candidates.contains(one) && host.candidates.contains(two),
+                      "The candidate Host provided revision 1 beside it")
 
         let r1 = Self.pluginAPI.appendingPathComponent("candidates/collections/r1/fixtures")
         let r2 = Self.published.appendingPathComponent("fixtures")

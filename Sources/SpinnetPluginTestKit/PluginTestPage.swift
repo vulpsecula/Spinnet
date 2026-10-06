@@ -1,7 +1,8 @@
 import Foundation
 import SpinnetCore
 
-/// One View Session of a Plugin declaring Candidate Contract `collections`,
+/// One View Session of a Plugin API Level 2 Plugin's pages (or, against the
+/// candidate Host, of a Plugin declaring Candidate Contract `collections`),
 /// driven by recorded gestures the way the Host drives it: answers are read
 /// and applied as the Host applies them, through the same page memory, so
 /// typed text, choices, selection and focus survive refreshes and come back
@@ -70,7 +71,7 @@ public final class PluginTestPage {
         self.plugin = plugin
         self.helper = helper
         self.services = services
-        permits = PluginInterfaceContracts.host.permitting(plugin.manifest)
+        permits = helper.contracts.permitting(plugin.manifest)
     }
 
     // MARK: What the Host shows
@@ -112,7 +113,8 @@ public final class PluginTestPage {
     /// Settings and the Menu Item's overrides already merged, by default the
     /// handler's own.
     ///
-    /// For a Plugin declaring `collections` r2 or later the call runs in the
+    /// For a Level 2 Plugin (or one declaring `collections` r2 or later on
+    /// the candidate Host) the call runs in the
     /// session as `called`, from the last good state, as a gesture with no
     /// insertion target shown; only an answer with a page or view makes it
     /// the handler, and a failure throws and keeps the handler, page and

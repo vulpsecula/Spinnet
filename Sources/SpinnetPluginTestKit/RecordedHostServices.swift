@@ -34,9 +34,9 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     /// for one. Give it a temporary directory, and a store over the same
     /// directory in a later run to stand for a relaunch.
     ///
-    /// `operations` answers a Plugin declaring Candidate Contract
-    /// `namespaces` by catalogue ID, such as `"clipboard.write"`, ahead of
-    /// `answers` for the Host Service performing it.
+    /// `operations` answers a Plugin API Level 2 Plugin by catalogue ID,
+    /// such as `"clipboard.write"`, ahead of `answers` for the Host Service
+    /// performing it.
     public init(_ answers: [PluginHostService: Answer] = [:], operations: [String: Answer] = [:],
                 storage: PluginStorage? = nil) {
         self.answers = answers

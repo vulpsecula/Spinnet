@@ -201,8 +201,11 @@ struct SpinnetPluginHelperMain {
     }
 
     /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
-    /// `requestHostService` already in `context`, or for a Plugin declaring
-    /// Candidate Contract `namespaces` r1 the namespaced object its
+    /// `requestHostService` already in `context`; for a Plugin declaring
+    /// Plugin API Level 2 the object `spinnet-level-2.js` builds over Level
+    /// 1's. For a Plugin run against the candidate Host, which only a check
+    /// of promotion does, one declaring Candidate Contract `namespaces` r1
+    /// gets the namespaced object its
     /// `namespaces.js` builds over Level 1's, with `host_operations.js`'s
     /// request builders for a Plugin also declaring `host_operations` r1, and
     /// `collections.js`'s page builders over those for one also declaring
@@ -222,7 +225,14 @@ struct SpinnetPluginHelperMain {
               var sdk = makeSDK.call(withArguments: [requestHostService, environment]), sdk.isObject else {
             return false
         }
-        if invocation.namesCatalogueIDs {
+        if invocation.apiLevel >= 2 {
+            guard let makeLevelTwo = context.evaluateScript(SpinnetSDK.levelTwoSource), makeLevelTwo.isObject,
+                  let levelTwo = makeLevelTwo.call(withArguments: [requestHostService, environment, sdk]),
+                  levelTwo.isObject else {
+                return false
+            }
+            sdk = levelTwo
+        } else if invocation.namesCatalogueIDs {
             guard let makeNamespaced = context.evaluateScript(SpinnetSDK.namespacesSource), makeNamespaced.isObject,
                   let namespaced = makeNamespaced.call(withArguments: [requestHostService, environment, sdk]),
                   namespaced.isObject else {
@@ -402,9 +412,10 @@ private final class PluginRuntimeHostServiceClient {
 }
 
 private extension PluginRuntimeInvocation {
-    /// Whether the Plugin declares Candidate Contract `namespaces` r1, whose
-    /// SDK and names the helper then uses.
-    var namesCatalogueIDs: Bool { candidateContracts.contains(HostServiceCatalogue.declaration) }
+    /// Whether the Plugin names Host Services by catalogue ID: from Plugin
+    /// API Level 2, or, against the candidate Host, by declaring Candidate
+    /// Contract `namespaces` r1.
+    var namesCatalogueIDs: Bool { apiLevel >= 2 || candidateContracts.contains(HostServiceCatalogue.declaration) }
 
     /// Whether the Plugin declares Candidate Contract `host_operations` r1
     /// or r2, whose request builders the helper then adds: revision 2 adds

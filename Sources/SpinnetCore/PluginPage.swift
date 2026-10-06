@@ -1,9 +1,11 @@
 import Foundation
 
-/// Candidate Contract `collections` (ADR 0019): a declaring Plugin may answer
+/// Pages and collections (ADR 0019), proved as Candidate Contract
+/// `collections` and part of Plugin API Level 2 since revision 3 was
+/// promoted (#79), whose members Level 2 holds: a Level 2 Plugin may answer
 /// with a page, a tree of identified View Components with at most one List or
 /// Grid, whose immediate state the Host keeps across answers until the Plugin
-/// resets it. The Host provides three revisions, each published under
+/// resets it. The candidate Host provided three revisions, retired since, each published under
 /// `PluginAPI/candidates/collections/r<revision>/` as `candidate.json`:
 /// revision 1, pages and collections; revision 2, which adds repeated calls
 /// (#78): calling the Plugin again while its View Session is open runs the

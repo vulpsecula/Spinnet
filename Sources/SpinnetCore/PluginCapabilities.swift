@@ -675,7 +675,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
-    /// Inserts for a Plugin declaring `host_operations`, into the App in
+    /// Inserts for a Plugin API Level 2 Plugin, into the App in
     /// front only if it is the one the Host showed when the user acted.
     private let targetedTextInserter: (String, InsertionTargetCapture) throws -> Void
     private let languageDetector: (String) -> String?

@@ -6,7 +6,9 @@ import SpinnetCore
 /// same budgets. Call `shutdown()` when the test is done.
 public final class PluginTestHelper {
     private let supervisor: PluginRuntimeSupervisor
-    private let contracts: PluginInterfaceContracts
+    /// What the Host under test offers, which every run and every
+    /// `PluginTestPage` over this helper is held to.
+    public let contracts: PluginInterfaceContracts
 
     /// What `spinnet.environment` reports unless a test says otherwise: the
     /// highest Plugin API Level this kit's Host supports, an unbundled
@@ -19,11 +21,14 @@ public final class PluginTestHelper {
     /// `defaultEnvironment` reporting the highest stable Level of `contracts`.
     ///
     /// `contracts` is what the Host under test offers: by default this kit's
-    /// own Host, Plugin API Level 1 and the Candidate Contract revisions it
-    /// provides. A run of a Plugin that Host would refuse, such as one
-    /// declaring another revision of a candidate, fails as the Host would
-    /// fail it, and a Host Service request outside the Levels and candidates
-    /// the Plugin declares is refused.
+    /// own Host, Plugin API Levels 1 and 2, with the Candidate Contract
+    /// revisions Level 2 retired. A run of a Plugin that Host would refuse,
+    /// such as one declaring a retired candidate or a Level it lacks, fails
+    /// as the Host would fail it, and a Host Service request outside the
+    /// Levels and candidates the Plugin declares is refused.
+    /// `PluginInterfaceContracts.candidateHost` is the Host before Level 2,
+    /// against which a Plugin's candidate revision can be compared with its
+    /// Level 2 revision.
     public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment? = nil,
                 contracts: PluginInterfaceContracts = .host) throws {
         guard let url = helperURL ?? Self.locate() else { throw PluginTestKitError.helperNotFound }
@@ -40,8 +45,8 @@ public final class PluginTestHelper {
     /// makes is answered by `hostServices` and recorded in the returned run,
     /// whether it was answered or refused.
     ///
-    /// A Command that names a catalogue ID in `host_command` (Candidate
-    /// Contract `namespaces`) runs no script: it runs as the Host runs it,
+    /// A Command that names a catalogue ID in `host_command` (Plugin API
+    /// Level 2) runs no script: it runs as the Host runs it,
     /// with its operation answered by `hostServices`, which for an operation
     /// Level 1 performs as a Host Command must be a `CatalogueCommandExecutor`
     /// such as `RecordedHostServices`. Its result is the Command's value, or

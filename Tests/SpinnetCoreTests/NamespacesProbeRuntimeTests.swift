@@ -62,7 +62,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         let run = try run("probe.shout", of: probe(running: #"requestHostService("write_clipboard", "x")"#))
 
         assertFailure(run, .hostServiceFailed("Host Service is unavailable: write_clipboard is a Plugin API Level 1 "
-            + "name; a Plugin declaring the namespaces Candidate Contract calls clipboard.write"))
+            + "name; a Plugin API Level 2 Plugin calls clipboard.write"))
         XCTAssertEqual(run.requests, [], "The refusal never reached the Host's services")
     }
 
@@ -72,9 +72,9 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
     func testReservedAndCommandOnlyIDsAreRefusedToAScript() throws {
         for (script, message) in [
             (#"spinnet.environment && requestHostService("system.runShortcut", "Focus")"#,
-             "system.runShortcut is reserved: no revision of the namespaces Candidate Contract lets a script call it yet"),
+             "system.runShortcut is reserved: no Plugin API Level lets a script call it yet"),
             (#"requestHostService("apps.frontmost")"#,
-             "apps.frontmost is reserved: no revision of the namespaces Candidate Contract lets a script call it yet"),
+             "apps.frontmost is reserved: no Plugin API Level lets a script call it yet"),
             (#"requestHostService("selection.paste")"#, "selection.paste cannot be called from a script; a Command can run it"),
             (#"requestHostService("host.toast", "Hi")"#, "host.toast cannot be called from a script; a Command can run it"),
             (#"requestHostService("clipboard.copyAll")"#, "clipboard.copyAll is not a Host Service of the Plugin API catalogue")
@@ -143,7 +143,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
                           answering: RecordedHostServices(operations: ["open.url": .value(.null)]))
 
         assertFailure(run, .invalidAction("Command probe.copy_greeting of Namespaces Probe names url.open, a Plugin API "
-            + "Level 1 Host Command; a Plugin declaring the namespaces Candidate Contract names it open.url."))
+            + "Level 1 Host Command; a Plugin API Level 2 Plugin names it open.url."))
         XCTAssertEqual(run.performed, [])
     }
 
@@ -151,10 +151,11 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
 
     /// Every operation a script can call is a function at `spinnet.<id>`
     /// that calls exactly that ID; the namespaces without one, and Level 1's
-    /// wrappers, are absent.
+    /// wrappers, are absent. This is retired revision 1 of `namespaces`
+    /// alone, on the candidate Host: an insertion needed no shown target.
     func testTheNamespacedSDKCallsEachIDItHolds() throws {
         let ids = HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)
-        let run = try run("probe.shout", of: probe(running: """
+        let source = try probe(running: """
             const reached = [];
             for (const area of Object.keys(spinnet).sort()) {
               if (area === "ui" || area === "environment") continue;
@@ -164,7 +165,10 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
               }
             }
             [reached, Object.keys(spinnet).sort(), typeof spinnet.ui.view, Object.isFrozen(spinnet.clipboard)]
-            """), answering: AnsweringEverything())
+            """)
+        let candidate = try CandidateVariant.write(source, CandidateVariant.declaring([CandidateVariant.namespaces]))
+        let run = try run("probe.shout", of: candidate, answering: AnsweringEverything(),
+                          contracts: .candidateHost)
 
         guard case .array(let values) = try run.result.get(), values.count == 4 else {
             return XCTFail("The probe did not report the SDK")
@@ -177,6 +181,40 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         for performed in run.performed {
             XCTAssertTrue(ids.contains(performed.id), performed.id)
         }
+    }
+
+    /// Level 2's SDK holds the same call at every ID, and `host` for the
+    /// operation only an answer or a page action reaches. Under Level 2 a
+    /// synchronous `selection.replace` needs a target the Host showed, as
+    /// `host_operations` ruled, so the probe calls every other ID.
+    func testTheLevelTwoSDKCallsEachIDItHolds() throws {
+        let ids = HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)
+        let run = try run("probe.shout", of: probe(running: """
+            const reached = [];
+            for (const area of Object.keys(spinnet).sort()) {
+              if (area === "ui" || area === "environment") continue;
+              for (const verb of Object.keys(spinnet[area]).sort()) {
+                const member = spinnet[area][verb];
+                if (typeof member !== "function") continue;
+                if (area + "." + verb !== "selection.replace") member(area + "." + verb);
+                reached.push(area + "." + verb);
+              }
+            }
+            [reached, Object.keys(spinnet).sort(), Object.keys(spinnet.host.showPluginSettings).sort(),
+             typeof spinnet.ui.view, typeof spinnet.ui.showPage, Object.isFrozen(spinnet.clipboard)]
+            """), answering: AnsweringEverything())
+
+        guard case .array(let values) = try run.result.get(), values.count == 6 else {
+            return XCTFail("The probe did not report the SDK")
+        }
+        XCTAssertEqual(values[0], .array(ids.sorted().map(JSONValue.string)))
+        XCTAssertEqual(values[1], .array(["apps", "clipboard", "clipboardHistory", "environment", "host", "http", "open",
+                                          "screen", "selection", "storage", "text", "ui", "window"].map(JSONValue.string)))
+        XCTAssertEqual(values[2], .array([.string("action"), .string("operation")]))
+        XCTAssertEqual(values[3], .string("function"), "Level 1's view builders stay for Level 1 views")
+        XCTAssertEqual(values[4], .string("function"))
+        XCTAssertEqual(values[5], .bool(true))
+        XCTAssertEqual(run.performed.map(\.id), ids.sorted().filter { $0 != "selection.replace" })
     }
 
     // MARK: Level 1 is unchanged

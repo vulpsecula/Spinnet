@@ -2,8 +2,9 @@ import Foundation
 @testable import SpinnetCore
 
 /// `Tests/Fixtures/OperationsProbe.spinnetplugin` is a tiny external Plugin
-/// that declares Candidate Contract `host_operations` revision 1 and the
-/// `namespaces` revision it requires: a symbol picker whose view names
+/// declaring Plugin API Level 2, written against Candidate Contract
+/// `host_operations` revision 1 and the `namespaces` revision it required
+/// before Level 2 promoted them: a symbol picker whose view names
 /// where text goes and whose gestures request insertion and copying, and a
 /// Command without a view that tries to insert a stamp.
 enum OperationsProbeFixture {
@@ -34,5 +35,5 @@ enum OperationsProbeFixture {
     }
 
     /// The probe declaring no candidate: a Level 1 Plugin.
-    static let levelOne: (inout [String: JSONValue]) -> Void = { $0["candidate_contracts"] = nil }
+    static let levelOne = CandidateVariant.levelOne
 }
