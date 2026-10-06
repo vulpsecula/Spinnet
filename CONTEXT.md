@@ -23,7 +23,7 @@ Where a Plugin's package came from: shipped with the app, making it a Bundled Pl
 _Avoid_: Plugin type, plugin kind, trust level, installed Plugin
 
 **Refused Plugin**:
-A Plugin added by the user that the Host does not load at launch, because its package is broken or it declares a Plugin API Level or Candidate Contract revision this Host does not provide. Unlike a removed Plugin it stays: the Library lists it with the reason and can remove it, and its Menu Items, Plugin Settings, Plugin Storage and access decisions are kept until it is replaced or removed.
+A Plugin added by the user that the Host does not load at launch, because its package is broken or it declares a Plugin API Level or Candidate Contract revision this Host does not provide, a retired one included. Unlike a removed Plugin it stays: the Library lists it with the reason and can remove it, and its Menu Items, Plugin Settings, Plugin Storage and access decisions are kept until it is replaced or removed.
 _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 
 **Plugin Removal**:
@@ -45,7 +45,7 @@ A Command that runs one Host Service directly instead of a script, by naming the
 _Avoid_: Built-in Plugin, Built-in Preset, native Action
 
 **Host Service**:
-A controlled operation the Host performs for any Plugin that is granted it, never shaped around one Plugin's feature, listed once in the Plugin API catalogue under one `namespace.verb` ID, such as `clipboard.write`. From the first new UI contract on, every entry point names it by that ID: a script's call, a Host Command, a View Action and a Requested Host Operation. Plugin API Level 1 names the same operation differently at each entry point (`write_clipboard`, `clipboard.copy`, `copy_text`), and Level 1 Plugins keep those names. Its availability may depend on a Capability and a System Permission.
+A controlled operation the Host performs for any Plugin that is granted it, never shaped around one Plugin's feature, listed once in the Plugin API catalogue under one `namespace.verb` ID, such as `clipboard.write`. From Plugin API Level 2 on, every entry point names it by that ID: a script's call, a Host Command, a View Action and a Requested Host Operation. Plugin API Level 1 names the same operation differently at each entry point (`write_clipboard`, `clipboard.copy`, `copy_text`), and Level 1 Plugins keep those names. Its availability may depend on a Capability and a System Permission.
 _Avoid_: Capability, system API, Plugin-specific service
 
 **Action**:
@@ -145,7 +145,7 @@ A supported element of a Plugin View, such as a field, collection or layout cont
 _Avoid_: Native control, custom widget, HTML element
 
 **Collection**:
-A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order. From `collections` revision 3 a Collection may give its total and one slice of its items at a time, and the Host keeps a Collection Window of them.
+A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order. A Collection may give its total and one slice of its items at a time, and the Host keeps a Collection Window of them.
 _Avoid_: Table, results list, data source
 
 **Collection Window**:
@@ -161,7 +161,7 @@ One user interaction in a Plugin View, such as editing a field, submitting, or c
 _Avoid_: Callback, UI message
 
 **Explicit Call**:
-The user executing one of a Plugin's Actions, as from a Menu Item. Under the first new UI contract, while that Plugin's View Session is open, it runs inside the session as a View Event and its Action handles the session only once it answers with a view; under Plugin API Level 1 it starts the Action again and replaces the view.
+The user executing one of a Plugin's Actions, as from a Menu Item. Under Plugin API Level 2, while that Plugin's View Session is open, it runs inside the session as a View Event and its Action handles the session only once it answers with a view; under Plugin API Level 1 it starts the Action again and replaces the view.
 _Avoid_: Re-invocation, relaunch, refresh
 
 **View Action**:
@@ -185,15 +185,15 @@ A window the Host owns and presents on behalf of a Plugin, because the public vi
 _Avoid_: Plugin window, privileged UI
 
 **Insertion Target**:
-The App that receives text the Host inserts for a Plugin. Under Plugin API Level 1 it is the App in front when the Plugin View appeared, or for a script's own insertion the App in front at that moment; under the first new UI contract it is the App in front at insertion, whose name the Host shows and never gives to the Plugin.
+The App that receives text the Host inserts for a Plugin. Under Plugin API Level 1 it is the App in front when the Plugin View appeared, or for a script's own insertion the App in front at that moment; under Plugin API Level 2 it is the App in front at insertion, whose name the Host shows and never gives to the Plugin.
 _Avoid_: Origin App, recent App, focused App (when the panel is meant)
 
 **Requested Host Operation**:
-Part of the first new UI contract, offered by Candidate Contract `host_operations`: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome. From `host_operations` revision 2, an outcome the Plugin asked for whose view closed meanwhile reaches one viewless invocation of the requesting Action.
+Part of Plugin API Level 2: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome. An outcome the Plugin asked for whose view closed meanwhile reaches one viewless invocation of the requesting Action.
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-Proposed for the first new UI contract: a trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. No operation `host_operations` revision 1 offers requires one.
+Proposed for a later Plugin API Level: a trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. No Plugin API Level 2 operation requires one.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
 
 ### Authority
@@ -247,15 +247,15 @@ The public manifest schemas, message protocols, Command interfaces, Host Service
 _Avoid_: Host internals, private API, ABI
 
 **Plugin API Level**:
-The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level.
+The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level, and runs it with that level's names and behaviour. Level 1 is the first published level; Level 2 is the first new UI contract (catalogue IDs, pages and Collections, Requested Host Operations, Explicit Calls into the open View Session), promoted from Candidate Contracts.
 _Avoid_: SDK version, protocol version
 
 **Plugin API Namespace**:
-Proposed for the first new UI contract: the Host Services of one area of Spinnet's domain, ideally the ones a single Capability lets the user grant as a group, such as `selection`, `clipboard`, `clipboardHistory` (the Clipboard History Store) or `host` (Spinnet's own UI and flow, which a Plugin asks the Host to act on). It is the first of exactly two parts of each Host Service's ID (`namespace.verb`) and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
+Part of Plugin API Level 2: the Host Services of one area of Spinnet's domain, ideally the ones a single Capability lets the user grant as a group, such as `selection`, `clipboard`, `clipboardHistory` (the Clipboard History Store) or `host` (Spinnet's own UI and flow, which a Plugin asks the Host to act on). It is the first of exactly two parts of each Host Service's ID (`namespace.verb`) and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
 _Avoid_: SDK area, module, Capability
 
 **Candidate Contract**:
-An explicitly provisional revision of the Documented Plugin Interface used to evaluate additions before they become part of a stable Plugin API Level.
+An explicitly provisional revision of the Documented Plugin Interface used to evaluate additions before they become part of a stable Plugin API Level. Promotion retires it: a Plugin still declaring it is a Refused Plugin told which Level to declare instead.
 _Avoid_: Stable release, Plugin version
 
 ### PopClip compatibility and licensing
