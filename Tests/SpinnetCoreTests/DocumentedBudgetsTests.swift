@@ -317,3 +317,36 @@ final class PluginViewBudgetsTests: XCTestCase {
         XCTAssertEqual(PluginViewDescription.maximumActions, 12)
     }
 }
+
+/// Plugin API Level 2's page and Requested Host Operation budgets (#79),
+/// promoted unchanged from `collections` r3 and `host_operations` r2.
+final class LevelTwoBudgetsTests: XCTestCase {
+    /// PluginAPI/reference/pages.md, "Budgets" and "Components"
+    func testPageBudgetsMatchThePublishedPage() {
+        XCTAssertPublished("A Host holds at most 40 components per page, 2,000 items per collection (given in one "
+                           + "answer, or as its `total`), 600 items in a collection's window, and 4 pages in page memory.",
+                           in: "reference/pages.md")
+        XCTAssertEqual(CollectionsContract.maximumComponents, 40)
+        XCTAssertEqual(CollectionsContract.maximumItems, 2_000)
+        XCTAssertEqual(CollectionsContract.maximumWindowItems, 600)
+        XCTAssertEqual(CollectionsContract.pageMemory, 4)
+        XCTAssertPublished("Every component has an `id`, unique in its page, row children included. A page has at "
+                           + "most 40 components and at most one collection.", in: "reference/pages.md")
+        XCTAssertPublished("`content`: up to 4 components", in: "reference/pages.md")
+        XCTAssertEqual(CollectionsContract.maximumRowChildren, 4)
+        XCTAssertPublished("`actions`: up to 8 buttons", in: "reference/pages.md")
+        XCTAssertEqual(CollectionsContract.maximumButtons, 8)
+        XCTAssertPublished("up to 6 item actions", in: "reference/pages.md")
+        XCTAssertEqual(CollectionsContract.maximumItemActions, 6)
+        XCTAssertPublished("up to 2,000 items and 32 sections in all", in: "reference/pages.md")
+        XCTAssertEqual(CollectionsContract.maximumSections, 32)
+    }
+
+    /// PluginAPI/reference/host-operations.md, "Limits"
+    func testRequestedHostOperationLimitsMatchThePublishedPage() {
+        XCTAssertPublished("| `id` | 64 characters |", in: "reference/host-operations.md")
+        XCTAssertEqual(HostOperationsContract.maximumIDLength, 64)
+        XCTAssertPublished("| Inserted text | 128 KiB of UTF-8 |", in: "reference/host-operations.md")
+        XCTAssertEqual(HostOperationsContract.maximumInsertedBytes, 128 * 1024)
+    }
+}

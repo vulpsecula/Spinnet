@@ -14,6 +14,10 @@ licence.
 | [`reference/scripts.md`](reference/scripts.md) | How a script runs: its globals, the `spinnet` SDK, its answer, failures, limits, and the helper protocol |
 | [`reference/host-services.md`](reference/host-services.md) | Every Host Service: input, result, Capability, System Permission and rules |
 | [`reference/views.md`](reference/views.md) | Plugin Views, View Sessions, standard actions and Host-Fetched Sections |
+| [`reference/namespaces.md`](reference/namespaces.md) | Level 2: every Host Service under one `namespace.verb` ID, where each is offered, its input and authority |
+| [`reference/host-operations.md`](reference/host-operations.md) | Level 2: Requested Host Operations an answer commits and the Host performs, their outcomes, and where insertion goes in a View Session |
+| [`reference/pages.md`](reference/pages.md) | Level 2: pages of identified components with a List or Grid, the input the Host keeps, windows of items, and Explicit Calls into the open View Session |
+| [`reference/level-1-names.md`](reference/level-1-names.md) | Level 2: every Level 1 name and the catalogue ID that replaces it |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json`, the `list` field and `migrations` included |
 | [`schemas/plugin-view.schema.json`](schemas/plugin-view.schema.json) | The Plugin View a script answers with |
 | [`schemas/view-session.schema.json`](schemas/view-session.schema.json) | The View Events a script receives and the answers it may give |
@@ -21,10 +25,18 @@ licence.
 | [`schemas/https-request.schema.json`](schemas/https-request.schema.json) | `https_request` and its Credential Uses |
 | [`schemas/external-apps.schema.json`](schemas/external-apps.schema.json) | `perform_app_operation`, the Reviewed App Interfaces the Host ships, and `open_deep_link` |
 | [`schemas/plugin-storage.schema.json`](schemas/plugin-storage.schema.json) | The Plugin Storage Host Services |
+| [`schemas/namespaces.schema.json`](schemas/namespaces.schema.json) | Level 2: each operation's input and result under its ID, the IDs each entry point accepts, and a Level 2 manifest's Commands |
+| [`schemas/host-operations.schema.json`](schemas/host-operations.schema.json) | Level 2: Requested Host Operations, their outcomes and `operation_finished` |
+| [`schemas/pages.schema.json`](schemas/pages.schema.json) | Level 2: pages, their components and collections, and their events |
+| [`schemas/catalogue.schema.json`](schemas/catalogue.schema.json) | The shape of `catalogue.json` |
+| [`catalogue.json`](catalogue.json) | Level 2's Plugin API catalogue: every operation, where it is offered, its authority and the Level 1 names it replaces |
+| [`fixtures/`](fixtures/pages/index.json) | Level 2: valid and invalid answers and events for [pages](fixtures/pages/index.json) and [Requested Host Operations](fixtures/host-operations/index.json) |
 | [`spinnet.d.ts`](spinnet.d.ts) | Types for the globals a script runs with, including `spinnet` |
-| [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every script |
-| [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds `spinnet.js` in the helper when it is built |
-| [`candidates/README.md`](candidates/README.md) | Candidate Contracts: provisional revisions declared by exact revision, kept apart from every stable Level |
+| [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every Level 1 script |
+| [`spinnet-level-2.d.ts`](spinnet-level-2.d.ts) | Types for a Level 2 script's `spinnet`, `event` and answers |
+| [`spinnet-level-2.js`](spinnet-level-2.js) | Source of the `spinnet` SDK object of a Level 2 script, built over Level 1's |
+| [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds the SDKs in the helper when it is built |
+| [`candidates/README.md`](candidates/README.md) | Candidate Contracts: provisional revisions declared by exact revision, kept apart from every stable Level, and the retired ones Level 2 was proved as |
 
 The schemas check shapes. What a shape cannot say, such as that a Preset
 names declared Commands or that a request goes to a consented host, the
@@ -40,9 +52,10 @@ only if it supports that level; otherwise it refuses and asks the user to
 update Spinnet. Additive changes raise the level: a Plugin written for Level 1
 keeps working on a Host that supports a later one.
 
-Level 1 is the first published level, and the one this Host supports. The
-schema requires `api_level`; a Host reads a manifest written before the field
-existed as needing Level 1.
+Level 1 is the first published level and Level 2 the second; this Host
+supports both. The schema requires `api_level`; a Host reads a manifest
+written before the field existed as needing Level 1. Each Level is published
+at a git tag, `plugin-api-level-<n>`, from Level 2 on.
 
 `protocol_version` is unrelated: it only frames the messages between the Host
 and the Plugin's helper, and stays `"1.0"`.
@@ -139,16 +152,134 @@ and `deep_link.open`.
 `spinnet.environment` holds `apiLevel`, `hostVersion`, `preferredLanguage`,
 `pluginID`, `commandID`, `actionID` and `invocationID`.
 
+## What Level 2 offers
+
+Level 2 is everything Level 1 offers, laid out under one name per operation,
+with pages, collections and Requested Host Operations. It was proved by the
+external Emoji Plugin as Candidate Contracts `namespaces` r1,
+`host_operations` r2 and `collections` r3, promoted together on 2026-10-06
+(#79), which Level 2 retires ([Candidate Contracts](candidates/README.md)). A
+Plugin declares it in its manifest:
+
+```json
+{
+  "protocol_version": "1.0",
+  "api_level": 2
+}
+```
+
+### Host Services, by ID
+
+Every Host Service has one ID, `namespace.verb`, the same string in a
+script's call (`spinnet.<id>(input)` or `requestHostService("<id>", input)`),
+a manifest Command's `host_command`, a page action's and a Requested Host
+Operation's `perform`, and `operation_finished`
+([Host Service IDs](reference/namespaces.md)). The SDK holds an operation at
+`spinnet.<id>` when a script can call it; one offered as a request or a page
+action also has `spinnet.<id>.operation(input, options)` and
+`spinnet.<id>.action(input, options)`, so `spinnet.host.showPluginSettings`
+holds only those two, and the namespaces with Command-only operations,
+`keyboard` and `system`, are absent from the SDK.
+
+| Namespace | ID | Offered as | Capability | System Permission |
+| --- | --- | --- | --- | --- |
+| `host` | `host.toast` | Command, answer | none | none |
+|  | `host.closeView` | answer | none | none |
+|  | `host.showPluginSettings` | Command, page action, request | none | none |
+| `selection` | `selection.readText` | call | `read_selected_text` | Accessibility |
+|  | `selection.replace` | call, page action, request | `insert_into_focused_app` | Accessibility |
+|  | `selection.copy` | Command | `read_selected_text`, `write_clipboard` | Accessibility |
+|  | `selection.cut` | Command | none | Accessibility |
+|  | `selection.paste` | Command | none | Accessibility |
+| `keyboard` | `keyboard.press` | Command | none | Accessibility |
+| `clipboard` | `clipboard.read` | call | `read_current_clipboard` | none |
+|  | `clipboard.write` | call, Command, page action, request | `write_clipboard` | none |
+| `clipboardHistory` | `clipboardHistory.read` | call | `read_clipboard_history` | none |
+|  | `clipboardHistory.readContent` | call | `read_clipboard_history` | none |
+|  | `clipboardHistory.show` | call, Command, page action, request | `read_clipboard_history` | none |
+| `open` | `open.url` | call, Command, page action, request | `open_url`; as a Command, none | none |
+|  | `open.path` | call, Command, page action, request | `open_local_path`; as a Command, none | none |
+|  | `open.application` | call, Command, page action, request | `open_local_path`; as a Command, none | none |
+| `apps` | `apps.perform` | call, Command, page action, request | `control_external_app` | Automation, asked by macOS |
+|  | `apps.openDeepLink` | call, Command, page action, request | `control_external_app` | none |
+| `system` | `system.runShortcut` | Command | none | none |
+|  | `system.runService` | Command | none | none |
+| `window` | `window.read` | call | `position_focused_window` | Accessibility |
+|  | `window.setFrame` | call | `position_focused_window` | Accessibility |
+|  | `window.toggleFullScreen` | call, Command | `position_focused_window` | Accessibility |
+|  | `window.restore` | call, Command | `position_focused_window` | Accessibility |
+| `screen` | `screen.capture` | call, Command | `capture_screen` | Screen Recording |
+| `http` | `http.request` | call, source | `contact_https` | none |
+| `text` | `text.detectLanguage` | call | none | none |
+| `storage` | `storage.get` | call | none | none |
+|  | `storage.set` | call | none | none |
+|  | `storage.remove` | call | none | none |
+|  | `storage.keys` | call | none | none |
+|  | `storage.clear` | call | none | none |
+
+The IDs `catalogue.json` reserves, such as `apps.frontmost` and
+`system.keepAwake`, are refused until a later Level adds them, and
+`selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
+and `system.runService` are offered only as Commands, whose input the user
+configures.
+
+### Pages, in `spinnet.ui.components`
+
+`spinnet.ui` keeps Level 1's builders and adds `ui.page`, `ui.showPage`,
+`ui.request` and `ui.components` ([pages](reference/pages.md)). A page has
+an `id` and up to 40 components, each with an `id` unique in the page:
+
+| Component | Builder | What the Host draws |
+| --- | --- | --- |
+| `row` | `components.row` | Up to 4 of the components below side by side |
+| `text_field` | `components.textField` | A one-line field, optionally the search field of the page's collection |
+| `choice_field` | `components.choiceField` | A pop-up |
+| `text` | `components.text` | Text in the Markdown subset |
+| `actions` | `components.actions`, `components.button` and `.action(...)` | Up to 8 buttons: event buttons and page actions the Host performs |
+| `list` | `components.list`, `section`, `item`, `itemAction` | A selectable list of up to 2,000 items, or a window of them |
+| `grid` | `components.grid`, `section`, `item`, `itemAction` | A selectable grid of 2 to 12 columns, likewise |
+
+The Host keeps each component's immediate state (typed text, caret,
+input-method composition, focus, selection, scroll) across answers to the
+same page until the Plugin resets it, owns a collection's selection, keys,
+scrolling and its window of items, which it fills with `load_range`, and
+draws no buttons for item actions: Return and double-click run the default,
+and the context menu offers each, toggles shown checked by the items' marks.
+No component or action carries a shortcut.
+
+### Requested Host Operations and outcomes
+
+An answer to a gesture may carry one `operation`, which the Host commits
+with the answer, performs after the invocation ends and, with `notify`,
+reports as `operation_finished`, after the view closed too
+([Requested Host Operations](reference/host-operations.md)). Every
+insertion in a Level 2 View Session goes to the App in front when the Host
+inserts, which must be the App the Host showed when the user acted.
+
+View Events add `item_action`, `load_range`, `called` (an Explicit Call
+into the open View Session) and `operation_finished` to Level 1's.
+
+### Level 1 at Level 2
+
+Level 1 is unchanged: a Plugin declaring `api_level: 1` keeps every Level 1
+name, view rule, insertion path and restart-on-call, and its invocation and
+SDK are Level 1's. A Level 2 Plugin names Host Services by ID only, so a
+Level 1 name is refused with the ID to use instead
+([Level 1 names](reference/level-1-names.md)), but it may still answer with
+a Level 1 `view`, which keeps Level 1's view rules and names, its standard
+actions included. `spinnet.environment.apiLevel` is the highest Level the
+Host supports, 2, for every Plugin. The types are in
+[`spinnet-level-2.d.ts`](spinnet-level-2.d.ts).
+
 ## Candidates for later levels
 
-These are left out of Level 1 because no Spinnet Plugin needs them yet. Each
-is added, when a Plugin does, as a Plugin-independent Host Service or view
-component with its own Capability where it reads or changes anything, which
-raises the Plugin API Level.
+These are left out of Levels 1 and 2 because no Spinnet Plugin needs them
+yet. Each is added, when a Plugin does, as a Plugin-independent Host Service
+or view component with its own Capability where it reads or changes
+anything, which raises the Plugin API Level. Level 2 brought in the List.
 
 | Candidate | The need that would bring it in |
 | --- | --- |
-| List | A view of many rows to search, choose from, or act on, such as a history, favourites, or a dictionary's grouped results; Detail sections stop at 20 and have no selection |
 | Progress | A task the user waits on longer than a toast lasts, with a way to cancel it, such as a multi-step download or a batch |
 | Selected Finder items | A Command that acts on the files the user has selected in Finder, such as converting or sharing them |
 | The frontmost application | A Command whose behaviour depends on the App in front, such as a per-App shortcut or reading the current browser page |

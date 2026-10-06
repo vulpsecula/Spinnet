@@ -97,7 +97,9 @@ final class PluginAPICatalogueTests: XCTestCase {
     }
 
     /// Each schema's `<service>.input` names a service the Host registers,
-    /// and every Host Service the published schemas describe has a result.
+    /// by its Level 1 name or, in Level 2's `namespaces.schema.json`, its
+    /// catalogue ID, and every Host Service the published schemas describe
+    /// has a result.
     func testSchemasDescribeOnlyRegisteredServices() throws {
         let files = try FileManager.default.contentsOfDirectory(
             at: Self.pluginAPI.appendingPathComponent("schemas"), includingPropertiesForKeys: nil
@@ -106,7 +108,8 @@ final class PluginAPICatalogueTests: XCTestCase {
             guard case .object(let definitions)? = try schema(file)["$defs"] else { continue }
             for name in definitions.keys where name.hasSuffix(".input") {
                 let service = String(name.dropLast(".input".count))
-                XCTAssertNotNil(PluginHostService(rawValue: service), "\(file) describes \(service), which the Host does not register")
+                XCTAssertTrue(PluginHostService(rawValue: service) != nil || HostServiceCatalogue.operation(service) != nil,
+                              "\(file) describes \(service), which the Host does not register")
                 XCTAssertNotNil(definitions[service + ".result"], "\(file) describes \(service) without its result")
             }
         }

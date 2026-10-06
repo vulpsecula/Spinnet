@@ -11,7 +11,7 @@
       "const": "1.0"
     },
     "api_level": {
-      "description": "The lowest Plugin API Level the Plugin needs. A Host that supports only lower levels refuses to install the Plugin and asks the user to update Spinnet.",
+      "description": "The lowest Plugin API Level the Plugin needs: 1 or 2. A Host that supports only lower levels refuses to install the Plugin and asks the user to update Spinnet. At Level 2 a Command names its Host Service by catalogue ID (namespaces.schema.json's command); at Level 1 by a Level 1 Host Command (command below).",
       "type": "integer",
       "minimum": 1
     },
@@ -49,11 +49,20 @@
     "preset": { "$ref": "#/$defs/preset" },
     "commands": {
       "type": "array",
-      "items": { "$ref": "#/$defs/command" },
       "minItems": 1
     },
     "migrations": { "$ref": "#/$defs/migrations" }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "api_level": { "const": 1 } } },
+      "then": { "properties": { "commands": { "items": { "$ref": "#/$defs/command" } } } }
+    },
+    {
+      "if": { "properties": { "api_level": { "minimum": 2 } } },
+      "then": { "properties": { "commands": { "items": { "$ref": "namespaces.schema.json#/$defs/command" } } } }
+    }
+  ],
   "$defs": {
     "text": {
       "description": "Display or identity text: not blank, at most 256 characters.",
@@ -159,6 +168,7 @@
       }
     },
     "command": {
+      "description": "A Level 1 manifest's Command. A Level 2 manifest's Commands are namespaces.schema.json's command.",
       "type": "object",
       "required": ["id", "title", "execution"],
       "additionalProperties": false,

@@ -1,0 +1,18 @@
+{
+  "type": "item_action",
+  "page": "search",
+  "collection": "results",
+  "action": "favourite",
+  "item": {
+    "id": "1F408",
+    "section": "animals-nature",
+    "text": "🐈",
+    "marks": [
+      "favourite"
+    ]
+  },
+  "values": {
+    "query": "",
+    "category": "all"
+  }
+}

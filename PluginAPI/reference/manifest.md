@@ -53,11 +53,20 @@ no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
 
 `api_level` is the lowest Plugin API Level the Plugin needs, an integer of at
-least 1. The Host supports up to Level 1 and refuses to install a Plugin that
+least 1. The Host supports up to Level 2 and refuses to install a Plugin that
 needs a higher level, telling the user to update Spinnet. A manifest without
 `api_level` is read as needing Level 1. `protocol_version` only frames the
 [helper messages](scripts.md#the-helper-protocol) and does not version the
 interface.
+
+At Level 2 a Command that runs no script names its Host Service by
+[catalogue ID](namespaces.md), such as `"host_command": "open.url"`, and may
+fix members of its input in `input` ([input](namespaces.md#input)); a Level 1
+Host Command name is refused with the ID to use instead. The schema holds a
+Level 2 manifest's Commands to `namespaces.schema.json`'s `command`, and a
+Level 1 manifest's to the Commands below. A manifest that still declares
+a retired Candidate Contract in `candidate_contracts` is refused with the
+Level to declare instead ([Candidate Contracts](../candidates/README.md)).
 
 ## Commands
 

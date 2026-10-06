@@ -6,6 +6,14 @@ Plugin's own markup or native UI (ADR 0002, ADR 0010).
 publishes a view, [`schemas/view-session.schema.json`](../schemas/view-session.schema.json)
 the events and answers around it, and `spinnet.ui` builds both.
 
+This page is Plugin API Level 1's view. Level 2 adds [pages](pages.md),
+with Lists and Grids and input the Host keeps across answers, and
+[Requested Host Operations](host-operations.md); a Level 2 Plugin may still
+answer with the Level 1 view described here, which keeps Level 1's view
+rules and names, its standard actions included (C9), and an Explicit Call
+of a Level 2 Plugin runs in its open View Session rather than starting the
+Action again ([calling the Plugin again](pages.md#calling-the-plugin-again)).
+
 ## View Sessions
 
 A script runs with `event` and `state`, both `null` when its Action starts. It
@@ -121,9 +129,10 @@ the App the user was in stays in front. An unpinned view closes when it loses
 focus; Escape or its close button closes any view.
 
 Pin means the user keeps the view beside their App. `closes_view` closes the
-view unless the user pinned it: on a standard action here, and on whatever
-else a Plugin marks with it under a Candidate Contract, such as a Requested
-Host Operation (`host_operations`) or a page or item action (`collections`).
+view unless the user pinned it: on a standard action here, and at Level 2
+on whatever else a Plugin marks with it, such as a
+[Requested Host Operation](host-operations.md) or a
+[page or item action](pages.md).
 A pinned view stays open after such an action succeeds. The Plugin's own
 `{close: true}` and the user's close close a pinned view as any other. While an event runs the
 view shows its own busy state, not the Action's progress. Every component

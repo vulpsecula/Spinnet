@@ -1,0 +1,3032 @@
+{
+  "$schema": "./schemas/catalogue.schema.json",
+  "description": "The Plugin API catalogue of Plugin API Level 2: every Host Service under one namespace.verb ID used at every entry point, with its input and result, Capability, System Permission, failure categories, where it is offered and the Level 1 names it replaces; the builders, values, globals, answer members, View Events and Capabilities; and the areas Spinnet does not offer. The Host's table of operations is held to it. Level 2 promoted Candidate Contracts namespaces r1, host_operations r2 and collections r3, whose catalogue this was (candidates/namespaces/r1/catalogue.json).",
+  "level": 2,
+  "entry_points": {
+    "call": "A script calls the operation inside its invocation: spinnet.<id>(input), or requestHostService(\"<id>\", input). Returns the result.",
+    "command": "A manifest Command with execution host names it in host_command; its input is the Action's configured input and the Command's fixed input. No helper starts.",
+    "view_action": "A page action or item action names it in perform with its input; the Host performs it on the user's click or key without a View Event.",
+    "request": "An answer to a gesture names it in operation: {perform, input}; the Host performs it after the answer commits (ADR 0018).",
+    "answer": "A member of the answer itself is this operation: toast, close.",
+    "source": "The Host sends it for a view and delivers or shows the result: a Host-Fetched Section, later a Host-run source (#71, #82)."
+  },
+  "namespaces": [
+    {
+      "name": "ui",
+      "holds": "builders",
+      "summary": "Pure builders for views, pages, components and answers; requests nothing"
+    },
+    {
+      "name": "host",
+      "holds": "operations",
+      "summary": "Spinnet's own UI and flow, which the Plugin asks the Host to act on: a toast, closing the Plugin View, opening the Plugin's settings; later a Plugin-worded question and launching another Command"
+    },
+    {
+      "name": "selection",
+      "holds": "operations",
+      "summary": "The focused App's selection: reading, replacing, copying, cutting and pasting it; every operation targets the focused App"
+    },
+    {
+      "name": "keyboard",
+      "holds": "operations",
+      "summary": "Keys pressed in the focused App; text is typed by selection.replace"
+    },
+    {
+      "name": "clipboard",
+      "holds": "operations",
+      "summary": "The current clipboard's content; no operation here targets an App"
+    },
+    {
+      "name": "clipboardHistory",
+      "holds": "operations",
+      "summary": "The Clipboard History Store: its own Capability (read_clipboard_history) and its own Sensitive Data Collection setting"
+    },
+    {
+      "name": "open",
+      "holds": "operations",
+      "summary": "Handing a link, path or application to the App that opens it"
+    },
+    {
+      "name": "apps",
+      "holds": "operations",
+      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates; later the App in front (#83)"
+    },
+    {
+      "name": "system",
+      "holds": "operations",
+      "summary": "macOS facilities no single App owns: Shortcuts and Services; later keep-awake (#84) and basic metrics (#86)"
+    },
+    {
+      "name": "window",
+      "holds": "operations",
+      "summary": "The focused window"
+    },
+    {
+      "name": "screen",
+      "holds": "operations",
+      "summary": "Screen captures the Plugin never receives"
+    },
+    {
+      "name": "http",
+      "holds": "operations",
+      "summary": "HTTPS requests with Credential Uses, from a script or as a Host-Fetched Section"
+    },
+    {
+      "name": "text",
+      "holds": "operations",
+      "summary": "Text processing on this Mac"
+    },
+    {
+      "name": "storage",
+      "holds": "operations",
+      "summary": "Plugin Storage"
+    },
+    {
+      "name": "environment",
+      "holds": "values",
+      "summary": "The Host and the invocation the script runs under"
+    },
+    {
+      "name": "activities",
+      "holds": "reserved",
+      "summary": "The Plugin's running effects and tasks (#84, #88)"
+    },
+    {
+      "name": "tools",
+      "holds": "reserved",
+      "summary": "Reviewed tool profiles such as Homebrew (#87, #88)"
+    }
+  ],
+  "operations": [
+    {
+      "id": "host.toast",
+      "namespace": "host",
+      "summary": "Shows a short message: inside the Plugin View when one is open, otherwise near the pointer. With close it is a HUD: the view closes and the toast shows near the pointer (decision N2).",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/host.toast.input",
+      "result": "schemas/namespaces.schema.json#/$defs/host.toast.result",
+      "primary_member": "text",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "A toast commits with the answer that explains it; a message shown during the invocation would appear before that answer is accepted (ADR 0018)"
+        },
+        "command": {
+          "status": "level1",
+          "note": "Level 1's feedback.present drew the Host feedback panel; the catalogue form shows the toast near the pointer, as an answer's toast does without a view (decision N2)"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "A button whose only effect is a message has no workload; an event action's answer carries a toast"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "The answer's own toast member is this operation; requesting it would spend the answer's one operation"
+        },
+        "answer": {
+          "status": "level1",
+          "note": "The answer's toast member, built by ui.toast or the toast option of ui.show and ui.close; a toast with close is the HUD (decision N2)"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "feedback.present"
+        },
+        {
+          "kind": "answer_member",
+          "name": "toast"
+        }
+      ]
+    },
+    {
+      "id": "host.closeView",
+      "namespace": "host",
+      "summary": "Closes the Plugin's View and ends its View Session.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/host.closeView.input",
+      "result": "schemas/namespaces.schema.json#/$defs/host.closeView.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Closing during an invocation would end the session before its answer"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "A Command that runs no script has no view of its own to close"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Escape and the view's close button close any view; an action that should also close sets closes_view"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "A request closes the view with its own closes_view; the answer closes it with close"
+        },
+        "answer": {
+          "status": "level1",
+          "note": "The answer's close member, built by ui.close"
+        }
+      },
+      "level1": [
+        {
+          "kind": "answer_member",
+          "name": "close"
+        }
+      ]
+    },
+    {
+      "id": "host.showPluginSettings",
+      "namespace": "host",
+      "summary": "Opens the Plugin's own Plugin Settings sheet.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/host.showPluginSettings.input",
+      "result": "schemas/namespaces.schema.json#/$defs/host.showPluginSettings.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Plugin Settings",
+      "closes_view": false,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Opening a Host window is a transition that follows the user's gesture, not a step inside an invocation"
+        },
+        "command": {
+          "status": "level2",
+          "note": "A Menu Item can open its Plugin's settings without a script (decision N10)"
+        },
+        "view_action": {
+          "status": "level1"
+        },
+        "request": {
+          "status": "level2",
+          "note": "An answer can open the sheet after a gesture, such as one that found a missing key"
+        }
+      },
+      "level1": [
+        {
+          "kind": "standard_action",
+          "name": "open_plugin_settings"
+        }
+      ]
+    },
+    {
+      "id": "host.confirm",
+      "namespace": "host",
+      "summary": "Asks the user a Plugin-worded question in the view and reports the answer as the operation's outcome; unlike a Host Confirmation it authorizes nothing.",
+      "status": "reserved",
+      "owner": "#68 local dialogs (accepted future direction)",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "A question waits for the user, which a four-second invocation cannot"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It asks inside a view"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "A button asks by being an event action whose answer requests the question"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#68 local dialogs",
+          "reason": "Fits a Requested Host Operation whose operation_finished outcome is the answer; its wording, placement and dirty-navigation rules belong to the dialogs work"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "host.launchCommand",
+      "namespace": "host",
+      "summary": "Runs another Command of the same Plugin with an input, inside the same View Session.",
+      "status": "reserved",
+      "owner": "README candidate for a later Level: Launching another Command",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "It would nest one invocation inside another"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "A Command that only runs another Command is that Command"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Launching another Command",
+          "reason": "No workload yet; it would enter the session as #78's called event"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Launching another Command",
+          "reason": "No workload yet; it would enter the session as #78's called event"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "selection.readText",
+      "namespace": "selection",
+      "summary": "Reads the focused App's selected text.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/selection.readText.input",
+      "result": "schemas/namespaces.schema.json#/$defs/selection.readText.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_selected_text"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_app",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "read_selected_text"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.selection.readText"
+        }
+      ]
+    },
+    {
+      "id": "selection.replace",
+      "namespace": "selection",
+      "summary": "Replaces the focused App's selection with text, typed into it as keyboard events.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/selection.replace.input",
+      "result": "schemas/namespaces.schema.json#/$defs/selection.replace.result",
+      "primary_member": "text",
+      "capabilities": [
+        "insert_into_focused_app"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed",
+        "insertion_target_changed"
+      ],
+      "targets": "focused_app",
+      "default_title": "Insert",
+      "item_action": true,
+      "entry_points": {
+        "call": {
+          "status": "level1",
+          "note": "Inside a View Session of a Level 2 Plugin it is compared with the target shown at the gesture, and fails with insertion_target_changed on a mismatch (ADR 0018)"
+        },
+        "command": {
+          "status": "reserved",
+          "owner": "#70 P2",
+          "reason": "A Command has no view to show where text goes; #70's P2 decides whether an insertion that no Host-shown target preceded may run"
+        },
+        "view_action": {
+          "status": "level1",
+          "note": "The App it goes to is named on the action and checked at execution (ADR 0018)"
+        },
+        "request": {
+          "status": "level2",
+          "note": "The first request kind (ADR 0018)"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "insert_text"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.selection.replace"
+        },
+        {
+          "kind": "standard_action",
+          "name": "insert_text"
+        }
+      ]
+    },
+    {
+      "id": "selection.copy",
+      "namespace": "selection",
+      "summary": "Copies the focused App's selected text to the clipboard without showing it to the Plugin.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/selection.copy.input",
+      "result": "schemas/namespaces.schema.json#/$defs/selection.copy.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_selected_text",
+        "write_clipboard"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_app",
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "A script that needs the text composes selection.readText and clipboard.write"
+        },
+        "command": {
+          "status": "level1",
+          "note": "The read may fall back to Command-C under a separate read_current_clipboard grant, as at Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the selection belongs to the App the Host shows as target; reading it on a gesture needs the insertion target rules extended to reads, which no workload has asked for"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the selection belongs to the App the Host shows as target; reading it on a gesture needs the insertion target rules extended to reads, which no workload has asked for"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "clipboard.copy",
+          "note": "with a null input"
+        }
+      ]
+    },
+    {
+      "id": "selection.cut",
+      "namespace": "selection",
+      "summary": "Cuts the focused App's selection to the clipboard, as Command-X does.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/selection.cut.input",
+      "result": "schemas/namespaces.schema.json#/$defs/selection.cut.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": "accessibility",
+      "failures": [
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_app",
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Keystrokes sent from inside an invocation go to whatever is focused at that moment, with no target the Host showed (ADR 0018)"
+        },
+        "command": {
+          "status": "level1",
+          "note": "No Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow the insertion target rules"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow the insertion target rules"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "clipboard.cut"
+        }
+      ]
+    },
+    {
+      "id": "selection.paste",
+      "namespace": "selection",
+      "summary": "Pastes the clipboard into the focused App, as Command-V does.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/selection.paste.input",
+      "result": "schemas/namespaces.schema.json#/$defs/selection.paste.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": "accessibility",
+      "failures": [
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_app",
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Keystrokes sent from inside an invocation go to whatever is focused at that moment, with no target the Host showed (ADR 0018)"
+        },
+        "command": {
+          "status": "level1",
+          "note": "No Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow the insertion target rules"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "Sending Command-X or Command-V at a moment a Plugin chooses is the clipboard and paste capability #68 reserves for a separate, evidence-based user decision; it would also follow the insertion target rules"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "clipboard.paste"
+        }
+      ]
+    },
+    {
+      "id": "selection.readFinderItems",
+      "namespace": "selection",
+      "summary": "Reads the files and folders selected in Finder.",
+      "status": "reserved",
+      "owner": "README candidate for a later Level: Selected Finder items",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Selected Finder items",
+          "reason": "Needs its own Capability; no workload yet"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "keyboard.press",
+      "namespace": "keyboard",
+      "summary": "Presses a keyboard shortcut in the focused App.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/keyboard.press.input",
+      "result": "schemas/namespaces.schema.json#/$defs/keyboard.press.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": "accessibility",
+      "failures": [
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_app",
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Keystrokes sent from inside an invocation go to whatever is focused at that moment, with no target the Host showed (ADR 0018)"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured shortcut, without a Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A shortcut the Plugin chooses acts on the focused App with no Capability that discloses it; it needs a new Capability and the insertion target rules"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A shortcut the Plugin chooses acts on the focused App with no Capability that discloses it; it needs a new Capability and the insertion target rules"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "keyboard_shortcut.invoke"
+        }
+      ]
+    },
+    {
+      "id": "clipboard.read",
+      "namespace": "clipboard",
+      "summary": "Reads the current clipboard's text or link.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/clipboard.read.input",
+      "result": "schemas/namespaces.schema.json#/$defs/clipboard.read.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_current_clipboard"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "read_current_clipboard"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.clipboard.read"
+        }
+      ]
+    },
+    {
+      "id": "clipboard.write",
+      "namespace": "clipboard",
+      "summary": "Puts text on the clipboard.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/clipboard.write.input",
+      "result": "schemas/namespaces.schema.json#/$defs/clipboard.write.result",
+      "primary_member": "text",
+      "capabilities": [
+        "write_clipboard"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Copy",
+      "item_action": true,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level1",
+          "note": "write_clipboard is needed here too, as at Level 1"
+        },
+        "view_action": {
+          "status": "level1"
+        },
+        "request": {
+          "status": "level2",
+          "note": "Copies only once the answer that asked for it is accepted"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "write_clipboard"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.clipboard.write"
+        },
+        {
+          "kind": "host_command",
+          "name": "clipboard.copy",
+          "note": "with a text input"
+        },
+        {
+          "kind": "standard_action",
+          "name": "copy_text"
+        }
+      ]
+    },
+    {
+      "id": "clipboardHistory.read",
+      "namespace": "clipboardHistory",
+      "summary": "Reads one page of Clipboard History.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/clipboardHistory.read.input",
+      "result": "schemas/namespaces.schema.json#/$defs/clipboardHistory.read.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_clipboard_history"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "read_clipboard_history"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.clipboard.history"
+        }
+      ]
+    },
+    {
+      "id": "clipboardHistory.readContent",
+      "namespace": "clipboardHistory",
+      "summary": "Reads a chunk of one Clipboard History entry's retained bytes.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/clipboardHistory.readContent.input",
+      "result": "schemas/namespaces.schema.json#/$defs/clipboardHistory.readContent.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_clipboard_history"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "read_clipboard_history_content"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.clipboard.historyContent"
+        }
+      ]
+    },
+    {
+      "id": "clipboardHistory.show",
+      "namespace": "clipboardHistory",
+      "summary": "Opens the Clipboard History window, the one Host Surface; the Plugin learns nothing from it.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/clipboardHistory.show.input",
+      "result": "schemas/namespaces.schema.json#/$defs/clipboardHistory.show.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_clipboard_history"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Clipboard History",
+      "entry_points": {
+        "call": {
+          "status": "level1",
+          "note": "Kept because Level 1 offers it; a new Host window would be perform-only"
+        },
+        "command": {
+          "status": "level2",
+          "note": "The Clipboard History Plugin opens its window without starting a helper"
+        },
+        "view_action": {
+          "status": "level2"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "present_clipboard_history"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.clipboard.showHistory"
+        }
+      ]
+    },
+    {
+      "id": "open.url",
+      "namespace": "open",
+      "summary": "Opens a link in the default browser.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/open.url.input",
+      "result": "schemas/namespaces.schema.json#/$defs/open.url.result",
+      "primary_member": "url",
+      "capabilities": [
+        "open_url"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Open in Browser",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured link of any scheme, without a Capability, as Level 1's url.open: the user chose it (design 6.2)",
+          "capabilities": []
+        },
+        "view_action": {
+          "status": "level1"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "open_url"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.open.url"
+        },
+        {
+          "kind": "host_command",
+          "name": "url.open"
+        },
+        {
+          "kind": "standard_action",
+          "name": "open_url"
+        }
+      ]
+    },
+    {
+      "id": "open.path",
+      "namespace": "open",
+      "summary": "Opens a file or folder in its default App or Finder, launching an application the path names.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/open.path.input",
+      "result": "schemas/namespaces.schema.json#/$defs/open.path.result",
+      "primary_member": "path",
+      "capabilities": [
+        "open_local_path"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Open",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured path, without a Capability, as Level 1's file.open and folder.open; the configuration field's kind (file or folder) decides what the user can pick",
+          "capabilities": []
+        },
+        "view_action": {
+          "status": "level2"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "open_local_path"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.open.path"
+        },
+        {
+          "kind": "host_command",
+          "name": "file.open"
+        },
+        {
+          "kind": "host_command",
+          "name": "folder.open"
+        }
+      ]
+    },
+    {
+      "id": "open.application",
+      "namespace": "open",
+      "summary": "Opens an application by its path or bundle identifier.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/open.application.input",
+      "result": "schemas/namespaces.schema.json#/$defs/open.application.result",
+      "primary_member": "application",
+      "capabilities": [
+        "open_local_path"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Open",
+      "entry_points": {
+        "call": {
+          "status": "level2",
+          "note": "Needs open_local_path, which already lets a script launch an application by its path; no new authority (design 6.3)"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured application, without a Capability, as Level 1",
+          "capabilities": []
+        },
+        "view_action": {
+          "status": "level2"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "application.open"
+        }
+      ]
+    },
+    {
+      "id": "open.reveal",
+      "namespace": "open",
+      "summary": "Shows a file or folder selected in a Finder window instead of opening it.",
+      "status": "reserved",
+      "owner": "README candidate for a later Level: Revealing a file in Finder",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Revealing a file in Finder",
+          "reason": "No workload yet; likely under open_local_path"
+        },
+        "command": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Revealing a file in Finder",
+          "reason": "No workload yet"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Revealing a file in Finder",
+          "reason": "No workload yet"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "README candidate for a later Level: Revealing a file in Finder",
+          "reason": "No workload yet"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "apps.perform",
+      "namespace": "apps",
+      "summary": "Sends one operation of an External App's Reviewed App Interface.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/apps.perform.input",
+      "result": "schemas/namespaces.schema.json#/$defs/apps.perform.result",
+      "primary_member": null,
+      "capabilities": [
+        "control_external_app"
+      ],
+      "system_permission": "automation",
+      "failures": [
+        "capability_denied",
+        "automation_permission_denied",
+        "external_app_missing",
+        "external_app_operation_unsupported",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Open",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level2",
+          "note": "The Command's input fixes bundle_id and operation and its configuration fields fill arguments, as deep links fill parameters; Bob's Commands then start no helper"
+        },
+        "view_action": {
+          "status": "level2"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "perform_app_operation"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.apps.perform"
+        }
+      ]
+    },
+    {
+      "id": "apps.openDeepLink",
+      "namespace": "apps",
+      "summary": "Opens one of the Plugin's Deep Link Templates, filled with its parameters, without bringing the App forward.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/apps.openDeepLink.input",
+      "result": "schemas/namespaces.schema.json#/$defs/apps.openDeepLink.result",
+      "primary_member": null,
+      "capabilities": [
+        "control_external_app"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "external_app_missing",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "default_title": "Open",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level1",
+          "note": "The Command names its template with deep_link_template and its configuration fields fill parameters, as Level 1"
+        },
+        "view_action": {
+          "status": "level2"
+        },
+        "request": {
+          "status": "level2"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "open_deep_link"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.apps.openDeepLink"
+        },
+        {
+          "kind": "host_command",
+          "name": "deep_link.open"
+        }
+      ]
+    },
+    {
+      "id": "apps.frontmost",
+      "namespace": "apps",
+      "summary": "Identifies the App in front by a bounded, opaque target the Plugin can name back to the Host, without a process list.",
+      "status": "reserved",
+      "owner": "#83",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "#83",
+          "reason": "An identity read with its own Capability, separate from any destructive authority"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "apps.quit",
+      "namespace": "apps",
+      "summary": "Asks the App a target names to quit, or force-quits it after a Host Confirmation.",
+      "status": "reserved",
+      "owner": "#83",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "It may need a Host Confirmation and acts on a Host-disclosed target, so it runs after the answer commits (ADR 0018)"
+        },
+        "command": {
+          "status": "reserved",
+          "owner": "#83",
+          "reason": "A Menu Item could quit the App in front, with the Host naming it"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "#83",
+          "reason": "Executed through #76's request path with the real target disclosed"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#83",
+          "reason": "Executed through #76's request path with the real target disclosed"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "system.runShortcut",
+      "namespace": "system",
+      "summary": "Runs a Shortcut by name, optionally with text input.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/system.runShortcut.input",
+      "result": "schemas/namespaces.schema.json#/$defs/system.runShortcut.result",
+      "primary_member": "name",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured Shortcut, without a Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Shortcut can do anything Shortcuts can; one the Plugin names needs a Capability that discloses which Shortcuts, and running one can outlast the four-second invocation"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "shortcut.invoke"
+        }
+      ]
+    },
+    {
+      "id": "system.runService",
+      "namespace": "system",
+      "summary": "Runs a macOS Service by its title in the Services menu, optionally with text input.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/system.runService.input",
+      "result": "schemas/namespaces.schema.json#/$defs/system.runService.result",
+      "primary_member": "name",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        },
+        "command": {
+          "status": "level1",
+          "note": "A configured Service, without a Capability, as Level 1"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level, decision N8",
+          "reason": "A Service acts inside other Apps; one the Plugin names needs a Capability that discloses which Services"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_command",
+          "name": "service.invoke"
+        }
+      ]
+    },
+    {
+      "id": "system.keepAwake",
+      "namespace": "system",
+      "summary": "Starts a Host-owned keep-awake effect, manual, timed or bound to an App, that outlives the view and is stopped from the Host Status Item (ADR 0017).",
+      "status": "reserved",
+      "owner": "#84",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "An effect that outlives the invocation starts after the answer that asked for it commits (ADR 0018)"
+        },
+        "command": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "A Menu Item could start a timed effect without a view"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "Its modes, lifetime and release rules are #84's"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#84",
+          "reason": "Its modes, lifetime and release rules are #84's"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "system.metrics",
+      "namespace": "system",
+      "summary": "Reads basic CPU, memory, disk-capacity and battery figures, refreshed only while the view is visible.",
+      "status": "reserved",
+      "owner": "#86",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "#86",
+          "reason": "Metric meanings, units and authority are #86's"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "source": {
+          "status": "reserved",
+          "owner": "#86",
+          "reason": "A visible-view source run by the Host (#71, #82)"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "window.read",
+      "namespace": "window",
+      "summary": "Reads the focused window's frame and the visible frames of the displays.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/window.read.input",
+      "result": "schemas/namespaces.schema.json#/$defs/window.read.result",
+      "primary_member": null,
+      "capabilities": [
+        "position_focused_window"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_window",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "read_focused_window"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.window.read"
+        }
+      ]
+    },
+    {
+      "id": "window.setFrame",
+      "namespace": "window",
+      "summary": "Moves and resizes the window window.read last returned, while it is still focused.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/window.setFrame.input",
+      "result": "schemas/namespaces.schema.json#/$defs/window.setFrame.result",
+      "primary_member": null,
+      "capabilities": [
+        "position_focused_window"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_window",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It applies only to the window window.read last returned, so it belongs in the script that read it"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It applies only to the window window.read last returned, so it belongs in the script that read it"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It applies only to the window window.read last returned, so it belongs in the script that read it"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "set_focused_window_frame"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.window.setFrame"
+        }
+      ]
+    },
+    {
+      "id": "window.toggleFullScreen",
+      "namespace": "window",
+      "summary": "Moves the focused window into or out of macOS full screen.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/window.toggleFullScreen.input",
+      "result": "schemas/namespaces.schema.json#/$defs/window.toggleFullScreen.result",
+      "primary_member": null,
+      "capabilities": [
+        "position_focused_window"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_window",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level2",
+          "note": "Acts on the window focused when the Menu Action runs, as a script does; Window Position's command then starts no helper"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the focused window belongs to an App the Host would have to show as the target, which Level 2 defines for insertion only; no workload asks for it"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the focused window belongs to an App the Host would have to show as the target, which Level 2 defines for insertion only; no workload asks for it"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "toggle_focused_window_full_screen"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.window.toggleFullScreen"
+        }
+      ]
+    },
+    {
+      "id": "window.restore",
+      "namespace": "window",
+      "summary": "Returns the focused window to its frame before Spinnet last moved it.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/window.restore.input",
+      "result": "schemas/namespaces.schema.json#/$defs/window.restore.result",
+      "primary_member": null,
+      "capabilities": [
+        "position_focused_window"
+      ],
+      "system_permission": "accessibility",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": "focused_window",
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "level2",
+          "note": "Acts on the window focused when the Menu Action runs, as a script does"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the focused window belongs to an App the Host would have to show as the target, which Level 2 defines for insertion only; no workload asks for it"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "In a view the focused window belongs to an App the Host would have to show as the target, which Level 2 defines for insertion only; no workload asks for it"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "restore_focused_window_frame"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.window.restore"
+        }
+      ]
+    },
+    {
+      "id": "screen.capture",
+      "namespace": "screen",
+      "summary": "Starts an interactive or full-screen capture that is copied or saved; the Plugin never receives the image.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/screen.capture.input",
+      "result": "schemas/namespaces.schema.json#/$defs/screen.capture.result",
+      "primary_member": "source",
+      "capabilities": [
+        "capture_screen"
+      ],
+      "system_permission": "screen_recording",
+      "failures": [
+        "capability_denied",
+        "system_permission_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1",
+          "note": "Returns once the capture starts"
+        },
+        "command": {
+          "status": "level1",
+          "note": "Level 1's three screen Host Commands become one ID with source fixed in the Command's input; without copy_to_clipboard and save the user's screenshot preferences apply (decision N9)"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "An open view would be on screen during an interactive capture; hiding it first needs a design and has no workload"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "later Level",
+          "reason": "An open view would be on screen during an interactive capture; hiding it first needs a design and has no workload"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "capture_screen"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.screen.capture"
+        },
+        {
+          "kind": "host_command",
+          "name": "screen.capture_area"
+        },
+        {
+          "kind": "host_command",
+          "name": "screen.capture_full_screen"
+        },
+        {
+          "kind": "host_command",
+          "name": "screen.capture_window"
+        }
+      ]
+    },
+    {
+      "id": "http.request",
+      "namespace": "http",
+      "summary": "Sends one HTTPS request to a consented host, applying the Plugin's Credential Uses as it is sent.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/http.request.input",
+      "result": "schemas/namespaces.schema.json#/$defs/http.request.result",
+      "primary_member": null,
+      "capabilities": [
+        "contact_https"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "source": {
+          "status": "level1",
+          "note": "A Host-Fetched Section's fetch.request is this operation's input; Host-run sources (#71, #82) generalise this entry point"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "https_request"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.http.request"
+        },
+        {
+          "kind": "view_member",
+          "name": "detail.sections[].fetch.request"
+        }
+      ]
+    },
+    {
+      "id": "text.detectLanguage",
+      "namespace": "text",
+      "summary": "Decides on this Mac which language a text is in.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/text.detectLanguage.input",
+      "result": "schemas/namespaces.schema.json#/$defs/text.detectLanguage.result",
+      "primary_member": "text",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "detect_language"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.text.detectLanguage"
+        }
+      ]
+    },
+    {
+      "id": "storage.get",
+      "namespace": "storage",
+      "summary": "Reads the value the Plugin keeps under a key.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/storage.get.input",
+      "result": "schemas/namespaces.schema.json#/$defs/storage.get.result",
+      "primary_member": "key",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "get_storage_value"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.storage.get"
+        }
+      ]
+    },
+    {
+      "id": "storage.set",
+      "namespace": "storage",
+      "summary": "Keeps a JSON value under a key; a null value removes it.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/storage.set.input",
+      "result": "schemas/namespaces.schema.json#/$defs/storage.set.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed",
+        "storage_limit_exceeded"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "set_storage_value"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.storage.set"
+        }
+      ]
+    },
+    {
+      "id": "storage.remove",
+      "namespace": "storage",
+      "summary": "Forgets a key.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/storage.remove.input",
+      "result": "schemas/namespaces.schema.json#/$defs/storage.remove.result",
+      "primary_member": "key",
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "remove_storage_value"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.storage.remove"
+        }
+      ]
+    },
+    {
+      "id": "storage.keys",
+      "namespace": "storage",
+      "summary": "Lists the Plugin's keys, sorted, without their values.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/storage.keys.input",
+      "result": "schemas/namespaces.schema.json#/$defs/storage.keys.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "list_storage_keys"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.storage.keys"
+        }
+      ]
+    },
+    {
+      "id": "storage.clear",
+      "namespace": "storage",
+      "summary": "Forgets every key, as Clear Stored Data in the Library does.",
+      "status": "level1",
+      "input": "schemas/namespaces.schema.json#/$defs/storage.clear.input",
+      "result": "schemas/namespaces.schema.json#/$defs/storage.clear.result",
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "level1"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "Plugin Storage is the Plugin's own data, which its script manages; a button or Command would need the script anyway to show the result"
+        }
+      },
+      "level1": [
+        {
+          "kind": "host_service",
+          "name": "clear_storage"
+        },
+        {
+          "kind": "sdk_wrapper",
+          "name": "spinnet.storage.clear"
+        }
+      ]
+    },
+    {
+      "id": "activities.list",
+      "namespace": "activities",
+      "summary": "Lists the effects and tasks the Plugin started that are still running, so a reopened view can show them.",
+      "status": "reserved",
+      "owner": "#88",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "#88",
+          "reason": "Reopening a Brew view queries its running task"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "activities.stop",
+      "namespace": "activities",
+      "summary": "Stops an effect, or attempts to cancel a task, the Plugin started, by the handle the Host returned; never a rollback.",
+      "status": "reserved",
+      "owner": "#84, #88",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Stopping is a user's explicit act, made on a gesture"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "A Command has no handle to name; the Host Status Item stops any activity"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "#84, #88",
+          "reason": "Shares owner, authority and cancellation machinery, not lifetimes (ADR 0017)"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#84, #88",
+          "reason": "Shares owner, authority and cancellation machinery, not lifetimes (ADR 0017)"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "tools.read",
+      "namespace": "tools",
+      "summary": "Runs one read operation of a reviewed tool profile, such as Homebrew's search or info, and returns bounded typed data.",
+      "status": "reserved",
+      "owner": "#87",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "reserved",
+          "owner": "#87",
+          "reason": "The profile, argv, sources, timeouts and output bounds are #72's and #87's"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "view_action": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        },
+        "request": {
+          "status": "not_offered",
+          "reason": "It returns data, which only a script can use"
+        }
+      },
+      "level1": []
+    },
+    {
+      "id": "tools.startTask",
+      "namespace": "tools",
+      "summary": "Starts one mutating operation of a reviewed tool profile as a Host-owned task, after a Host Confirmation (#70's illustrative start_task).",
+      "status": "reserved",
+      "owner": "#88",
+      "input": null,
+      "result": null,
+      "primary_member": null,
+      "capabilities": [],
+      "system_permission": null,
+      "failures": [
+        "host_service_failed"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "It needs a Host Confirmation, so it runs after the answer commits (ADR 0018)"
+        },
+        "command": {
+          "status": "not_offered",
+          "reason": "A task acts on a package the user chose in a view, never from the Menu alone"
+        },
+        "view_action": {
+          "status": "reserved",
+          "owner": "#88",
+          "reason": "The Host Confirmation still applies"
+        },
+        "request": {
+          "status": "reserved",
+          "owner": "#88",
+          "reason": "#70's illustrative start_task, under this ID"
+        }
+      },
+      "level1": []
+    }
+  ],
+  "builders": [
+    {
+      "id": "ui.view",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.view"
+        }
+      ]
+    },
+    {
+      "id": "ui.setting",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.setting"
+        }
+      ]
+    },
+    {
+      "id": "ui.form",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.form"
+        }
+      ]
+    },
+    {
+      "id": "ui.textField",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.textField"
+        }
+      ]
+    },
+    {
+      "id": "ui.multilineTextField",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.multilineTextField"
+        }
+      ]
+    },
+    {
+      "id": "ui.urlField",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.urlField"
+        }
+      ]
+    },
+    {
+      "id": "ui.toggleField",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.toggleField"
+        }
+      ]
+    },
+    {
+      "id": "ui.choiceField",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.choiceField"
+        }
+      ]
+    },
+    {
+      "id": "ui.detail",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.detail"
+        }
+      ]
+    },
+    {
+      "id": "ui.section",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.section"
+        }
+      ]
+    },
+    {
+      "id": "ui.action",
+      "status": "level1",
+      "summary": "Unchanged; builds part of a Level 1 view, which a Level 2 Plugin may still answer (C9)",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.action"
+        }
+      ]
+    },
+    {
+      "id": "ui.copyText",
+      "status": "level1",
+      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.clipboard.write.action(...)",
+      "operation": "clipboard.write",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.copyText"
+        }
+      ]
+    },
+    {
+      "id": "ui.openURL",
+      "status": "level1",
+      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.open.url.action(...)",
+      "operation": "open.url",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.openURL"
+        }
+      ]
+    },
+    {
+      "id": "ui.insertText",
+      "status": "level1",
+      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.selection.replace.action(...)",
+      "operation": "selection.replace",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.insertText"
+        }
+      ]
+    },
+    {
+      "id": "ui.openPluginSettings",
+      "status": "level1",
+      "summary": "Kept for Level 1 views only, where it builds Level 1's standard action; a page's button is spinnet.host.showPluginSettings.action(...)",
+      "operation": "host.showPluginSettings",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.openPluginSettings"
+        }
+      ]
+    },
+    {
+      "id": "ui.show",
+      "status": "level1",
+      "summary": "Unchanged; at Level 2 it also takes operation",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.show"
+        }
+      ]
+    },
+    {
+      "id": "ui.toast",
+      "status": "level1",
+      "summary": "Unchanged; builds the answer form of host.toast",
+      "operation": "host.toast",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.toast"
+        }
+      ]
+    },
+    {
+      "id": "ui.close",
+      "status": "level1",
+      "summary": "Unchanged; builds the answer form of host.closeView",
+      "operation": "host.closeView",
+      "level1": [
+        {
+          "kind": "sdk_builder",
+          "name": "spinnet.ui.close"
+        }
+      ]
+    },
+    {
+      "id": "ui.request",
+      "status": "level2",
+      "summary": "An answer with an operation and no view",
+      "level1": []
+    },
+    {
+      "id": "ui.page",
+      "status": "level2",
+      "summary": "A page",
+      "level1": []
+    },
+    {
+      "id": "ui.showPage",
+      "status": "level2",
+      "summary": "The answer that shows a page",
+      "level1": []
+    },
+    {
+      "id": "ui.components.row",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.textField",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.choiceField",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.text",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.actions",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.button",
+      "status": "level2",
+      "summary": "A button of an actions component, which delivers action_chosen",
+      "level1": []
+    },
+    {
+      "id": "ui.components.list",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.grid",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.section",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.item",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.itemAction",
+      "status": "level2",
+      "summary": "A page component",
+      "level1": []
+    },
+    {
+      "id": "ui.components.image",
+      "status": "reserved",
+      "summary": "A page component #81 measures and adds",
+      "owner": "#81",
+      "level1": []
+    },
+    {
+      "id": "ui.components.icon",
+      "status": "reserved",
+      "summary": "A page component #81 measures and adds",
+      "owner": "#81",
+      "level1": []
+    },
+    {
+      "id": "ui.components.progress",
+      "status": "reserved",
+      "summary": "A page component #81 measures and adds",
+      "owner": "#81",
+      "level1": []
+    }
+  ],
+  "values": [
+    {
+      "id": "environment.apiLevel",
+      "status": "level1",
+      "summary": "Unchanged; apiLevel is the highest stable Level the Host supports, whatever Level the Plugin declares",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.apiLevel"
+        }
+      ]
+    },
+    {
+      "id": "environment.hostVersion",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.hostVersion"
+        }
+      ]
+    },
+    {
+      "id": "environment.preferredLanguage",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.preferredLanguage"
+        }
+      ]
+    },
+    {
+      "id": "environment.pluginID",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.pluginID"
+        }
+      ]
+    },
+    {
+      "id": "environment.commandID",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.commandID"
+        }
+      ]
+    },
+    {
+      "id": "environment.actionID",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.actionID"
+        }
+      ]
+    },
+    {
+      "id": "environment.invocationID",
+      "status": "level1",
+      "summary": "Unchanged",
+      "level1": [
+        {
+          "kind": "environment",
+          "name": "spinnet.environment.invocationID"
+        }
+      ]
+    }
+  ],
+  "globals": [
+    {
+      "name": "input",
+      "note": "Unchanged: the Plugin Settings, then the Menu Item's overrides, then the Command's own fields",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "input"
+        }
+      ]
+    },
+    {
+      "name": "inputJSON",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "inputJSON"
+        }
+      ]
+    },
+    {
+      "name": "pluginID",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "pluginID"
+        }
+      ]
+    },
+    {
+      "name": "commandID",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "commandID"
+        }
+      ]
+    },
+    {
+      "name": "actionID",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "actionID"
+        }
+      ]
+    },
+    {
+      "name": "invocationID",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "invocationID"
+        }
+      ]
+    },
+    {
+      "name": "event",
+      "note": "Unchanged; Level 2 adds events",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "event"
+        }
+      ]
+    },
+    {
+      "name": "state",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "state"
+        }
+      ]
+    },
+    {
+      "name": "spinnet",
+      "note": "Level 2's SDK object, laid out by namespace; see spinnet-level-2.d.ts",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "spinnet"
+        }
+      ]
+    },
+    {
+      "name": "requestHostService",
+      "note": "Takes catalogue IDs with a call entry point; Level 1 names are refused",
+      "level1": [
+        {
+          "kind": "global",
+          "name": "requestHostService"
+        }
+      ]
+    }
+  ],
+  "answer_members": [
+    {
+      "name": "view",
+      "note": "Unchanged: a Level 1 view, kept whole with Level 1's names (decision N5)",
+      "level1": [
+        {
+          "kind": "answer_member",
+          "name": "view"
+        }
+      ]
+    },
+    {
+      "name": "state",
+      "note": "Unchanged",
+      "level1": [
+        {
+          "kind": "answer_member",
+          "name": "state"
+        }
+      ]
+    },
+    {
+      "name": "operation",
+      "note": "Added at Level 2: a Requested Host Operation, {perform, input, ...}",
+      "level1": []
+    },
+    {
+      "name": "page",
+      "note": "Added at Level 2: a page",
+      "level1": []
+    }
+  ],
+  "events": [
+    {
+      "name": "field_changed",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations; a page's version adds members",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "field_changed"
+        }
+      ]
+    },
+    {
+      "name": "submitted",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations; a page's version adds members",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "submitted"
+        }
+      ]
+    },
+    {
+      "name": "action_chosen",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations; a page's version adds members",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "action_chosen"
+        }
+      ]
+    },
+    {
+      "name": "setting_changed",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "setting_changed"
+        }
+      ]
+    },
+    {
+      "name": "settings_swapped",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "settings_swapped"
+        }
+      ]
+    },
+    {
+      "name": "section_delivered",
+      "status": "level1",
+      "note": "Unchanged for a Level 1 view; events are not operations",
+      "level1": [
+        {
+          "kind": "view_event",
+          "name": "section_delivered"
+        }
+      ]
+    },
+    {
+      "name": "operation_finished",
+      "status": "level2",
+      "note": "Names the operation by its catalogue ID in perform (was kind)",
+      "level1": []
+    },
+    {
+      "name": "item_action",
+      "status": "level2",
+      "note": "A page's item action the Plugin answers, toggles included",
+      "level1": []
+    },
+    {
+      "name": "load_range",
+      "status": "level2",
+      "note": "Asks for the missing positions of a collection's window",
+      "level1": []
+    },
+    {
+      "name": "called",
+      "status": "level2",
+      "note": "An Explicit Call of the Plugin into its open View Session",
+      "level1": []
+    }
+  ],
+  "capabilities": [
+    {
+      "name": "read_selected_text",
+      "operations": [
+        "selection.readText",
+        "selection.copy"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "read_selected_text"
+        }
+      ]
+    },
+    {
+      "name": "write_clipboard",
+      "operations": [
+        "selection.copy",
+        "clipboard.write"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "write_clipboard"
+        }
+      ]
+    },
+    {
+      "name": "read_current_clipboard",
+      "operations": [
+        "clipboard.read"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "read_current_clipboard"
+        }
+      ]
+    },
+    {
+      "name": "read_clipboard_history",
+      "operations": [
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "read_clipboard_history"
+        }
+      ]
+    },
+    {
+      "name": "monitor_clipboard",
+      "operations": [],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "monitor_clipboard"
+        }
+      ],
+      "note": "Declared and granted but used by no operation, as at Level 1: monitoring stays unavailable"
+    },
+    {
+      "name": "contact_https",
+      "operations": [
+        "http.request"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "contact_https"
+        }
+      ]
+    },
+    {
+      "name": "control_external_app",
+      "operations": [
+        "apps.perform",
+        "apps.openDeepLink"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "control_external_app"
+        }
+      ]
+    },
+    {
+      "name": "position_focused_window",
+      "operations": [
+        "window.read",
+        "window.setFrame",
+        "window.toggleFullScreen",
+        "window.restore"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "position_focused_window"
+        }
+      ]
+    },
+    {
+      "name": "open_url",
+      "operations": [
+        "open.url"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "open_url"
+        }
+      ]
+    },
+    {
+      "name": "open_local_path",
+      "operations": [
+        "open.path",
+        "open.application"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "open_local_path"
+        }
+      ]
+    },
+    {
+      "name": "capture_screen",
+      "operations": [
+        "screen.capture"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "capture_screen"
+        }
+      ]
+    },
+    {
+      "name": "insert_into_focused_app",
+      "operations": [
+        "selection.replace"
+      ],
+      "level1": [
+        {
+          "kind": "capability",
+          "name": "insert_into_focused_app"
+        }
+      ]
+    }
+  ],
+  "not_offered": [
+    {
+      "area": "Menu bar extras",
+      "raycast": "MenuBarExtra",
+      "reason": "A Plugin's item in the menu bar would need a script kept alive to update it; Spinnet keeps no resident runtime (ADR 0004) and a helper lives only for a bounded invocation (ADR 0007). The Host Status Item lists Host-generated activities instead (ADR 0017)"
+    },
+    {
+      "area": "Live Command metadata",
+      "raycast": "updateCommandMetadata",
+      "reason": "It needs a script running while the Menu is idle (ADR 0004, ADR 0007)"
+    },
+    {
+      "area": "Background schedules",
+      "raycast": "Command interval (background refresh)",
+      "reason": "A script on a timer runs when the user asked for nothing, outside any invocation the Host can bound and show"
+    },
+    {
+      "area": "AI and AI tools",
+      "raycast": "AI.ask, Tools",
+      "reason": "Handing a Plugin's operations to a model lets the model, not the user, decide what runs and with what data, which consent to a Capability cannot cover"
+    },
+    {
+      "area": "Browser extension access",
+      "raycast": "BrowserExtension",
+      "reason": "It reaches pages, tabs and history in another App, which no Capability can disclose precisely enough to consent to"
+    },
+    {
+      "area": "Arbitrary file operations, including moving to the Trash",
+      "raycast": "trash, Node fs",
+      "reason": "Reading, writing or deleting any path reaches far beyond what one Capability can disclose; opening a path, Plugin Storage and Host-owned tasks on reviewed profiles cover the probes"
+    },
+    {
+      "area": "AppleScript and arbitrary Apple Events",
+      "raycast": "runAppleScript",
+      "reason": "Apple Events go only through Reviewed App Interfaces the Host ships (ADR 0012)"
+    },
+    {
+      "area": "OAuth sign-in",
+      "raycast": "OAuth.PKCEClient",
+      "reason": "Credential Uses place or sign with stored keys without the Plugin seeing them (ADR 0011); an OAuth flow would need its own design, and no probe needs it (#68 leaves Spotify OAuth out)"
+    },
+    {
+      "area": "A page stack with push, pop and pop-to-root",
+      "raycast": "useNavigation, popToRoot",
+      "reason": "Page memory keeps the last pages by ID instead; page stacks and local dialogs are an accepted future direction of #68 with no current workload"
+    },
+    {
+      "area": "Plugin-bound keyboard shortcuts on page actions",
+      "raycast": "Action shortcut, Keyboard.Shortcut",
+      "reason": "The user decided (C5, C6) that pages bind no Plugin shortcuts; Level 1 views keep theirs"
+    },
+    {
+      "area": "Per-Command preferences opened by the Plugin",
+      "raycast": "openCommandPreferences",
+      "reason": "A Menu Item's own configuration is the user's, edited in its Configuration Sheet; the Plugin opens only its Plugin Settings (host.showPluginSettings)"
+    },
+    {
+      "area": "A separate cache store",
+      "raycast": "Cache",
+      "reason": "Plugin Storage holds up to Cache's default 10 MiB, and a Host-Fetched Section can cache its own answer"
+    },
+    {
+      "area": "Listing installed applications",
+      "raycast": "getApplications",
+      "reason": "No workload; it would be an identity read of the user's Mac that no Capability covers"
+    },
+    {
+      "area": "Managing windows other than the focused one, and desktops",
+      "raycast": "WindowManagement",
+      "reason": "window acts on the focused window only; no probe needs a window list"
+    },
+    {
+      "area": "A separate HUD",
+      "raycast": "showHUD",
+      "reason": "Merged into host.toast: a toast without a view already shows near the pointer, and close with a toast closes the view first (decision N2)"
+    }
+  ],
+  "raycast": [
+    {
+      "raycast": "UI: List, Grid",
+      "spinnet": "Level 2: ui.page with a list or grid component"
+    },
+    {
+      "raycast": "UI: Detail, Form",
+      "spinnet": "Level 1 view (Detail, Form); Level 2's text, text_field and choice_field page components"
+    },
+    {
+      "raycast": "UI: ActionPanel, Action",
+      "spinnet": "Level 1 view actions; page actions and item actions whose perform names a catalogue ID"
+    },
+    {
+      "raycast": "UI: navigation (push, pop)",
+      "spinnet": "Page IDs and page memory; no stack (not offered)"
+    },
+    {
+      "raycast": "UI: Icon, Image, Color",
+      "spinnet": "#81 (reserved ui.components.image, icon, progress)"
+    },
+    {
+      "raycast": "showToast",
+      "spinnet": "host.toast"
+    },
+    {
+      "raycast": "showHUD",
+      "spinnet": "host.toast with close (merged, decision N2)"
+    },
+    {
+      "raycast": "confirmAlert",
+      "spinnet": "host.confirm (reserved); a Host Confirmation is part of an operation, not an operation"
+    },
+    {
+      "raycast": "closeMainWindow",
+      "spinnet": "host.closeView"
+    },
+    {
+      "raycast": "popToRoot",
+      "spinnet": "Not offered (no page stack)"
+    },
+    {
+      "raycast": "launchCommand",
+      "spinnet": "host.launchCommand (reserved)"
+    },
+    {
+      "raycast": "Clipboard.copy, Clipboard.paste, Clipboard.read",
+      "spinnet": "clipboard.write, selection.paste, clipboard.read; reading an older entry by offset is clipboardHistory.read, under its own Capability"
+    },
+    {
+      "raycast": "getSelectedText",
+      "spinnet": "selection.readText"
+    },
+    {
+      "raycast": "getSelectedFinderItems",
+      "spinnet": "selection.readFinderItems (reserved)"
+    },
+    {
+      "raycast": "getFrontmostApplication",
+      "spinnet": "apps.frontmost (reserved, #83)"
+    },
+    {
+      "raycast": "getApplications",
+      "spinnet": "Not offered"
+    },
+    {
+      "raycast": "open",
+      "spinnet": "open.url, open.path, open.application"
+    },
+    {
+      "raycast": "showInFinder",
+      "spinnet": "open.reveal (reserved)"
+    },
+    {
+      "raycast": "trash",
+      "spinnet": "Not offered"
+    },
+    {
+      "raycast": "WindowManagement",
+      "spinnet": "window (focused window only)"
+    },
+    {
+      "raycast": "LocalStorage",
+      "spinnet": "storage"
+    },
+    {
+      "raycast": "Cache",
+      "spinnet": "storage (not offered separately)"
+    },
+    {
+      "raycast": "getPreferenceValues",
+      "spinnet": "input, which carries the Plugin Settings"
+    },
+    {
+      "raycast": "openExtensionPreferences",
+      "spinnet": "host.showPluginSettings"
+    },
+    {
+      "raycast": "OAuth",
+      "spinnet": "Not offered; Credential Uses"
+    },
+    {
+      "raycast": "environment",
+      "spinnet": "environment"
+    },
+    {
+      "raycast": "AI, Tool",
+      "spinnet": "Not offered"
+    },
+    {
+      "raycast": "MenuBarExtra",
+      "spinnet": "Not offered"
+    }
+  ]
+}

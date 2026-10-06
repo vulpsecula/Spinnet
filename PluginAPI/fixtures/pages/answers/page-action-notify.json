@@ -1,0 +1,21 @@
+{
+  "page": {
+    "id": "detail",
+    "title": "cat",
+    "content": [
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "perform": "clipboard.write",
+            "input": "🐈",
+            "id": "copy",
+            "title": "Copy",
+            "notify": true
+          }
+        ]
+      }
+    ]
+  }
+}

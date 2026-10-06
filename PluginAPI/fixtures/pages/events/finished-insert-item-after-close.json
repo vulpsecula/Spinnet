@@ -1,0 +1,12 @@
+{
+  "type": "operation_finished",
+  "operation": "insert",
+  "perform": "selection.replace",
+  "outcome": "succeeded",
+  "view_closed": true,
+  "item": {
+    "id": "1F408",
+    "section": "animals-nature",
+    "text": "🐈"
+  }
+}

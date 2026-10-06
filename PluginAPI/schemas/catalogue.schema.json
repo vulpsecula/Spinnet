@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Plugin API catalogue (Plugin API Level 2)",
+  "description": "The shape of catalogue.json: every Host Service under its one ID with where it is offered, and the Level 1 names it replaces. What a shape cannot say, such as that every Level 1 name is mapped and that the Host performs exactly these operations, Spinnet's tests check.",
+  "type": "object",
+  "required": ["level", "entry_points", "namespaces", "operations", "builders", "values", "globals", "answer_members", "events", "capabilities", "not_offered", "raycast"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "description": { "$ref": "#/$defs/text" },
+    "level": { "description": "The stable Plugin API Level this catalogue describes.", "const": 2 },
+    "entry_points": {
+      "description": "What each entry point is, in words. Every operation states the four main ones (call, command, view_action, request); answer and source only where they apply.",
+      "type": "object",
+      "required": ["call", "command", "view_action", "request", "answer", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "call": { "$ref": "#/$defs/text" },
+        "command": { "$ref": "#/$defs/text" },
+        "view_action": { "$ref": "#/$defs/text" },
+        "request": { "$ref": "#/$defs/text" },
+        "answer": { "$ref": "#/$defs/text" },
+        "source": { "$ref": "#/$defs/text" }
+      }
+    },
+    "namespaces": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/namespace" } },
+    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } },
+    "builders": { "type": "array", "items": { "$ref": "#/$defs/builder" } },
+    "values": { "type": "array", "items": { "$ref": "#/$defs/value" } },
+    "globals": { "type": "array", "items": { "$ref": "#/$defs/global" } },
+    "answer_members": { "type": "array", "items": { "$ref": "#/$defs/answer_member" } },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+    "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capability_row" } },
+    "not_offered": { "type": "array", "items": { "$ref": "#/$defs/not_offered" } },
+    "raycast": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["raycast", "spinnet"],
+        "additionalProperties": false,
+        "properties": { "raycast": { "$ref": "#/$defs/text" }, "spinnet": { "$ref": "#/$defs/text" } }
+      }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "pattern": "\\S" },
+    "id": {
+      "description": "An operation's ID: exactly namespace.verb, two lowerCamelCase segments, each starting with a lowercase letter. The same string is the wire ID and the SDK path after spinnet.",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*\\.[a-z][a-zA-Z0-9]*$"
+    },
+    "sdk_path": {
+      "description": "A builder's or value's path in the SDK after spinnet.: lowerCamelCase segments, such as ui.page, ui.components.list or environment.apiLevel. Builders and values are not operations and have no wire ID.",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){1,2}$"
+    },
+    "namespace_name": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
+    "capability": {
+      "enum": ["read_selected_text", "write_clipboard", "read_current_clipboard", "read_clipboard_history", "monitor_clipboard", "contact_https", "control_external_app", "position_focused_window", "open_url", "open_local_path", "capture_screen", "insert_into_focused_app"]
+    },
+    "failure": {
+      "description": "Level 1's Host Service failure categories, plus Level 2's insertion_target_changed. An operation fails with the same category at every entry point.",
+      "enum": ["capability_denied", "system_permission_denied", "automation_permission_denied", "external_app_missing", "external_app_operation_unsupported", "host_service_failed", "storage_limit_exceeded", "insertion_target_changed"]
+    },
+    "level1_name": {
+      "type": "object",
+      "required": ["kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["host_command", "host_service", "standard_action", "sdk_wrapper", "sdk_builder", "environment", "answer_member", "view_event", "view_member", "global", "capability"] },
+        "name": { "$ref": "#/$defs/text" },
+        "note": { "$ref": "#/$defs/text" }
+      }
+    },
+    "level1_names": { "type": "array", "items": { "$ref": "#/$defs/level1_name" } },
+    "namespace": {
+      "type": "object",
+      "required": ["name", "holds", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/namespace_name" },
+        "holds": { "enum": ["operations", "builders", "values", "reserved"] },
+        "summary": { "$ref": "#/$defs/text" }
+      }
+    },
+    "entry": {
+      "description": "Whether an operation is offered at one entry point. level1: Level 1 offers it there under a Level 1 name, and Level 2 gives the catalogue-ID form. level2: new there at Level 2. reserved: the ID is kept for it, owner decides, reason says what is missing. not_offered: deliberately not, reason says why.",
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["level1", "level2", "reserved", "not_offered"] },
+        "owner": { "$ref": "#/$defs/text" },
+        "reason": { "$ref": "#/$defs/text" },
+        "note": { "$ref": "#/$defs/text" },
+        "capabilities": {
+          "description": "The Capabilities this entry point needs when they differ from the operation's: a Command's configured input needs none where Level 1's Host Command needed none.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capability" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["level1", "level2"] } } },
+          "then": { "properties": { "owner": false, "reason": false } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "reserved" } } },
+          "then": { "required": ["owner", "reason"], "properties": { "capabilities": false } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "not_offered" } } },
+          "then": { "required": ["reason"], "properties": { "owner": false, "capabilities": false } }
+        }
+      ]
+    },
+    "operation": {
+      "type": "object",
+      "required": ["id", "namespace", "summary", "status", "input", "result", "primary_member", "capabilities", "system_permission", "failures", "targets", "entry_points", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "namespace": { "$ref": "#/$defs/namespace_name" },
+        "summary": { "$ref": "#/$defs/text" },
+        "status": {
+          "description": "level1: Level 1 offers the operation under some name. level2: Level 2 adds it. reserved: its ID is kept for the ticket in owner, which defines it.",
+          "enum": ["level1", "level2", "reserved"]
+        },
+        "owner": { "$ref": "#/$defs/text" },
+        "input": { "description": "A $ref into schemas/namespaces.schema.json, null while reserved.", "type": ["string", "null"], "pattern": "^schemas/namespaces\\.schema\\.json#/\\$defs/" },
+        "result": { "type": ["string", "null"], "pattern": "^schemas/namespaces\\.schema\\.json#/\\$defs/" },
+        "primary_member": {
+          "description": "The input member a bare string stands for, at every entry point; null when the input has none.",
+          "type": ["string", "null"]
+        },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/capability" } },
+        "system_permission": { "enum": [null, "accessibility", "screen_recording", "automation"] },
+        "failures": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/failure" } },
+        "targets": {
+          "description": "What the operation acts on that the Host must resolve at execution: the focused App (the insertion target rules apply in a view), the focused window, or nothing.",
+          "enum": [null, "focused_app", "focused_window"]
+        },
+        "default_title": { "$ref": "#/$defs/text" },
+        "item_action": { "description": "An item action may perform it on the item's text, which becomes the primary member text.", "const": true },
+        "closes_view": { "description": "false: a page action or request performing it takes no closes_view.", "const": false },
+        "entry_points": {
+          "type": "object",
+          "required": ["call", "command", "view_action", "request"],
+          "additionalProperties": false,
+          "properties": {
+            "call": { "$ref": "#/$defs/entry" },
+            "command": { "$ref": "#/$defs/entry" },
+            "view_action": { "$ref": "#/$defs/entry" },
+            "request": { "$ref": "#/$defs/entry" },
+            "answer": { "$ref": "#/$defs/entry" },
+            "source": { "$ref": "#/$defs/entry" }
+          }
+        },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "reserved" } } },
+          "then": { "required": ["owner"], "properties": { "input": { "type": "null" }, "result": { "type": "null" }, "level1": { "maxItems": 0 } } }
+        }
+      ]
+    },
+    "builder": {
+      "type": "object",
+      "required": ["id", "status", "summary", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/sdk_path" },
+        "status": { "enum": ["level1", "level2", "reserved"] },
+        "summary": { "$ref": "#/$defs/text" },
+        "operation": { "description": "The operation whose answer form or Level 1 view form the builder builds.", "$ref": "#/$defs/id" },
+        "owner": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "value": {
+      "type": "object",
+      "required": ["id", "status", "summary", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/sdk_path" },
+        "status": { "const": "level1" },
+        "summary": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "global": {
+      "type": "object",
+      "required": ["name", "note", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "note": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "answer_member": {
+      "type": "object",
+      "required": ["name", "note", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "note": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["name", "status", "note", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "status": { "enum": ["level1", "level2"] },
+        "note": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "capability_row": {
+      "description": "One Capability and the operations it covers, derived from the operations; the Host's disclosure and refusal messages read this table.",
+      "type": "object",
+      "required": ["name", "operations", "level1"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/capability" },
+        "operations": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "note": { "$ref": "#/$defs/text" },
+        "level1": { "$ref": "#/$defs/level1_names" }
+      }
+    },
+    "not_offered": {
+      "type": "object",
+      "required": ["area", "raycast", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "area": { "$ref": "#/$defs/text" },
+        "raycast": { "$ref": "#/$defs/text" },
+        "reason": { "$ref": "#/$defs/text" }
+      }
+    }
+  }
+}

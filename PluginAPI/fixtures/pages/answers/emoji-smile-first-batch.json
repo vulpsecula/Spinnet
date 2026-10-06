@@ -1,0 +1,134 @@
+{
+  "page": {
+    "id": "search",
+    "title": "Emoji",
+    "shows_insertion_target": true,
+    "reset": [
+      "results"
+    ],
+    "content": [
+      {
+        "kind": "row",
+        "id": "bar",
+        "content": [
+          {
+            "kind": "text_field",
+            "id": "query",
+            "title": "Search",
+            "placeholder": "smile, cat, heart or an emoji",
+            "value": "smile",
+            "collection": "results",
+            "status": "26 matches"
+          },
+          {
+            "kind": "choice_field",
+            "id": "category",
+            "title": "Category",
+            "value": "all",
+            "choices": [
+              "all",
+              "smileys-emotion",
+              "people-body",
+              "animals-nature",
+              "food-drink",
+              "travel-places",
+              "activities",
+              "objects",
+              "symbols",
+              "flags"
+            ],
+            "choice_titles": [
+              "All Categories",
+              "Smileys & Emotion",
+              "People & Body",
+              "Animals & Nature",
+              "Food & Drink",
+              "Travel & Places",
+              "Activities",
+              "Objects",
+              "Symbols",
+              "Flags"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "grid",
+        "id": "results",
+        "columns": 8,
+        "rows": 6,
+        "empty_text": "No emoji match",
+        "actions": [
+          {
+            "id": "insert",
+            "title": "Insert",
+            "default": true
+          },
+          {
+            "id": "copy",
+            "title": "Copy",
+            "perform": "clipboard.write"
+          }
+        ],
+        "total": 26,
+        "items": [
+          {
+            "id": "1F63C",
+            "title": "cat with wry smile",
+            "symbol": "😼"
+          },
+          {
+            "id": "1F929",
+            "title": "star-struck",
+            "symbol": "🤩"
+          },
+          {
+            "id": "263A-FE0F",
+            "title": "smiling face",
+            "symbol": "☺️"
+          },
+          {
+            "id": "1F63A",
+            "title": "grinning cat",
+            "symbol": "😺"
+          },
+          {
+            "id": "1F600",
+            "title": "grinning face",
+            "symbol": "😀"
+          },
+          {
+            "id": "1F62C",
+            "title": "grimacing face",
+            "symbol": "😬"
+          },
+          {
+            "id": "1F643",
+            "title": "upside-down face",
+            "symbol": "🙃"
+          },
+          {
+            "id": "1F60B",
+            "title": "face savoring food",
+            "symbol": "😋"
+          },
+          {
+            "id": "1F642",
+            "title": "slightly smiling face",
+            "symbol": "🙂"
+          },
+          {
+            "id": "1F607",
+            "title": "smiling face with halo",
+            "symbol": "😇"
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "query": "smile",
+    "category": "all",
+    "loaded": 10
+  }
+}

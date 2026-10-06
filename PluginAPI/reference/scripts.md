@@ -30,10 +30,13 @@ service's input, unchanged (`null` when omitted), and returns the answer, so it
 fails exactly as `requestHostService` does. `spinnet.ui` is the exception: its
 builders only build views and answers, and request nothing. The
 [catalogue](../README.md#what-level-1-offers) lists every wrapper and the
-service it requests.
+service it requests. A Level 2 Plugin's `spinnet` is laid out by catalogue ID
+instead, from [`spinnet-level-2.js`](../spinnet-level-2.js), and its
+`requestHostService` takes catalogue IDs only
+([Host Service IDs](namespaces.md#the-sdk)).
 
 `spinnet.environment` is decided by the Host: `apiLevel`, the highest Plugin
-API Level it supports; `hostVersion`, its bundle version; `preferredLanguage`,
+API Level it supports, whatever Level the Plugin declares; `hostVersion`, its bundle version; `preferredLanguage`,
 the BCP 47 code of the user's first preferred language, such as `en-US`; and
 the invocation's `pluginID`, `commandID`, `actionID` and `invocationID`.
 
@@ -116,11 +119,15 @@ Host starts an invocation:
   "script_path": "transform.js",
   "script_source": "input",
   "input": "Selected text",
-  "environment": {"api_level": 1, "host_version": "0.1.0", "preferred_language": "en-US"},
+  "environment": {"api_level": 2, "host_version": "0.1.0", "preferred_language": "en-US"},
   "event": null,
   "state": null
 }
 ```
+
+For a Plugin declaring Level 2, the invocation also carries the manifest's
+level, `"api_level": 2`, beside `environment`, which is how the helper
+chooses Level 2's SDK; a Level 1 Plugin's invocation has no such member.
 
 While the script runs, the helper may request a Host Service. The request
 carries only the invocation and Action identifiers; the Host takes the Plugin's
@@ -138,6 +145,10 @@ manifest, grant and System Permission for every request:
   "input": null
 }
 ```
+
+A Level 2 Plugin's helper names the catalogue ID in `service`, such as
+`"selection.readText"`, and the Host refuses a name the Plugin may not use
+with `host_service_failed` and the reason.
 
 ```json
 {

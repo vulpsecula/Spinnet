@@ -155,16 +155,23 @@ there is none. A `deliver` section is `.loading` with a `delivery`, the
 `section_delivered` event to run the script with next. `fetches.requests`
 lists what reached the network, as it left.
 
-## Candidate Contracts
+## Plugin API Levels and Candidate Contracts
 
-A run is held to what the Host offers: Plugin API Level 1 and the Candidate
-Contract revisions this kit's Host provides (see
-`PluginAPI/candidates/README.md`). A Plugin that Host would refuse, such as
-one declaring another revision of a candidate, fails with the refusal as an
-`invalidAction`, and a Host Service request outside the Levels and
-candidates the Plugin declares fails with `hostServiceFailed`. To run
-against a Host that offers other revisions, pass its contracts, built from
-the candidates' published `candidate.json`:
+A run is held to what the Host offers: Plugin API Levels 1 and 2, and no
+Candidate Contract, since Level 2 retired every revision this kit's Host
+provided (see `PluginAPI/candidates/README.md`). A Plugin that Host would
+refuse, such as one needing a higher Level or declaring a retired
+candidate, fails with the refusal as an `invalidAction`, and a Host Service
+request outside the Levels and candidates the Plugin declares fails with
+`hostServiceFailed`. A `PluginTestPage` over a helper follows the helper's
+contracts.
+
+`PluginInterfaceContracts.candidateHost` is the Host before Level 2, which
+provided `namespaces` r1, `host_operations` r1 and r2 and `collections` r1
+to r3: running a Plugin's candidate revision against it and its Level 2
+revision against the default shows that moving to Level 2 changes nothing.
+To run against a Host that offers other candidates, pass its contracts,
+built from the candidates' published `candidate.json`:
 
 ```swift
 let candidate = try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: metadataURL))
@@ -178,10 +185,9 @@ contracts. `RecordedHostFetchedSections(contracts:)` takes the same value.
 
 ## Catalogue IDs
 
-A Plugin declaring Candidate Contract `namespaces` r1 (see
-`PluginAPI/candidates/namespaces/r1/reference.md`) calls Host Services by
-catalogue ID, such as `clipboard.write`, and its scripts run with the
-namespaced `spinnet` object. Answer its operations by ID, and read what a
+A Plugin API Level 2 Plugin (see `PluginAPI/reference/namespaces.md`) calls
+Host Services by catalogue ID, such as `clipboard.write`, and its scripts run
+with Level 2's `spinnet` object. Answer its operations by ID, and read what a
 run performed the same way; each input is the one the Host performs, a bare
 string where the script gave the primary member alone:
 
@@ -203,13 +209,12 @@ refusal as an `invalidAction`.
 
 ## Requested Host Operations
 
-A Plugin declaring Candidate Contract `host_operations` r1 (see
-`PluginAPI/candidates/host_operations/r1/reference.md`) may answer a gesture
-with an operation the Host performs after the answer commits. `run.answer()`
-reads it as the Host does: `answer.operation` is the request, and an
-operation in an answer to an event that is no gesture, or from a Plugin that
-does not declare the candidate, is the protocol violation the Host would end
-the View Session with.
+A Level 2 Plugin (see `PluginAPI/reference/host-operations.md`) may answer a
+gesture with an operation the Host performs after the answer commits.
+`run.answer()` reads it as the Host does: `answer.operation` is the request,
+and an operation in an answer to an event that is no gesture, or from a
+Level 1 Plugin, is the protocol violation the Host would end the View
+Session with.
 
 Give an event the view the user made it in, as the script last answered it.
 A gesture in a view that sets `shows_insertion_target` is one the Host
@@ -247,8 +252,8 @@ its own repository should use recorded answers.
 
 ## Pages and collections
 
-A Plugin declaring Candidate Contract `collections` r1, r2 or r3 (see
-`PluginAPI/candidates/collections/r3/reference.md`) may answer with a page.
+A Level 2 Plugin (see `PluginAPI/reference/pages.md`) may answer with a
+page.
 `run.answer()` reads it as the Host does, page rules included: `answer.page`
 is the page the Host would draw, and a page it would not draw throws the
 protocol violation that would end the View Session.
@@ -271,9 +276,8 @@ XCTAssertEqual(page.performed.first?.perform, "selection.replace")
 
 `choose(_:in:)`, `select(_:)`, `doubleClick(_:)`, `menu(of:)`,
 `choose(itemAction:on:)`, `copySelection()` (⌘C), `click(_:)` and
-`scrollToEnd()` stand for the other gestures; nearing the end of a
-collection that has more sends `load_more` once per loaded count, as the Host
-does. Page and item actions that name a Host Service are performed by the
+`scrollToEnd()` stand for the other gestures; a collection that gives its
+`total` is filled by `load_range` as the Host fills it (below). Page and item actions that name a Host Service are performed by the
 Host without running the script and are listed, with requested operations,
 in `performed`. `composing` names text fields with an open input-method
 composition, whose reset the Host drops.
@@ -281,10 +285,10 @@ composition, whose reset the Host drops.
 `call(_:input:)` stands for calling the Plugin again while the session is
 open, as a Menu Item does: by default the Action that handles the session,
 or another Command of the Plugin with its input, Plugin Settings and the
-Menu Item's overrides already merged. Under `collections` r2 it runs as
+Menu Item's overrides already merged. For a Level 2 Plugin it runs as
 `called` from the last good state; only an answer with a page or view makes
 that Action the `handler`, and a failed call throws and keeps the page, the
-state and the handler. Under r1 or Level 1 the Action starts again:
+state and the handler. For a Level 1 Plugin the Action starts again:
 
 ```swift
 try brew.call(input: .object(["scope": .string("outdated")]))   // the "Outdated" Menu Item
@@ -294,7 +298,7 @@ XCTAssertEqual(brew.text(of: "query"), "py")  // what was typed stays
 
 An answer the Host would end the session for closes the page (`isClosed`).
 
-### Windows, toggles and outcomes (`collections` r3)
+### Windows, toggles and outcomes
 
 For a collection that gives its `total`, `PluginTestPage` keeps the window
 the Host keeps: `window` holds the items by position, `item(at:)` reads one,
@@ -316,5 +320,5 @@ with no target shown is refused with `target_not_shown`), listed in
 `outcomes`. A successful `closes_view` closes the page unless `isPinned`.
 With `notify` the outcome runs as `operation_finished` in the session, an
 item action's with the item; when the view closed, it runs once more without
-a view under `host_operations` r2, listed in `afterClose`, and its answer
+a view, listed in `afterClose`, and its answer
 may hold a toast and nothing else.

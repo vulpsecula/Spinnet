@@ -1,0 +1,1785 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Plugin API namespaces (Plugin API Level 2)",
+  "description": "Plugin API Level 2, promoted from Candidate Contract namespaces revision 1. The wire shapes of the Plugin API catalogue (../catalogue.json): each operation's input and result under its one ID, the IDs each entry point accepts, a call as the helper carries it, a page action that performs an operation and the input a performed operation takes (used by pages and Requested Host Operations), and a manifest Command that names an operation. A Level 2 Plugin names operations only by these IDs, except inside a Level 1 view (decision N5). Level 1's own shapes are unchanged and refuse every ID here; manifest.schema.json holds a Level 2 manifest's Commands to command below.",
+  "$defs": {
+    "text": {
+      "description": "A string with at least one character that is not white space.",
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "rect": {
+      "description": "A rectangle in global points, origin at the top-left of the primary display.",
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      }
+    },
+    "operation_id": {
+      "description": "Every catalogue ID a Level 2 Plugin may name somewhere: exactly namespace.verb, two lowerCamelCase segments.",
+      "enum": [
+        "host.toast",
+        "host.closeView",
+        "host.showPluginSettings",
+        "selection.readText",
+        "selection.replace",
+        "selection.copy",
+        "selection.cut",
+        "selection.paste",
+        "keyboard.press",
+        "clipboard.read",
+        "clipboard.write",
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show",
+        "open.url",
+        "open.path",
+        "open.application",
+        "apps.perform",
+        "apps.openDeepLink",
+        "system.runShortcut",
+        "system.runService",
+        "window.read",
+        "window.setFrame",
+        "window.toggleFullScreen",
+        "window.restore",
+        "screen.capture",
+        "http.request",
+        "text.detectLanguage",
+        "storage.get",
+        "storage.set",
+        "storage.remove",
+        "storage.keys",
+        "storage.clear"
+      ]
+    },
+    "call_id": {
+      "description": "IDs a script may call: spinnet.<id>(input) or requestHostService(\"<id>\", input).",
+      "enum": [
+        "selection.readText",
+        "selection.replace",
+        "clipboard.read",
+        "clipboard.write",
+        "clipboardHistory.read",
+        "clipboardHistory.readContent",
+        "clipboardHistory.show",
+        "open.url",
+        "open.path",
+        "open.application",
+        "apps.perform",
+        "apps.openDeepLink",
+        "window.read",
+        "window.setFrame",
+        "window.toggleFullScreen",
+        "window.restore",
+        "screen.capture",
+        "http.request",
+        "text.detectLanguage",
+        "storage.get",
+        "storage.set",
+        "storage.remove",
+        "storage.keys",
+        "storage.clear"
+      ]
+    },
+    "host_command_id": {
+      "description": "IDs a manifest Command with execution host may name in host_command.",
+      "enum": [
+        "host.toast",
+        "host.showPluginSettings",
+        "selection.copy",
+        "selection.cut",
+        "selection.paste",
+        "keyboard.press",
+        "clipboard.write",
+        "clipboardHistory.show",
+        "open.url",
+        "open.path",
+        "open.application",
+        "apps.perform",
+        "apps.openDeepLink",
+        "system.runShortcut",
+        "system.runService",
+        "window.toggleFullScreen",
+        "window.restore",
+        "screen.capture"
+      ]
+    },
+    "view_action_id": {
+      "description": "IDs a page action or item action may name in perform (collections).",
+      "enum": [
+        "host.showPluginSettings",
+        "selection.replace",
+        "clipboard.write",
+        "clipboardHistory.show",
+        "open.url",
+        "open.path",
+        "open.application",
+        "apps.perform",
+        "apps.openDeepLink"
+      ]
+    },
+    "item_action_id": {
+      "description": "IDs an item action may perform on the item's text, which becomes the operation's primary member text.",
+      "enum": [
+        "selection.replace",
+        "clipboard.write"
+      ]
+    },
+    "request_id": {
+      "description": "IDs an answer may request in operation.perform (host_operations).",
+      "enum": [
+        "host.showPluginSettings",
+        "selection.replace",
+        "clipboard.write",
+        "clipboardHistory.show",
+        "open.url",
+        "open.path",
+        "open.application",
+        "apps.perform",
+        "apps.openDeepLink"
+      ]
+    },
+    "host.toast.input": {
+      "description": "The message: a string, or {text}.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        }
+      ]
+    },
+    "host.closeView.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "host.showPluginSettings.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "selection.readText.input": {
+      "description": "null, or {best_effort: true} to answer null instead of failing when the selection cannot be read.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "best_effort"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "best_effort": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "selection.replace.input": {
+      "description": "The text: a string, or {text}. At most 128 KiB of UTF-8, checked by the Host; empty text replaces the selection with nothing.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "selection.copy.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "selection.cut.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "selection.paste.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "keyboard.press.input": {
+      "description": "A key by name or by virtual key code, with modifiers. Level 1's string form and its alias member names stay Level 1's.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/text"
+        },
+        "key_code": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "modifiers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "command",
+              "shift",
+              "option",
+              "control"
+            ]
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key_code": false
+          }
+        },
+        {
+          "required": [
+            "key_code"
+          ],
+          "properties": {
+            "key": false
+          }
+        }
+      ]
+    },
+    "clipboard.read.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "clipboard.write.input": {
+      "description": "The text: a string, or {text}.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "clipboardHistory.read.input": {
+      "description": "null for the newest page, or {offset}.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "offset"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "clipboardHistory.readContent.input": {
+      "type": "object",
+      "required": [
+        "entry_id",
+        "offset",
+        "length"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 196608
+        }
+      }
+    },
+    "clipboardHistory.show.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "open.url.input": {
+      "description": "The link: a string, or {url}. From a script, an action or a request it must be http or https with a host; a Command's configured link may have any scheme (design 6.2).",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 2048
+        },
+        {
+          "type": "object",
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "\\S",
+              "maxLength": 2048
+            }
+          }
+        }
+      ]
+    },
+    "open.path.input": {
+      "description": "An absolute or ~/ path of at most 4096 UTF-8 bytes: a string, or {path}.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^(/|~/)"
+        },
+        {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^(/|~/)"
+            }
+          }
+        }
+      ]
+    },
+    "open.application.input": {
+      "description": "An application's path or bundle identifier: a string, or {application}.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "object",
+          "required": [
+            "application"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        }
+      ]
+    },
+    "apps.perform.input": {
+      "$ref": "external-apps.schema.json#/$defs/perform_app_operation.input"
+    },
+    "apps.openDeepLink.input": {
+      "$ref": "external-apps.schema.json#/$defs/open_deep_link.input"
+    },
+    "system.runShortcut.input": {
+      "description": "The Shortcut's name: a string, or {name, input?} with text input.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/text"
+            },
+            "input": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "system.runService.input": {
+      "description": "The Service's exact title in the Services menu, nested paths separated by /: a string, or {name, input?} with text input.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/text"
+            },
+            "input": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "window.read.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "window.setFrame.input": {
+      "$ref": "#/$defs/rect",
+      "description": "The new frame, in global points."
+    },
+    "window.toggleFullScreen.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "window.restore.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "screen.capture.input": {
+      "description": "source alone, as a string or {source}, copies or saves as the user's screenshot preferences say (decision N9); otherwise copy_to_clipboard and save together, as Level 1's capture_screen, with at least one of them doing something and save.folder a folder the Action's configuration uses.",
+      "oneOf": [
+        {
+          "enum": [
+            "area",
+            "fullscreen",
+            "window"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "area",
+                "fullscreen",
+                "window"
+              ]
+            },
+            "copy_to_clipboard": {
+              "type": "boolean"
+            },
+            "save": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "folder",
+                    "format"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "folder": {
+                      "$ref": "#/$defs/text"
+                    },
+                    "format": {
+                      "enum": [
+                        "automatic",
+                        "png",
+                        "jpg"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "copy_to_clipboard"
+                ]
+              },
+              "then": {
+                "required": [
+                  "save"
+                ]
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "save"
+                ]
+              },
+              "then": {
+                "required": [
+                  "copy_to_clipboard"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "http.request.input": {
+      "$ref": "https-request.schema.json#/$defs/https_request.input"
+    },
+    "text.detectLanguage.input": {
+      "description": "The text: a string, or {text}.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "storage.get.input": {
+      "description": "The key: a string, or {key}.",
+      "oneOf": [
+        {
+          "$ref": "plugin-storage.schema.json#/$defs/key"
+        },
+        {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "$ref": "plugin-storage.schema.json#/$defs/key"
+            }
+          }
+        }
+      ]
+    },
+    "storage.set.input": {
+      "$ref": "plugin-storage.schema.json#/$defs/set_storage_value.input"
+    },
+    "storage.remove.input": {
+      "description": "The key: a string, or {key}.",
+      "oneOf": [
+        {
+          "$ref": "plugin-storage.schema.json#/$defs/key"
+        },
+        {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "$ref": "plugin-storage.schema.json#/$defs/key"
+            }
+          }
+        }
+      ]
+    },
+    "storage.keys.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "storage.clear.input": {
+      "type": "null",
+      "description": "No input."
+    },
+    "host.toast.result": {
+      "type": "null"
+    },
+    "host.closeView.result": {
+      "type": "null"
+    },
+    "host.showPluginSettings.result": {
+      "type": "null"
+    },
+    "selection.readText.result": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selection.replace.result": {
+      "type": "null"
+    },
+    "selection.copy.result": {
+      "type": "null"
+    },
+    "selection.cut.result": {
+      "type": "null"
+    },
+    "selection.paste.result": {
+      "type": "null"
+    },
+    "keyboard.press.result": {
+      "type": "null"
+    },
+    "clipboard.read.result": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "text",
+                "url"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "clipboard.write.result": {
+      "type": "null"
+    },
+    "clipboardHistory.read.result": {
+      "type": "object",
+      "required": [
+        "state",
+        "entries"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "off",
+            "paused",
+            "collecting"
+          ]
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "nextOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expiresAt": {
+          "type": "number"
+        }
+      }
+    },
+    "clipboardHistory.readContent.result": {
+      "type": "object",
+      "required": [
+        "data",
+        "offset",
+        "totalBytes"
+      ],
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nextOffset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "clipboardHistory.show.result": {
+      "type": "null"
+    },
+    "open.url.result": {
+      "type": "null"
+    },
+    "open.path.result": {
+      "type": "null"
+    },
+    "open.application.result": {
+      "type": "null"
+    },
+    "apps.perform.result": {
+      "type": "null"
+    },
+    "apps.openDeepLink.result": {
+      "type": "null"
+    },
+    "system.runShortcut.result": {
+      "type": "null"
+    },
+    "system.runService.result": {
+      "type": "null"
+    },
+    "window.read.result": {
+      "type": "object",
+      "required": [
+        "frame",
+        "visibleFrame",
+        "displays",
+        "displayIndex"
+      ],
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/rect"
+        },
+        "visibleFrame": {
+          "$ref": "#/$defs/rect"
+        },
+        "displays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rect"
+          }
+        },
+        "displayIndex": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "window.setFrame.result": {
+      "type": "null"
+    },
+    "window.toggleFullScreen.result": {
+      "type": "null"
+    },
+    "window.restore.result": {
+      "type": "null"
+    },
+    "screen.capture.result": {
+      "type": "null"
+    },
+    "http.request.result": {
+      "$ref": "https-request.schema.json#/$defs/https_request.result"
+    },
+    "text.detectLanguage.result": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "storage.get.result": {
+      "$ref": "plugin-storage.schema.json#/$defs/get_storage_value.result"
+    },
+    "storage.set.result": {
+      "type": "null"
+    },
+    "storage.remove.result": {
+      "type": "null"
+    },
+    "storage.keys.result": {
+      "$ref": "plugin-storage.schema.json#/$defs/list_storage_keys.result"
+    },
+    "storage.clear.result": {
+      "type": "null"
+    },
+    "perform_input": {
+      "description": "The input a performed operation takes, chosen by its perform ID. Used by view_action here and by host_operations' operation. input may be left out only for an operation whose input is null.",
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "host.showPluginSettings"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/host.showPluginSettings.input"
+              },
+              "closes_view": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "selection.replace"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/selection.replace.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "clipboard.write"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboard.write.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "clipboardHistory.show"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboardHistory.show.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "open.url"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.url.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "open.path"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.path.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "open.application"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.application.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "apps.perform"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.perform.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "apps.openDeepLink"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.openDeepLink.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    "view_action": {
+      "description": "A page action that performs a Host Service (collections): the Host performs it on the user's click without a View Event, under the Capability the operation needs at this entry point. title defaults to the catalogue's default_title. No shortcut: pages bind none. A Level 1 view keeps Level 1's standard actions instead (decision N5).",
+      "type": "object",
+      "required": [
+        "perform"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "perform": {
+          "$ref": "#/$defs/view_action_id"
+        },
+        "input": {},
+        "id": {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 64
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "closes_view": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/perform_input"
+        }
+      ]
+    },
+    "call": {
+      "description": "What a script's call carries to the Host, as the helper's host_service_request names it: the catalogue ID in service and its input (null when left out). The result is the ID's result definition.",
+      "type": "object",
+      "required": [
+        "service"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "service": {
+          "$ref": "#/$defs/call_id"
+        },
+        "input": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "selection.readText"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/selection.readText.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "selection.replace"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/selection.replace.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "clipboard.read"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboard.read.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "clipboard.write"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboard.write.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "clipboardHistory.read"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboardHistory.read.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "clipboardHistory.readContent"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboardHistory.readContent.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "clipboardHistory.show"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/clipboardHistory.show.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "open.url"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.url.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "open.path"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.path.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "open.application"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/open.application.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "apps.perform"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.perform.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "apps.openDeepLink"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.openDeepLink.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "window.read"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/window.read.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "window.setFrame"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/window.setFrame.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "window.toggleFullScreen"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/window.toggleFullScreen.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "window.restore"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/window.restore.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "screen.capture"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/screen.capture.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "http.request"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/http.request.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "text.detectLanguage"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/text.detectLanguage.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "storage.get"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/storage.get.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "storage.set"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/storage.set.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "storage.remove"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/storage.remove.input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "storage.keys"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/storage.keys.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "service"
+            ],
+            "properties": {
+              "service": {
+                "const": "storage.clear"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/storage.clear.input"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "command": {
+      "description": "A Level 2 manifest Command: Level 1's Command, with host_command naming a catalogue ID and an optional fixed input. The Host also checks what a shape cannot say: input's members belong to the operation's input and no configuration field supplies one of them again; the Action's input, merged with input, satisfies the operation's input definition.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "execution"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "manifest.schema.json#/$defs/text"
+        },
+        "title": {
+          "$ref": "manifest.schema.json#/$defs/text"
+        },
+        "description": {
+          "$ref": "manifest.schema.json#/$defs/text"
+        },
+        "execution": {
+          "enum": [
+            "host",
+            "javascript"
+          ]
+        },
+        "is_configurable": {
+          "type": "boolean"
+        },
+        "host_command": {
+          "$ref": "#/$defs/host_command_id"
+        },
+        "input": {
+          "description": "Members of the operation's input fixed by the Command, such as screen.capture's source; the Action's configured input supplies the rest.",
+          "type": "object"
+        },
+        "script": {
+          "$ref": "manifest.schema.json#/$defs/scriptPath"
+        },
+        "configuration_field": {
+          "$ref": "manifest.schema.json#/$defs/field"
+        },
+        "configuration_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "manifest.schema.json#/$defs/field"
+          }
+        },
+        "deep_link_template": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "execution"
+            ],
+            "properties": {
+              "execution": {
+                "const": "host"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "script": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "execution"
+            ],
+            "properties": {
+              "execution": {
+                "const": "javascript"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "script"
+            ],
+            "properties": {
+              "host_command": false,
+              "input": false,
+              "deep_link_template": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "host_command": {
+                "const": "apps.openDeepLink"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "deep_link_template"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "host_command": {
+                "const": "screen.capture"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "required": [
+                  "source"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "host_command": {
+                "const": "apps.perform"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "required": [
+                  "bundle_id",
+                  "operation"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "deep_link_template"
+            ]
+          },
+          "then": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "host_command": {
+                "const": "apps.openDeepLink"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -30,6 +30,7 @@ let package = Package(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
             exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
+                      "spinnet-level-2.d.ts", "catalogue.json", "fixtures",
                       "candidates/README.md", "candidates/schemas",
                       "candidates/namespaces/r1/reference.md", "candidates/namespaces/r1/candidate.json",
                       "candidates/namespaces/r1/catalogue.json", "candidates/namespaces/r1/catalogue.schema.json",
