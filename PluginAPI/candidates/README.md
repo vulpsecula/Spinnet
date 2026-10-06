@@ -101,8 +101,9 @@ test can offer in a `PluginInterfaceContracts`.
 
 Each revision is published as `candidates/<name>/r<revision>/candidate.json`
 ([schema](schemas/candidate-metadata.schema.json)), beside its reference page
-and any schema or type definitions it adds, at the git tag
-`plugin-api-candidate/<name>/r<revision>`. The metadata names the stable
+and any schema or type definitions it adds. Its `tag` names the revision
+as `plugin-api-candidate/<name>/r<revision>`; no git tag is made for it, and
+a Plugin outside this repository pins a revision by commit. The metadata names the stable
 Level the candidate builds on, the candidate revisions it requires or
 excludes, and its members: Host Services a script calls (`host_service`),
 Host Services a Command runs directly (`host_command`), Host Services an
@@ -165,11 +166,9 @@ and Brew-shaped pages, the Operations and Namespaces probes) run their
 candidate revisions on the candidate Host and their Level 2 revisions on
 this Host through the test kit and the real helper with identical answers,
 events, operations, outcomes and storage, and the external Emoji Plugin
-moved from its candidate revision 2.3.1 to its Level 2 revision 3.0.0. The
-proposed tags are `plugin-api-level-2` for Level 2 and
-`plugin-api-candidate/<name>/r<revision>` for each retired revision, at
-`10b1a5b`, Host C, the last commit that provided them; no tag is created
-here.
+moved from its candidate revision 2.3.1 to its Level 2 revision 3.0.0. No
+git tags are made: Level 2 and the retired revisions are pinned by commit,
+as the external Emoji Plugin pins `0717f16`.
 
 ## Candidate Contracts this Host provides
 

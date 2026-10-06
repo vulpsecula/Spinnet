@@ -54,8 +54,9 @@ keeps working on a Host that supports a later one.
 
 Level 1 is the first published level and Level 2 the second; this Host
 supports both. The schema requires `api_level`; a Host reads a manifest
-written before the field existed as needing Level 1. Each Level is published
-at a git tag, `plugin-api-level-<n>`, from Level 2 on.
+written before the field existed as needing Level 1. A Plugin kept outside
+this repository pins the Level it was written for by the commit of this
+repository it tests against.
 
 `protocol_version` is unrelated: it only frames the messages between the Host
 and the Plugin's helper, and stays `"1.0"`.
