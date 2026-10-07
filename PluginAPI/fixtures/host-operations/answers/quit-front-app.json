@@ -1,0 +1,7 @@
+{
+  "operation": {
+    "perform": "apps.quit",
+    "id": "quit",
+    "notify": true
+  }
+}

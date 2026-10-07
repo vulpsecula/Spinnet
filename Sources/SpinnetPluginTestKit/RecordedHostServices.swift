@@ -28,6 +28,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     private let answers: [PluginHostService: Answer]
     private let operations: [String: Answer]
     private let storage: PluginStorage?
+    private let apps: RecordedApps?
 
     /// `storage`, when given, answers the Plugin Storage services the Host's
     /// own way, for the Plugin under test, unless a recorded answer is given
@@ -37,11 +38,16 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     /// `operations` answers a Plugin API Level 2 Plugin by catalogue ID,
     /// such as `"clipboard.write"`, ahead of `answers` for the Host Service
     /// performing it.
+    ///
+    /// `apps`, when given, answers `apps.frontmost` the Host's way from the
+    /// recorded App in front, with the App Target the Host would give the
+    /// Plugin, unless `operations` records an answer for it.
     public init(_ answers: [PluginHostService: Answer] = [:], operations: [String: Answer] = [:],
-                storage: PluginStorage? = nil) {
+                storage: PluginStorage? = nil, apps: RecordedApps? = nil) {
         self.answers = answers
         self.operations = operations
         self.storage = storage
+        self.apps = apps
     }
 
     public func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
@@ -64,6 +70,12 @@ public final class RecordedHostServices: PluginHostServiceBroker {
         case nil:
             if let storage, request.service.isPluginStorage {
                 return try storage.answer(request.service, input: request.input, for: package.manifest.id)
+            }
+            if let apps, request.service == .identifyFrontmostApp {
+                guard request.input == .null else {
+                    throw PluginHostServiceError.invalidInput("apps.frontmost takes no input")
+                }
+                return apps.targets.identifyFrontmost(of: apps, for: package.manifest.id)
             }
             throw PluginHostServiceError.unavailable("No recorded answer for \(request.operation ?? request.service.rawValue)")
         }

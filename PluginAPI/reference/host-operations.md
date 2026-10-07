@@ -56,6 +56,7 @@ if (event?.type === "submitted") {
 | `open.application` | `application`, a path or bundle identifier | `open_local_path` |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | `control_external_app`; macOS asks for Automation |
 | `apps.openDeepLink` | `{template, parameters?}` | `control_external_app` |
+| `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; a Host Confirmation every time ([the App in front](apps.md)) |
 | `host.showPluginSettings` | none, and no `closes_view` | nothing |
 
 The SDK builds each request from its operation:
@@ -96,7 +97,7 @@ answer being accepted.
 | `refused` | A check at execution failed, such as a revoked Capability or a changed target; nothing was done |
 | `failed` | The effect failed after the Host began it |
 | `cancelled` | The request's owner ended before it ran: its view closed, or the Plugin was updated, disabled, removed or lost a Capability |
-| `declined`, `expired` | A Host Confirmation was declined or went unanswered; no Level 2 operation asks for one |
+| `declined`, `expired` | A Host Confirmation was declined, or the view it was in closed, or it went unanswered for 60 seconds; only `apps.quit` asks for one |
 
 - The Host checks the Capability, the System Permission, the Plugin and its
   Command, and the target again when it starts the operation.
@@ -111,8 +112,9 @@ answer being accepted.
   `automation_permission_denied`, `external_app_missing`,
   `external_app_operation_unsupported` or `host_service_failed`),
   `command_unavailable` when the Plugin or Command is missing, disabled or
-  changed, or for `selection.replace` one of the target reasons below. No
-  reason names the App.
+  changed, or for `selection.replace` one of the target reasons below, and
+  for `apps.quit` `no_target` or `target_protected`
+  ([the App in front](apps.md#outcomes)). No reason names the App.
 
 ### `operation_finished`
 
@@ -196,11 +198,19 @@ survives its owner.
 
 ## Host Confirmation
 
-Some operations will always ask the user first, in a confirmation the Host
-draws with its own words and the target it resolved; a Plugin can neither
-skip nor word it, and a Plugin's own "Are you sure?" is an ordinary view
-that authorizes nothing. No Level 2 operation needs one, and
-`host.confirm` stays reserved.
+Some operations always ask the user first, in a confirmation the Host draws
+with its own words and the target it resolved; a Plugin can neither skip nor
+word it, and a Plugin's own "Are you sure?" is an ordinary view that
+authorizes nothing. `apps.quit` is the one Level 2 operation that needs one,
+for Quit and Force Quit alike ([the App in front](apps.md#host-confirmation)).
+The Host draws it near the pointer without activating Spinnet, so the App it
+names stays in front; Cancel is its default button, so Return and Escape
+decline, and only a click on the Host's own button confirms. An
+operation waiting on it holds the Plugin's operation slot, so gestures
+wait behind it; closing the view declines it, and updating, disabling or
+removing the Plugin, revoking a Capability or quitting Spinnet cancels it.
+Unanswered for 60 seconds, it expires. `host.confirm`, a Plugin-worded
+question, stays reserved.
 
 ## Insertion
 
@@ -250,6 +260,7 @@ otherwise it is refused with `target_not_shown`.
 | `target_changed` | Another App is in front than the one shown, focus moved to another element of it, or it left the front while the text was typed (then `failed`, with part of the text typed) |
 | `target_not_shown` | Nothing showed where the text would go: the Action's start, an event that is no gesture, a view without the target line, or an Action without a view |
 | `no_target` | Spinnet or no App is in front, or the App shown has quit |
+| `target_protected` | `apps.quit` only: the Host never ends that App that way ([the App in front](apps.md)) |
 | `secure_input` | The focused element is a password field |
 | `target_unresponsive` | The App did not come to the front within one second (`failed`; nothing was typed) |
 | `system_permission_denied`, `capability_denied` | Accessibility or the Capability is missing at execution |
@@ -302,5 +313,6 @@ rule, and gives the `operation_finished` event to run next.
 | Inserted text | 128 KiB of UTF-8 |
 | Target App coming to the front for an insertion | 1 s |
 | Operation busy state shown after | 0.5 s |
+| Host Confirmation unanswered before `expired` | 60 s |
 | Script invocation, gesture or `operation_finished` | 4 s from when the script starts |
 | `operation_finished` after the view closed starting | within 4 s of the outcome |

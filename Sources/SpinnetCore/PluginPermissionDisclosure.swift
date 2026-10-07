@@ -147,8 +147,14 @@ public struct PluginPermissionDisclosure {
         }
         switch group {
         case .reads:
-            guard manifest.capabilities.contains(.readSelectedText), !names(.readSelectedText).isEmpty else { return nil }
-            return "Selected text (text only). Commands: \(names(.readSelectedText)). No access to existing Host-held history.\(optionalNote(.readSelectedText))"
+            var lines: [String] = []
+            if manifest.capabilities.contains(.readSelectedText), !names(.readSelectedText).isEmpty {
+                lines.append("Selected text (text only). Commands: \(names(.readSelectedText)). No access to existing Host-held history.\(optionalNote(.readSelectedText))")
+            }
+            if manifest.capabilities.contains(.readFrontmostApp), !names(.readFrontmostApp).isEmpty {
+                lines.append("\(PluginCapability.readFrontmostApp.explanation) Commands: \(names(.readFrontmostApp)).\(optionalNote(.readFrontmostApp))")
+            }
+            return lines.isEmpty ? nil : lines.joined(separator: "\n")
         case .changes:
             guard manifest.capabilities.contains(.writeClipboard), !names(.writeClipboard).isEmpty else { return nil }
             return "Replace current clipboard text. Commands: \(names(.writeClipboard)).\(optionalNote(.writeClipboard))"
@@ -187,6 +193,9 @@ public struct PluginPermissionDisclosure {
             if manifest.capabilities.contains(.openLocalPath), !names(.openLocalPath).isEmpty {
                 affected.append("\(PluginCapability.openLocalPath.explanation) Commands: \(names(.openLocalPath)).\(optionalNote(.openLocalPath))")
             }
+            if manifest.capabilities.contains(.quitFrontmostApp), !names(.quitFrontmostApp).isEmpty {
+                affected.append("\(PluginCapability.quitFrontmostApp.explanation) Commands: \(names(.quitFrontmostApp)).\(optionalNote(.quitFrontmostApp))")
+            }
             if manifest.capabilities.contains(.captureScreen), !names(.captureScreen).isEmpty {
                 affected.append("Start a screenshot that Spinnet takes, then copies or saves to a folder you chose. Commands: \(names(.captureScreen)). The Plugin never receives the image.\(optionalNote(.captureScreen))")
             }
@@ -206,6 +215,8 @@ public extension PluginCapability {
         case .openURL, .openLocalPath: return .controls
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
+        case .readFrontmostApp: return .reads
+        case .quitFrontmostApp: return .controls
         }
     }
 }

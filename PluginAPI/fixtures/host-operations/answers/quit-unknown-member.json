@@ -1,0 +1,8 @@
+{
+  "operation": {
+    "perform": "apps.quit",
+    "input": {
+      "pid": 4242
+    }
+  }
+}

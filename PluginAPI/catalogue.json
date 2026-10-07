@@ -49,7 +49,7 @@
     {
       "name": "apps",
       "holds": "operations",
-      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates; later the App in front (#83)"
+      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it by an App Target and quitting it after a Host Confirmation (#83)"
     },
     {
       "name": "system",
@@ -1132,23 +1132,24 @@
     {
       "id": "apps.frontmost",
       "namespace": "apps",
-      "summary": "Identifies the App in front by a bounded, opaque target the Plugin can name back to the Host, without a process list.",
-      "status": "reserved",
-      "owner": "#83",
-      "input": null,
-      "result": null,
+      "summary": "Identifies the App in front, behind Spinnet's panel, by its name, bundle identifier and an App Target the Plugin can name back to the Host, never a list of Apps (#83).",
+      "status": "level2",
+      "input": "schemas/namespaces.schema.json#/$defs/apps.frontmost.input",
+      "result": "schemas/namespaces.schema.json#/$defs/apps.frontmost.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "read_frontmost_app"
+      ],
       "system_permission": null,
       "failures": [
+        "capability_denied",
         "host_service_failed"
       ],
-      "targets": null,
+      "targets": "frontmost_app",
       "entry_points": {
         "call": {
-          "status": "reserved",
-          "owner": "#83",
-          "reason": "An identity read with its own Capability, separate from any destructive authority"
+          "status": "level2",
+          "note": "An identity read with its own Capability, separate from quitting; null while Spinnet or no App is in front"
         },
         "command": {
           "status": "not_offered",
@@ -1168,37 +1169,38 @@
     {
       "id": "apps.quit",
       "namespace": "apps",
-      "summary": "Asks the App a target names to quit, or force-quits it after a Host Confirmation.",
-      "status": "reserved",
-      "owner": "#83",
-      "input": null,
-      "result": null,
+      "summary": "Quits or force quits the App in front, or the App an App Target names, after a Host Confirmation naming it (#83).",
+      "status": "level2",
+      "input": "schemas/namespaces.schema.json#/$defs/apps.quit.input",
+      "result": "schemas/namespaces.schema.json#/$defs/apps.quit.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "quit_frontmost_app"
+      ],
       "system_permission": null,
       "failures": [
+        "capability_denied",
         "host_service_failed"
       ],
-      "targets": null,
+      "targets": "frontmost_app",
+      "default_title": "Quit",
       "entry_points": {
         "call": {
           "status": "not_offered",
-          "reason": "It may need a Host Confirmation and acts on a Host-disclosed target, so it runs after the answer commits (ADR 0018)"
+          "reason": "It needs a Host Confirmation and acts on a Host-disclosed target, so it runs after the answer commits (ADR 0018)"
         },
         "command": {
           "status": "reserved",
-          "owner": "#83",
-          "reason": "A Menu Item could quit the App in front, with the Host naming it"
+          "owner": "#83 follow-up",
+          "reason": "A Menu Item could quit the App in front, with the Host Confirmation near the pointer; no probe needs it yet"
         },
         "view_action": {
-          "status": "reserved",
-          "owner": "#83",
-          "reason": "Executed through #76's request path with the real target disclosed"
+          "status": "level2",
+          "note": "Performed through the request path, its Host Confirmation included"
         },
         "request": {
-          "status": "reserved",
-          "owner": "#83",
-          "reason": "Executed through #76's request path with the real target disclosed"
+          "status": "level2",
+          "note": "Always asks a Host Confirmation naming the App the Host resolved; never retargets after it"
         }
       },
       "level1": []
@@ -2839,6 +2841,22 @@
           "name": "insert_into_focused_app"
         }
       ]
+    },
+    {
+      "name": "read_frontmost_app",
+      "operations": [
+        "apps.frontmost"
+      ],
+      "level1": [],
+      "note": "Level 2 only (#83): identifies the App in front; it grants no exit"
+    },
+    {
+      "name": "quit_frontmost_app",
+      "operations": [
+        "apps.quit"
+      ],
+      "level1": [],
+      "note": "Level 2 only (#83): every quit and force quit asks a Host Confirmation; it reveals nothing about the App"
     }
   ],
   "not_offered": [
@@ -2977,7 +2995,7 @@
     },
     {
       "raycast": "getFrontmostApplication",
-      "spinnet": "apps.frontmost (reserved, #83)"
+      "spinnet": "apps.frontmost, under read_frontmost_app; its App Target names the App to apps.quit"
     },
     {
       "raycast": "getApplications",

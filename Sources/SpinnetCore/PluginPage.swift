@@ -55,12 +55,15 @@ public enum CollectionsContract {
     /// The View Events pages add.
     public static let events = ["item_action", "load_range", "called"]
 
-    /// The catalogue IDs a page action may perform, in the catalogue's order.
+    /// The catalogue IDs a page action may perform, in the catalogue's order:
+    /// revision 3's and those appended to Level 2 since.
     public static var viewActionIDs: [String] {
-        HostServiceCatalogue.operations
-            .filter { $0.offering(at: .viewAction) == .offered(candidate: name, level1: true)
-                || $0.offering(at: .viewAction) == .offered(candidate: name, level1: false) }
-            .map(\.id)
+        HostServiceCatalogue.operations.filter { $0.isOffered(at: .viewAction) }.map(\.id)
+    }
+
+    /// The page action IDs revision 3 offered.
+    static var promotedViewActionIDs: [String] {
+        HostServiceCatalogue.operations.filter { $0.offering(at: .viewAction).origin == name }.map(\.id)
     }
 
     /// The catalogue IDs an item action may perform on the item's text.
@@ -72,7 +75,7 @@ public enum CollectionsContract {
         name: name, revision: revision, baseLevel: 1,
         requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
         members: behaviours.map(PluginInterfaceMember.behaviour)
-            + viewActionIDs.map(PluginInterfaceMember.standardAction)
+            + promotedViewActionIDs.map(PluginInterfaceMember.standardAction)
             + componentKinds.map(PluginInterfaceMember.viewComponent)
             + events.map(PluginInterfaceMember.viewEvent),
         tag: "plugin-api-candidate/\(name)/r\(revision)"
@@ -116,6 +119,7 @@ public enum CollectionsContract {
         case "clipboard.write": return "Copy"
         case "clipboardHistory.show": return "Clipboard History"
         case "open.url": return "Open in Browser"
+        case CurrentAppAddition.quitID: return "Quit"
         default: return "Open"
         }
     }
@@ -549,7 +553,8 @@ public struct PluginPageAction: Equatable {
                 .replacingOccurrences(of: "cannot be requested in an answer", with: "is not a page action"))
         }
         title = try declaredTitle.map { try PluginPage.text($0, "The page action \(operation.perform)'s title") }
-            ?? CollectionsContract.defaultTitle(of: operation.perform)
+            ?? (operation.perform == CurrentAppAddition.quitID && (try? AppQuitRequest(input: operation.input))?.force == true
+                ? "Force Quit" : CollectionsContract.defaultTitle(of: operation.perform))
         kind = .perform(operation)
     }
 }

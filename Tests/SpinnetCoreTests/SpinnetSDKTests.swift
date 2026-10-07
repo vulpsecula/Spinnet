@@ -421,7 +421,7 @@ final class SpinnetSDKTests: XCTestCase {
     /// being removed, and wraps nothing else.
     func testTheSDKCoversEveryHostServiceTheHostRegisters() throws {
         let wrapped = Set(try wrappedServices().values)
-        let expected = Set(PluginHostService.allCases).subtracting(Self.unwrapped.keys)
+        let expected = Set(PluginHostService.levelOne).subtracting(Self.unwrapped.keys)
 
         for service in expected.subtracting(wrapped).sorted(by: { $0.rawValue < $1.rawValue }) {
             XCTFail("The SDK does not wrap \(service.rawValue). Add a camelCase wrapper for it to the area it "
@@ -444,7 +444,7 @@ final class SpinnetSDKTests: XCTestCase {
         XCTAssertEqual(declared.wrappers, wrappers.mapValues(\.rawValue),
                        "Every wrapper in spinnet.js needs a method in spinnet.d.ts tagged `@service <name>`")
         XCTAssertEqual(declared.areas, try sdkAreas())
-        XCTAssertEqual(declared.serviceNames, Set(PluginHostService.allCases.map(\.rawValue)),
+        XCTAssertEqual(declared.serviceNames, Set(PluginHostService.levelOne.map(\.rawValue)),
                        "HostServiceName in spinnet.d.ts lists every Host Service the Host registers")
     }
 

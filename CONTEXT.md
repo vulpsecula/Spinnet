@@ -201,8 +201,12 @@ Part of Plugin API Level 2: a Host Service a script asks the Host to perform aft
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-Proposed for a later Plugin API Level: a trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. No Plugin API Level 2 operation requires one.
+A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` asks one every time, for Quit and Force Quit alike.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
+
+**App Target**:
+Part of Plugin API Level 2: the Host's opaque name for one running App, given to a Plugin allowed to identify the App in front, which the Plugin may name back to the Host, as the App `apps.quit` ends. It names that App alone, never another that reuses its process ID, for that Plugin only, until the App quits, the Plugin changes or loses a Capability, or Spinnet quits. Identifying an App and ending it are separate Capabilities.
+_Avoid_: Process ID, app handle, app token
 
 ### Authority
 

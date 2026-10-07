@@ -67,6 +67,8 @@ export interface Operations {
   "open.application": { input: string | { application: string }; result: null };
   "apps.perform": { input: { bundle_id: string; operation: string; arguments?: Record<string, JSONValue> }; result: null };
   "apps.openDeepLink": { input: { template: string; parameters?: Record<string, string> }; result: null };
+  "apps.frontmost": { input: null; result: FrontmostApp | null };
+  "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
   "system.runShortcut": { input: string | { name: string; input?: string }; result: null };
   "system.runService": { input: string | { name: string; input?: string }; result: null };
   "window.read": { input: null; result: FocusedWindow };
@@ -91,7 +93,7 @@ export type ResultOf<K extends OperationID> = Operations[K]["result"];
 export type CallID =
   | "selection.readText" | "selection.replace" | "clipboard.read" | "clipboard.write"
   | "clipboardHistory.read" | "clipboardHistory.readContent" | "clipboardHistory.show"
-  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
+  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink" | "apps.frontmost"
   | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture" | "http.request" | "text.detectLanguage"
   | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear";
@@ -107,7 +109,8 @@ export type HostCommandID =
 /** IDs an answer to a gesture may request. */
 export type RequestID =
   | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
-  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink";
+  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
+  | "apps.quit";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -197,7 +200,8 @@ export type OperationReason =
   | "target_not_shown"
   | "no_target"
   | "secure_input"
-  | "target_unresponsive";
+  | "target_unresponsive"
+  | "target_protected";
 
 /**
  * The event a script receives for an operation that asked to `notify`: a
@@ -668,6 +672,34 @@ export interface AppsNamespace {
   readonly perform: Callable<"apps.perform"> & Performable<"apps.perform">;
   /** One of the Plugin's Deep Link Templates. @id apps.openDeepLink @entry call request view_action */
   readonly openDeepLink: Callable<"apps.openDeepLink"> & Performable<"apps.openDeepLink">;
+  /**
+   * The App in front, behind Spinnet's panel, or null while Spinnet or no
+   * App is in front; needs read_frontmost_app. Never a list of Apps.
+   * @id apps.frontmost @entry call
+   */
+  readonly frontmost: Callable<"apps.frontmost">;
+  /**
+   * Quits or force quits the App in front, or the App a target names,
+   * after a Host Confirmation naming it; needs quit_frontmost_app.
+   * @id apps.quit @entry request view_action
+   */
+  readonly quit: Performable<"apps.quit">;
+}
+
+/**
+ * An App Target: the Host's opaque name for one running App, given by
+ * `apps.frontmost` to this Plugin only, until the App quits, the Plugin
+ * changes or loses a Capability, or Spinnet quits.
+ */
+export type AppTarget = string;
+
+/** The App in front as `apps.frontmost` gives it. */
+export interface FrontmostApp {
+  target: AppTarget;
+  name: string;
+  bundle_id: string | null;
+  /** What `apps.quit` would do to it; empty when the Host protects it. */
+  exits: ("quit" | "force_quit")[];
 }
 
 /** The focused window. */

@@ -1,0 +1,49 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.example.current-app-probe",
+  "name": "Current App Probe",
+  "version": "1.0.0",
+  "capabilities": ["read_frontmost_app", "quit_frontmost_app"],
+  "capability_scopes": [{
+    "capability": "quit_frontmost_app",
+    "command_ids": ["probe.current", "probe.quit_front"],
+    "data_types": [], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }, {
+    "capability": "read_frontmost_app",
+    "command_ids": ["probe.current", "probe.peek"],
+    "data_types": [], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.current",
+    "default_alternate_command_ids": ["probe.quit_front", "probe.peek"]
+  },
+  "commands": [
+    {
+      "id": "probe.current",
+      "title": "Current App",
+      "description": "Names the App in front and offers to quit or force quit it.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "current.js"
+    },
+    {
+      "id": "probe.quit_front",
+      "title": "Quit App in Front",
+      "description": "Asks Spinnet to quit the App in front without reading which it is.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "quit-front.js"
+    },
+    {
+      "id": "probe.peek",
+      "title": "Peek at App in Front",
+      "description": "Reads the App in front and tries to quit it without the Capability to.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "peek.js"
+    }
+  ]
+}

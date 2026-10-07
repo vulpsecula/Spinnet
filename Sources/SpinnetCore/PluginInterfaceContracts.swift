@@ -219,7 +219,7 @@ public struct PluginInterfaceContracts: Equatable {
 
     /// What Plugin API Level 1 offers, as `PluginAPI/README.md` catalogues it.
     public static let levelOneMembers: Set<PluginInterfaceMember> = Set(
-        PluginHostService.allCases.map { .hostService($0.rawValue) }
+        PluginHostService.levelOne.map { .hostService($0.rawValue) }
             + HostCommand.allCases.map { .hostCommand($0.rawValue) }
             + ["settings", "form", "detail", "actions"].map(PluginInterfaceMember.viewComponent)
             + ["copy_text", "open_url", "insert_text", "open_plugin_settings"].map(PluginInterfaceMember.standardAction)
@@ -229,14 +229,20 @@ public struct PluginInterfaceContracts: Equatable {
 
     /// What Plugin API Level 2 adds (#79): the members of Candidate
     /// Contracts `namespaces` r1, `host_operations` r2 and `collections` r3,
-    /// promoted together.
+    /// promoted together, and what has been appended to Level 2 since while
+    /// it is open, each addition in its own term below.
     public static let levelTwoMembers: Set<PluginInterfaceMember> = Set(
         HostServiceCatalogue.promoted.members + HostOperationsContract.promoted.members
             + CollectionsContract.promoted.members
-            // Appended while Level 2 is open (#81): styles, columns, icons,
-            // images and progress.
-            + PagePresentation.members
+            + levelTwoAdditions
     )
+
+    /// The members appended to Level 2 after its promotion, while it is open.
+    public static let levelTwoAdditions: [PluginInterfaceMember] =
+        // Styles, columns, icons, images and progress (#81).
+        PagePresentation.members
+            // The App in front and its exit (#83).
+            + CurrentAppAddition.members
 
     /// Every Candidate Contract revision this Host provided before Level 2,
     /// all retired into it.

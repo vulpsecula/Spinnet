@@ -1,0 +1,8 @@
+{
+  "target": "app_fedcba9876543210fedcba9876543210",
+  "name": "Finder",
+  "bundle_id": "com.apple.finder",
+  "exits": [
+    "quit"
+  ]
+}

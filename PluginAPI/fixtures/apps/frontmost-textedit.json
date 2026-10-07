@@ -1,0 +1,9 @@
+{
+  "target": "app_0123456789abcdef0123456789abcdef",
+  "name": "TextEdit",
+  "bundle_id": "com.apple.TextEdit",
+  "exits": [
+    "quit",
+    "force_quit"
+  ]
+}

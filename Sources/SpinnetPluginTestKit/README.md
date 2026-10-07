@@ -238,6 +238,31 @@ for a Capability the Command does not declare or the test lists in
 `.failure(.insertion(.changedWithoutNames))` fails the run with
 `insertion_target_changed`, as a changed target fails it in the Host.
 
+## The App in front
+
+`RecordedApps` stands for the desktop for `apps.frontmost` and `apps.quit`
+(Plugin API Level 2, `PluginAPI/reference/apps.md`): which App is in front,
+which run, and the exits performed. Give it to `RecordedHostServices(apps:)`
+and `RecordedHostOperations(apps:confirmation:)`; both use the Host's own App
+Targets, protection rules and identity checks, so a target outlives neither
+its App nor a relaunch reusing its process ID.
+
+```swift
+let apps = RecordedApps(front: .textEdit, running: [.safari])
+let opened = try helper.run(PluginTestInvocation("current.show"), of: plugin,
+                            answering: RecordedHostServices(apps: apps)).answer()
+// ... the user chooses Quit, whose answer requests apps.quit with the target
+let operations = RecordedHostOperations(apps: apps)          // the user confirms
+operations.whileConfirming = { apps.quit(.textEdit) }       // or revoke a Capability
+let performed = try XCTUnwrap(operations.perform(run, of: plugin, for: quit))
+XCTAssertEqual(performed.confirmation?.title, "Quit TextEdit?")
+XCTAssertEqual(performed.outcome, .refused(.noTarget))
+```
+
+`confirmation: .declined` declines the Host Confirmation and `nil` leaves it
+to expire. `apps.exits` lists what was quit; `performed.message` is the
+Host's own text, which may name the App and never reaches the Plugin.
+
 ## Using the Host's own services
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and

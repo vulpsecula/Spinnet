@@ -1,0 +1,12 @@
+{
+  "toast": "Asking Spinnet to force quit",
+  "operation": {
+    "perform": "apps.quit",
+    "input": {
+      "target": "app_0123456789abcdef0123456789abcdef",
+      "force": true
+    },
+    "id": "force",
+    "notify": true
+  }
+}

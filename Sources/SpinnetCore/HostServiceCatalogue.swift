@@ -23,8 +23,9 @@ public enum HostServiceEntryPoint: String, CaseIterable, Hashable {
 
 /// How the catalogue offers a Host Service at one entry point.
 public enum HostServiceOffering: Hashable {
-    /// Offered in its catalogue-ID form by `candidate`. `level1` says Plugin
-    /// API Level 1 already offers it there under a Level 1 name.
+    /// Offered in its catalogue-ID form by `candidate`, or by Level 2 itself
+    /// (`level_2`) for an addition made while Level 2 is open. `level1` says
+    /// Plugin API Level 1 already offers it there under a Level 1 name.
     case offered(candidate: String, level1: Bool)
     /// Kept for a later revision or another ticket; naming it there is
     /// refused.
@@ -34,6 +35,12 @@ public enum HostServiceOffering: Hashable {
     public var isOffered: Bool {
         if case .offered = self { return true }
         return false
+    }
+
+    /// The Candidate Contract, or `level_2`, that first offered it here.
+    public var origin: String? {
+        if case .offered(let candidate, _) = self { return candidate }
+        return nil
     }
 }
 
@@ -132,8 +139,8 @@ public enum HostServiceCatalogue {
     /// rules a Level 2 Plugin gets.
     public static let promoted = CandidateContract(
         name: candidateName, revision: revision, baseLevel: 1,
-        members: operations.filter { $0.isOffered(at: .call) }.map { .hostService($0.id) }
-            + operations.filter { $0.isOffered(at: .command) }.map { .hostCommand($0.id) }
+        members: operations.filter { $0.offering(at: .call).origin == candidateName }.map { .hostService($0.id) }
+            + operations.filter { $0.offering(at: .command).origin == candidateName }.map { .hostCommand($0.id) }
             + [catalogueIDsOnly.name, "primary_member_shorthand", "command_fixed_input", "configured_input_authority",
                "operation_failures_at_every_entry_point", "screen_capture_preferences", "namespaced_sdk"]
                 .map(PluginInterfaceMember.behaviour),
@@ -161,6 +168,8 @@ public enum HostServiceCatalogue {
     private static let collections = HostServiceOffering.offered(candidate: "collections", level1: true)
     private static let collectionsNew = HostServiceOffering.offered(candidate: "collections", level1: false)
     private static let operationsNew = HostServiceOffering.offered(candidate: "host_operations", level1: false)
+    /// Added to Level 2 itself while it is open.
+    private static let levelTwo = HostServiceOffering.offered(candidate: CurrentAppAddition.origin, level1: false)
     private static let calledOnly: [HostServiceEntryPoint: HostServiceOffering] = [
         .call: ns, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered
     ]
@@ -257,8 +266,13 @@ public enum HostServiceCatalogue {
         define("apps.openDeepLink", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
                capabilities: [.controlExternalApp], failures: [.capabilityDenied, .externalAppMissing, .hostServiceFailed],
                input: ["template", "parameters"], services: [.openDeepLink], commands: [.openDeepLink]),
-        reserve("apps.frontmost", at: [.call]),
-        reserve("apps.quit", at: [.command, .viewAction, .request]),
+        // The App in front and its exit (#83), appended to Level 2.
+        define(CurrentAppAddition.frontmostID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered,
+                                                .request: .notOffered],
+               capabilities: [.readFrontmostApp], failures: failures, services: []),
+        define(CurrentAppAddition.quitID, [.call: .notOffered, .command: .reserved, .viewAction: levelTwo,
+                                           .request: levelTwo],
+               capabilities: [.quitFrontmostApp], failures: failures, input: ["target", "force"]),
 
         define("system.runShortcut", [.call: .reserved, .command: ns, .viewAction: .reserved, .request: .reserved],
                primary: "name", input: ["name", "input"], commands: [.invokeShortcut]),
@@ -500,7 +514,7 @@ public extension PluginInterfaceContracts {
             return .success(PluginRuntimeHostServiceRequest(invocationID: call.invocationID, actionID: call.actionID,
                                                             requestID: call.requestID, service: service, input: call.input))
         }
-        if let levelOne = PluginHostService(rawValue: call.name) {
+        if let levelOne = PluginHostService(rawValue: call.name), levelOne.isLevelOne {
             return refuse(.levelOneName(call.name, replacements: HostServiceCatalogue.ids(replacing: levelOne), use: .call))
         }
         guard permits(.hostService(call.name), declaredBy: manifest),
@@ -545,6 +559,8 @@ extension HostServiceDefinition {
             // Launching an application by path is already what
             // `open_local_path` grants (design 6.3).
             service = .openLocalPath
+        case CurrentAppAddition.frontmostID:
+            service = .identifyFrontmostApp
         default:
             guard levelOneHostServices.count == 1 else {
                 throw PluginHostServiceError.unavailable("\(id) has no implementation for a call")

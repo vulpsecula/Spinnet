@@ -100,7 +100,7 @@ final class HostServiceCatalogueTests: XCTestCase {
     /// Every Level 1 Host Service and Host Command has an ID, so a refusal
     /// can always name the one to use instead.
     func testEveryLevelOneNameHasAnID() {
-        for service in PluginHostService.allCases {
+        for service in PluginHostService.levelOne {
             XCTAssertEqual(HostServiceCatalogue.ids(replacing: service).count, 1, service.rawValue)
         }
         for command in HostCommand.allCases {

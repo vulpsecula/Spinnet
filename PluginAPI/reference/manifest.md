@@ -152,11 +152,14 @@ credentials, or wildcards. A scope is persisted with its grant: any change
 requires a new decision, even if the version string is reused.
 
 `read_selected_text`, `write_clipboard`, `position_focused_window`,
-`open_url`, `open_local_path` and `capture_screen` need no scope; every other
-Capability does. A scope that is declared anyway for `read_selected_text` or
-`write_clipboard`, like the required one for `insert_into_focused_app`, may
-name Command IDs and the `text` data type only; for the other four it may name
-Command IDs only. `read_current_clipboard`, `read_clipboard_history` and
+`open_url`, `open_local_path`, `capture_screen`, `read_frontmost_app` and
+`quit_frontmost_app` need no scope; every other Capability does. A scope that
+is declared anyway for `read_selected_text` or `write_clipboard`, like the
+required one for `insert_into_focused_app`, may name Command IDs and the
+`text` data type only; for the other six it may name Command IDs only.
+`read_frontmost_app` and `quit_frontmost_app` are Plugin API Level 2's
+([the App in front](apps.md)): a manifest declaring `api_level` 1 that
+declares either is refused. `read_current_clipboard`, `read_clipboard_history` and
 `monitor_clipboard` scopes must name data types. History declarations must name data types and disclose access to
 retained Host data. Contact and External App declarations must name hosts and
 operation families or Deep Link Templates, respectively. None of these

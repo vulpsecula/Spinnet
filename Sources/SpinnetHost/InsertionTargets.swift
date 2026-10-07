@@ -216,19 +216,28 @@ final class HostOperationsPerformer: HostOperationPerformer {
     private let broker: () -> CapabilityCheckedHostServiceBroker?
     private let inserter: TargetedTextInserter
     private let openPluginSettings: (PluginID) -> Void
+    /// Quits and force quits for `apps.quit` (#83), after its Host
+    /// Confirmation.
+    private let exits: AppExitPerformer?
     private let queue = DispatchQueue(label: "com.vulpsecula.Spinnet.host-operations", qos: .userInitiated)
 
     init(registry: PluginRegistry, broker: @escaping () -> CapabilityCheckedHostServiceBroker?,
-         inserter: TargetedTextInserter, openPluginSettings: @escaping (PluginID) -> Void) {
+         inserter: TargetedTextInserter, exits: AppExitPerformer? = nil,
+         openPluginSettings: @escaping (PluginID) -> Void) {
         self.registry = registry
         self.broker = broker
         self.inserter = inserter
+        self.exits = exits
         self.openPluginSettings = openPluginSettings
     }
 
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws {
         guard let package = registry.package(for: action.pluginID) else {
             throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
+        }
+        if operation.perform == CurrentAppAddition.quitID, let definition = operation.definition {
+            guard let broker = broker() else { throw PluginHostServiceError.unavailable("Host Services") }
+            return try broker.authorize(definition, for: package, action: action)
         }
         guard let (service, _) = try operation.implementation() else {
             // `host.showPluginSettings` needs nothing but the Plugin's own Command.
@@ -273,6 +282,21 @@ final class HostOperationsPerformer: HostOperationPerformer {
             }
             return
         }
+        if operation.perform == CurrentAppAddition.quitID {
+            guard let exits, let request = try? AppQuitRequest(input: operation.input) else {
+                return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot quit Apps"))
+            }
+            let name = registry.package(for: action.pluginID)?.manifest.name ?? action.pluginID.rawValue
+            exits.perform(request, for: action, pluginName: name, authorize: { [weak self] in
+                guard let self else { throw PluginHostServiceError.unavailable("Host Services") }
+                guard self.registry.package(for: action.pluginID) != nil,
+                      !Self.commandIsGone(self.registry.availability(for: action)) else {
+                    throw PluginHostServiceError.unavailable("The Plugin or its Command is no longer available")
+                }
+                try self.authorize(operation, for: action)
+            }, completion: completion)
+            return
+        }
         guard let implementation = try? operation.implementation() else {
             openPluginSettings(action.pluginID)
             return completion(HostOperationResult(.succeeded))
@@ -295,5 +319,9 @@ final class HostOperationsPerformer: HostOperationPerformer {
             }
             DispatchQueue.main.async { completion(result) }
         }
+    }
+
+    func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd) {
+        exits?.abandon(pluginID, because: reason)
     }
 }

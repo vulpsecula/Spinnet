@@ -17,12 +17,22 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// Typing text into the focused App in place of its selection. Separate
     /// from `write_clipboard`: inserting changes a document, copying does not.
     case insertIntoFocusedApp = "insert_into_focused_app"
+    /// Plugin API Level 2 (#83): identifying the App in front, by its name,
+    /// bundle identifier and an App Target. Separate from quitting it.
+    case readFrontmostApp = "read_frontmost_app"
+    /// Plugin API Level 2 (#83): asking the Host to quit or force quit the
+    /// App in front, or one an App Target names, after a Host Confirmation.
+    /// It tells the Plugin nothing about the App.
+    case quitFrontmostApp = "quit_frontmost_app"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
-         .controlExternalApp, .insertIntoFocusedApp].contains(self)
+         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp].contains(self)
     }
+
+    /// The lowest Plugin API Level whose Plugins may declare it.
+    public var apiLevel: Int { CurrentAppAddition.capabilities.contains(self) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -40,6 +50,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .openLocalPath: return "Open Local Files and Folders"
         case .captureScreen: return "Capture the Screen"
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
+        case .readFrontmostApp: return "Identify the App in Front"
+        case .quitFrontmostApp: return "Quit the App in Front"
         }
     }
 
@@ -60,6 +72,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .openLocalPath: return "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents."
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
+        case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would quit it. Never a list of your Apps."
+        case .quitFrontmostApp: return "Ask Spinnet to quit or force quit the App in front, or one the Plugin identified. Spinnet names the App and asks you every time; it never quits Spinnet or parts of macOS, and never force quits Finder."
         }
     }
 }
@@ -495,6 +509,15 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// The names of the Plugin's keys, without their values.
     case listStorageKeys = "list_storage_keys"
     case clearStorage = "clear_storage"
+    /// Plugin API Level 2's `apps.frontmost` (#83), which has no Level 1
+    /// name: the App in front and its App Target.
+    case identifyFrontmostApp = "apps.frontmost"
+
+    /// The services of Plugin API Level 1, under their Level 1 names.
+    public static let levelOne = allCases.filter(\.isLevelOne)
+
+    /// Whether Plugin API Level 1 offers it under its raw value.
+    public var isLevelOne: Bool { self != .identifyFrontmostApp }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -525,6 +548,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
+        case .identifyFrontmostApp:
+            return .readFrontmostApp
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
         }
@@ -547,6 +572,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
+        case .identifyFrontmostApp:
+            return nil
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
         }
@@ -693,6 +720,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     /// preferences say, for a call of `screen.capture` naming only a source
     /// (decision N9).
     private let preferredScreenCapturer: (ScreenCaptureSource) throws -> Void
+    /// `apps.frontmost`'s result for a Plugin: the App in front with the App
+    /// Target the Host gives that Plugin for it, or null.
+    private let frontmostAppIdentifier: (PluginID) throws -> JSONValue
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -750,6 +780,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         preferredScreenCapturer: @escaping (ScreenCaptureSource) throws -> Void = { _ in
             throw PluginHostServiceError.unavailable("Screen capture")
+        },
+        frontmostAppIdentifier: @escaping (PluginID) throws -> JSONValue = { _ in
+            throw PluginHostServiceError.unavailable("The App in front")
         }
     ) {
         self.grantStore = grantStore
@@ -778,6 +811,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.pluginStorage = pluginStorage
         self.applicationOpener = applicationOpener
         self.preferredScreenCapturer = preferredScreenCapturer
+        self.frontmostAppIdentifier = frontmostAppIdentifier
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -786,6 +820,20 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     /// Permission. A Plugin View's standard actions are checked the same way.
     public func authorize(_ service: PluginHostService, for package: PluginPackage,
                           action: ActionConfiguration) throws {
+        try authorize(service.requiredCapability.map { [$0] } ?? [], permission: service.requiredSystemPermission,
+                      for: package, action: action)
+    }
+
+    /// The same check for an operation of the catalogue that no Level 1
+    /// Host Service performs, such as `apps.quit`: the Capabilities and
+    /// System Permission the catalogue gives it.
+    public func authorize(_ operation: HostServiceDefinition, for package: PluginPackage,
+                          action: ActionConfiguration) throws {
+        try authorize(operation.capabilities, permission: operation.systemPermission?.checked, for: package, action: action)
+    }
+
+    private func authorize(_ capabilities: [PluginCapability], permission: PluginSystemPermission?,
+                           for package: PluginPackage, action: ActionConfiguration) throws {
         grantStore.register(
             pluginID: package.manifest.id,
             pluginVersion: package.manifest.version,
@@ -793,7 +841,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         )
         let isPluginsOwnAction = package.manifest.id == action.pluginID
             && package.manifest.commands.contains(where: { $0.matchesExecutableDefinition(action.declaredCommand) })
-        if let capability = service.requiredCapability {
+        for capability in capabilities {
             guard isPluginsOwnAction,
                   package.manifest.declares(capability, for: action.commandID),
                   grantStore.decision(
@@ -804,12 +852,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                   ) == .granted else {
                 throw PluginHostServiceError.capabilityDenied(capability)
             }
-        } else if !isPluginsOwnAction {
+        }
+        if capabilities.isEmpty, !isPluginsOwnAction {
             throw PluginHostServiceError.failed("The Action is not one of this Plugin's Commands")
         }
 
-        if let permission = service.requiredSystemPermission,
-           !systemPermissionCheck(permission) {
+        if let permission, !systemPermissionCheck(permission) {
             throw PluginHostServiceError.systemPermissionDenied(permission)
         }
     }
@@ -998,6 +1046,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 try focusedTextInserter(text)
             }
             return .null
+        case .identifyFrontmostApp:
+            guard request.input == .null else {
+                throw PluginHostServiceError.invalidInput("apps.frontmost takes no input")
+            }
+            return try frontmostAppIdentifier(package.manifest.id)
         case .detectLanguage:
             guard case .string(let text) = request.input else {
                 throw PluginHostServiceError.invalidInput("detect_language expects a text string")

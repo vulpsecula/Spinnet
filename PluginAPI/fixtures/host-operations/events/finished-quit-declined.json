@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "operation": "quit",
+  "perform": "apps.quit",
+  "outcome": "declined"
+}

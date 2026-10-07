@@ -227,12 +227,14 @@ Handing a link, path or application to the App that opens it.
 
 ### `apps`
 
-External App integration through Reviewed App Interfaces and Deep Link Templates; later the App in front (#83).
+External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it and quitting it ([the App in front](apps.md)).
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | null | call, Command, page action, request | `control_external_app`, Automation (macOS asks) |
 | `apps.openDeepLink` | `{template, parameters?}` | null | call, Command, page action, request | `control_external_app` |
+| `apps.frontmost` | none | `{target, name, bundle_id, exits}` or null | call | `read_frontmost_app` |
+| `apps.quit` | `{target?, force?}` or none | null | page action, request | `quit_frontmost_app`, and a Host Confirmation every time |
 
 ### `system`
 
@@ -306,7 +308,6 @@ until a later Level adds it.
 | `host.launchCommand` | README, candidates for later levels | Running another Command of the Plugin in the same View Session |
 | `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
 | `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
-| `apps.frontmost`, `apps.quit` | #83 | The App in front as an opaque target; quitting it |
 | `system.keepAwake` | #84 | A Host-owned keep-awake effect |
 | `system.metrics` | #86 | Basic metrics while the view is visible |
 | `activities.list`, `activities.stop` | #84, #88 | The Plugin's running effects and tasks |

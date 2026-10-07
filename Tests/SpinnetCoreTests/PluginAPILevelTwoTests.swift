@@ -35,15 +35,16 @@ final class PluginAPILevelTwoTests: XCTestCase {
     }
 
     /// Level 2 adds exactly the members of the promoted revision of each of
-    /// the three candidates; Level 1 is unchanged; and every revision of
-    /// the three is retired into Level 2.
+    /// the three candidates and what has been appended to it since, while
+    /// it is open; Level 1 is unchanged; and every revision of the three is
+    /// retired into Level 2.
     func testLevelTwoIsThePromotedRevisionsOfTheThreeCandidates() {
         XCTAssertEqual(host.levels[1], PluginInterfaceContracts.levelOneMembers)
         XCTAssertEqual(host.levels[2], Set(HostServiceCatalogue.promoted.members
                                            + HostOperationsContract.promoted.members
                                            + CollectionsContract.promoted.members
-                                           // Appended while Level 2 is open (#81).
-                                           + PagePresentation.members))
+                                           + PluginInterfaceContracts.levelTwoAdditions))
+        XCTAssertTrue(Set(PluginInterfaceContracts.levelTwoAdditions).isDisjoint(with: PluginInterfaceContracts.levelOneMembers))
         XCTAssertEqual(Set(host.levels.keys), [1, 2])
         XCTAssertEqual(host.candidates.map { "\($0.name) r\($0.revision)" },
                        ["namespaces r1", "host_operations r1", "host_operations r2",

@@ -59,6 +59,14 @@
       "then": { "properties": { "commands": { "items": { "$ref": "#/$defs/command" } } } }
     },
     {
+      "if": { "properties": { "api_level": { "maximum": 1 } } },
+      "then": {
+        "properties": {
+          "capabilities": { "items": { "$ref": "#/$defs/levelOneCapability" } }
+        }
+      }
+    },
+    {
       "if": { "properties": { "api_level": { "minimum": 2 } } },
       "then": { "properties": { "commands": { "items": { "$ref": "namespaces.schema.json#/$defs/command" } } } }
     }
@@ -72,6 +80,25 @@
       "pattern": "\\S"
     },
     "capability": {
+      "enum": [
+        "read_selected_text",
+        "write_clipboard",
+        "read_current_clipboard",
+        "read_clipboard_history",
+        "monitor_clipboard",
+        "contact_https",
+        "control_external_app",
+        "position_focused_window",
+        "open_url",
+        "open_local_path",
+        "capture_screen",
+        "insert_into_focused_app",
+        "read_frontmost_app",
+        "quit_frontmost_app"
+      ]
+    },
+    "levelOneCapability": {
+      "description": "The Capabilities a Plugin API Level 1 manifest may declare; read_frontmost_app and quit_frontmost_app are Level 2's (#83).",
       "enum": [
         "read_selected_text",
         "write_clipboard",

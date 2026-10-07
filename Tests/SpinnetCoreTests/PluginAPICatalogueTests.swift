@@ -52,7 +52,7 @@ final class PluginAPICatalogueTests: XCTestCase {
     /// also a Capability mentioned elsewhere.
     func testTheCatalogueListsEveryHostServiceTheHostRegisters() throws {
         let listed = try publishedTableColumn(2, under: "### Host Services, by SDK namespace", in: "README.md")
-        XCTAssertEqual(listed.sorted(), PluginHostService.allCases.map(\.rawValue).sorted())
+        XCTAssertEqual(listed.sorted(), PluginHostService.levelOne.map(\.rawValue).sorted())
     }
 
     /// The tables of the views page list exactly what the schemas allow.
@@ -76,7 +76,12 @@ final class PluginAPICatalogueTests: XCTestCase {
 
     func testTheCatalogueListsEveryHostCommandAndCapability() throws {
         try assertCatalogued(HostCommand.allCases.map(\.rawValue), "Host Command")
-        try assertCatalogued(PluginCapability.allCases.map(\.rawValue), "Capability")
+        try assertCatalogued(PluginCapability.allCases.filter { $0.apiLevel == 1 }.map(\.rawValue), "Capability")
+        // Level 2's own Capabilities are in its section.
+        let readme = try String(contentsOf: Self.pluginAPI.appendingPathComponent("README.md"), encoding: .utf8)
+        for capability in PluginCapability.allCases where capability.apiLevel == 2 {
+            XCTAssertTrue(readme.contains("`\(capability.rawValue)`"), "The README misses \(capability.rawValue)")
+        }
     }
 
     func testTheCatalogueListsEveryViewComponentStandardActionAndEvent() throws {

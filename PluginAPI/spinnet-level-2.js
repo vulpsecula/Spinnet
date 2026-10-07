@@ -30,7 +30,7 @@
     clipboard: ["read", "write"],
     clipboardHistory: ["read", "readContent", "show"],
     open: ["url", "path", "application"],
-    apps: ["perform", "openDeepLink"],
+    apps: ["perform", "openDeepLink", "frontmost"],
     window: ["read", "setFrame", "toggleFullScreen", "restore"],
     screen: ["capture"],
     http: ["request"],
@@ -39,14 +39,14 @@
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
-  // by namespace: the same nine.
+  // by namespace: the same ones.
   const performed = {
     host: ["showPluginSettings"],
     selection: ["replace"],
     clipboard: ["write"],
     clipboardHistory: ["show"],
     open: ["url", "path", "application"],
-    apps: ["perform", "openDeepLink"]
+    apps: ["perform", "openDeepLink", "quit"]
   };
 
   function compact(members) {

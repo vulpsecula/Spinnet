@@ -18,6 +18,9 @@ public struct HostOperationResult: Equatable {
         let category: ActionFailureCategory
         switch outcome {
         case .succeeded: return nil
+        // The user declined, or closed the view the confirmation was in:
+        // their own answer needs no word.
+        case .declined where message == nil: return nil
         case .declined, .expired, .cancelled: category = .cancelled
         case .refused(let reason), .failed(let reason):
             switch reason {
@@ -28,7 +31,7 @@ public struct HostOperationResult: Equatable {
             case .externalAppOperationUnsupported: category = .externalAppOperationUnsupported
             case .commandUnavailable: category = .commandUnavailable
             case .targetChanged: category = .insertionTargetChanged
-            case .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive:
+            case .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive, .targetProtected:
                 category = .hostServiceFailed
             }
         }
@@ -51,6 +54,16 @@ public protocol HostOperationPerformer: AnyObject {
     /// gesture.
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration,
                  target: InsertionTargetCapture, completion: @escaping (HostOperationResult) -> Void)
+    /// The owner of the Plugin's running operation ended, or the Plugin
+    /// changed: an operation still waiting for a Host Confirmation stops
+    /// waiting and reports its outcome, declined when the user closed the
+    /// view and cancelled otherwise. One already performing its effect
+    /// finishes.
+    func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd)
+}
+
+public extension HostOperationPerformer {
+    func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd) {}
 }
 
 /// The Requested Host Operations of every Plugin (ADR 0018), confined to the
@@ -152,6 +165,7 @@ final class HostOperationRequests {
             }
             current.request.ownerEnded = (session.state, reason)
             active[pluginID] = current
+            performer.abandon(pluginID, because: reason)
         }
         freeIfIdle(pluginID)
     }
@@ -162,6 +176,7 @@ final class HostOperationRequests {
     func cancelWaiting(of pluginID: PluginID, because reason: PluginViewSessionEnd) {
         let cancelled = waiting.removeValue(forKey: pluginID) ?? []
         for request in cancelled { cancel(request, because: reason) }
+        if active[pluginID]?.phase == .executing { performer.abandon(pluginID, because: reason) }
         freeIfIdle(pluginID)
     }
 
@@ -218,7 +233,10 @@ final class HostOperationRequests {
         // `closes_view`, still reaches the Action that asked, once and
         // without a view. One whose Plugin changed, lost a Capability or
         // broke the interface does not.
-        if request.operation.notify, request.deliversAfterClose, result.outcome != .cancelled,
+        // Only an outcome of an operation that ran: one cancelled, or whose
+        // Host Confirmation the close declined, is not delivered so.
+        if request.operation.notify, request.deliversAfterClose,
+           ![.cancelled, .declined, .expired].contains(result.outcome),
            let ended = active[pluginID]?.request.ownerEnded, ended.reason == .viewClosed || ended.reason == .closedByPlugin {
             active[pluginID]?.phase = .awaitingAnswer
             deliverAfterClose(request.action,

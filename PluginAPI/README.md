@@ -17,6 +17,7 @@ licence.
 | [`reference/namespaces.md`](reference/namespaces.md) | Level 2: every Host Service under one `namespace.verb` ID, where each is offered, its input and authority |
 | [`reference/host-operations.md`](reference/host-operations.md) | Level 2: Requested Host Operations an answer commits and the Host performs, their outcomes, and where insertion goes in a View Session |
 | [`reference/pages.md`](reference/pages.md) | Level 2: pages of identified components with a List or Grid, the input the Host keeps, windows of items, and Explicit Calls into the open View Session |
+| [`reference/apps.md`](reference/apps.md) | Level 2: the App in front, its App Target, and quitting it after a Host Confirmation |
 | [`reference/level-1-names.md`](reference/level-1-names.md) | Level 2: every Level 1 name and the catalogue ID that replaces it |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json`, the `list` field and `migrations` included |
 | [`schemas/plugin-view.schema.json`](schemas/plugin-view.schema.json) | The Plugin View a script answers with |
@@ -30,7 +31,7 @@ licence.
 | [`schemas/pages.schema.json`](schemas/pages.schema.json) | Level 2: pages, their components and collections, and their events |
 | [`schemas/catalogue.schema.json`](schemas/catalogue.schema.json) | The shape of `catalogue.json` |
 | [`catalogue.json`](catalogue.json) | Level 2's Plugin API catalogue: every operation, where it is offered, its authority and the Level 1 names it replaces |
-| [`fixtures/`](fixtures/pages/index.json) | Level 2: valid and invalid answers and events for [pages](fixtures/pages/index.json) and [Requested Host Operations](fixtures/host-operations/index.json) |
+| [`fixtures/`](fixtures/pages/index.json) | Level 2: valid and invalid answers and events for [pages](fixtures/pages/index.json) and [Requested Host Operations](fixtures/host-operations/index.json), and [the App in front](fixtures/apps/index.json)'s results and inputs |
 | [`spinnet.d.ts`](spinnet.d.ts) | Types for the globals a script runs with, including `spinnet` |
 | [`spinnet.js`](spinnet.js) | Source of the `spinnet` SDK object the helper injects into every Level 1 script |
 | [`spinnet-level-2.d.ts`](spinnet-level-2.d.ts) | Types for a Level 2 script's `spinnet`, `event` and answers |
@@ -209,6 +210,8 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `open.application` | call, Command, page action, request | `open_local_path`; as a Command, none | none |
 | `apps` | `apps.perform` | call, Command, page action, request | `control_external_app` | Automation, asked by macOS |
 |  | `apps.openDeepLink` | call, Command, page action, request | `control_external_app` | none |
+|  | `apps.frontmost` | call | `read_frontmost_app` | none |
+|  | `apps.quit` | page action, request, after a Host Confirmation | `quit_frontmost_app` | none |
 | `system` | `system.runShortcut` | Command | none | none |
 |  | `system.runService` | Command | none | none |
 | `window` | `window.read` | call | `position_focused_window` | Accessibility |
@@ -224,8 +227,7 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `storage.keys` | call | none | none |
 |  | `storage.clear` | call | none | none |
 
-The IDs `catalogue.json` reserves, such as `apps.frontmost` and
-`system.keepAwake`, are refused until a later Level adds them, and
+The IDs `catalogue.json` reserves, such as `system.keepAwake`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
 and `system.runService` are offered only as Commands, whose input the user
 configures.
@@ -277,6 +279,16 @@ inserts, which must be the App the Host showed when the user acted.
 View Events add `item_action`, `load_range`, `called` (an Explicit Call
 into the open View Session) and `operation_finished` to Level 1's.
 
+### The App in front
+
+`spinnet.apps.frontmost()` identifies the App behind Spinnet's panel, under
+`read_frontmost_app`: its name, bundle identifier and an App Target, an
+opaque name the Plugin may give back to the Host, never a process list or ID.
+`spinnet.apps.quit` asks the Host to quit or force quit that App, or the one
+a target names, under `quit_frontmost_app`, and the Host asks the user first
+every time in a Host Confirmation naming it. Only a Level 2 manifest may
+declare the two Capabilities ([the App in front](reference/apps.md)).
+
 ### Level 1 at Level 2
 
 Level 1 is unchanged: a Plugin declaring `api_level: 1` keeps every Level 1
@@ -300,7 +312,6 @@ Progress, icons and images (#81).
 | Candidate | The need that would bring it in |
 | --- | --- |
 | Selected Finder items | A Command that acts on the files the user has selected in Finder, such as converting or sharing them |
-| The frontmost application | A Command whose behaviour depends on the App in front, such as a per-App shortcut or reading the current browser page |
 | Revealing a file in Finder | A Command that shows the user where something is, rather than opening it, as `open_local_path` does |
 | Icons beyond pages | Menu Items or buttons that need a picture to tell them apart |
 | Images the Plugin produces | A view that shows an image the script itself made, such as a QR code, or copies one to the clipboard |

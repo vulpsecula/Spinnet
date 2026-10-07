@@ -1,0 +1,9 @@
+{
+  "operation": {
+    "perform": "apps.quit",
+    "input": {
+      "target": "frontmost",
+      "force": true
+    }
+  }
+}

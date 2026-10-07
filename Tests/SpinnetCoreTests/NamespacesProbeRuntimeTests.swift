@@ -73,8 +73,8 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         for (script, message) in [
             (#"spinnet.environment && requestHostService("system.runShortcut", "Focus")"#,
              "system.runShortcut is reserved: no Plugin API Level lets a script call it yet"),
-            (#"requestHostService("apps.frontmost")"#,
-             "apps.frontmost is reserved: no Plugin API Level lets a script call it yet"),
+            (#"requestHostService("system.metrics")"#,
+             "system.metrics is reserved: no Plugin API Level lets a script call it yet"),
             (#"requestHostService("selection.paste")"#, "selection.paste cannot be called from a script; a Command can run it"),
             (#"requestHostService("host.toast", "Hi")"#, "host.toast cannot be called from a script; a Command can run it"),
             (#"requestHostService("clipboard.copyAll")"#, "clipboard.copyAll is not a Host Service of the Plugin API catalogue")

@@ -54,7 +54,7 @@ final class CandidateContractCatalogueTests: XCTestCase {
             return XCTFail("The view schemas do not describe their components")
         }
 
-        XCTAssertEqual(names(.hostService), PluginHostService.allCases.map(\.rawValue).sorted())
+        XCTAssertEqual(names(.hostService), PluginHostService.levelOne.map(\.rawValue).sorted())
         XCTAssertEqual(names(.hostCommand), strings(in: hostCommand["enum"]).sorted())
         XCTAssertEqual(names(.request), [], "Level 1 has no Requested Host Operations")
         XCTAssertEqual(names(.viewComponent), viewMembers.keys.filter { $0 != "title" && $0 != "subtitle" }.sorted())

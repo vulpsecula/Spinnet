@@ -71,7 +71,7 @@
       "file": "answers/reserved-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "apps.quit is reserved for #83 and not an operation Level 2 requests"
+      "note": "host.confirm is reserved: no Level requests it yet"
     },
     {
       "file": "answers/level1-name.json",
@@ -198,6 +198,54 @@
       "definition": "event",
       "valid": false,
       "note": "Keyboard-event insertion cannot tell whether the App took the text, so text_rejected is not a reason at Level 2"
+    },
+    {
+      "file": "answers/quit-front-app.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Current App asks to quit the App in front, which the Host names in its Host Confirmation, and to hear the outcome (#83)"
+    },
+    {
+      "file": "answers/force-quit-target.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Force Quit of the App an App Target from apps.frontmost names, with a toast (#83)"
+    },
+    {
+      "file": "answers/quit-unknown-member.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "apps.quit takes no process ID or any member but target and force: there is no kill by process"
+    },
+    {
+      "file": "answers/quit-malformed-target.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A target is an App Target apps.frontmost gave, never a word such as frontmost"
+    },
+    {
+      "file": "answers/quit-force-not-boolean.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "force is true or false"
+    },
+    {
+      "file": "events/finished-quit-protected.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The Host never force quits this App, such as Finder; nothing was done and the App is not named"
+    },
+    {
+      "file": "events/finished-quit-declined.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The user declined the Host Confirmation"
+    },
+    {
+      "file": "events/finished-quit-declined-after-close.json",
+      "definition": "event",
+      "valid": false,
+      "note": "A confirmation the close declined is never delivered after the view closed"
     }
   ]
 }

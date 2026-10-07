@@ -139,7 +139,7 @@
       ]
     },
     "reason": {
-      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace a reason about its target. No reason names the App, its bundle ID, process or window.",
+      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace and apps.quit a reason about its target: apps.quit is refused with no_target when Spinnet or no App is in front or the App quit, and target_protected for an App the Host never ends that way. No reason names the App, its bundle ID, process or window.",
       "enum": [
         "capability_denied",
         "system_permission_denied",
@@ -152,7 +152,8 @@
         "target_not_shown",
         "no_target",
         "secure_input",
-        "target_unresponsive"
+        "target_unresponsive",
+        "target_protected"
       ]
     },
     "operation_finished_members": {

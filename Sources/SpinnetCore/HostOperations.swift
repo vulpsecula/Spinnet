@@ -30,11 +30,15 @@ public enum HostOperationsContract {
     /// `insertion_target_changed`.
     public static let insertionTargetChangedFailure = PluginInterfaceMember.behaviour("insertion_target_changed_failure")
 
-    /// The catalogue IDs an answer may request, in the catalogue's order.
+    /// The catalogue IDs an answer may request, in the catalogue's order:
+    /// revision 2's and those appended to Level 2 since.
     public static var requestIDs: [String] {
-        HostServiceCatalogue.operations
-            .filter { $0.offering(at: .request) == .offered(candidate: name, level1: false) }
-            .map(\.id)
+        HostServiceCatalogue.operations.filter { $0.isOffered(at: .request) }.map(\.id)
+    }
+
+    /// The request IDs revision 2 offered.
+    static var promotedRequestIDs: [String] {
+        HostServiceCatalogue.operations.filter { $0.offering(at: .request).origin == name }.map(\.id)
     }
 
     /// An operation that asked to `notify` and whose view closed before its
@@ -47,7 +51,7 @@ public enum HostOperationsContract {
     /// 2 holds.
     public static let promoted = CandidateContract(
         name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
-        members: [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
+        members: [answerOperation] + promotedRequestIDs.map(PluginInterfaceMember.request)
             + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure,
                outcomeAfterClose],
         tag: "plugin-api-candidate/\(name)/r\(revision)"
@@ -156,9 +160,10 @@ public struct RequestedHostOperation: Equatable, Hashable {
 
     /// The Level 1 Host Service that performs the request and its input as
     /// that service takes it, as for a call of the same ID; nil for
-    /// `host.showPluginSettings`, which the Host performs itself.
+    /// `host.showPluginSettings` and `apps.quit`, which the Host performs
+    /// itself.
     public func implementation() throws -> (service: PluginHostService, input: JSONValue)? {
-        guard perform != "host.showPluginSettings", let definition else { return nil }
+        guard perform != "host.showPluginSettings", perform != CurrentAppAddition.quitID, let definition else { return nil }
         if perform == "clipboardHistory.show" { return (.presentClipboardHistory, .null) }
         return try definition.callImplementation(of: input)
     }
@@ -187,7 +192,9 @@ public struct RequestedHostOperation: Equatable, Hashable {
     /// The catalogue IDs replacing a Level 1 name an answer might use: a Host
     /// Service, a Host Command or a standard action.
     private static func levelOneReplacements(of name: String) -> [String]? {
-        if let service = PluginHostService(rawValue: name) { return HostServiceCatalogue.ids(replacing: service) }
+        if let service = PluginHostService(rawValue: name), service.isLevelOne {
+            return HostServiceCatalogue.ids(replacing: service)
+        }
         if let command = HostCommand(rawValue: name) { return HostServiceCatalogue.ids(replacing: command) }
         let standardActions = ["copy_text": "clipboard.write", "open_url": "open.url", "insert_text": "selection.replace",
                                "open_plugin_settings": "host.showPluginSettings"]
@@ -205,6 +212,14 @@ public struct RequestedHostOperation: Equatable, Hashable {
         }
         if definition.inputMembers.isEmpty {
             guard input == .null else { throw violation("gives \(id) input, which it takes none of") }
+            return
+        }
+        if id == CurrentAppAddition.quitID {
+            do {
+                _ = try AppQuitRequest(input: input)
+            } catch PluginHostServiceError.invalidInput(let message) {
+                throw violation("gives \(id) input it refuses: \(message)")
+            }
             return
         }
         guard case .object(let members) = input else { throw violation("gives \(id) input that is not an object") }
@@ -288,6 +303,10 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
     case secureInput = "secure_input"
     /// The target did not come to the front within its bound.
     case targetUnresponsive = "target_unresponsive"
+    /// The Host performs no such operation on the target, whoever asks:
+    /// `apps.quit` on Spinnet, a part of macOS or an App that is not a
+    /// regular App, or Force Quit on Finder.
+    case targetProtected = "target_protected"
 
     /// The reason a Host Service failure gives an operation.
     public init(_ error: PluginHostServiceError) {
@@ -308,11 +327,10 @@ public enum HostOperationOutcome: Hashable {
     case succeeded
     /// A check at execution failed and nothing was done.
     case refused(HostOperationReason)
-    /// The user declined a Host Confirmation. No operation of revision 1 asks
-    /// for one.
+    /// The user declined a Host Confirmation, or closed the view it was in;
+    /// `apps.quit` is the operation that asks for one.
     case declined
-    /// A Host Confirmation went unanswered. No operation of revision 1 asks
-    /// for one.
+    /// A Host Confirmation went unanswered for `HostConfirmation.expiry`.
     case expired
     /// The owner ended before execution.
     case cancelled

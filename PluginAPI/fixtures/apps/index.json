@@ -1,0 +1,53 @@
+{
+  "description": "Each fixture names the definition of ../../schemas/namespaces.schema.json it is checked against and whether it is valid: results of apps.frontmost the Host may give and inputs of apps.quit (#83). The Host's own answers for the recorded Apps of the test kit follow apps.frontmost.result.",
+  "fixtures": [
+    {
+      "file": "frontmost-textedit.json",
+      "definition": "apps.frontmost.result",
+      "valid": true,
+      "note": "TextEdit in front, which the Host would quit or force quit"
+    },
+    {
+      "file": "frontmost-finder.json",
+      "definition": "apps.frontmost.result",
+      "valid": true,
+      "note": "Finder in front: the Host asks it to quit but never force quits it"
+    },
+    {
+      "file": "frontmost-none.json",
+      "definition": "apps.frontmost.result",
+      "valid": true,
+      "note": "Spinnet or no App is in front"
+    },
+    {
+      "file": "frontmost-with-pid.json",
+      "definition": "apps.frontmost.result",
+      "valid": false,
+      "note": "No process ID ever reaches a Plugin"
+    },
+    {
+      "file": "frontmost-bad-target.json",
+      "definition": "apps.frontmost.result",
+      "valid": false,
+      "note": "A target is opaque, never a process ID"
+    },
+    {
+      "file": "quit-input-null.json",
+      "definition": "apps.quit.input",
+      "valid": true,
+      "note": "Quit the App in front"
+    },
+    {
+      "file": "quit-input-force.json",
+      "definition": "apps.quit.input",
+      "valid": true,
+      "note": "Force quit the App in front"
+    },
+    {
+      "file": "quit-input-pid.json",
+      "definition": "apps.quit.input",
+      "valid": false,
+      "note": "No kill by process ID"
+    }
+  ]
+}

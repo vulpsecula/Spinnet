@@ -664,6 +664,11 @@ public struct PluginManifest: Codable, Equatable {
         guard Set(capabilities).count == capabilities.count else {
             throw ConfigurationError.invalidManifest("Plugin declares a Capability more than once")
         }
+        if let later = capabilities.first(where: { $0.apiLevel > apiLevel }) {
+            throw ConfigurationError.invalidManifest(
+                "Capability \(later.rawValue) is part of Plugin API Level \(later.apiLevel), but the Plugin declares Level \(apiLevel)"
+            )
+        }
         guard Set(optionalCapabilities).count == optionalCapabilities.count,
               optionalCapabilities.allSatisfy(capabilities.contains) else {
             throw ConfigurationError.invalidManifest("Optional Capabilities must be unique and declared")
@@ -710,6 +715,11 @@ public struct PluginManifest: Codable, Equatable {
                  !scope.dataTypes.isEmpty) {
                 throw ConfigurationError.invalidManifest("This Capability opens a target without returning its contents")
             }
+            if CurrentAppAddition.capabilities.contains(scope.capability) &&
+                (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
+                 !scope.dataTypes.isEmpty) {
+                throw ConfigurationError.invalidManifest("This Capability acts only on the App in front, which Spinnet names")
+            }
             if scope.capability == .captureScreen &&
                 (!scope.httpsHosts.isEmpty || !scope.externalApps.isEmpty || scope.includesExistingHostData ||
                  !scope.dataTypes.isEmpty) {
@@ -725,7 +735,7 @@ public struct PluginManifest: Codable, Equatable {
                 throw ConfigurationError.invalidManifest("This Capability only inserts text into the focused App")
             }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .readFrontmostApp, .quitFrontmostApp].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }

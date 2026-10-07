@@ -52,6 +52,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// Every insertion of such a Plugin's View Session goes through it: into
     /// the App in front only if it is the App the Host showed.
     private lazy var targetedInserter = TargetedTextInserter(tracker: insertionTargets, inserter: textInserter)
+    /// The App in front and its exit (#83): the App Targets given to
+    /// Plugins, forgotten when a Plugin changes or loses a Capability, and
+    /// quits performed after a Host Confirmation.
+    private let appTargets = AppTargets()
+    private let runningApps = DesktopRunningApps()
+    private lazy var appExits = AppExitPerformer(
+        apps: runningApps, targets: appTargets, confirmations: HostConfirmationPanel(),
+        schedule: { delay, work in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work) }
+    )
+    private var appTargetObservers: (registry: UUID, grants: UUID)?
     private lazy var selectedTextReader = SelectedTextReader(
         clipboardObservationGate: clipboardObservationGate
     )
@@ -189,9 +199,21 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                         throw PluginHostServiceError.unavailable("The application is not available")
                     }
                 },
-                preferredScreenCapturer: captureScreen
+                preferredScreenCapturer: captureScreen,
+                // `apps.frontmost`, read on the main thread, where the
+                // desktop says which App is in front.
+                frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
+                    if Thread.isMainThread { return appTargets.identifyFrontmost(of: runningApps, for: pluginID) }
+                    return DispatchQueue.main.sync { appTargets.identifyFrontmost(of: runningApps, for: pluginID) }
+                }
             )
             clipboardBroker = hostServiceBroker
+            if appTargetObservers == nil {
+                appTargetObservers = (
+                    registry.observeInvalidation { [appTargets] in appTargets.forget($0) },
+                    capabilityGrants.observeRevocation { [appTargets] in appTargets.forget($0) }
+                )
+            }
             actionRunner = HostActionRunner(
                 executor: AppKitHostCommandExecutor(
                     grantStore: capabilityGrants,
@@ -639,6 +661,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             },
             operations: HostOperationsPerformer(
                 registry: registry, broker: { [weak self] in self?.clipboardBroker }, inserter: targetedInserter,
+                exits: appExits,
                 openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) }
             ),
             // An outcome no view shows is told near the pointer, as the

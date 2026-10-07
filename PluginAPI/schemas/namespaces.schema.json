@@ -94,6 +94,7 @@
         "open.application",
         "apps.perform",
         "apps.openDeepLink",
+        "apps.frontmost",
         "window.read",
         "window.setFrame",
         "window.toggleFullScreen",
@@ -142,7 +143,8 @@
         "open.path",
         "open.application",
         "apps.perform",
-        "apps.openDeepLink"
+        "apps.openDeepLink",
+        "apps.quit"
       ]
     },
     "item_action_id": {
@@ -163,7 +165,20 @@
         "open.path",
         "open.application",
         "apps.perform",
-        "apps.openDeepLink"
+        "apps.openDeepLink",
+        "apps.quit"
+      ]
+    },
+    "app_target": {
+      "description": "An App Target: the Host's opaque name for one running App, given by apps.frontmost to that Plugin only. It names that App until the App quits, the Plugin is updated, disabled or removed or loses a Capability, or Spinnet quits; a Plugin holds at most 16. It never contains the process ID.",
+      "type": "string",
+      "pattern": "^app_[0-9a-f]{32}$"
+    },
+    "app_exit": {
+      "description": "quit asks the App to quit; force_quit ends it at once.",
+      "enum": [
+        "quit",
+        "force_quit"
       ]
     },
     "host.toast.input": {
@@ -435,6 +450,30 @@
     },
     "apps.openDeepLink.input": {
       "$ref": "external-apps.schema.json#/$defs/open_deep_link.input"
+    },
+    "apps.frontmost.input": {
+      "description": "apps.frontmost takes no input.",
+      "type": "null"
+    },
+    "apps.quit.input": {
+      "description": "The App to end and how. Without target, the App in front when the Host starts the operation, which its Host Confirmation names; with one, the App that App Target names. force asks for Force Quit. null is the App in front, quit gracefully.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/app_target"
+            },
+            "force": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
     },
     "system.runShortcut.input": {
       "description": "The Shortcut's name: a string, or {name, input?} with text input.",
@@ -787,6 +826,54 @@
     "apps.openDeepLink.result": {
       "type": "null"
     },
+    "apps.frontmost.result": {
+      "description": "The App in front, or null while Spinnet or no App is in front. exits lists what apps.quit would do to it; an empty list means the Host protects it.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "target",
+            "name",
+            "bundle_id",
+            "exits"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/app_target"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "bundle_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "exits": {
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/app_exit"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "apps.quit.result": {
+      "description": "Nothing: the outcome is operation_finished's.",
+      "type": "null"
+    },
     "system.runShortcut.result": {
       "type": "null"
     },
@@ -1050,6 +1137,25 @@
             "required": [
               "input"
             ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "apps.quit"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.quit.input"
+              }
+            }
           }
         }
       ]
