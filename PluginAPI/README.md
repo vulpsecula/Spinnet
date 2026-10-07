@@ -58,6 +58,12 @@ written before the field existed as needing Level 1. A Plugin kept outside
 this repository pins the Level it was written for by the commit of this
 repository it tests against.
 
+Level 2 is still open: while no Plugin outside this repository depends on
+it, additions are made to Level 2 itself rather than raising the level, so a
+Plugin pinned to an earlier commit of Level 2 may lack a later addition.
+Once an outside Plugin depends on Level 2, it is frozen and later additions
+raise the level to 3.
+
 `protocol_version` is unrelated: it only frames the messages between the Host
 and the Plugin's helper, and stays `"1.0"`.
 
