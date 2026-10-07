@@ -1,0 +1,5 @@
+{
+  "tool": "homebrew",
+  "operation": "outdated",
+  "greedy": true
+}

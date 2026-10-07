@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "tools.startTask",
+  "outcome": "refused",
+  "reason": "tool_busy"
+}

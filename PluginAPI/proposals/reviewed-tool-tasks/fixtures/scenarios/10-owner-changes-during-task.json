@@ -1,0 +1,48 @@
+{
+  "title": "Revoke, disable, removal and update while a task runs",
+  "covers": [
+    "owner invalidation",
+    "late completion"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task is running"
+    },
+    {
+      "when": "the user revokes run_reviewed_tool_tasks, disables or removes the Plugin",
+      "then": "under P11's recommendation the task runs to its end under the Host, stays in the Status Item with Stop, and nothing is delivered to the Plugin; the alternative stops it as scenario 04"
+    },
+    {
+      "when": "the Plugin is updated with the same Capability scope",
+      "then": "the updated Plugin's activities.list still finds the task; a changed scope drops delivery as revocation does"
+    },
+    {
+      "when": "the task completes after its owner ended",
+      "then": "the late completion updates only the Host's own entry"
+    }
+  ]
+}

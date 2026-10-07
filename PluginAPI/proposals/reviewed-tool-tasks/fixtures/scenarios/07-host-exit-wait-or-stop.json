@@ -1,0 +1,47 @@
+{
+  "title": "Normal quit offers waiting or attempting stop",
+  "covers": [
+    "normal-exit wait-or-stop"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task is running"
+    },
+    {
+      "when": "the user quits Spinnet",
+      "then": "the Host answers terminateLater and shows its own dialog: Wait and Quit (default, P8), Stop and Quit, Don't Quit; it names the package and says stopping does not undo anything"
+    },
+    {
+      "when": "the user chooses Stop and Quit",
+      "then": "the stop attempt runs as in scenario 04 and Spinnet quits once the group is gone or after SIGKILL"
+    },
+    {
+      "when": "the user chooses Wait and Quit",
+      "then": "Spinnet quits when the task ends; the dialog stays to offer Stop and Quit"
+    }
+  ]
+}

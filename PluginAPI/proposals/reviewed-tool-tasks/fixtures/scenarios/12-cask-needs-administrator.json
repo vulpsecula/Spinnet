@@ -1,0 +1,68 @@
+{
+  "title": "A cask whose installer needs an administrator is refused up front",
+  "covers": [
+    "no sudo",
+    "formula/cask support"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "when": "the script requests installing a cask with a pkg artifact",
+      "values": [
+        {
+          "definition": "start_task_operation",
+          "value": {
+            "perform": "tools.startTask",
+            "input": {
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "cask",
+              "name": "tailscale-app"
+            }
+          }
+        }
+      ],
+      "then": "the Host's check reads the cask's artifacts and refuses before the confirmation; 5 of the 47 casks installed on the measured Mac are of this kind"
+    },
+    {
+      "values": [
+        {
+          "definition": "start_task_finished",
+          "value": {
+            "type": "operation_finished",
+            "perform": "tools.startTask",
+            "outcome": "refused",
+            "reason": "needs_privileges"
+          }
+        }
+      ],
+      "then": "the Plugin hears why; nothing ran"
+    },
+    {
+      "then": "should one slip through, HOMEBREW_NO_SUDO=1, closed stdin and the absence of SUDO_ASKPASS make Homebrew fail rather than prompt"
+    }
+  ]
+}

@@ -1,0 +1,840 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spinnet.app/plugin-api/proposals/reviewed-tool-tasks/reviewed-tools.schema.json",
+  "title": "PROPOSAL ONLY (#72): reviewed Homebrew reads, tasks and their activities",
+  "description": "Draft shapes for later Level 2 additions under the reserved catalogue IDs tools.read, tools.startTask, activities.list and activities.stop. Nothing here is part of Plugin API Level 2 until #87 and #88 add it to PluginAPI/catalogue.json, the schemas and the SDK. Uses only the keywords Spinnet's JSONSchemaSubsetValidator implements.",
+  "$defs": {
+    "tool": {
+      "description": "The reviewed tool profile. Homebrew is the only one; a second profile is a Host release, as a Reviewed App Interface is.",
+      "const": "homebrew"
+    },
+    "package_kind": {
+      "description": "A Homebrew formula or cask. Exact info and every task name one kind, so a name Homebrew has as both a formula and a cask is never ambiguous.",
+      "enum": [
+        "formula",
+        "cask"
+      ]
+    },
+    "package_name": {
+      "description": "A bare package name in an official tap: lowercase letters, digits and + _ . @ -, starting with a letter or digit, so it can never be read as an option, a path, a URL, a regular expression or a tap-qualified name. Every one of the 16,421 official formula and cask names on the measured machine matches, the longest 54 characters.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9+_.@-]*$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "qualified_name": {
+      "description": "A package as the Host reports it: its bare name for an official tap, user/repository/name for any other tap (only ever reported, never accepted as input while P1 stands).",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$",
+      "maxLength": 160
+    },
+    "tap": {
+      "description": "The tap a reported package comes from, user/repository.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$",
+      "maxLength": 96
+    },
+    "search_query": {
+      "description": "A substring of package names, as a plain string: the package-name characters only, not starting with -, so Homebrew's /regex/ form and anything option-like are refused. At least two characters.",
+      "type": "string",
+      "pattern": "^[a-z0-9+_.@][a-z0-9+_.@-]*$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "short_text": {
+      "description": "Text the Host copies from Homebrew's metadata, control characters removed and cut to its bound.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "tools.read.input": {
+      "description": "One read of the reviewed Homebrew profile. installed and outdated list what this Mac has; search finds names in the official catalogue Homebrew last fetched; info gives exact details for 1 to 50 names of one kind.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "propertyNames": {
+        "enum": [
+          "tool",
+          "operation",
+          "kind",
+          "greedy",
+          "query",
+          "names"
+        ]
+      },
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "greedy": {
+          "description": "outdated only: include casks that update themselves (brew outdated --greedy).",
+          "type": "boolean"
+        },
+        "query": {
+          "$ref": "#/$defs/search_query"
+        },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/package_name"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "installed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "greedy": false,
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "outdated"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "search"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "query"
+            ],
+            "properties": {
+              "greedy": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "info"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "names",
+              "kind"
+            ],
+            "properties": {
+              "greedy": false,
+              "query": false
+            }
+          }
+        }
+      ]
+    },
+    "package": {
+      "description": "One package as the Host projects it from Homebrew's JSON: about 170 bytes where Homebrew's own record is about 4 KB (measurements.md). Members that are false or absent in Homebrew are left out.",
+      "type": "object",
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "name": {
+          "$ref": "#/$defs/qualified_name"
+        },
+        "tap": {
+          "$ref": "#/$defs/tap"
+        },
+        "official": {
+          "description": "The package comes from homebrew/core or homebrew/cask, the only taps a task may act on while P1 stands.",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "A cask's application name.",
+          "$ref": "#/$defs/short_text"
+        },
+        "description": {
+          "$ref": "#/$defs/short_text"
+        },
+        "version": {
+          "description": "The version Homebrew's data offers.",
+          "$ref": "#/$defs/version"
+        },
+        "installed_version": {
+          "$ref": "#/$defs/version"
+        },
+        "outdated": {
+          "const": true
+        },
+        "pinned": {
+          "const": true
+        },
+        "auto_updates": {
+          "description": "A cask that updates itself, listed as outdated only with greedy.",
+          "const": true
+        },
+        "deprecated": {
+          "const": true
+        },
+        "disabled": {
+          "const": true
+        },
+        "needs_privileges": {
+          "description": "info only: a cask whose installation runs a pkg or installer artifact, which needs an administrator; a task refuses it (P3).",
+          "const": true
+        },
+        "quits_app": {
+          "description": "info only: upgrading this cask quits its running application first, which the Host Confirmation states.",
+          "const": true
+        }
+      }
+    },
+    "tools.read.result": {
+      "description": "What a read returns. search returns names only (kind, name); the Plugin asks info for the names it shows. truncated means more matched than max_items.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "packages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "packages": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/package"
+          }
+        },
+        "not_found": {
+          "description": "info only: names Homebrew has no package of that kind for.",
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/package_name"
+          }
+        },
+        "truncated": {
+          "const": true
+        }
+      }
+    },
+    "tools.startTask.input": {
+      "description": "One explicit install or upgrade of one named package of one kind from an official tap. The Host checks the package at execution (exists, official, not already installed for install, outdated for upgrade, no administrator needed) before its Host Confirmation.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "install",
+            "upgrade"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "name": {
+          "$ref": "#/$defs/package_name"
+        }
+      }
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "\\S",
+      "maxLength": 64
+    },
+    "start_task_operation": {
+      "description": "A Requested Host Operation (../../reference/host-operations.md) whose perform is tools.startTask. Its own members are those of every request; closes_view closes the view once the task has started.",
+      "type": "object",
+      "required": [
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "perform": {
+          "const": "tools.startTask"
+        },
+        "input": {
+          "$ref": "#/$defs/tools.startTask.input"
+        },
+        "id": {
+          "$ref": "#/$defs/operation_id"
+        },
+        "closes_view": {
+          "type": "boolean"
+        },
+        "notify": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stop_operation": {
+      "description": "A Requested Host Operation, or page action, whose perform is activities.stop: an attempt to stop one of the Plugin's own tasks.",
+      "type": "object",
+      "required": [
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "perform": {
+          "const": "activities.stop"
+        },
+        "input": {
+          "$ref": "#/$defs/activities.stop.input"
+        },
+        "id": {
+          "$ref": "#/$defs/operation_id"
+        },
+        "notify": {
+          "type": "boolean"
+        }
+      }
+    },
+    "task_handle": {
+      "description": "An opaque handle the Host gives a started task, unique for the Host's lifetime and never reused. It names no process.",
+      "type": "string",
+      "pattern": "^task-[A-Za-z0-9]{8,32}$"
+    },
+    "reason": {
+      "description": "Why a read failed, or why a task request was refused or failed, beyond the reasons every Requested Host Operation already has (capability_denied, command_unavailable, host_service_failed).",
+      "enum": [
+        "capability_denied",
+        "command_unavailable",
+        "host_service_failed",
+        "tool_missing",
+        "tool_busy",
+        "tool_timed_out",
+        "tool_failed",
+        "output_too_large",
+        "package_not_found",
+        "source_not_allowed",
+        "needs_privileges",
+        "already_installed",
+        "not_outdated",
+        "task_not_found",
+        "task_finished"
+      ]
+    },
+    "start_task_finished": {
+      "description": "operation_finished for tools.startTask: succeeded means the task started (its own end is reported in its activity), and carries its handle; declined and expired come from the Host Confirmation.",
+      "type": "object",
+      "required": [
+        "type",
+        "perform",
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "operation_finished"
+        },
+        "operation": {
+          "$ref": "#/$defs/operation_id"
+        },
+        "perform": {
+          "const": "tools.startTask"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "refused",
+            "declined",
+            "expired",
+            "cancelled",
+            "failed"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "task": {
+          "$ref": "#/$defs/task_handle"
+        },
+        "view_closed": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "task"
+            ],
+            "properties": {
+              "reason": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "refused",
+                  "failed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "task": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "declined",
+                  "expired",
+                  "cancelled"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": false,
+              "task": false
+            }
+          }
+        }
+      ]
+    },
+    "stop_finished": {
+      "description": "operation_finished for activities.stop: succeeded means the stop attempt began (the task's activity reports how it ended); refused when the handle names no task of this Plugin, or one that already ended.",
+      "type": "object",
+      "required": [
+        "type",
+        "perform",
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "operation_finished"
+        },
+        "operation": {
+          "$ref": "#/$defs/operation_id"
+        },
+        "perform": {
+          "const": "activities.stop"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "refused",
+            "cancelled"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "task_not_found",
+            "task_finished",
+            "command_unavailable"
+          ]
+        },
+        "view_closed": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "refused"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "succeeded",
+                  "cancelled"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": false
+            }
+          }
+        }
+      ]
+    },
+    "stage": {
+      "description": "Where a task is, read by the Host from Homebrew's ==> headings. A hint, not a promise: Homebrew's output is not a stable interface, an unrecognised heading keeps the stage, and there is never a percentage.",
+      "enum": [
+        "starting",
+        "fetching",
+        "installing",
+        "linking",
+        "finishing",
+        "stopping"
+      ]
+    },
+    "task_result": {
+      "description": "How a task ended. completed: Homebrew exited 0. failed: it exited otherwise, before any stop attempt. stopped: it ended after a stop attempt; stop says which signal ended it; nothing was rolled back and the package may be partly installed or still at its old version. interrupted: Spinnet quit, crashed, or the user logged out while it ran; it was not resumed. unknown: Spinnet cannot tell how it ended.",
+      "type": "object",
+      "required": [
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "enum": [
+            "completed",
+            "failed",
+            "stopped",
+            "interrupted",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "stop": {
+          "description": "stopped only: interrupted (Homebrew's own Control-C handling ended it), terminated or killed.",
+          "enum": [
+            "interrupted",
+            "terminated",
+            "killed"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "stopped"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "stop"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "completed",
+                  "failed",
+                  "interrupted",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "stop": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "completed",
+                  "interrupted",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "stop": false,
+              "reason": false
+            }
+          }
+        }
+      ]
+    },
+    "activity": {
+      "description": "One of the Plugin's tasks, running or recently ended. Everything here is Host-generated; log holds the last lines of Homebrew's output, redacted.",
+      "type": "object",
+      "required": [
+        "task",
+        "tool",
+        "operation",
+        "kind",
+        "name",
+        "state"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "$ref": "#/$defs/task_handle"
+        },
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "install",
+            "upgrade"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "name": {
+          "$ref": "#/$defs/package_name"
+        },
+        "state": {
+          "enum": [
+            "running",
+            "stopping",
+            "ended"
+          ]
+        },
+        "stage": {
+          "$ref": "#/$defs/stage"
+        },
+        "elapsed_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "log": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/short_text"
+          }
+        },
+        "result": {
+          "$ref": "#/$defs/task_result"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ended"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "stage": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "running",
+                  "stopping"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "stage"
+            ],
+            "properties": {
+              "result": false
+            }
+          }
+        }
+      ]
+    },
+    "activities.list.input": {
+      "description": "No input: the Plugin's own tasks, running first, then those that ended in the last hour or since the Host last launched, at most 8.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "activities.list.result": {
+      "type": "object",
+      "required": [
+        "activities"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "activities": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/activity"
+          }
+        }
+      }
+    },
+    "activities.stop.input": {
+      "type": "object",
+      "required": [
+        "task"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "$ref": "#/$defs/task_handle"
+        }
+      }
+    },
+    "activity_changed": {
+      "description": "Waits on #71: a View Event delivering the latest state of one of the Plugin's tasks to its visible view, coalesced to the latest, at most every 500 ms and on every change of state or stage. Hidden or closed views receive none; the task goes on.",
+      "type": "object",
+      "required": [
+        "type",
+        "activity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "activity_changed"
+        },
+        "activity": {
+          "$ref": "#/$defs/activity"
+        }
+      }
+    },
+    "reviewed_tool_scope": {
+      "description": "Proposed capability_scopes member (P5): which reviewed tool operations a Plugin's Commands may use, disclosed at install and persisted with the grant.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info",
+              "install",
+              "upgrade"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/package_kind"
+          }
+        }
+      }
+    }
+  }
+}

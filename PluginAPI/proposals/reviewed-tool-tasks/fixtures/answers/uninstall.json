@@ -1,0 +1,9 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "uninstall",
+    "kind": "formula",
+    "name": "wget"
+  }
+}

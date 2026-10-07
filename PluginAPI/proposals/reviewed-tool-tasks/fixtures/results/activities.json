@@ -1,0 +1,30 @@
+{
+  "activities": [
+    {
+      "task": "task-7Qm2Xc9a",
+      "tool": "homebrew",
+      "operation": "install",
+      "kind": "formula",
+      "name": "wget",
+      "state": "running",
+      "stage": "fetching",
+      "elapsed_seconds": 4,
+      "log": [
+        "==> Fetching downloads for: wget",
+        "==> Downloading https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0_2"
+      ]
+    },
+    {
+      "task": "task-Zx81pLm0",
+      "tool": "homebrew",
+      "operation": "upgrade",
+      "kind": "cask",
+      "name": "firefox",
+      "state": "ended",
+      "elapsed_seconds": 4,
+      "result": {
+        "outcome": "completed"
+      }
+    }
+  ]
+}

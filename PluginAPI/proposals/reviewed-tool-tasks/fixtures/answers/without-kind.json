@@ -1,0 +1,8 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "install",
+    "name": "docker"
+  }
+}

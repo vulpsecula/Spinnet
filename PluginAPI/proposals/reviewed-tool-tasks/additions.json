@@ -1,0 +1,83 @@
+{
+  "description": "PROPOSAL ONLY (#72). The Level 2 additions #87 and #88 would make, in catalogue terms, and the numeric bounds this design proposes. check.py holds them to PluginAPI/catalogue.json (every ID is reserved there today), to the Host's own budget constants, and to measurements.json. Nothing here is offered by any Host.",
+  "operations": [
+    {
+      "id": "tools.read",
+      "owner": "#87",
+      "capability": "read_reviewed_tools",
+      "input": "reviewed-tools.schema.json#/$defs/tools.read.input",
+      "result": "reviewed-tools.schema.json#/$defs/tools.read.result",
+      "entry_points": {
+        "call": "proposed",
+        "source": "proposed; waits on #71's source contract"
+      },
+      "failures": ["capability_denied", "tool_missing", "tool_timed_out", "tool_failed", "output_too_large", "host_service_failed"]
+    },
+    {
+      "id": "tools.startTask",
+      "owner": "#88",
+      "capability": "run_reviewed_tool_tasks",
+      "host_confirmation": "always",
+      "input": "reviewed-tools.schema.json#/$defs/tools.startTask.input",
+      "outcome": "reviewed-tools.schema.json#/$defs/start_task_finished",
+      "entry_points": {
+        "request": "proposed",
+        "view_action": "proposed"
+      },
+      "failures": ["capability_denied", "command_unavailable", "tool_missing", "tool_busy", "package_not_found", "source_not_allowed", "needs_privileges", "already_installed", "not_outdated", "tool_failed", "host_service_failed"]
+    },
+    {
+      "id": "activities.list",
+      "owner": "#88 (tasks), #84 (effects)",
+      "capability": null,
+      "input": "reviewed-tools.schema.json#/$defs/activities.list.input",
+      "result": "reviewed-tools.schema.json#/$defs/activities.list.result",
+      "entry_points": {
+        "call": "proposed",
+        "source": "proposed; waits on #71's source contract"
+      },
+      "failures": ["host_service_failed"]
+    },
+    {
+      "id": "activities.stop",
+      "owner": "#88 (tasks), #84 (effects)",
+      "capability": null,
+      "input": "reviewed-tools.schema.json#/$defs/activities.stop.input",
+      "outcome": "reviewed-tools.schema.json#/$defs/stop_finished",
+      "entry_points": {
+        "view_action": "proposed",
+        "request": "proposed"
+      },
+      "failures": ["task_not_found", "task_finished", "command_unavailable"]
+    }
+  ],
+  "catalogue_changes": [
+    "tools.read and activities.list gain a source entry point, which catalogue.json does not list for them today; it is added only when #71 publishes sources"
+  ],
+  "events": ["activity_changed"],
+  "capabilities": [
+    {"name": "read_reviewed_tools", "group": "Reads", "operations": ["tools.read"], "scope": "reviewed_tools: tool, read operations, kinds"},
+    {"name": "run_reviewed_tool_tasks", "group": "Changes", "operations": ["tools.startTask"], "scope": "reviewed_tools: tool, task operations, kinds"}
+  ],
+  "budgets": {
+    "read_call_timeout_seconds": 3,
+    "read_source_timeout_seconds": 15,
+    "read_stdout_bytes": 4194304,
+    "read_stderr_bytes": 65536,
+    "result_packages": 2000,
+    "result_bytes": 524288,
+    "info_names": 50,
+    "search_query_characters": 64,
+    "concurrent_reads_per_plugin": 1,
+    "concurrent_reads_host": 2,
+    "running_tasks_host": 1,
+    "task_log_lines_to_plugin": 20,
+    "task_log_line_characters": 200,
+    "task_log_bytes_kept_by_host": 262144,
+    "ended_tasks_listed": 8,
+    "activity_changed_interval_seconds": 0.5,
+    "stop_sigint_grace_seconds": 10,
+    "stop_sigterm_grace_seconds": 5,
+    "unmeasured": ["stop_sigint_grace_seconds", "stop_sigterm_grace_seconds", "task_log_bytes_kept_by_host"]
+  }
+}

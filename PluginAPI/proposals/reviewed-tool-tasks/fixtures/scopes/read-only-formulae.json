@@ -1,0 +1,11 @@
+{
+  "tool": "homebrew",
+  "operations": [
+    "installed",
+    "search",
+    "info"
+  ],
+  "kinds": [
+    "formula"
+  ]
+}

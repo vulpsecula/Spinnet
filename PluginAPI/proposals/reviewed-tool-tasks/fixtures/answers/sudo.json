@@ -1,0 +1,10 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "install",
+    "kind": "cask",
+    "name": "tailscale-app",
+    "sudo": true
+  }
+}

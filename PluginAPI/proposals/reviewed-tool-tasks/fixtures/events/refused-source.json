@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "tools.startTask",
+  "outcome": "refused",
+  "reason": "source_not_allowed"
+}

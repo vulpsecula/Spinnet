@@ -1,0 +1,19 @@
+{
+  "tool": "homebrew",
+  "operation": "info",
+  "packages": [
+    {
+      "kind": "cask",
+      "name": "microsoft-teams",
+      "tap": "homebrew/cask",
+      "official": true,
+      "title": "Microsoft Teams",
+      "version": "26.1",
+      "needs_privileges": true,
+      "quits_app": true
+    }
+  ],
+  "not_found": [
+    "zzqxnotapackage"
+  ]
+}

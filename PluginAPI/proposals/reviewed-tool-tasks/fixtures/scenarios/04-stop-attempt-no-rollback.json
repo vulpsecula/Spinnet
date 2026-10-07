@@ -1,0 +1,91 @@
+{
+  "title": "Stop is an attempt on the whole process group and never a rollback",
+  "covers": [
+    "cancellation",
+    "process tree",
+    "escalation",
+    "no rollback"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "when": "the user chooses Stop in the view or the Status Item",
+      "values": [
+        {
+          "definition": "stop_operation",
+          "value": {
+            "perform": "activities.stop",
+            "input": {
+              "task": "task-7Qm2Xc9a"
+            }
+          }
+        }
+      ],
+      "then": "the state becomes stopping and the Host sends SIGINT to the task's process group, as Control-C in a terminal would; Homebrew defers it during its own clean-up ('One sec, cleaning up...')"
+    },
+    {
+      "then": "if the group remains 10 s later the Host sends SIGTERM, and 5 s after that SIGKILL (grace periods provisional until #88 measures real installs; reads ended within 12 ms of SIGINT)"
+    },
+    {
+      "values": [
+        {
+          "definition": "activity_changed",
+          "value": {
+            "type": "activity_changed",
+            "activity": {
+              "task": "task-7Qm2Xc9a",
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "wget",
+              "state": "ended",
+              "result": {
+                "outcome": "stopped",
+                "stop": "interrupted"
+              }
+            }
+          }
+        }
+      ],
+      "then": "the result says which signal ended it, and the Host's text says the package may be partly installed or unchanged; nothing is restored"
+    },
+    {
+      "when": "Stop names a task that already ended",
+      "values": [
+        {
+          "definition": "stop_finished",
+          "value": {
+            "type": "operation_finished",
+            "perform": "activities.stop",
+            "outcome": "refused",
+            "reason": "task_finished"
+          }
+        }
+      ],
+      "then": "the stop request is refused with task_finished; nothing is signalled"
+    }
+  ]
+}

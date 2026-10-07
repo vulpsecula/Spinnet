@@ -1,0 +1,7 @@
+{
+  "tool": "homebrew",
+  "operation": "info",
+  "names": [
+    "docker"
+  ]
+}

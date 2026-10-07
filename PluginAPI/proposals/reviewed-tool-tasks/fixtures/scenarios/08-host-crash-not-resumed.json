@@ -1,0 +1,64 @@
+{
+  "title": "After a crash the task is reported, never resumed",
+  "covers": [
+    "crash",
+    "recovery",
+    "no silent resumption"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task is running and Spinnet crashes"
+    },
+    {
+      "then": "under P10's recommended runner, Homebrew carries on to its own end and the runner records its exit status; with a plain pipe, Homebrew fails at its next write (measured: 'Broken pipe @ rb_sys_fail_on_write', exit 1)"
+    },
+    {
+      "when": "Spinnet next launches",
+      "values": [
+        {
+          "definition": "activities.list.result",
+          "value": {
+            "activities": [
+              {
+                "task": "task-7Qm2Xc9a",
+                "tool": "homebrew",
+                "operation": "install",
+                "kind": "formula",
+                "name": "wget",
+                "state": "ended",
+                "result": {
+                  "outcome": "interrupted"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "then": "its task journal names the task; the Host shows once that it does not know whether wget was installed and does not run it again"
+    }
+  ]
+}

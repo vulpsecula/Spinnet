@@ -1,0 +1,19 @@
+{
+  "tool": "homebrew",
+  "operation": "search",
+  "packages": [
+    {
+      "kind": "formula",
+      "name": "aalib"
+    },
+    {
+      "kind": "formula",
+      "name": "afflib"
+    },
+    {
+      "kind": "cask",
+      "name": "libreoffice"
+    }
+  ],
+  "truncated": true
+}

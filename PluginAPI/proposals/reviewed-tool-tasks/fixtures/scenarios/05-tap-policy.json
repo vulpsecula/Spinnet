@@ -1,0 +1,86 @@
+{
+  "title": "Tasks act only on official taps, even for an installed third-party package",
+  "covers": [
+    "tap policy",
+    "input validation"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "hashicorp/tap/terraform is installed; installed lists it with its tap",
+      "values": [
+        {
+          "definition": "tools.read.result",
+          "value": {
+            "tool": "homebrew",
+            "operation": "installed",
+            "packages": [
+              {
+                "kind": "formula",
+                "name": "hashicorp/tap/terraform",
+                "tap": "hashicorp/tap",
+                "version": "1.15.1",
+                "installed_version": "1.15.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "when": "the script requests an upgrade of the bare name terraform",
+      "values": [
+        {
+          "definition": "start_task_operation",
+          "value": {
+            "perform": "tools.startTask",
+            "input": {
+              "tool": "homebrew",
+              "operation": "upgrade",
+              "kind": "formula",
+              "name": "terraform"
+            }
+          }
+        }
+      ],
+      "then": "the Host's check resolves the name to hashicorp/tap, which is not homebrew/core or homebrew/cask, and refuses before any confirmation"
+    },
+    {
+      "values": [
+        {
+          "definition": "start_task_finished",
+          "value": {
+            "type": "operation_finished",
+            "perform": "tools.startTask",
+            "outcome": "refused",
+            "reason": "source_not_allowed"
+          }
+        }
+      ],
+      "then": "the outcome reaches the Plugin when it asked to be told"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "type": "activity_changed",
+  "activity": {
+    "task": "task-7Qm2Xc9a",
+    "tool": "homebrew",
+    "operation": "install",
+    "kind": "formula",
+    "name": "wget",
+    "state": "ended",
+    "elapsed_seconds": 4,
+    "result": {
+      "outcome": "interrupted"
+    }
+  }
+}

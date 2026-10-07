@@ -1,0 +1,47 @@
+{
+  "title": "A read grant does not start tasks",
+  "covers": [
+    "authority separation"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "when": "a Plugin granted only read_reviewed_tools requests a task",
+      "values": [
+        {
+          "definition": "start_task_operation",
+          "value": {
+            "perform": "tools.startTask",
+            "input": {
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "wget"
+            }
+          }
+        }
+      ],
+      "then": "the answer is refused at commit with capability_denied, as any request without its Capability is"
+    }
+  ]
+}

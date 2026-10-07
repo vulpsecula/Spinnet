@@ -1,0 +1,64 @@
+{
+  "title": "Where tasks meet sources (#71): visibility stops delivery, not the task",
+  "covers": [
+    "sources",
+    "delivery"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task is running and its Plugin's page is visible"
+    },
+    {
+      "then": "activity_changed is delivered as a #71 source, coalesced to the latest at most every 500 ms and on every state or stage change, checked against the page and the requesting Action as #71 defines"
+    },
+    {
+      "when": "the panel is hidden or closed",
+      "then": "the source stops; the task does not"
+    },
+    {
+      "when": "the panel is shown again",
+      "values": [
+        {
+          "definition": "activity_changed",
+          "value": {
+            "type": "activity_changed",
+            "activity": {
+              "task": "task-7Qm2Xc9a",
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "wget",
+              "state": "running",
+              "stage": "linking"
+            }
+          }
+        }
+      ],
+      "then": "the source delivers the current state once, never a backlog"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "type": "operation_finished",
+  "perform": "tools.startTask",
+  "outcome": "refused"
+}

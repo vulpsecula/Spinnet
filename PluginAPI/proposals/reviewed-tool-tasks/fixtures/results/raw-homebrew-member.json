@@ -1,0 +1,11 @@
+{
+  "tool": "homebrew",
+  "operation": "info",
+  "packages": [
+    {
+      "kind": "formula",
+      "name": "wget",
+      "caveats": "..."
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "title": "One Homebrew task at a time across every Plugin",
+  "covers": [
+    "admission",
+    "concurrency"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task from any Plugin is running"
+    },
+    {
+      "when": "another install is requested",
+      "values": [
+        {
+          "definition": "start_task_operation",
+          "value": {
+            "perform": "tools.startTask",
+            "input": {
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "jq"
+            }
+          }
+        }
+      ],
+      "then": "it is refused before its Host Confirmation, not queued"
+    },
+    {
+      "values": [
+        {
+          "definition": "start_task_finished",
+          "value": {
+            "type": "operation_finished",
+            "perform": "tools.startTask",
+            "outcome": "refused",
+            "reason": "tool_busy"
+          }
+        }
+      ],
+      "then": "the requesting Plugin hears the refusal; the running task is untouched"
+    },
+    {
+      "when": "the user's own brew in Terminal holds a package lock",
+      "then": "Homebrew itself fails the task, which ends failed with tool_failed; the Host does not retry"
+    },
+    {
+      "when": "a read is called while the task runs",
+      "values": [
+        {
+          "definition": "tools.read.input",
+          "value": {
+            "tool": "homebrew",
+            "operation": "installed"
+          }
+        }
+      ],
+      "then": "it runs; reads are not blocked by the task, at most one per Plugin and two Host-wide at once"
+    }
+  ]
+}

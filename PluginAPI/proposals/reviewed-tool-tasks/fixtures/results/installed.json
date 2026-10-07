@@ -1,0 +1,34 @@
+{
+  "tool": "homebrew",
+  "operation": "installed",
+  "packages": [
+    {
+      "kind": "formula",
+      "name": "wget",
+      "tap": "homebrew/core",
+      "official": true,
+      "description": "Internet file retriever",
+      "version": "1.25.0",
+      "installed_version": "1.25.0_2"
+    },
+    {
+      "kind": "formula",
+      "name": "hashicorp/tap/terraform",
+      "tap": "hashicorp/tap",
+      "description": "Terraform",
+      "version": "1.15.1",
+      "installed_version": "1.15.1"
+    },
+    {
+      "kind": "cask",
+      "name": "firefox",
+      "tap": "homebrew/cask",
+      "official": true,
+      "title": "Mozilla Firefox",
+      "description": "Web browser",
+      "version": "157.0.1",
+      "installed_version": "157.0.1",
+      "auto_updates": true
+    }
+  ]
+}

@@ -1,0 +1,1084 @@
+{
+  "brew": "/opt/homebrew/bin/brew",
+  "profile_env": [
+    "HOME",
+    "HOMEBREW_NO_ANALYTICS",
+    "HOMEBREW_NO_AUTO_UPDATE",
+    "HOMEBREW_NO_COLOR",
+    "HOMEBREW_NO_EMOJI",
+    "HOMEBREW_NO_ENV_HINTS",
+    "HOMEBREW_NO_GITHUB_API",
+    "HOMEBREW_NO_INSECURE_REDIRECT",
+    "HOMEBREW_NO_SUDO",
+    "LANG",
+    "LOGNAME",
+    "NONINTERACTIVE",
+    "PATH",
+    "TMPDIR",
+    "USER"
+  ],
+  "version": [
+    "Homebrew 7.0.8-38-g1b0b73c",
+    "Homebrew/homebrew-cask (git revision ba34451c0b7; last commit 2026-10-07)"
+  ],
+  "machine": "Apple M1 Pro",
+  "macos": "27.0.1",
+  "reads": [
+    {
+      "name": "version",
+      "argv": [
+        "--version"
+      ],
+      "exit": 0,
+      "first_seconds": 0.128,
+      "median_seconds": 0.118,
+      "max_seconds": 0.128,
+      "stdout_bytes": 101,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 5,
+      "peak_rss_kib": 9120,
+      "commands": [
+        "(bash)",
+        "bash"
+      ],
+      "items": {
+        "lines": 2
+      },
+      "stable_output": true
+    },
+    {
+      "name": "prefix",
+      "argv": [
+        "--prefix"
+      ],
+      "exit": 0,
+      "first_seconds": 0.039,
+      "median_seconds": 0.028,
+      "max_seconds": 0.042,
+      "stdout_bytes": 14,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 1,
+      "peak_rss_kib": 2176,
+      "commands": [
+        "bash"
+      ],
+      "items": {
+        "lines": 1
+      },
+      "stable_output": true
+    },
+    {
+      "name": "taps",
+      "argv": [
+        "tap"
+      ],
+      "exit": 0,
+      "first_seconds": 0.056,
+      "median_seconds": 0.054,
+      "max_seconds": 0.058,
+      "stdout_bytes": 52,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 1,
+      "peak_rss_kib": 2368,
+      "commands": [
+        "bash"
+      ],
+      "items": {
+        "lines": 3
+      },
+      "stable_output": true
+    },
+    {
+      "name": "list formulae",
+      "argv": [
+        "list",
+        "--formula",
+        "-1",
+        "--full-name"
+      ],
+      "exit": 0,
+      "first_seconds": 0.6,
+      "median_seconds": 0.395,
+      "max_seconds": 0.6,
+      "stdout_bytes": 1246,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 4,
+      "peak_rss_kib": 47392,
+      "commands": [
+        "(bash)",
+        "(ruby)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 156
+      },
+      "stable_output": true
+    },
+    {
+      "name": "list casks",
+      "argv": [
+        "list",
+        "--cask",
+        "-1",
+        "--full-name"
+      ],
+      "exit": 0,
+      "first_seconds": 0.677,
+      "median_seconds": 0.529,
+      "max_seconds": 0.677,
+      "stdout_bytes": 579,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 91120,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 47
+      },
+      "stable_output": true
+    },
+    {
+      "name": "installed info",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "exit": 0,
+      "first_seconds": 1.556,
+      "median_seconds": 1.41,
+      "max_seconds": 1.556,
+      "stdout_bytes": 838359,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 5,
+      "peak_rss_kib": 131568,
+      "commands": [
+        "(bash)",
+        "(ruby)",
+        "(tr)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 156,
+        "casks": 47,
+        "bytes_per_item": 4130,
+        "first_item_bytes": 2232,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 35308,
+        "projected_bytes_per_item": 174
+      },
+      "stable_output": true
+    },
+    {
+      "name": "outdated",
+      "argv": [
+        "outdated",
+        "--json=v2"
+      ],
+      "exit": 0,
+      "first_seconds": 0.914,
+      "median_seconds": 0.914,
+      "max_seconds": 1.147,
+      "stdout_bytes": 334,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 112080,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "(ruby)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 0,
+        "casks": 1,
+        "bytes_per_item": 334,
+        "first_item_bytes": 229,
+        "first_item_top_level_members": 5,
+        "projected_bytes": 185,
+        "projected_bytes_per_item": 185
+      },
+      "stable_output": true
+    },
+    {
+      "name": "outdated greedy",
+      "argv": [
+        "outdated",
+        "--json=v2",
+        "--greedy"
+      ],
+      "exit": 0,
+      "first_seconds": 0.766,
+      "median_seconds": 0.716,
+      "max_seconds": 0.766,
+      "stdout_bytes": 4310,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 4,
+      "peak_rss_kib": 99968,
+      "commands": [
+        "(bash)",
+        "(ruby)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 0,
+        "casks": 21,
+        "bytes_per_item": 205,
+        "first_item_bytes": 116,
+        "first_item_top_level_members": 5,
+        "projected_bytes": 2481,
+        "projected_bytes_per_item": 118
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search lib",
+      "argv": [
+        "search",
+        "lib"
+      ],
+      "exit": 0,
+      "first_seconds": 1.03,
+      "median_seconds": 0.962,
+      "max_seconds": 1.03,
+      "stdout_bytes": 8056,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 113152,
+      "commands": [
+        "(bash)",
+        "(git)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 737
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search py",
+      "argv": [
+        "search",
+        "py"
+      ],
+      "exit": 0,
+      "first_seconds": 0.658,
+      "median_seconds": 0.596,
+      "max_seconds": 1.092,
+      "stdout_bytes": 1801,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 4,
+      "peak_rss_kib": 93344,
+      "commands": [
+        "(bash)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 165
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search formula py",
+      "argv": [
+        "search",
+        "--formula",
+        "py"
+      ],
+      "exit": 0,
+      "first_seconds": 1.211,
+      "median_seconds": 0.937,
+      "max_seconds": 1.35,
+      "stdout_bytes": 1389,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 5,
+      "peak_rss_kib": 91632,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "(ruby)",
+        "(xcode-select)",
+        "bash",
+        "git",
+        "ruby"
+      ],
+      "items": {
+        "lines": 129
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search cask firefox",
+      "argv": [
+        "search",
+        "--cask",
+        "firefox"
+      ],
+      "exit": 0,
+      "first_seconds": 0.504,
+      "median_seconds": 0.513,
+      "max_seconds": 0.546,
+      "stdout_bytes": 99,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 5,
+      "peak_rss_kib": 90160,
+      "commands": [
+        "(bash)",
+        "(ruby)",
+        "(tr)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 7
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search wget",
+      "argv": [
+        "search",
+        "wget"
+      ],
+      "exit": 0,
+      "first_seconds": 0.467,
+      "median_seconds": 0.469,
+      "max_seconds": 0.478,
+      "stdout_bytes": 21,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 84720,
+      "commands": [
+        "(bash)",
+        "(xcode-select)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 3
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search no match",
+      "argv": [
+        "search",
+        "zzqxnotapackage"
+      ],
+      "exit": 1,
+      "first_seconds": 0.543,
+      "median_seconds": 0.523,
+      "max_seconds": 0.543,
+      "stdout_bytes": 0,
+      "stderr_bytes": 57,
+      "stderr_head": "Error: No formulae or casks found for \"zzqxnotapackage\".\n",
+      "peak_processes": 3,
+      "peak_rss_kib": 90544,
+      "commands": [
+        "(bash)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 0
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search regex",
+      "argv": [
+        "search",
+        "/^lib.*ssl/"
+      ],
+      "exit": 0,
+      "first_seconds": 0.461,
+      "median_seconds": 0.414,
+      "max_seconds": 0.461,
+      "stdout_bytes": 9,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 66176,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 1
+      },
+      "stable_output": true
+    },
+    {
+      "name": "search desc ssl",
+      "argv": [
+        "search",
+        "--desc",
+        "ssl"
+      ],
+      "exit": 0,
+      "first_seconds": 0.462,
+      "median_seconds": 0.457,
+      "max_seconds": 0.462,
+      "stdout_bytes": 6519,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 51312,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 100
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info formula wget",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--formula",
+        "wget"
+      ],
+      "exit": 0,
+      "first_seconds": 0.41,
+      "median_seconds": 0.434,
+      "max_seconds": 0.436,
+      "stdout_bytes": 5761,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 81776,
+      "commands": [
+        "(bash)",
+        "(ruby)",
+        "(xcode-select)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 1,
+        "casks": 0,
+        "bytes_per_item": 5761,
+        "first_item_bytes": 3608,
+        "first_item_top_level_members": 58,
+        "projected_bytes": 159,
+        "projected_bytes_per_item": 159
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info formula python@3.13",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--formula",
+        "python@3.13"
+      ],
+      "exit": 0,
+      "first_seconds": 0.427,
+      "median_seconds": 0.413,
+      "max_seconds": 0.431,
+      "stdout_bytes": 5550,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 67184,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 1,
+        "casks": 0,
+        "bytes_per_item": 5550,
+        "first_item_bytes": 3801,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 175,
+        "projected_bytes_per_item": 175
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info formula ffmpeg",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--formula",
+        "ffmpeg"
+      ],
+      "exit": 0,
+      "first_seconds": 0.431,
+      "median_seconds": 0.43,
+      "max_seconds": 0.432,
+      "stdout_bytes": 7157,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 66208,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 1,
+        "casks": 0,
+        "bytes_per_item": 7157,
+        "first_item_bytes": 4232,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 197,
+        "projected_bytes_per_item": 197
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info cask firefox",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--cask",
+        "firefox"
+      ],
+      "exit": 0,
+      "first_seconds": 0.449,
+      "median_seconds": 0.447,
+      "max_seconds": 0.46,
+      "stdout_bytes": 5081,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 82288,
+      "commands": [
+        "(bash)",
+        "(xcode-select)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 0,
+        "casks": 1,
+        "bytes_per_item": 5081,
+        "first_item_bytes": 2964,
+        "first_item_top_level_members": 45,
+        "projected_bytes": 163,
+        "projected_bytes_per_item": 163
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info ambiguous docker",
+      "argv": [
+        "info",
+        "--json=v2",
+        "docker"
+      ],
+      "exit": 0,
+      "first_seconds": 0.432,
+      "median_seconds": 0.432,
+      "max_seconds": 0.447,
+      "stdout_bytes": 2916,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 82272,
+      "commands": [
+        "(bash)",
+        "(xcode-select)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 1,
+        "casks": 0,
+        "bytes_per_item": 2916,
+        "first_item_bytes": 2043,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 168,
+        "projected_bytes_per_item": 168
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info missing",
+      "argv": [
+        "info",
+        "--json=v2",
+        "--formula",
+        "zzqxnotapackage"
+      ],
+      "exit": 1,
+      "first_seconds": 0.561,
+      "median_seconds": 0.545,
+      "max_seconds": 0.561,
+      "stdout_bytes": 0,
+      "stderr_bytes": 61,
+      "stderr_head": "Error: No available formula with the name \"zzqxnotapackage\".\n",
+      "peak_processes": 3,
+      "peak_rss_kib": 92480,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "lines": 0
+      },
+      "stable_output": true
+    },
+    {
+      "name": "info third-party tap",
+      "argv": [
+        "info",
+        "--json=v2",
+        "hashicorp/tap/terraform"
+      ],
+      "exit": 0,
+      "first_seconds": 0.518,
+      "median_seconds": 0.506,
+      "max_seconds": 0.54,
+      "stdout_bytes": 2606,
+      "stderr_bytes": 0,
+      "stderr_head": "",
+      "peak_processes": 3,
+      "peak_rss_kib": 85600,
+      "commands": [
+        "(bash)",
+        "(curl)",
+        "bash",
+        "ruby"
+      ],
+      "items": {
+        "formulae": 1,
+        "casks": 0,
+        "bytes_per_item": 2606,
+        "first_item_bytes": 1820,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 162,
+        "projected_bytes_per_item": 162
+      },
+      "stable_output": true
+    }
+  ],
+  "batches": [
+    {
+      "names": 10,
+      "exit": 0,
+      "stdout_bytes": 30436,
+      "median_seconds": 0.408,
+      "items": {
+        "formulae": 10,
+        "casks": 0,
+        "bytes_per_item": 3044,
+        "first_item_bytes": 2285,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 1422,
+        "projected_bytes_per_item": 142
+      }
+    },
+    {
+      "names": 50,
+      "exit": 0,
+      "stdout_bytes": 157434,
+      "median_seconds": 0.583,
+      "items": {
+        "formulae": 50,
+        "casks": 0,
+        "bytes_per_item": 3149,
+        "first_item_bytes": 2285,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 6829,
+        "projected_bytes_per_item": 137
+      }
+    },
+    {
+      "names": 150,
+      "exit": 0,
+      "stdout_bytes": 452035,
+      "median_seconds": 0.641,
+      "items": {
+        "formulae": 150,
+        "casks": 0,
+        "bytes_per_item": 3014,
+        "first_item_bytes": 2285,
+        "first_item_top_level_members": 57,
+        "projected_bytes": 20730,
+        "projected_bytes_per_item": 138
+      }
+    }
+  ],
+  "stops": [
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.05,
+      "processes_at_signal": 3,
+      "commands_at_signal": [
+        "(bash)",
+        "(git)",
+        "bash"
+      ],
+      "signals_sent": [
+        "SIGINT"
+      ],
+      "returncode": -2,
+      "seconds_to_leader_exit": 0.008,
+      "seconds_to_group_empty": 0.008,
+      "group_left_behind": false,
+      "stderr_tail": "",
+      "plan": "SIGINT"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.05,
+      "processes_at_signal": 3,
+      "commands_at_signal": [
+        "(bash)",
+        "(git)",
+        "bash"
+      ],
+      "signals_sent": [
+        "SIGTERM"
+      ],
+      "returncode": -15,
+      "seconds_to_leader_exit": 0.001,
+      "seconds_to_group_empty": 0.001,
+      "group_left_behind": false,
+      "stderr_tail": "",
+      "plan": "SIGTERM"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.05,
+      "processes_at_signal": 3,
+      "commands_at_signal": [
+        "(bash)",
+        "(git)",
+        "bash"
+      ],
+      "signals_sent": [
+        "SIGKILL"
+      ],
+      "returncode": -9,
+      "seconds_to_leader_exit": 0.001,
+      "seconds_to_group_empty": 0.001,
+      "group_left_behind": false,
+      "stderr_tail": "",
+      "plan": "SIGKILL"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.05,
+      "processes_at_signal": 3,
+      "commands_at_signal": [
+        "(bash)",
+        "(git)",
+        "bash"
+      ],
+      "signals_sent": [
+        "SIGINT"
+      ],
+      "returncode": -2,
+      "seconds_to_leader_exit": 0.008,
+      "seconds_to_group_empty": 0.008,
+      "group_left_behind": false,
+      "stderr_tail": "",
+      "plan": "SIGINT→SIGTERM→SIGKILL"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.6,
+      "processes_at_signal": 1,
+      "commands_at_signal": [
+        "ruby"
+      ],
+      "signals_sent": [
+        "SIGINT"
+      ],
+      "returncode": 130,
+      "seconds_to_leader_exit": 0.009,
+      "seconds_to_group_empty": 0.009,
+      "group_left_behind": false,
+      "stderr_tail": "\n",
+      "plan": "SIGINT"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.6,
+      "processes_at_signal": 1,
+      "commands_at_signal": [
+        "ruby"
+      ],
+      "signals_sent": [
+        "SIGTERM"
+      ],
+      "returncode": 1,
+      "seconds_to_leader_exit": 0.008,
+      "seconds_to_group_empty": 0.008,
+      "group_left_behind": false,
+      "stderr_tail": "on'\n/opt/homebrew/Library/Homebrew/cmd/info.rb:124:in 'Homebrew::Cmd::Info#run'\n/opt/homebrew/Library/Homebrew/brew.rb:147:in '<main>'\nPlease report this issue:\n  https://docs.brew.sh/Troubleshooting\n",
+      "plan": "SIGTERM"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.6,
+      "processes_at_signal": 1,
+      "commands_at_signal": [
+        "ruby"
+      ],
+      "signals_sent": [
+        "SIGKILL"
+      ],
+      "returncode": -9,
+      "seconds_to_leader_exit": 0.002,
+      "seconds_to_group_empty": 0.002,
+      "group_left_behind": false,
+      "stderr_tail": "",
+      "plan": "SIGKILL"
+    },
+    {
+      "argv": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "delay": 0.6,
+      "processes_at_signal": 1,
+      "commands_at_signal": [
+        "ruby"
+      ],
+      "signals_sent": [
+        "SIGINT"
+      ],
+      "returncode": 130,
+      "seconds_to_leader_exit": 0.008,
+      "seconds_to_group_empty": 0.008,
+      "group_left_behind": false,
+      "stderr_tail": "\n",
+      "plan": "SIGINT→SIGTERM→SIGKILL"
+    }
+  ],
+  "api_cache": [
+    {
+      "file": "internal/packages.arm64_golden_gate.jws.json",
+      "bytes": 15632736
+    },
+    {
+      "file": "internal/packages.arm64_golden_gate.jws.json.payload",
+      "bytes": 14381174
+    },
+    {
+      "file": "internal/packages.arm64_golden_gate.jws.json.payload.index",
+      "bytes": 453970
+    },
+    {
+      "file": "internal/executables.txt",
+      "bytes": 349112
+    },
+    {
+      "file": "cask_names.txt",
+      "bytes": 107234
+    },
+    {
+      "file": "formula_names.txt",
+      "bytes": 76980
+    },
+    {
+      "file": "cask/font-noto-nerd-font.json",
+      "bytes": 53645
+    },
+    {
+      "file": "cask/docker-desktop.json",
+      "bytes": 28493
+    }
+  ],
+  "https": [
+    {
+      "name": "formula wget",
+      "url": "https://formulae.brew.sh/api/formula/wget.json",
+      "identity": {
+        "status": 200,
+        "bytes": 4781,
+        "seconds": 0.411118,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 1546,
+        "seconds": 0.283759,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "formula python@3.13",
+      "url": "https://formulae.brew.sh/api/formula/python@3.13.json",
+      "identity": {
+        "status": 200,
+        "bytes": 7141,
+        "seconds": 0.312726,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 2133,
+        "seconds": 0.294977,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "formula ffmpeg",
+      "url": "https://formulae.brew.sh/api/formula/ffmpeg.json",
+      "identity": {
+        "status": 200,
+        "bytes": 5226,
+        "seconds": 0.287925,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 1943,
+        "seconds": 0.287739,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "cask firefox",
+      "url": "https://formulae.brew.sh/api/cask/firefox.json",
+      "identity": {
+        "status": 200,
+        "bytes": 27585,
+        "seconds": 0.325862,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 7070,
+        "seconds": 0.287418,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "cask visual-studio-code",
+      "url": "https://formulae.brew.sh/api/cask/visual-studio-code.json",
+      "identity": {
+        "status": 200,
+        "bytes": 4255,
+        "seconds": 0.283574,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 1361,
+        "seconds": 0.280789,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "formula missing",
+      "url": "https://formulae.brew.sh/api/formula/zzqxnotapackage.json",
+      "identity": {
+        "status": 404,
+        "bytes": 9379,
+        "seconds": 0.29133,
+        "over_ceiling": false
+      },
+      "compressed": {
+        "status": 404,
+        "bytes": 5254,
+        "seconds": 0.289609,
+        "over_ceiling": false
+      }
+    },
+    {
+      "name": "all formulae",
+      "url": "https://formulae.brew.sh/api/formula.json",
+      "identity": {
+        "status": 200,
+        "bytes": 32037601,
+        "seconds": 3.130822,
+        "over_ceiling": true
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 5220063,
+        "seconds": 0.62906,
+        "over_ceiling": true
+      }
+    },
+    {
+      "name": "all casks",
+      "url": "https://formulae.brew.sh/api/cask.json",
+      "identity": {
+        "status": 200,
+        "bytes": 19064631,
+        "seconds": 2.015743,
+        "over_ceiling": true
+      },
+      "compressed": {
+        "status": 200,
+        "bytes": 2070555,
+        "seconds": 0.125218,
+        "over_ceiling": true
+      }
+    }
+  ]
+}

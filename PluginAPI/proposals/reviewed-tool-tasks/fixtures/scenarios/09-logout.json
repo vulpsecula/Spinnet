@@ -1,0 +1,44 @@
+{
+  "title": "Logout, restart and shutdown",
+  "covers": [
+    "logout",
+    "child-process handling"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "a task is running; the Host disabled sudden termination when it started"
+    },
+    {
+      "when": "the user logs out",
+      "then": "macOS asks Spinnet to quit and the dialog of scenario 07 appears; macOS keeps waiting or cancels the logout itself"
+    },
+    {
+      "when": "macOS ends the session anyway (forced logout, power loss)",
+      "then": "the next launch reports the task interrupted, as in scenario 08"
+    }
+  ]
+}

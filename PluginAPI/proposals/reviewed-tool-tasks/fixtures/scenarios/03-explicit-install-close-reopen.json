@@ -1,0 +1,126 @@
+{
+  "title": "One explicit install survives closing the view and is found on reopening",
+  "covers": [
+    "task admission",
+    "Host Confirmation",
+    "ownership",
+    "close-and-continue",
+    "activities.list"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools",
+      "run_reviewed_tool_tasks"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info",
+          "install",
+          "upgrade"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "when": "the user chooses Install on wget and the script answers with the request",
+      "values": [
+        {
+          "definition": "start_task_operation",
+          "value": {
+            "perform": "tools.startTask",
+            "input": {
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "wget"
+            },
+            "id": "install-wget",
+            "notify": true
+          }
+        }
+      ],
+      "then": "the Host commits it with the answer, checks run_reviewed_tool_tasks and its scope, runs brew info --json=v2 --formula -- wget to check the package is official, not installed and needs no administrator, then shows a Host Confirmation naming the operation, package, version and source"
+    },
+    {
+      "when": "the user confirms",
+      "values": [
+        {
+          "definition": "start_task_finished",
+          "value": {
+            "type": "operation_finished",
+            "operation": "install-wget",
+            "perform": "tools.startTask",
+            "outcome": "succeeded",
+            "task": "task-7Qm2Xc9a"
+          }
+        }
+      ],
+      "then": "the task runs under the Host; the Status Item lists it with Stop"
+    },
+    {
+      "when": "the user closes the view",
+      "then": "the task goes on; closing is not cancelling"
+    },
+    {
+      "when": "the user opens the Plugin again and the script calls activities.list",
+      "values": [
+        {
+          "definition": "activities.list.input",
+          "value": {}
+        },
+        {
+          "definition": "activities.list.result",
+          "value": {
+            "activities": [
+              {
+                "task": "task-7Qm2Xc9a",
+                "tool": "homebrew",
+                "operation": "install",
+                "kind": "formula",
+                "name": "wget",
+                "state": "running",
+                "stage": "installing",
+                "elapsed_seconds": 31
+              }
+            ]
+          }
+        }
+      ],
+      "then": "the running task comes back with its stage and redacted log tail"
+    },
+    {
+      "when": "the task ends",
+      "values": [
+        {
+          "definition": "activity_changed",
+          "value": {
+            "type": "activity_changed",
+            "activity": {
+              "task": "task-7Qm2Xc9a",
+              "tool": "homebrew",
+              "operation": "install",
+              "kind": "formula",
+              "name": "wget",
+              "state": "ended",
+              "result": {
+                "outcome": "completed"
+              }
+            }
+          }
+        }
+      ],
+      "then": "a visible view receives it (once #71's source delivery exists); without one the Host shows feedback in its Status Item entry, and the next activities.list returns it"
+    }
+  ]
+}

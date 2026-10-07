@@ -1,0 +1,10 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "upgrade",
+    "kind": "cask",
+    "name": "firefox"
+  },
+  "closes_view": true
+}

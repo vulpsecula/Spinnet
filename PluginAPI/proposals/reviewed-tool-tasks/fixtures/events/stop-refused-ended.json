@@ -1,0 +1,6 @@
+{
+  "type": "operation_finished",
+  "perform": "activities.stop",
+  "outcome": "refused",
+  "reason": "task_finished"
+}

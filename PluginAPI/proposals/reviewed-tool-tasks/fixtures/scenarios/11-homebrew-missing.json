@@ -1,0 +1,49 @@
+{
+  "title": "Homebrew is not installed",
+  "covers": [
+    "executable discovery",
+    "availability"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "given": "neither /opt/homebrew/bin/brew nor /usr/local/bin/brew is a regular executable file owned by the user or root"
+    },
+    {
+      "when": "the script calls a read",
+      "values": [
+        {
+          "definition": "tools.read.input",
+          "value": {
+            "tool": "homebrew",
+            "operation": "installed"
+          }
+        }
+      ],
+      "then": "the call fails with tool_missing; PATH, aliases, shells and other locations are never searched, and the Host never offers to install Homebrew"
+    },
+    {
+      "then": "the Library keeps the Plugin available; its Commands report Homebrew missing the way a missing External App is reported"
+    }
+  ]
+}

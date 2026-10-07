@@ -1,0 +1,13 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "install",
+    "kind": "formula",
+    "name": "wget",
+    "arguments": [
+      "--force",
+      "--build-from-source"
+    ]
+  }
+}

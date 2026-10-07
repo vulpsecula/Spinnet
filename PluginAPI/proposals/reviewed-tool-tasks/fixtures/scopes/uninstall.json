@@ -1,0 +1,9 @@
+{
+  "tool": "homebrew",
+  "operations": [
+    "uninstall"
+  ],
+  "kinds": [
+    "formula"
+  ]
+}

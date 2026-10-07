@@ -1,0 +1,11 @@
+{
+  "perform": "tools.startTask",
+  "input": {
+    "tool": "homebrew",
+    "operation": "install",
+    "kind": "formula",
+    "name": "wget"
+  },
+  "id": "install-wget",
+  "notify": true
+}

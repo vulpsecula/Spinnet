@@ -1,0 +1,6 @@
+{
+  "tool": "homebrew",
+  "operation": "search",
+  "query": "firefox",
+  "kind": "cask"
+}

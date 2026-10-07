@@ -1,0 +1,62 @@
+{
+  "title": "Installed and outdated lists are bounded typed reads",
+  "covers": [
+    "executable discovery",
+    "fixed argv and environment",
+    "projection",
+    "read timeout"
+  ],
+  "manifest": {
+    "api_level": 2,
+    "capabilities": [
+      "read_reviewed_tools"
+    ],
+    "reviewed_tools": [
+      {
+        "tool": "homebrew",
+        "operations": [
+          "installed",
+          "outdated",
+          "search",
+          "info"
+        ],
+        "kinds": [
+          "formula",
+          "cask"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "when": "the script calls spinnet.tools.read for installed",
+      "values": [
+        {
+          "definition": "tools.read.input",
+          "value": {
+            "tool": "homebrew",
+            "operation": "installed"
+          }
+        }
+      ],
+      "then": "the Host runs /opt/homebrew/bin/brew info --json=v2 --installed (or /usr/local/bin/brew) with the profile environment, stdin closed, in its own process group, within 3 s, and returns projected records; on the measured Mac 838,359 bytes of Homebrew JSON became 35,308 bytes for 203 packages"
+    },
+    {
+      "when": "the script calls it for outdated, greedy",
+      "values": [
+        {
+          "definition": "tools.read.input",
+          "value": {
+            "tool": "homebrew",
+            "operation": "outdated",
+            "greedy": true
+          }
+        }
+      ],
+      "then": "brew outdated --json=v2 --greedy runs with HOMEBREW_NO_AUTO_UPDATE=1, so it never runs brew update first"
+    },
+    {
+      "then": "a read Homebrew does not finish in 3 s fails the call with tool_timed_out after its process group is stopped; the script may catch it"
+    }
+  ]
+}

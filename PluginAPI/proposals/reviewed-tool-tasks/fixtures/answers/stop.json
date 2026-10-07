@@ -1,0 +1,7 @@
+{
+  "perform": "activities.stop",
+  "input": {
+    "task": "task-7Qm2Xc9a"
+  },
+  "notify": true
+}

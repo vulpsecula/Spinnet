@@ -1,0 +1,407 @@
+{
+  "description": "PROPOSAL ONLY (#72). Each fixture names the definition of reviewed-tools.schema.json it is checked against and whether it should be accepted. check.py runs them.",
+  "fixtures": [
+    {
+      "file": "calls/installed.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Everything installed, formulae and casks"
+    },
+    {
+      "file": "calls/installed-casks.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Installed casks only"
+    },
+    {
+      "file": "calls/outdated.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Outdated packages, self-updating casks left out"
+    },
+    {
+      "file": "calls/outdated-greedy.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Outdated packages including casks that update themselves"
+    },
+    {
+      "file": "calls/search-lib.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "A name search over the official catalogue"
+    },
+    {
+      "file": "calls/search-cask.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "A name search over casks only"
+    },
+    {
+      "file": "calls/info-batch.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Exact details for the names a page of results shows"
+    },
+    {
+      "file": "calls/search-regex.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Homebrew's /regex/ search form is refused"
+    },
+    {
+      "file": "calls/search-option.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A query that starts with - could be read as an option"
+    },
+    {
+      "file": "calls/search-one-character.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "At least two characters"
+    },
+    {
+      "file": "calls/search-without-query.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "search needs its query"
+    },
+    {
+      "file": "calls/info-without-kind.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Exact info names one kind, so docker (formula and cask) is never ambiguous"
+    },
+    {
+      "file": "calls/info-tap-qualified.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Input never names a tap while P1 stands"
+    },
+    {
+      "file": "calls/info-option-name.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A name cannot start with -"
+    },
+    {
+      "file": "calls/info-path-name.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A name is not a path to a formula file"
+    },
+    {
+      "file": "calls/info-uppercase.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Package names are lowercase"
+    },
+    {
+      "file": "calls/info-51-names.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "At most 50 names per info read"
+    },
+    {
+      "file": "calls/installed-with-query.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "installed takes no query"
+    },
+    {
+      "file": "calls/argv.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "No argv, flags or environment pass through"
+    },
+    {
+      "file": "calls/other-tool.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Homebrew is the only reviewed tool"
+    },
+    {
+      "file": "calls/update.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "update is not a read; the profile offers no update"
+    },
+    {
+      "file": "results/installed.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Projected installed records, as measured about 170 bytes each"
+    },
+    {
+      "file": "results/outdated.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "One outdated cask"
+    },
+    {
+      "file": "results/search-truncated.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Search returns names only; truncated when more than 2,000 matched"
+    },
+    {
+      "file": "results/info-with-not-found.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Names Homebrew does not know come back in not_found"
+    },
+    {
+      "file": "results/raw-homebrew-member.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Homebrew's own members (caveats, artifacts) are not passed through"
+    },
+    {
+      "file": "results/false-flag.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Flags that do not hold are left out, never false"
+    },
+    {
+      "file": "results/too-long-description.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Descriptions are cut to 200 characters"
+    },
+    {
+      "file": "answers/install-formula.json",
+      "definition": "start_task_operation",
+      "valid": true,
+      "note": "Install one formula, told when it started"
+    },
+    {
+      "file": "answers/upgrade-cask.json",
+      "definition": "start_task_operation",
+      "valid": true,
+      "note": "Upgrade one cask and close the view once it has started"
+    },
+    {
+      "file": "answers/tap-qualified.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "A task never names a tap (P1)"
+    },
+    {
+      "file": "answers/uninstall.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "No uninstall, reinstall, cleanup, update, tap, services or doctor"
+    },
+    {
+      "file": "answers/extra-arguments.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "No arguments or flags pass through"
+    },
+    {
+      "file": "answers/sudo.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "There is no way to ask for administrator rights"
+    },
+    {
+      "file": "answers/two-names.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "One package per task"
+    },
+    {
+      "file": "answers/without-kind.json",
+      "definition": "start_task_operation",
+      "valid": false,
+      "note": "A task names its kind"
+    },
+    {
+      "file": "answers/stop.json",
+      "definition": "stop_operation",
+      "valid": true,
+      "note": "A Stop button's request for the Plugin's own task"
+    },
+    {
+      "file": "answers/stop-by-process.json",
+      "definition": "stop_operation",
+      "valid": false,
+      "note": "Stopping names the handle, never a process"
+    },
+    {
+      "file": "events/started.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "The task started; its handle comes with the outcome"
+    },
+    {
+      "file": "events/declined.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "The user declined the Host Confirmation"
+    },
+    {
+      "file": "events/refused-source.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "The name resolves to a package in a tap other than homebrew/core or homebrew/cask"
+    },
+    {
+      "file": "events/refused-busy.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "Another Homebrew task is running, from any Plugin"
+    },
+    {
+      "file": "events/refused-privileges.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "A cask that runs a pkg installer needs an administrator"
+    },
+    {
+      "file": "events/started-after-close.json",
+      "definition": "start_task_finished",
+      "valid": true,
+      "note": "Started after the view closed (host_operations' viewless delivery)"
+    },
+    {
+      "file": "events/started-without-task.json",
+      "definition": "start_task_finished",
+      "valid": false,
+      "note": "A started task always has a handle"
+    },
+    {
+      "file": "events/refused-without-reason.json",
+      "definition": "start_task_finished",
+      "valid": false,
+      "note": "A refusal says why"
+    },
+    {
+      "file": "events/declined-with-reason.json",
+      "definition": "start_task_finished",
+      "valid": false,
+      "note": "Only refused and failed carry a reason"
+    },
+    {
+      "file": "events/activity-running.json",
+      "definition": "activity_changed",
+      "valid": true,
+      "note": "A running task's stage and redacted log tail"
+    },
+    {
+      "file": "events/activity-stopped.json",
+      "definition": "activity_changed",
+      "valid": true,
+      "note": "Ended after a stop attempt, ended by Homebrew's own Control-C handling; nothing rolled back"
+    },
+    {
+      "file": "events/activity-interrupted.json",
+      "definition": "activity_changed",
+      "valid": true,
+      "note": "Spinnet crashed or the user logged out while it ran; reported after relaunch, never resumed"
+    },
+    {
+      "file": "events/activity-failed.json",
+      "definition": "activity_changed",
+      "valid": true,
+      "note": "Homebrew exited with an error"
+    },
+    {
+      "file": "events/activity-ended-without-result.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "An ended task says how it ended"
+    },
+    {
+      "file": "events/activity-running-with-result.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "A running task has no result yet"
+    },
+    {
+      "file": "events/activity-percent.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "There is no percentage"
+    },
+    {
+      "file": "events/activity-stopped-without-signal.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "stopped says which signal ended it"
+    },
+    {
+      "file": "events/activity-rolled-back.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "There is no rolled-back outcome"
+    },
+    {
+      "file": "events/activity-long-log.json",
+      "definition": "activity_changed",
+      "valid": false,
+      "note": "At most 20 log lines"
+    },
+    {
+      "file": "results/activities.json",
+      "definition": "activities.list.result",
+      "valid": true,
+      "note": "A reopened view finds its running task and one that ended"
+    },
+    {
+      "file": "results/activities-with-pid.json",
+      "definition": "activities.list.result",
+      "valid": false,
+      "note": "No process identity is given to the Plugin"
+    },
+    {
+      "file": "calls/activities-list.json",
+      "definition": "activities.list.input",
+      "valid": true,
+      "note": "activities.list takes no input"
+    },
+    {
+      "file": "calls/activities-list-other-plugin.json",
+      "definition": "activities.list.input",
+      "valid": false,
+      "note": "A Plugin lists only its own tasks"
+    },
+    {
+      "file": "scopes/read-and-tasks.json",
+      "definition": "reviewed_tool_scope",
+      "valid": true,
+      "note": "A Homebrew Plugin's disclosed scope"
+    },
+    {
+      "file": "scopes/read-only-formulae.json",
+      "definition": "reviewed_tool_scope",
+      "valid": true,
+      "note": "A read-only formula browser"
+    },
+    {
+      "file": "scopes/uninstall.json",
+      "definition": "reviewed_tool_scope",
+      "valid": false,
+      "note": "uninstall is not an operation of the profile"
+    },
+    {
+      "file": "events/stop-attempt-began.json",
+      "definition": "stop_finished",
+      "valid": true,
+      "note": "The stop attempt began"
+    },
+    {
+      "file": "events/stop-refused-ended.json",
+      "definition": "stop_finished",
+      "valid": true,
+      "note": "The task had already ended"
+    },
+    {
+      "file": "events/stop-refused-without-reason.json",
+      "definition": "stop_finished",
+      "valid": false,
+      "note": "A refusal says why"
+    }
+  ]
+}

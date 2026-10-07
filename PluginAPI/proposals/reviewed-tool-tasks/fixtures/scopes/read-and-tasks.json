@@ -1,0 +1,15 @@
+{
+  "tool": "homebrew",
+  "operations": [
+    "installed",
+    "outdated",
+    "search",
+    "info",
+    "install",
+    "upgrade"
+  ],
+  "kinds": [
+    "formula",
+    "cask"
+  ]
+}
