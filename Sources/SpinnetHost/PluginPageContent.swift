@@ -10,6 +10,7 @@ import SwiftUI
 struct PluginPageContent: View {
     @ObservedObject var model: PluginPageModel
     @State private var pageHeight: CGFloat = 0
+    @Environment(\.pluginPanelFills) private var fills
 
     /// The height a page without a collection may take before it scrolls.
     static let maximumScrollingHeight: CGFloat = 460
@@ -21,8 +22,13 @@ struct PluginPageContent: View {
             if let collection = model.collection {
                 let index = model.page.content.firstIndex { $0.collection != nil } ?? 0
                 components(model.page.content[..<index])
+                // In a panel the user sized, the collection takes the height
+                // left; its items are still laid out in the default width.
                 PageCollectionView(model: model, collection: collection)
-                    .frame(width: PageCollectionView.contentWidth, height: PageCollectionView.height(of: collection))
+                    .frame(width: PageCollectionView.contentWidth,
+                           height: fills ? nil : PageCollectionView.height(of: collection))
+                    .frame(minHeight: fills ? PageCollectionView.listRowHeight : nil,
+                           maxHeight: fills ? .infinity : nil, alignment: .topLeading)
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(model.collectionLabel)
                 components(model.page.content[(index + 1)...])
@@ -34,13 +40,15 @@ struct PluginPageContent: View {
                             Color.clear.preference(key: PageHeightKey.self, value: proxy.size.height)
                         })
                 }
-                .frame(height: min(max(pageHeight, 40), Self.maximumScrollingHeight))
+                .frame(height: fills ? nil : min(max(pageHeight, 40), Self.maximumScrollingHeight))
+                .frame(minHeight: fills ? 40 : nil, maxHeight: fills ? .infinity : nil)
                 .onPreferenceChange(PageHeightKey.self) { pageHeight = $0 }
             }
             if let line = model.insertionTargetLine { targetLine(line) }
         }
         .padding(14)
-        .frame(width: PluginViewPanelWindow.width, alignment: .leading)
+        .frame(minWidth: PluginViewPanelWindow.width, maxWidth: fills ? .infinity : PluginViewPanelWindow.width,
+               maxHeight: fills ? .infinity : nil, alignment: .topLeading)
         .overlay(alignment: .bottom) { toast }
         .environment(\.openURL, OpenURLAction { url in
             model.open(url)

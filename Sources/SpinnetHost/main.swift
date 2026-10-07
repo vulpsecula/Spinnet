@@ -716,6 +716,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return PluginViewWindows(
             environment: environment,
             makeWindow: { PluginViewPanelWindow(model: $0) },
+            pins: PluginViewPins(defaults: .standard),
             pointer: { NSEvent.mouseLocation },
             frontmostApplication: {
                 NSWorkspace.shared.frontmostApplication.map {

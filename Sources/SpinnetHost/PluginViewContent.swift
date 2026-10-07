@@ -11,6 +11,7 @@ struct PluginViewContent: View {
     @ObservedObject var model: PluginViewModel
     @FocusState private var focusedField: String?
     @State private var detailHeight: CGFloat = 0
+    @Environment(\.pluginPanelFills) private var fills
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -35,7 +36,8 @@ struct PluginViewContent: View {
             }
         }
         .padding(14)
-        .frame(width: PluginViewPanelWindow.width, alignment: .leading)
+        .frame(minWidth: PluginViewPanelWindow.width, maxWidth: fills ? .infinity : PluginViewPanelWindow.width,
+               maxHeight: fills ? .infinity : nil, alignment: .topLeading)
         .overlay(alignment: .bottom) { toast }
         // A link in Detail text opens under the `open_url` rules.
         .environment(\.openURL, OpenURLAction { url in
@@ -325,7 +327,9 @@ struct PluginViewContent: View {
         }
         // Before the first measurement a guess from the number of sections
         // stands in, so the detail is never drawn at no height.
-        .frame(height: min(max(detailHeight, CGFloat(detail.sections.count) * 64), 380))
+        .frame(height: fills ? nil : min(max(detailHeight, CGFloat(detail.sections.count) * 64), 380))
+        // In a panel the user sized, the Detail takes the height left.
+        .frame(minHeight: fills ? 64 : nil, maxHeight: fills ? .infinity : nil)
         .onPreferenceChange(DetailHeightKey.self) { detailHeight = $0 }
     }
 

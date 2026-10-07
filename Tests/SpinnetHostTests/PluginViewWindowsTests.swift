@@ -193,6 +193,86 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertEqual(harness.provider.presented.count, 4, "Presenting again asks again")
     }
 
+    // MARK: - Pin memory (#73, ADR 0016)
+
+    /// Pin preference and the last pinned geometry come back on the next
+    /// explicit opening of the Plugin's view.
+    func testThePinAndThePinnedGeometryComeBackOnTheNextOpening() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let first = try XCTUnwrap(harness.window())
+        harness.windows.model(for: harness.pluginID)?.isPinned = true
+        let placed = PluginPanelGeometry(frame: NSRect(x: 900, y: 100, width: 600, height: 500), isUserSized: true)
+        first.userChangedGeometry(to: placed)
+        first.onUserClose?()
+
+        try harness.present(PluginViewHarness.form(title: "Again"))
+
+        let again = try XCTUnwrap(harness.window())
+        XCTAssertFalse(again === first)
+        XCTAssertEqual(harness.windows.model(for: harness.pluginID)?.isPinned, true)
+        XCTAssertTrue(again.floats)
+        XCTAssertEqual(again.restored, [placed])
+    }
+
+    /// Unpinning keeps the window as it is; the next opening is the default
+    /// one beside the pointer, while the pinned geometry stays remembered
+    /// for when the user pins again.
+    func testAfterUnpinningTheNextOpeningIsBesideThePointer() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let first = try XCTUnwrap(harness.window())
+        let model = try XCTUnwrap(harness.windows.model(for: harness.pluginID))
+        model.isPinned = true
+        let placed = PluginPanelGeometry(frame: NSRect(x: 900, y: 100, width: 600, height: 500), isUserSized: true)
+        first.userChangedGeometry(to: placed)
+        model.isPinned = false
+        XCTAssertEqual(first.closes, 0)
+        XCTAssertEqual(first.restored, [nil], "Unpinning does not reshape the open window")
+        first.onUserClose?()
+
+        harness.pointer = NSPoint(x: 200, y: 300)
+        try harness.present(PluginViewHarness.form(title: "Again"))
+
+        let again = try XCTUnwrap(harness.window())
+        XCTAssertEqual(harness.windows.model(for: harness.pluginID)?.isPinned, false)
+        XCTAssertEqual(again.shownNear, [NSPoint(x: 200, y: 300)])
+        XCTAssertEqual(again.restored, [nil])
+        XCTAssertEqual(harness.pins.geometry(for: harness.pluginID), placed)
+    }
+
+    /// Only a pinned window's moves and resizes are remembered.
+    func testAnUnpinnedWindowsGeometryIsNotRemembered() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let window = try XCTUnwrap(harness.window())
+        window.userChangedGeometry(to: PluginPanelGeometry(frame: NSRect(x: 1, y: 2, width: 500, height: 300),
+                                                           isUserSized: true))
+        XCTAssertNil(harness.pins.geometry(for: harness.pluginID))
+
+        // Pinning remembers where the window is at that moment.
+        window.geometry = PluginPanelGeometry(frame: NSRect(x: 5, y: 6, width: 440, height: 200), isUserSized: false)
+        harness.windows.model(for: harness.pluginID)?.isPinned = true
+        XCTAssertEqual(harness.pins.geometry(for: harness.pluginID), window.geometry)
+    }
+
+    /// The memory is the Host's preference and outlives the Host process,
+    /// but a restart opens no view: the next explicit opening uses it.
+    func testARestartOpensNoViewAndTheNextOpeningRestoresThePin() throws {
+        let suite = "PluginViewWindowsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        harness = try PluginViewHarness(pins: PluginViewPins(defaults: defaults))
+        try harness.present(PluginViewHarness.form(title: "First"))
+        harness.windows.model(for: harness.pluginID)?.isPinned = true
+        let placed = PluginPanelGeometry(frame: NSRect(x: 900, y: 100, width: 600, height: 500), isUserSized: true)
+        try XCTUnwrap(harness.window()).userChangedGeometry(to: placed)
+
+        harness = try PluginViewHarness(pins: PluginViewPins(defaults: defaults))
+        XCTAssertNil(harness.window(), "Nothing opens until the Plugin is called")
+
+        try harness.present(PluginViewHarness.form(title: "Again"))
+        XCTAssertEqual(harness.windows.model(for: harness.pluginID)?.isPinned, true)
+        XCTAssertEqual(harness.window()?.restored, [placed])
+    }
+
     func testAToastWithAViewShowsInsideIt() throws {
         try harness.present(PluginViewHarness.form(title: "First"), toast: "Ready")
         XCTAssertEqual(harness.windows.model(for: harness.pluginID)?.toast, "Ready")
@@ -229,11 +309,14 @@ final class PluginViewHarness {
     var scheduled: [(TimeInterval, () -> Void)] = []
     private(set) var windows: PluginViewWindows!
     private(set) var sessions: PluginViewSessions!
+    let pins: PluginViewPins
 
     /// `insertionTargets`, when given, is the App the Host shows as where
     /// text goes, and `declaresHostOperations` makes the fixture's views
     /// those of a Level 2 Plugin.
-    init(insertionTargets: InsertionTargetTracker? = nil, declaresHostOperations: Bool = false) throws {
+    init(insertionTargets: InsertionTargetTracker? = nil, declaresHostOperations: Bool = false,
+         pins: PluginViewPins = PluginViewPins(defaults: nil)) throws {
+        self.pins = pins
         package = try PluginManifestLoader.load(packageAt: Self.fixture)
         let manifest = package.manifest
         let hostActions = PluginViewHostActions(
@@ -272,6 +355,7 @@ final class PluginViewHarness {
                 windowsByPlugin[model.session.pluginID] = window
                 return window
             },
+            pins: pins,
             pointer: { [unowned self] in pointer },
             frontmostApplication: { [unowned self] in frontmost },
             report: { [unowned self] in reports.append($0) }
@@ -365,10 +449,23 @@ final class FakePluginViewWindow: PluginViewWindow {
     private(set) var shownNear: [NSPoint] = []
     private(set) var closes = 0
     private(set) var focuses = 0
+    var onGeometryChange: ((PluginPanelGeometry) -> Void)?
+    private(set) var restored: [PluginPanelGeometry?] = []
     var title = ""
     var floats = false
+    var geometry = PluginPanelGeometry(frame: NSRect(x: 0, y: 0, width: 440, height: 160), isUserSized: false)
 
-    func show(near pointer: NSPoint) { shownNear.append(pointer) }
+    func show(near pointer: NSPoint, restoring pinned: PluginPanelGeometry?) {
+        shownNear.append(pointer)
+        restored.append(pinned)
+        if let pinned { geometry = pinned }
+    }
+
+    /// The user moved or resized the window.
+    func userChangedGeometry(to geometry: PluginPanelGeometry) {
+        self.geometry = geometry
+        onGeometryChange?(geometry)
+    }
     func focus() { focuses += 1 }
     func close() { closes += 1 }
 }

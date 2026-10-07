@@ -397,9 +397,13 @@ protocol PluginViewWindow: AnyObject {
     /// view does: macOS's window-capture highlight tints only normal-level
     /// windows, and an unpinned view closes once another App takes focus.
     var floats: Bool { get set }
-    /// Shows the window near the pointer, in front and taking keyboard
-    /// focus, without activating Spinnet.
-    func show(near pointer: NSPoint)
+    /// Where the window is and whether the user chose its size.
+    var geometry: PluginPanelGeometry { get }
+    /// The user moved or resized the window, or a screen change moved it.
+    var onGeometryChange: ((PluginPanelGeometry) -> Void)? { get set }
+    /// Shows the window near the pointer, or where `pinned` puts it, in
+    /// front and taking keyboard focus, without activating Spinnet.
+    func show(near pointer: NSPoint, restoring pinned: PluginPanelGeometry?)
     /// Brings the window to the front and gives it keyboard focus where it
     /// is, without activating Spinnet.
     func focus()
@@ -420,8 +424,9 @@ final class PluginViewWindows: PluginViewRenderer {
         let window: PluginViewWindow
         var presentationCount: Int
         var viewRevision: Int
-        /// Keeps the window floating while the view is pinned.
-        var pinWatch: AnyCancellable?
+        /// Keep the window floating while the view is pinned, and the pin
+        /// memory up to date.
+        var pinWatch: [AnyCancellable]
 
         var session: PluginViewSession? { model?.session ?? page?.session }
         var isPinned: Bool { model?.isPinned ?? page?.isPinned ?? false }
@@ -433,12 +438,14 @@ final class PluginViewWindows: PluginViewRenderer {
     private let pointer: () -> NSPoint
     private let frontmostApplication: () -> PluginViewOrigin?
     private let report: (String) -> Void
+    private let pins: PluginViewPins
     private var entries: [PluginID: Entry] = [:]
 
     /// `report` tells the user why a view closed when the Plugin broke the
     /// interface.
     init(environment: PluginViewEnvironment, makeWindow: @escaping (PluginViewModel) -> PluginViewWindow,
          makePageWindow: @escaping (PluginPageModel) -> PluginViewWindow = { PluginViewPanelWindow(pageModel: $0) },
+         pins: PluginViewPins = PluginViewPins(defaults: nil),
          pointer: @escaping () -> NSPoint, frontmostApplication: @escaping () -> PluginViewOrigin?,
          report: @escaping (String) -> Void) {
         self.environment = environment
@@ -447,6 +454,7 @@ final class PluginViewWindows: PluginViewRenderer {
         self.pointer = pointer
         self.frontmostApplication = frontmostApplication
         self.report = report
+        self.pins = pins
         environment.sections.onChange = { [weak self] session, id in
             guard let entry = self?.entries[session.pluginID], entry.session === session else { return }
             entry.model?.sectionChanged(id)
@@ -461,10 +469,11 @@ final class PluginViewWindows: PluginViewRenderer {
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
         if let page = presentation.page { return present(page, presentation, of: session) }
         // A page gave way to a Level 1 view: the page's window goes, and the
-        // view gets a window of its own, keeping the pin.
-        var keepsPin = false
+        // view gets a window of its own, keeping the pin and, pinned, its
+        // place.
+        var replaced: (isPinned: Bool, geometry: PluginPanelGeometry)?
         if let entry = entries[session.pluginID], entry.session === session, entry.page != nil {
-            keepsPin = entry.isPinned
+            replaced = (entry.isPinned, entry.window.geometry)
             closeWindow(of: session)
         }
         let description: PluginViewDescription
@@ -499,24 +508,27 @@ final class PluginViewWindows: PluginViewRenderer {
         let model = PluginViewModel(session: session, presentation: presentation, description: description,
                                     environment: environment)
         model.origin = frontmostApplication()
-        model.isPinned = keepsPin
+        let opening = opening(session.pluginID, replacing: replaced)
+        model.isPinned = opening.isPinned
         let window = makeWindow(model)
         window.onResignKey = { [weak model] in
             guard let model, !model.isPinned else { return }
             model.close()
         }
         window.onUserClose = { [weak model] in model?.close() }
-        let pinWatch = model.$isPinned.sink { [weak window] in window?.floats = $0 }
+        let pinWatch = watchPin(model.$isPinned, of: window, for: session.pluginID) { [weak model] in
+            model?.isPinned ?? false
+        }
         entries[session.pluginID] = Entry(model: model, page: nil, window: window,
                                           presentationCount: session.presentationCount, viewRevision: session.viewRevision,
                                           pinWatch: pinWatch)
         environment.sections.sectionsPresented(fetched, in: session)
-        window.show(near: pointer())
+        show(window, for: session.pluginID, opening)
     }
 
     /// Shows a page, or updates the page shown in place.
     private func present(_ page: PluginPage, _ presentation: PluginViewPresentation, of session: PluginViewSession) {
-        var keepsPin = false
+        var replaced: (isPinned: Bool, geometry: PluginPanelGeometry)?
         if var entry = entries[session.pluginID], entry.session === session {
             if let model = entry.page {
                 let presentedAnew = session.presentationCount != entry.presentationCount
@@ -530,11 +542,12 @@ final class PluginViewWindows: PluginViewRenderer {
                 return
             }
             // A Level 1 view gave way to a page.
-            keepsPin = entry.isPinned
+            replaced = (entry.isPinned, entry.window.geometry)
             closeWindow(of: session)
         }
         let model = PluginPageModel(session: session, presentation: presentation, page: page, environment: environment)
-        model.isPinned = keepsPin
+        let opening = opening(session.pluginID, replacing: replaced)
+        model.isPinned = opening.isPinned
         let window = makePageWindow(model)
         window.title = page.title
         window.onResignKey = { [weak model] in
@@ -542,11 +555,47 @@ final class PluginViewWindows: PluginViewRenderer {
             model.close()
         }
         window.onUserClose = { [weak model] in model?.close() }
-        let pinWatch = model.$isPinned.sink { [weak window] in window?.floats = $0 }
+        let pinWatch = watchPin(model.$isPinned, of: window, for: session.pluginID) { [weak model] in
+            model?.isPinned ?? false
+        }
         entries[session.pluginID] = Entry(model: nil, page: model, window: window,
                                           presentationCount: session.presentationCount, viewRevision: session.viewRevision,
                                           pinWatch: pinWatch)
-        window.show(near: pointer())
+        show(window, for: session.pluginID, opening)
+    }
+
+    /// How a new window opens (ADR 0016): with the pin, and the place, of
+    /// the window it replaces in the same session; otherwise with the
+    /// Plugin's remembered Pin, where the pinned panel last was, or, not
+    /// pinned, beside the pointer.
+    private func opening(_ pluginID: PluginID, replacing replaced: (isPinned: Bool, geometry: PluginPanelGeometry)?)
+        -> (isPinned: Bool, restoring: PluginPanelGeometry?) {
+        if let replaced { return (replaced.isPinned, replaced.isPinned ? replaced.geometry : nil) }
+        let isPinned = pins.isPinned(pluginID)
+        return (isPinned, isPinned ? pins.geometry(for: pluginID) : nil)
+    }
+
+    private func show(_ window: PluginViewWindow, for pluginID: PluginID,
+                      _ opening: (isPinned: Bool, restoring: PluginPanelGeometry?)) {
+        window.show(near: pointer(), restoring: opening.restoring)
+        if opening.isPinned { pins.setGeometry(window.geometry, for: pluginID) }
+    }
+
+    /// Floats the window while pinned, and remembers the Pin when the user
+    /// changes it and the pinned window's geometry as it changes.
+    private func watchPin(_ pin: Published<Bool>.Publisher, of window: PluginViewWindow, for pluginID: PluginID,
+                          isPinned: @escaping () -> Bool) -> [AnyCancellable] {
+        let pins = pins
+        window.onGeometryChange = { geometry in
+            if isPinned() { pins.setGeometry(geometry, for: pluginID) }
+        }
+        return [
+            pin.sink { [weak window] in window?.floats = $0 },
+            pin.dropFirst().removeDuplicates().sink { [weak window] pinned in
+                pins.setPinned(pinned, for: pluginID)
+                if pinned, let window { pins.setGeometry(window.geometry, for: pluginID) }
+            }
+        ]
     }
 
     /// Removes the window shown for `session` without ending it.
@@ -554,6 +603,7 @@ final class PluginViewWindows: PluginViewRenderer {
         guard let entry = entries.removeValue(forKey: session.pluginID) else { return }
         entry.window.onResignKey = nil
         entry.window.onUserClose = nil
+        entry.window.onGeometryChange = nil
         entry.window.close()
     }
 
@@ -581,6 +631,7 @@ final class PluginViewWindows: PluginViewRenderer {
         entries.removeValue(forKey: session.pluginID)
         entry.window.onResignKey = nil
         entry.window.onUserClose = nil
+        entry.window.onGeometryChange = nil
         entry.window.close()
         environment.sections.sessionEnded(session)
         if case .failed(let failure) = reason {

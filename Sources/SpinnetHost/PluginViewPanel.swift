@@ -2,18 +2,69 @@ import AppKit
 import SpinnetCore
 import SwiftUI
 
-/// What the panel asks of its SwiftUI content: to size the window to it
-/// and to run under the transparent title bar.
+/// What the panel asks of its SwiftUI content: to leave the window's size
+/// alone, and to run under the transparent title bar.
 private protocol HostingSizing {
-    func sizeToPreferredContent()
+    func stopSizingWindow()
 }
 
 extension NSHostingController: HostingSizing {
-    func sizeToPreferredContent() {
-        sizingOptions = [.preferredContentSize]
+    func stopSizingWindow() {
+        // No size constraints of the hosting view's own: with any, AppKit
+        // pins the window to the content and fights a size the user chose.
+        // The content reports its size (`PluginPanelFill`) and
+        // `PluginPanelLayout` decides.
+        sizingOptions = []
         // The view draws its own header, so the content runs under the
         // transparent title bar instead of leaving an empty band above it.
         if #available(macOS 13.3, *) { safeAreaRegions = [] }
+    }
+}
+
+/// Whether the panel's content fills the panel (a user-sized panel) or sets
+/// its size (a panel following its content), and how it reports that size.
+final class PluginPanelFill: ObservableObject {
+    @Published var fillsPanel = false
+    /// The content's own size, reported while it does not fill the panel.
+    var onContentSize: ((NSSize) -> Void)?
+}
+
+private struct PluginPanelFillsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True when the content is in a panel the user sized: it fills the
+    /// panel and its scrolling region takes the height left.
+    var pluginPanelFills: Bool {
+        get { self[PluginPanelFillsKey.self] }
+        set { self[PluginPanelFillsKey.self] = newValue }
+    }
+}
+
+/// The root of a panel's SwiftUI content, telling it whether it fills.
+private struct PluginPanelRoot<Content: View>: View {
+    @ObservedObject var fill: PluginPanelFill
+    let content: Content
+
+    var body: some View {
+        // One structure either way, so filling keeps the content's identity
+        // and state. Not filling, it is at its own size, measured for the
+        // panel to follow.
+        let fills = fill.fillsPanel
+        content
+            .environment(\.pluginPanelFills, fills)
+            .fixedSize(horizontal: !fills, vertical: !fills)
+            .background(GeometryReader { proxy in
+                Color.clear
+                    .onAppear { report(proxy.size) }
+                    .onChange(of: proxy.size) { report($0) }
+            })
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func report(_ size: CGSize) {
+        if !fill.fillsPanel { fill.onContentSize?(size) }
     }
 }
 
@@ -26,39 +77,73 @@ private final class PluginViewNSPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { onCancel?() }
 }
 
-/// The Host's window for one Plugin View: a floating, non-activating panel
-/// near the pointer that grows downwards as its content does and stays on
-/// screen.
+/// The Host's window for one Plugin View: a non-activating panel near the
+/// pointer that grows downwards as its content does and stays on screen.
+/// Pinned, it floats and the user may resize it; from then on its size is
+/// the user's (`PluginPanelLayout`) and its content fills it.
 final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate {
     /// Space between the pointer and the panel's top edge.
-    static let pointerGap: CGFloat = 12
+    static let pointerGap = PluginPanelLayout.pointerGap
     /// Space kept between the panel and the screen's edges.
-    static let screenMargin: CGFloat = 8
+    static let screenMargin = PluginPanelLayout.screenMargin
     static let width: CGFloat = 440
 
     var onResignKey: (() -> Void)?
     var onUserClose: (() -> Void)?
+    var onGeometryChange: ((PluginPanelGeometry) -> Void)?
+    /// Where the screens are: AppKit's, unless a test gives its own.
+    var screens: () -> [PluginPanelScreen] = PluginPanelScreen.current
     private let panel: PluginViewNSPanel
-    /// The panel grows downwards from here as its content changes.
-    private var top: CGFloat = 0
+    private let hosting: NSViewController & HostingSizing
+    private let fill: PluginPanelFill
+    private var layout: PluginPanelLayout?
+    /// True while the panel applies `layout` itself, so the moves and
+    /// resizes that causes are not taken for the user's.
+    private var isApplying = false
     private var isClosing = false
+    private var screenWatch: NSObjectProtocol?
+    /// The size the content last reported at its own size.
+    private var contentSize: NSSize?
 
     convenience init(model: PluginViewModel) {
-        self.init(content: NSHostingController(rootView: PluginViewContent(model: model)), title: model.title)
+        let fill = PluginPanelFill()
+        self.init(content: NSHostingController(rootView: PluginPanelRoot(fill: fill,
+                                                                         content: PluginViewContent(model: model))),
+                  fill: fill, title: model.title)
     }
 
-    /// The window of a page (Candidate Contract `collections`).
+    /// The window of a page (Plugin API Level 2).
     convenience init(pageModel: PluginPageModel) {
-        self.init(content: NSHostingController(rootView: PluginPageContent(model: pageModel)), title: pageModel.title)
+        let fill = PluginPanelFill()
+        self.init(content: NSHostingController(rootView: PluginPanelRoot(fill: fill,
+                                                                         content: PluginPageContent(model: pageModel))),
+                  fill: fill, title: pageModel.title)
     }
 
-    private init(content hosting: NSViewController & HostingSizing, title: String) {
+    private init(content hosting: NSViewController & HostingSizing, fill: PluginPanelFill, title: String) {
         panel = PluginViewNSPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 160),
                                   styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                                   backing: .buffered, defer: false)
+        self.hosting = hosting
+        self.fill = fill
         super.init()
-        hosting.sizeToPreferredContent()
-        panel.contentViewController = hosting
+        hosting.stopSizingWindow()
+        hosting.view.autoresizingMask = [.width, .height]
+        panel.contentView = hosting.view
+        panel.contentMinSize = PluginPanelLayout.minimumSize
+        // The content's size reaches the panel through `PluginPanelLayout`,
+        // which follows it until the size is the user's. The change is taken
+        // after the layout pass that reported it.
+        fill.onContentSize = { [weak self] size in
+            guard size.width > 0, size.height > 0 else { return }
+            self?.contentSize = size
+            DispatchQueue.main.async { self?.contentSizeChanged(to: size) }
+        }
+        hosting.view.layoutSubtreeIfNeeded()
+        if let contentSize { panel.setContentSize(contentSize) }
+        // Restart opens no view: AppKit's window restoration must not bring
+        // a panel back either.
+        panel.isRestorable = false
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
@@ -76,14 +161,28 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         self.title = title
         panel.onCancel = { [weak self] in self?.userClosed() }
         panel.delegate = self
+        screenWatch = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.screensChanged() }
     }
 
+    deinit {
+        if let screenWatch { NotificationCenter.default.removeObserver(screenWatch) }
+    }
+
+    /// Pinned: floats above other Apps' windows and may be resized.
+    /// Unpinning keeps the size the panel has.
     var floats: Bool {
         get { panel.isFloatingPanel }
         set {
             panel.isFloatingPanel = newValue
             panel.level = newValue ? .floating : .normal
+            if newValue { panel.styleMask.insert(.resizable) } else { panel.styleMask.remove(.resizable) }
         }
+    }
+
+    var geometry: PluginPanelGeometry {
+        layout?.geometry ?? PluginPanelGeometry(frame: panel.frame, isUserSized: false)
     }
 
     var title: String {
@@ -94,12 +193,10 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         }
     }
 
-    func show(near pointer: NSPoint) {
-        let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let topLeft = Self.topLeft(for: panel.frame.size, near: pointer, within: visible)
-        top = topLeft.y
-        panel.setFrameTopLeftPoint(topLeft)
+    func show(near pointer: NSPoint, restoring pinned: PluginPanelGeometry? = nil) {
+        hosting.view.layoutSubtreeIfNeeded()
+        apply(PluginPanelLayout.opening(contentSize: contentSize ?? panel.frame.size, pointer: pointer, screens: screens(),
+                                        restoring: pinned))
         bringForward()
     }
 
@@ -131,27 +228,61 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     /// Centred under the pointer, its top just below it, and always inside
     /// the screen's visible frame.
     static func topLeft(for size: NSSize, near pointer: NSPoint, within visible: NSRect) -> NSPoint {
-        let x = min(max(pointer.x - size.width / 2, visible.minX + screenMargin),
-                    visible.maxX - size.width - screenMargin)
-        var top = min(pointer.y - pointerGap, visible.maxY - screenMargin)
-        if top - size.height < visible.minY + screenMargin {
-            top = min(visible.minY + screenMargin + size.height, visible.maxY - screenMargin)
+        PluginPanelLayout.besidePointer(size: size, pointer: pointer, visible: visible)
+    }
+
+    /// Puts the panel where `layout` says, and lets the content set the size
+    /// or fill the panel accordingly.
+    private func apply(_ newLayout: PluginPanelLayout) {
+        // A panel starts out following its content.
+        let followed = layout?.followsContent ?? true
+        layout = newLayout
+        if followed != newLayout.followsContent {
+            fill.fillsPanel = !newLayout.followsContent
         }
-        return NSPoint(x: x, y: top)
+        guard panel.frame != newLayout.frame else { return }
+        isApplying = true
+        panel.setFrame(newLayout.frame, display: true)
+        isApplying = false
+    }
+
+    /// Following its content, the panel keeps its top and stays on screen
+    /// as the view grows; a size the user chose is left alone.
+    private func contentSizeChanged(to size: NSSize) {
+        guard !isClosing, !panel.inLiveResize, size.width > 0, size.height > 0 else { return }
+        let screens = screens()
+        change(reports: false) { $0.contentSizeChanged(to: size, screens: screens) }
+    }
+
+    private func change(reports: Bool, _ update: (inout PluginPanelLayout) -> Void) {
+        guard var changed = layout else { return }
+        update(&changed)
+        apply(changed)
+        if reports { onGeometryChange?(changed.geometry) }
+    }
+
+    private func screensChanged() {
+        let screens = screens()
+        change(reports: true) { $0.screensChanged(screens) }
     }
 
     // MARK: - NSWindowDelegate
 
-    func windowDidResize(_ notification: Notification) {
-        // Keep the top where it was and stay on screen as the view grows.
-        let visible = panel.screen?.visibleFrame ?? .infinite
-        let y = max(top - panel.frame.height, visible.minY + Self.screenMargin)
-        panel.setFrameOrigin(NSPoint(x: panel.frame.minX, y: y))
+    /// The size is the user's from the moment they take an edge.
+    func windowWillStartLiveResize(_ notification: Notification) {
+        change(reports: false) { $0.userBeganResizing() }
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        let frame = panel.frame
+        change(reports: true) { $0.userResized(to: frame) }
     }
 
     /// The user may drag the view; it then grows from where they left it.
     func windowDidMove(_ notification: Notification) {
-        top = panel.frame.maxY
+        guard !isApplying, !panel.inLiveResize else { return }
+        let frame = panel.frame
+        change(reports: true) { $0.moved(to: frame) }
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -168,6 +299,26 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         (panel.isVisible, panel.isKeyWindow, panel.frame, panel.becomesKeyOnlyIfNeeded,
          panel.styleMask.contains(.nonactivatingPanel))
     }
+
+    /// The panel's AppKit configuration, which Pin changes.
+    var panelSnapshot: (level: NSWindow.Level, isFloating: Bool, isResizable: Bool, canBecomeKey: Bool,
+                        canBecomeMain: Bool, hidesOnDeactivate: Bool, isRestorable: Bool, fills: Bool) {
+        (panel.level, panel.isFloatingPanel, panel.styleMask.contains(.resizable), panel.canBecomeKey,
+         panel.canBecomeMain, panel.hidesOnDeactivate, panel.isRestorable, fill.fillsPanel)
+    }
+
+    /// Resizes the panel as the user's drag of an edge does, for tests:
+    /// AppKit's live resize cannot be driven without a real drag.
+    func simulateUserResize(to frame: NSRect) {
+        windowWillStartLiveResize(Notification(name: NSWindow.willStartLiveResizeNotification))
+        isApplying = true
+        panel.setFrame(frame, display: true)
+        isApplying = false
+        windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
+    }
+
+    /// Reacts as to `didChangeScreenParametersNotification`, for tests.
+    func simulateScreenChange() { screensChanged() }
 
     var contentView: NSView? { panel.contentView }
 }

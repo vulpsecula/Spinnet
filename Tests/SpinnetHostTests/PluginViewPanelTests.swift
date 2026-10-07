@@ -48,6 +48,144 @@ final class PluginViewPanelTests: XCTestCase {
         XCTAssertEqual(snapshot.frame.maxY, 500 - PluginViewPanelWindow.pointerGap, accuracy: 1)
     }
 
+    // MARK: - Pin and resizing (#73)
+
+    private func shownPanel(fields: Int = 1, near pointer: NSPoint = NSPoint(x: 400, y: 600),
+                            restoring pinned: PluginPanelGeometry? = nil,
+                            screens: [PluginPanelScreen]? = nil) throws -> (PluginViewHarness, PluginViewPanelWindow) {
+        _ = NSApplication.shared
+        let harness = try PluginViewHarness()
+        try harness.present(Self.form(fields: fields))
+        let window = PluginViewPanelWindow(model: try XCTUnwrap(harness.windows.model(for: harness.pluginID)))
+        if let screens { window.screens = { screens } }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        window.show(near: pointer, restoring: pinned)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        return (harness, window)
+    }
+
+    private static func form(fields: Int) -> JSONValue {
+        PluginViewHarness.form(title: "Panel", fields: (0..<fields).map {
+            .object(["key": .string("f\($0)"), "kind": .string("text"), "title": .string("Field \($0)")])
+        })
+    }
+
+    /// Unpinned, the panel stays at the normal level and is not resizable;
+    /// pinned, it floats and may be resized. Either way it takes the
+    /// keyboard without becoming main or activating Spinnet, and AppKit
+    /// never restores it at launch.
+    func testPinFloatsTheNonActivatingPanelAndLetsTheUserResizeIt() throws {
+        let (_, window) = try shownPanel()
+        defer { window.close() }
+        var panel = window.panelSnapshot
+        XCTAssertEqual(panel.level, .normal)
+        XCTAssertFalse(panel.isFloating)
+        XCTAssertFalse(panel.isResizable)
+        XCTAssertTrue(panel.canBecomeKey)
+        XCTAssertFalse(panel.canBecomeMain)
+        XCTAssertFalse(panel.hidesOnDeactivate)
+        XCTAssertFalse(panel.isRestorable)
+        XCTAssertTrue(window.presentationSnapshot.isNonActivating)
+        XCTAssertFalse(window.presentationSnapshot.becomesKeyOnlyIfNeeded)
+
+        window.floats = true
+        panel = window.panelSnapshot
+        XCTAssertEqual(panel.level, .floating)
+        XCTAssertTrue(panel.isFloating)
+        XCTAssertTrue(panel.isResizable)
+        XCTAssertTrue(window.presentationSnapshot.isNonActivating, "Resizable does not make it activating")
+
+        let chosen = NSRect(x: 100, y: 100, width: 640, height: 420)
+        window.simulateUserResize(to: chosen)
+        window.floats = false
+        XCTAssertEqual(window.panelSnapshot.level, .normal)
+        XCTAssertFalse(window.panelSnapshot.isResizable)
+        XCTAssertEqual(window.presentationSnapshot.frame, chosen, "Unpinning does not shrink the panel")
+    }
+
+    /// Before the user resizes, the panel grows with its content from the
+    /// same top; afterwards content updates leave the user's frame alone and
+    /// the content fills it.
+    func testContentUpdatesDoNotOverwriteTheUsersSize() throws {
+        let (harness, window) = try shownPanel()
+        defer { window.close() }
+        let top = window.presentationSnapshot.frame.maxY
+        let small = window.presentationSnapshot.frame.height
+        try harness.present(Self.form(fields: 4))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertGreaterThan(window.presentationSnapshot.frame.height, small, "Followed content grows the panel")
+        XCTAssertEqual(window.presentationSnapshot.frame.maxY, top, accuracy: 1)
+        XCTAssertFalse(window.panelSnapshot.fills)
+
+        window.floats = true
+        var reported: [PluginPanelGeometry] = []
+        window.onGeometryChange = { reported.append($0) }
+        let chosen = NSRect(x: 120, y: 80, width: 700, height: 300)
+        window.simulateUserResize(to: chosen)
+        XCTAssertEqual(reported.last, PluginPanelGeometry(frame: chosen, isUserSized: true))
+        XCTAssertTrue(window.panelSnapshot.fills)
+
+        try harness.present(Self.form(fields: 8))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        try harness.present(Self.form(fields: 1))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(window.presentationSnapshot.frame, chosen)
+        let content = try XCTUnwrap(window.contentView)
+        XCTAssertEqual(content.frame.width, chosen.width, accuracy: 1, "The content fills the user's width")
+    }
+
+    /// Remembered pinned geometry comes back where it was, or inside the
+    /// visible screen when the screen it was on is gone or smaller.
+    func testRestoredGeometryIsKeptInsideTheVisibleScreen() throws {
+        // The display it was on is gone; the main display remains. (AppKit
+        // itself keeps an ordered-front window on a real display, so the
+        // remaining screen is the real main one.)
+        let main = try XCTUnwrap(NSScreen.screens.first)
+        let screen = PluginPanelScreen(frame: main.frame, visible: main.visibleFrame)
+        let inside = PluginPanelGeometry(frame: NSRect(x: screen.visible.minX + 200, y: screen.visible.minY + 100,
+                                                       width: 520, height: 400), isUserSized: true)
+        let (_, kept) = try shownPanel(restoring: inside, screens: [screen])
+        let frame = kept.presentationSnapshot.frame
+        XCTAssertEqual(frame.size, inside.frame.size)
+        XCTAssertEqual(frame.maxY, inside.frame.maxY, accuracy: 1)
+        // Ordering the panel front, AppKit's own `constrainFrameRect` may
+        // nudge it sideways (34 pt observed on macOS 27 at x 200); the panel
+        // then remembers where AppKit put it.
+        XCTAssertEqual(frame.minX, inside.frame.minX, accuracy: 40)
+        XCTAssertEqual(kept.geometry.frame, frame)
+        XCTAssertTrue(kept.panelSnapshot.fills)
+        kept.close()
+
+        let gone = PluginPanelGeometry(frame: NSRect(x: screen.frame.maxX + 3000, y: 100, width: 520, height: 400),
+                                       isUserSized: true)
+        let (_, moved) = try shownPanel(restoring: gone, screens: [screen])
+        defer { moved.close() }
+        XCTAssertTrue(screen.visible.contains(moved.presentationSnapshot.frame), "\(moved.presentationSnapshot.frame)")
+        XCTAssertEqual(moved.presentationSnapshot.frame.size, gone.frame.size)
+    }
+
+    func testAScreenChangeKeepsAnOpenPanelOnScreenAndIsRemembered() throws {
+        let main = try XCTUnwrap(NSScreen.screens.first)
+        let wide = PluginPanelScreen(frame: main.frame, visible: main.visibleFrame)
+        let (_, window) = try shownPanel(screens: [wide])
+        defer { window.close() }
+        window.floats = true
+        let origin = wide.visible.origin
+        window.simulateUserResize(to: NSRect(x: origin.x + 600, y: origin.y + 300, width: 560, height: 400))
+        var reported: [PluginPanelGeometry] = []
+        window.onGeometryChange = { reported.append($0) }
+
+        // The display becomes smaller (as with a resolution change).
+        let narrowed = NSRect(origin: origin, size: NSSize(width: 900, height: 580))
+        let narrow = PluginPanelScreen(frame: narrowed, visible: narrowed)
+        window.screens = { [narrow] }
+        window.simulateScreenChange()
+
+        XCTAssertTrue(narrow.visible.contains(window.presentationSnapshot.frame), "\(window.presentationSnapshot.frame)")
+        XCTAssertEqual(reported.last?.frame, window.presentationSnapshot.frame)
+    }
+
     /// The view draws its own header, so the transparent title bar adds no
     /// empty band above it: the panel is as tall as its content.
     func testThePanelIsAsTallAsItsContent() throws {

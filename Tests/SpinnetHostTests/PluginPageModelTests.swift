@@ -208,6 +208,8 @@ final class PluginPageModelTests: XCTestCase {
     func testPagesAndLevelOneViewsSwapWindowsKeepingThePin() throws {
         try harness.open(PageHarness.search())
         model.isPinned = true
+        let placed = PluginPanelGeometry(frame: NSRect(x: 30, y: 40, width: 640, height: 480), isUserSized: true)
+        harness.pageWindows.first?.userChangedGeometry(to: placed)
         model.returnPressedInCollection()
         harness.finish(.object(["view": .object(["title": .string("Level 1"),
                                                   "actions": .array([.object(["id": .string("a"), "title": .string("A")])])])]))
@@ -215,6 +217,7 @@ final class PluginPageModelTests: XCTestCase {
         let level1 = try XCTUnwrap(harness.windows.model(for: PageHarness.pluginID))
         XCTAssertTrue(level1.isPinned)
         XCTAssertEqual(harness.pageWindows.first?.closes, 1)
+        XCTAssertEqual(harness.levelOneWindows.first?.restored, [placed], "The pinned panel keeps its place and size")
         level1.choose(try XCTUnwrap(level1.description.actions.first))
         try harness.answer(PageHarness.search())
         XCTAssertTrue(model.isPinned)
