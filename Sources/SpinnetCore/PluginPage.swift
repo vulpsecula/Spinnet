@@ -1,23 +1,20 @@
 import Foundation
 
-/// Pages and collections (ADR 0019), proved as Candidate Contract
-/// `collections` and part of Plugin API Level 2 since revision 3 was
-/// promoted (#79), whose members Level 2 holds: a Level 2 Plugin may answer
-/// with a page, a tree of identified View Components with at most one List or
-/// Grid, whose immediate state the Host keeps across answers until the Plugin
-/// resets it. The candidate Host provided three revisions, retired since, each published under
-/// `PluginAPI/candidates/collections/r<revision>/` as `candidate.json`:
-/// revision 1, pages and collections; revision 2, which adds repeated calls
-/// (#78): calling the Plugin again while its View Session is open runs the
-/// called Action in the session as `called` instead of restarting it; and
-/// revision 3, which replaces append-only `load_more` with a window the Host
-/// keeps of a collection of `total` items, filled by `load_range`, and adds
-/// toggle item actions with item marks and outcomes of Host-performed page
-/// and item actions (E2 findings, #79).
+/// Pages and collections (ADR 0019), part of Plugin API Level 2: a Level 2
+/// Plugin may answer with a page, a tree of identified View Components with
+/// at most one List or Grid, whose immediate state the Host keeps across
+/// answers until the Plugin resets it. A collection may give its `total` and
+/// a slice of its items, and the Host asks for the rest with `load_range`;
+/// an item action may toggle a mark; a performed page or item action may ask
+/// to `notify`; and calling the Plugin again while its View Session is open
+/// runs the called Action in the session as `called`.
+///
+/// They were proved as Candidate Contract `collections`, whose revisions 1
+/// to 3 are retired into Level 2 (#79); `promoted` is revision 3's record,
+/// whose members Level 2 holds.
 public enum CollectionsContract {
     public static let name = "collections"
-    /// The latest revision, the one the Plugins of this Host's fixtures
-    /// declare.
+    /// The revision promoted into Level 2.
     public static let revision = 3
 
     public static var declaration: CandidateContractRevision {
@@ -27,38 +24,34 @@ public enum CollectionsContract {
     /// An answer may carry `page` in place of a Level 1 `view`.
     public static let answerPage = PluginInterfaceMember.behaviour("answer_page")
 
-    /// Revision 2: an explicit call of one of the Plugin's Actions while its
-    /// View Session is open is queued into the session as `called`.
+    /// An explicit call of one of the Plugin's Actions while its View
+    /// Session is open is queued into the session as `called`.
     public static let repeatedCallsIntoSession = PluginInterfaceMember.behaviour("repeated_calls_into_session")
 
-    /// Revision 3: a collection may give its `total` and a slice of its
-    /// items; the Host keeps only a window of them around what the user sees
-    /// and asks for the rest with `load_range`.
+    /// A collection may give its `total` and a slice of its items; the Host
+    /// keeps only a window of them around what the user sees and asks for
+    /// the rest with `load_range`.
     public static let collectionWindow = PluginInterfaceMember.behaviour("collection_window")
-    /// Revision 3: an item action may toggle a mark items carry, which its
-    /// context menu entry shows checked.
+    /// An item action may toggle a mark items carry, which its context menu
+    /// entry shows checked.
     public static let toggleItemActions = PluginInterfaceMember.behaviour("toggle_item_actions")
-    /// Revision 3: a page or item action the Host performs may ask to
-    /// `notify`, and its outcome reaches the Plugin as `operation_finished`.
+    /// A page or item action the Host performs may ask to `notify`, and its
+    /// outcome reaches the Plugin as `operation_finished`.
     public static let performedActionOutcomes = PluginInterfaceMember.behaviour("performed_action_outcomes")
-    /// Revisions 1 and 2's append-only paging event.
-    public static let loadMore = PluginInterfaceMember.viewEvent("load_more")
-    /// Revision 3's range request.
+    /// The range request.
     public static let loadRange = PluginInterfaceMember.viewEvent("load_range")
 
-    /// The rules a declaring Plugin gets, as revision 1's `candidate.json`
-    /// lists them; revision 2 adds `repeated_calls_into_session`, revision 3
-    /// the window, toggles and performed actions' outcomes.
+    /// The rules a Level 2 Plugin's pages get.
     public static let behaviours = [
         "answer_page", "page_identity", "page_memory", "component_identity", "immediate_state_kept",
         "explicit_reset", "composition_priority", "page_event_provenance", "gesture_snapshots",
-        "collection_keyboard_roles", "collection_selection", "item_standard_actions"
+        "collection_keyboard_roles", "collection_selection", "item_standard_actions",
+        "repeated_calls_into_session", "collection_window", "toggle_item_actions", "performed_action_outcomes"
     ]
 
     public static let componentKinds = PluginPageComponent.Kind.allCases.map(\.rawValue)
-    /// Revision 1's View Events; revision 2 adds `called`; revision 3 has
-    /// `load_range` in place of `load_more`.
-    public static let events = ["item_action", "load_more"]
+    /// The View Events pages add.
+    public static let events = ["item_action", "load_range", "called"]
 
     /// The catalogue IDs a page action may perform, in the catalogue's order.
     public static var viewActionIDs: [String] {
@@ -71,39 +64,17 @@ public enum CollectionsContract {
     /// The catalogue IDs an item action may perform on the item's text.
     public static let itemActionIDs = ["selection.replace", "clipboard.write"]
 
-    /// Revision 1 as its `candidate.json` publishes it.
-    public static let revisionOne = makeRevision(1, behaviours: behaviours, events: events,
-                                                 operations: HostOperationsContract.declaration)
-
-    /// Revision 2 as its `candidate.json` publishes it: revision 1's members
-    /// with repeated calls.
-    public static let revisionTwo = makeRevision(2, behaviours: behaviours + ["repeated_calls_into_session"],
-                                                 events: events + ["called"], operations: HostOperationsContract.declaration)
-
-    /// Revision 3 as its `candidate.json` publishes it: revision 2's members
-    /// with `load_range` in place of `load_more`, the window, toggles and
-    /// performed actions' outcomes; it requires `host_operations` r2.
-    public static let candidate = makeRevision(
-        3, behaviours: behaviours + ["repeated_calls_into_session", "collection_window", "toggle_item_actions",
-                                     "performed_action_outcomes"],
-        events: ["item_action", "load_range", "called"], operations: HostOperationsContract.revisionTwoDeclaration
+    /// Revision 3 as its `candidate.json` published it, whose members Level
+    /// 2 holds.
+    public static let promoted = CandidateContract(
+        name: name, revision: revision, baseLevel: 1,
+        requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
+        members: behaviours.map(PluginInterfaceMember.behaviour)
+            + viewActionIDs.map(PluginInterfaceMember.standardAction)
+            + componentKinds.map(PluginInterfaceMember.viewComponent)
+            + events.map(PluginInterfaceMember.viewEvent),
+        tag: "plugin-api-candidate/\(name)/r\(revision)"
     )
-
-    /// Every revision this Host provides, oldest first.
-    public static let candidates = [revisionOne, revisionTwo, candidate]
-
-    private static func makeRevision(_ revision: Int, behaviours: [String], events: [String],
-                                     operations: CandidateContractRevision) -> CandidateContract {
-        CandidateContract(
-            name: name, revision: revision, baseLevel: 1,
-            requires: [operations, HostServiceCatalogue.declaration],
-            members: behaviours.map(PluginInterfaceMember.behaviour)
-                + viewActionIDs.map(PluginInterfaceMember.standardAction)
-                + componentKinds.map(PluginInterfaceMember.viewComponent)
-                + events.map(PluginInterfaceMember.viewEvent),
-            tag: "plugin-api-candidate/\(name)/r\(revision)"
-        )
-    }
 
     // MARK: Limits
 
@@ -511,9 +482,8 @@ public struct PluginPageAction: Equatable {
 /// A List or Grid: items the Host draws, selects, scrolls and asks for more
 /// of, whose data, search, order and batches are the Plugin's.
 ///
-/// A collection is whole, every item given at once (revisions 1 and 2, and
-/// revision 3 without `total`), or windowed (revision 3 with `total`): the
-/// answer gives `total` positions and the items of one slice of them from
+/// A collection is whole, every item given at once, or windowed, when it
+/// gives `total`: the answer gives `total` positions and the items of one slice of them from
 /// `start`, and sections only as headers with their `count`. Positions are
 /// always counted from the collection's first item.
 public struct PluginPageCollection: Equatable {
@@ -525,8 +495,6 @@ public struct PluginPageCollection: Equatable {
     /// has one untitled section whose `id` is nil. Each section's `items`
     /// are those of the answer's slice that fall within it.
     public let sections: [PluginPageSection]
-    /// Revisions 1 and 2: the Plugin has more items to append.
-    public let hasMore: Bool
     public let selected: String?
     public let emptyText: String
     public let actions: [PluginPageItemAction]
@@ -538,7 +506,7 @@ public struct PluginPageCollection: Equatable {
     public let total: Int
     /// The position of the first given item.
     public let start: Int
-    /// Revision 3: the answer gave `total` and one slice of the items.
+    /// The answer gave `total` and one slice of the items.
     public let isWindowed: Bool
     /// The given items, in order, sections included: positions `start`
     /// onwards.
@@ -550,7 +518,6 @@ public struct PluginPageCollection: Equatable {
         let kind = style == .grid ? "grid" : "list"
         var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "empty_text", "actions", "rows"]
         if style == .grid { allowed.insert("columns") }
-        if permits(CollectionsContract.loadMore) { allowed.insert("has_more") }
         if permits(CollectionsContract.collectionWindow) { allowed.formUnion(["total", "start"]) }
         let members = try PluginPage.object(value, "A \(kind)", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "A \(kind)'s id")
@@ -574,9 +541,6 @@ public struct PluginPageCollection: Equatable {
         let offering = PluginPageItem.Offering(actions: actionIDs, marks: marks, allowsMarks: permits(CollectionsContract.toggleItemActions))
         isWindowed = members["total"] != nil
         if isWindowed {
-            guard members["has_more"] == nil else {
-                throw PluginPage.violation("The \(kind) \(id) gives a total, so it has no has_more: the Host asks for ranges")
-            }
             let total = try PluginPage.integer(members["total"], "The \(kind) \(id)'s total",
                                                in: 0...CollectionsContract.maximumItems, default: 0)
             let start = try PluginPage.integer(members["start"], "The \(kind) \(id)'s start", in: 0...total, default: 0)
@@ -607,7 +571,6 @@ public struct PluginPageCollection: Equatable {
             self.items = items
             self.total = total
             self.start = start
-            hasMore = false
         } else {
             guard members["start"] == nil else {
                 throw PluginPage.violation("The \(kind) \(id) gives a start without a total")
@@ -635,7 +598,6 @@ public struct PluginPageCollection: Equatable {
             }
             total = items.count
             start = 0
-            hasMore = try PluginPage.flag(members["has_more"], "The \(kind) \(id)'s has_more")
         }
         var sectionIDs: Set<String> = []
         for section in sections where section.id != nil && !sectionIDs.insert(section.id ?? "").inserted {

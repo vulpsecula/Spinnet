@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// A Plugin declaring Candidate Contract `namespaces` names the Host Service
+/// A Level 2 Plugin names the Host Service
 /// a Command runs by its catalogue ID in `host_command`. Reviewing,
 /// installing and registering it hold each such Command to the catalogue:
 /// a Level 1 Host Command name is refused with the ID to use instead
@@ -55,7 +55,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     /// The probe's Commands are the shape the candidate's schema publishes,
     /// and the stable manifest schema refuses the catalogue ID.
     func testTheProbesCommandsFollowTheCandidateSchema() throws {
-        let schema = HostServiceCatalogueTests.published.appendingPathComponent("namespaces.schema.json")
+        let schema = HostServiceCatalogueTests.schemas.appendingPathComponent("namespaces.schema.json")
         let command = try JSONSchemaSubsetValidator(definition: "command", inSchemaAt: schema)
         guard case .object(let manifest) = try JSONDecoder().decode(
             JSONValue.self, from: Data(contentsOf: NamespacesProbeFixture.package.appendingPathComponent("manifest.json"))
@@ -63,8 +63,8 @@ final class NamespacesCommandInstallationTests: XCTestCase {
         for declared in commands {
             XCTAssertEqual(command.errors(for: declared), [])
         }
-        let stable = try JSONSchemaSubsetValidator(definition: "command", inSchemaAt: HostServiceCatalogueTests.published
-            .appendingPathComponent("../../../schemas/manifest.schema.json").standardizedFileURL)
+        let stable = try JSONSchemaSubsetValidator(definition: "command", inSchemaAt: HostServiceCatalogueTests.schemas
+            .appendingPathComponent("manifest.schema.json"))
         XCTAssertFalse(stable.errors(for: commands[1]).isEmpty, "Level 1 refuses a catalogue ID")
         XCTAssertFalse(command.errors(for: .object(["id": .string("x"), "title": .string("X"), "execution": .string("host"),
                                                     "host_command": .string("url.open")])).isEmpty,

@@ -42,8 +42,6 @@ public struct PluginCollectionWindow: Equatable {
     public private(set) var columns = 1
     public private(set) var rows = 1
     public private(set) var isWindowed = false
-    /// Revisions 1 and 2: the Plugin has more items to append.
-    public private(set) var hasMore = false
     /// Counts the times positions stopped meaning what they meant: a new
     /// collection, or an answer with another total or other sections.
     public private(set) var layoutRevision = 0
@@ -104,7 +102,6 @@ public struct PluginCollectionWindow: Equatable {
         columns = collection.columns
         rows = collection.rows
         isWindowed = collection.isWindowed
-        hasMore = collection.hasMore
         items = [:]
         positions = [:]
         stale = []
@@ -588,12 +585,6 @@ public extension PluginPageCollection {
         /// The first or last item.
         case home, end
     }
-
-    /// Whether the user, at `position`, is within a screenful of the last
-    /// loaded item of a collection with more (revisions 1 and 2).
-    func isNearEnd(_ position: Int?) -> Bool {
-        hasMore && total - 1 - (position ?? 0) < columns * rows
-    }
 }
 
 public extension PluginCollectionWindow {
@@ -614,12 +605,6 @@ public extension PluginCollectionWindow {
             for _ in 0..<rows { moved = row(from: moved, by: move == .pageUp ? -1 : 1) }
             return moved
         }
-    }
-
-    /// Whether the user, at `position`, is within a screenful of the last
-    /// item of a whole collection with more (revisions 1 and 2).
-    func isNearEnd(_ position: Int?) -> Bool {
-        hasMore && total - 1 - (position ?? 0) < screen
     }
 
     private func row(from index: Int, by step: Int) -> Int {

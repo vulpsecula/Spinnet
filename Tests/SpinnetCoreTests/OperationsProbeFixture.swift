@@ -35,5 +35,5 @@ enum OperationsProbeFixture {
     }
 
     /// The probe declaring no candidate: a Level 1 Plugin.
-    static let levelOne = CandidateVariant.levelOne
+    static let levelOne = ManifestVariant.levelOne
 }

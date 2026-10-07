@@ -232,7 +232,7 @@ final class PluginViewHarness {
 
     /// `insertionTargets`, when given, is the App the Host shows as where
     /// text goes, and `declaresHostOperations` makes the fixture's views
-    /// those of a Plugin declaring Candidate Contract `host_operations`.
+    /// those of a Level 2 Plugin.
     init(insertionTargets: InsertionTargetTracker? = nil, declaresHostOperations: Bool = false) throws {
         package = try PluginManifestLoader.load(packageAt: Self.fixture)
         let manifest = package.manifest

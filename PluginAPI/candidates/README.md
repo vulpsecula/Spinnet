@@ -125,10 +125,10 @@ into one that also declares `collections` r1 or r2, or
 no builder, as `collections` r2 and `host_operations` r2 add none, publishes
 no SDK of its own and gets the earlier revision's, and a revision whose
 builders change publishes its own file, named apart because the helper
-embeds every revision's SDK side by side. The helper still embeds the
-retired revisions' SDKs so that a test can run a Plugin's candidate
-revision against the candidate Host and check promotion; the Host refuses
-a Plugin declaring one before it starts a helper. Until a
+embedded every revision's SDK side by side. Since Level 2 the helper embeds
+none of the retired revisions' SDKs: the Host refuses a Plugin declaring one
+before it starts a helper, and these files are kept only as the published
+record. Until a
 candidate adds one, a script reaches its Host Services with
 `requestHostService`, which the Host checks as above.
 
@@ -155,18 +155,22 @@ and the behaviour Plugins declared against them. A Plugin moves by declaring
 the new `api_level` and dropping the candidate; the Host then refuses the
 retired declaration with the Level to declare instead, so no Plugin keeps
 running against a provisional contract. Promotion is verified by running the
-Plugin's candidate revision on the candidate Host and its stable revision on
-the promoted Host, with the same result. Any stable promise, once published,
+Plugin's candidate revision on the Host that provides it and its stable
+revision on the promoted Host, with the same result. Any stable promise, once published,
 binds every later Host. Candidates that require one another are promoted
 together, as `namespaces`, `host_operations` and `collections` were into
 Level 2, whose members are the three latest revisions' members.
 
-Level 2's promotion was verified this way: the Host's own probes (Emoji-
-and Brew-shaped pages, the Operations and Namespaces probes) run their
-candidate revisions on the candidate Host and their Level 2 revisions on
-this Host through the test kit and the real helper with identical answers,
-events, operations, outcomes and storage, and the external Emoji Plugin
-moved from its candidate revision 2.3.1 to its Level 2 revision 3.0.0. No
+Level 2's promotion was verified this way at `0717f16`: the Host's own
+probes (Emoji- and Brew-shaped pages, the Operations and Namespaces probes)
+ran their candidate revisions on the Host that provided them and their
+Level 2 revisions on the promoted Host through the test kit and the real
+helper with identical answers, events, operations, outcomes and storage,
+and the external Emoji Plugin moved from its candidate revision 2.3.1 to
+its Level 2 revision 3.0.0. Later Hosts no longer provide the retired
+revisions, so that check and the code that served only them, such as
+`load_more`, were removed; the Host keeps a record of each retired revision
+to refuse a Plugin that still declares it. No
 git tags are made: Level 2 and the retired revisions are pinned by commit,
 as the external Emoji Plugin pins `0717f16`.
 

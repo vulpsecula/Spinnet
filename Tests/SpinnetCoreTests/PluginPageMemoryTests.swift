@@ -9,7 +9,7 @@ enum PageBuilder {
     }
 
     static func grid(_ id: String = "results", items: [String]? = nil, sections: [(String, [String])]? = nil,
-                     selected: String? = nil, hasMore: Bool = false, kind: String = "grid", columns: Int = 8,
+                     selected: String? = nil, kind: String = "grid", columns: Int = 8,
                      rows: Int = 6) -> JSONValue {
         var members: [String: JSONValue] = [
             "kind": .string(kind), "id": .string(id),
@@ -26,7 +26,6 @@ enum PageBuilder {
             members["items"] = .array((items ?? []).map { item($0) })
         }
         if let selected { members["selected"] = .string(selected) }
-        if hasMore { members["has_more"] = .bool(true) }
         return .object(members)
     }
 
@@ -67,18 +66,14 @@ enum PageBuilder {
         try PluginPage(parsing: pageJSON(id, content, reset: reset, focus: focus), permits: permits)
     }
 
-    /// Revisions 2 and 3 together, so the pages may append with `has_more`
-    /// or give a window with `total`.
-    static var permits: (PluginInterfaceMember) -> Bool {
-        let two = CollectionsFixtures.revisionTwo, three = CollectionsFixtures.permits
-        return { two($0) || three($0) }
-    }
+    /// What a Level 2 Plugin's pages may use.
+    static var permits: (PluginInterfaceMember) -> Bool { CollectionsFixtures.permits }
 
     /// The Emoji search page: a row with the query and category, and a grid.
     static func search(query: String = "", items: [String] = ["A", "B", "C", "D"], reset: JSONValue? = nil,
-                       status: String? = nil, selected: String? = nil, hasMore: Bool = false) throws -> PluginPage {
+                       status: String? = nil, selected: String? = nil) throws -> PluginPage {
         try page("search", [row([field(value: query, status: status), choice()]),
-                            grid(items: items, selected: selected, hasMore: hasMore)], reset: reset)
+                            grid(items: items, selected: selected)], reset: reset)
     }
 
     static let resetResults = JSONValue.array([.string("results")])
@@ -274,16 +269,6 @@ final class PluginPageMemoryTests: XCTestCase {
         XCTAssertEqual(list.index(moving: .up, from: 1), 0)
         XCTAssertNil(PluginCollectionWindow(try XCTUnwrap(try B.page("p", [B.grid(items: [])]).collection))
             .index(moving: .down, from: nil))
-    }
-
-    /// Scenario 09: the Host asks for more within a screenful of the end.
-    func testNearingTheEndIsWithinAScreenful() throws {
-        let ten = (0..<10).map { "i\($0)" }
-        let grid = try XCTUnwrap(try B.page("p", [B.grid(items: ten, hasMore: true, columns: 8, rows: 1)]).collection)
-        XCTAssertFalse(grid.isNearEnd(0), "9 items after the first, a screenful is 8")
-        XCTAssertTrue(grid.isNearEnd(2))
-        let done = try XCTUnwrap(try B.page("p", [B.grid(items: ten, columns: 8, rows: 1)]).collection)
-        XCTAssertFalse(done.isNearEnd(9), "Without has_more the Host never asks")
     }
 
     func testMovingTheSelectionSelects() throws {

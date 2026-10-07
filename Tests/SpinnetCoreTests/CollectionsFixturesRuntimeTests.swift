@@ -401,25 +401,6 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         XCTAssertEqual(brew.selectedItem?.id, package.id, "Page memory restores the selection")
     }
 
-    /// A Plugin declaring `collections` r1 keeps Level 1's rule: calling it
-    /// again starts the Action again, with no event and no state.
-    func testARevisionOnePluginRestartsWhenCalled() throws {
-        let manifest = try CollectionsFixtures.manifest(declaringCollections: 1, of: CollectionsFixtures.brew)
-        let root = try CandidateVariant.write(CollectionsFixtures.brew,
-                                              CandidateVariant.declaring(CandidateVariant.pages(collections: 1)))
-        directories.append(root.deletingLastPathComponent())
-        XCTAssertEqual(try PluginUnderTest(packageAt: root).manifest, manifest)
-        let brew = PluginTestPage("brew.packages", of: try PluginUnderTest(packageAt: root),
-                                  helper: try helper(.candidateHost))
-        try brew.open()
-        try brew.choose("all", in: "scope")
-
-        try brew.call(input: .object(["scope": .string("outdated")]))
-        XCTAssertNotEqual(brew.events.last, .called)
-        guard case .object(let state) = brew.state else { return XCTFail("No state") }
-        XCTAssertEqual(state["scope"], .string("outdated"), "The script started again from no state")
-    }
-
     /// Calls run through the Host's own Action runner over the real helper,
     /// queued in the open session: each reads Plugin Settings and its Menu
     /// Item's overrides when it runs, and closing the view cancels the one
@@ -481,49 +462,22 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
 
     // MARK: The SDK
 
-    /// The helper added the page builders only for a Plugin declaring the
-    /// candidate, and adds them for a Level 2 Plugin; the builders map camel
-    /// case to the members the Host reads.
-    func testThePageBuildersAreTheCandidatesOnly() throws {
+    /// The helper adds the page builders only for a Level 2 Plugin; they
+    /// map camel case to the members the Host reads, windows, toggles, marks
+    /// and notify included, and have no `hasMore`.
+    func testThePageBuildersAreLevelTwos() throws {
         let probe = """
-        (() => [typeof spinnet.ui.page, typeof (spinnet.open.url.action),
-                spinnet.ui.page ? spinnet.ui.components.grid({ id: "g", items: [], emptyText: "None", hasMore: true, columns: 4 }) : null,
-                spinnet.open.url.action ? spinnet.open.url.action("https://brew.sh", { title: "Home", closesView: true }) : null,
-                typeof spinnet.selection.replace, typeof spinnet.selection.replace.operation])()
-        """
-        // Revision 2 adds no builder: both revisions got revision 1's SDK.
-        for revision in [1, 2] {
-            let declaring = try OperationsProbeFixture.write(scripts: ["pick.js": probe],
-                                                             CandidateVariant.declaring(CandidateVariant.pages(collections: revision)))
-            let run = try helper(.candidateHost).run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: declaring),
-                                       answering: RecordedHostServices())
-            XCTAssertEqual(try run.result.get(), .array([
-                .string("function"), .string("function"),
-                .object(["kind": .string("grid"), "id": .string("g"), "items": .array([]), "empty_text": .string("None"),
-                         "has_more": .bool(true), "columns": .number(4)]),
-                .object(["perform": .string("open.url"), "input": .string("https://brew.sh"), "title": .string("Home"),
-                         "closes_view": .bool(true)]),
-                .string("function"), .string("function")
-            ]), "collections r\(revision)")
-        }
-        // Revision 3 builds windows, toggles, marks and notify, and has no hasMore.
-        let r3probe = """
         (() => [spinnet.ui.components.grid({ id: "g", total: 3, start: 1, items: [], hasMore: true, columns: 4,
                                               sections: [spinnet.ui.components.section({ id: "s", count: 3 })] }),
                 spinnet.ui.components.item({ id: "i", title: "I", marks: ["favourite"] }),
                 spinnet.ui.components.itemAction({ id: "f", title: "Favourite", toggle: "favourite" }),
                 spinnet.ui.components.itemAction({ id: "c", title: "Copy", perform: "clipboard.write", notify: true }),
-                spinnet.clipboard.write.action("x", { notify: true })])()
+                spinnet.clipboard.write.action("x", { notify: true }),
+                spinnet.open.url.action("https://brew.sh", { title: "Home", closesView: true })])()
         """
-        let three = try OperationsProbeFixture.write(scripts: ["pick.js": r3probe],
-                                                     CandidateVariant.declaring(CandidateVariant.pages(collections: 3)))
-        let built = try helper(.candidateHost).run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: three),
-                                                   answering: RecordedHostServices())
-        // Level 2's SDK builds exactly what revision 3's did.
-        let levelTwo = try OperationsProbeFixture.write(scripts: ["pick.js": r3probe])
-        let stable = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: levelTwo),
-                                      answering: RecordedHostServices())
-        XCTAssertEqual(try stable.result.get(), try built.result.get())
+        let levelTwo = try OperationsProbeFixture.write(scripts: ["pick.js": probe])
+        let built = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: levelTwo),
+                                     answering: RecordedHostServices())
         XCTAssertEqual(try built.result.get(), .array([
             .object(["kind": .string("grid"), "id": .string("g"), "items": .array([]), "columns": .number(4),
                      "total": .number(3), "start": .number(1),
@@ -532,15 +486,16 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
             .object(["id": .string("f"), "title": .string("Favourite"), "toggle": .string("favourite")]),
             .object(["id": .string("c"), "title": .string("Copy"), "perform": .string("clipboard.write"),
                      "notify": .bool(true)]),
-            .object(["perform": .string("clipboard.write"), "input": .string("x"), "notify": .bool(true)])
+            .object(["perform": .string("clipboard.write"), "input": .string("x"), "notify": .bool(true)]),
+            .object(["perform": .string("open.url"), "input": .string("https://brew.sh"), "title": .string("Home"),
+                     "closes_view": .bool(true)])
         ]))
 
-        let without = try OperationsProbeFixture.write(scripts: ["pick.js": probe],
-                                                       CandidateVariant.declaring(CandidateVariant.operations(revision: 1)))
-        let other = try helper(.candidateHost).run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: without),
+        let levelOne = try OperationsProbeFixture.write(scripts: ["pick.js": "[typeof spinnet.ui.page, typeof spinnet.ui.components]"],
+                                                        OperationsProbeFixture.levelOne)
+        let other = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: levelOne),
                                      answering: RecordedHostServices())
-        XCTAssertEqual(try other.result.get(), .array([.string("undefined"), .string("undefined"), .null, .null,
-                                                       .string("function"), .string("function")]))
+        XCTAssertEqual(try other.result.get(), .array([.string("undefined"), .string("undefined")]))
     }
 }
 

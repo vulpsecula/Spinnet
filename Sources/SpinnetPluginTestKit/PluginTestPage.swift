@@ -1,9 +1,7 @@
 import Foundation
 import SpinnetCore
 
-/// One View Session of a Plugin API Level 2 Plugin's pages (or, against the
-/// candidate Host, of a Plugin declaring Candidate Contract `collections`),
-/// driven by recorded gestures the way the Host drives it: answers are read
+/// One View Session of a Plugin API Level 2 Plugin's pages, driven by recorded gestures the way the Host drives it: answers are read
 /// and applied as the Host applies them, through the same page memory, so
 /// typed text, choices, selection and focus survive refreshes and come back
 /// with a remembered page; gestures produce the events, with their
@@ -12,7 +10,7 @@ import SpinnetCore
 ///
 /// Every event runs the Command once in the real helper, in order. Nothing is
 /// debounced: each `type` stands for a pause in typing. For a windowed
-/// collection (revision 3) the screen is the rows around the selection, or
+/// collection the screen is the rows around the selection, or
 /// where the test scrolled, and the kit asks for what it lacks with
 /// `load_range` after every gesture and answer, as the Host does.
 public final class PluginTestPage {
@@ -62,8 +60,6 @@ public final class PluginTestPage {
     private let plugin: PluginUnderTest
     private let services: PluginHostServiceBroker
     private let permits: (PluginInterfaceMember) -> Bool
-    /// The loaded count the Host last asked for more at, per collection.
-    private var askedAt: [String: Int] = [:]
 
     public init(_ commandID: String, of plugin: PluginUnderTest, helper: PluginTestHelper,
                 answering services: PluginHostServiceBroker = RecordedHostServices(), input: JSONValue = .null) {
@@ -113,9 +109,7 @@ public final class PluginTestPage {
     /// Settings and the Menu Item's overrides already merged, by default the
     /// handler's own.
     ///
-    /// For a Level 2 Plugin (or one declaring `collections` r2 or later on
-    /// the candidate Host) the call runs in the
-    /// session as `called`, from the last good state, as a gesture with no
+    /// For a Level 2 Plugin the call runs in the session as `called`, from the last good state, as a gesture with no
     /// insertion target shown; only an answer with a page or view makes it
     /// the handler, and a failure throws and keeps the handler, page and
     /// state. For any other Plugin, Level 1's rule: the Action starts again
@@ -180,12 +174,10 @@ public final class PluginTestPage {
         try loadRanges()
     }
 
-    /// The user scrolled to the end of the collection: of what is loaded,
-    /// under revisions 1 and 2, or of every item of a windowed collection.
+    /// The user scrolled to the end of a windowed collection.
     public func scrollToEnd() throws {
-        guard let collection, let window else { return }
-        if window.isWindowed { return try scroll(to: window.total - 1) }
-        try askForMore(collection, nearEnd: collection.hasMore)
+        guard let window, window.isWindowed else { return }
+        try scroll(to: window.total - 1)
     }
 
     /// Return: in a search field or the collection, the default item action
@@ -282,7 +274,7 @@ public final class PluginTestPage {
     /// The Host performs `operation`, reaching its recorded outcome, closes
     /// the view on success when asked and the user did not pin it, and
     /// tells the Plugin when it asked: in the session, or after the view
-    /// closed under `host_operations` r2.
+    /// closed.
     private func hostPerforms(_ operation: RequestedHostOperation, targetShown: Bool) throws {
         let outcome: HostOperationOutcome = operation.perform == "selection.replace" && !targetShown
             ? .refused(.targetNotShown)
@@ -325,18 +317,6 @@ public final class PluginTestPage {
             memory.setViewport(first..<min(first + window.screen, window.total))
         }
         try loadRanges()
-        try askForMoreIfNeeded()
-    }
-
-    private func askForMoreIfNeeded() throws {
-        guard let collection, let window, !window.isWindowed else { return }
-        try askForMore(collection, nearEnd: window.isNearEnd(memory.selectedPosition))
-    }
-
-    private func askForMore(_ collection: PluginPageCollection, nearEnd: Bool) throws {
-        guard nearEnd, collection.hasMore, let page, askedAt[collection.id] != collection.total else { return }
-        askedAt[collection.id] = collection.total
-        try run(.loadMore(page: page.id, collection: collection.id, loaded: collection.total))
     }
 
     /// Asks for what the screen lacks, one range at a time, until nothing
@@ -395,8 +375,7 @@ public final class PluginTestPage {
             return
         }
         if let page = answer.page {
-            let applied = memory.show(page, composing: composing, answersRange: answersRange)
-            if let id = page.collection?.id, applied.pageChanged || applied.renewed.contains(id) { askedAt[id] = nil }
+            memory.show(page, composing: composing, answersRange: answersRange)
             pageJSON = answer.pageJSON
             levelOneView = nil
             state = answer.state

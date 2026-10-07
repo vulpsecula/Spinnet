@@ -34,50 +34,21 @@ final class PluginAPILevelTwoTests: XCTestCase {
                        "spinnet.environment.apiLevel is the highest stable Level, for every Plugin")
     }
 
-    /// Level 2 adds exactly the members of the latest revision of each of
-    /// the three candidates; Level 1 is unchanged.
-    func testLevelTwoIsTheLatestRevisionsOfTheThreeCandidates() throws {
+    /// Level 2 adds exactly the members of the promoted revision of each of
+    /// the three candidates; Level 1 is unchanged; and every revision of
+    /// the three is retired into Level 2.
+    func testLevelTwoIsThePromotedRevisionsOfTheThreeCandidates() {
         XCTAssertEqual(host.levels[1], PluginInterfaceContracts.levelOneMembers)
-        XCTAssertEqual(host.levels[2], Set(HostServiceCatalogue.candidate.members
-                                           + HostOperationsContract.revisionTwo.members
-                                           + CollectionsContract.candidate.members))
+        XCTAssertEqual(host.levels[2], Set(HostServiceCatalogue.promoted.members
+                                           + HostOperationsContract.promoted.members
+                                           + CollectionsContract.promoted.members))
         XCTAssertEqual(Set(host.levels.keys), [1, 2])
-        XCTAssertEqual(host, try PluginInterfaceContracts.candidateHost.promoting(
-            PluginInterfaceContracts.levelTwoCandidates, toLevel: 2))
-    }
-
-    /// The candidate Host, which promotion starts from, is the Host the
-    /// external proofs froze: Level 1 and every revision provided.
-    func testTheCandidateHostIsLevelOneWithEveryRevisionProvided() {
-        let candidateHost = PluginInterfaceContracts.candidateHost
-        XCTAssertEqual(candidateHost.levels, [1: PluginInterfaceContracts.levelOneMembers])
-        XCTAssertEqual(candidateHost.candidates.map { "\($0.name) r\($0.revision)" },
+        XCTAssertEqual(host.candidates.map { "\($0.name) r\($0.revision)" },
                        ["namespaces r1", "host_operations r1", "host_operations r2",
                         "collections r1", "collections r2", "collections r3"])
-        XCTAssertTrue(candidateHost.candidates.allSatisfy { $0.status == .supported })
-    }
-
-    func testEveryRevisionOfTheThreeIsRetiredIntoLevelTwo() {
-        XCTAssertEqual(host.candidates.map { "\($0.name) r\($0.revision)" },
-                       PluginInterfaceContracts.candidateHost.candidates.map { "\($0.name) r\($0.revision)" })
         for candidate in host.candidates {
             XCTAssertEqual(candidate.status, .retired(promotedToLevel: 2), "\(candidate.name) r\(candidate.revision)")
         }
-    }
-
-    /// The three require each other, so none is promoted alone.
-    func testACandidateIsNotPromotedWithoutTheCandidatesItRequires() {
-        let candidateHost = PluginInterfaceContracts.candidateHost
-        XCTAssertThrowsError(try candidateHost.promoting(["collections"], toLevel: 2)) {
-            XCTAssertEqual($0 as? CandidateContractPromotionError,
-                           .requiresUnpromoted(candidate: "collections", needs: "host_operations"))
-        }
-        XCTAssertThrowsError(try candidateHost.promoting(["collections", "host_operations"], toLevel: 2)) {
-            XCTAssertEqual($0 as? CandidateContractPromotionError,
-                           .requiresUnpromoted(candidate: "collections", needs: "namespaces"))
-        }
-        XCTAssertNoThrow(try candidateHost.promoting(["namespaces"], toLevel: 2),
-                         "namespaces requires nothing, so the tooling could promote it alone")
     }
 
     // MARK: Who gets what
@@ -117,7 +88,7 @@ final class PluginAPILevelTwoTests: XCTestCase {
             XCTAssertTrue(host.permits(member, declaredBy: levelOne), "\(member)")
             XCTAssertTrue(host.permits(member, declaredBy: levelTwo), "\(member)")
         }
-        XCTAssertFalse(host.permits(CollectionsContract.loadMore, declaredBy: levelTwo),
+        XCTAssertFalse(host.permits(.viewEvent("load_more"), declaredBy: levelTwo),
                        "load_more belonged to collections r1 and r2, not to the promoted revision")
     }
 
@@ -175,9 +146,9 @@ final class PluginAPILevelTwoTests: XCTestCase {
     /// A Plugin declaring any revision of the three, at any Level, is
     /// refused with the Level its candidate became.
     func testEveryRetiredDeclarationIsRefusedNamingLevelTwo() throws {
-        for candidate in PluginInterfaceContracts.candidateHost.candidates {
+        for candidate in host.candidates {
             for level in [1, 2] {
-                let declaring = try manifest(apiLevel: level, declaring: [candidate.declaration] + candidate.requires)
+                let declaring = try manifest(apiLevel: level, declaring: [candidate.declaration])
                 XCTAssertThrowsError(try host.check(declaring, origin: .installed)) {
                     XCTAssertEqual($0 as? CandidateContractRefusal,
                                    .retired(plugin: "Level Two", declared: candidate.declaration, promotedToLevel: 2))

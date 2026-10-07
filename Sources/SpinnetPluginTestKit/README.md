@@ -166,12 +166,8 @@ request outside the Levels and candidates the Plugin declares fails with
 `hostServiceFailed`. A `PluginTestPage` over a helper follows the helper's
 contracts.
 
-`PluginInterfaceContracts.candidateHost` is the Host before Level 2, which
-provided `namespaces` r1, `host_operations` r1 and r2 and `collections` r1
-to r3: running a Plugin's candidate revision against it and its Level 2
-revision against the default shows that moving to Level 2 changes nothing.
-To run against a Host that offers other candidates, pass its contracts,
-built from the candidates' published `candidate.json`:
+To run against a Host that offers a Candidate Contract, pass its contracts,
+built from the candidate's published `candidate.json`:
 
 ```swift
 let candidate = try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: metadataURL))

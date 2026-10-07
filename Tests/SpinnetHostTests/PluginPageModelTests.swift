@@ -3,7 +3,7 @@ import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
-/// Pages of a Plugin declaring Candidate Contract `collections`, drawn by
+/// Pages of a Level 2 Plugin, drawn by
 /// the Host's renderer: immediate state across answers, keyboard roles,
 /// pointer gestures, the Host's chrome, and the windows the renderer opens.
 final class PluginPageModelTests: XCTestCase {
@@ -199,31 +199,6 @@ final class PluginPageModelTests: XCTestCase {
     func testAPageThatCannotInsertShowsNoTargetLine() throws {
         try harness.open(PageHarness.search(showsTarget: false, copyOnly: true))
         XCTAssertNil(model.insertionTargetLine)
-    }
-
-    // MARK: More items
-
-    /// Scenario 09: the Host asks once per loaded count, shows loading,
-    /// keeps the selection on append, and offers Retry after a failure.
-    func testLoadMoreLoadingRetryAndAppend() throws {
-        let ten = (0..<10).map { "i\($0)" }
-        try harness.open(PageHarness.search(items: ten, hasMore: true))
-        model.click("i1")
-        XCTAssertEqual(harness.events.last?.event, .loadMore(page: "search", collection: "results", loaded: 10))
-        XCTAssertEqual(model.loadingMore, .loading)
-        model.viewportChanged(2..<10)
-        XCTAssertEqual(harness.events.count, 1, "One outstanding per collection")
-        harness.fail(.helperCrashed)
-        XCTAssertEqual(model.loadingMore, .failed)
-        XCTAssertNil(model.error, "The collection's own row shows it, with Retry")
-        model.retryLoadingMore()
-        XCTAssertEqual(harness.events.count, 2)
-        try harness.answer(PageHarness.search(items: ten + (10..<26).map { "i\($0)" }))
-        XCTAssertEqual(model.loadingMore, .idle)
-        XCTAssertEqual(model.selectedItem, "i1")
-        XCTAssertEqual(model.collection?.items.count, 26)
-        model.viewportChanged(18..<26)
-        XCTAssertEqual(harness.events.count, 2, "No has_more, no asking")
     }
 
     // MARK: Windows
@@ -467,11 +442,7 @@ final class PageHarness {
             },
             pointer: { NSPoint(x: 200, y: 200) }, frontmostApplication: { nil }, report: { _ in }
         )
-        // Everything the candidate Host offered, retired revisions' `load_more`
-        // included, so the paging path the Host still draws stays covered.
-        let permits: (PluginInterfaceMember) -> Bool = { member in
-            PluginInterfaceContracts.candidateHost.candidates.contains { $0.members.contains(member) }
-        }
+        let permits: (PluginInterfaceMember) -> Bool = { PluginInterfaceContracts.levelTwoMembers.contains($0) }
         sessions = PluginViewSessions(
             renderer: windows,
             runEvent: { [unowned self] action, delivery, _, started, finish in
@@ -521,7 +492,7 @@ final class PageHarness {
     }
 
     static func search(query: String = "", items: [String] = ["A", "B", "C", "D"], reset: [String]? = nil,
-                       hasMore: Bool = false, insertsItself: Bool = false, showsTarget: Bool = true,
+                       insertsItself: Bool = false, showsTarget: Bool = true,
                        copyOnly: Bool = false, closesView: Bool = false) -> JSONValue {
         let closes: [String: JSONValue] = closesView ? ["closes_view": .bool(true)] : [:]
         var actions: [JSONValue] = [
@@ -531,9 +502,8 @@ final class PageHarness {
                 .merging(closes) { $1 })
         ]
         if copyOnly { actions.removeFirst() }
-        var grid: [String: JSONValue] = ["kind": .string("grid"), "id": .string("results"), "columns": .number(8),
+        let grid: [String: JSONValue] = ["kind": .string("grid"), "id": .string("results"), "columns": .number(8),
                                          "items": .array(items.map(item)), "actions": .array(actions)]
-        if hasMore { grid["has_more"] = .bool(true) }
         var page: [String: JSONValue] = [
             "id": .string("search"), "title": .string("Emoji"),
             "content": .array([

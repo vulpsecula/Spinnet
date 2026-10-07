@@ -111,7 +111,7 @@ public struct HostServiceDefinition: Hashable {
 /// into Level 2) proved. Every operation has one ID, which a Level 2 Plugin
 /// uses at every entry point; inside the Host each is routed to the
 /// implementation Level 1 already has, so Level 1 names and catalogue IDs
-/// reach the same effect. `candidate` is the retired revision's record,
+/// reach the same effect. `promoted` is the retired revision's record,
 /// whose members Level 2 holds; an offering's candidate names the revision
 /// that first offered the ID there.
 public enum HostServiceCatalogue {
@@ -127,10 +127,10 @@ public enum HostServiceCatalogue {
         CandidateContractRevision(name: candidateName, revision: revision)
     }
 
-    /// Candidate Contract `namespaces` r1 as its `candidate.json` publishes
+    /// Candidate Contract `namespaces` r1 as its `candidate.json` published
     /// it: every ID a script may call, every ID a Command may run, and the
-    /// rules a declaring Plugin gets.
-    public static let candidate = CandidateContract(
+    /// rules a Level 2 Plugin gets.
+    public static let promoted = CandidateContract(
         name: candidateName, revision: revision, baseLevel: 1,
         members: operations.filter { $0.isOffered(at: .call) }.map { .hostService($0.id) }
             + operations.filter { $0.isOffered(at: .command) }.map { .hostCommand($0.id) }

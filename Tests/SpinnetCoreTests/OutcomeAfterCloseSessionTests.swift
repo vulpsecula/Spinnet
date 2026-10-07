@@ -19,23 +19,17 @@ final class OutcomeAfterCloseSessionTests: XCTestCase {
     private static let pluginID = PluginID("com.example.operations")
     private static let shown = InsertionTargetCapture.shown(app: nil, focus: nil)
 
-    /// What a Plugin declaring `host_operations` at `revision`, and
-    /// `namespaces` r1, may use.
-    private static func permits(revision: Int) -> (PluginInterfaceMember) -> Bool {
-        let contract = HostOperationsContract.candidates.first { $0.revision == revision }!
-        return { member in
-            contract.members.contains(member) || HostServiceCatalogue.candidate.members.contains(member)
-        }
-    }
+    /// What a Level 2 Plugin may use beyond Level 1.
+    private static let permits: (PluginInterfaceMember) -> Bool = { PluginInterfaceContracts.levelTwoMembers.contains($0) }
 
-    private func makeSessions(revision: Int = 2) {
+    private func makeSessions() {
         clock = ManualClock()
         renderer = RecordingRenderer()
         runner = HeldEventRunner()
         performer = HeldPerformer()
         reported = []
         feedback = []
-        let permits = Self.permits(revision: revision)
+        let permits = Self.permits
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
             showFeedback: { [unowned self] in feedback.append($0) },
@@ -209,21 +203,14 @@ final class OutcomeAfterCloseSessionTests: XCTestCase {
         }, "Delivered in the view, not after it")
     }
 
-    /// Without notify, under revision 1, for a request cancelled before it
-    /// ran, and when the Plugin changed, nothing is delivered after the
+    /// Without notify, for a request cancelled before it ran, and when the
+    /// Plugin changed, nothing is delivered after the
     /// view closed.
     func testWhenItIsNotDelivered() throws {
         let session = try start()
         requestInsertion(in: session, notify: false)
         performer.finish(0, .succeeded)
         XCTAssertEqual(runner.runs.count, 1, "Without notify")
-
-        makeSessions(revision: 1)
-        let one = try start()
-        requestInsertion(in: one)
-        performer.finish(0, .succeeded)
-        XCTAssertTrue(one.isEnded)
-        XCTAssertEqual(runner.runs.count, 1, "Revision 1 shows the outcome only")
 
         setUp()
         let changed = try start()

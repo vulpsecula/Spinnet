@@ -352,7 +352,7 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(feedback, ["fixture feedback"])
     }
 
-    /// A Plugin declaring Candidate Contract `namespaces` names the Host
+    /// A Level 2 Plugin names the Host
     /// Service a Command runs by catalogue ID; the Host performs it through
     /// the same adapters and checks as Level 1's Host Command, shows a toast
     /// near the pointer for `host.toast`, and opens the Plugin's settings for

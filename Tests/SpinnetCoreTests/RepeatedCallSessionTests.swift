@@ -296,11 +296,11 @@ final class RepeatedCallSessionTests: XCTestCase {
 
     // MARK: - Who gets calls
 
-    /// Level 1 Plugins, and Plugins declaring `collections` r1, keep Level 1's
-    /// rule: calling again restarts the Action, so the call is not taken.
-    /// Host Commands keep their native path whatever the Plugin declares.
-    func testOnlyAPluginDeclaringRepeatedCallsTakesThem() throws {
-        for permits in [CollectionsFixtures.revisionOne, CollectionsFixtures.withoutCollections, { _ in false }] {
+    /// Level 1 Plugins keep Level 1's rule: calling again restarts the
+    /// Action, so the call is not taken. Host Commands keep their native
+    /// path whatever the Plugin declares.
+    func testOnlyALevelTwoPluginTakesRepeatedCalls() throws {
+        for permits in [CollectionsFixtures.levelOne, { _ in false }] {
             makeSessions(permits: permits)
             let session = try start(view: Self.form("first"))
             XCTAssertFalse(sessions.call(try Self.action()))

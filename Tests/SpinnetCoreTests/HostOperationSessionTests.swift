@@ -30,13 +30,7 @@ final class HostOperationSessionTests: XCTestCase {
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
             showFeedback: { [unowned self] in feedback.append($0) },
-            // Revision 1's rules: an outcome whose view closed is shown by
-            // the Host and not delivered (`OutcomeAfterCloseSessionTests`
-            // covers revision 2's).
-            permitting: { _ in { member in
-                member != HostOperationsContract.outcomeAfterClose
-                    && PluginInterfaceContracts.host.candidates.contains { $0.members.contains(member) }
-            } },
+            permitting: { _ in { PluginInterfaceContracts.levelTwoMembers.contains($0) } },
             operations: performer,
             reportOperation: { [unowned self] _, message in reported.append(message) }
         )
@@ -368,13 +362,15 @@ final class HostOperationSessionTests: XCTestCase {
     }
 
     /// Scenario 08: a request that is running when its view closes
-    /// finishes; the Host shows a failure itself and delivers nothing.
+    /// finishes; the Host shows a failure itself and, as the request did not
+    /// ask to notify, delivers nothing (`OutcomeAfterCloseSessionTests`
+    /// covers one that did).
     func testARequestRunningWhenItsViewClosesFinishesAndIsShownByTheHost() throws {
         for outcome in [HostOperationOutcome.succeeded, .failed(.targetUnresponsive)] {
             setUp()
             let session = try start()
             session.send(.submitted(values: .null), insertionTarget: Self.shownA)
-            finish(0, operation: RequestedHostOperation(perform: "selection.replace", input: .string("x"), notify: true))
+            finish(0, operation: RequestedHostOperation(perform: "selection.replace", input: .string("x")))
             session.close()
             performer.finish(0, outcome, message: "Nothing was inserted")
 

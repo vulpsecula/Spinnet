@@ -99,6 +99,14 @@ public struct CandidateContract: Codable, Equatable {
 
     public var declaration: CandidateContractRevision { CandidateContractRevision(name: name, revision: revision) }
 
+    /// The record of a revision the Host no longer provides, which is all
+    /// it needs to refuse a Plugin declaring it.
+    public static func retired(_ declaration: CandidateContractRevision, promotedToLevel level: Int?) -> CandidateContract {
+        CandidateContract(name: declaration.name, revision: declaration.revision, baseLevel: 1, members: [],
+                          tag: "plugin-api-candidate/\(declaration.name)/r\(declaration.revision)",
+                          status: .retired(promotedToLevel: level))
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name, revision, requires, conflicts, members, tag, status
         case baseLevel = "base_level"
@@ -219,37 +227,31 @@ public struct PluginInterfaceContracts: Equatable {
                "section_delivered"].map(PluginInterfaceMember.viewEvent)
     )
 
-    /// The candidate Host: Plugin API Level 1 and every Candidate Contract
-    /// revision the Host provided before Level 2, as the external proofs
-    /// froze it (#79). `namespaces` revision 1, the Plugin API catalogue;
-    /// `host_operations` revisions 1 and 2, Requested Host Operations, the
-    /// second delivering an outcome after its view closed; and `collections`
-    /// revisions 1 to 3, pages with Lists and Grids, the second with
-    /// repeated calls into an open View Session, the third with windows of
-    /// items, toggles and performed actions' outcomes. Promotion starts from
-    /// it, and a check of promotion runs a Plugin's candidate revision
-    /// against it beside its Level 2 revision against `host`.
-    public static let candidateHost = PluginInterfaceContracts(levels: [1: levelOneMembers],
-                                                               candidates: [HostServiceCatalogue.candidate]
-                                                                   + HostOperationsContract.candidates
-                                                                   + CollectionsContract.candidates)
+    /// What Plugin API Level 2 adds (#79): the members of Candidate
+    /// Contracts `namespaces` r1, `host_operations` r2 and `collections` r3,
+    /// promoted together.
+    public static let levelTwoMembers: Set<PluginInterfaceMember> = Set(
+        HostServiceCatalogue.promoted.members + HostOperationsContract.promoted.members
+            + CollectionsContract.promoted.members
+    )
 
-    /// The candidates promoted together to Plugin API Level 2.
-    public static let levelTwoCandidates = [HostServiceCatalogue.candidateName, HostOperationsContract.name,
-                                            CollectionsContract.name]
+    /// Every Candidate Contract revision this Host provided before Level 2,
+    /// all retired into it.
+    public static let retiredIntoLevelTwo: [CandidateContractRevision] = [
+        HostServiceCatalogue.declaration,
+        CandidateContractRevision(name: HostOperationsContract.name, revision: 1), HostOperationsContract.declaration,
+        CandidateContractRevision(name: CollectionsContract.name, revision: 1),
+        CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
+    ]
 
-    /// This Host: Plugin API Levels 1 and 2. Level 2 is the latest revisions
-    /// of `namespaces`, `host_operations` and `collections` promoted
-    /// together; every revision of the three is retired with the Level it
-    /// became, so a Plugin still declaring one is refused with the Level to
-    /// declare instead. A Level added later is keyed at its own number.
-    public static let host: PluginInterfaceContracts = {
-        do {
-            return try candidateHost.promoting(levelTwoCandidates, toLevel: 2)
-        } catch {
-            preconditionFailure("Level 2 cannot be promoted: \(error.localizedDescription)")
-        }
-    }()
+    /// This Host: Plugin API Levels 1 and 2, and no Candidate Contract. A
+    /// Plugin still declaring a revision Level 2 retired is refused with the
+    /// Level to declare instead. A Level added later is keyed at its own
+    /// number.
+    public static let host = PluginInterfaceContracts(
+        levels: [1: levelOneMembers, 2: levelTwoMembers],
+        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
+    )
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }

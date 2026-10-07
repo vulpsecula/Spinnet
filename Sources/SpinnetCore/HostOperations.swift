@@ -1,16 +1,17 @@
 import Foundation
 
-/// Requested Host Operations (ADR 0018), proved as Candidate Contract
-/// `host_operations` and part of Plugin API Level 2 since revision 2 was
-/// promoted (#79): a script may answer a user's gesture with one Requested
-/// Host Operation, which the Host commits with the rest of the answer and
-/// performs after the invocation has ended. `candidate` and `revisionTwo`
-/// are the retired revisions' records, as their `candidate.json` under
-/// `PluginAPI/candidates/host_operations/` publishes them before
-/// retirement; Level 2 holds `revisionTwo`'s members.
+/// Requested Host Operations (ADR 0018), part of Plugin API Level 2: a
+/// script may answer a user's gesture with one Requested Host Operation,
+/// which the Host commits with the rest of the answer and performs after the
+/// invocation has ended.
+///
+/// They were proved as Candidate Contract `host_operations`, whose revisions
+/// 1 and 2 are retired into Level 2 (#79); `promoted` is revision 2's
+/// record, whose members Level 2 holds.
 public enum HostOperationsContract {
     public static let name = "host_operations"
-    public static let revision = 1
+    /// The revision promoted into Level 2.
+    public static let revision = 2
 
     public static var declaration: CandidateContractRevision {
         CandidateContractRevision(name: name, revision: revision)
@@ -29,41 +30,28 @@ public enum HostOperationsContract {
     /// `insertion_target_changed`.
     public static let insertionTargetChangedFailure = PluginInterfaceMember.behaviour("insertion_target_changed_failure")
 
-    /// The catalogue IDs an answer may request in this revision, in the
-    /// catalogue's order.
+    /// The catalogue IDs an answer may request, in the catalogue's order.
     public static var requestIDs: [String] {
         HostServiceCatalogue.operations
             .filter { $0.offering(at: .request) == .offered(candidate: name, level1: false) }
             .map(\.id)
     }
 
-    /// Revision 2: an operation that asked to `notify` and whose view closed
-    /// before its outcome, by its own `closes_view` or otherwise once it had
-    /// started, delivers `operation_finished` to one viewless invocation of
-    /// the Action that requested it.
+    /// An operation that asked to `notify` and whose view closed before its
+    /// outcome, by its own `closes_view` or otherwise once it had started,
+    /// delivers `operation_finished` to one viewless invocation of the
+    /// Action that requested it.
     public static let outcomeAfterClose = PluginInterfaceMember.behaviour("outcome_after_close")
 
-    /// Revision 1 as its `candidate.json` publishes it.
-    public static let candidate = makeRevision(1, extra: [])
-
-    /// Revision 2 as its `candidate.json` publishes it: revision 1's members
-    /// with the outcome delivered after the view closed.
-    public static let revisionTwo = makeRevision(2, extra: [outcomeAfterClose])
-
-    public static var revisionTwoDeclaration: CandidateContractRevision { revisionTwo.declaration }
-
-    /// Every revision this Host provides, oldest first.
-    public static let candidates = [candidate, revisionTwo]
-
-    private static func makeRevision(_ revision: Int, extra: [PluginInterfaceMember]) -> CandidateContract {
-        CandidateContract(
-            name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
-            members: [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
-                + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure]
-                + extra,
-            tag: "plugin-api-candidate/\(name)/r\(revision)"
-        )
-    }
+    /// Revision 2 as its `candidate.json` published it, whose members Level
+    /// 2 holds.
+    public static let promoted = CandidateContract(
+        name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
+        members: [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
+            + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure,
+               outcomeAfterClose],
+        tag: "plugin-api-candidate/\(name)/r\(revision)"
+    )
 
     /// How long an outcome delivered after its view closed may wait for its
     /// script to start before the Host drops it.

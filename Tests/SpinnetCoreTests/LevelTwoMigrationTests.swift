@@ -45,7 +45,7 @@ final class LevelTwoMigrationTests: XCTestCase {
 
     /// The fixture's Level 2 revision: the same Plugin declaring Level 2.
     private func levelTwoRevision() throws -> URL {
-        try CandidateVariant.write(Self.retired) { manifest in
+        try ManifestVariant.write(Self.retired) { manifest in
             manifest["api_level"] = .number(2)
             manifest["candidate_contracts"] = nil
             manifest["version"] = .string("2.0.0")
@@ -82,17 +82,21 @@ final class LevelTwoMigrationTests: XCTestCase {
         XCTAssertEqual(run.requests, [])
     }
 
-    /// The user installed the Plugin on the candidate Host. On the promoted
-    /// Host it is a Refused Plugin with the reason, its Menu Items are
-    /// unavailable with it, and its storage and decisions are kept; the
-    /// other Plugins restore. Its Level 2 revision installs over it as an
-    /// update that keeps them.
+    /// The user installed the Plugin on a Host before Level 2, which left
+    /// its copy and index entry as any install does. On this Host it is a
+    /// Refused Plugin with the reason, its Menu Items are unavailable with
+    /// it, and its storage and decisions are kept; the other Plugins
+    /// restore. Its Level 2 revision installs over it as an update that
+    /// keeps them.
     func testUpdatingARefusedCandidatePluginToItsLevelTwoRevisionKeepsItsData() throws {
-        let candidate = launch(.candidateHost)
-        try candidate.store.install(from: Self.retired)
-        let other = try candidate.store.install(from: ScriptedPackageFixture.write())
-        _ = try candidate.storage.answer(.setStorageValue, input: .object(["key": .string("shouts"), "value": .number(4)]),
-                                         for: Self.pluginID)
+        let installed = directory.appendingPathComponent("Plugins")
+        try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.retired, to: installed.appendingPathComponent("retired.spinnetplugin"))
+        try JSONEncoder().encode([Self.pluginID.rawValue: "retired.spinnetplugin"])
+            .write(to: installed.appendingPathComponent("installed.json"))
+        let other = try launch(.host).store.install(from: ScriptedPackageFixture.write())
+        _ = try PluginStorage(directory: directory.appendingPathComponent("Storage"))
+            .answer(.setStorageValue, input: .object(["key": .string("shouts"), "value": .number(4)]), for: Self.pluginID)
         let manifest = try PluginManifestLoader.load(packageAt: Self.retired).manifest
         for capability in [PluginCapability.readSelectedText, .writeClipboard] {
             grants.setDecision(.granted, for: Self.pluginID, pluginVersion: "1.0.0", capability: capability,
@@ -114,39 +118,19 @@ final class LevelTwoMigrationTests: XCTestCase {
         XCTAssertEqual(try promoted.store.review(update).requestedAccess, [], "Nothing new to ask for")
         try promoted.store.install(from: update)
 
-        let installed = try XCTUnwrap(promoted.registry.package(for: Self.pluginID))
-        XCTAssertEqual(installed.manifest.apiLevel, 2)
-        XCTAssertEqual(installed.manifest.version, "2.0.0")
+        let updated = try XCTUnwrap(promoted.registry.package(for: Self.pluginID))
+        XCTAssertEqual(updated.manifest.apiLevel, 2)
+        XCTAssertEqual(updated.manifest.version, "2.0.0")
         XCTAssertEqual(promoted.registry.refusedPlugins(), [])
         XCTAssertEqual(promoted.registry.availability(for: action), .available)
         XCTAssertEqual(try promoted.storage.answer(.getStorageValue, input: .string("shouts"), for: Self.pluginID),
                        .number(4))
         XCTAssertEqual(grants.decision(for: Self.pluginID, pluginVersion: "2.0.0", capability: .writeClipboard,
-                                       scope: installed.manifest.scope(for: .writeClipboard)), .granted)
+                                       scope: updated.manifest.scope(for: .writeClipboard)), .granted)
 
         let relaunched = launch(.host)
         try relaunched.store.restore()
         XCTAssertNotNil(relaunched.registry.package(for: Self.pluginID), "The update reopens on the next launch")
         XCTAssertEqual(relaunched.registry.refusedPlugins(), [])
-    }
-
-    /// The Level 2 revision does what the candidate revision did: the same
-    /// script, the same IDs, the same result.
-    func testTheLevelTwoRevisionRunsAsTheCandidateRevisionDid() throws {
-        let services = RecordedHostServices(operations: [
-            "selection.readText": .value(.string("hello")), "clipboard.write": .value(.null)
-        ])
-        let candidateHelper = try PluginTestHelper(contracts: .candidateHost)
-        let levelTwoHelper = try PluginTestHelper()
-        helpers += [candidateHelper, levelTwoHelper]
-
-        let before = candidateHelper.run(PluginTestInvocation("probe.shout"), of: try PluginUnderTest(packageAt: Self.retired),
-                                         answering: services)
-        let after = levelTwoHelper.run(PluginTestInvocation("probe.shout"),
-                                       of: try PluginUnderTest(packageAt: levelTwoRevision()), answering: services)
-
-        XCTAssertEqual(try after.result.get(), try before.result.get())
-        XCTAssertEqual(after.performed, before.performed)
-        XCTAssertEqual(after.performed.map(\.id), ["selection.readText", "clipboard.write"])
     }
 }

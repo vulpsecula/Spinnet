@@ -15,7 +15,6 @@ struct PageCollectionView: NSViewRepresentable {
     /// The panel's content width.
     static let contentWidth = PluginViewPanelWindow.width - 28
     static let headerHeight: CGFloat = 22
-    static let footerHeight: CGFloat = 30
     static let listRowHeight: CGFloat = 26
     static let listRowWithSubtitleHeight: CGFloat = 38
 
@@ -89,8 +88,6 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
         collectionView.register(PageListCell.self, forItemWithIdentifier: PageListCell.identifier)
         collectionView.register(PageSectionHeader.self, forSupplementaryViewOfKind: NSCollectionView.elementKindSectionHeader,
                                 withIdentifier: PageSectionHeader.identifier)
-        collectionView.register(PageLoadingFooter.self, forSupplementaryViewOfKind: NSCollectionView.elementKindSectionFooter,
-                                withIdentifier: PageLoadingFooter.identifier)
         collectionView.source.collectionView = collectionView
         collectionView.dataSource = collectionView.source
         collectionView.delegate = collectionView.source
@@ -153,7 +150,7 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     }
 
     private func updateEmpty() {
-        let empty = (model?.window?.total ?? 0) == 0 && model?.loadingMore == .idle
+        let empty = (model?.window?.total ?? 0) == 0
         emptyLabel.isHidden = !empty
     }
 
@@ -415,8 +412,7 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
 }
 
 /// The collection view's data source and layout delegate: the window's
-/// positions in its sections, a cell for each, and the section headers and
-/// load-more footer.
+/// positions in its sections, a cell for each, and the section headers.
 final class PageCollectionSource: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout {
     weak var collectionView: PageNSCollectionView?
 
@@ -442,14 +438,6 @@ final class PageCollectionSource: NSObject, NSCollectionViewDataSource, NSCollec
 
     func collectionView(_ collectionView: NSCollectionView, viewForSupplementaryElementOfKind kind: NSCollectionView.SupplementaryElementKind,
                         at indexPath: IndexPath) -> NSView {
-        if kind == NSCollectionView.elementKindSectionFooter {
-            let footer = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: PageLoadingFooter.identifier, for: indexPath)
-            if let footer = footer as? PageLoadingFooter {
-                let model = self.collectionView?.model
-                footer.show(model?.loadingMore ?? .idle) { [weak model] in model?.retryLoadingMore() }
-            }
-            return footer
-        }
         let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: PageSectionHeader.identifier, for: indexPath)
         let sections = sections
         if let header = header as? PageSectionHeader, sections.indices.contains(indexPath.section) {
@@ -465,14 +453,6 @@ final class PageCollectionSource: NSObject, NSCollectionViewDataSource, NSCollec
         let sections = sections
         guard sections.indices.contains(section), sections[section].title != nil else { return .zero }
         return NSSize(width: PageCollectionView.itemsWidth, height: PageCollectionView.headerHeight)
-    }
-
-    func collectionView(_ collectionView: NSCollectionView, layout collectionViewLayout: NSCollectionViewLayout,
-                        referenceSizeForFooterInSection section: Int) -> NSSize {
-        guard section == max(sections.count, 1) - 1, let loading = self.collectionView?.model?.loadingMore, loading != .idle else {
-            return .zero
-        }
-        return NSSize(width: PageCollectionView.itemsWidth, height: PageCollectionView.footerHeight)
     }
 }
 
@@ -689,49 +669,4 @@ final class PageSectionHeader: NSView, NSCollectionViewElement {
     override func updateLayer() {
         layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.97).cgColor
     }
-}
-
-/// Revisions 1 and 2: "Loading more…" or "Couldn't load more" with Retry
-/// where the items end.
-final class PageLoadingFooter: NSView, NSCollectionViewElement {
-    static let identifier = NSUserInterfaceItemIdentifier("PageLoadingFooter")
-    private let spinner = NSProgressIndicator()
-    private let label = NSTextField(labelWithString: "")
-    private let retry = NSButton(title: "Retry", target: nil, action: nil)
-    private var onRetry: () -> Void = {}
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        label.textColor = .secondaryLabelColor
-        retry.controlSize = .small
-        retry.bezelStyle = .rounded
-        retry.target = self
-        retry.action = #selector(retried)
-        let row = NSStackView(views: [spinner, label, retry])
-        row.spacing = 6
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-        NSLayoutConstraint.activate([
-            row.centerXAnchor.constraint(equalTo: centerXAnchor),
-            row.centerYAnchor.constraint(equalTo: centerYAnchor)
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func show(_ state: PluginPageModel.LoadingMore, retry onRetry: @escaping () -> Void) {
-        self.onRetry = onRetry
-        spinner.isHidden = state != .loading
-        retry.isHidden = state != .failed
-        label.stringValue = state == .loading ? "Loading more…" : state == .failed ? "Couldn't load more" : ""
-        if state == .loading { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
-        setAccessibilityElement(state == .loading)
-        setAccessibilityLabel(state == .loading ? "Loading more" : nil)
-    }
-
-    @objc private func retried() { onRetry() }
 }

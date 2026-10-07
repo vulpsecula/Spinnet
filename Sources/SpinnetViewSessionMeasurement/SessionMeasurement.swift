@@ -97,9 +97,9 @@ final class SessionMeasurement {
             progress("Typing every \(interval) ms, cold and warm (\(options.typingSamples) each)")
             try measureTyping(every: interval)
         }
-        if options.loadMoreRounds > 0 {
-            progress("Loading more into a page's collection (\(options.loadMoreRounds) rounds)")
-            try measureLoadingMore()
+        if options.rangeRounds > 0 {
+            progress("Scrolling a page's windowed collection (\(options.rangeRounds) rounds)")
+            try measureScrolling()
         }
         progress("Memory over \(options.memoryCycles) cycles")
         try measureMemory()
@@ -194,34 +194,21 @@ final class SessionMeasurement {
         return try rig.interact(keystrokes)
     }
 
-    /// From a freshly opened page, asks for more items until the Plugin has
-    /// none, as nearing the end of a collection does, timing each answer and
-    /// its size. Every answer carries all items loaded so far.
-    private func measureLoadingMore() throws {
-        for round in 0..<options.loadMoreRounds {
+    /// From a freshly opened page each round, scrolls its windowed
+    /// collection from the first screen to the last.
+    private func measureScrolling() throws {
+        for round in 0..<options.rangeRounds {
             rig.closeView()
             settle()
             guard try rig.openView().failure == nil else { throw MeasurementError("The view did not open") }
-            if rig.session?.page?.collection?.isWindowed == true {
-                try measureLoadingRanges(round: round)
-                continue
+            guard rig.session?.page?.collection?.isWindowed == true else {
+                throw MeasurementError("The page's collection gives no total, so the Host asks for no ranges")
             }
-            var index = 0
-            while let page = rig.session?.page, let collection = page.collection, collection.hasMore {
-                settle()
-                let interaction = try rig.interact([(0, .loadMore(page: page.id, collection: collection.id,
-                                                                  loaded: collection.items.count))])
-                var sample = sample("load-more", "warm", index: round * 1000 + index, query: "\(collection.items.count)",
-                                    inputs: 1, interaction)
-                sample.answerBytes = rig.session.map { PluginScriptAnswer.encodedSize(of: $0.view) }
-                latency.append(sample)
-                if interaction.failure != nil { break }
-                index += 1
-            }
+            try measureLoadingRanges(round: round)
         }
     }
 
-    /// Under `collections` r3: scrolls a windowed collection from its first
+    /// Scrolls a windowed collection from its first
     /// screen to its last, one screen at a time, keeping the window as the
     /// Host does, and times each `load_range` it asks for and its answer's
     /// size.

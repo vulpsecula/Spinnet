@@ -2,21 +2,22 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// The Host is held to the Plugin API catalogue (ADR 0020): its own table of
-/// operations has every published ID with the same Capabilities, System
-/// Permission, failure categories and entry points, the Level 1 names each
-/// replaces, and the input members the schema gives it; and the candidate
-/// it provides offers exactly the catalogue's calls and Commands.
+/// The Host is held to the Plugin API catalogue (ADR 0020), Level 2's
+/// `PluginAPI/catalogue.json`: its own table of operations has every
+/// published ID with the same Capabilities, System Permission, failure
+/// categories and entry points, the Level 1 names each replaces, and the
+/// input members the schema gives it; and Level 2 offers exactly the
+/// catalogue's calls and Commands.
 final class HostServiceCatalogueTests: XCTestCase {
     private static let pluginAPI = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("PluginAPI")
-    static let published = pluginAPI.appendingPathComponent("candidates/namespaces/r1")
+    static let schemas = pluginAPI.appendingPathComponent("schemas")
 
-    private func json(_ name: String) throws -> [String: JSONValue] {
+    private func json(_ path: String) throws -> [String: JSONValue] {
         guard case .object(let document) = try JSONDecoder().decode(
-            JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent(name))
-        ) else { throw ConfigurationError.malformedValue("\(name) is not an object") }
+            JSONValue.self, from: Data(contentsOf: Self.pluginAPI.appendingPathComponent(path))
+        ) else { throw ConfigurationError.malformedValue("\(path) is not an object") }
         return document
     }
 
@@ -37,18 +38,18 @@ final class HostServiceCatalogueTests: XCTestCase {
         return operations.compactMap { if case .object(let operation) = $0 { return operation }; return nil }
     }
 
-    /// The published IDs offered at `entryPoint` by the candidate providing it.
+    /// The published IDs offered at `entryPoint`.
     private func ids(offeredAt entryPoint: String) throws -> [String] {
         try catalogueOperations().compactMap { operation in
             guard case .object(let entryPoints)? = operation["entry_points"],
                   case .object(let entry)? = entryPoints[entryPoint],
-                  ["level1", "candidate"].contains(string(entry["status"])),
-                  string(entry["candidate"]) == HostServiceCatalogue.candidateName else { return nil }
+                  ["level1", "level2"].contains(string(entry["status"])) else { return nil }
             return string(operation["id"])
         }
     }
 
     func testTheHostsOperationsAreThePublishedCatalogue() throws {
+        XCTAssertEqual(try json("catalogue.json")["level"], .number(2))
         let published = try catalogueOperations()
         XCTAssertEqual(HostServiceCatalogue.operations.map(\.id), published.compactMap { string($0["id"]) })
 
@@ -66,14 +67,15 @@ final class HostServiceCatalogueTests: XCTestCase {
                 guard case .object(let entry) = value, let entryPoint = HostServiceEntryPoint(rawValue: name) else {
                     XCTFail("\(id) has an unknown entry point \(name)"); continue
                 }
-                let expected: HostServiceOffering
+                let offering = definition.offering(at: entryPoint)
                 switch string(entry["status"]) {
-                case "level1": expected = .offered(candidate: string(entry["candidate"]) ?? "", level1: true)
-                case "candidate": expected = .offered(candidate: string(entry["candidate"]) ?? "", level1: false)
-                case "reserved": expected = .reserved
-                default: expected = .notOffered
+                case "level1":
+                    guard case .offered(_, level1: true) = offering else { XCTFail("\(id) at \(name)"); continue }
+                case "level2":
+                    guard case .offered(_, level1: false) = offering else { XCTFail("\(id) at \(name)"); continue }
+                case "reserved": XCTAssertEqual(offering, .reserved, "\(id) at \(name)")
+                default: XCTAssertEqual(offering, .notOffered, "\(id) at \(name)")
                 }
-                XCTAssertEqual(definition.offering(at: entryPoint), expected, "\(id) at \(name)")
                 if entryPoint == .command, entry["capabilities"] != nil {
                     XCTAssertEqual(definition.commandCapabilityOverride?.map(\.rawValue), strings(entry["capabilities"]), id)
                 }
@@ -91,7 +93,7 @@ final class HostServiceCatalogueTests: XCTestCase {
     }
 
     func testTheCatalogueFollowsItsSchema() throws {
-        let validator = try JSONSchemaSubsetValidator(schemaAt: Self.published.appendingPathComponent("catalogue.schema.json"))
+        let validator = try JSONSchemaSubsetValidator(schemaAt: Self.schemas.appendingPathComponent("catalogue.schema.json"))
         XCTAssertEqual(validator.errors(for: .object(try json("catalogue.json"))), [])
     }
 
@@ -110,7 +112,7 @@ final class HostServiceCatalogueTests: XCTestCase {
     /// schema definition declares, so a Command fixing or configuring one is
     /// checked against the published shape.
     func testCommandInputMembersAreTheSchemas() throws {
-        let schemaURL = Self.published.appendingPathComponent("namespaces.schema.json")
+        let schemaURL = Self.schemas.appendingPathComponent("namespaces.schema.json")
         for definition in HostServiceCatalogue.operations where definition.isOffered(at: .command) {
             XCTAssertEqual(Set(definition.inputMembers),
                            try declaredMembers(of: .string("#/$defs/\(definition.id).input"), in: schemaURL),
@@ -147,44 +149,17 @@ final class HostServiceCatalogueTests: XCTestCase {
         return members
     }
 
-    /// Candidate `namespaces` r1 lets a declaring Plugin call exactly the
-    /// catalogue's call IDs and run exactly its Command IDs.
-    func testTheCandidateOffersTheCataloguesCallsAndCommands() throws {
-        let members = HostServiceCatalogue.candidate.members
-        XCTAssertEqual(members.filter { $0.kind == .hostService }.map(\.name), try ids(offeredAt: "call"))
-        XCTAssertEqual(members.filter { $0.kind == .hostCommand }.map(\.name), try ids(offeredAt: "command"))
+    /// Level 2 lets a Plugin call exactly the catalogue's call IDs and run
+    /// exactly its Command IDs, which the schema lists.
+    func testLevelTwoOffersTheCataloguesCallsAndCommands() throws {
+        let members = PluginInterfaceContracts.levelTwoMembers
+        XCTAssertEqual(Set(members.filter { $0.kind == .hostService }.map(\.name)), Set(try ids(offeredAt: "call")))
+        XCTAssertEqual(Set(members.filter { $0.kind == .hostCommand }.map(\.name)), Set(try ids(offeredAt: "command")))
         XCTAssertTrue(members.contains(HostServiceCatalogue.catalogueIDsOnly))
-        let schema = try json("namespaces.schema.json")
+        let schema = try json("schemas/namespaces.schema.json")
         guard case .object(let definitions)? = schema["$defs"], case .object(let calls)? = definitions["call_id"],
               case .object(let commands)? = definitions["host_command_id"] else { return XCTFail("No ID lists") }
         XCTAssertEqual(strings(calls["enum"]), try ids(offeredAt: "call"))
         XCTAssertEqual(strings(commands["enum"]), try ids(offeredAt: "command"))
-    }
-
-    /// The types tag every function the SDK holds with the ID it calls, and
-    /// their ID lists and the reference's tables name what the Host offers.
-    func testTheTypesAndReferenceNameEveryID() throws {
-        let calls = HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)
-        let commands = HostServiceCatalogue.operations.filter { $0.isOffered(at: .command) }.map(\.id)
-        let types = try String(contentsOf: Self.published.appendingPathComponent("namespaces.d.ts"), encoding: .utf8)
-        func matches(_ pattern: String, in text: String) throws -> [String] {
-            let expression = try NSRegularExpression(pattern: pattern)
-            return expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {
-                Range($0.range(at: 1), in: text).map { String(text[$0]) }
-            }
-        }
-        func union(_ name: String) throws -> [String] {
-            let start = try XCTUnwrap(types.range(of: "export type \(name) =")).upperBound
-            let end = try XCTUnwrap(types[start...].range(of: ";")).lowerBound
-            return try matches(#""([\w.]+)""#, in: String(types[start..<end]))
-        }
-        XCTAssertEqual(try matches(#"@id ([\w.]+) @entry call\b"#, in: types), calls)
-        XCTAssertEqual(try union("CallID"), calls)
-        XCTAssertEqual(try union("HostCommandID"), commands)
-
-        let reference = try String(contentsOf: Self.published.appendingPathComponent("reference.md"), encoding: .utf8)
-        for operation in HostServiceCatalogue.operations {
-            XCTAssertTrue(reference.contains("`\(operation.id)`"), "reference.md does not name \(operation.id)")
-        }
     }
 }

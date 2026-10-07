@@ -26,9 +26,6 @@ public final class PluginTestHelper {
     /// such as one declaring a retired candidate or a Level it lacks, fails
     /// as the Host would fail it, and a Host Service request outside the
     /// Levels and candidates the Plugin declares is refused.
-    /// `PluginInterfaceContracts.candidateHost` is the Host before Level 2,
-    /// against which a Plugin's candidate revision can be compared with its
-    /// Level 2 revision.
     public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment? = nil,
                 contracts: PluginInterfaceContracts = .host) throws {
         guard let url = helperURL ?? Self.locate() else { throw PluginTestKitError.helperNotFound }

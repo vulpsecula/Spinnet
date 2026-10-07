@@ -3,7 +3,7 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// A Plugin declaring Candidate Contract `namespaces` calls through the real
+/// A Level 2 Plugin calls through the real
 /// helper and the Host's own broker, which performs each ID with the
 /// implementation Level 1 already has and checks the same authority.
 final class NamespacesHostServiceTests: XCTestCase {

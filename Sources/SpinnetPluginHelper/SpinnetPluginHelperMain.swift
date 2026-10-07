@@ -203,13 +203,7 @@ struct SpinnetPluginHelperMain {
     /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
     /// `requestHostService` already in `context`; for a Plugin declaring
     /// Plugin API Level 2 the object `spinnet-level-2.js` builds over Level
-    /// 1's. For a Plugin run against the candidate Host, which only a check
-    /// of promotion does, one declaring Candidate Contract `namespaces` r1
-    /// gets the namespaced object its
-    /// `namespaces.js` builds over Level 1's, with `host_operations.js`'s
-    /// request builders for a Plugin also declaring `host_operations` r1, and
-    /// `collections.js`'s page builders over those for one also declaring
-    /// `collections` r1 or r2, and `collections-r3.js`'s for `collections` r3.
+    /// 1's.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,
@@ -232,34 +226,6 @@ struct SpinnetPluginHelperMain {
                 return false
             }
             sdk = levelTwo
-        } else if invocation.namesCatalogueIDs {
-            guard let makeNamespaced = context.evaluateScript(SpinnetSDK.namespacesSource), makeNamespaced.isObject,
-                  let namespaced = makeNamespaced.call(withArguments: [requestHostService, environment, sdk]),
-                  namespaced.isObject else {
-                return false
-            }
-            sdk = namespaced
-            // host_operations requires namespaces, so its additions build on
-            // the namespaced object.
-            if invocation.requestsHostOperations {
-                guard let makeOperations = context.evaluateScript(SpinnetSDK.hostOperationsSource), makeOperations.isObject,
-                      let operations = makeOperations.call(withArguments: [requestHostService, environment, sdk]),
-                      operations.isObject else {
-                    return false
-                }
-                sdk = operations
-                // collections requires host_operations, so its page
-                // builders build on that object.
-                if let source = invocation.pageBuilders {
-                    guard let makeCollections = context.evaluateScript(source),
-                          makeCollections.isObject,
-                          let collections = makeCollections.call(withArguments: [requestHostService, environment, sdk]),
-                          collections.isObject else {
-                        return false
-                    }
-                    sdk = collections
-                }
-            }
         }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
@@ -413,27 +379,8 @@ private final class PluginRuntimeHostServiceClient {
 
 private extension PluginRuntimeInvocation {
     /// Whether the Plugin names Host Services by catalogue ID: from Plugin
-    /// API Level 2, or, against the candidate Host, by declaring Candidate
-    /// Contract `namespaces` r1.
-    var namesCatalogueIDs: Bool { apiLevel >= 2 || candidateContracts.contains(HostServiceCatalogue.declaration) }
-
-    /// Whether the Plugin declares Candidate Contract `host_operations` r1
-    /// or r2, whose request builders the helper then adds: revision 2 adds
-    /// no builder, so both get revision 1's.
-    var requestsHostOperations: Bool {
-        candidateContracts.contains { declared in HostOperationsContract.candidates.contains { $0.declaration == declared } }
-    }
-
-    /// The page builders of the revision of Candidate Contract `collections`
-    /// the Plugin declares, if the Host provides it: revision 1's for
-    /// revisions 1 and 2, since revision 2 adds no builder, and revision 3's
-    /// own.
-    var pageBuilders: String? {
-        guard let declared = candidateContracts.first(where: { declared in
-            CollectionsContract.candidates.contains { $0.declaration == declared }
-        }) else { return nil }
-        return declared.revision >= 3 ? SpinnetSDK.collectionsRevisionThreeSource : SpinnetSDK.collectionsSource
-    }
+    /// API Level 2.
+    var namesCatalogueIDs: Bool { apiLevel >= 2 }
 
     var inputJSON: String {
         guard let data = try? JSONEncoder().encode(input) else { return "null" }

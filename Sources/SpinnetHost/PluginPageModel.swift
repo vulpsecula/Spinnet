@@ -11,9 +11,6 @@ import SpinnetCore
 /// What the user types never republishes the page: the field already shows
 /// it, so typing costs no redraw until the Plugin answers.
 final class PluginPageModel: ObservableObject {
-    /// Whether the last `load_more` is running or failed.
-    enum LoadingMore: Equatable { case idle, loading, failed }
-
     /// Asks the views to move the keyboard focus. Each request is new, so
     /// asking twice for the same component is honoured twice.
     struct FocusRequest: Equatable {
@@ -59,7 +56,6 @@ final class PluginPageModel: ObservableObject {
     @Published private(set) var isPerformingOperation = false
     @Published private(set) var eventError: ActionFailure?
     @Published private(set) var toast: String?
-    @Published private(set) var loadingMore = LoadingMore.idle
     private(set) var focusRequest: FocusRequest?
     /// The last scroll the model asked the collection for.
     private(set) var scrollRequest: ScrollRequest?
@@ -73,7 +69,6 @@ final class PluginPageModel: ObservableObject {
     private(set) var memory = PluginPageMemory()
     /// Text fields with an open input-method composition.
     private(set) var composing: Set<String> = []
-    private var askedAt: Int?
     /// The `load_range` the Host sent last and has not settled, with the
     /// collection's layout it was asked under.
     private var requestedRange: (range: Range<Int>, layout: Int)?
@@ -113,12 +108,8 @@ final class PluginPageModel: ObservableObject {
 
     var title: String { page.title }
     var pluginName: String { environment.pluginName(session.pluginID) }
-    /// The failure shown inline: a failed `load_more` shows in the
-    /// collection's own row, with Retry, instead.
-    var error: ActionFailure? {
-        if loadingMore == .failed, case .loadMore? = session.errorEvent { return nil }
-        return eventError
-    }
+    /// The failure shown inline.
+    var error: ActionFailure? { eventError }
     var repairRoute: PluginViewRepairRoute? { error.flatMap(PluginViewRepairRoute.init) }
     /// The collection as the last answer described it.
     var collection: PluginPageCollection? { page.collection }
@@ -138,7 +129,6 @@ final class PluginPageModel: ObservableObject {
         isPerformingOperation = presentation.isPerformingOperation
         eventError = presentation.error
         if newView { apply(next, presentedAnew: presentedAnew) }
-        settleLoadingMore()
         settleRange()
         // An answer to anything else may have outdated what is on screen.
         if newView { requestRangeIfNeeded() }
@@ -168,8 +158,6 @@ final class PluginPageModel: ObservableObject {
         }
         if let collection = next.collection {
             if applied.pageChanged || applied.renewed.contains(collection.id) {
-                askedAt = nil
-                loadingMore = .idle
                 requestedRange = nil
                 collectionDisplay?.reloadCollection()
                 if applied.restored, let anchor = memory.state.scrollAnchors[collection.id],
@@ -327,7 +315,6 @@ final class PluginPageModel: ObservableObject {
             viewportChanged(first..<min(first + window.screen, window.total))
         }
         requestRangeIfNeeded()
-        askForMoreIfNeeded(at: position)
     }
 
     /// Whether `field` searches the page's collection, so Up, Down and
@@ -414,7 +401,6 @@ final class PluginPageModel: ObservableObject {
         if let collection { requestFocus(collection.id) }
         collectionDisplay?.selectionMoved(from: before, to: position)
         requestRangeIfNeeded()
-        askForMoreIfNeeded(at: position)
     }
 
     func doubleClick(_ item: String) {
@@ -499,16 +485,14 @@ final class PluginPageModel: ObservableObject {
                         insertionTarget: .notShown)
     }
 
-    // MARK: - Scrolling, windows and more items
+    // MARK: - Scrolling and windows
 
     /// The collection shows `viewport` now: the window lets go of what is
-    /// far from it, the Host asks for what it lacks, and a whole collection
-    /// with more asks for more when its end is in view.
+    /// far from it, and the Host asks for what it lacks.
     func viewportChanged(_ viewport: Range<Int>) {
-        guard let window = memory.window else { return }
+        guard memory.window != nil else { return }
         memory.setViewport(viewport)
         requestRangeIfNeeded()
-        if !window.isWindowed, viewport.upperBound >= window.total - window.columns { askForMoreIfNeeded(atEnd: true) }
     }
 
     private func requestScroll(to position: Int?, atTop: Bool) {
@@ -542,40 +526,6 @@ final class PluginPageModel: ObservableObject {
     private static func isLoadRange(_ event: PluginViewEvent) -> Bool {
         if case .loadRange = event { return true }
         return false
-    }
-
-    private func askForMoreIfNeeded(at position: Int?) {
-        guard let window = memory.window, !window.isWindowed, window.isNearEnd(position) else { return }
-        askForMoreIfNeeded(atEnd: true)
-    }
-
-    private func askForMoreIfNeeded(atEnd: Bool) {
-        guard atEnd, let collection, let window = memory.window, !window.isWindowed, window.hasMore,
-              loadingMore == .idle, askedAt != window.total else { return }
-        askedAt = window.total
-        loadingMore = .loading
-        collectionDisplay?.reloadCollection()
-        session.send(.loadMore(page: page.id, collection: collection.id, loaded: window.total))
-    }
-
-    /// Retry after a failed `load_more`.
-    func retryLoadingMore() {
-        askedAt = nil
-        loadingMore = .idle
-        eventError = nil
-        askForMoreIfNeeded(atEnd: true)
-    }
-
-    private func settleLoadingMore() {
-        guard loadingMore == .loading else { return }
-        let isLoadMore: (PluginViewEvent) -> Bool = { if case .loadMore = $0 { return true } else { return false } }
-        guard !session.isPending(where: isLoadMore) else { return }
-        if let failed = session.errorEvent, isLoadMore(failed) {
-            loadingMore = .failed
-        } else {
-            loadingMore = .idle
-        }
-        collectionDisplay?.reloadCollection()
     }
 
     // MARK: - Insertion target

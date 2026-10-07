@@ -1,28 +1,17 @@
 import Foundation
 @testable import SpinnetCore
 
-/// The Host's own probes declare Plugin API Level 2. Each was proved first
-/// against the Candidate Contracts Level 2 promoted (#79); its candidate
-/// variant declares them again at Level 1, as before promotion, and runs
-/// against `PluginInterfaceContracts.candidateHost`, so a test can show that
-/// a scenario gives the same result on the candidate Host and on Level 2, or
-/// keep a retired revision's own behaviour checked.
-enum CandidateVariant {
-    static let namespaces = CandidateContractRevision(name: "namespaces", revision: 1)
-
-    /// What a Plugin using pages declared: `collections` at `revision` and
-    /// the `host_operations` and `namespaces` revisions it required.
-    static func pages(collections revision: Int = 3) -> [CandidateContractRevision] {
-        [CandidateContractRevision(name: "collections", revision: revision),
-         CandidateContractRevision(name: "host_operations", revision: revision >= 3 ? 2 : 1), namespaces]
+/// Changed copies of a fixture's manifest: the Host's probes declare Plugin
+/// API Level 2, and a test may need the same Plugin at Level 1 or declaring
+/// Candidate Contracts.
+enum ManifestVariant {
+    /// Changes a Level 2 manifest into a Level 1 one declaring nothing.
+    static let levelOne: (inout [String: JSONValue]) -> Void = { manifest in
+        manifest["api_level"] = .number(1)
+        manifest["candidate_contracts"] = nil
     }
 
-    /// What a Plugin requesting operations without pages declared.
-    static func operations(revision: Int = 2) -> [CandidateContractRevision] {
-        [CandidateContractRevision(name: "host_operations", revision: revision), namespaces]
-    }
-
-    /// Changes a Level 2 manifest into one declaring `declarations` at Level 1.
+    /// Changes a manifest into one declaring `declarations` at Level 1.
     static func declaring(_ declarations: [CandidateContractRevision]) -> (inout [String: JSONValue]) -> Void {
         { manifest in
             manifest["api_level"] = .number(1)
@@ -30,18 +19,6 @@ enum CandidateVariant {
                 .object(["name": .string($0.name), "revision": .number(Double($0.revision))])
             })
         }
-    }
-
-    /// Changes a Level 2 manifest into a Level 1 one declaring nothing.
-    static let levelOne: (inout [String: JSONValue]) -> Void = { manifest in
-        manifest["api_level"] = .number(1)
-        manifest["candidate_contracts"] = nil
-    }
-
-    /// The Host's record of `contract` now that Level 2 retired it, which
-    /// its published `candidate.json` is.
-    static func retired(_ contract: CandidateContract) -> CandidateContract? {
-        PluginInterfaceContracts.host.candidates.first { $0.declaration == contract.declaration }
     }
 
     /// The manifest of `package` changed by `change`.

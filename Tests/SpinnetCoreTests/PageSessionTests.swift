@@ -99,13 +99,13 @@ final class PageSessionTests: XCTestCase {
     /// event from a kept component is not.
     func testAnEventFromAComponentResetSinceIsDropped() throws {
         let session = try start(Self.searchPage())
-        session.send(.loadMore(page: "search", collection: "results", loaded: 3))
+        session.send(.loadRange(page: "search", collection: "results", start: 0, count: 3))
         session.send(typed("dog"))
         clock.advance(by: 0.2)
         answer(0, page: Self.searchPage(reset: .array([.string("query")])))
         XCTAssertEqual(runner.runs.count, 1, "query was reset after the typing was made")
 
-        session.send(.loadMore(page: "search", collection: "results", loaded: 3))
+        session.send(.loadRange(page: "search", collection: "results", start: 0, count: 3))
         session.send(typed("dog"))
         clock.advance(by: 0.2)
         answer(1, page: Self.searchPage(reset: .array([.string("results")])))
@@ -129,7 +129,7 @@ final class PageSessionTests: XCTestCase {
     func testAnEventFromAComponentOfAnotherKindIsDropped() throws {
         let session = try start(Self.searchPage())
         session.send(typed("x"))
-        session.send(.loadMore(page: "search", collection: "results", loaded: 3))
+        session.send(.loadRange(page: "search", collection: "results", start: 0, count: 3))
         answer(0, page: B.pageJSON("search", [B.row([B.field(), B.choice()]), B.grid(items: ["A"], kind: "list")]))
         XCTAssertEqual(runner.runs.count, 1, "results is now a list")
     }
@@ -148,10 +148,10 @@ final class PageSessionTests: XCTestCase {
         XCTAssertFalse(session.hasPendingFieldChange)
     }
 
-    /// A failed `load_more` is told apart, so the Host can offer Retry.
+    /// A failed event is told apart, so the Host knows which one failed.
     func testAFailedEventNamesItself() throws {
         let session = try start(Self.searchPage())
-        let more = PluginViewEvent.loadMore(page: "search", collection: "results", loaded: 3)
+        let more = PluginViewEvent.loadRange(page: "search", collection: "results", start: 0, count: 3)
         session.send(more)
         XCTAssertTrue(session.isPending { $0 == more })
         runner.runs[0].finish(.failed(ActionFailure(pluginID: Self.pluginID, actionID: ActionID("e"),
@@ -163,8 +163,8 @@ final class PageSessionTests: XCTestCase {
     }
 
     /// Only a gesture's answer may request an operation: `item_action` is
-    /// one, `load_more` and typing are not.
-    func testItemActionsAreGesturesAndLoadMoreIsNot() throws {
+    /// one, `load_range` and typing are not.
+    func testItemActionsAreGesturesAndLoadRangeIsNot() throws {
         let insert = RequestedHostOperation(perform: "selection.replace", input: .string("★"), closesView: true)
         let session = try start(Self.searchPage())
         session.send(itemAction("A"), insertionTarget: .shown(app: nil, focus: nil))
@@ -174,7 +174,7 @@ final class PageSessionTests: XCTestCase {
 
         setUp()
         let other = try start(Self.searchPage())
-        other.send(.loadMore(page: "search", collection: "results", loaded: 3))
+        other.send(.loadRange(page: "search", collection: "results", start: 0, count: 3))
         answer(0, page: nil, operation: insert)
         XCTAssertTrue(other.isEnded)
     }

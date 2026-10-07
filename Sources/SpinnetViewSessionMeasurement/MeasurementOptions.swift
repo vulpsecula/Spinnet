@@ -40,9 +40,9 @@ struct MeasurementOptions {
     /// The text field typing goes into: a Level 1 form field's key or a
     /// page's text field ID.
     var pageField = "query"
-    /// Times a page's collection is loaded from its first batch to its last
-    /// (Plugin API Level 2's pages); 0 skips it.
-    var loadMoreRounds = 0
+    /// Times a page's windowed collection is scrolled from its first screen
+    /// to its last; 0 skips it.
+    var rangeRounds = 0
     /// Each lets the helper retire after its real idle period, so each costs
     /// about 31 seconds.
     var idleRetirements = 2
@@ -86,10 +86,9 @@ struct MeasurementOptions {
           --memory-queries N          Queries typed in each memory cycle (default 3)
           --field ID                  The field typed into (default query); for a page,
                                       its other inputs keep their values
-          --load-more-rounds N        For a page with a collection: load from the first batch
-                                      to the last N times, timing each answer (default 0);
-                                      a windowed one (collections r3) is scrolled screen by
-                                      screen and each load_range timed
+          --range-rounds N            For a page with a windowed collection: scroll it screen
+                                      by screen from the first to the last N times, timing
+                                      each load_range (default 0)
           --memory-cycles N           Open-type-retire-close cycles sampled (default 5)
           --memory-samples N          Samples per memory phase, 100 ms apart (default 10)
           --idle-retirements N        Helpers left to retire after 30 s idle (default 2)
@@ -161,7 +160,7 @@ struct MeasurementOptions {
             case "--memory-cycles": memoryCycles = try count(for: argument)
             case "--memory-queries": memoryQueries = try count(for: argument, minimum: 1)
             case "--field": pageField = try value(for: argument)
-            case "--load-more-rounds": loadMoreRounds = try count(for: argument)
+            case "--range-rounds": rangeRounds = try count(for: argument)
             case "--queries":
                 let text = try value(for: argument)
                 let list = text.split(separator: "|").map(String.init).filter { !$0.isEmpty }

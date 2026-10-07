@@ -65,8 +65,8 @@ final class CandidateContractCatalogueTests: XCTestCase {
         XCTAssertEqual(PluginInterfaceContracts.host.highestStableLevel, PluginAPILevel.highestSupported)
     }
 
-    /// What the Host provides and has retired is exactly what the candidate
-    /// pages publish, revision by revision, each at its pinned tag.
+    /// What the Host has retired is exactly what the candidate pages
+    /// publish, revision by revision, each with the Level it became.
     func testTheHostsCandidatesAreThePublishedOnes() throws {
         let published = try publishedCandidates().map {
             try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: $0))
@@ -74,7 +74,13 @@ final class CandidateContractCatalogueTests: XCTestCase {
         XCTAssertEqual(Set(published.map { "\($0.name) r\($0.revision)" }),
                        Set(PluginInterfaceContracts.host.candidates.map { "\($0.name) r\($0.revision)" }))
         for candidate in PluginInterfaceContracts.host.candidates {
-            XCTAssertEqual(published.first { $0.name == candidate.name && $0.revision == candidate.revision }, candidate)
+            let page = try XCTUnwrap(published.first { $0.declaration == candidate.declaration })
+            XCTAssertEqual(page.status, candidate.status, "\(candidate.name) r\(candidate.revision)")
+            XCTAssertEqual(page.tag, candidate.tag)
+        }
+        for promoted in [HostServiceCatalogue.promoted, HostOperationsContract.promoted, CollectionsContract.promoted] {
+            let page = try XCTUnwrap(published.first { $0.declaration == promoted.declaration })
+            XCTAssertEqual(Set(page.members), Set(promoted.members), "Level 2 holds \(promoted.name)'s published members")
         }
         let provided = try PublishedTable.column(0, under: "## Candidate Contracts this Host provides",
                                                  in: "candidates/README.md")
@@ -195,41 +201,33 @@ final class CandidateContractCatalogueTests: XCTestCase {
         }
     }
 
-    /// The candidate Host provided `collections` r1, r2 and r3 and
-    /// `host_operations` r1 and r2: a Plugin declaring any of them, with what
-    /// it requires, ran; one declaring another revision was refused with the
-    /// latest named, or without what its revision requires; and promotion
-    /// gives the latest revision's members the next Level and retires every
-    /// one.
+    /// A Host may provide several revisions of one candidate: a Plugin
+    /// declaring any of them runs; one declaring another is refused with
+    /// the latest named; and promotion gives the latest revision's members
+    /// the next Level and retires every one.
     func testAHostMayProvideSeveralRevisionsOfOneCandidate() throws {
-        let host = PluginInterfaceContracts.candidateHost
-        for revision in [1, 2, 3] {
-            XCTAssertNoThrow(try host.check(CollectionsFixtures.manifest(declaringCollections: revision), origin: .installed))
+        let host = CandidateProbeFixture.host(offering: [try CandidateProbeFixture.contract(),
+                                                         try CandidateProbeFixture.contract(revision: 2)])
+        func probe(declaring revision: Int) throws -> PluginManifest {
+            try ManifestVariant.manifest(of: CandidateProbeFixture.package,
+                                         CandidateProbeFixture.declaring([("language_probe", revision)]))
         }
-        let four = CandidateContractRevision(name: "collections", revision: 4)
-        XCTAssertThrowsError(try host.check(CollectionsFixtures.manifest(declaringCollections: 4), origin: .installed)) {
-            XCTAssertEqual($0 as? CandidateContractRefusal,
-                           .revisionMismatch(plugin: "Emoji Pages", declared: four, provided: 3))
+        for revision in [1, 2] {
+            XCTAssertNoThrow(try host.check(probe(declaring: revision), origin: .installed))
         }
-        // Revision 3 needs host_operations r2, which revision 1 of it lacks.
-        let mixed = try CandidateVariant.manifest(of: CollectionsFixtures.emoji, CandidateVariant.declaring([
-            CollectionsContract.declaration, HostOperationsContract.declaration, HostServiceCatalogue.declaration
-        ]))
-        XCTAssertThrowsError(try host.check(mixed, origin: .installed)) {
+        let three = try probe(declaring: 3)
+        XCTAssertThrowsError(try host.check(three, origin: .installed)) {
             XCTAssertEqual($0 as? CandidateContractRefusal,
-                           .missingDependency(plugin: "Emoji Pages", declared: CollectionsContract.declaration,
-                                              needs: HostOperationsContract.revisionTwoDeclaration))
+                           .revisionMismatch(plugin: three.name, declared: three.candidateContracts[0], provided: 2))
         }
 
-        let promoted = try host.promoting(PluginInterfaceContracts.levelTwoCandidates, toLevel: 2)
-        XCTAssertTrue(Set(CollectionsContract.candidate.members).isSubset(of: try XCTUnwrap(promoted.levels[2])))
-        XCTAssertFalse(try XCTUnwrap(promoted.levels[2]).contains(CollectionsContract.loadMore))
-        XCTAssertEqual(promoted.candidates.filter { $0.name == "collections" }.map(\.status),
-                       [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
-        XCTAssertThrowsError(try promoted.check(CollectionsFixtures.manifest(declaringCollections: 1), origin: .installed)) {
+        let promoted = try host.promoting("language_probe", toLevel: 2)
+        XCTAssertEqual(promoted.levels[2], [CandidateProbeFixture.member])
+        XCTAssertEqual(promoted.candidates.map(\.status), [.retired(promotedToLevel: 2), .retired(promotedToLevel: 2)])
+        let one = try probe(declaring: 1)
+        XCTAssertThrowsError(try promoted.check(one, origin: .installed)) {
             XCTAssertEqual($0 as? CandidateContractRefusal,
-                           .retired(plugin: "Emoji Pages", declared: CandidateContractRevision(name: "collections", revision: 1),
-                                    promotedToLevel: 2))
+                           .retired(plugin: one.name, declared: one.candidateContracts[0], promotedToLevel: 2))
         }
     }
 }

@@ -149,40 +149,6 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
 
     // MARK: The SDK
 
-    /// Every operation a script can call is a function at `spinnet.<id>`
-    /// that calls exactly that ID; the namespaces without one, and Level 1's
-    /// wrappers, are absent. This is retired revision 1 of `namespaces`
-    /// alone, on the candidate Host: an insertion needed no shown target.
-    func testTheNamespacedSDKCallsEachIDItHolds() throws {
-        let ids = HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)
-        let source = try probe(running: """
-            const reached = [];
-            for (const area of Object.keys(spinnet).sort()) {
-              if (area === "ui" || area === "environment") continue;
-              for (const verb of Object.keys(spinnet[area]).sort()) {
-                try { spinnet[area][verb](area + "." + verb); } catch (e) {}
-                reached.push(area + "." + verb);
-              }
-            }
-            [reached, Object.keys(spinnet).sort(), typeof spinnet.ui.view, Object.isFrozen(spinnet.clipboard)]
-            """)
-        let candidate = try CandidateVariant.write(source, CandidateVariant.declaring([CandidateVariant.namespaces]))
-        let run = try run("probe.shout", of: candidate, answering: AnsweringEverything(),
-                          contracts: .candidateHost)
-
-        guard case .array(let values) = try run.result.get(), values.count == 4 else {
-            return XCTFail("The probe did not report the SDK")
-        }
-        XCTAssertEqual(values[0], .array(ids.sorted().map(JSONValue.string)))
-        XCTAssertEqual(values[1], .array(["apps", "clipboard", "clipboardHistory", "environment", "http", "open", "screen",
-                                          "selection", "storage", "text", "ui", "window"].map(JSONValue.string)))
-        XCTAssertEqual(values[2], .string("function"), "Level 1's view builders stay for Level 1 views")
-        XCTAssertEqual(values[3], .bool(true))
-        for performed in run.performed {
-            XCTAssertTrue(ids.contains(performed.id), performed.id)
-        }
-    }
-
     /// Level 2's SDK holds the same call at every ID, and `host` for the
     /// operation only an answer or a page action reaches. Under Level 2 a
     /// synchronous `selection.replace` needs a target the Host showed, as
