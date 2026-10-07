@@ -1,0 +1,10 @@
+{
+  "type": "source_delivered",
+  "page": "player",
+  "source": "playback",
+  "sequence": 3,
+  "failure": {
+    "category": "spotify_crashed",
+    "message": "x"
+  }
+}

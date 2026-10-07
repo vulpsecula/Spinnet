@@ -1,0 +1,159 @@
+{
+  "description": "PROPOSAL ONLY (#71). Each fixture names what it is checked against: answer (a Level 2 answer whose page may carry sources and bindings) or source_delivered, whether it is valid, and whether it uses an illustrative operation reserved for #85 or #86. check.py runs them.",
+  "fixtures": [
+    {
+      "file": "answers/monitor.json",
+      "definition": "answer",
+      "valid": true,
+      "illustrative": true,
+      "note": "System Monitor: one metrics source every 2 s and four bound texts; after this answer no script runs while the page updates"
+    },
+    {
+      "file": "answers/spotify.json",
+      "definition": "answer",
+      "valid": true,
+      "illustrative": true,
+      "note": "Spotify: playback sampled every second, shown by bindings; the script hears only track changes"
+    },
+    {
+      "file": "answers/https-once-show.json",
+      "definition": "answer",
+      "valid": true,
+      "illustrative": false,
+      "note": "A Level 1 show section on a page: one HTTPS source, sampled once while visible, bound at /json; the script never sees the response"
+    },
+    {
+      "file": "answers/https-deliver.json",
+      "definition": "answer",
+      "valid": true,
+      "illustrative": false,
+      "note": "A Level 1 deliver section on a page: the response reaches the script once as source_delivered"
+    },
+    {
+      "file": "answers/nine-sources.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": true,
+      "note": "A page has at most 8 sources"
+    },
+    {
+      "file": "answers/duplicate-source-id.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "Source IDs are unique in the page (Host check)"
+    },
+    {
+      "file": "answers/bind-names-no-source.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "A binding names a source of the same page (Host check)"
+    },
+    {
+      "file": "answers/not-offered-as-source.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "clipboard.read is not offered at the source entry point"
+    },
+    {
+      "file": "answers/every-below-one-second.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "every is at least 1 s for any adapter; an adapter's own minimum (60 s for HTTPS, proposed) is a Host check"
+    },
+    {
+      "file": "answers/source-with-cache.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "A source never answers from the response cache, so it takes no cache member"
+    },
+    {
+      "file": "answers/unknown-format.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": true,
+      "note": "Formats are text, integer, decimal, percent, bytes and duration"
+    },
+    {
+      "file": "answers/bind-without-pointer.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "A binding needs a pointer; the empty pointer names the whole result"
+    },
+    {
+      "file": "answers/bind-on-text-field.json",
+      "definition": "answer",
+      "valid": false,
+      "illustrative": false,
+      "note": "Only text components bind; a field's value is the user's"
+    },
+    {
+      "file": "events/delivered-track-change.json",
+      "definition": "source_delivered",
+      "valid": true,
+      "illustrative": true,
+      "note": "The watched /track/id changed at sample 14"
+    },
+    {
+      "file": "events/delivered-not-running.json",
+      "definition": "source_delivered",
+      "valid": true,
+      "illustrative": true,
+      "note": "A failure is delivered when its category differs from the last delivered outcome"
+    },
+    {
+      "file": "events/delivered-https.json",
+      "definition": "source_delivered",
+      "valid": true,
+      "illustrative": false,
+      "note": "http.request's result with the parsed body as json"
+    },
+    {
+      "file": "events/delivered-both.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "A delivery carries a result or a failure, not both"
+    },
+    {
+      "file": "events/delivered-without-sequence.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "sequence numbers the sample"
+    },
+    {
+      "file": "events/delivered-sequence-zero.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "sequence starts at 1"
+    },
+    {
+      "file": "events/delivered-without-page.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "A delivery names its page, which provenance checks"
+    },
+    {
+      "file": "events/delivered-unknown-category.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "Failure categories are the listed ones"
+    },
+    {
+      "file": "events/delivered-names-visibility.json",
+      "definition": "source_delivered",
+      "valid": false,
+      "illustrative": false,
+      "note": "A Plugin never learns whether its view is visible"
+    }
+  ]
+}

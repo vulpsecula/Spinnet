@@ -1,0 +1,21 @@
+{
+  "type": "source_delivered",
+  "page": "player",
+  "source": "playback",
+  "sequence": 14,
+  "result": {
+    "state": "playing",
+    "position": 73.2,
+    "volume": 64,
+    "shuffling": false,
+    "repeating": false,
+    "track": {
+      "id": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+      "name": "Track name",
+      "artist": "Artist",
+      "album": "Album",
+      "duration": 213.0,
+      "url": "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC"
+    }
+  }
+}

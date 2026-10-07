@@ -1,0 +1,159 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "S7: an HTTPS source without every behaves as a Level 1 section: one request while visible, kept across answers with an equal definition, never answered from the response cache, and not sent again after hide and show.",
+  "recordings": {
+    "http.request": {
+      "api.example.com": {
+        "status": 200,
+        "body": "{\"today\":{\"summary\":\"Sunny\"}}"
+      }
+    }
+  },
+  "credentials": {
+    "example_key": "k1"
+  },
+  "steps": [
+    {
+      "start": "forecast.open",
+      "script_answers": {
+        "page": {
+          "id": "forecast",
+          "title": "Forecast",
+          "sources": [
+            {
+              "id": "forecast",
+              "perform": "http.request",
+              "input": {
+                "method": "GET",
+                "url": "https://api.example.com/v1/forecast?city=Berlin",
+                "credential_uses": [
+                  {
+                    "reference": "example_key",
+                    "header": "Authorization",
+                    "template": "Bearer {credential}"
+                  }
+                ]
+              },
+              "error_pointer": "/error/message",
+              "status_messages": {
+                "429": "The forecast service is busy"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "summary",
+              "title": "Today",
+              "text": "Loading…",
+              "bind": {
+                "source": "forecast",
+                "pointer": "/json/today/summary"
+              }
+            },
+            {
+              "kind": "actions",
+              "id": "buttons",
+              "actions": [
+                {
+                  "id": "refresh",
+                  "title": "Refresh"
+                },
+                {
+                  "id": "paris",
+                  "title": "Paris"
+                }
+              ]
+            }
+          ]
+        },
+        "state": null
+      },
+      "expect": {
+        "requests": 1
+      }
+    },
+    {
+      "hide": true
+    },
+    {
+      "advance": 120
+    },
+    {
+      "show": true,
+      "expect": {
+        "requests": 1,
+        "stale": []
+      }
+    },
+    {
+      "event": {
+        "type": "action_chosen",
+        "page": "forecast",
+        "action": "refresh",
+        "values": {},
+        "selection": {}
+      },
+      "answer": {
+        "page": {
+          "id": "forecast",
+          "title": "Forecast",
+          "sources": [
+            {
+              "id": "forecast",
+              "perform": "http.request",
+              "input": {
+                "method": "GET",
+                "url": "https://api.example.com/v1/forecast?city=Berlin",
+                "credential_uses": [
+                  {
+                    "reference": "example_key",
+                    "header": "Authorization",
+                    "template": "Bearer {credential}"
+                  }
+                ]
+              },
+              "error_pointer": "/error/message",
+              "status_messages": {
+                "429": "The forecast service is busy"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "summary",
+              "title": "Today",
+              "text": "Loading…",
+              "bind": {
+                "source": "forecast",
+                "pointer": "/json/today/summary"
+              }
+            },
+            {
+              "kind": "actions",
+              "id": "buttons",
+              "actions": [
+                {
+                  "id": "refresh",
+                  "title": "Refresh"
+                },
+                {
+                  "id": "paris",
+                  "title": "Paris"
+                }
+              ]
+            }
+          ]
+        },
+        "state": null
+      },
+      "expect": {
+        "requests": 1,
+        "cache_answers": 0
+      }
+    }
+  ]
+}

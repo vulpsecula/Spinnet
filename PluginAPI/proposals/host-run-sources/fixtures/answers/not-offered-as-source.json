@@ -1,0 +1,44 @@
+{
+  "page": {
+    "id": "forecast",
+    "title": "Forecast",
+    "sources": [
+      {
+        "id": "forecast",
+        "perform": "clipboard.read",
+        "input": null,
+        "error_pointer": "/error/message",
+        "status_messages": {
+          "429": "The forecast service is busy"
+        }
+      }
+    ],
+    "content": [
+      {
+        "kind": "text",
+        "id": "summary",
+        "title": "Today",
+        "text": "Loading…",
+        "bind": {
+          "source": "forecast",
+          "pointer": "/json/today/summary"
+        }
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "id": "refresh",
+            "title": "Refresh"
+          },
+          {
+            "id": "paris",
+            "title": "Paris"
+          }
+        ]
+      }
+    ]
+  },
+  "state": null
+}

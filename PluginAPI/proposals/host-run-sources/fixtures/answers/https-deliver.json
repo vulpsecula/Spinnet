@@ -1,0 +1,39 @@
+{
+  "page": {
+    "id": "translate",
+    "title": "Translate",
+    "sources": [
+      {
+        "id": "deepl",
+        "perform": "http.request",
+        "deliver": {},
+        "input": {
+          "method": "POST",
+          "url": "https://api-free.deepl.com/v2/translate",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"text\":[\"Hallo\"],\"target_lang\":\"EN\"}",
+          "credential_uses": [
+            {
+              "reference": "deepl_credential",
+              "header": "Authorization",
+              "template": "DeepL-Auth-Key {credential}"
+            }
+          ]
+        }
+      }
+    ],
+    "content": [
+      {
+        "kind": "text",
+        "id": "result",
+        "title": "DeepL",
+        "text": "Translating…"
+      }
+    ]
+  },
+  "state": {
+    "text": "Hallo"
+  }
+}

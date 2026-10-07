@@ -1,0 +1,141 @@
+{
+  "page": {
+    "id": "monitor",
+    "title": "System Monitor",
+    "sources": [
+      {
+        "id": "m0",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m1",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m2",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m3",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m4",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m5",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m6",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m7",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      },
+      {
+        "id": "m8",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      }
+    ],
+    "content": [
+      {
+        "kind": "text",
+        "id": "cpu",
+        "title": "CPU",
+        "text": "—",
+        "bind": {
+          "source": "m0",
+          "pointer": "/cpu/busy",
+          "format": "percent"
+        }
+      }
+    ]
+  },
+  "state": {
+    "view": "overview"
+  }
+}

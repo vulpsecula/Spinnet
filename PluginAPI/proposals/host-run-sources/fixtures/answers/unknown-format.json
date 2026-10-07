@@ -1,0 +1,83 @@
+{
+  "page": {
+    "id": "monitor",
+    "title": "System Monitor",
+    "sources": [
+      {
+        "id": "metrics",
+        "perform": "system.metrics",
+        "input": {
+          "metrics": [
+            "cpu",
+            "memory",
+            "disk",
+            "battery"
+          ]
+        },
+        "every": 2
+      }
+    ],
+    "content": [
+      {
+        "kind": "row",
+        "id": "top",
+        "content": [
+          {
+            "kind": "text",
+            "id": "cpu",
+            "title": "CPU",
+            "text": "—",
+            "bind": {
+              "source": "metrics",
+              "pointer": "/cpu/busy",
+              "format": "celsius"
+            }
+          },
+          {
+            "kind": "text",
+            "id": "memory",
+            "title": "Memory used",
+            "text": "—",
+            "bind": {
+              "source": "metrics",
+              "pointer": "/memory/used_bytes",
+              "format": "bytes"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "row",
+        "id": "bottom",
+        "content": [
+          {
+            "kind": "text",
+            "id": "disk",
+            "title": "Disk available",
+            "text": "—",
+            "bind": {
+              "source": "metrics",
+              "pointer": "/disk/available_bytes",
+              "format": "bytes"
+            }
+          },
+          {
+            "kind": "text",
+            "id": "battery",
+            "title": "Battery",
+            "text": "—",
+            "bind": {
+              "source": "metrics",
+              "pointer": "/battery/fraction",
+              "format": "percent",
+              "unavailable": "No battery"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "view": "overview"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "PROPOSAL ONLY (#71). What #82 appends to Plugin API Level 2 if this design is accepted: members for PluginInterfaceContracts.levelTwoMembers, catalogue entries and builders. Not a Candidate Contract: Level 2 is still open, so these join Level 2 itself. check.py holds each member to the published catalogue.",
+  "issue": 71,
+  "implemented_by": 82,
+  "members": [
+    {"kind": "behaviour", "name": "page_sources", "note": "A page may carry sources, sampled only while it is visible, kept while their definition is unchanged under the same handler Command"},
+    {"kind": "behaviour", "name": "source_bindings", "note": "A text component may bind to a source; the Host shows its latest result, formatted, without running the script"},
+    {"kind": "view_event", "name": "source_delivered", "note": "A result of a source with deliver, change-gated, floored and coalesced to the latest; not a gesture"},
+    {"kind": "source", "name": "http.request", "note": "A new member kind, as request was added for Requested Host Operations: an operation a page may name in a source's perform. Once only, if Q5 is decided as recommended"}
+  ],
+  "catalogue": {
+    "entry_points.source": "The Host performs it for a visible view and shows or delivers the result: a Host-Fetched Section of a Level 1 view, or a Host-run source of a page (reference/sources.md).",
+    "http.request.entry_points.source": {"status": "level2", "note": "A Host-Fetched Section's fetch.request at Level 1; a page source's input at Level 2, whose result adds json, the parsed body"},
+    "events": [{"name": "source_delivered", "status": "level2"}],
+    "failures": ["timed_out"]
+  },
+  "builders": [
+    {"id": "ui.components.bind", "summary": "Builds a text component's bind member: bind(source, pointer, {format, unavailable})"},
+    {"id": "ui.source", "summary": "Builds a page source from a catalogue ID and input: ui.source(id, perform, input, {every, deliver}); spinnet.http.request.source(input, options) is the same for http.request"}
+  ],
+  "later": [
+    {"source": "system.metrics", "owner": 86, "note": "Its entry_points.source turns from reserved to level2, with its input, result, minimum interval and authority (Q3)"},
+    {"source": "apps.readPlayback", "owner": 85, "note": "Illustrative name only: #85 names the Spotify read, adds failures external_app_not_running and automation_permission_needed, and decides Q4"}
+  ]
+}

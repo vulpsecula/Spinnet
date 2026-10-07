@@ -1,0 +1,153 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "S6: a sample checks that Spotify runs before anything else and never launches it; with Automation undecided it fails without asking, and the user's click on the repair action is what lets macOS ask.",
+  "illustrative": true,
+  "app_states": [
+    "not_installed",
+    "not_running",
+    "automation_not_decided",
+    "automation_denied",
+    "granted"
+  ],
+  "steps": [
+    {
+      "start": "spotify.open",
+      "script_answers": {
+        "page": {
+          "id": "player",
+          "title": "Spotify",
+          "sources": [
+            {
+              "id": "playback",
+              "perform": "apps.readPlayback",
+              "input": {
+                "bundle_id": "com.spotify.client"
+              },
+              "every": 1,
+              "deliver": {
+                "pointer": "/track/id"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "track",
+              "title": "Track",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/name",
+                "unavailable": "Nothing playing"
+              }
+            },
+            {
+              "kind": "text",
+              "id": "artist",
+              "title": "Artist",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/artist"
+              }
+            },
+            {
+              "kind": "row",
+              "id": "time",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "position",
+                  "title": "Position",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/position",
+                    "format": "duration"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "duration",
+                  "title": "Length",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/track/duration",
+                    "format": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "id": "transport",
+              "actions": [
+                {
+                  "id": "previous",
+                  "title": "Previous"
+                },
+                {
+                  "id": "playpause",
+                  "title": "Play/Pause"
+                },
+                {
+                  "id": "next",
+                  "title": "Next"
+                },
+                {
+                  "id": "favourite",
+                  "title": "Favourite"
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      },
+      "app_state": "not_running",
+      "expect": {
+        "apple_events_sent": 0,
+        "launched": false,
+        "shown": {
+          "track": "Spotify is not running"
+        },
+        "deliveries": [
+          {
+            "type": "source_delivered",
+            "page": "player",
+            "source": "playback",
+            "sequence": 1,
+            "failure": {
+              "category": "external_app_not_running",
+              "message": "Spotify is not running"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "app_state": "automation_not_decided",
+      "advance": 1,
+      "expect": {
+        "prompts": 0,
+        "deliveries": [
+          {
+            "type": "source_delivered",
+            "page": "player",
+            "source": "playback",
+            "sequence": 2,
+            "failure": {
+              "category": "automation_permission_needed",
+              "message": "Allow Spinnet to read Spotify"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

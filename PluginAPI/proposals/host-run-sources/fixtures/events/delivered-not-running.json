@@ -1,0 +1,10 @@
+{
+  "type": "source_delivered",
+  "page": "player",
+  "source": "playback",
+  "sequence": 1,
+  "failure": {
+    "category": "external_app_not_running",
+    "message": "Spotify is not running"
+  }
+}

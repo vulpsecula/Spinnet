@@ -1,0 +1,318 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "An Explicit Call of another Action of the same Command that commits the same page keeps equal sources (overrides aside) and their waiting delivery, now under the new handler; a call of another Command ends every source, as it ends Host-Fetched Sections.",
+  "illustrative": true,
+  "steps": [
+    {
+      "start": "spotify.open",
+      "script_answers": {
+        "page": {
+          "id": "player",
+          "title": "Spotify",
+          "sources": [
+            {
+              "id": "playback",
+              "perform": "apps.readPlayback",
+              "input": {
+                "bundle_id": "com.spotify.client"
+              },
+              "every": 1,
+              "deliver": {
+                "pointer": "/track/id"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "track",
+              "title": "Track",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/name",
+                "unavailable": "Nothing playing"
+              }
+            },
+            {
+              "kind": "text",
+              "id": "artist",
+              "title": "Artist",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/artist"
+              }
+            },
+            {
+              "kind": "row",
+              "id": "time",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "position",
+                  "title": "Position",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/position",
+                    "format": "duration"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "duration",
+                  "title": "Length",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/track/duration",
+                    "format": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "id": "transport",
+              "actions": [
+                {
+                  "id": "previous",
+                  "title": "Previous"
+                },
+                {
+                  "id": "playpause",
+                  "title": "Play/Pause"
+                },
+                {
+                  "id": "next",
+                  "title": "Next"
+                },
+                {
+                  "id": "favourite",
+                  "title": "Favourite"
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      }
+    },
+    {
+      "call": "spotify.open",
+      "overrides": {
+        "compact": true
+      },
+      "answer": {
+        "page": {
+          "id": "player",
+          "title": "Spotify",
+          "sources": [
+            {
+              "id": "playback",
+              "perform": "apps.readPlayback",
+              "input": {
+                "bundle_id": "com.spotify.client"
+              },
+              "every": 1,
+              "deliver": {
+                "pointer": "/track/id"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "track",
+              "title": "Track",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/name",
+                "unavailable": "Nothing playing"
+              }
+            },
+            {
+              "kind": "text",
+              "id": "artist",
+              "title": "Artist",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/artist"
+              }
+            },
+            {
+              "kind": "row",
+              "id": "time",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "position",
+                  "title": "Position",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/position",
+                    "format": "duration"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "duration",
+                  "title": "Length",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/track/duration",
+                    "format": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "id": "transport",
+              "actions": [
+                {
+                  "id": "previous",
+                  "title": "Previous"
+                },
+                {
+                  "id": "playpause",
+                  "title": "Play/Pause"
+                },
+                {
+                  "id": "next",
+                  "title": "Next"
+                },
+                {
+                  "id": "favourite",
+                  "title": "Favourite"
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      },
+      "expect": {
+        "sources_kept": [
+          "playback"
+        ],
+        "samples_started": 0
+      }
+    },
+    {
+      "call": "spotify.search",
+      "answer": {
+        "page": {
+          "id": "player",
+          "title": "Spotify",
+          "sources": [
+            {
+              "id": "playback",
+              "perform": "apps.readPlayback",
+              "input": {
+                "bundle_id": "com.spotify.client"
+              },
+              "every": 1,
+              "deliver": {
+                "pointer": "/track/id"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "track",
+              "title": "Track",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/name",
+                "unavailable": "Nothing playing"
+              }
+            },
+            {
+              "kind": "text",
+              "id": "artist",
+              "title": "Artist",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/artist"
+              }
+            },
+            {
+              "kind": "row",
+              "id": "time",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "position",
+                  "title": "Position",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/position",
+                    "format": "duration"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "duration",
+                  "title": "Length",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/track/duration",
+                    "format": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "id": "transport",
+              "actions": [
+                {
+                  "id": "previous",
+                  "title": "Previous"
+                },
+                {
+                  "id": "playpause",
+                  "title": "Play/Pause"
+                },
+                {
+                  "id": "next",
+                  "title": "Next"
+                },
+                {
+                  "id": "favourite",
+                  "title": "Favourite"
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      },
+      "expect": {
+        "sources_kept": [],
+        "sources_started": [
+          "playback"
+        ]
+      }
+    }
+  ]
+}

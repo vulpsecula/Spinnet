@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Host-run sources (draft Level 2 addition, #71)",
+  "description": "PROPOSAL ONLY. What a Level 2 page adds for Host-run sources: the page member sources, the bind member of a text component, and the source_delivered View Event. A page with these members is otherwise a Level 2 page (../../schemas/pages.schema.json); check.py checks the additions here and the rest of the page there. Besides these shapes the Host checks that source IDs are unique in the page, that a binding names a source of the same page, that every is at least the adapter's minimum, and that the input satisfies the performed operation's input schema.",
+  "$defs": {
+    "identifier": { "$ref": "../../schemas/pages.schema.json#/$defs/identifier" },
+    "text": { "$ref": "../../schemas/pages.schema.json#/$defs/text" },
+    "pointer": {
+      "description": "An RFC 6901 JSON pointer into the source's result, such as /cpu/busy, of at most 512 characters. The empty pointer names the whole result.",
+      "type": "string",
+      "pattern": "^(/.*)?$",
+      "maxLength": 512
+    },
+    "every": {
+      "description": "Seconds from the end of one sample to the start of the next, at least the adapter's minimum (1 s local, 60 s for http.request, proposed). Absent: the source samples once while its page is visible.",
+      "type": "number",
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "deliver": {
+      "description": "The script hears of results as source_delivered: the first one, then each whose value at pointer (the whole result without one) differs from the last delivered, and each failure whose category differs, at most once per delivery floor. Absent: the script never sees the result.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pointer": { "$ref": "#/$defs/pointer" }
+      }
+    },
+    "page_additions": {
+      "description": "The member a page adds.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": { "$ref": "#/$defs/sources" }
+      }
+    },
+    "sources": {
+      "description": "Sampled only while the page is visible: its View Session open, the page on screen, its panel unoccluded, the user's session active and the displays awake.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "source": {
+      "description": "A source #82 offers: http.request. Kept, with its cadence, last result and waiting delivery, while an answer keeps the page and the handler's Command and gives it an equal definition.",
+      "type": "object",
+      "required": ["id", "perform", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "perform": { "const": "http.request" },
+        "input": { "$ref": "../../schemas/namespaces.schema.json#/$defs/http.request.input" },
+        "every": { "$ref": "#/$defs/every" },
+        "deliver": { "$ref": "#/$defs/deliver" },
+        "error_pointer": {
+          "description": "Where a bound component finds the message of a failed JSON response, as a show section's error_pointer; read in the json member of the result.",
+          "$ref": "#/$defs/pointer"
+        },
+        "status_messages": { "$ref": "../../schemas/host-fetched-section.schema.json#/$defs/fetch/properties/status_messages" }
+      }
+    },
+    "illustrative_sources": {
+      "description": "ILLUSTRATIVE. Sources of operations whose source entry point is reserved for their owners: system.metrics (#86) and Spotify's playback read (#85, named apps.readPlayback here only for the fixtures). Their inputs are sketches; their owners define them.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/source" },
+          { "$ref": "#/$defs/metrics_source" },
+          { "$ref": "#/$defs/playback_source" }
+        ]
+      }
+    },
+    "metrics_source": {
+      "type": "object",
+      "required": ["id", "perform", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "perform": { "const": "system.metrics" },
+        "input": {
+          "type": "object",
+          "required": ["metrics"],
+          "additionalProperties": false,
+          "properties": {
+            "metrics": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": { "enum": ["cpu", "memory", "disk", "battery"] }
+            }
+          }
+        },
+        "every": { "$ref": "#/$defs/every" },
+        "deliver": { "$ref": "#/$defs/deliver" }
+      }
+    },
+    "playback_source": {
+      "type": "object",
+      "required": ["id", "perform", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "perform": { "const": "apps.readPlayback" },
+        "input": {
+          "type": "object",
+          "required": ["bundle_id"],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": { "const": "com.spotify.client" }
+          }
+        },
+        "every": { "$ref": "#/$defs/every" },
+        "deliver": { "$ref": "#/$defs/deliver" }
+      }
+    },
+    "text_additions": {
+      "description": "The member a text component adds.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bind": { "$ref": "#/$defs/binding" }
+      }
+    },
+    "binding": {
+      "description": "The Host shows the value at pointer in the source's latest result, formatted, as plain text in place of the component's text, which shows until the first result. Showing it runs no script and changes no state. A failure shows its message, or keeps the last good value marked stale.",
+      "type": "object",
+      "required": ["source", "pointer"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "#/$defs/identifier" },
+        "pointer": { "$ref": "#/$defs/pointer" },
+        "format": {
+          "description": "In the user's locale: text (default), integer, decimal (one fraction digit), percent (a fraction 0 to 1), bytes (file-size style), duration (seconds, m:ss or h:mm:ss).",
+          "enum": ["text", "integer", "decimal", "percent", "bytes", "duration"]
+        },
+        "unavailable": {
+          "description": "Shown when the value is absent, null or of the wrong type; default \"Unavailable\".",
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "required": ["category", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "capability_denied",
+            "system_permission_denied",
+            "automation_permission_needed",
+            "automation_permission_denied",
+            "external_app_missing",
+            "external_app_not_running",
+            "external_app_operation_unsupported",
+            "host_service_failed",
+            "timed_out"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "source_delivered": {
+      "description": "A result or failure of a source with deliver. Not a gesture: its answer may not request an operation. Dispatched only while its page instance and source definition are current; otherwise dropped, never delivered again. At most one waits per source; a newer one replaces it.",
+      "type": "object",
+      "required": ["type", "page", "source", "sequence"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "source_delivered" },
+        "page": { "$ref": "#/$defs/identifier" },
+        "source": { "$ref": "#/$defs/identifier" },
+        "sequence": {
+          "description": "The sample's number within this source definition, from 1.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "result": { "description": "The adapter's result." },
+        "failure": { "$ref": "#/$defs/failure" }
+      },
+      "oneOf": [
+        { "required": ["result"], "properties": { "failure": false } },
+        { "required": ["failure"], "properties": { "result": false } }
+      ]
+    }
+  }
+}

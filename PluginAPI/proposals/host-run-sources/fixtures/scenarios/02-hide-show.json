@@ -1,0 +1,187 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "S3: hiding stops sampling, cancels the sample in flight and drops its result; showing samples at once and clears the stale mark. Hidden time is not made up.",
+  "illustrative": true,
+  "recordings": {
+    "system.metrics": [
+      {
+        "result": {
+          "cpu": {
+            "user": 0.1,
+            "system": 0.1,
+            "busy": 0.2
+          },
+          "memory": {
+            "total_bytes": 17179869184,
+            "used_bytes": 12799754240,
+            "compressed_bytes": 6185566208
+          },
+          "disk": {
+            "total_bytes": 994662584320,
+            "available_bytes": 556781801472
+          },
+          "battery": {
+            "fraction": 0.78,
+            "charging": false,
+            "on_ac": true
+          }
+        }
+      },
+      {
+        "hang": true
+      },
+      {
+        "result": {
+          "cpu": {
+            "user": 0.2,
+            "system": 0.2,
+            "busy": 0.4
+          },
+          "memory": {
+            "total_bytes": 17179869184,
+            "used_bytes": 12799754240,
+            "compressed_bytes": 6185566208
+          },
+          "disk": {
+            "total_bytes": 994662584320,
+            "available_bytes": 556781801472
+          },
+          "battery": {
+            "fraction": 0.78,
+            "charging": false,
+            "on_ac": true
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "start": "monitor.open",
+      "script_answers": {
+        "page": {
+          "id": "monitor",
+          "title": "System Monitor",
+          "sources": [
+            {
+              "id": "metrics",
+              "perform": "system.metrics",
+              "input": {
+                "metrics": [
+                  "cpu",
+                  "memory",
+                  "disk",
+                  "battery"
+                ]
+              },
+              "every": 2
+            }
+          ],
+          "content": [
+            {
+              "kind": "row",
+              "id": "top",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "cpu",
+                  "title": "CPU",
+                  "text": "—",
+                  "bind": {
+                    "source": "metrics",
+                    "pointer": "/cpu/busy",
+                    "format": "percent"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "memory",
+                  "title": "Memory used",
+                  "text": "—",
+                  "bind": {
+                    "source": "metrics",
+                    "pointer": "/memory/used_bytes",
+                    "format": "bytes"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "row",
+              "id": "bottom",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "disk",
+                  "title": "Disk available",
+                  "text": "—",
+                  "bind": {
+                    "source": "metrics",
+                    "pointer": "/disk/available_bytes",
+                    "format": "bytes"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "battery",
+                  "title": "Battery",
+                  "text": "—",
+                  "bind": {
+                    "source": "metrics",
+                    "pointer": "/battery/fraction",
+                    "format": "percent",
+                    "unavailable": "No battery"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "view": "overview"
+        }
+      },
+      "expect": {
+        "shown": {
+          "cpu": "20%"
+        }
+      }
+    },
+    {
+      "advance": 2,
+      "expect": {
+        "sample_in_flight": "metrics"
+      }
+    },
+    {
+      "hide": true,
+      "expect": {
+        "sample_cancelled": "metrics",
+        "stale": [
+          "cpu",
+          "memory",
+          "disk",
+          "battery"
+        ]
+      }
+    },
+    {
+      "advance": 600,
+      "expect": {
+        "samples_started": 0
+      }
+    },
+    {
+      "show": true,
+      "expect": {
+        "samples_started": 1,
+        "shown": {
+          "cpu": "40%"
+        },
+        "stale": []
+      }
+    }
+  ]
+}

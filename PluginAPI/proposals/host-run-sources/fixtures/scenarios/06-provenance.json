@@ -1,0 +1,191 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "A delivery waiting when the page changes is dropped and never delivered again; a settings notification and an Explicit Call waiting with it still run.",
+  "illustrative": true,
+  "steps": [
+    {
+      "start": "spotify.open",
+      "script_answers": {
+        "page": {
+          "id": "player",
+          "title": "Spotify",
+          "sources": [
+            {
+              "id": "playback",
+              "perform": "apps.readPlayback",
+              "input": {
+                "bundle_id": "com.spotify.client"
+              },
+              "every": 1,
+              "deliver": {
+                "pointer": "/track/id"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "track",
+              "title": "Track",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/name",
+                "unavailable": "Nothing playing"
+              }
+            },
+            {
+              "kind": "text",
+              "id": "artist",
+              "title": "Artist",
+              "text": "—",
+              "bind": {
+                "source": "playback",
+                "pointer": "/track/artist"
+              }
+            },
+            {
+              "kind": "row",
+              "id": "time",
+              "content": [
+                {
+                  "kind": "text",
+                  "id": "position",
+                  "title": "Position",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/position",
+                    "format": "duration"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "id": "duration",
+                  "title": "Length",
+                  "text": "—",
+                  "bind": {
+                    "source": "playback",
+                    "pointer": "/track/duration",
+                    "format": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "id": "transport",
+              "actions": [
+                {
+                  "id": "previous",
+                  "title": "Previous"
+                },
+                {
+                  "id": "playpause",
+                  "title": "Play/Pause"
+                },
+                {
+                  "id": "next",
+                  "title": "Next"
+                },
+                {
+                  "id": "favourite",
+                  "title": "Favourite"
+                }
+              ]
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      }
+    },
+    {
+      "queue": [
+        {
+          "type": "source_delivered",
+          "page": "player",
+          "source": "playback",
+          "sequence": 2,
+          "result": {
+            "state": "playing",
+            "position": 73.2,
+            "volume": 64,
+            "shuffling": false,
+            "repeating": false,
+            "track": {
+              "id": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+              "name": "Track name",
+              "artist": "Artist",
+              "album": "Album",
+              "duration": 213.0,
+              "url": "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC"
+            }
+          }
+        },
+        {
+          "type": "called"
+        }
+      ]
+    },
+    {
+      "event": {
+        "type": "action_chosen",
+        "page": "player",
+        "action": "favourite",
+        "values": {},
+        "selection": {}
+      },
+      "answer": {
+        "page": {
+          "id": "settings",
+          "title": "Spotify",
+          "content": [
+            {
+              "kind": "text",
+              "id": "about",
+              "text": "About"
+            }
+          ]
+        },
+        "state": {
+          "favourites": []
+        }
+      },
+      "expect": {
+        "dropped": [
+          {
+            "type": "source_delivered",
+            "page": "player",
+            "source": "playback",
+            "sequence": 2,
+            "result": {
+              "state": "playing",
+              "position": 73.2,
+              "volume": 64,
+              "shuffling": false,
+              "repeating": false,
+              "track": {
+                "id": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+                "name": "Track name",
+                "artist": "Artist",
+                "album": "Album",
+                "duration": 213.0,
+                "url": "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC"
+              }
+            }
+          }
+        ],
+        "runs_next": [
+          {
+            "type": "called"
+          }
+        ],
+        "sources_running": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "type": "source_delivered",
+  "page": "translate",
+  "source": "deepl",
+  "sequence": 2,
+  "result": {},
+  "failure": {
+    "category": "timed_out",
+    "message": "The request timed out"
+  }
+}

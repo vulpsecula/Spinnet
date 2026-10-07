@@ -1,0 +1,86 @@
+{
+  "manifest": {
+    "api_level": 2
+  },
+  "description": "S9: revoking a Capability, or updating, disabling or removing the Plugin, while a sample is in flight ends the View Session; the sample is cancelled and its late result applied nowhere.",
+  "recordings": {
+    "http.request": {
+      "api.example.com": {
+        "hang": true
+      }
+    }
+  },
+  "credentials": {
+    "example_key": "k1"
+  },
+  "steps": [
+    {
+      "start": "forecast.open",
+      "script_answers": {
+        "page": {
+          "id": "forecast",
+          "title": "Forecast",
+          "sources": [
+            {
+              "id": "forecast",
+              "perform": "http.request",
+              "input": {
+                "method": "GET",
+                "url": "https://api.example.com/v1/forecast?city=Berlin",
+                "credential_uses": [
+                  {
+                    "reference": "example_key",
+                    "header": "Authorization",
+                    "template": "Bearer {credential}"
+                  }
+                ]
+              },
+              "error_pointer": "/error/message",
+              "status_messages": {
+                "429": "The forecast service is busy"
+              }
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "summary",
+              "title": "Today",
+              "text": "Loading…",
+              "bind": {
+                "source": "forecast",
+                "pointer": "/json/today/summary"
+              }
+            },
+            {
+              "kind": "actions",
+              "id": "buttons",
+              "actions": [
+                {
+                  "id": "refresh",
+                  "title": "Refresh"
+                },
+                {
+                  "id": "paris",
+                  "title": "Paris"
+                }
+              ]
+            }
+          ]
+        },
+        "state": null
+      },
+      "expect": {
+        "sample_in_flight": "forecast"
+      }
+    },
+    {
+      "revoke": "contact_https",
+      "expect": {
+        "session_ended": "capability_revoked",
+        "sample_cancelled": "forecast",
+        "applied_later": 0
+      }
+    }
+  ]
+}
