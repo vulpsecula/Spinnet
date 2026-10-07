@@ -41,7 +41,9 @@ final class PluginAPILevelTwoTests: XCTestCase {
         XCTAssertEqual(host.levels[1], PluginInterfaceContracts.levelOneMembers)
         XCTAssertEqual(host.levels[2], Set(HostServiceCatalogue.promoted.members
                                            + HostOperationsContract.promoted.members
-                                           + CollectionsContract.promoted.members))
+                                           + CollectionsContract.promoted.members
+                                           // Appended while Level 2 is open (#81).
+                                           + PagePresentation.members))
         XCTAssertEqual(Set(host.levels.keys), [1, 2])
         XCTAssertEqual(host.candidates.map { "\($0.name) r\($0.revision)" },
                        ["namespaces r1", "host_operations r1", "host_operations r2",

@@ -167,11 +167,23 @@
         },
         {
           "$ref": "#/$defs/grid"
+        },
+        {
+          "$ref": "#/$defs/column"
+        },
+        {
+          "$ref": "#/$defs/icon"
+        },
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
+          "$ref": "#/$defs/progress"
         }
       ]
     },
     "leaf": {
-      "description": "What a row may hold.",
+      "description": "What a row or column may hold besides a container: inputs, text, buttons, and (#81) icons, images and progress.",
       "oneOf": [
         {
           "$ref": "#/$defs/text_field"
@@ -184,11 +196,20 @@
         },
         {
           "$ref": "#/$defs/actions"
+        },
+        {
+          "$ref": "#/$defs/icon"
+        },
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
+          "$ref": "#/$defs/progress"
         }
       ]
     },
     "row": {
-      "description": "Up to 4 leaf components side by side; a text_field takes the spare width. Rows do not nest and hold no collection.",
+      "description": "Up to 4 components side by side; a text_field takes the spare width. A row holds leaves and, since #81, columns; no row directly and no collection. Rows and columns nest at most 3 deep.",
       "type": "object",
       "required": [
         "kind",
@@ -208,8 +229,18 @@
           "minItems": 1,
           "maxItems": 4,
           "items": {
-            "$ref": "#/$defs/leaf"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/leaf"
+              },
+              {
+                "$ref": "#/$defs/column"
+              }
+            ]
           }
+        },
+        "style": {
+          "$ref": "#/$defs/box_style"
         }
       }
     },
@@ -323,6 +354,9 @@
         },
         "text": {
           "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/text_style"
         }
       }
     },
@@ -349,6 +383,388 @@
           "items": {
             "$ref": "#/$defs/page_action"
           }
+        }
+      }
+    },
+    "color": {
+      "description": "A colour (#81): #RRGGBB or #RRGGBBAA in sRGB, a named colour that follows light and dark appearance and Increase Contrast, or one colour for each appearance.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/single_color"
+        },
+        {
+          "type": "object",
+          "required": [
+            "light",
+            "dark"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "light": {
+              "$ref": "#/$defs/single_color"
+            },
+            "dark": {
+              "$ref": "#/$defs/single_color"
+            }
+          }
+        }
+      ]
+    },
+    "single_color": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+        },
+        {
+          "enum": [
+            "primary",
+            "secondary",
+            "tertiary",
+            "accent",
+            "blue",
+            "indigo",
+            "purple",
+            "pink",
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "gray"
+          ]
+        }
+      ]
+    },
+    "text_style": {
+      "description": "A text component's own Component Style; nothing inherits it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "font_size": {
+          "type": "number",
+          "minimum": 9,
+          "maximum": 40,
+          "description": "Points at the Host's default text size; scaled with the Host's text size."
+        },
+        "font_weight": {
+          "enum": [
+            "regular",
+            "medium",
+            "semibold",
+            "bold"
+          ]
+        },
+        "monospaced_digits": {
+          "type": "boolean"
+        },
+        "padding": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "corner_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        }
+      }
+    },
+    "box_style": {
+      "description": "A row's or column's own background; its children keep their own styles.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "padding": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "corner_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        }
+      }
+    },
+    "image_style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "corner_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        }
+      }
+    },
+    "tint_style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        }
+      }
+    },
+    "column": {
+      "description": "Up to 8 components top to bottom (#81): leaves and rows; no column directly and no collection.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "column"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/leaf"
+              },
+              {
+                "$ref": "#/$defs/row"
+              }
+            ]
+          }
+        },
+        "style": {
+          "$ref": "#/$defs/box_style"
+        }
+      }
+    },
+    "symbol_source": {
+      "description": "A system symbol by its SF Symbols name. A name the running macOS lacks draws nothing.",
+      "type": "object",
+      "required": [
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$",
+          "maxLength": 64
+        }
+      }
+    },
+    "image_source": {
+      "description": "Where an image comes from: a PNG or JPEG inside the package, by relative path, or an https address the session's handler may contact under its contact_https grant and hosts.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "resource"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "resource": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^([^/.\\\\][^/\\\\]*/)*[^/.\\\\][^/\\\\]*\\.([Pp][Nn][Gg]|[Jj][Pp][Ee]?[Gg])$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https://[^/@:#]+(:443)?(/[^#]*)?$",
+              "maxLength": 2048
+            }
+          }
+        }
+      ]
+    },
+    "icon": {
+      "description": "A system symbol (#81), tinted by its style's colour; VoiceOver reads its label, and without one it is decoration.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "icon"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source": {
+          "$ref": "#/$defs/symbol_source"
+        },
+        "label": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256
+        },
+        "size": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 64,
+          "description": "Points, default 16, scaled with the Host's text size."
+        },
+        "style": {
+          "$ref": "#/$defs/tint_style"
+        }
+      }
+    },
+    "image": {
+      "description": "A picture the Host loads from its source (#81) into a frame of width × height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "source",
+        "label",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "image"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source": {
+          "$ref": "#/$defs/image_source"
+        },
+        "label": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256,
+          "description": "What VoiceOver reads."
+        },
+        "width": {
+          "type": "number",
+          "minimum": 16,
+          "maximum": 412
+        },
+        "height": {
+          "type": "number",
+          "minimum": 16,
+          "maximum": 412
+        },
+        "fit": {
+          "enum": [
+            "fit",
+            "fill"
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/image_style"
+        }
+      }
+    },
+    "progress": {
+      "description": "How a task the Plugin describes is going (#81): indeterminate unless the Plugin gives the value it knows, its stages with the current one, its state, and a cancel View Action the Host draws while it runs, which sends action_chosen.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "progress"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "title": {
+                "$ref": "#/$defs/text",
+                "maxLength": 256
+              }
+            }
+          }
+        },
+        "stage": {
+          "$ref": "#/$defs/identifier",
+          "description": "The stage under way; one of stages."
+        },
+        "state": {
+          "enum": [
+            "running",
+            "cancelling",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "cancel": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "title": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "style": {
+          "$ref": "#/$defs/tint_style"
         }
       }
     },
@@ -723,7 +1139,7 @@
       }
     },
     "item": {
-      "description": "One item of a collection. Images and icons are not part of Level 2.",
+      "description": "One item of a collection. It may show a system symbol as its icon (#81); images are not part of items.",
       "type": "object",
       "required": [
         "id",
@@ -778,6 +1194,10 @@
             "$ref": "#/$defs/identifier",
             "maxLength": 32
           }
+        },
+        "icon": {
+          "$ref": "#/$defs/symbol_source",
+          "description": "A system symbol drawn as the row's leading icon, or as the grid cell when it has no symbol; an item has a symbol or an icon, not both."
         }
       }
     },

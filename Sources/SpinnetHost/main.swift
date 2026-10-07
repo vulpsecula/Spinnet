@@ -711,7 +711,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
             },
             report: { [weak self] message in self?.feedback?.showMessage(message) },
-            insertionTargets: insertionTargets
+            insertionTargets: insertionTargets,
+            // A page's pictures are read through the broker, which checks
+            // the handler's authority afresh for every one.
+            images: PluginPageImages(
+                load: { [weak self] action, source, cancellation in
+                    guard let broker = self?.clipboardBroker else {
+                        throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
+                    }
+                    return try broker.loadPageImage(source, for: action, using: registry, cancellation: cancellation)
+                },
+                executor: { DispatchQueue.main.async(execute: $0) }
+            )
         )
         return PluginViewWindows(
             environment: environment,

@@ -1,0 +1,98 @@
+{
+  "page": {
+    "id": "gallery",
+    "title": "Gallery",
+    "content": [
+      {
+        "kind": "image",
+        "id": "i0",
+        "label": "Cover 0",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/0.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i1",
+        "label": "Cover 1",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/1.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i2",
+        "label": "Cover 2",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/2.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i3",
+        "label": "Cover 3",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/3.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i4",
+        "label": "Cover 4",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/4.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i5",
+        "label": "Cover 5",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/5.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i6",
+        "label": "Cover 6",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/6.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i7",
+        "label": "Cover 7",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/7.png"
+        }
+      },
+      {
+        "kind": "image",
+        "id": "i8",
+        "label": "Cover 8",
+        "width": 40,
+        "height": 40,
+        "source": {
+          "resource": "covers/8.png"
+        }
+      }
+    ]
+  }
+}

@@ -505,6 +505,139 @@
       "definition": "event",
       "valid": false,
       "note": "An item snapshot names its item"
+    },
+    {
+      "file": "answers/spotify-track.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A Spotify-shaped track: HTTPS artwork beside a column of styled text and the position the Plugin knows (#81)",
+      "level1": false
+    },
+    {
+      "file": "answers/monitor-metrics.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "System Monitor-shaped cards: styled columns in rows, each with a system icon, a value in monospaced digits and a measured bar (#81)",
+      "level1": false
+    },
+    {
+      "file": "answers/brew-task-running.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A Brew task's stages, indeterminate, with the cancel the Host draws while it runs (#81)",
+      "level1": false
+    },
+    {
+      "file": "answers/brew-task-cancelling.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A cancellation attempt under way: no second cancel, nothing rolled back (#81)",
+      "level1": false
+    },
+    {
+      "file": "answers/brew-list-icons.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "List rows with system symbols as their icons (#81)",
+      "level1": false
+    },
+    {
+      "file": "answers/image-without-size.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An image gives its width and height, so the page does not move as it loads",
+      "level1": false
+    },
+    {
+      "file": "answers/image-file-url.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An Image Source reaches no local file: only an https address or a package resource",
+      "level1": false
+    },
+    {
+      "file": "answers/image-http-url.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An image's url is https",
+      "level1": false
+    },
+    {
+      "file": "answers/image-resource-escapes.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A resource path stays inside the package",
+      "level1": false
+    },
+    {
+      "file": "answers/image-source-symbol.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An image loads a resource or url; a system symbol is an icon",
+      "level1": false
+    },
+    {
+      "file": "answers/style-member-not-for-kind.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A row's style holds its own background only; nothing inherits a font size",
+      "level1": false
+    },
+    {
+      "file": "answers/style-bad-color.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A colour is #RRGGBB, #RRGGBBAA, a named colour, or light and dark",
+      "level1": false
+    },
+    {
+      "file": "answers/style-font-too-large.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Font sizes are 9 to 40 points",
+      "level1": false
+    },
+    {
+      "file": "answers/column-in-column.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A column holds no column directly",
+      "level1": false
+    },
+    {
+      "file": "answers/progress-unknown-stage.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A progress's stage is one of its stages",
+      "level1": false
+    },
+    {
+      "file": "answers/progress-cancel-duplicates-button.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A cancel's ID is an event action ID unique among the page's buttons",
+      "level1": false
+    },
+    {
+      "file": "answers/item-symbol-and-icon.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "An item shows a symbol or an icon, not both",
+      "level1": false
+    },
+    {
+      "file": "answers/containers-too-deep.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "Rows and columns nest at most 3 deep",
+      "level1": false
+    },
+    {
+      "file": "answers/too-many-images.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A page has at most 8 images",
+      "level1": false
     }
   ]
 }

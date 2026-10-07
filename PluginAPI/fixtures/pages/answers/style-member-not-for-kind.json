@@ -1,0 +1,268 @@
+{
+  "page": {
+    "id": "metrics",
+    "title": "System",
+    "content": [
+      {
+        "kind": "row",
+        "id": "top",
+        "content": [
+          {
+            "kind": "column",
+            "id": "cpu",
+            "style": {
+              "background": {
+                "light": "#F2F2F7",
+                "dark": "#2C2C2E"
+              },
+              "padding": 10,
+              "corner_radius": 8
+            },
+            "content": [
+              {
+                "kind": "row",
+                "id": "cpu-head",
+                "content": [
+                  {
+                    "kind": "icon",
+                    "id": "cpu-icon",
+                    "source": {
+                      "symbol": "cpu"
+                    },
+                    "size": 14,
+                    "style": {
+                      "color": "accent"
+                    }
+                  },
+                  {
+                    "kind": "text",
+                    "id": "cpu-title",
+                    "text": "CPU",
+                    "style": {
+                      "font_size": 11,
+                      "font_weight": "medium",
+                      "color": "secondary"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "id": "cpu-value",
+                "text": "23%",
+                "style": {
+                  "font_size": 28,
+                  "font_weight": "bold",
+                  "monospaced_digits": true
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "cpu-bar",
+                "title": "CPU",
+                "value": 0.23,
+                "status": "All cores"
+              }
+            ]
+          },
+          {
+            "kind": "column",
+            "id": "memory",
+            "style": {
+              "background": {
+                "light": "#F2F2F7",
+                "dark": "#2C2C2E"
+              },
+              "padding": 10,
+              "corner_radius": 8
+            },
+            "content": [
+              {
+                "kind": "row",
+                "id": "memory-head",
+                "content": [
+                  {
+                    "kind": "icon",
+                    "id": "memory-icon",
+                    "source": {
+                      "symbol": "memorychip"
+                    },
+                    "size": 14,
+                    "style": {
+                      "color": "accent"
+                    }
+                  },
+                  {
+                    "kind": "text",
+                    "id": "memory-title",
+                    "text": "Memory",
+                    "style": {
+                      "font_size": 11,
+                      "font_weight": "medium",
+                      "color": "secondary"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "id": "memory-value",
+                "text": "61%",
+                "style": {
+                  "font_size": 28,
+                  "font_weight": "bold",
+                  "monospaced_digits": true
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "memory-bar",
+                "title": "Memory",
+                "value": 0.61,
+                "status": "Of 16 GB"
+              }
+            ]
+          }
+        ],
+        "style": {
+          "font_size": 12
+        }
+      },
+      {
+        "kind": "row",
+        "id": "bottom",
+        "content": [
+          {
+            "kind": "column",
+            "id": "disk",
+            "style": {
+              "background": {
+                "light": "#F2F2F7",
+                "dark": "#2C2C2E"
+              },
+              "padding": 10,
+              "corner_radius": 8
+            },
+            "content": [
+              {
+                "kind": "row",
+                "id": "disk-head",
+                "content": [
+                  {
+                    "kind": "icon",
+                    "id": "disk-icon",
+                    "source": {
+                      "symbol": "internaldrive"
+                    },
+                    "size": 14,
+                    "style": {
+                      "color": "accent"
+                    }
+                  },
+                  {
+                    "kind": "text",
+                    "id": "disk-title",
+                    "text": "Disk",
+                    "style": {
+                      "font_size": 11,
+                      "font_weight": "medium",
+                      "color": "secondary"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "id": "disk-value",
+                "text": "48%",
+                "style": {
+                  "font_size": 28,
+                  "font_weight": "bold",
+                  "monospaced_digits": true
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "disk-bar",
+                "title": "Disk",
+                "value": 0.48,
+                "status": "Of 494 GB"
+              }
+            ]
+          },
+          {
+            "kind": "column",
+            "id": "battery",
+            "style": {
+              "background": {
+                "light": "#F2F2F7",
+                "dark": "#2C2C2E"
+              },
+              "padding": 10,
+              "corner_radius": 8
+            },
+            "content": [
+              {
+                "kind": "row",
+                "id": "battery-head",
+                "content": [
+                  {
+                    "kind": "icon",
+                    "id": "battery-icon",
+                    "source": {
+                      "symbol": "battery.75"
+                    },
+                    "size": 14,
+                    "style": {
+                      "color": "accent"
+                    }
+                  },
+                  {
+                    "kind": "text",
+                    "id": "battery-title",
+                    "text": "Battery",
+                    "style": {
+                      "font_size": 11,
+                      "font_weight": "medium",
+                      "color": "secondary"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "id": "battery-value",
+                "text": "87%",
+                "style": {
+                  "font_size": 28,
+                  "font_weight": "bold",
+                  "monospaced_digits": true
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "battery-bar",
+                "title": "Battery",
+                "value": 0.87,
+                "status": "On battery"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "id": "refresh",
+            "title": "Refresh"
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "sample": 0
+  }
+}

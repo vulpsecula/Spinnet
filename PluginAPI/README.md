@@ -238,13 +238,24 @@ an `id` and up to 40 components, each with an `id` unique in the page:
 
 | Component | Builder | What the Host draws |
 | --- | --- | --- |
-| `row` | `components.row` | Up to 4 of the components below side by side |
+| `row` | `components.row` | Up to 4 of the components below side by side, columns included |
+| `column` | `components.column` | Up to 8 of the components below top to bottom, rows included |
 | `text_field` | `components.textField` | A one-line field, optionally the search field of the page's collection |
 | `choice_field` | `components.choiceField` | A pop-up |
 | `text` | `components.text` | Text in the Markdown subset |
 | `actions` | `components.actions`, `components.button` and `.action(...)` | Up to 8 buttons: event buttons and page actions the Host performs |
 | `list` | `components.list`, `section`, `item`, `itemAction` | A selectable list of up to 2,000 items, or a window of them |
 | `grid` | `components.grid`, `section`, `item`, `itemAction` | A selectable grid of 2 to 12 columns, likewise |
+| `icon` | `components.icon` | A system symbol, tinted |
+| `image` | `components.image` | A PNG or JPEG the Host loads from the package or a host the Plugin may contact, in a fixed frame |
+| `progress` | `components.progress` | A task's stages, status and state, indeterminate unless the Plugin knows its value, with a cancel View Action |
+
+`text`, `row`, `column`, `icon`, `image` and `progress` take a `style` of
+their own (colours, including custom ones, a font size and weight,
+background, padding, corner radius); nothing inherits it, and the Host's
+fields, buttons, Collections and chrome keep their native look. Items may
+show a system symbol as their `icon`. These were appended to Level 2 by
+#81 while it is open ([Styles, images and progress](reference/pages.md#styles-images-and-progress)).
 
 The Host keeps each component's immediate state (typed text, caret,
 input-method composition, focus, selection, scroll) across answers to the
@@ -283,16 +294,16 @@ Host supports, 2, for every Plugin. The types are in
 These are left out of Levels 1 and 2 because no Spinnet Plugin needs them
 yet. Each is added, when a Plugin does, as a Plugin-independent Host Service
 or view component with its own Capability where it reads or changes
-anything, which raises the Plugin API Level. Level 2 brought in the List.
+anything, which raises the Plugin API Level. Level 2 brought in the List, and pages'
+Progress, icons and images (#81).
 
 | Candidate | The need that would bring it in |
 | --- | --- |
-| Progress | A task the user waits on longer than a toast lasts, with a way to cancel it, such as a multi-step download or a batch |
 | Selected Finder items | A Command that acts on the files the user has selected in Finder, such as converting or sharing them |
 | The frontmost application | A Command whose behaviour depends on the App in front, such as a per-App shortcut or reading the current browser page |
 | Revealing a file in Finder | A Command that shows the user where something is, rather than opening it, as `open_local_path` does |
-| Icons | Menu Items, actions or rows that need a picture to tell them apart |
-| Images | A view that shows an image the Plugin produced or fetched, such as a QR code or a preview, or copies one to the clipboard |
+| Icons beyond pages | Menu Items or buttons that need a picture to tell them apart |
+| Images the Plugin produces | A view that shows an image the script itself made, such as a QR code, or copies one to the clipboard |
 | Confirmation | An action that cannot be undone, such as clearing stored history, asking the user first inside the view |
 | Launching another Command | One Command handing over to another of the same Plugin, such as a search result opening its detail |
 

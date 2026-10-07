@@ -1,0 +1,37 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.example.media-pages",
+  "name": "Media Pages",
+  "version": "2.0.0",
+  "capabilities": ["contact_https"],
+  "capability_scopes": [{
+    "capability": "contact_https",
+    "command_ids": ["media.track"],
+    "data_types": [], "includes_existing_host_data": false, "https_hosts": ["i.scdn.co"], "external_apps": []
+  }],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "media.track",
+    "default_alternate_command_ids": ["media.metrics"]
+  },
+  "commands": [
+    {
+      "id": "media.track",
+      "title": "Now Playing",
+      "description": "Shows a Spotify-shaped track: its artwork from an HTTPS host the Command may contact, or the package's own artwork offline, its title, artist and album in their own sizes and colours, its known position, and transport buttons.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "media.js"
+    },
+    {
+      "id": "media.metrics",
+      "title": "System Metrics",
+      "description": "Shows System Monitor-shaped cards for CPU, memory, disk capacity and battery, each with a system icon, a large value in monospaced digits and a measured bar, refreshed by a button.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "media.js"
+    }
+  ]
+}

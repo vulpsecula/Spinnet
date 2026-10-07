@@ -290,16 +290,40 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         XCTAssertEqual(brew.focus, "packages")
     }
 
-    /// Install and Upgrade say what a reviewed task would do and keep the page.
-    func testBrewSecondaryActionsAnswerWithAToast() throws {
+    /// Upgrade shows the task's page (#81): its stages with the first under
+    /// way, indeterminate since nothing knows how far along a step is, and
+    /// a cancel the Host draws while it runs, which asks the Plugin to
+    /// attempt cancelling and then is gone. Back returns to the list as the
+    /// user left it.
+    func testBrewUpgradeShowsItsTasksStagesAndCancel() throws {
         let brew = try brew()
         try brew.open()
         try brew.choose("outdated", in: "scope")
+        try brew.type("py", into: "query")
         let outdated = try XCTUnwrap(brew.selectedItem)
-        try brew.choose(itemAction: "upgrade", on: outdated.id)
-        XCTAssertEqual(brew.toasts.last, "Upgrade \(outdated.title) needs a reviewed task")
-        XCTAssertEqual(brew.page?.id, "packages")
+        XCTAssertEqual(outdated.icon, PluginPageSymbol(name: "shippingbox"), "A formula's row shows a system symbol")
         XCTAssertThrowsError(try brew.choose(itemAction: "install", on: outdated.id), "Not offered on an installed package")
+        try brew.choose(itemAction: "upgrade", on: outdated.id)
+        XCTAssertEqual(brew.page?.id, "task:\(outdated.title)")
+        guard case .progress(let task)? = brew.page?.component("task") else { return XCTFail("No progress") }
+        XCTAssertNil(task.value, "No percentage the Plugin does not know")
+        XCTAssertEqual(task.stages.map(\.title), ["Download", "Pour", "Link", "Clean Up"])
+        XCTAssertEqual(task.stages.map(task.state(of:)), [.current, .pending, .pending, .pending])
+        XCTAssertTrue(task.offersCancel)
+        XCTAssertEqual(task.accessibilityValue, "Download, stage 1 of 4, Waiting for a reviewed task, In progress")
+
+        try brew.click("cancel")
+        XCTAssertEqual(brew.events.last, .pageActionChosen(page: "task:\(outdated.title)", action: "cancel",
+                                                           values: .object([:]), selection: .object([:])))
+        guard case .progress(let cancelling)? = brew.page?.component("task") else { return XCTFail("No progress") }
+        XCTAssertEqual(cancelling.state, .cancelling)
+        XCTAssertFalse(cancelling.offersCancel, "An attempt under way offers no second one")
+        XCTAssertThrowsError(try brew.click("cancel"))
+
+        try brew.click("back")
+        XCTAssertEqual(brew.page?.id, "packages")
+        XCTAssertEqual(brew.text(of: "query"), "py", "Page memory keeps the search across the task's page")
+        XCTAssertEqual(brew.selectedItem?.id, outdated.id)
     }
 
     /// Bounded data: Brew gives its search's total and 150 at a time, the

@@ -133,8 +133,39 @@
     });
   }
 
+  // A Component Style (#81), its camel-case options as snake-case members.
+  // Colours and Image Sources pass unchanged.
+  function style(o) {
+    if (o === undefined || o === null) return undefined;
+    return compact({
+      color: o.color,
+      background: o.background,
+      font_size: o.fontSize,
+      font_weight: o.fontWeight,
+      monospaced_digits: o.monospacedDigits,
+      padding: o.padding,
+      corner_radius: o.cornerRadius
+    });
+  }
+
   const components = Object.freeze({
-    row: function (o) { return compact({ kind: "row", id: o.id, content: o.content }); },
+    row: function (o) { return compact({ kind: "row", id: o.id, content: o.content, style: style(o.style) }); },
+    column: function (o) { return compact({ kind: "column", id: o.id, content: o.content, style: style(o.style) }); },
+    icon: function (o) {
+      return compact({ kind: "icon", id: o.id, source: o.source, label: o.label, size: o.size, style: style(o.style) });
+    },
+    image: function (o) {
+      return compact({
+        kind: "image", id: o.id, source: o.source, label: o.label, width: o.width, height: o.height, fit: o.fit,
+        style: style(o.style)
+      });
+    },
+    progress: function (o) {
+      return compact({
+        kind: "progress", id: o.id, title: o.title, value: o.value, status: o.status, stages: o.stages,
+        stage: o.stage, state: o.state, cancel: o.cancel, style: style(o.style)
+      });
+    },
     textField: function (o) {
       return compact({
         kind: "text_field", id: o.id, title: o.title, placeholder: o.placeholder, value: o.value,
@@ -147,7 +178,9 @@
         value: o.value
       });
     },
-    text: function (o) { return compact({ kind: "text", id: o.id, title: o.title, text: o.text }); },
+    text: function (o) {
+      return compact({ kind: "text", id: o.id, title: o.title, text: o.text, style: style(o.style) });
+    },
     actions: function (o) { return compact({ kind: "actions", id: o.id, actions: o.actions }); },
     button: function (o) { return compact({ id: o.id, title: o.title }); },
     list: function (o) { return collection("list", options(o)); },
@@ -156,7 +189,7 @@
     item: function (o) {
       return compact({
         id: o.id, title: o.title, subtitle: o.subtitle, symbol: o.symbol, accessory: o.accessory,
-        text: o.text, actions: o.actions, marks: o.marks
+        text: o.text, actions: o.actions, marks: o.marks, icon: o.icon
       });
     },
     itemAction: function (o) {

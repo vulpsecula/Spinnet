@@ -1,0 +1,97 @@
+{
+  "page": {
+    "id": "track",
+    "title": "Now Playing",
+    "content": [
+      {
+        "kind": "row",
+        "id": "now",
+        "content": [
+          {
+            "kind": "image",
+            "id": "artwork",
+            "label": "Artwork of Weightless",
+            "width": 96,
+            "height": 96,
+            "fit": "fill",
+            "source": {
+              "url": "http://i.scdn.co/a.png"
+            },
+            "style": {
+              "corner_radius": 6,
+              "background": "secondary"
+            }
+          },
+          {
+            "kind": "column",
+            "id": "info",
+            "content": [
+              {
+                "kind": "text",
+                "id": "title",
+                "text": "Weightless",
+                "style": {
+                  "font_size": 17,
+                  "font_weight": "semibold"
+                }
+              },
+              {
+                "kind": "text",
+                "id": "artist",
+                "text": "Marconi Union",
+                "style": {
+                  "color": "secondary"
+                }
+              },
+              {
+                "kind": "text",
+                "id": "album",
+                "text": "Weightless",
+                "style": {
+                  "font_size": 11,
+                  "color": {
+                    "light": "#1A7F37",
+                    "dark": "#1ED760"
+                  }
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "position",
+                "title": "Position",
+                "value": 0.2742,
+                "status": "2:13 of 8:05",
+                "style": {
+                  "color": "#1DB954"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "actions",
+        "id": "transport",
+        "actions": [
+          {
+            "id": "previous",
+            "title": "Previous"
+          },
+          {
+            "id": "toggle",
+            "title": "Pause"
+          },
+          {
+            "id": "next",
+            "title": "Next"
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "track": 0,
+    "position": 133,
+    "playing": true
+  }
+}

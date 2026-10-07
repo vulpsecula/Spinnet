@@ -96,6 +96,33 @@ public final class PluginTestPage {
         return try run.answer()
     }
 
+    /// What the Host would show for each `image` component of the page
+    /// (Plugin API Level 2, #81), by component ID, without the network: a
+    /// package resource is read and decoded within the Host's budgets, to
+    /// its pixel size; an HTTPS source is checked against what the
+    /// handler's Command declares and the hosts the user added, and
+    /// reported as `.loading`, which the Host would fetch once
+    /// `contact_https` is granted. A refusal is `.failed` with the reason
+    /// the image shows.
+    public func images(consentedHosts: [String] = []) -> [String: PageImageState] {
+        var states: [String: PageImageState] = [:]
+        for case .image(let image) in page?.components ?? [] {
+            switch image.source {
+            case .resource(let path):
+                do {
+                    let data = try PluginPackageResource.read(path, in: plugin.package.rootURL)
+                    states[image.id] = .loaded(try PageImageDecoder.decode(data, maximumPixelSize: image.request.maximumPixelSize))
+                } catch {
+                    states[image.id] = .failed((error as? PluginHostServiceError)?.description ?? "\(error)")
+                }
+            case .url:
+                states[image.id] = plugin.manifest.refusal(toLoad: image.source, for: CommandID(handler.commandID),
+                                                           consentedHosts: consentedHosts).map(PageImageState.failed) ?? .loading
+            }
+        }
+        return states
+    }
+
     // MARK: Gestures
 
     /// Starts the Action, as a Menu Item does.
@@ -236,6 +263,14 @@ public final class PluginTestPage {
     @discardableResult
     public func click(_ button: String) throws -> PluginScriptAnswer? {
         guard let page else { return nil }
+        // A progress component's cancel, which the Host draws only while
+        // its task runs (#81).
+        for case .progress(let progress) in page.components {
+            guard let cancel = progress.cancel, cancel.id == button || cancel.title == button else { continue }
+            guard progress.offersCancel else { throw PluginTestPageError.noAction(button) }
+            return try run(.pageActionChosen(page: page.id, action: cancel.id, values: memory.values,
+                                             selection: memory.selection))
+        }
         for case .actions(_, let actions) in page.components {
             for action in actions {
                 switch action.kind {

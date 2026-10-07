@@ -233,6 +233,55 @@ struct PluginHTTPSRequestPerformer {
         }
     }
 
+    /// Fetches the picture of an `image` component (#81): a GET of `url`,
+    /// within the consented hosts as every request is, redirects included,
+    /// with no header of the Plugin's, no Credential Use and no cookie, and
+    /// at most `maximumBytes` of response. Only a 2xx response's bytes come
+    /// back; they are binary, so they never reach the script.
+    func fetchImage(_ url: URL, maximumBytes: Int) throws -> Data {
+        try requireConsented(url, isRedirect: false)
+        let deadline = now() + timeout
+        var current = url
+        var redirects = 0
+        while true {
+            guard !isCancelled() else { throw PluginHostServiceError.failed("The image was cancelled") }
+            let remaining = deadline - now()
+            guard remaining > 0 else { throw PluginHostServiceError.failed("The image timed out") }
+            let response: HTTPSTransportResponse
+            do {
+                response = try transport.send(HTTPSTransportRequest(
+                    method: "GET", url: current, headers: ["Accept": "image/png, image/jpeg"], body: nil,
+                    timeout: remaining, maximumResponseBytes: maximumBytes
+                ))
+            } catch HTTPSTransportError.timedOut {
+                throw PluginHostServiceError.failed("The image timed out")
+            } catch HTTPSTransportError.responseTooLarge {
+                throw PluginHostServiceError.failed("The image exceeds \(maximumBytes) bytes")
+            } catch {
+                throw PluginHostServiceError.failed("The image from \(current.host ?? "the host") could not be loaded")
+            }
+            if [301, 302, 303, 307, 308].contains(response.status), let location = response.headers["location"] {
+                redirects += 1
+                guard redirects <= HTTPSRequestBudgets.maximumRedirects else {
+                    throw PluginHostServiceError.failed("Too many redirects")
+                }
+                guard let next = URL(string: location, relativeTo: current)?.absoluteURL else {
+                    throw PluginHostServiceError.failed("The server sent an invalid redirect")
+                }
+                try requireConsented(next, isRedirect: true)
+                current = next
+                continue
+            }
+            guard (200..<300).contains(response.status) else {
+                throw PluginHostServiceError.failed("The image's server answered \(response.status)")
+            }
+            guard response.body.count <= maximumBytes else {
+                throw PluginHostServiceError.failed("The image exceeds \(maximumBytes) bytes")
+            }
+            return response.body
+        }
+    }
+
     private static let responseTooLarge = PluginHostServiceError.failed(
         "The response exceeds \(HTTPSRequestBudgets.maximumResponseBodyBytes) bytes"
     )

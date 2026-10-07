@@ -180,29 +180,46 @@ private struct PageComponentView: View {
 
     var body: some View {
         switch component {
-        case .row(_, let children):
+        case .row(let stack):
             HStack(alignment: .center, spacing: 8) {
-                ForEach(children, id: \.id) { child in
+                ForEach(stack.content, id: \.id) { child in
                     PageComponentView(model: model, component: child)
                 }
             }
+            .modifier(PageBoxStyle(style: stack.style))
+        case .column(let stack):
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(stack.content, id: \.id) { child in
+                    PageComponentView(model: model, component: child)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(PageBoxStyle(style: stack.style))
+        case .icon(let icon):
+            PageIconView(icon: icon)
+        case .image(let image):
+            PageImageView(model: model, image: image, state: model.imageState(of: image.request))
+        case .progress(let progress):
+            PageProgressView(model: model, progress: progress)
         case .textField(let field):
             PageFieldBox(model: model, field: field)
         case .choiceField(let field):
             PageChoiceField(model: model, field: field, value: model.choice(of: field.id))
                 .fixedSize()
-        case .text(_, let title, let text):
+        case .text(let text):
             VStack(alignment: .leading, spacing: 4) {
-                if let title {
+                if let title = text.title {
                     Text(title)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
                 }
-                PluginViewMarkdownText(blocks: PluginViewMarkdown.parse(text))
+                PluginViewMarkdownText(blocks: PluginViewMarkdown.parse(text.text))
+                    .modifier(PageTextStyle(style: text.style))
             }
+            .modifier(PageBoxStyle(style: text.style))
             .accessibilityElement(children: .contain)
-            .accessibilityLabel(title ?? "")
+            .accessibilityLabel(text.title ?? "")
         case .actions(_, let actions):
             PluginViewFlowLayout(spacing: 6) {
                 ForEach(Array(actions.enumerated()), id: \.offset) { _, action in

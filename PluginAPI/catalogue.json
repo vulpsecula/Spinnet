@@ -2358,24 +2358,27 @@
       "level1": []
     },
     {
+      "id": "ui.components.column",
+      "status": "level2",
+      "summary": "A page component (#81): components top to bottom",
+      "level1": []
+    },
+    {
       "id": "ui.components.image",
-      "status": "reserved",
-      "summary": "A page component #81 measures and adds",
-      "owner": "#81",
+      "status": "level2",
+      "summary": "A page component (#81): a PNG or JPEG the Host loads from the package or a host the handler may contact",
       "level1": []
     },
     {
       "id": "ui.components.icon",
-      "status": "reserved",
-      "summary": "A page component #81 measures and adds",
-      "owner": "#81",
+      "status": "level2",
+      "summary": "A page component (#81): a system symbol",
       "level1": []
     },
     {
       "id": "ui.components.progress",
-      "status": "reserved",
-      "summary": "A page component #81 measures and adds",
-      "owner": "#81",
+      "status": "level2",
+      "summary": "A page component (#81): a task's stages, status and state, with a cancel View Action",
       "level1": []
     }
   ],
@@ -2934,7 +2937,7 @@
     },
     {
       "raycast": "UI: Icon, Image, Color",
-      "spinnet": "#81 (reserved ui.components.image, icon, progress)"
+      "spinnet": "Level 2 (#81): icon, image and progress components, and Component Styles with custom colours"
     },
     {
       "raycast": "showToast",

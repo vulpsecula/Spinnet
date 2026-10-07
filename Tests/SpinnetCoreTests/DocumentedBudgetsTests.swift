@@ -350,3 +350,52 @@ final class LevelTwoBudgetsTests: XCTestCase {
         XCTAssertEqual(HostOperationsContract.maximumInsertedBytes, 128 * 1024)
     }
 }
+
+/// The bounds of styles, images and progress, appended to Level 2 by #81
+/// from the decoding measurements recorded in PluginAPI/reference/pages.md,
+/// "Images" (and docs/research/page-image-measurements.md).
+final class PagePresentationBudgetsTests: XCTestCase {
+    /// PluginAPI/reference/pages.md, "Images"
+    func testImageBudgetsMatchThePublishedPage() {
+        XCTAssertPublished("The Host decodes only PNG and JPEG, of at most 1 MiB (1,048,576 bytes), at most 4,194,304 "
+                           + "pixels and at most 4,096 pixels on a side, scaled down as it decodes to twice the frame's points",
+                           in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.maximumImageBytes, 1_048_576)
+        XCTAssertEqual(PageImageBudgets.maximumSourcePixels, 4_194_304)
+        XCTAssertEqual(PageImageBudgets.maximumSourceEdge, 4_096)
+        XCTAssertPublished("It loads at most 4 pictures at once for every Plugin together", in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.maximumConcurrentLoads, 4)
+        XCTAssertPublished("gives each network load 15 seconds, redirects included, as a Host-Fetched Section's",
+                           in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.loadDeadline, 15)
+        XCTAssertPublished("keeps at most 16 MiB of decoded pictures for every open View Session together",
+                           in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.cacheBytes, 16 * 1_048_576)
+        XCTAssertPublished("A page has at most 8 images.", in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.maximumImagesPerPage, 8)
+        XCTAssertPublished("frame of `width` × `height` points (16 to 412 each)", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.imageSides, 16...412)
+    }
+
+    /// PluginAPI/reference/pages.md, "Layout", "Component Styles", "Icons"
+    /// and "Progress"
+    func testLayoutStyleAndProgressBoundsMatchThePublishedPage() {
+        XCTAssertPublished("A `column` lays up to 8 components top to bottom", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.maximumColumnChildren, 8)
+        XCTAssertPublished("rows and columns nest at most 3 deep", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.maximumContainerDepth, 3)
+        XCTAssertPublished("| `font_size` | `text` | 9 to 40 points", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.fontSizes, 9...40)
+        XCTAssertPublished("| `padding` | `text`, `row`, `column` | 0 to 24 points", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.paddings, 0...24)
+        XCTAssertPublished("| `corner_radius` | `text`, `row`, `column`, `image` | 0 to 16 points", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.cornerRadii, 0...16)
+        XCTAssertPublished("at `size` points (10 to 64, default 16", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.iconSizes, 10...64)
+        XCTAssertEqual(PagePresentation.defaultIconSize, 16)
+        XCTAssertPublished("`stages` (2 to 8 of `{id, title}`)", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.stages, 2...8)
+        XCTAssertPublished("`status` is a line of up to 256 characters", in: "reference/pages.md")
+        XCTAssertEqual(PagePresentation.maximumStatusLength, 256)
+    }
+}

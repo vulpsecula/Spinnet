@@ -144,6 +144,14 @@ _Avoid_: Command, window, Settings page
 A supported element of a Plugin View, such as a field, collection or layout container, which a Plugin combines to express its interface.
 _Avoid_: Native control, custom widget, HTML element
 
+**Component Style**:
+The structured visual attributes a View Component carries for itself, such as a custom colour, font size and weight, or background. It applies to that component only: nothing inherits it, and the Host's fields, buttons, Collections and chrome keep their native look, focus rings and accessibility.
+_Avoid_: CSS, stylesheet, theme, Plugin theme
+
+**Image Source**:
+Where a picture a View Component shows comes from: a PNG or JPEG inside the Plugin's package, or an HTTPS address the Plugin may already contact. The Host loads, decodes and keeps it within published bounds, with no authority of the Image Source's own; a system symbol is an icon, not an Image Source.
+_Avoid_: Image URL, asset path, file path, image API
+
 **Collection**:
 A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order. A Collection may give its total and one slice of its items at a time, and the Host keeps a Collection Window of them.
 _Avoid_: Table, results list, data source

@@ -294,6 +294,25 @@ XCTAssertEqual(brew.text(of: "query"), "py")  // what was typed stays
 
 An answer the Host would end the session for closes the page (`isClosed`).
 
+### Styles, images and progress
+
+The page reads Component Styles, columns, icons, images and progress (#81)
+as the Host does, so `page?.component(id)` gives each with its style.
+`click(_:)` presses a `progress` component's cancel by its ID or title, only
+while its state is `running`, as the Host draws it. `images(consentedHosts:)`
+tells what each `image` would show, without the network: a package
+resource is read and decoded within the Host's bounds (`.loaded`), and an
+HTTPS source is `.loading` when the handler's Command declares
+`contact_https` for its host (or the user added it), else `.failed` with
+the reason the Host would show.
+
+```swift
+let track = PluginTestPage("media.track", of: plugin, helper: helper, input: .object(["offline": .bool(true)]))
+try track.open()
+guard case .loaded? = track.images()["artwork"] else { return XCTFail() }   // the package's own artwork
+try brew.click("cancel")                                                   // the task's cancel View Action
+```
+
 ### Windows, toggles and outcomes
 
 For a collection that gives its `total`, `PluginTestPage` keeps the window

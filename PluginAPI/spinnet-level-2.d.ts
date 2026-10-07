@@ -251,14 +251,110 @@ export interface Page {
   content: Component[];
 }
 
-export type Leaf = TextField | ChoiceField | TextBlock | Actions;
-export type Component = Row | Leaf | List | Grid;
+export type Leaf = TextField | ChoiceField | TextBlock | Actions | Icon | Image | Progress;
+export type Component = Row | Column | Leaf | List | Grid;
 
-/** Up to 4 leaf components side by side. */
+/** Up to 4 components side by side: leaves and columns, never a row directly. Containers nest at most 3 deep. */
 export interface Row {
   kind: "row";
   id: ID;
-  content: Leaf[];
+  content: (Leaf | Column)[];
+  style?: BoxStyle;
+}
+
+// MARK: Styles, images and progress (#81, appended to Level 2)
+
+/** A colour: `#RRGGBB` or `#RRGGBBAA` in sRGB, a named colour that follows the appearance, or one for each appearance. */
+export type SingleColor =
+  | `#${string}`
+  | "primary" | "secondary" | "tertiary" | "accent"
+  | "blue" | "indigo" | "purple" | "pink" | "red" | "orange" | "yellow" | "green" | "teal" | "gray";
+export type Color = SingleColor | { light: SingleColor; dark: SingleColor };
+
+/** A text component's own style; nothing inherits it. */
+export interface TextStyle {
+  color?: Color;
+  background?: Color;
+  /** 9 to 40 points at the default text size, scaled with it. */
+  font_size?: number;
+  font_weight?: "regular" | "medium" | "semibold" | "bold";
+  monospaced_digits?: boolean;
+  /** 0 to 24 points. */
+  padding?: number;
+  /** 0 to 16 points. */
+  corner_radius?: number;
+}
+/** A row's or column's own background. */
+export interface BoxStyle { background?: Color; padding?: number; corner_radius?: number }
+export interface ImageStyle { background?: Color; corner_radius?: number }
+export interface TintStyle { color?: Color }
+
+/** Up to 8 components top to bottom: leaves and rows, never a column directly. */
+export interface Column {
+  kind: "column";
+  id: ID;
+  content: (Leaf | Row)[];
+  style?: BoxStyle;
+}
+
+/** A system symbol by its SF Symbols name, such as `cpu`. */
+export interface SymbolSource { symbol: string }
+/** A PNG or JPEG in the package, or at an https address the handler may contact under its own `contact_https`. */
+export type ImageSource = { resource: string } | { url: string };
+
+/** A system symbol; decoration unless it has a label. */
+export interface Icon {
+  kind: "icon";
+  id: ID;
+  source: SymbolSource;
+  label?: string;
+  /** 10 to 64 points, default 16. */
+  size?: number;
+  style?: TintStyle;
+}
+
+/** A picture the Host loads into a frame of width × height points (16 to 412); at most 8 per page. */
+export interface Image {
+  kind: "image";
+  id: ID;
+  source: ImageSource;
+  /** What VoiceOver reads. */
+  label: string;
+  width: number;
+  height: number;
+  fit?: "fit" | "fill";
+  style?: ImageStyle;
+}
+
+export type ProgressState = "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
+
+/** A task's progress as the Plugin describes it. Indeterminate unless `value` is given; the Host derives none. */
+export interface Progress {
+  kind: "progress";
+  id: ID;
+  title?: string;
+  /** A fraction from 0 to 1 the Plugin knows. */
+  value?: number;
+  status?: string;
+  /** 2 to 8 steps. */
+  stages?: { id: ID; title: string }[];
+  /** The stage under way, one of `stages`. */
+  stage?: ID;
+  state?: ProgressState;
+  /** Drawn while `running`; sends `action_chosen` with this ID. */
+  cancel?: { id: ID; title?: string };
+  style?: TintStyle;
+}
+
+/** Style options as the builders take them, in camel case. */
+export interface StyleOptions {
+  color?: Color;
+  background?: Color;
+  fontSize?: number;
+  fontWeight?: TextStyle["font_weight"];
+  monospacedDigits?: boolean;
+  padding?: number;
+  cornerRadius?: number;
 }
 
 /** A one-line text field. `value` is applied only when the field is new or reset. */
@@ -290,6 +386,7 @@ export interface TextBlock {
   id: ID;
   title?: string;
   text: string;
+  style?: TextStyle;
 }
 
 /** Up to 8 buttons; none has a shortcut. */
@@ -387,6 +484,8 @@ export interface Item {
   actions?: ID[];
   /** Marks the collection's toggle item actions name; each shows its action checked. */
   marks?: ID[];
+  /** A system symbol as the row's leading icon or the grid cell; not with `symbol`. */
+  icon?: SymbolSource;
 }
 
 /**
@@ -464,10 +563,14 @@ export type _Level1AnswersRemainValid = ScriptAnswer extends Answer ? true : nev
 
 /** Builders of page components. Camel-case options map to the snake-case members. */
 export interface PageComponents {
-  row(options: { id: ID; content: Leaf[] }): Row;
+  row(options: { id: ID; content: (Leaf | Column)[]; style?: StyleOptions }): Row;
+  column(options: { id: ID; content: (Leaf | Row)[]; style?: StyleOptions }): Column;
+  icon(options: { id: ID; source: SymbolSource; label?: string; size?: number; style?: StyleOptions }): Icon;
+  image(options: { id: ID; source: ImageSource; label: string; width: number; height: number; fit?: "fit" | "fill"; style?: StyleOptions }): Image;
+  progress(options: { id: ID; title?: string; value?: number; status?: string; stages?: { id: ID; title: string }[]; stage?: ID; state?: ProgressState; cancel?: { id: ID; title?: string }; style?: StyleOptions }): Progress;
   textField(options: { id: ID; title: string; placeholder?: string; value?: string; status?: string; accent?: Accent; collection?: ID }): TextField;
   choiceField(options: { id: ID; title: string; choices: string[]; choiceTitles?: string[]; value?: string }): ChoiceField;
-  text(options: { id: ID; text: string; title?: string }): TextBlock;
+  text(options: { id: ID; text: string; title?: string; style?: StyleOptions }): TextBlock;
   actions(options: { id: ID; actions: PageAction[] }): Actions;
   /** A button delivering `action_chosen`. */
   button(options: { id: ID; title: string }): EventButton;
@@ -476,7 +579,7 @@ export interface PageComponents {
   /** With `items`, a section of a whole collection; with `count`, a header of one with a total. */
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   section(options: { id: ID; title?: string; count: number }): SectionHeader;
-  item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[]; marks?: ID[] }): Item;
+  item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[]; marks?: ID[]; icon?: SymbolSource }): Item;
   itemAction(options: { id: ID; title: string; default?: true; perform?: ItemActionID; closesView?: boolean; notify?: boolean; toggle?: ID }): ItemAction;
 }
 

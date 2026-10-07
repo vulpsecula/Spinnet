@@ -22,6 +22,9 @@ struct PluginViewEnvironment {
     /// The App insertion would go to now, which the views of Plugins
     /// declaring `host_operations` show; nil where no Host tracks it.
     var insertionTargets: InsertionTargetTracker? = nil
+    /// Loads the pictures of pages' `image` components (#81); without one
+    /// every picture shows as unavailable.
+    var images: PluginPageImageProvider? = nil
 }
 
 /// What a Detail section shows.
@@ -459,6 +462,9 @@ final class PluginViewWindows: PluginViewRenderer {
             guard let entry = self?.entries[session.pluginID], entry.session === session else { return }
             entry.model?.sectionChanged(id)
         }
+        environment.images?.onChange = { [weak self] pluginID in
+            self?.entries[pluginID]?.page?.imagesChanged()
+        }
     }
 
     func model(for pluginID: PluginID) -> PluginViewModel? { entries[pluginID]?.model }
@@ -475,6 +481,7 @@ final class PluginViewWindows: PluginViewRenderer {
         if let entry = entries[session.pluginID], entry.session === session, entry.page != nil {
             replaced = (entry.isPinned, entry.window.geometry)
             closeWindow(of: session)
+            environment.images?.imagesPresented([], in: session)
         }
         let description: PluginViewDescription
         do {
@@ -534,6 +541,7 @@ final class PluginViewWindows: PluginViewRenderer {
                 let presentedAnew = session.presentationCount != entry.presentationCount
                 let newView = session.viewRevision != entry.viewRevision
                 model.update(presentation, page: page, newView: newView, presentedAnew: presentedAnew)
+                if newView { environment.images?.imagesPresented(page.imageRequests, in: session) }
                 entry.window.title = page.title
                 if presentedAnew { entry.window.focus() }
                 entry.presentationCount = session.presentationCount
@@ -561,6 +569,7 @@ final class PluginViewWindows: PluginViewRenderer {
         entries[session.pluginID] = Entry(model: nil, page: model, window: window,
                                           presentationCount: session.presentationCount, viewRevision: session.viewRevision,
                                           pinWatch: pinWatch)
+        environment.images?.imagesPresented(page.imageRequests, in: session)
         show(window, for: session.pluginID, opening)
     }
 
@@ -634,6 +643,7 @@ final class PluginViewWindows: PluginViewRenderer {
         entry.window.onGeometryChange = nil
         entry.window.close()
         environment.sections.sessionEnded(session)
+        environment.images?.sessionEnded(session)
         if case .failed(let failure) = reason {
             let title = entry.model?.title ?? entry.page?.title ?? session.action.title
             report("\(environment.pluginName(session.pluginID)) — \(title) closed: \(failure.message)")

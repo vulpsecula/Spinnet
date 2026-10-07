@@ -479,6 +479,30 @@ final class PluginPageModel: ObservableObject {
         }
     }
 
+    /// The cancel View Action of a `progress` component: `action_chosen`
+    /// with its ID, as a button's, while the task still runs.
+    func chooseCancel(of progress: PluginPageProgress) {
+        guard let cancel = progress.cancel, progress.offersCancel else { return }
+        eventError = nil
+        session.send(.pageActionChosen(page: page.id, action: cancel.id, values: memory.values, selection: memory.selection),
+                     insertionTarget: shownTarget())
+    }
+
+    // MARK: - Images
+
+    /// What an `image` component shows now.
+    func imageState(of request: PageImageRequest) -> PageImageState {
+        guard let images = environment.images else { return .failed("Images are not available") }
+        return images.state(of: request, in: session)
+    }
+
+    func retryImage(_ request: PageImageRequest) {
+        environment.images?.retry(request, in: session)
+    }
+
+    /// A picture of the page changed state.
+    func imagesChanged() { objectWillChange.send() }
+
     /// Opens a link from page text, as a page action for `open.url` would.
     func open(_ url: URL) {
         session.perform(RequestedHostOperation(perform: "open.url", input: .string(url.absoluteString)),

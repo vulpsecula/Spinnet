@@ -50,7 +50,8 @@
     if (p.outdated) actions.push("upgrade");
     actions.push("copy");
     return c.item({ id: p.kind + ":" + p.name, title: p.name, subtitle: p.description,
-                    accessory: p.outdated ? "Outdated" : p.version, text: p.name, actions });
+                    accessory: p.outdated ? "Outdated" : p.version, text: p.name, actions,
+                    icon: { symbol: p.kind === "cask" ? "macwindow" : "shippingbox" } });
   }
 
   function list(s, reset, start, count) {
@@ -93,6 +94,30 @@
     });
   }
 
+  // A reviewed install or upgrade task (#88) as the Plugin would show it:
+  // its stages and status, indeterminate because no package manager says
+  // how far along a step is, and a cancel that asks to attempt
+  // cancellation. Here the task never advances by itself; the state the
+  // page is drawn from is the Plugin's.
+  const STAGES = [
+    { id: "download", title: "Download" }, { id: "pour", title: "Pour" },
+    { id: "link", title: "Link" }, { id: "cleanup", title: "Clean Up" }
+  ];
+
+  function task(t) {
+    return ui.page({
+      id: "task:" + t.name, title: (t.verb === "install" ? "Install " : "Upgrade ") + t.name,
+      content: [
+        c.progress({ id: "task", title: (t.verb === "install" ? "Installing " : "Upgrading ") + t.name,
+                     stages: STAGES, stage: t.stage, state: t.state,
+                     status: t.state === "cancelling" ? "Attempting to stop; nothing is rolled back"
+                       : t.state === "cancelled" ? "Stopped; what was done stays done" : "Waiting for a reviewed task",
+                     cancel: { id: "cancel", title: "Cancel" } }),
+        c.actions({ id: "buttons", actions: [c.button({ id: "back", title: "Back" })] })
+      ]
+    });
+  }
+
   const called = (input && input.scope) || "installed";
   const kept = state || { query: "", scope: called };
   if (event === null) return ui.showPage(list(kept), { state: kept });
@@ -113,10 +138,15 @@
     case "item_action": {
       const p = BY_NAME[event.item.text];
       if (event.action === "details") return ui.showPage(detail(p), { state: kept });
-      return { toast: (event.action === "install" ? "Install " : "Upgrade ") + p.name + " needs a reviewed task" };
+      const next = Object.assign({}, kept, { task: { name: p.name, verb: event.action, stage: "download", state: "running" } });
+      return ui.showPage(task(next.task), { state: next });
     }
     case "action_chosen":
       if (event.action === "back") return ui.showPage(list(kept), { state: kept });
+      if (event.action === "cancel" && kept.task) {
+        const next = Object.assign({}, kept, { task: Object.assign({}, kept.task, { state: "cancelling" }) });
+        return ui.showPage(task(next.task), { state: next });
+      }
       return null;
     default:
       return null;

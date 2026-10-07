@@ -1046,6 +1046,33 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
     }
 
+    /// Reads the picture of an `image` component (#81) with the authority of
+    /// `action`, the session's handler, read now: a resource from the
+    /// Plugin's own package, or an HTTPS address its Command may contact,
+    /// under the same `contact_https` grant and hosts as its own requests.
+    /// An Image Source grants nothing of its own.
+    public func loadPageImage(_ source: PluginImageSource, for action: ActionConfiguration, using registry: PluginRegistry,
+                              cancellation: HostFetchedSections.Cancellation) throws -> Data {
+        guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
+            throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+        }
+        switch source {
+        case .resource(let path):
+            return try PluginPackageResource.read(path, in: package.rootURL)
+        case .url(let url):
+            try authorize(.httpsRequest, for: package, action: action)
+            var performer = try httpsPerformer(for: package)
+            performer.timeout = PageImageBudgets.loadDeadline
+            performer.isCancelled = { cancellation.isCancelled }
+            do {
+                return try performer.fetchImage(url, maximumBytes: PageImageBudgets.maximumImageBytes)
+            } catch PluginHostServiceError.capabilityDenied(.contactHTTPS) {
+                throw PluginHostServiceError.failed(
+                    "\(package.manifest.name) may not contact \(source.host ?? "this host") until it is allowed in its Plugin Settings")
+            }
+        }
+    }
+
     /// Performs an `https_request` input the Host sends for a view.
     /// Asking the same question twice, such as translating the same text
     /// again, is answered from the last answer when the Plugin allows it;

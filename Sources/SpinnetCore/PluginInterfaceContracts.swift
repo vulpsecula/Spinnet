@@ -233,6 +233,9 @@ public struct PluginInterfaceContracts: Equatable {
     public static let levelTwoMembers: Set<PluginInterfaceMember> = Set(
         HostServiceCatalogue.promoted.members + HostOperationsContract.promoted.members
             + CollectionsContract.promoted.members
+            // Appended while Level 2 is open (#81): styles, columns, icons,
+            // images and progress.
+            + PagePresentation.members
     )
 
     /// Every Candidate Contract revision this Host provided before Level 2,

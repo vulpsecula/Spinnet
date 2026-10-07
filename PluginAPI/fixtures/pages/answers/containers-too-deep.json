@@ -1,0 +1,37 @@
+{
+  "page": {
+    "id": "deep",
+    "title": "Deep",
+    "content": [
+      {
+        "kind": "row",
+        "id": "r1",
+        "content": [
+          {
+            "kind": "column",
+            "id": "c1",
+            "content": [
+              {
+                "kind": "row",
+                "id": "r2",
+                "content": [
+                  {
+                    "kind": "column",
+                    "id": "c2",
+                    "content": [
+                      {
+                        "kind": "text",
+                        "id": "t",
+                        "text": "x"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -49,7 +49,9 @@ public enum CollectionsContract {
         "repeated_calls_into_session", "collection_window", "toggle_item_actions", "performed_action_outcomes"
     ]
 
-    public static let componentKinds = PluginPageComponent.Kind.allCases.map(\.rawValue)
+    /// The component kinds revision 3 published. Kinds appended to Level 2
+    /// later belong to their own addition, such as `PagePresentation`.
+    public static let componentKinds = ["row", "text_field", "choice_field", "text", "actions", "list", "grid"]
     /// The View Events pages add.
     public static let events = ["item_action", "load_range", "called"]
 
@@ -168,11 +170,8 @@ public struct PluginPage: Equatable {
         }
         content = try Self.array(members["content"] ?? .null, "The page \(id)'s content", minimum: 1,
                                  maximum: CollectionsContract.maximumComponents)
-            .map { try PluginPageComponent(parsing: $0, inRow: false, permits: permits) }
-        components = content.flatMap { component -> [PluginPageComponent] in
-            if case .row(_, let children) = component { return [component] + children }
-            return [component]
-        }
+            .map { try PluginPageComponent(parsing: $0, in: nil, depth: 0, permits: permits) }
+        components = content.flatMap(\.flattened)
         guard components.count <= CollectionsContract.maximumComponents else {
             throw Self.violation("The page \(id) has more than \(CollectionsContract.maximumComponents) components")
         }
@@ -188,10 +187,14 @@ public struct PluginPage: Equatable {
             }
         }
         var eventActions: Set<String> = []
-        for case .actions(_, let actions) in components {
-            for case .event(let action, _) in actions.map(\.kind) where !eventActions.insert(action).inserted {
+        for component in components {
+            for action in component.eventActionIDs where !eventActions.insert(action).inserted {
                 throw Self.violation("The page \(id) has two buttons with the ID \(action)")
             }
+        }
+        let images = components.filter { $0.kind == .image }.count
+        guard images <= PageImageBudgets.maximumImagesPerPage else {
+            throw Self.violation("The page \(id) has more than \(PageImageBudgets.maximumImagesPerPage) images")
         }
         focus = try members["focus"].map { try Self.identifier($0, "The page \(id)'s focus") }
         if let focus, !ids.contains(focus) {
@@ -232,13 +235,18 @@ public struct PluginPage: Equatable {
         showsInsertionTarget || collection?.actions.contains { $0.perform == "selection.replace" } == true
     }
 
-    /// The `actions` component holding the button with event ID `action`.
+    /// The component holding the event View Action `action`: an `actions`
+    /// component's button, or a `progress` component's cancel.
     public func actionsComponent(holding action: String) -> String? {
-        for case .actions(let id, let actions) in components
-        where actions.contains(where: { $0.kind == .event(action, title: $0.title) }) {
-            return id
+        components.first { $0.eventActionIDs.contains(action) }?.id
+    }
+
+    /// What the Host loads for the page's `image` components, in page order.
+    public var imageRequests: [PageImageRequest] {
+        components.compactMap { component in
+            if case .image(let image) = component { return image.request }
+            return nil
         }
-        return nil
     }
 
     // MARK: Reading members
@@ -292,32 +300,50 @@ public enum PluginPageComponent: Equatable {
         case actions
         case list
         case grid
+        // Appended to Level 2 by `PagePresentation` (#81).
+        case column
+        case icon
+        case image
+        case progress
     }
 
-    case row(id: String, content: [PluginPageComponent])
+    case row(PluginPageStack)
+    case column(PluginPageStack)
     case textField(PluginPageTextField)
     case choiceField(PluginPageChoiceField)
-    case text(id: String, title: String?, text: String)
+    case text(PluginPageText)
     case actions(id: String, actions: [PluginPageAction])
     case collection(PluginPageCollection)
+    case icon(PluginPageIcon)
+    case image(PluginPageImage)
+    case progress(PluginPageProgress)
 
     public var id: String {
         switch self {
-        case .row(let id, _), .text(let id, _, _), .actions(let id, _): return id
+        case .row(let stack), .column(let stack): return stack.id
+        case .actions(let id, _): return id
+        case .text(let text): return text.id
         case .textField(let field): return field.id
         case .choiceField(let field): return field.id
         case .collection(let collection): return collection.id
+        case .icon(let icon): return icon.id
+        case .image(let image): return image.id
+        case .progress(let progress): return progress.id
         }
     }
 
     public var kind: Kind {
         switch self {
         case .row: return .row
+        case .column: return .column
         case .textField: return .textField
         case .choiceField: return .choiceField
         case .text: return .text
         case .actions: return .actions
         case .collection(let collection): return collection.style == .grid ? .grid : .list
+        case .icon: return .icon
+        case .image: return .image
+        case .progress: return .progress
         }
     }
 
@@ -326,34 +352,76 @@ public enum PluginPageComponent: Equatable {
         return nil
     }
 
-    init(parsing value: JSONValue, inRow: Bool, permits: (PluginInterfaceMember) -> Bool) throws {
+    /// The components a row or column holds.
+    public var children: [PluginPageComponent] {
+        switch self {
+        case .row(let stack), .column(let stack): return stack.content
+        default: return []
+        }
+    }
+
+    /// This component, then everything inside it, in order.
+    var flattened: [PluginPageComponent] { [self] + children.flatMap(\.flattened) }
+
+    /// The IDs of the event View Actions it offers: an `actions` component's
+    /// buttons, a `progress` component's cancel.
+    public var eventActionIDs: [String] {
+        switch self {
+        case .actions(_, let actions):
+            return actions.compactMap { if case .event(let id, _) = $0.kind { return id } else { return nil } }
+        case .progress(let progress):
+            return progress.cancel.map { [$0.id] } ?? []
+        default:
+            return []
+        }
+    }
+
+    /// Reads one component; `container` is the row or column holding it, at
+    /// `depth` containers deep.
+    init(parsing value: JSONValue, in container: Kind?, depth: Int, permits: (PluginInterfaceMember) -> Bool) throws {
         guard case .object(let members) = value else { throw PluginPage.violation("A page component is not an object") }
         guard case .string(let kindName)? = members["kind"], let kind = Kind(rawValue: kindName) else {
             throw PluginPage.violation("A page component's kind must be one of "
-                + CollectionsContract.componentKinds.joined(separator: ", "))
+                + Kind.allCases.map(\.rawValue).joined(separator: ", "))
         }
         guard permits(.viewComponent(kind.rawValue)) else {
             throw PluginPage.violation("The \(kind.rawValue) component is not offered to this Plugin")
         }
-        if inRow, kind == .row || kind == .list || kind == .grid {
-            throw PluginPage.violation("A row holds no \(kind.rawValue): only text_field, choice_field, text and actions")
+        if let container {
+            let holdsContainers = permits(.viewComponent(Kind.column.rawValue))
+            let refused = kind == container || kind == .list || kind == .grid
+                || (!holdsContainers && (kind == .row || kind == .column))
+            if refused {
+                throw PluginPage.violation(holdsContainers
+                    ? "A \(container.rawValue) holds no \(kind.rawValue): no collection, and no \(container.rawValue) directly"
+                    : "A row holds no \(kind.rawValue): only text_field, choice_field, text and actions")
+            }
+        }
+        if kind == .row || kind == .column, depth >= PagePresentation.maximumContainerDepth {
+            throw PluginPage.violation("Rows and columns nest at most \(PagePresentation.maximumContainerDepth) deep")
         }
         switch kind {
-        case .row:
-            let fields = try PluginPage.object(value, "A row", allowed: ["kind", "id", "content"])
-            let id = try PluginPage.identifier(fields["id"], "A row's id")
-            self = .row(id: id, content: try PluginPage.array(fields["content"] ?? .null, "The row \(id)'s content", minimum: 1,
-                                                              maximum: CollectionsContract.maximumRowChildren)
-                .map { try PluginPageComponent(parsing: $0, inRow: true, permits: permits) })
+        case .row, .column:
+            let fields = try PluginPage.object(value, "A \(kind.rawValue)", allowed: ["kind", "id", "content", "style"])
+            let id = try PluginPage.identifier(fields["id"], "A \(kind.rawValue)'s id")
+            let maximum = kind == .row ? CollectionsContract.maximumRowChildren : PagePresentation.maximumColumnChildren
+            let content = try PluginPage.array(fields["content"] ?? .null, "The \(kind.rawValue) \(id)'s content", minimum: 1,
+                                               maximum: maximum)
+                .map { try PluginPageComponent(parsing: $0, in: kind, depth: depth + 1, permits: permits) }
+            let stack = PluginPageStack(id: id, axis: kind == .row ? .horizontal : .vertical, content: content,
+                                        style: try PluginPageStyle.parse(fields, kind: kind.rawValue, id: id, permits: permits))
+            self = kind == .row ? .row(stack) : .column(stack)
         case .textField:
             self = .textField(try PluginPageTextField(parsing: value))
         case .choiceField:
             self = .choiceField(try PluginPageChoiceField(parsing: value))
         case .text:
-            let fields = try PluginPage.object(value, "A text component", allowed: ["kind", "id", "title", "text"])
+            let fields = try PluginPage.object(value, "A text component", allowed: ["kind", "id", "title", "text", "style"])
             let id = try PluginPage.identifier(fields["id"], "A text component's id")
-            self = .text(id: id, title: try fields["title"].map { try PluginPage.text($0, "The text \(id)'s title") },
-                         text: try PluginPage.text(fields["text"], "The text \(id)'s text", allowsBlank: true))
+            self = .text(PluginPageText(
+                id: id, title: try fields["title"].map { try PluginPage.text($0, "The text \(id)'s title") },
+                text: try PluginPage.text(fields["text"], "The text \(id)'s text", allowsBlank: true),
+                style: try PluginPageStyle.parse(fields, kind: "text", id: id, permits: permits)))
         case .actions:
             let fields = try PluginPage.object(value, "An actions component", allowed: ["kind", "id", "actions"])
             let id = try PluginPage.identifier(fields["id"], "An actions component's id")
@@ -362,6 +430,15 @@ public enum PluginPageComponent: Equatable {
                 .map { try PluginPageAction(parsing: $0, permits: permits) })
         case .list, .grid:
             self = .collection(try PluginPageCollection(parsing: value, style: kind == .grid ? .grid : .list, permits: permits))
+        case .icon:
+            self = .icon(try PluginPageIcon(parsing: value, permits: permits))
+        case .image:
+            guard permits(PagePresentation.hostLoadedImages) else {
+                throw PluginPage.violation("The image component is not offered to this Plugin")
+            }
+            self = .image(try PluginPageImage(parsing: value, permits: permits))
+        case .progress:
+            self = .progress(try PluginPageProgress(parsing: value, permits: permits))
         }
     }
 }
@@ -538,7 +615,8 @@ public struct PluginPageCollection: Equatable {
         for case let mark? in actions.map(\.toggle) where !marks.insert(mark).inserted {
             throw PluginPage.violation("The \(kind) \(id) has two item actions toggling the mark \(mark)")
         }
-        let offering = PluginPageItem.Offering(actions: actionIDs, marks: marks, allowsMarks: permits(CollectionsContract.toggleItemActions))
+        let offering = PluginPageItem.Offering(actions: actionIDs, marks: marks, allowsMarks: permits(CollectionsContract.toggleItemActions),
+                                               allowsIcons: permits(PagePresentation.itemIcons))
         isWindowed = members["total"] != nil
         if isWindowed {
             let total = try PluginPage.integer(members["total"], "The \(kind) \(id)'s total",
@@ -720,6 +798,7 @@ public struct PluginPageItem: Equatable, Identifiable {
         let actions: Set<String>
         let marks: Set<String>
         let allowsMarks: Bool
+        let allowsIcons: Bool
     }
 
     public let id: String
@@ -727,6 +806,9 @@ public struct PluginPageItem: Equatable, Identifiable {
     public let subtitle: String?
     public let symbol: String?
     public let accessory: String?
+    /// A system symbol drawn as its leading icon, or a grid cell's content;
+    /// an item has a `symbol` or an `icon`, not both.
+    public let icon: PluginPageSymbol?
     public let text: String?
     /// The item actions it offers by ID; all of the collection's when nil.
     public let actions: [String]?
@@ -735,12 +817,13 @@ public struct PluginPageItem: Equatable, Identifiable {
     public let marks: [String]
 
     public init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, accessory: String? = nil,
-                text: String? = nil, actions: [String]? = nil, marks: [String] = []) {
+                text: String? = nil, actions: [String]? = nil, marks: [String] = [], icon: PluginPageSymbol? = nil) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
         self.accessory = accessory
+        self.icon = icon
         self.text = text
         self.actions = actions
         self.marks = marks
@@ -749,6 +832,7 @@ public struct PluginPageItem: Equatable, Identifiable {
     init(parsing value: JSONValue, offering declared: Offering) throws {
         var allowed: Set<String> = ["id", "title", "subtitle", "symbol", "accessory", "text", "actions"]
         if declared.allowsMarks { allowed.insert("marks") }
+        if declared.allowsIcons { allowed.insert("icon") }
         let members = try PluginPage.object(value, "An item", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "An item's id")
         self.id = id
@@ -764,6 +848,10 @@ public struct PluginPageItem: Equatable, Identifiable {
         }
         text = try members["text"].map {
             try PluginPage.text($0, "The item \(id)'s text", allowsBlank: true, maximum: CollectionsContract.maximumItemTextLength)
+        }
+        icon = try members["icon"].map { try PluginPageSymbol(parsing: $0, "The item \(id)'s icon") }
+        if icon != nil, symbol != nil {
+            throw PluginPage.violation("The item \(id) has both a symbol and an icon; it shows one")
         }
         if let listed = members["actions"] {
             let names = try PluginPage.array(listed, "The item \(id)'s actions", maximum: CollectionsContract.maximumItemActions)

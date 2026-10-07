@@ -1,0 +1,40 @@
+{
+  "page": {
+    "id": "packages",
+    "title": "Homebrew",
+    "content": [
+      {
+        "kind": "list",
+        "id": "packages",
+        "rows": 8,
+        "items": [
+          {
+            "id": "formula:ffmpeg",
+            "title": "ffmpeg",
+            "subtitle": "Play, record and convert media",
+            "accessory": "Outdated",
+            "icon": {
+              "symbol": "shippingbox"
+            }
+          },
+          {
+            "id": "cask:firefox",
+            "title": "firefox",
+            "subtitle": "Web browser",
+            "accessory": "131.0",
+            "icon": {
+              "symbol": "macwindow"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "id": "details",
+            "title": "Show Details",
+            "default": true
+          }
+        ]
+      }
+    ]
+  }
+}

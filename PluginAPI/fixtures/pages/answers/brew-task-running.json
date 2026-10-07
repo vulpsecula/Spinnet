@@ -1,0 +1,52 @@
+{
+  "page": {
+    "id": "task:ffmpeg",
+    "title": "Upgrade ffmpeg",
+    "content": [
+      {
+        "kind": "progress",
+        "id": "task",
+        "title": "Upgrading ffmpeg",
+        "stages": [
+          {
+            "id": "download",
+            "title": "Download"
+          },
+          {
+            "id": "pour",
+            "title": "Pour"
+          },
+          {
+            "id": "link",
+            "title": "Link"
+          },
+          {
+            "id": "cleanup",
+            "title": "Clean Up"
+          }
+        ],
+        "stage": "pour",
+        "state": "running",
+        "status": "Waiting for a reviewed task",
+        "cancel": {
+          "id": "cancel",
+          "title": "Cancel"
+        }
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "id": "back",
+            "title": "Back"
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "query": "",
+    "scope": "outdated"
+  }
+}

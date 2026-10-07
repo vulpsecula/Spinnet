@@ -58,10 +58,14 @@ page has at most 40 components and at most one collection.
 
 | `kind` | Members | What the Host draws |
 | --- | --- | --- |
-| `row` | `content`: up to 4 components | Its components side by side; no rows or collections inside |
+| `row` | `content`: up to 4 components, `style` | Its components side by side; columns inside, but no row directly and no collection |
+| `column` | `content`: up to 8 components, `style` | Its components top to bottom; no columns or collections inside |
+| `icon` | `source` `{symbol}`, `label`, `size`, `style` | A system symbol |
+| `image` | `source`, `label`, `width`, `height`, `fit`, `style` | A picture the Host loads |
+| `progress` | `title`, `value`, `status`, `stages`, `stage`, `state`, `cancel`, `style` | A task's progress |
 | `text_field` | `title`, `placeholder`, `value`, `status`, `accent`, `collection` | A one-line field; `collection` makes it that collection's search field |
 | `choice_field` | `title`, `choices`, `choice_titles`, `value` | A pop-up |
-| `text` | `title`, `text` | Text in the Markdown subset |
+| `text` | `title`, `text`, `style` | Text in the Markdown subset |
 | `actions` | `actions`: up to 8 buttons | Event buttons (`id`, `title`) and page actions |
 | `list` | collection members, `rows` (1 to 12, default 8) | Rows: `symbol`, `title`, `subtitle`, `accessory` |
 | `grid` | collection members, `columns` (2 to 12 columns, default 8), `rows` (1 to 12, default 6) | Square cells showing `symbol`, else `title` |
@@ -376,7 +380,10 @@ closesView, notify })` to the nine operations a page action may perform,
 `spinnet.ui.components` with `row`, `textField`, `choiceField`, `text`,
 `actions`, `button`, `list` and `grid` (with `total` and `start`),
 `section` (with `items`, or `count` for a header), `item` (with `marks`) and
-`itemAction` (with `toggle` and `notify`), `ui.page(options)` and
+`itemAction` (with `toggle` and `notify`), and since #81 `column`, `icon`,
+`image` and `progress`, a `style` option on `text`, `row`, `column`,
+`icon`, `image` and `progress` (camel-case members such as `fontSize` and
+`cornerRadius`), and `icon` on `item`, `ui.page(options)` and
 `ui.showPage(page, { state, toast, operation })`. Camel-case options become
 snake-case members. The builders ask the Host for nothing; the Host checks
 the answer.
@@ -398,14 +405,168 @@ does; it performs page and item actions with the outcomes the test records
 the view closed, to a viewless run (`afterClose`). It applies
 each answer through the same page memory the Host uses, so a test sees what
 the Host keeps, and records what the Host performs for page and item actions.
+`click(_:)` also presses a `progress` component's cancel by its ID or
+title, only while the Host would draw it. `images(consentedHosts:)` tells,
+by component ID, what each `image` would show without the network: a
+package resource read and decoded within the Host's bounds, or for an HTTPS
+source `.loading` when the handler's Command could fetch it once
+`contact_https` is granted and `.failed` with the reason the Host would
+show when it could not.
 `call(_:input:)` calls an Action of the Plugin into the open session, by
 default the handler's own: as `called` for a Level 2 Plugin, with
 `handler` following the rules above, and as a restart for a Level 1
 Plugin.
 
+## Styles, images and progress
+
+Appended to Level 2 by #81 while it is open, so a Plugin pinned to an
+earlier commit of Level 2 lacks them: Component Styles, `column`, `icon`,
+`image`, `progress` and an item's `icon`. They compose displays such as a
+track (artwork beside its title, artist and position), metric cards
+(icon, large value, bar) or a package task (stages and a cancel);
+[`fixtures/pages/`](../fixtures/pages/index.json) holds the three.
+
+```js
+c.row({ id: "now", content: [
+  c.image({ id: "artwork", label: "Artwork of " + album, width: 96, height: 96, fit: "fill",
+            source: { url: artworkURL }, style: { cornerRadius: 6 } }),
+  c.column({ id: "info", content: [
+    c.text({ id: "title", text: title, style: { fontSize: 17, fontWeight: "semibold" } }),
+    c.text({ id: "artist", text: artist, style: { color: "secondary" } }),
+    c.progress({ id: "position", title: "Position", value: position / duration, style: { color: "#1DB954" } })
+  ] })
+] })
+```
+
+### Layout
+
+A `column` lays up to 8 components top to bottom, as a `row` lays up to 4
+side by side. A row may hold columns and a column rows, never one of its own
+kind directly and never a collection; rows and columns nest at most 3 deep
+(a row in a column in a row). Every component inside counts toward the
+page's 40.
+
+### Component Styles
+
+A `style` belongs to the component that carries it: nothing inherits it, and
+the Host's fields, choice fields, buttons, Collections, header, target line
+and focus rings keep their native look. Each kind takes these members:
+
+| Member | Kinds | Values |
+| --- | --- | --- |
+| `color` | `text`, `icon`, `progress` | A colour |
+| `background` | `text`, `row`, `column`, `image` | A colour |
+| `font_size` | `text` | 9 to 40 points at the default text size, scaled as the Host scales body text |
+| `font_weight` | `text` | `regular`, `medium`, `semibold`, `bold` |
+| `monospaced_digits` | `text` | `true` keeps changing numbers from shifting |
+| `padding` | `text`, `row`, `column` | 0 to 24 points inside the background |
+| `corner_radius` | `text`, `row`, `column`, `image` | 0 to 16 points |
+
+A **colour** is `"#RRGGBB"` or `"#RRGGBBAA"` in sRGB, which the Plugin
+chooses and the Host draws as given in both appearances; a named colour,
+`primary`, `secondary`, `tertiary`, `accent`, `blue`, `indigo`, `purple`,
+`pink`, `red`, `orange`, `yellow`, `green`, `teal` or `gray`, which follows
+light and dark appearance and Increase Contrast; or `{"light": colour,
+"dark": colour}` for one of each. Contrast against the background a custom
+colour sits on is the Plugin's to keep.
+
+### Icons
+
+An `icon` is a system symbol by its SF Symbols name, `{"symbol": "cpu"}`, at
+`size` points (10 to 64, default 16, scaled with the text), tinted by its
+style's `color` (default `secondary`). With a `label` VoiceOver reads it;
+without one it is decoration. An item of a list or grid may carry `icon` in
+the same form, drawn as its row's leading icon, or as its grid cell when it
+has no `symbol`; an item has a `symbol` or an `icon`, not both. A name the
+running macOS lacks draws nothing in its place. A symbol needs no loading
+and no Capability.
+
+### Images
+
+An `image` shows a picture the Host loads from its **Image Source** into a
+frame of `width` × `height` points (16 to 412 each), which it keeps while
+the picture loads and if it fails, so the page does not move; `fit` is
+`fit` (the whole picture, the default) or `fill` (cropped to the frame), and
+`label` is what VoiceOver reads. A page has at most 8 images.
+
+| Source | Loaded from | Authority |
+| --- | --- | --- |
+| `{"resource": "artwork/cover.png"}` | A `.png`, `.jpg` or `.jpeg` file inside the package, by relative path without `.` or `..` parts; links are followed only while they stay inside the package | None needed |
+| `{"url": "https://..."}` | An `https` address without user, password, port or fragment | The session's handler's own `contact_https`: the Capability granted for its Command, and a host it declares or the user added, redirects included |
+
+An Image Source grants nothing of its own: an HTTPS picture is fetched only
+as the handler's own `http.request` could reach it, read again for every
+picture, as a GET with no header of the Plugin's, no Credential Use and no
+cookie, and its bytes never reach the script. A picture loaded under one
+Command's authority is not shown for a handler of another Command without
+loading it again. Whether HTTPS pictures should need a grant of their own is
+an open question (#81); today they need exactly the request authority.
+
+The Host decodes only PNG and JPEG, of at most 1 MiB (1,048,576 bytes), at
+most 4,194,304 pixels and at most 4,096 pixels on a side, scaled down as it
+decodes to twice the frame's points, so the full-size bitmap is never held.
+It loads at most 4 pictures at once for every Plugin together, the others
+waiting their turn, gives each network load 15 seconds, redirects included,
+as a Host-Fetched Section's, and keeps at most 16 MiB of decoded pictures
+for every open View Session together, letting the least recently shown go
+first.
+
+While a picture loads its frame shows a placeholder. A failed one (refused,
+too large, not an image, unreachable) shows why and a **Try Again** button,
+and the page stays; an answer that names the same source does not retry it,
+another source loads afresh. An answer that names a picture already shown
+loads nothing. Closing the view, revoking a Capability, or updating,
+disabling or removing the Plugin ends the session, which cancels its loads,
+drops what arrives later and lets its pictures go.
+
+Measured on an M1 Pro under load (`docs/research/page-image-measurements.md`
+in the Host repository): decoding a 640 × 640 JPEG to 192 pixels takes about
+3 ms and a 2048 × 2048 PNG about 51 ms; a 4096 × 4096 PNG, which the pixel
+bound refuses, about 211 ms. A decoded 412-point picture at twice its size
+holds about 2.6 MiB, so the cache holds about six of those, or about 110
+pieces of 96-point artwork.
+
+### Progress
+
+A `progress` shows how a task the Plugin describes is going, as the Plugin
+answers it; the Host runs nothing.
+
+- `value`, from 0 to 1, is a fraction the Plugin knows, such as a track's
+  position or a disk's capacity used; without it the bar is indeterminate.
+  The Host never derives a value, from the stages or anything else, so a
+  task whose steps report no fraction, such as a package install, shows no
+  percentage.
+- `stages` (2 to 8 of `{id, title}`) name the steps and `stage` the one under
+  way: those before it are done, those after it to come.
+- `state` is `running` (the default), `cancelling`, `succeeded`, `failed` or
+  `cancelled`. A failed or cancelled task stops at its stage.
+- `status` is a line of up to 256 characters, such as what the step is doing.
+- `cancel`, `{id, title?}` (title default "Cancel"), is a View Action the
+  Host draws only while the state is `running`: it sends `action_chosen`
+  with its `id`, which is unique among the page's buttons, so the Plugin can
+  attempt to cancel. While the state is `cancelling` the Host shows it
+  disabled as "Cancelling…". Cancelling never means anything is undone.
+
+The bar and the stage under way use the system's own progress indicators
+and their animation; a Plugin defines no animation. VoiceOver reads the
+title, the stage under way ("Pour, stage 2 of 4"), the status, and the
+value as a percentage only when the Plugin gave one, else "In progress".
+
+### Immediate state
+
+Icons, images and progress keep no Immediate State; they are drawn from each
+answer. A picture whose source and frame are unchanged is not loaded again,
+and an indeterminate bar keeps running across answers to the same page, so a
+refresh of a track or metric does not flash.
+
+### Not included
+
+Style objects reused by name and inheritance, images in items, images the
+script produces, Canvas, video and custom continuous animation.
+
 ## Not in Level 2
 
-Images, styles and Progress (#81), Host-run sources (#71), multiline, URL and
+Host-run sources (#71), multiline, URL and
 toggle fields, a total over 2,000 items, Host-side sorting of a window, setting controls and Host-Fetched Sections in pages, multiple
 selection, selection-change events, focus requests, Host-side filtering,
 dirty drafts, page stacks and local dialogs. A Plugin that needs a Level 1
@@ -425,4 +586,8 @@ its script starts, and typing against the
 150 ms (warm) and 300 ms (cold) p95 targets, as in Level 1. A Host holds
 at most 40 components per page, 2,000 items per collection (given in one
 answer, or as its `total`), 600 items in a collection's window, and 4 pages
-in page memory. A `load_range` asks for at most 600 positions.
+in page memory. A `load_range` asks for at most 600 positions. Since #81 a
+column holds at most 8 components, rows and columns nest at most 3 deep, a
+page has at most 8 images, and the Host decodes a picture of at most 1 MiB,
+4,194,304 pixels and 4,096 pixels on a side, loads at most 4 at once and
+keeps at most 16 MiB decoded.
