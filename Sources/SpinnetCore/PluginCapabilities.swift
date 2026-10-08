@@ -1081,21 +1081,30 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The Plugin is no longer active")
         }
         try authorize(.httpsRequest, for: package, action: action)
-        var performer = try httpsPerformer(for: package)
-        performer.timeout = ScriptedActionBudgets.hostFetchedSectionDeadline
-        performer.isCancelled = { cancellation.isCancelled }
+        let performer = try httpsPerformer(for: package, timeout: ScriptedActionBudgets.hostFetchedSectionDeadline,
+                                           cancellation: cancellation)
+        var destination: URL?
+        if case .object(let fields) = request.request, case .string(let address)? = fields["url"] {
+            destination = URL(string: address)
+        }
+        return try namingTheRefusedHost(of: destination, for: package) {
+            try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
+                                       performer: performer)
+        }
+    }
+
+    /// Runs `send`; when its destination is outside the consented hosts,
+    /// though the grant stood a moment ago, it is a host the user never
+    /// allowed, such as a self-hosted endpoint, and the refusal names it.
+    private func namingTheRefusedHost<T>(of destination: URL?, for package: PluginPackage,
+                                         _ send: () throws -> T) throws -> T {
         do {
-            return try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
-                                              performer: performer)
+            return try send()
         } catch PluginHostServiceError.capabilityDenied(.contactHTTPS) {
-            // The grant stood a moment ago, so it is this host the user never
-            // allowed, such as a self-hosted endpoint; the section says which.
-            guard case .object(let fields) = request.request, case .string(let address)? = fields["url"],
-                  let url = URL(string: address), let host = HTTPSDestination.host(of: url) else {
+            guard let host = destination.flatMap(HTTPSDestination.host(of:)) else {
                 throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
             }
-            throw PluginHostServiceError.failed(
-                "\(package.manifest.name) may not contact \(host) until it is allowed in its Plugin Settings")
+            throw PluginHostServiceError.failed(package.manifest.refusalToContact(host))
         }
     }
 
@@ -1114,14 +1123,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             return try PluginPackageResource.read(path, in: package.rootURL)
         case .url(let url):
             try authorize(.httpsRequest, for: package, action: action)
-            var performer = try httpsPerformer(for: package)
-            performer.timeout = PageImageBudgets.loadDeadline
-            performer.isCancelled = { cancellation.isCancelled }
-            do {
-                return try performer.fetchImage(url, maximumBytes: PageImageBudgets.maximumImageBytes)
-            } catch PluginHostServiceError.capabilityDenied(.contactHTTPS) {
-                throw PluginHostServiceError.failed(
-                    "\(package.manifest.name) may not contact \(source.host ?? "this host") until it is allowed in its Plugin Settings")
+            let performer = try httpsPerformer(for: package, timeout: PageImageBudgets.loadDeadline,
+                                               cancellation: cancellation)
+            return try namingTheRefusedHost(of: url, for: package) {
+                try performer.fetchImage(url, maximumBytes: PageImageBudgets.maximumImageBytes)
             }
         }
     }
@@ -1183,23 +1188,24 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     /// A performer for the Plugin's declared hosts plus those the user
     /// consented to, read from the grant each time so a change applies at once.
-    private func httpsPerformer(for package: PluginPackage) throws -> PluginHTTPSRequestPerformer {
+    private func httpsPerformer(
+        for package: PluginPackage, timeout: TimeInterval = HTTPSRequestBudgets.timeout,
+        cancellation: HostFetchedSections.Cancellation = .init()
+    ) throws -> PluginHTTPSRequestPerformer {
         guard let httpsTransport else {
             throw PluginHostServiceError.unavailable("HTTPS transport")
         }
-        let hosts = package.manifest.scope(for: .contactHTTPS).map { declared in
-            declared.withConsentedHTTPSHosts(grantStore.consentedHTTPSHosts(
-                for: package.manifest.id, pluginVersion: package.manifest.version, declaredScope: declared
-            )).contactableHTTPSHosts
-        } ?? []
         let pluginID = package.manifest.id
-        return PluginHTTPSRequestPerformer(
+        var performer = PluginHTTPSRequestPerformer(
             transport: httpsTransport,
-            consentedHosts: hosts,
+            consentedHosts: package.manifest.contactableHTTPSHosts(in: grantStore),
             credential: { [credentialStore] reference in
                 try credentialStore?.secret(for: pluginID, reference: reference)
             }
         )
+        performer.timeout = timeout
+        performer.cancellation = cancellation
+        return performer
     }
 
     /// Filesystem errors can contain the private archive or payload URL.

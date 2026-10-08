@@ -293,16 +293,47 @@ struct FetchedAnswer: Equatable {
 /// there, and only the sends run elsewhere, on `background`.
 public final class HostFetchedSections {
     /// Tells a send it is no longer wanted: its view closed, the section
-    /// changed, or its budget ran out. A send checks it before each hop.
+    /// changed, or its budget ran out. A send checks it before each hop, and
+    /// the transport stops the transfer under way when it is cancelled.
     public final class Cancellation {
         private let lock = NSLock()
         private var cancelled = false
+        private var handlers: [Int: () -> Void] = [:]
+        private var nextHandler = 0
 
         public init() {}
 
         public var isCancelled: Bool { lock.withLock { cancelled } }
 
-        public func cancel() { lock.withLock { cancelled = true } }
+        public func cancel() {
+            let waiting = lock.withLock { () -> [() -> Void] in
+                guard !cancelled else { return [] }
+                cancelled = true
+                defer { handlers.removeAll() }
+                return Array(handlers.values)
+            }
+            for handler in waiting { handler() }
+        }
+
+        /// Calls `handler` once, on the cancelling thread, when this is
+        /// cancelled, or at once if it already is. The returned closure
+        /// forgets `handler` when the work it would stop has finished.
+        public func onCancel(_ handler: @escaping () -> Void) -> () -> Void {
+            let registered = lock.withLock { () -> Int? in
+                guard !cancelled else { return nil }
+                nextHandler += 1
+                handlers[nextHandler] = handler
+                return nextHandler
+            }
+            guard let registered else {
+                handler()
+                return {}
+            }
+            return { [weak self] in
+                guard let self else { return }
+                _ = self.lock.withLock { self.handlers.removeValue(forKey: registered) }
+            }
+        }
     }
 
     /// Sends one section's request with the current authority of the

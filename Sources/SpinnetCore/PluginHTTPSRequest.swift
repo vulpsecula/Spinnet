@@ -91,6 +91,8 @@ public enum HTTPSTransportError: Error, Equatable {
     case connectionFailed
     case timedOut
     case responseTooLarge
+    /// The request was cancelled before it finished.
+    case cancelled
 }
 
 /// The seam between the Host's HTTPS policy and the network. A transport
@@ -99,6 +101,21 @@ public enum HTTPSTransportError: Error, Equatable {
 /// credentials between requests. Tests use a deterministic transport.
 public protocol HTTPSTransport {
     func send(_ request: HTTPSTransportRequest) throws -> HTTPSTransportResponse
+    /// Sends `request` and, once `cancellation` is cancelled, stops the
+    /// transfer and throws `HTTPSTransportError.cancelled` instead of
+    /// waiting for it, so a request no one wants holds nothing. A transport
+    /// that answers at once may leave this to the default, which only
+    /// refuses to start a cancelled request.
+    func send(_ request: HTTPSTransportRequest,
+              cancellation: HostFetchedSections.Cancellation) throws -> HTTPSTransportResponse
+}
+
+public extension HTTPSTransport {
+    func send(_ request: HTTPSTransportRequest,
+              cancellation: HostFetchedSections.Cancellation) throws -> HTTPSTransportResponse {
+        guard !cancellation.isCancelled else { throw HTTPSTransportError.cancelled }
+        return try send(request)
+    }
 }
 
 /// Validates one `https_request` input and performs it within the consented
@@ -115,8 +132,9 @@ struct PluginHTTPSRequestPerformer {
     /// Host-Fetched Section has its own.
     var timeout: TimeInterval = HTTPSRequestBudgets.timeout
     /// Whether whoever asked for the request still wants it. Checked before
-    /// each hop, so a cancelled request follows no further redirect.
-    var isCancelled: () -> Bool = { false }
+    /// each hop, so a cancelled request follows no further redirect, and
+    /// handed to the transport, which stops the hop under way.
+    var cancellation = HostFetchedSections.Cancellation()
 
     /// A request whose shape, destination, headers, and Credential Uses have
     /// been checked, before any secret is looked up or anything is sent.
@@ -184,53 +202,18 @@ struct PluginHTTPSRequestPerformer {
             try use.apply(use.value(with: secret), to: &credentialed)
         }
 
-        let deadline = now() + timeout
         let originalHost = plain.url.host?.lowercased()
-        var current = credentialed.url
-        var currentMethod = plain.method
-        var keepsBody = true
-        var redirects = 0
-        while true {
+        let response = try sendFollowingRedirects(
+            credentialed.url, method: plain.method, maximumResponseBytes: HTTPSRequestBudgets.maximumResponseBodyBytes,
+            wording: .request
+        ) { url, keepsBody in
             // A redirect to another host gets the request without any
             // credential: no placed header, and the body as the Plugin wrote it.
-            let isOriginalHost = current.host?.lowercased() == originalHost
-            let sent = isOriginalHost ? credentialed.headers : plain.headers
+            let isOriginalHost = url.host?.lowercased() == originalHost
             let body = keepsBody ? (isOriginalHost ? credentialed.body : plain.body) : nil
-            guard !isCancelled() else { throw PluginHostServiceError.failed("The request was cancelled") }
-            let remaining = deadline - now()
-            guard remaining > 0 else { throw PluginHostServiceError.failed("The request timed out") }
-            let response: HTTPSTransportResponse
-            do {
-                response = try transport.send(HTTPSTransportRequest(
-                    method: currentMethod, url: current, headers: sent, body: body,
-                    timeout: remaining, maximumResponseBytes: HTTPSRequestBudgets.maximumResponseBodyBytes
-                ))
-            } catch HTTPSTransportError.timedOut {
-                throw PluginHostServiceError.failed("The request timed out")
-            } catch HTTPSTransportError.responseTooLarge {
-                throw Self.responseTooLarge
-            } catch {
-                // Transport errors can quote the request; none of it is passed on.
-                throw PluginHostServiceError.failed("The request to \(current.host ?? "the host") failed")
-            }
-            if [301, 302, 303, 307, 308].contains(response.status), let location = response.headers["location"] {
-                redirects += 1
-                guard redirects <= HTTPSRequestBudgets.maximumRedirects else {
-                    throw PluginHostServiceError.failed("Too many redirects")
-                }
-                guard let next = URL(string: location, relativeTo: current)?.absoluteURL else {
-                    throw PluginHostServiceError.failed("The server sent an invalid redirect")
-                }
-                try requireConsented(next, isRedirect: true)
-                if response.status == 303 || (currentMethod == "POST" && [301, 302].contains(response.status)) {
-                    currentMethod = "GET"
-                    keepsBody = false
-                }
-                current = next
-                continue
-            }
-            return try result(for: response)
+            return (isOriginalHost ? credentialed.headers : plain.headers, body)
         }
+        return try result(for: response)
     }
 
     /// Fetches the picture of an `image` component (#81): a GET of `url`,
@@ -240,49 +223,96 @@ struct PluginHTTPSRequestPerformer {
     /// back; they are binary, so they never reach the script.
     func fetchImage(_ url: URL, maximumBytes: Int) throws -> Data {
         try requireConsented(url, isRedirect: false)
-        let deadline = now() + timeout
-        var current = url
-        var redirects = 0
-        while true {
-            guard !isCancelled() else { throw PluginHostServiceError.failed("The image was cancelled") }
-            let remaining = deadline - now()
-            guard remaining > 0 else { throw PluginHostServiceError.failed("The image timed out") }
-            let response: HTTPSTransportResponse
-            do {
-                response = try transport.send(HTTPSTransportRequest(
-                    method: "GET", url: current, headers: ["Accept": "image/png, image/jpeg"], body: nil,
-                    timeout: remaining, maximumResponseBytes: maximumBytes
-                ))
-            } catch HTTPSTransportError.timedOut {
-                throw PluginHostServiceError.failed("The image timed out")
-            } catch HTTPSTransportError.responseTooLarge {
-                throw PluginHostServiceError.failed("The image exceeds \(maximumBytes) bytes")
-            } catch {
-                throw PluginHostServiceError.failed("The image from \(current.host ?? "the host") could not be loaded")
-            }
-            if [301, 302, 303, 307, 308].contains(response.status), let location = response.headers["location"] {
-                redirects += 1
-                guard redirects <= HTTPSRequestBudgets.maximumRedirects else {
-                    throw PluginHostServiceError.failed("Too many redirects")
-                }
-                guard let next = URL(string: location, relativeTo: current)?.absoluteURL else {
-                    throw PluginHostServiceError.failed("The server sent an invalid redirect")
-                }
-                try requireConsented(next, isRedirect: true)
-                current = next
-                continue
-            }
-            guard (200..<300).contains(response.status) else {
-                throw PluginHostServiceError.failed("The image's server answered \(response.status)")
-            }
-            guard response.body.count <= maximumBytes else {
-                throw PluginHostServiceError.failed("The image exceeds \(maximumBytes) bytes")
-            }
-            return response.body
+        let response = try sendFollowingRedirects(url, method: "GET", maximumResponseBytes: maximumBytes,
+                                                  wording: .image(maximumBytes: maximumBytes)) { _, _ in
+            (["Accept": "image/png, image/jpeg"], nil)
+        }
+        guard (200..<300).contains(response.status) else {
+            throw PluginHostServiceError.failed("The image's server answered \(response.status)")
+        }
+        guard response.body.count <= maximumBytes else { throw Wording.image(maximumBytes: maximumBytes).tooLarge }
+        return response.body
+    }
+
+    /// How a failed hop is put, in terms of a script's request or of a
+    /// picture.
+    private struct Wording {
+        let cancelled: PluginHostServiceError
+        let timedOut: PluginHostServiceError
+        let tooLarge: PluginHostServiceError
+        let failed: (_ host: String) -> PluginHostServiceError
+
+        static let request = Wording(
+            cancelled: .failed("The request was cancelled"), timedOut: .failed("The request timed out"),
+            tooLarge: PluginHTTPSRequestPerformer.responseTooLarge,
+            // Transport errors can quote the request; none of it is passed on.
+            failed: { .failed("The request to \($0) failed") }
+        )
+
+        static func image(maximumBytes: Int) -> Wording {
+            Wording(cancelled: .failed("The image was cancelled"), timedOut: .failed("The image timed out"),
+                    tooLarge: .failed("The image exceeds \(maximumBytes) bytes"),
+                    failed: { .failed("The image from \($0) could not be loaded") })
         }
     }
 
-    private static let responseTooLarge = PluginHostServiceError.failed(
+    /// Sends a request to `url`, whose destination the caller checked, and
+    /// follows its redirects, each to a consented https host, at most
+    /// `HTTPSRequestBudgets.maximumRedirects`, all within `timeout`. Before
+    /// each hop it stops if the request was cancelled, and a cancellation
+    /// stops the hop under way. `hop` gives each hop's headers and body for
+    /// its address and whether a body is still sent: a 303, or a 301 or 302
+    /// after a POST, turns the request into a GET without one. It returns
+    /// the first response that is not a redirect.
+    private func sendFollowingRedirects(
+        _ url: URL, method: String, maximumResponseBytes: Int, wording: Wording,
+        hop: (_ url: URL, _ keepsBody: Bool) -> (headers: [String: String], body: Data?)
+    ) throws -> HTTPSTransportResponse {
+        let deadline = now() + timeout
+        var current = url
+        var currentMethod = method
+        var keepsBody = true
+        var redirects = 0
+        while true {
+            guard !cancellation.isCancelled else { throw wording.cancelled }
+            let remaining = deadline - now()
+            guard remaining > 0 else { throw wording.timedOut }
+            let (headers, body) = hop(current, keepsBody)
+            let response: HTTPSTransportResponse
+            do {
+                response = try transport.send(HTTPSTransportRequest(
+                    method: currentMethod, url: current, headers: headers, body: body,
+                    timeout: remaining, maximumResponseBytes: maximumResponseBytes
+                ), cancellation: cancellation)
+            } catch HTTPSTransportError.timedOut {
+                throw wording.timedOut
+            } catch HTTPSTransportError.responseTooLarge {
+                throw wording.tooLarge
+            } catch HTTPSTransportError.cancelled {
+                throw wording.cancelled
+            } catch {
+                throw wording.failed(current.host ?? "the host")
+            }
+            guard [301, 302, 303, 307, 308].contains(response.status), let location = response.headers["location"] else {
+                return response
+            }
+            redirects += 1
+            guard redirects <= HTTPSRequestBudgets.maximumRedirects else {
+                throw PluginHostServiceError.failed("Too many redirects")
+            }
+            guard let next = URL(string: location, relativeTo: current)?.absoluteURL else {
+                throw PluginHostServiceError.failed("The server sent an invalid redirect")
+            }
+            try requireConsented(next, isRedirect: true)
+            if response.status == 303 || (currentMethod == "POST" && [301, 302].contains(response.status)) {
+                currentMethod = "GET"
+                keepsBody = false
+            }
+            current = next
+        }
+    }
+
+    fileprivate static let responseTooLarge = PluginHostServiceError.failed(
         "The response exceeds \(HTTPSRequestBudgets.maximumResponseBodyBytes) bytes"
     )
 

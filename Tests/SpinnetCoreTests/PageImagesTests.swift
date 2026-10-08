@@ -129,6 +129,84 @@ final class PageImageBrokerTests: XCTestCase {
         }
         XCTAssertThrowsError(try PluginPackageResource.read("../etc/x.png", in: root))
     }
+
+    /// A resource over the byte budget is refused without being read whole.
+    func testAResourceOverTheBudgetIsRefused() throws {
+        try Data(count: 64).write(to: root.appendingPathComponent("art/big.png"))
+        XCTAssertThrowsError(try PluginPackageResource.read("art/big.png", in: root, maximumBytes: 63)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .failed("The image exceeds 63 bytes"))
+        }
+        XCTAssertEqual(try PluginPackageResource.read("art/big.png", in: root, maximumBytes: 64).count, 64)
+    }
+
+    /// Cancelling a load stops its transfer at once, so the load slot it
+    /// held is free for the next picture well before the load's deadline.
+    func testACancelledLoadStopsItsTransferAndFreesItsSlot() throws {
+        let slow = StallingHTTPSTransport(stalling: "/slow.png", answer: HTTPSTransportResponse(
+            status: 200, headers: ["content-type": "image/png"], body: PageImageSamples.image(4, 4)))
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants, systemPermissionCheck: { _ in true },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            httpsTransport: slow, credentialStore: credentials, responseCache: FetchedResponseCache()
+        )
+        let registry = self.registry!
+        let images = PluginPageImages(
+            load: { action, source, cancellation in
+                try broker.loadPageImage(source, for: action, using: registry, cancellation: cancellation)
+            },
+            executor: { work in DispatchQueue.main.async(execute: work) }, maximumConcurrentLoads: 1)
+        let command = try XCTUnwrap(manifest.commands.first { $0.id.rawValue == "fetch" })
+        let action = try ActionConfiguration(id: ActionID("fetch"), pluginID: manifest.id, command: command, input: .null)
+        let stalled = PageImageRequest(source: url("https://api.example.com/slow.png"), maximumPixelSize: 8)
+        let next = PageImageRequest(source: url("https://api.example.com/next.png"), maximumPixelSize: 8)
+
+        images.present([stalled], for: manifest.id, as: action)
+        XCTAssertEqual(slow.stalled.wait(timeout: .now() + 5), .success, "The first load reached the network")
+        let loaded = expectation(description: "The next picture loads")
+        let pluginID = manifest.id
+        images.onChange = { _ in
+            if case .loaded? = images.state(of: next, for: pluginID) { loaded.fulfill() }
+        }
+        let started = Date()
+        images.present([next], for: manifest.id, as: action)
+        wait(for: [loaded], timeout: 5)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2, "Well before the 15-second load deadline")
+        XCTAssertTrue(slow.wasCancelled)
+        XCTAssertEqual(images.runningLoads, 0)
+    }
+}
+
+/// Holds one path's request until it is cancelled, or 30 seconds pass,
+/// and answers every other path at once.
+final class StallingHTTPSTransport: HTTPSTransport {
+    let stalled = DispatchSemaphore(value: 0)
+    private let path: String
+    private let response: HTTPSTransportResponse
+    private let lock = NSLock()
+    private var cancelled = false
+
+    init(stalling path: String, answer: HTTPSTransportResponse) {
+        self.path = path
+        response = answer
+    }
+
+    var wasCancelled: Bool { lock.withLock { cancelled } }
+
+    func send(_ request: HTTPSTransportRequest) throws -> HTTPSTransportResponse {
+        try send(request, cancellation: HostFetchedSections.Cancellation())
+    }
+
+    func send(_ request: HTTPSTransportRequest,
+              cancellation: HostFetchedSections.Cancellation) throws -> HTTPSTransportResponse {
+        guard request.url.path == path else { return response }
+        let stopped = DispatchSemaphore(value: 0)
+        let forget = cancellation.onCancel { stopped.signal() }
+        defer { forget() }
+        stalled.signal()
+        guard stopped.wait(timeout: .now() + 30) == .success else { throw HTTPSTransportError.timedOut }
+        lock.withLock { cancelled = true }
+        throw HTTPSTransportError.cancelled
+    }
 }
 
 final class PageImageDecoderTests: XCTestCase {
@@ -158,7 +236,7 @@ final class PluginPageImagesTests: XCTestCase {
     private var pending: [() -> Void] = []
     private var changes = 0
 
-    private func engine(maximum: Int = 2, cacheBytes: Int = PageImageBudgets.cacheBytes,
+    private func engine(maximum: Int = 2, maximumDecodedBytes: Int = PageImageBudgets.maximumDecodedBytes,
                         failing: Set<String> = []) -> PluginPageImages {
         let images = PluginPageImages(
             load: { _, source, _ in
@@ -169,7 +247,7 @@ final class PluginPageImagesTests: XCTestCase {
             },
             // Each load waits until the test lets it run.
             background: { [unowned self] work in pending.append(work) },
-            executor: { $0() }, maximumConcurrentLoads: maximum, cacheBytes: cacheBytes)
+            executor: { $0() }, maximumConcurrentLoads: maximum, maximumDecodedBytes: maximumDecodedBytes)
         images.onChange = { [unowned self] _ in changes += 1 }
         return images
     }
@@ -240,26 +318,53 @@ final class PluginPageImagesTests: XCTestCase {
         let cover = request("cover.png"), late = request("late.png")
         images.present([cover], for: plugin, as: try action())
         runPending()
-        XCTAssertGreaterThan(images.cachedBytes, 0)
+        XCTAssertGreaterThan(images.decodedBytes, 0)
         images.present([cover, late], for: plugin, as: try action())
         images.end(plugin: plugin)
-        XCTAssertEqual(images.cachedBytes, 0)
+        XCTAssertEqual(images.decodedBytes, 0)
         runPending()
         XCTAssertNil(images.state(of: late, for: plugin), "A late reply finds no page")
         XCTAssertEqual(images.runningLoads, 0)
     }
 
-    /// The kept pictures stay within the cache's bytes, the least recently
-    /// shown going first.
-    func testTheCacheStaysWithinItsBytes() throws {
+    /// Pictures no page shows are let go, the least recently shown first,
+    /// to make room for a new one.
+    func testKeptPicturesAreLetGoOldestFirst() throws {
         let one = 64 * 64 * 4
-        let images = engine(maximum: 8, cacheBytes: one * 2)
-        let requests = (0..<4).map { request("\($0).png") }
-        images.present(requests, for: plugin, as: try action())
-        runPending()
-        XCTAssertLessThanOrEqual(images.cachedBytes, one * 2)
-        images.present([], for: plugin, as: try action())
+        let images = engine(maximum: 8, maximumDecodedBytes: one * 2)
+        let requests = (0..<3).map { request("\($0).png") }
+        for request in requests {
+            images.present([request], for: plugin, as: try action())
+            runPending()
+            guard case .loaded? = images.state(of: request, for: plugin) else { return XCTFail("\(request)") }
+            XCTAssertLessThanOrEqual(images.decodedBytes, one * 2)
+        }
         images.present([requests[0]], for: plugin, as: try action())
         XCTAssertEqual(images.state(of: requests[0], for: plugin), .loading, "The oldest was let go")
+    }
+
+    /// The budget covers every decoded picture the Host holds, those the
+    /// open pages show included: a picture that would pass it fails, with
+    /// Try Again, until pictures no page shows can make room.
+    func testPicturesOnOpenPagesCountTowardTheBudget() throws {
+        let one = 64 * 64 * 4
+        let images = engine(maximum: 8, maximumDecodedBytes: one * 2)
+        let other = PluginID("com.example.other")
+        let shown = request("shown.png"), first = request("first.png"), third = request("third.png")
+        images.present([shown], for: other, as: try action())
+        runPending()
+        images.present([first, third], for: plugin, as: try action())
+        runPending()
+        XCTAssertEqual(images.decodedBytes, one * 2)
+        guard case .loaded? = images.state(of: first, for: plugin) else { return XCTFail("Not loaded") }
+        XCTAssertEqual(images.state(of: third, for: plugin), .failed(PluginPageImages.noRoom))
+
+        // The page lets the first picture go; trying again makes room.
+        images.present([third], for: plugin, as: try action())
+        images.retry(third, for: plugin, as: try action())
+        runPending()
+        guard case .loaded? = images.state(of: third, for: plugin) else { return XCTFail("No room was made") }
+        guard case .loaded? = images.state(of: shown, for: other) else { return XCTFail("A shown picture was let go") }
+        XCTAssertEqual(images.decodedBytes, one * 2)
     }
 }

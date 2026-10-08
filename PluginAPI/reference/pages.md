@@ -499,17 +499,20 @@ as the handler's own `http.request` could reach it, read again for every
 picture, as a GET with no header of the Plugin's, no Credential Use and no
 cookie, and its bytes never reach the script. A picture loaded under one
 Command's authority is not shown for a handler of another Command without
-loading it again. Whether HTTPS pictures should need a grant of their own is
-an open question (#81); today they need exactly the request authority.
+loading it again. An HTTPS picture needs exactly the authority of the
+handler Command's `contact_https`, and no other grant.
 
 The Host decodes only PNG and JPEG, of at most 1 MiB (1,048,576 bytes), at
 most 4,194,304 pixels and at most 4,096 pixels on a side, scaled down as it
 decodes to twice the frame's points, so the full-size bitmap is never held.
 It loads at most 4 pictures at once for every Plugin together, the others
 waiting their turn, gives each network load 15 seconds, redirects included,
-as a Host-Fetched Section's, and keeps at most 16 MiB of decoded pictures
-for every open View Session together, letting the least recently shown go
-first.
+as a Host-Fetched Section's, and holds at most 16 MiB of decoded pictures
+for every open View Session together, those the open pages show included.
+To make room it lets go of the pictures no page shows, the least recently
+shown first; a picture that still does not fit fails, with Try Again.
+Ending a load, because the page no longer shows the picture or the session
+ended, stops its transfer at once and frees its turn.
 
 While a picture loads its frame shows a placeholder. A failed one (refused,
 too large, not an image, unreachable) shows why and a **Try Again** button,
@@ -523,8 +526,10 @@ Measured on an M1 Pro under load (`docs/research/page-image-measurements.md`
 in the Host repository): decoding a 640 × 640 JPEG to 192 pixels takes about
 3 ms and a 2048 × 2048 PNG about 51 ms; a 4096 × 4096 PNG, which the pixel
 bound refuses, about 211 ms. A decoded 412-point picture at twice its size
-holds about 2.6 MiB, so the cache holds about six of those, or about 110
-pieces of 96-point artwork.
+holds about 2.6 MiB, so the Host holds about six of those, or about 110
+pieces of 96-point artwork. Eight pictures of the largest frame on one page
+would need about 20.7 MiB, so such a page shows six and the others fail;
+size frames to what the page draws.
 
 ### Progress
 
@@ -590,4 +595,4 @@ in page memory. A `load_range` asks for at most 600 positions. Since #81 a
 column holds at most 8 components, rows and columns nest at most 3 deep, a
 page has at most 8 images, and the Host decodes a picture of at most 1 MiB,
 4,194,304 pixels and 4,096 pixels on a side, loads at most 4 at once and
-keeps at most 16 MiB decoded.
+holds at most 16 MiB decoded, shown pictures included.

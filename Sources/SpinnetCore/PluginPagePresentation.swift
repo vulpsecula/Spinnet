@@ -44,7 +44,8 @@ public enum PagePresentation {
     public static let imageSides: ClosedRange<Double> = 16...412
     public static let maximumSymbolNameLength = 64
     public static let maximumResourcePathLength = 256
-    public static let maximumImageURLLength = 2_048
+    /// The longest https address an Image Source's `url` gives.
+    public static let maximumImageAddressLength = 2_048
     public static let maximumStatusLength = 256
     public static let stages = 2...8
 }
@@ -256,10 +257,10 @@ public enum PluginImageSource: Equatable, Hashable {
             }
             self = .resource(path)
         case (nil, .string(let address)?):
-            guard address.count <= PagePresentation.maximumImageURLLength, let url = URL(string: address),
+            guard address.count <= PagePresentation.maximumImageAddressLength, let url = URL(string: address),
                   HTTPSDestination.host(of: url) != nil, url.fragment == nil else {
                 throw PluginPage.violation("\(name)'s url must be an https address without a user, password, port or "
-                    + "fragment, at most \(PagePresentation.maximumImageURLLength) characters")
+                    + "fragment, at most \(PagePresentation.maximumImageAddressLength) characters")
             }
             self = .url(url)
         default:

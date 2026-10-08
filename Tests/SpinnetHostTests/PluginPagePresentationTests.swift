@@ -100,7 +100,7 @@ final class PluginPagePresentationTests: XCTestCase {
         try harness.answer(track)
         XCTAssertEqual(loads, 1, "The same picture is not loaded again")
         model.close()
-        XCTAssertEqual(images.cachedBytes, 0)
+        XCTAssertEqual(images.decodedBytes, 0)
         XCTAssertNil(images.state(of: artwork.request, for: PageHarness.pluginID))
     }
 
@@ -124,5 +124,76 @@ final class PluginPagePresentationTests: XCTestCase {
         let sent = harness.events.count
         model.chooseCancel(of: cancelling)
         XCTAssertEqual(harness.events.count, sent)
+    }
+
+    /// An indeterminate bar keeps running across answers to the same page:
+    /// the panel keeps the very indicator it drew, still animating, so a
+    /// refresh does not flash.
+    func testAnIndeterminateBarKeepsRunningAcrossAnswers() throws {
+        let harness = try PageHarness()
+        let running = try page("brew-task-running.json")
+        try harness.open(running)
+        let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        let panel = PluginViewPanelWindow(pageModel: model)
+        window = panel
+        panel.show(near: NSPoint(x: 500, y: 700))
+        settle()
+        let bar = try XCTUnwrap(indeterminateBars(in: panel.contentView).first, "The task draws a native indeterminate bar")
+
+        for status in ["Pouring ffmpeg--7.1", "Linking 12 files"] {
+            model.choose(try XCTUnwrap(buttons(of: model).first))
+            try harness.answer(Self.page(running, status: status))
+            settle()
+            guard case .progress(let task)? = model.page.component("task") else { return XCTFail("No progress") }
+            XCTAssertEqual(task.status, status)
+            XCTAssertEqual(indeterminateBars(in: panel.contentView).map(ObjectIdentifier.init), [ObjectIdentifier(bar)],
+                           "The same bar, not a new one")
+            XCTAssertTrue(bar.isIndeterminate)
+        }
+    }
+
+    private static func page(_ page: JSONValue, status: String) -> JSONValue {
+        guard case .object(var members) = page, case .array(var content)? = members["content"],
+              case .object(var task) = content[0] else { return page }
+        task["status"] = .string(status)
+        content[0] = .object(task)
+        members["content"] = .array(content)
+        return .object(members)
+    }
+
+    private func indeterminateBars(in view: NSView?) -> [NSProgressIndicator] {
+        guard let view else { return [] }
+        let own = (view as? NSProgressIndicator).map { $0.isIndeterminate && $0.style == .bar ? [$0] : [] } ?? []
+        return own + view.subviews.flatMap(indeterminateBars)
+    }
+
+    /// Styles, icons, images and progress add no focus stop and take no
+    /// focus: a page opens focused on its field even inside a styled
+    /// column, and Tab moves between the field and the collection only.
+    func testPresentationComponentsLeaveFocusToTheFieldsAndCollection() throws {
+        let harness = try PageHarness()
+        let style: JSONValue = .object(["background": .string("#1DB95420"), "padding": .number(8), "corner_radius": .number(6)])
+        try harness.open(.object([
+            "id": .string("styled"), "title": .string("Styled"),
+            "content": .array([
+                .object(["kind": .string("progress"), "id": .string("task"), "title": .string("Working"),
+                         "cancel": .object(["id": .string("stop")])]),
+                .object(["kind": .string("column"), "id": .string("panel"), "style": style, "content": .array([
+                    .object(["kind": .string("icon"), "id": .string("glyph"), "source": .object(["symbol": .string("music.note")])]),
+                    .object(["kind": .string("image"), "id": .string("art"), "label": .string("Artwork"),
+                             "source": .object(["resource": .string("art/cover.png")]),
+                             "width": .number(48), "height": .number(48)]),
+                    .object(["kind": .string("text_field"), "id": .string("query"), "title": .string("Search"),
+                             "collection": .string("results")])
+                ])]),
+                .object(["kind": .string("list"), "id": .string("results"),
+                         "items": .array(["A", "B"].map(PageHarness.item))])
+            ])
+        ]))
+        let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        XCTAssertEqual(model.focused, "query")
+        XCTAssertEqual(model.focusStops, ["query", "results"])
+        model.moveFocus(from: "results", forward: true)
+        XCTAssertEqual(model.focused, "query", "Tab wraps past the progress, icon and image")
     }
 }

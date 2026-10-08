@@ -138,4 +138,24 @@ public extension PluginManifest {
     func scope(for capability: PluginCapability) -> PluginCapabilityScope? {
         capabilityScopes.first { $0.capability == capability }
     }
+
+    /// Every host this Plugin's requests and pictures may reach: the hosts
+    /// it declares for `contact_https`, then `consentedHosts`, the ones the
+    /// user added. None when it declares no `contact_https`.
+    func contactableHTTPSHosts(consentedHosts: [String]) -> [String] {
+        scope(for: .contactHTTPS)?.withConsentedHTTPSHosts(consentedHosts).contactableHTTPSHosts ?? []
+    }
+
+    /// The same, with the hosts the user added as `grantStore` keeps them now.
+    func contactableHTTPSHosts(in grantStore: PluginCapabilityGrantStore) -> [String] {
+        guard let declared = scope(for: .contactHTTPS) else { return [] }
+        return contactableHTTPSHosts(consentedHosts: grantStore.consentedHTTPSHosts(
+            for: id, pluginVersion: version, declaredScope: declared))
+    }
+
+    /// Why a request or picture of this Plugin's that names `host` is not
+    /// sent while the grant stands: the user has not allowed that host.
+    func refusalToContact(_ host: String) -> String {
+        "\(name) may not contact \(host) until it is allowed in its Plugin Settings"
+    }
 }

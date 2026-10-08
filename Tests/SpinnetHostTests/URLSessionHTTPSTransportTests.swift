@@ -31,6 +31,38 @@ final class URLSessionHTTPSTransportTests: XCTestCase {
             XCTAssertEqual(bodies, Dictionary(uniqueKeysWithValues: paths.map { ($0, #"{"path":"\#($0)"}"#) }))
         }
     }
+
+    /// Cancelling stops the transfer itself: the send returns at once
+    /// instead of waiting out its timeout.
+    func testCancellingStopsTheTransferAtOnce() throws {
+        let transport = URLSessionHTTPSTransport(protocolClasses: [SilentURLProtocol.self])
+        let cancellation = HostFetchedSections.Cancellation()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { cancellation.cancel() }
+        let started = Date()
+        XCTAssertThrowsError(try transport.send(HTTPSTransportRequest(
+            method: "GET", url: URL(string: "https://images.example.com/slow.png")!, headers: [:], body: nil,
+            timeout: 10, maximumResponseBytes: 1024
+        ), cancellation: cancellation)) {
+            XCTAssertEqual($0 as? HTTPSTransportError, .cancelled)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
+
+        // Already cancelled: nothing is sent.
+        XCTAssertThrowsError(try transport.send(HTTPSTransportRequest(
+            method: "GET", url: URL(string: "https://images.example.com/slow.png")!, headers: [:], body: nil,
+            timeout: 10, maximumResponseBytes: 1024
+        ), cancellation: cancellation)) {
+            XCTAssertEqual($0 as? HTTPSTransportError, .cancelled)
+        }
+    }
+}
+
+/// Never answers.
+final class SilentURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {}
+    override func stopLoading() {}
 }
 
 /// Answers every request with its own path as JSON.

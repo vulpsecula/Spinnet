@@ -55,6 +55,13 @@ final class URLSessionHTTPSTransport: NSObject, HTTPSTransport, URLSessionDataDe
     }
 
     func send(_ request: HTTPSTransportRequest) throws -> HTTPSTransportResponse {
+        try send(request, cancellation: HostFetchedSections.Cancellation())
+    }
+
+    /// Cancelling stops the task itself, so a picture or section no one
+    /// wants frees its connection and its caller's slot at once.
+    func send(_ request: HTTPSTransportRequest,
+              cancellation: HostFetchedSections.Cancellation) throws -> HTTPSTransportResponse {
         var urlRequest = URLRequest(url: request.url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
                                     timeoutInterval: request.timeout)
         urlRequest.httpMethod = request.method
@@ -66,11 +73,15 @@ final class URLSessionHTTPSTransport: NSObject, HTTPSTransport, URLSessionDataDe
         let task = session.dataTask(with: urlRequest)
         lock.withLock { exchanges[task.taskIdentifier] = exchange }
         defer { _ = lock.withLock { exchanges.removeValue(forKey: task.taskIdentifier) } }
+        let forget = cancellation.onCancel { task.cancel() }
+        defer { forget() }
+        guard !cancellation.isCancelled else { throw HTTPSTransportError.cancelled }
         task.resume()
         guard exchange.done.wait(timeout: .now() + request.timeout) == .success else {
             task.cancel()
             throw HTTPSTransportError.timedOut
         }
+        if cancellation.isCancelled { throw HTTPSTransportError.cancelled }
         if exchange.tooLarge { throw HTTPSTransportError.responseTooLarge }
         if let error = exchange.error as? URLError, error.code == .timedOut { throw HTTPSTransportError.timedOut }
         guard exchange.error == nil, let response = exchange.response else { throw HTTPSTransportError.connectionFailed }

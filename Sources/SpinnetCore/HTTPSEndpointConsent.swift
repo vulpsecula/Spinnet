@@ -53,9 +53,7 @@ public struct HTTPSEndpointConsent {
             newHosts = []
             return
         }
-        let known = declared.withConsentedHTTPSHosts(grantStore.consentedHTTPSHosts(
-            for: manifest.id, pluginVersion: manifest.version, declaredScope: declared
-        )).contactableHTTPSHosts
+        let known = manifest.contactableHTTPSHosts(in: grantStore)
         var hosts: [String] = []
         for command in manifest.commands where declared.commandIDs.contains(command.id) {
             guard let input = inputs[command.id] else { continue }

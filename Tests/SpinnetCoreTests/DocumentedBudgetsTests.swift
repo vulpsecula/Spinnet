@@ -368,9 +368,9 @@ final class PagePresentationBudgetsTests: XCTestCase {
         XCTAssertPublished("gives each network load 15 seconds, redirects included, as a Host-Fetched Section's",
                            in: "reference/pages.md")
         XCTAssertEqual(PageImageBudgets.loadDeadline, 15)
-        XCTAssertPublished("keeps at most 16 MiB of decoded pictures for every open View Session together",
-                           in: "reference/pages.md")
-        XCTAssertEqual(PageImageBudgets.cacheBytes, 16 * 1_048_576)
+        XCTAssertPublished("holds at most 16 MiB of decoded pictures for every open View Session together, "
+                           + "those the open pages show included", in: "reference/pages.md")
+        XCTAssertEqual(PageImageBudgets.maximumDecodedBytes, 16 * 1_048_576)
         XCTAssertPublished("A page has at most 8 images.", in: "reference/pages.md")
         XCTAssertEqual(PageImageBudgets.maximumImagesPerPage, 8)
         XCTAssertPublished("frame of `width` × `height` points (16 to 412 each)", in: "reference/pages.md")

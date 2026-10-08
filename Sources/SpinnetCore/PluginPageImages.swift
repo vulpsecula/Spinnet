@@ -19,9 +19,11 @@ public enum PageImageBudgets {
     /// Pictures the Host loads at once, for every Plugin together; the
     /// others wait their turn.
     public static let maximumConcurrentLoads = 4
-    /// The decoded pictures the Host keeps, for every open View Session
-    /// together, in bytes of pixels. The least recently shown go first.
-    public static let cacheBytes = 16 * 1_048_576
+    /// The decoded pictures the Host holds, for every open View Session
+    /// together, those the open pages show included, in bytes of pixels.
+    /// To make room, the least recently shown picture no page shows goes
+    /// first; a picture that still does not fit fails.
+    public static let maximumDecodedBytes = 16 * 1_048_576
     /// Each network load's budget, redirects included: a Host-Fetched
     /// Section's.
     public static var loadDeadline: TimeInterval { ScriptedActionBudgets.hostFetchedSectionDeadline }
@@ -95,10 +97,19 @@ public enum PluginPackageResource {
         guard let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]), values.isRegularFile == true else {
             throw PluginHostServiceError.failed("The image resource \(path) is not in the package")
         }
-        guard (values.fileSize ?? 0) <= maximumBytes else { throw PageImageDecoder.tooLarge }
-        guard let data = try? Data(contentsOf: file), data.count <= maximumBytes else {
+        let tooLarge = PluginHostServiceError.failed("The image exceeds \(maximumBytes) bytes")
+        guard (values.fileSize ?? 0) <= maximumBytes else { throw tooLarge }
+        // Read at most one byte past the budget, whatever size the file
+        // claimed or has grown to since.
+        let data: Data
+        do {
+            let handle = try FileHandle(forReadingFrom: file)
+            defer { try? handle.close() }
+            data = try handle.read(upToCount: maximumBytes + 1) ?? Data()
+        } catch {
             throw PluginHostServiceError.failed("The image resource \(path) cannot be read")
         }
+        guard data.count <= maximumBytes else { throw tooLarge }
         return data
     }
 }
@@ -111,11 +122,10 @@ public extension PluginManifest {
     /// added (`consentedHosts`). A resource needs no Capability.
     func refusal(toLoad source: PluginImageSource, for command: CommandID, consentedHosts: [String] = []) -> String? {
         guard let host = source.host else { return nil }
-        guard declares(.contactHTTPS, for: command), let declared = scope(for: .contactHTTPS) else {
+        guard declares(.contactHTTPS, for: command), scope(for: .contactHTTPS) != nil else {
             return "Network access is not granted to this Plugin"
         }
-        let hosts = declared.withConsentedHTTPSHosts(consentedHosts).contactableHTTPSHosts
-        return hosts.contains(host) ? nil : "\(name) may not contact \(host) until it is allowed in its Plugin Settings"
+        return contactableHTTPSHosts(consentedHosts: consentedHosts).contains(host) ? nil : refusalToContact(host)
     }
 }
 
@@ -138,12 +148,16 @@ public protocol PluginPageImageProvider: AnyObject {
 /// `PageImageBudgets.maximumConcurrentLoads` at once, with the authority
 /// of the session's handler read when the load starts, decodes it within
 /// `PageImageBudgets` to the size it is drawn at, and keeps it while the
-/// page shows it and, within `PageImageBudgets.cacheBytes`, while the View
-/// Session lasts, so an answer that shows the same picture again loads
-/// nothing. A failed picture shows why and stays failed until the user
-/// tries it again or the page names another. Ending the session, however
-/// it ends (revocation, update or removal included), cancels its loads,
-/// drops what arrives later and lets its pictures go.
+/// page shows it and then while the View Session lasts, so an answer that
+/// shows the same picture again loads nothing. Every picture it holds,
+/// shown or kept, counts toward `PageImageBudgets.maximumDecodedBytes`: a
+/// new one lets kept ones go, least recently shown first, and fails if
+/// the shown ones leave it no room. A failed picture shows why and stays
+/// failed until the user tries it again or the page names another. A
+/// picture the page no longer shows has its load cancelled, which stops
+/// the transfer and frees its turn. Ending the session, however it ends
+/// (revocation, update or removal included), cancels its loads, drops what
+/// arrives later and lets its pictures go.
 ///
 /// Confined to the main thread, like the sessions: only `load` and the
 /// decoding run on `background`.
@@ -196,9 +210,11 @@ public final class PluginPageImages {
     private let background: (@escaping () -> Void) -> Void
     private let executor: (@escaping () -> Void) -> Void
     private let maximumConcurrentLoads: Int
-    private let cacheBytes: Int
+    private let maximumDecodedBytes: Int
     private var records: [PluginID: [PageImageRequest: Record]] = [:]
     private var queue: [(plugin: PluginID, request: PageImageRequest, token: Int)] = []
+    /// Every decoded picture held: each a page shows, and those kept for
+    /// their sessions.
     private var cache: [CacheKey: (image: CGImage, cost: Int)] = [:]
     /// Least recently shown first.
     private var recency: [CacheKey] = []
@@ -216,17 +232,22 @@ public final class PluginPageImages {
                 },
                 executor: @escaping (@escaping () -> Void) -> Void,
                 maximumConcurrentLoads: Int = PageImageBudgets.maximumConcurrentLoads,
-                cacheBytes: Int = PageImageBudgets.cacheBytes) {
+                maximumDecodedBytes: Int = PageImageBudgets.maximumDecodedBytes) {
         self.load = load
         self.decode = decode
         self.background = background
         self.executor = executor
         self.maximumConcurrentLoads = maximumConcurrentLoads
-        self.cacheBytes = cacheBytes
+        self.maximumDecodedBytes = maximumDecodedBytes
     }
 
-    /// The bytes of decoded pictures kept now.
-    public var cachedBytes: Int { cache.values.reduce(0) { $0 + $1.cost } }
+    /// Why a decoded picture is not shown: the pictures the open pages
+    /// show already hold the whole budget.
+    public static let noRoom = "The open pages already show as many pictures as Spinnet holds; "
+        + "close one and try again"
+
+    /// The bytes of decoded pictures held now, shown or kept.
+    public var decodedBytes: Int { cache.values.reduce(0) { $0 + $1.cost } }
 
     public func state(of request: PageImageRequest, for plugin: PluginID) -> PageImageState? {
         records[plugin]?[request]?.state
@@ -311,8 +332,11 @@ public final class PluginPageImages {
               !record.cancellation.isCancelled else { return }
         switch result {
         case .success(let image):
-            record.phase = .loaded(image)
-            store(image, for: CacheKey(plugin: plugin, command: record.action.commandID, request: request))
+            if store(image, for: CacheKey(plugin: plugin, command: record.action.commandID, request: request)) {
+                record.phase = .loaded(image)
+            } else {
+                record.phase = .failed(Self.noRoom)
+            }
         case .failure(let error):
             record.phase = .failed(FetchedAnswer.message(for: error))
         }
@@ -324,19 +348,35 @@ public final class PluginPageImages {
         recency.append(key)
     }
 
-    /// Keeps a decoded picture, letting the least recently shown go while
-    /// the kept ones pass the budget. A picture larger than the whole
-    /// budget is shown but not kept.
-    private func store(_ image: CGImage, for key: CacheKey) {
+    /// The pictures a page shows now, which are never let go to make room.
+    private var shownKeys: Set<CacheKey> {
+        var keys = Set<CacheKey>()
+        for (plugin, shown) in records {
+            for (request, record) in shown {
+                if case .loaded = record.phase {
+                    keys.insert(CacheKey(plugin: plugin, command: record.action.commandID, request: request))
+                }
+            }
+        }
+        return keys
+    }
+
+    /// Holds a decoded picture within the budget, letting kept pictures no
+    /// page shows go, least recently shown first, to make room. False, and
+    /// nothing let go, when the shown ones leave no room for it.
+    private func store(_ image: CGImage, for key: CacheKey) -> Bool {
         let cost = PageImageDecoder.cost(of: image)
-        guard cost <= cacheBytes else { return }
+        let shown = shownKeys
+        let shownBytes = cache.filter { shown.contains($0.key) && $0.key != key }.reduce(0) { $0 + $1.value.cost }
+        guard shownBytes + cost <= maximumDecodedBytes else { return false }
         cache[key] = (image, cost)
         touch(key)
-        var total = cachedBytes
-        while total > cacheBytes, let oldest = recency.first {
-            recency.removeFirst()
+        var total = decodedBytes
+        for oldest in recency where total > maximumDecodedBytes && oldest != key && !shown.contains(oldest) {
             total -= cache.removeValue(forKey: oldest)?.cost ?? 0
         }
+        recency.removeAll { cache[$0] == nil }
+        return true
     }
 }
 
