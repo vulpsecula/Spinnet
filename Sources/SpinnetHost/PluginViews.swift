@@ -592,7 +592,7 @@ final class PluginViewWindows: PluginViewRenderer {
     private func show(_ window: PluginViewWindow, for pluginID: PluginID,
                       _ opening: (isPinned: Bool, restoring: PluginPanelGeometry?)) {
         window.show(near: pointer(), restoring: opening.restoring)
-        if opening.isPinned { pins.setGeometry(window.geometry, for: pluginID) }
+        if opening.isPinned { pins.remember(window.geometry, for: pluginID) }
     }
 
     /// Floats the window while pinned, and remembers the Pin when the user
@@ -601,13 +601,13 @@ final class PluginViewWindows: PluginViewRenderer {
                           isPinned: @escaping () -> Bool) -> [AnyCancellable] {
         let pins = pins
         window.onGeometryChange = { geometry in
-            if isPinned() { pins.setGeometry(geometry, for: pluginID) }
+            if isPinned() { pins.remember(geometry, for: pluginID) }
         }
         return [
             pin.sink { [weak window] in window?.floats = $0 },
             pin.dropFirst().removeDuplicates().sink { [weak window] pinned in
                 pins.setPinned(pinned, for: pluginID)
-                if pinned, let window { pins.setGeometry(window.geometry, for: pluginID) }
+                if pinned, let window { pins.remember(window.geometry, for: pluginID) }
             }
         ]
     }

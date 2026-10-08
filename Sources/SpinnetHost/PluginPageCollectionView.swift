@@ -147,18 +147,19 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     private func relayOut() {
         guard let collection else { return }
         let width = itemsWidth
-        if let model {
-            let cell = collection.minimumCellSize
-            let columns = cell.map { PageSizing.columns(fitting: Double(width), minimumCellSize: $0) } ?? collection.columns
-            let rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
-            let visibleRows = contentView.bounds.height > 0
-                ? Int((contentView.bounds.height / rowHeight).rounded(.up)) : collection.rows
-            model.collectionMeasured(itemsWidth: width, visibleRows: visibleRows)
+        var columns = model?.window?.columns(fitting: Double(width)) ?? collection.columns
+        var rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
+        if let model, contentView.bounds.height > 0 {
+            model.collectionMeasured(itemsWidth: width,
+                                     visibleRows: Int((contentView.bounds.height / rowHeight).rounded(.up)))
+            columns = model.window?.columns ?? columns
+            rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
         }
-        let columns = model?.window?.columns ?? collection.columns
-        let rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
         guard laidOut?.style != collection.style || laidOut?.columns != columns || laidOut?.rowHeight != rowHeight
                 || laidOut?.width != width else { return }
+        // Only the cells' size and places change with the width: the layout
+        // is redone over the cells there are, without reloading them.
+        let resizedOnly = laidOut?.style == collection.style
         laidOut = (collection.style, columns, rowHeight, width)
         collectionView.style = collection.style
         if collection.style == .grid {
@@ -173,7 +174,11 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
             flowLayout.sectionInset = NSEdgeInsetsZero
         }
         collectionView.rowHeight = rowHeight
-        reloadCollection()
+        if resizedOnly {
+            flowLayout.invalidateLayout()
+        } else {
+            reloadCollection()
+        }
     }
 
     /// A Grid's square cell side for `columns` across `width`, or a List's

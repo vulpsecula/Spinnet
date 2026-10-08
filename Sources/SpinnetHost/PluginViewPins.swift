@@ -40,6 +40,20 @@ final class PluginViewPins {
         save()
     }
 
+    /// Remembers where a pinned window is now. A window whose size is not
+    /// the user's (a page that cannot be resized, or a Level 1 view) keeps
+    /// a size the user chose earlier: only its top-left is taken, so the
+    /// user's size comes back with the next resizable page (#80).
+    func remember(_ geometry: PluginPanelGeometry, for pluginID: PluginID) {
+        guard !geometry.isUserSized, let kept = self.geometry(for: pluginID), kept.isUserSized else {
+            return setGeometry(geometry, for: pluginID)
+        }
+        let size = kept.frame.size
+        setGeometry(PluginPanelGeometry(frame: NSRect(x: geometry.frame.minX, y: geometry.frame.maxY - size.height,
+                                                      width: size.width, height: size.height),
+                                        isUserSized: true), for: pluginID)
+    }
+
     /// Forgets `pluginID`'s Pin and geometry, as when the Plugin is removed.
     func forget(_ pluginID: PluginID) {
         guard entries.removeValue(forKey: pluginID.rawValue) != nil else { return }

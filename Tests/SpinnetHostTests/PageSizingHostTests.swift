@@ -94,4 +94,33 @@ final class PageSizingHostTests: XCTestCase {
         settle()
         XCTAssertEqual(model.window?.columns, 8)
     }
+
+    /// A page asking for a larger minimum grows a panel the user had made
+    /// smaller than it.
+    func testALargerMinimumGrowsTheUsersSize() throws {
+        _ = NSApplication.shared
+        let harness = try PageHarness()
+        try harness.open(Self.page(resizable: .bool(true)))
+        let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        let panel = PluginViewPanelWindow(pageModel: model)
+        window = panel
+        panel.resizing = PluginPageResizing()
+        panel.show(near: NSPoint(x: 500, y: 800))
+        panel.simulateUserResize(to: NSRect(x: 100, y: 100, width: 460, height: 300))
+        panel.resizing = PluginPageResizing(minimumWidth: 600, minimumHeight: 400)
+        let frame = panel.presentationSnapshot.frame
+        XCTAssertEqual(frame.size, NSSize(width: 600, height: 400))
+        XCTAssertEqual(frame.maxY, 400, accuracy: 1, "It keeps its top")
+        XCTAssertTrue(panel.geometry.isUserSized)
+    }
+
+    /// The Host's panel and the published defaults agree: the default width
+    /// is the smallest a resizable page may ask for, and its items' width is
+    /// what an adaptive Grid's first answer is laid out in.
+    func testThePanelMatchesThePublishedDefaults() {
+        XCTAssertEqual(Double(PluginViewPanelWindow.width), PageSizing.minimumWidths.lowerBound)
+        XCTAssertEqual(Double(PluginPanelLayout.minimumSize.width), PageSizing.minimumWidths.lowerBound)
+        XCTAssertEqual(Double(PluginPanelLayout.minimumSize.height), PageSizing.minimumHeights.lowerBound)
+        XCTAssertEqual(Double(PageCollectionView.contentWidth), PageSizing.defaultItemsWidth)
+    }
 }

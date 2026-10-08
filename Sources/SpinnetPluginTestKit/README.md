@@ -323,6 +323,19 @@ XCTAssertEqual(brew.text(of: "query"), "py")  // what was typed stays
 
 An answer the Host would end the session for closes the page (`isClosed`).
 
+### Resizable pages
+
+A page that declares `resizable` (#80) can be resized with
+`resize(itemsWidth:visibleRows:)`: a `grid` with `columns: "auto"` takes the
+columns that width holds, so `press(.down)` moves by them, and the items the
+larger screen lacks are asked for with `load_range`, as the Host does.
+Nothing tells the script the size.
+
+```swift
+try emoji.resize(itemsWidth: 800, visibleRows: 12)
+XCTAssertEqual(emoji.window?.columns, 16)
+```
+
 ### Styles, images and progress
 
 The page reads Component Styles, columns, icons, images and progress (#81)

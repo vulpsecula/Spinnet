@@ -63,30 +63,29 @@ public struct PluginPageResizing: Equatable {
     }
 
     /// The page's `resizable`: nil when absent or false.
-    static func parse(_ value: JSONValue?, page id: String, permits: (PluginInterfaceMember) -> Bool) throws -> PluginPageResizing? {
+    static func parse(_ value: JSONValue?, page id: String) throws -> PluginPageResizing? {
         let name = "The page \(id)'s resizable"
         switch value {
         case nil, .bool(false)?:
             return nil
         case .bool(true)?:
             return PluginPageResizing()
-        case .object?:
-            let members = try PluginPage.object(value!, name, allowed: ["min_width", "min_height"])
+        case let declared? where declared.isObject:
+            let members = try PluginPage.object(declared, name, allowed: ["min_width", "min_height"])
             return PluginPageResizing(
-                minimumWidth: try number(members["min_width"], "\(name) min_width", in: PageSizing.minimumWidths)
+                minimumWidth: try PluginPage.number(members["min_width"], "\(name) min_width", in: PageSizing.minimumWidths)
                     ?? PageSizing.minimumWidths.lowerBound,
-                minimumHeight: try number(members["min_height"], "\(name) min_height", in: PageSizing.minimumHeights)
+                minimumHeight: try PluginPage.number(members["min_height"], "\(name) min_height", in: PageSizing.minimumHeights)
                     ?? PageSizing.defaultMinimumHeight)
         default:
             throw PluginPage.violation("\(name) is neither true, false nor an object")
         }
     }
+}
 
-    static func number(_ value: JSONValue?, _ name: String, in range: ClosedRange<Double>) throws -> Double? {
-        guard let value else { return nil }
-        guard case .number(let number) = value, range.contains(number) else {
-            throw PluginPage.violation("\(name) is not a number from \(Int(range.lowerBound)) to \(Int(range.upperBound))")
-        }
-        return number
+private extension JSONValue {
+    var isObject: Bool {
+        if case .object = self { return true }
+        return false
     }
 }

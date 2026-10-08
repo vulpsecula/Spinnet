@@ -147,4 +147,59 @@ final class PageSizingTests: XCTestCase {
         XCTAssertEqual(window.columns, 6)
         XCTAssertEqual(window.rows, 9)
     }
+    // MARK: Review of #80
+
+    private func windowed(total: Int, count: Int, grid: [String: JSONValue]) throws -> PluginPage {
+        var members = grid
+        members["total"] = .number(Double(total))
+        members["start"] = .number(0)
+        var collection: [String: JSONValue] = ["kind": .string("grid"), "id": .string("results"),
+                                               "items": .array((0..<count).map { .object(["id": .string("i\($0)"),
+                                                                                         "title": .string("\($0)")]) })]
+        for (key, value) in members { collection[key] = value }
+        return try PluginPage(parsing: .object(["id": .string("p"), "title": .string("P"),
+                                                "content": .array([.object(collection)])]),
+                              permits: CollectionsFixtures.permits)
+    }
+
+    /// Widening a windowed adaptive Grid makes the screen hold more, so the
+    /// Host asks with load_range for what the wider screen lacks.
+    func testWideningAsksForWhatTheWiderScreenLacks() throws {
+        var memory = PluginPageMemory()
+        memory.show(try windowed(total: 1_000, count: 144, grid: ["columns": .string("auto"), "rows": .number(6)]))
+        memory.setViewport(0..<48)
+        XCTAssertNil(memory.missingRange, "8 by 6, two more screens held")
+
+        XCTAssertTrue(memory.fitCollection(itemsWidth: 800, visibleRows: 10))
+        let window = try XCTUnwrap(memory.window)
+        XCTAssertEqual(window.screen, 160)
+        memory.setViewport(0..<160)
+        let missing = try XCTUnwrap(memory.missingRange)
+        XCTAssertEqual(missing.lowerBound, 144, "Everything held is kept; the rest of the screen and beyond is asked for")
+        XCTAssertLessThanOrEqual(missing.count, CollectionsContract.maximumWindowItems)
+        XCTAssertTrue(missing.contains(159))
+    }
+
+    /// However tall the panel, a screen never holds more than a window does.
+    func testAScreenNeverExceedsTheWindow() throws {
+        let collection = try XCTUnwrap(try parse(page(grid: ["columns": .string("auto"), "min_cell_size": .number(32)])).collection)
+        var window = PluginCollectionWindow(collection)
+        window.fit(itemsWidth: 2_000, visibleRows: 200)
+        XCTAssertEqual(window.columns, 24)
+        XCTAssertLessThanOrEqual(window.screen, CollectionsContract.maximumWindowItems)
+        XCTAssertEqual(window.rows, CollectionsContract.maximumWindowItems / 24)
+    }
+
+    /// An answer with another minimum cell size takes the columns the
+    /// measured width holds for it at once, not the default width's.
+    func testANewMinimumCellSizeRefitsTheMeasuredWidth() throws {
+        let first = try XCTUnwrap(try parse(page(grid: ["columns": .string("auto")])).collection)
+        var window = PluginCollectionWindow(first)
+        window.fit(itemsWidth: 800, visibleRows: 6)
+        XCTAssertEqual(window.columns, 16)
+        let larger = try XCTUnwrap(try parse(page(grid: ["columns": .string("auto"), "min_cell_size": .number(100)])).collection)
+        window.merge(larger, answersRange: false)
+        XCTAssertEqual(window.columns, 8)
+        XCTAssertEqual(window.columns(fitting: 400), 4, "What another width would hold, without fitting it")
+    }
 }

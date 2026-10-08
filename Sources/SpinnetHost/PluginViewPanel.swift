@@ -190,6 +190,12 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
             panel.contentMinSize = minimumSize
             if resizing != nil {
                 panel.styleMask.insert(.resizable)
+                // A larger minimum grows a size the user chose, from its top.
+                if let layout, !layout.followsContent,
+                   layout.frame.width < minimumSize.width || layout.frame.height < minimumSize.height {
+                    let frame = layout.frame, minimumSize = minimumSize
+                    change(reports: true) { $0.userResized(to: frame, minimumSize: minimumSize) }
+                }
             } else {
                 panel.styleMask.remove(.resizable)
                 if layout?.followsContent == false, let contentSize {

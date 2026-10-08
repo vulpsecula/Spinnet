@@ -168,7 +168,7 @@ public struct PluginPage: Equatable {
         let members = try Self.object(value, "The page", allowed: allowed)
         let id = try Self.identifier(members["id"], "The page's id")
         self.id = id
-        resizing = try PluginPageResizing.parse(members["resizable"], page: id, permits: permits)
+        resizing = try PluginPageResizing.parse(members["resizable"], page: id)
         title = try Self.text(members["title"], "The page \(id)'s title")
         subtitle = try members["subtitle"].map { try Self.text($0, "The page \(id)'s subtitle", allowsBlank: true) }
         switch members["shows_insertion_target"] {
@@ -285,6 +285,14 @@ public struct PluginPage: Equatable {
         case .bool(let flag)?: return flag
         default: throw violation("\(name) is not true or false")
         }
+    }
+
+    static func number(_ value: JSONValue?, _ name: String, in range: ClosedRange<Double>) throws -> Double? {
+        guard let value else { return nil }
+        guard case .number(let number) = value, range.contains(number) else {
+            throw violation("\(name) is not a number from \(Int(range.lowerBound)) to \(Int(range.upperBound))")
+        }
+        return number
     }
 
     static func integer(_ value: JSONValue?, _ name: String, in range: ClosedRange<Int>, default fallback: Int) throws -> Int {
@@ -708,7 +716,7 @@ public struct PluginPageCollection: Equatable {
         }
         emptyText = try members["empty_text"].map { try PluginPage.text($0, "The \(kind) \(id)'s empty_text") } ?? "No items"
         if style == .grid, members["columns"] == .string("auto"), permits(PageSizing.adaptiveGridColumns) {
-            let cell = try PluginPageResizing.number(members["min_cell_size"], "The grid \(id)'s min_cell_size",
+            let cell = try PluginPage.number(members["min_cell_size"], "The grid \(id)'s min_cell_size",
                                                      in: PageSizing.minimumCellSizes) ?? PageSizing.defaultMinimumCellSize
             minimumCellSize = cell
             columns = PageSizing.columns(fitting: PageSizing.defaultItemsWidth, minimumCellSize: cell)

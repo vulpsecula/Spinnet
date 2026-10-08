@@ -351,9 +351,8 @@ final class LevelTwoBudgetsTests: XCTestCase {
     }
 }
 
-/// The bounds of styles, images and progress, appended to Level 2 by #81
-/// from the decoding measurements recorded in PluginAPI/reference/pages.md,
-/// "Images" (and docs/research/page-image-measurements.md).
+/// The bounds of resizable pages and adaptive Grids (#80), as
+/// PluginAPI/reference/pages.md publishes them.
 final class PageSizingBudgetsTests: XCTestCase {
     /// PluginAPI/reference/pages.md, "Resizable pages"
     func testResizingBoundsMatchThePublishedPage() {
@@ -370,6 +369,9 @@ final class PageSizingBudgetsTests: XCTestCase {
     }
 }
 
+/// The bounds of styles, images and progress, appended to Level 2 by #81
+/// from the decoding measurements recorded in PluginAPI/reference/pages.md,
+/// "Images" (and docs/research/page-image-measurements.md).
 final class PagePresentationBudgetsTests: XCTestCase {
     /// PluginAPI/reference/pages.md, "Images"
     func testImageBudgetsMatchThePublishedPage() {

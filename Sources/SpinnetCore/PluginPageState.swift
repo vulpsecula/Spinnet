@@ -50,6 +50,8 @@ public struct PluginCollectionWindow: Equatable {
     private var minimumCellSize: Double?
     private var fittedColumns: Int?
     private var fittedRows: Int?
+    /// The items' width the Host last measured.
+    private var measuredWidth: Double?
     public private(set) var isWindowed = false
     /// Counts the times positions stopped meaning what they meant: a new
     /// collection, or an answer with another total or other sections.
@@ -151,21 +153,31 @@ public struct PluginCollectionWindow: Equatable {
         declaredRows = collection.rows
         if collection.minimumCellSize != minimumCellSize {
             minimumCellSize = collection.minimumCellSize
-            fittedColumns = nil
+            fittedColumns = measuredWidth.flatMap { width in
+                minimumCellSize.map { PageSizing.columns(fitting: width, minimumCellSize: $0) }
+            }
         }
+    }
+
+    /// The columns the collection would take with items `itemsWidth` points
+    /// wide: an adaptive Grid's from its minimum cell size, else its own.
+    public func columns(fitting itemsWidth: Double) -> Int {
+        guard let minimumCellSize else { return declaredColumns }
+        return PageSizing.columns(fitting: itemsWidth, minimumCellSize: minimumCellSize)
     }
 
     /// The Host measured the collection: its items are `itemsWidth` points
     /// wide and `visibleRows` rows are on screen. An adaptive Grid takes the
-    /// columns that width holds; a fixed one keeps its own. Returns whether
-    /// the columns or rows changed.
+    /// columns that width holds; a fixed one keeps its own. A screen never
+    /// holds more than a window, so the rows are at most what
+    /// `CollectionsContract.maximumWindowItems` holds. Returns whether the
+    /// columns or rows changed.
     @discardableResult
     public mutating func fit(itemsWidth: Double, visibleRows: Int) -> Bool {
         let before = (columns, rows)
-        if let minimumCellSize {
-            fittedColumns = PageSizing.columns(fitting: itemsWidth, minimumCellSize: minimumCellSize)
-        }
-        fittedRows = max(visibleRows, 1)
+        measuredWidth = itemsWidth
+        if minimumCellSize != nil { fittedColumns = columns(fitting: itemsWidth) }
+        fittedRows = min(max(visibleRows, 1), max(CollectionsContract.maximumWindowItems / columns, 1))
         return before != (columns, rows)
     }
 

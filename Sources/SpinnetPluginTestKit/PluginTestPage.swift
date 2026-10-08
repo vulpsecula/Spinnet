@@ -201,6 +201,22 @@ public final class PluginTestPage {
         try loadRanges()
     }
 
+    /// The user resized a resizable page's panel (#80) so that the
+    /// collection's items are `itemsWidth` points wide with `visibleRows`
+    /// rows on screen: an adaptive grid takes the columns that width holds,
+    /// and what the larger screen lacks is asked for with `load_range`, as
+    /// the Host does. Nothing is sent to the Plugin otherwise.
+    public func resize(itemsWidth: Double, visibleRows: Int) throws {
+        guard page?.resizing != nil, let viewport = window.flatMap({ window in
+            collection.flatMap { memory.state.viewports[$0.id] } ?? 0..<min(window.screen, window.total)
+        }) else { return }
+        memory.fitCollection(itemsWidth: itemsWidth, visibleRows: visibleRows)
+        guard let window else { return }
+        let first = viewport.lowerBound / window.columns * window.columns
+        memory.setViewport(first..<min(first + window.screen, window.total))
+        try loadRanges()
+    }
+
     /// The user scrolled to the end of a windowed collection.
     public func scrollToEnd() throws {
         guard let window, window.isWindowed else { return }

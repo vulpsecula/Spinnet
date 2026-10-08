@@ -214,6 +214,27 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertEqual(again.restored, [placed])
     }
 
+    /// A pinned window showing a page that cannot be resized (or a Level 1
+    /// view) remembers where it moved, but keeps the size the user chose
+    /// for a resizable page, so that size comes back with it (#80).
+    func testAPageThatCannotBeResizedKeepsTheRememberedPinnedSize() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let window = try XCTUnwrap(harness.window())
+        harness.windows.model(for: harness.pluginID)?.isPinned = true
+        let sized = PluginPanelGeometry(frame: NSRect(x: 900, y: 100, width: 600, height: 500), isUserSized: true)
+        window.userChangedGeometry(to: sized)
+        let moved = NSRect(x: 300, y: 250, width: 440, height: 180)
+        window.userChangedGeometry(to: PluginPanelGeometry(frame: moved, isUserSized: false))
+        window.onUserClose?()
+
+        try harness.present(PluginViewHarness.form(title: "Again"))
+
+        let again = try XCTUnwrap(harness.window())
+        XCTAssertEqual(again.restored, [PluginPanelGeometry(frame: NSRect(x: 300, y: 430 - 500, width: 600, height: 500),
+                                                            isUserSized: true)],
+                       "The top-left it moved to, with the user's size")
+    }
+
     /// Unpinning keeps the window as it is; the next opening is the default
     /// one beside the pointer, while the pinned geometry stays remembered
     /// for when the user pins again.

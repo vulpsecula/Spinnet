@@ -69,6 +69,28 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
 
     /// Scenarios 01 and 04: typing searches; the answer resets the results
     /// to their first item and never touches what was typed.
+    /// The Emoji fixture declares a resizable page with an adaptive grid
+    /// (#80): widened, the grid takes more columns, moving down a row moves
+    /// by them, and the Plugin is asked for the wider screen's items with
+    /// load_range, as the Host does.
+    func testAWiderPanelGivesTheAdaptiveGridMoreColumns() throws {
+        let emoji = try emoji()
+        try emoji.open()
+        XCTAssertEqual(emoji.page?.resizing, PluginPageResizing())
+        XCTAssertEqual(emoji.window?.columns, 8)
+        let held = try XCTUnwrap(emoji.window?.heldPositions.last)
+
+        try emoji.resize(itemsWidth: 800, visibleRows: 12)
+
+        XCTAssertEqual(emoji.window?.columns, 16)
+        XCTAssertEqual(emoji.window?.screen, 192)
+        XCTAssertGreaterThan(try XCTUnwrap(emoji.window?.heldPositions.last), held,
+                             "The wider screen's items were asked for")
+        try emoji.select(at: 0)
+        try emoji.press(.down)
+        XCTAssertEqual(emoji.selectedPosition, 16)
+    }
+
     func testTypingSearchesAndKeepsTheField() throws {
         let emoji = try emoji()
         try emoji.open()
