@@ -3,7 +3,7 @@
   "api_level": 2,
   "id": "com.example.current-app-probe",
   "name": "Current App Probe",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "capabilities": ["read_frontmost_app", "quit_frontmost_app"],
   "capability_scopes": [{
     "capability": "quit_frontmost_app",
@@ -24,7 +24,7 @@
     {
       "id": "probe.current",
       "title": "Current App",
-      "description": "Names the App in front and offers to quit or force quit it.",
+      "description": "Names the App in front and offers to close its window, quit or force quit it.",
       "execution": "javascript",
       "is_configurable": false,
       "script": "current.js"

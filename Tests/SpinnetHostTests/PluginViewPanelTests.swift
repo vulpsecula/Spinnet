@@ -261,3 +261,35 @@ final class PluginViewPanelTests: XCTestCase {
         XCTAssertTrue(hit.isDescendant(of: content), "\(hit) took the click")
     }
 }
+
+/// A Host Confirmation shown from an unpinned view takes the keyboard
+/// without closing the view: the view's own operation is waiting on it.
+/// When the confirmation goes, the view has the keyboard again.
+final class HostConfirmationFocusTests: XCTestCase {
+    func testAConfirmationDoesNotCloseAnUnpinnedViewAndHandsTheKeyboardBack() throws {
+        _ = NSApplication.shared
+        let harness = try PluginViewHarness()
+        try harness.present(PluginViewHarness.form(title: "Panel"))
+        let window = PluginViewPanelWindow(model: try XCTUnwrap(harness.windows.model(for: harness.pluginID)))
+        defer { window.close() }
+        var resigned = 0
+        window.onResignKey = { resigned += 1 }
+        window.show(near: NSPoint(x: 400, y: 600))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertTrue(window.presentationSnapshot.isKey)
+
+        let confirmations = HostConfirmationPanel()
+        let action = try harness.action()
+        let dismiss = confirmations.confirm(HostConfirmation(title: "Force Quit TextEdit?", message: "m",
+                                                             confirmTitle: "Force Quit", isDestructive: true),
+                                            for: action) { _ in }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertFalse(window.presentationSnapshot.isKey, "The confirmation has the keyboard")
+        XCTAssertEqual(resigned, 0, "The view is not closed for it")
+
+        dismiss()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertTrue(window.presentationSnapshot.isKey, "The view has the keyboard again")
+        XCTAssertEqual(resigned, 0)
+    }
+}

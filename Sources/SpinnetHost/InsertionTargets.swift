@@ -216,8 +216,8 @@ final class HostOperationsPerformer: HostOperationPerformer {
     private let broker: () -> CapabilityCheckedHostServiceBroker?
     private let inserter: TargetedTextInserter
     private let openPluginSettings: (PluginID) -> Void
-    /// Quits and force quits for `apps.quit` (#83), after its Host
-    /// Confirmation.
+    /// Closes, quits and force quits for `apps.close` and `apps.quit`
+    /// (#83), after their Host Confirmation when one is needed.
     private let exits: AppExitPerformer?
     private let queue = DispatchQueue(label: "com.vulpsecula.Spinnet.host-operations", qos: .userInitiated)
 
@@ -235,7 +235,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
         guard let package = registry.package(for: action.pluginID) else {
             throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
         }
-        if operation.perform == CurrentAppAddition.quitID, let definition = operation.definition {
+        if CurrentAppAddition.exitIDs.contains(operation.perform), let definition = operation.definition {
             guard let broker = broker() else { throw PluginHostServiceError.unavailable("Host Services") }
             return try broker.authorize(definition, for: package, action: action)
         }
@@ -270,12 +270,12 @@ final class HostOperationsPerformer: HostOperationPerformer {
         try authorize(operation, for: action)
     }
 
-    /// `apps.quit` binds the App in front when the Host accepts it, not when
-    /// it starts: without a target it acts on that App, and quits it
-    /// gracefully without a Host Confirmation.
+    /// `apps.quit` and `apps.close` bind the App in front when the Host
+    /// accepts them, not when they start: without a target they act on that
+    /// App, and close or gracefully quit it without a Host Confirmation.
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
-        guard operation.perform == CurrentAppAddition.quitID, let exits,
-              let request = try? AppQuitRequest(input: operation.input) else { return .none }
+        guard CurrentAppAddition.exitIDs.contains(operation.perform), let exits,
+              let request = try? AppExitRequest(perform: operation.perform, input: operation.input) else { return .none }
         return exits.accept(request)
     }
 
@@ -292,19 +292,19 @@ final class HostOperationsPerformer: HostOperationPerformer {
             }
             return
         }
-        if operation.perform == CurrentAppAddition.quitID {
+        if CurrentAppAddition.exitIDs.contains(operation.perform) {
             guard let exits else {
-                return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot quit Apps"))
+                return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot close or quit Apps"))
             }
-            let request: AppQuitRequest
+            let request: AppExitRequest
             do {
-                request = try AppQuitRequest(input: operation.input)
+                request = try AppExitRequest(perform: operation.perform, input: operation.input)
             } catch {
                 // Checked when the answer committed, so only a Host fault
                 // reaches here.
                 let reason = (error as? PluginHostServiceError)?.description ?? error.localizedDescription
                 return completion(HostOperationResult(.refused(.hostServiceFailed),
-                                                      message: "Spinnet could not read what to quit: \(reason)"))
+                                                      message: "Spinnet could not read what to close or quit: \(reason)"))
             }
             let name = registry.package(for: action.pluginID)?.manifest.name ?? action.pluginID.rawValue
             exits.perform(request, accepted: accepted, for: action, pluginName: name, authorize: { [weak self] in

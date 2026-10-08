@@ -201,11 +201,11 @@ Part of Plugin API Level 2: a Host Service a script asks the Host to perform aft
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` asks one for every Force Quit, and for a graceful quit of an App that was not in front when the Host accepted the request; a graceful quit of the App in front then asks none, the App's own save prompts still applying.
+A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` and `apps.close` ask one for every Force Quit, and for a close or graceful quit of an App that was not in front when the Host accepted the request; closing or gracefully quitting the App in front then asks none, the App's own save prompts still applying.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
 
 **App Target**:
-Part of Plugin API Level 2: the Host's opaque name for one running App, given to a Plugin allowed to identify the App in front, which the Plugin may name back to the Host, as the App `apps.quit` ends. It names that App alone, never another that reuses its process ID, for that Plugin only, until the App quits, the Plugin changes or loses a Capability, or Spinnet quits. Identifying an App and ending it are separate Capabilities.
+Part of Plugin API Level 2: the Host's opaque name for one running App, given to a Plugin allowed to identify the App in front, which the Plugin may name back to the Host, as the App `apps.quit` ends or whose window `apps.close` closes. It names that App alone, never another that reuses its process ID, for that Plugin only, until the App quits, the Plugin changes or loses a Capability, or Spinnet quits. Identifying an App and ending it are separate Capabilities.
 _Avoid_: Process ID, app handle, app token
 
 ### Authority

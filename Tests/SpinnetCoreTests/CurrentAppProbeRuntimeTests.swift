@@ -6,9 +6,10 @@ import SpinnetPluginTestKit
 /// `Tests/Fixtures/CurrentAppProbe.spinnetplugin`, a Current App-shaped
 /// external Plugin, run the way its author runs it: through the public test
 /// kit and the real helper. It identifies the App in front by an App Target,
-/// separately from asking to quit or force quit it, and the Host resolves,
-/// protects and re-checks every exit, and confirms each one but a graceful
-/// quit of the App in front when it accepted the request (#83).
+/// separately from asking to close its window, quit or force quit it; the
+/// Host offers Close and Quit only as the App's own menu does, resolves and
+/// re-checks every exit, and confirms each one but a Close or graceful Quit
+/// of the App in front when it accepted the request (#83).
 final class CurrentAppProbeRuntimeTests: XCTestCase {
     static let package = NamespacesProbeFixture.fixtures.appendingPathComponent("CurrentAppProbe.spinnetplugin",
                                                                                isDirectory: true)
@@ -52,7 +53,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         let app = try XCTUnwrap(app(in: opened.state))
         XCTAssertEqual(app["name"], .string("TextEdit"))
         XCTAssertEqual(app["bundle_id"], .string("com.apple.TextEdit"))
-        XCTAssertEqual(app["exits"], .array([.string("quit"), .string("force_quit")]))
+        XCTAssertEqual(app["exits"], .array([.string("close"), .string("quit"), .string("force_quit")]))
         guard case .string(let target)? = app["target"] else { return XCTFail("No App Target") }
         XCTAssertTrue(AppTargets.isWellFormed(target))
         XCTAssertEqual(Set(app.keys), ["target", "name", "bundle_id", "exits"], "Nothing else about the App")
@@ -72,11 +73,79 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(state["app"], .null)
     }
 
-    func testFinderMayBeQuitButNotForceQuitAndTheDockNeither() throws {
+    /// What the App's own menu offers: Finder has ⌘W but no ⌘Q, so the
+    /// probe shows Close Window and Force Quit for it; the Dock, which is no
+    /// regular App, gets nothing.
+    func testTheExitsAreWhatTheAppsMenuOffersSoFinderHasNoQuit() throws {
         let helper = try helper()
-        XCTAssertEqual(app(in: try opened(helper, over: RecordedApps(front: .finder)).state)?["exits"],
-                       .array([.string("quit")]))
+        let finder = try opened(helper, over: RecordedApps(front: .finder))
+        XCTAssertEqual(app(in: finder.state)?["exits"], .array([.string("close"), .string("force_quit")]))
+        XCTAssertEqual(buttons(of: finder), ["Close Window", "Force Quit", "Quit App in Front"])
         XCTAssertEqual(app(in: try opened(helper, over: RecordedApps(front: .dock)).state)?["exits"], .array([]))
+
+        let closed = RecordedApps(front: .textEdit)
+        closed.offer([.quit], in: .textEdit)  // no window left to close
+        XCTAssertEqual(app(in: try opened(helper, over: closed).state)?["exits"],
+                       .array([.string("quit"), .string("force_quit")]))
+    }
+
+    /// Quit and Close need Accessibility, to read and press the App's menu;
+    /// without it only Force Quit is offered, and a quit is refused.
+    func testWithoutAccessibilityOnlyForceQuitIsOffered() throws {
+        let helper = try helper()
+        let apps = RecordedApps(front: .textEdit)
+        apps.isAccessibilityTrusted = false
+        XCTAssertEqual(app(in: try opened(helper, over: apps).state)?["exits"], .array([.string("force_quit")]))
+
+        let invocation = PluginTestInvocation("probe.quit_front")
+        let run = helper.run(invocation, of: plugin, answering: RecordedHostServices())
+        let refused = try XCTUnwrap(RecordedHostOperations(apps: apps).perform(run, of: plugin, for: invocation))
+        XCTAssertEqual(refused.outcome, .refused(.systemPermissionDenied))
+        XCTAssertTrue(refused.message?.contains("Accessibility") == true, "\(refused.message ?? "")")
+        XCTAssertEqual(apps.exits, [])
+    }
+
+    private func buttons(of answer: PluginScriptAnswer) -> [String] {
+        guard let page = answer.page else { return [] }
+        return page.components.compactMap { component -> [PluginPageAction]? in
+            if case .actions(_, let actions) = component { return actions }
+            return nil
+        }.flatMap { $0 }.map(\.title)
+    }
+
+    /// Close Window presses the App's own ⌘W item: its front window closes
+    /// as it would for the user, asking nothing for the App in front, and
+    /// the App keeps running.
+    func testClosingTheAppInFrontClosesItsWindowWithoutAConfirmation() throws {
+        let helper = try helper()
+        let apps = RecordedApps(front: .textEdit)
+        let opened = try opened(helper, over: apps)
+        let invocation = choose("close", after: opened)
+        let run = helper.run(invocation, of: plugin, answering: RecordedHostServices(apps: apps))
+        XCTAssertEqual(try run.answer().operation?.perform, "apps.close")
+        XCTAssertEqual(try run.answer().operation?.closesView, true, "Its work done, the view closes, unless pinned")
+        let performed = try XCTUnwrap(RecordedHostOperations(apps: apps).perform(run, of: plugin, for: invocation))
+        XCTAssertNil(performed.confirmation)
+        XCTAssertEqual(performed.outcome, .succeeded)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .close)])
+        XCTAssertTrue(apps.isRunning(.textEdit))
+    }
+
+    /// Its view closed on success, the probe is told without a view and
+    /// answers with nothing, as a viewless invocation must.
+    func testToldAfterItsViewClosedItAnswersNothing() throws {
+        let helper = try helper()
+        let apps = RecordedApps(front: .textEdit)
+        let opened = try opened(helper, over: apps)
+        let told = PluginTestInvocation("probe.current",
+                                        event: .operationFinished(id: "close", perform: "apps.close", outcome: .succeeded,
+                                                                  viewClosed: true),
+                                        state: opened.state)
+        let answer = try helper.run(told, of: plugin, answering: RecordedHostServices(apps: apps)).answer()
+        XCTAssertNil(answer.page)
+        XCTAssertNil(answer.description)
+        XCTAssertNil(answer.operation)
+        XCTAssertFalse(answer.close)
     }
 
     // MARK: Quitting
@@ -132,7 +201,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(state["outcomes"], .array([.array([.string("quit"), .string("succeeded"), .null])]))
     }
 
-    func testForceQuitNamesTheLossAndIsRefusedForFinderWithoutAsking() throws {
+    func testForceQuitNamesTheLossAndQuitIsRefusedForAnAppWithoutCommandQ() throws {
         let helper = try helper()
         let apps = RecordedApps(front: .textEdit)
         let opened = try opened(helper, over: apps)
@@ -143,21 +212,22 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         XCTAssertTrue(performed.confirmation?.message.contains("unsaved changes") == true)
         XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .forceQuit)])
 
-        // A Plugin cannot force quit Finder, even by asking with its target.
+        // A Plugin cannot quit Finder, whose menu has no ⌘Q, even by
+        // asking with its target.
         let finderApps = RecordedApps(front: .finder)
         let finder = try self.opened(helper, over: finderApps)
         var state = finder.state
         if case .object(var members) = state, case .object(var app)? = members["app"] {
-            app["exits"] = .array([.string("quit"), .string("force_quit")])
+            app["exits"] = .array([.string("close"), .string("quit"), .string("force_quit")])
             members["app"] = .object(app)
             state = .object(members)
         }
-        let forced = PluginTestInvocation("probe.current", event: .pageActionChosen(
-            page: "current", action: "force", values: .object([:]), selection: .object([:])), state: state, view: finder.pageJSON)
+        let quit = PluginTestInvocation("probe.current", event: .pageActionChosen(
+            page: "current", action: "quit", values: .object([:]), selection: .object([:])), state: state, view: finder.pageJSON)
         let refused = try XCTUnwrap(RecordedHostOperations(apps: finderApps).perform(
-            helper.run(forced, of: plugin, answering: RecordedHostServices(apps: finderApps)), of: plugin, for: forced))
+            helper.run(quit, of: plugin, answering: RecordedHostServices(apps: finderApps)), of: plugin, for: quit))
         XCTAssertEqual(refused.outcome, .refused(.targetProtected))
-        XCTAssertNil(refused.confirmation, "Nothing is asked for an exit the Host never performs")
+        XCTAssertNil(refused.confirmation, "Nothing is asked for an exit the App does not offer")
         XCTAssertEqual(finderApps.exits, [])
     }
 

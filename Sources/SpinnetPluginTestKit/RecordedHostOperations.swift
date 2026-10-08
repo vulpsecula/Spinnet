@@ -14,13 +14,15 @@ import SpinnetCore
 /// every insertion from an Action without a view is. Every other request
 /// reaches the outcome recorded for its ID, by default success.
 ///
-/// Given `apps`, `apps.quit` is performed the Host's way on those recorded
-/// Apps, the App in front when `perform` is called being the one in front
-/// when the Host accepted the request: its target resolved and checked, a
-/// protected App refused, a Host Confirmation, for Force Quit or an App
-/// that was not in front, recorded and answered with `confirmation`, and
-/// authority and identity checked again before the exit. A graceful quit of
-/// the App in front asks nothing. `whileConfirming` runs while a
+/// Given `apps`, `apps.quit` and `apps.close` are performed the Host's way
+/// on those recorded Apps, the App in front when `perform` is called being
+/// the one in front when the Host accepted the request: its target resolved
+/// and checked, Spinnet, an App that is not regular, or a Close or Quit the
+/// App's recorded menu does not offer refused, a Host Confirmation, for
+/// Force Quit or an App that was not in front, recorded and answered with
+/// `confirmation`, and authority, identity and the menu item checked again
+/// before the exit. A Close or graceful Quit of the App in front asks
+/// nothing. `whileConfirming` runs while a
 /// confirmation is on screen, so a test can revoke a Capability or quit the
 /// App meanwhile.
 public final class RecordedHostOperations {
@@ -51,7 +53,7 @@ public final class RecordedHostOperations {
     public var deniedCapabilities: Set<PluginCapability>
     /// Every request performed, in order.
     public private(set) var performed: [Performed] = []
-    /// The recorded Apps `apps.quit` acts on.
+    /// The recorded Apps `apps.quit` and `apps.close` act on.
     public let apps: RecordedApps?
     /// How the user answers each Host Confirmation; nil leaves it unanswered
     /// until it expires.
@@ -91,11 +93,11 @@ public final class RecordedHostOperations {
         var message: String?
         if operation.perform == "selection.replace", !shown.isShown {
             outcome = .refused(.targetNotShown)
-        } else if operation.perform == CurrentAppAddition.quitID, let apps {
-            let quit = self.quit(operation, for: invocation, of: plugin, on: apps)
-            outcome = quit.result.outcome
-            confirmation = quit.confirmation
-            message = quit.result.message
+        } else if CurrentAppAddition.exitIDs.contains(operation.perform), let apps {
+            let exit = self.exit(operation, for: invocation, of: plugin, on: apps)
+            outcome = exit.result.outcome
+            confirmation = exit.confirmation
+            message = exit.result.message
         } else {
             outcome = outcomes[operation.perform] ?? .succeeded
         }
@@ -108,13 +110,14 @@ public final class RecordedHostOperations {
         return result
     }
 
-    /// `apps.quit` as the Host performs it, on the recorded Apps.
-    private func quit(_ operation: RequestedHostOperation, for invocation: PluginTestInvocation, of plugin: PluginUnderTest,
+    /// `apps.quit` and `apps.close` as the Host performs them, on the
+    /// recorded Apps.
+    private func exit(_ operation: RequestedHostOperation, for invocation: PluginTestInvocation, of plugin: PluginUnderTest,
                       on apps: RecordedApps) -> (result: HostOperationResult, confirmation: HostConfirmation?) {
         let confirmer = RecordedConfirmations(answer: confirmation, whileShown: whileConfirming)
         let performer = AppExitPerformer(apps: apps, targets: apps.targets, confirmations: confirmer, schedule: { _, _ in })
         var outcome = HostOperationResult(.expired, message: "The Host Confirmation went unanswered")
-        guard let request = try? AppQuitRequest(input: operation.input),
+        guard let request = try? AppExitRequest(perform: operation.perform, input: operation.input),
               let action = try? plugin.action(for: invocation) else { return (outcome, nil) }
         let capabilities = operation.definition?.capabilities ?? []
         performer.perform(request, accepted: performer.accept(request), for: action, pluginName: plugin.manifest.name,

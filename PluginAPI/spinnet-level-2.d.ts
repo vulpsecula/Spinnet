@@ -69,6 +69,7 @@ export interface Operations {
   "apps.openDeepLink": { input: { template: string; parameters?: Record<string, string> }; result: null };
   "apps.frontmost": { input: null; result: FrontmostApp | null };
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
+  "apps.close": { input: null | { target?: AppTarget }; result: null };
   "system.runShortcut": { input: string | { name: string; input?: string }; result: null };
   "system.runService": { input: string | { name: string; input?: string }; result: null };
   "window.read": { input: null; result: FocusedWindow };
@@ -110,7 +111,7 @@ export type HostCommandID =
 export type RequestID =
   | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.quit";
+  | "apps.quit" | "apps.close";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -694,13 +695,23 @@ export interface AppsNamespace {
    */
   readonly frontmost: Callable<"apps.frontmost">;
   /**
-   * Quits or force quits the App in front, or the App a target names;
-   * Force Quit, and a quit of an App not in front when the Host accepts
-   * the request, after a Host Confirmation naming it; needs
-   * quit_frontmost_app.
+   * Quits the App in front, or the App a target names, exactly as its own
+   * ⌘Q menu item does (needs Accessibility, and an App whose menu has no
+   * enabled ⌘Q is not quit), or force quits it; Force Quit, and a quit of
+   * an App not in front when the Host accepts the request, after a Host
+   * Confirmation naming it; needs quit_frontmost_app.
    * @id apps.quit @entry request view_action
    */
   readonly quit: Performable<"apps.quit">;
+  /**
+   * Closes the front window of the App in front, or of the App a target
+   * names, exactly as its own ⌘W menu item does (needs Accessibility, and
+   * an App whose menu has no enabled ⌘W is not closed); for an App not in
+   * front when the Host accepts the request, after a Host Confirmation
+   * naming it; needs quit_frontmost_app.
+   * @id apps.close @entry request view_action
+   */
+  readonly close: Performable<"apps.close">;
 }
 
 /**
@@ -715,8 +726,13 @@ export interface FrontmostApp {
   target: AppTarget;
   name: string;
   bundle_id: string | null;
-  /** What `apps.quit` would do to it; empty when the Host protects it. */
-  exits: ("quit" | "force_quit")[];
+  /**
+   * What `apps.close` and `apps.quit` would do to it now: `close` and
+   * `quit` when its own menu has an enabled ⌘W or ⌘Q item (and Spinnet has
+   * Accessibility), `force_quit` for any regular App; empty when the Host
+   * performs no exit on it.
+   */
+  exits: ("close" | "quit" | "force_quit")[];
 }
 
 /** The focused window. */

@@ -240,12 +240,17 @@ for a Capability the Command does not declare or the test lists in
 
 ## The App in front
 
-`RecordedApps` stands for the desktop for `apps.frontmost` and `apps.quit`
-(Plugin API Level 2, `PluginAPI/reference/apps.md`): which App is in front,
-which run, and the exits performed. Give it to `RecordedHostServices(apps:)`
-and `RecordedHostOperations(apps:confirmation:)`; both use the Host's own App
-Targets, protection rules and identity checks, so a target outlives neither
-its App nor a relaunch reusing its process ID.
+`RecordedApps` stands for the desktop for `apps.frontmost`, `apps.quit` and
+`apps.close` (Plugin API Level 2, `PluginAPI/reference/apps.md`): which App
+is in front, which run, what each App's own menu offers, whether Spinnet has
+Accessibility, and the exits performed. Close and Quit are the App's own ⌘W
+and ⌘Q, so a recorded App offers them only as its menu says: `App(menu:)`
+sets it, `.finder` has Close but no Quit, `offer(_:in:)` changes it (as
+when the App's last window closes), and `isAccessibilityTrusted = false`
+leaves only Force Quit. Give it to `RecordedHostServices(apps:)` and
+`RecordedHostOperations(apps:confirmation:)`; both use the Host's own App
+Targets, exit rules and identity checks, so a target outlives neither its
+App nor a relaunch reusing its process ID.
 
 ```swift
 let apps = RecordedApps(front: .textEdit, running: [.safari])
@@ -261,10 +266,11 @@ XCTAssertEqual(performed.outcome, .refused(.noTarget))
 ```
 
 The App in front when `perform` is called is the one in front when the Host
-accepted the request: a graceful quit of it asks no Host Confirmation, and
-`performed.confirmation` is nil; Force Quit, or a quit of an App a target
-names while another is in front, asks one. `confirmation: .declined`
-declines it and `nil` leaves it to expire. `apps.exits` lists what was quit; `performed.message` is the
+accepted the request: closing or gracefully quitting it asks no Host
+Confirmation, and `performed.confirmation` is nil; Force Quit, or a close or
+quit of an App a target names while another is in front, asks one.
+`confirmation: .declined` declines it and `nil` leaves it to expire.
+`apps.exits` lists what was closed or quit; `performed.message` is the
 Host's own text, which may name the App and never reaches the Plugin.
 
 ## Using the Host's own services

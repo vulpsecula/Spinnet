@@ -1,0 +1,8 @@
+{
+  "operation": {
+    "perform": "apps.close",
+    "input": {
+      "force": true
+    }
+  }
+}

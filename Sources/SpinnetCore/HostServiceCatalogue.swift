@@ -266,13 +266,20 @@ public enum HostServiceCatalogue {
         define("apps.openDeepLink", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
                capabilities: [.controlExternalApp], failures: [.capabilityDenied, .externalAppMissing, .hostServiceFailed],
                input: ["template", "parameters"], services: [.openDeepLink], commands: [.openDeepLink]),
-        // The App in front and its exit (#83), appended to Level 2.
+        // The App in front and its exits (#83), appended to Level 2. Quit
+        // presses the App's ⌘Q item through Accessibility, but Force Quit,
+        // under the same ID, needs no System Permission; Close always
+        // presses its ⌘W item.
         define(CurrentAppAddition.frontmostID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered,
                                                 .request: .notOffered],
                capabilities: [.readFrontmostApp], failures: failures, services: []),
         define(CurrentAppAddition.quitID, [.call: .notOffered, .command: .reserved, .viewAction: levelTwo,
                                            .request: levelTwo],
-               capabilities: [.quitFrontmostApp], failures: failures, input: ["target", "force"]),
+               capabilities: [.quitFrontmostApp], failures: permissionFailures, input: ["target", "force"]),
+        define(CurrentAppAddition.closeID, [.call: .notOffered, .command: .reserved, .viewAction: levelTwo,
+                                            .request: levelTwo],
+               capabilities: [.quitFrontmostApp], permission: .accessibility, failures: permissionFailures,
+               input: ["target"]),
 
         define("system.runShortcut", [.call: .reserved, .command: ns, .viewAction: .reserved, .request: .reserved],
                primary: "name", input: ["name", "input"], commands: [.invokeShortcut]),

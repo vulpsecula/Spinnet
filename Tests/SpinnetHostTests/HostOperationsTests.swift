@@ -299,7 +299,8 @@ final class HostOperationsTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
                                                         selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
         let desktop = DesktopRunningApps(environment: .init(frontmost: { nil }, application: { _ in nil },
-                                                            ownProcessIdentifier: 1, observe: { _, _ in NSObject() }))
+                                                            ownProcessIdentifier: 1, observe: { _, _ in NSObject() },
+                                                            isAccessibilityTrusted: { true }, menuItems: { _ in [] }))
         let exits = AppExitPerformer(apps: desktop, targets: AppTargets(), confirmations: HostConfirmationPanel(),
                                      schedule: { _, _ in })
         let performer = HostOperationsPerformer(registry: registry, broker: { broker }, inserter: inserter, exits: exits,
@@ -308,7 +309,7 @@ final class HostOperationsTests: XCTestCase {
         let unread = RequestedHostOperation(perform: "apps.quit", input: .string("frontmost"))
         let result = try XCTUnwrap(perform(performer, unread, for: action))
         XCTAssertEqual(result.outcome, .refused(.hostServiceFailed))
-        XCTAssertNotEqual(result.message, "This Host cannot quit Apps")
+        XCTAssertNotEqual(result.message, "This Host cannot close or quit Apps")
         XCTAssertTrue(result.message?.contains("apps.quit's input") == true, result.message ?? "")
     }
 

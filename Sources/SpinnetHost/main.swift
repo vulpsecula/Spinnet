@@ -56,15 +56,24 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// Every insertion of such a Plugin's View Session goes through it: into
     /// the App in front only if it is the App the Host showed.
     private lazy var targetedInserter = TargetedTextInserter(tracker: insertionTargets, inserter: textInserter)
-    /// The App in front and its exit (#83): the App Targets given to
+    /// The App in front and its exits (#83): the App Targets given to
     /// Plugins, forgotten when their App quits or a Plugin changes or loses
-    /// a Capability, and quits performed, after a Host Confirmation unless
-    /// they gracefully quit the App in front.
+    /// a Capability, and closes and quits performed, after a Host
+    /// Confirmation unless they close or gracefully quit the App in front.
+    /// Its menu is read and pressed on `appMessaging`, never on the main
+    /// thread, since the App may be slow to answer.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
+    private let appMessaging = DispatchQueue(label: "com.vulpsecula.Spinnet.app-exits", qos: .userInitiated)
     private lazy var appExits = AppExitPerformer(
         apps: runningApps, targets: appTargets, confirmations: HostConfirmationPanel(),
-        schedule: { delay, work in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work) }
+        schedule: { delay, work in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work) },
+        detach: { [appMessaging] work, then in
+            appMessaging.async {
+                work()
+                DispatchQueue.main.async(execute: then)
+            }
+        }
     )
     private var appTargetObservers: (registry: UUID, grants: UUID)?
     private lazy var selectedTextReader = SelectedTextReader(
@@ -206,8 +215,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 preferredScreenCapturer: captureScreen,
                 // `apps.frontmost`, on the broker's thread: the main thread
-                // keeps which App is in front current, so this never waits
-                // on it.
+                // keeps which App is in front current, and the App's menu is
+                // read here, within its bound, so this never waits on it.
                 frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
                     appTargets.identifyFrontmost(of: runningApps, for: pluginID)
                 }

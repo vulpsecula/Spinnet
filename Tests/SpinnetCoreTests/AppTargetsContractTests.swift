@@ -5,8 +5,10 @@ import SpinnetPluginTestKit
 
 /// The App in front as Plugin API Level 2 publishes it (#83): the
 /// `fixtures/apps/` results and inputs against `namespaces.schema.json` and
-/// the Host's reading of `apps.quit`'s input, App Targets' lifetime and
-/// bound, and which Apps the Host protects.
+/// the Host's reading of `apps.quit`'s and `apps.close`'s input, App
+/// Targets' lifetime and bound, and which exits the Host offers: Close and
+/// Quit only as the App's own menu does, Force Quit for any regular App but
+/// Spinnet, with no rule naming an App.
 final class AppTargetsContractTests: XCTestCase {
     private static let pluginAPI = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -36,11 +38,13 @@ final class AppTargetsContractTests: XCTestCase {
             let validator = try JSONSchemaSubsetValidator(definition: fixture.definition, inSchemaAt: schema)
             let errors = validator.errors(for: try value(fixture.file))
             XCTAssertEqual(errors.isEmpty, fixture.valid, "\(fixture.file): \(fixture.note) \(errors)")
-            if fixture.definition == "apps.quit.input" {
-                XCTAssertEqual((try? AppQuitRequest(input: value(fixture.file))) != nil, fixture.valid, fixture.file)
+            for id in CurrentAppAddition.exitIDs where fixture.definition == "\(id).input" {
+                XCTAssertEqual((try? AppExitRequest(perform: id, input: value(fixture.file))) != nil, fixture.valid,
+                               fixture.file)
             }
         }
-        XCTAssertTrue(try fixtures().contains { $0.definition == "apps.frontmost.result" })
+        let definitions = Set(try fixtures().map(\.definition))
+        XCTAssertTrue(definitions.isSuperset(of: ["apps.frontmost.result", "apps.quit.input", "apps.close.input"]))
     }
 
     func testTheReadmeLinksTheFixturesAndReference() throws {
@@ -50,10 +54,7 @@ final class AppTargetsContractTests: XCTestCase {
         let reference = try String(contentsOf: Self.pluginAPI.appendingPathComponent("reference/apps.md"), encoding: .utf8)
         XCTAssertTrue(reference.contains("| App Targets per Plugin | \(AppTargets.maximumPerPlugin) |"))
         XCTAssertTrue(reference.contains("| Host Confirmation unanswered before `expired` | \(Int(HostConfirmation.expiry)) s |"))
-        for bundle in AppExitPolicy.systemBundleIdentifiers.union(AppExitPolicy.forceQuitProtectedBundleIdentifiers)
-        where bundle != "com.apple.finder" {
-            XCTAssertTrue(reference.contains("`\(bundle)`"), "reference/apps.md does not list \(bundle)")
-        }
+        XCTAssertFalse(reference.contains("com.apple.finder"), "No rule names an App")
     }
 
     // MARK: App Targets
@@ -101,7 +102,7 @@ final class AppTargetsContractTests: XCTestCase {
                                               command: CommandDeclaration(id: CommandID("c"), title: "C",
                                                                           execution: .javascript, script: "c.js"),
                                               input: .null)
-        exits.perform(AppQuitRequest(), accepted: exits.accept(AppQuitRequest()), for: action, pluginName: "One",
+        exits.perform(AppExitRequest(), accepted: exits.accept(AppExitRequest()), for: action, pluginName: "One",
                       authorize: {}) { result = $0 }
         XCTAssertEqual(result?.outcome, .refused(.noTarget))
         XCTAssertEqual(apps.exits, 0)
@@ -135,20 +136,27 @@ final class AppTargetsContractTests: XCTestCase {
 
     // MARK: Protection
 
-    func testTheHostProtectsItselfMacOSAndAgentsAndNeverForceQuitsFinder() {
+    /// Close and Quit are the App's own: offered exactly when its menu has
+    /// an enabled ⌘W or ⌘Q item, so an App without ⌘Q, such as Finder, has
+    /// no Quit by what its menu says, not by its name. Force Quit is offered
+    /// for every regular App but Spinnet. An agent or background process,
+    /// which is how the parts of macOS that run as Apps run, has none.
+    func testTheExitsFollowTheAppsOwnMenuAndNoRuleNamesAnApp() {
         let own: Int32 = 7
-        func exits(_ bundle: String?, pid: Int32 = 1, regular: Bool = true) -> [AppExit] {
+        func exits(_ bundle: String?, pid: Int32 = 1, regular: Bool = true, menu: Set<AppExit>) -> [AppExit] {
             AppExitPolicy.exits(for: RunningAppFacts(identity: RunningAppIdentity(processIdentifier: pid, bundleIdentifier: bundle,
                                                                              launchDate: nil, name: "X"),
-                                                     isRegular: regular), ownProcessIdentifier: own)
+                                                     isRegular: regular),
+                                menu: menu, ownProcessIdentifier: own)
         }
-        XCTAssertEqual(exits("com.apple.TextEdit"), [.quit, .forceQuit])
-        XCTAssertEqual(exits(nil), [.quit, .forceQuit])
-        XCTAssertEqual(exits("com.apple.finder"), [.quit])
-        XCTAssertEqual(exits("com.apple.dock"), [])
-        XCTAssertEqual(exits("com.apple.loginwindow"), [])
-        XCTAssertEqual(exits("com.example.agent", regular: false), [])
-        XCTAssertEqual(exits("com.vulpsecula.Spinnet", pid: own), [])
+        XCTAssertEqual(exits("com.apple.TextEdit", menu: [.close, .quit]), [.close, .quit, .forceQuit])
+        XCTAssertEqual(exits(nil, menu: [.quit]), [.quit, .forceQuit])
+        XCTAssertEqual(exits("com.apple.finder", menu: [.close]), [.close, .forceQuit])
+        XCTAssertEqual(exits("com.apple.finder", menu: []), [.forceQuit])
+        XCTAssertEqual(exits("com.example.agent", regular: false, menu: [.close, .quit]), [])
+        XCTAssertEqual(exits("com.vulpsecula.Spinnet", pid: own, menu: [.close, .quit]), [])
+        XCTAssertEqual(exits("com.example.any", menu: [.forceQuit]), [.forceQuit], "A menu offers no Force Quit")
+        XCTAssertEqual(AppExit.allCases.map(\.rawValue), ["close", "quit", "force_quit"])
     }
 
     // MARK: Capabilities
@@ -160,7 +168,18 @@ final class AppTargetsContractTests: XCTestCase {
         XCTAssertEqual(PluginCapability.quitFrontmostApp.consentGroup, .controls)
         XCTAssertEqual(HostServiceCatalogue.operation("apps.frontmost")?.capabilities, [.readFrontmostApp])
         XCTAssertEqual(HostServiceCatalogue.operation("apps.quit")?.capabilities, [.quitFrontmostApp])
+        XCTAssertEqual(HostServiceCatalogue.operation("apps.close")?.capabilities, [.quitFrontmostApp])
         XCTAssertFalse(HostServiceCatalogue.operation("apps.quit")!.isOffered(at: .call), "No synchronous kill")
+        XCTAssertFalse(HostServiceCatalogue.operation("apps.close")!.isOffered(at: .call))
+        // Close always presses a menu item through Accessibility; Quit does
+        // too, but Force Quit, under the same ID, does not need it.
+        XCTAssertEqual(HostServiceCatalogue.operation("apps.close")?.systemPermission, .accessibility)
+        XCTAssertNil(HostServiceCatalogue.operation("apps.quit")?.systemPermission)
+        XCTAssertTrue(HostServiceCatalogue.operation("apps.quit")!.failures.contains(.systemPermissionDenied))
+        for id in CurrentAppAddition.exitIDs {
+            XCTAssertTrue(PluginInterfaceContracts.levelTwoMembers.contains(.request(id)), id)
+            XCTAssertTrue(PluginInterfaceContracts.levelTwoMembers.contains(.standardAction(id)), id)
+        }
     }
 }
 
@@ -179,9 +198,11 @@ private final class OneRunningApp: RunningApps {
         other.isSameApp(as: app) ? RunningAppFacts(identity: app, isRegular: true) : nil
     }
 
-    func perform(_ exit: AppExit, on other: RunningAppIdentity) -> Bool {
+    func menuExits(of other: RunningAppIdentity) throws -> Set<AppExit> { [.close, .quit] }
+
+    func perform(_ exit: AppExit, on other: RunningAppIdentity) throws -> AppExitDelivery {
         exits += 1
-        return true
+        return .delivered
     }
 
     func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void) {}

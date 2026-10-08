@@ -1,0 +1,7 @@
+{
+  "type": "operation_finished",
+  "operation": "close",
+  "perform": "apps.close",
+  "outcome": "refused",
+  "reason": "system_permission_denied"
+}

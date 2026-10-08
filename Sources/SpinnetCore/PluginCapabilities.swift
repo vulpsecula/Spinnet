@@ -20,9 +20,11 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// Plugin API Level 2 (#83): identifying the App in front, by its name,
     /// bundle identifier and an App Target. Separate from quitting it.
     case readFrontmostApp = "read_frontmost_app"
-    /// Plugin API Level 2 (#83): asking the Host to quit or force quit the
-    /// App in front, or one an App Target names; Force Quit, and a quit of
-    /// an App not in front, after a Host Confirmation. It tells the Plugin nothing about the App.
+    /// Plugin API Level 2 (#83): asking the Host to close the front window
+    /// of, quit or force quit the App in front, or one an App Target names,
+    /// Close and Quit exactly as the App's own ⌘W and ⌘Q do; Force Quit, and
+    /// a close or quit of an App not in front, after a Host Confirmation. It
+    /// tells the Plugin nothing about the App.
     case quitFrontmostApp = "quit_frontmost_app"
 
     public var isSupportedByHostServices: Bool {
@@ -51,7 +53,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .captureScreen: return "Capture the Screen"
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         case .readFrontmostApp: return "Identify the App in Front"
-        case .quitFrontmostApp: return "Quit the App in Front"
+        case .quitFrontmostApp: return "Close or Quit the App in Front"
         }
     }
 
@@ -72,8 +74,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .openLocalPath: return "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents."
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
-        case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would quit it. Never a list of your Apps."
-        case .quitFrontmostApp: return "Ask Spinnet to quit or force quit the App in front, or one the Plugin identified. Spinnet names the App and asks you before a force quit, or before quitting an App that is not in front; it never quits Spinnet or parts of macOS, and never force quits Finder."
+        case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
+        case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
     }
 }
@@ -442,7 +444,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
     public var explanation: String {
         switch self {
         case .accessibility:
-            return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, and move the focused window."
+            return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, move the focused window, and close or quit an App through its own menu for Plugins you allow to."
         case .screenRecording:
             return "Lets Spinnet take screenshots, for its own Capture commands and for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording."
         }

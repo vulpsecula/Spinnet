@@ -92,10 +92,10 @@ public enum AcceptedHostOperationTarget: Hashable {
     /// Nothing: the operation names its target in its input, or resolves it
     /// when it starts.
     case none
-    /// `apps.quit`: the App in front when the Host accepted it, or nil when
-    /// Spinnet, no App or an App the Host cannot name was. Without a target,
-    /// the App it acts on; with one, the App it may quit gracefully without
-    /// a Host Confirmation.
+    /// `apps.quit` and `apps.close`: the App in front when the Host accepted
+    /// it, or nil when Spinnet, no App or an App the Host cannot name was.
+    /// Without a target, the App it acts on; with one, the App it may close
+    /// or quit gracefully without a Host Confirmation.
     case appInFront(RunningAppIdentity?)
 }
 

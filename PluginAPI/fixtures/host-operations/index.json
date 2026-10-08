@@ -230,16 +230,34 @@
       "note": "force is true or false"
     },
     {
+      "file": "answers/close-target.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Close the front window of the App an App Target names, as its own ⌘W does; the Host asks a Host Confirmation naming it when that App is not in front (#83)"
+    },
+    {
+      "file": "answers/close-force.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "apps.close takes only a target: there is no forced close"
+    },
+    {
       "file": "events/finished-quit-protected.json",
       "definition": "event",
       "valid": true,
-      "note": "The Host never force quits this App, such as Finder; nothing was done and the App is not named"
+      "note": "The App offers no Quit: its own menu has no enabled ⌘Q item, as Finder has none; nothing was done and the App is not named"
+    },
+    {
+      "file": "events/finished-close-no-accessibility.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Close and Quit press the App's own menu items through Accessibility, which Spinnet lacks; Force Quit does not need it"
     },
     {
       "file": "events/finished-quit-declined.json",
       "definition": "event",
       "valid": true,
-      "note": "The user declined the Host Confirmation of a Force Quit, or of a quit of an App not in front"
+      "note": "The user declined the Host Confirmation of a Force Quit, or of a close or quit of an App not in front"
     },
     {
       "file": "events/finished-quit-declined-after-close.json",

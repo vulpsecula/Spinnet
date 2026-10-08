@@ -3,6 +3,7 @@
   "name": "TextEdit",
   "bundle_id": "com.apple.TextEdit",
   "exits": [
+    "close",
     "quit",
     "force_quit"
   ]

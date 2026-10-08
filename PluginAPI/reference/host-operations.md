@@ -56,7 +56,8 @@ if (event?.type === "submitted") {
 | `open.application` | `application`, a path or bundle identifier | `open_local_path` |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | `control_external_app`; macOS asks for Automation |
 | `apps.openDeepLink` | `{template, parameters?}` | `control_external_app` |
-| `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; a Host Confirmation for Force Quit and for an App not in front ([the App in front](apps.md)) |
+| `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; Accessibility except for Force Quit; a Host Confirmation for Force Quit and for an App not in front ([the App in front](apps.md)) |
+| `apps.close` | `{target?}`, or none for the App in front | `quit_frontmost_app`, Accessibility; a Host Confirmation for an App not in front ([the App in front](apps.md)) |
 | `host.showPluginSettings` | none, and no `closes_view` | nothing |
 
 The SDK builds each request from its operation:
@@ -97,13 +98,16 @@ answer being accepted.
 | `refused` | A check at execution failed, such as a revoked Capability or a changed target; nothing was done |
 | `failed` | The effect failed after the Host began it |
 | `cancelled` | The request's owner ended before it ran: its view closed, or the Plugin was updated, disabled, removed or lost a Capability |
-| `declined`, `expired` | A Host Confirmation was declined, or went unanswered for 60 seconds; only `apps.quit` asks for one |
+| `declined`, `expired` | A Host Confirmation was declined, or went unanswered for 60 seconds; only `apps.quit` and `apps.close` ask for one |
 
 - The Host checks the Capability, the System Permission, the Plugin and its
   Command, and the target again when it starts the operation.
 - The Host shows every outcome other than success in the view, with a repair
   route where there is one, or near the pointer when there is no view or it
   has closed.
+- A Host Confirmation takes the keyboard without closing the view whose
+  operation it confirms, pinned or not, and gives the keyboard back to it
+  when it goes.
 - `closes_view` closes the view on `succeeded` only, and not while the user
   has pinned it ([Plugin Views](views.md#windows)).
 - Nothing is retried. A retry is a new gesture.
@@ -113,7 +117,7 @@ answer being accepted.
   `external_app_operation_unsupported` or `host_service_failed`),
   `command_unavailable` when the Plugin or Command is missing, disabled or
   changed, or for `selection.replace` one of the target reasons below, and
-  for `apps.quit` `no_target` or `target_protected`
+  for `apps.quit` and `apps.close` `no_target` or `target_protected`
   ([the App in front](apps.md#outcomes)). No reason names the App.
 
 ### `operation_finished`
@@ -201,11 +205,11 @@ survives its owner.
 Some operations ask the user first, in a confirmation the Host draws with
 its own words and the target it resolved; when one is required, a Plugin
 can neither skip nor word it, and a Plugin's own "Are you sure?" is an
-ordinary view that authorizes nothing. `apps.quit` is the one Level 2
-operation that needs one: for every Force Quit, and for a quit of an App
-that was not in front when the Host accepted the request; a graceful quit
-of the App that was in front then asks nothing ([the App in
-front](apps.md#host-confirmation)).
+ordinary view that authorizes nothing. `apps.quit` and `apps.close` are
+the Level 2 operations that need one: for every Force Quit, and for a close
+or quit of an App that was not in front when the Host accepted the request;
+closing or gracefully quitting the App that was in front then asks nothing
+([the App in front](apps.md#host-confirmation)).
 The Host draws it near the pointer without activating Spinnet, so the App it
 names stays in front; Cancel is its default button, so Return and Escape
 decline, and only a click on the Host's own button confirms. An
@@ -264,7 +268,7 @@ otherwise it is refused with `target_not_shown`.
 | `target_changed` | Another App is in front than the one shown, focus moved to another element of it, or it left the front while the text was typed (then `failed`, with part of the text typed) |
 | `target_not_shown` | Nothing showed where the text would go: the Action's start, an event that is no gesture, a view without the target line, or an Action without a view |
 | `no_target` | Spinnet or no App is in front, or the App shown has quit |
-| `target_protected` | `apps.quit` only: the Host never ends that App that way ([the App in front](apps.md)) |
+| `target_protected` | `apps.quit` and `apps.close` only: the App does not offer that exit, its own menu having no enabled ⌘Q or ⌘W item, or the Host performs none on it ([the App in front](apps.md)) |
 | `secure_input` | The focused element is a password field |
 | `target_unresponsive` | The App did not come to the front within one second (`failed`; nothing was typed) |
 | `system_permission_denied`, `capability_denied` | Accessibility or the Capability is missing at execution |

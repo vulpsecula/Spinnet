@@ -144,7 +144,8 @@
         "open.application",
         "apps.perform",
         "apps.openDeepLink",
-        "apps.quit"
+        "apps.quit",
+        "apps.close"
       ]
     },
     "item_action_id": {
@@ -166,7 +167,8 @@
         "open.application",
         "apps.perform",
         "apps.openDeepLink",
-        "apps.quit"
+        "apps.quit",
+        "apps.close"
       ]
     },
     "app_target": {
@@ -175,8 +177,9 @@
       "pattern": "^app_[0-9a-f]{32}$"
     },
     "app_exit": {
-      "description": "quit asks the App to quit; force_quit ends it at once.",
+      "description": "close presses the App's own enabled ⌘W menu item, closing its front window as ⌘W does; quit presses its own enabled ⌘Q menu item, as ⌘Q or the Dock's Quit does; force_quit ends it at once.",
       "enum": [
+        "close",
         "quit",
         "force_quit"
       ]
@@ -456,7 +459,7 @@
       "type": "null"
     },
     "apps.quit.input": {
-      "description": "The App to end and how. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. force asks for Force Quit. null is the App in front, quit gracefully. The Host asks a Host Confirmation naming the App for Force Quit and for an App not in front when it accepted the request; a graceful quit of the App in front then asks none.",
+      "description": "The App to end and how. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. force asks for Force Quit; otherwise the Host presses the App's own ⌘Q menu item, which needs Accessibility, and refuses an App whose menu has none. null is the App in front, quit gracefully. The Host asks a Host Confirmation naming the App for Force Quit and for an App not in front when it accepted the request; a graceful quit of the App in front then asks none.",
       "oneOf": [
         {
           "type": "null"
@@ -470,6 +473,23 @@
             },
             "force": {
               "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "apps.close.input": {
+      "description": "The App whose front window to close. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. The Host presses the App's own ⌘W menu item, which needs Accessibility, and refuses an App whose menu has none enabled. The Host asks a Host Confirmation naming the App for an App not in front when it accepted the request; closing the App in front then asks none.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/app_target"
             }
           }
         }
@@ -827,7 +847,7 @@
       "type": "null"
     },
     "apps.frontmost.result": {
-      "description": "The App in front, or null while Spinnet or no App is in front, or an App without a launch date, which the Host cannot tell from a later App with its process ID. exits lists what apps.quit would do to it; an empty list means the Host protects it.",
+      "description": "The App in front, or null while Spinnet or no App is in front, or an App whose launch date and process start time the Host cannot read, which it cannot tell from a later App with its process ID (Finder, which has no launch date, is identified by its process start time). exits lists what apps.close and apps.quit would do to it now: close and quit when its own menu has an enabled ⌘W or ⌘Q item and Spinnet has Accessibility, force_quit for any regular App; an empty list means the Host performs no exit on it.",
       "oneOf": [
         {
           "type": "null"
@@ -861,7 +881,7 @@
             "exits": {
               "type": "array",
               "uniqueItems": true,
-              "maxItems": 2,
+              "maxItems": 3,
               "items": {
                 "$ref": "#/$defs/app_exit"
               }
@@ -871,6 +891,10 @@
       ]
     },
     "apps.quit.result": {
+      "description": "Nothing: the outcome is operation_finished's.",
+      "type": "null"
+    },
+    "apps.close.result": {
       "description": "Nothing: the outcome is operation_finished's.",
       "type": "null"
     },
@@ -1154,6 +1178,25 @@
             "properties": {
               "input": {
                 "$ref": "#/$defs/apps.quit.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "apps.close"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/apps.close.input"
               }
             }
           }

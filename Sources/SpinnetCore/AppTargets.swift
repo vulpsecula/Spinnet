@@ -2,14 +2,16 @@ import Foundation
 
 // MARK: - The addition to Plugin API Level 2
 
-/// The App in front and its exit, appended to Plugin API Level 2 while it is
-/// open (#83): `apps.frontmost` identifies the App behind Spinnet's panel by
-/// an App Target, under `read_frontmost_app`, and `apps.quit` asks the Host
-/// to quit or force quit it, under `quit_frontmost_app`. Force Quit, and a
-/// quit of an App that was not in front when the Host accepted the request,
-/// need a Host Confirmation. The two Capabilities are separate, so identifying an App
-/// never lets a Plugin end it, and ending one never tells the Plugin which
-/// it was.
+/// The App in front and its exits, appended to Plugin API Level 2 while it
+/// is open (#83): `apps.frontmost` identifies the App behind Spinnet's panel
+/// by an App Target, under `read_frontmost_app`; `apps.quit` asks the Host
+/// to quit or force quit it, and `apps.close` to close its front window,
+/// under `quit_frontmost_app`. Quit and Close are exactly the App's own ⌘Q
+/// and ⌘W menu items, which the Host presses. Force Quit, and a quit or
+/// close of an App that was not in front when the Host accepted the
+/// request, need a Host Confirmation. The two Capabilities are separate, so
+/// identifying an App never lets a Plugin end it, and ending one never
+/// tells the Plugin which it was.
 public enum CurrentAppAddition {
     /// How the catalogue records that Level 2 itself, not a Candidate
     /// Contract, first offered these IDs.
@@ -17,10 +19,13 @@ public enum CurrentAppAddition {
 
     public static let frontmostID = "apps.frontmost"
     public static let quitID = "apps.quit"
+    public static let closeID = "apps.close"
+    /// The operations that perform an `AppExit`.
+    public static let exitIDs = [quitID, closeID]
 
     /// The members appended to Level 2.
     public static let members: [PluginInterfaceMember] = [
-        .hostService(frontmostID), .request(quitID), .standardAction(quitID)
+        .hostService(frontmostID), .request(quitID), .standardAction(quitID), .request(closeID), .standardAction(closeID)
     ]
 
     /// The Capabilities only a Level 2 Plugin may declare.
@@ -29,13 +34,44 @@ public enum CurrentAppAddition {
 
 // MARK: - Running Apps
 
-/// An exit the Host may perform on an App.
+/// An exit the Host may perform on an App, in the order `apps.frontmost`
+/// lists them.
 public enum AppExit: String, CaseIterable, Hashable {
-    /// Asks the App to quit, as its Quit menu item does; it may ask to save
-    /// first, or refuse.
+    /// Presses the App's own ⌘W menu item, exactly as ⌘W does: the App
+    /// closes its front window, and may ask to save first.
+    case close
+    /// Presses the App's own ⌘Q menu item, exactly as ⌘Q or the Dock's Quit
+    /// does: the App may ask to save first, or refuse.
     case quit
     /// Ends the App's process at once; unsaved changes are lost.
     case forceQuit = "force_quit"
+
+    /// The key of the menu item that performs this exit with Command alone,
+    /// as Accessibility reports it (`AXMenuItemCmdChar`); nil for Force
+    /// Quit, which no menu of the App offers.
+    public var menuKey: String? {
+        switch self {
+        case .close: return "W"
+        case .quit: return "Q"
+        case .forceQuit: return nil
+        }
+    }
+
+    /// Whether the App's own menu item performs it.
+    public var isMenuItem: Bool { menuKey != nil }
+}
+
+/// What came of performing an exit.
+public enum AppExitDelivery: Hashable {
+    /// The App was sent the exit: its menu item pressed, or its process
+    /// ended. A pressed item the App had not answered within its bound
+    /// counts, since the App may be asking to save.
+    case delivered
+    /// The App's menu no longer has the item, or it is disabled: nothing
+    /// was done.
+    case notOffered
+    /// The App is gone, or macOS did not take the exit.
+    case failed
 }
 
 /// One running App as the Host names it to identify or end it: its process
@@ -57,8 +93,9 @@ public struct RunningAppIdentity: Hashable {
     }
 
     /// Whether the Host can tell this App from a later process that reuses
-    /// its ID: macOS gave it a launch date. An App started without Launch
-    /// Services has none, and the Host neither names nor ends it.
+    /// its ID: it has a launch date, or for an App Launch Services did not
+    /// start (such as Finder) its process's start time, which the Host gives
+    /// as `launchDate`. Without either the Host neither names nor ends it.
     public var isComplete: Bool { launchDate != nil }
 
     /// The same running App, whatever it is called now. An incomplete
@@ -83,31 +120,27 @@ public struct RunningAppFacts: Hashable {
     }
 }
 
-/// Which exits the Host performs on which Apps. An App is protected from an
-/// exit it does not list: Spinnet itself, every App that is not a regular
-/// App, the parts of macOS that run as Apps, and Finder from Force Quit.
-/// Protection is decided by the Host for every Plugin alike; no grant lifts
-/// it.
+/// Which exits the Host performs on which Apps, by generic rules alone: no
+/// rule names an App. Close and Quit are the App's own, offered exactly
+/// when its menu has an enabled ⌘W or ⌘Q item, so the Host does to an App
+/// only what the user's ⌘W and ⌘Q would. Force Quit is offered for every
+/// regular App. Spinnet itself, and every App that is not a regular App,
+/// get none: the parts of macOS that run as Apps (the Dock, loginwindow,
+/// Control Center and the like) are agents, not regular Apps. The rules are
+/// the Host's, the same for every Plugin; no grant lifts them.
 public enum AppExitPolicy {
-    /// Parts of macOS that run as regular Apps or may come to the front, on
-    /// which the Host performs no exit.
-    public static let systemBundleIdentifiers: Set<String> = [
-        "com.apple.loginwindow", "com.apple.dock", "com.apple.SystemUIServer", "com.apple.WindowManager",
-        "com.apple.controlcenter", "com.apple.notificationcenterui", "com.apple.Spotlight",
-        "com.apple.coreservices.uiagent", "com.apple.UserNotificationCenter", "com.apple.SecurityAgent"
-    ]
-    /// Apps the Host asks to quit but never force quits: macOS relaunches
-    /// Finder, and a forced exit loses its file operations.
-    public static let forceQuitProtectedBundleIdentifiers: Set<String> = ["com.apple.finder"]
+    /// Whether the Host performs any exit on `facts`: a regular App other
+    /// than Spinnet, whose process is `ownProcessIdentifier`.
+    public static func isEligible(_ facts: RunningAppFacts, ownProcessIdentifier: Int32) -> Bool {
+        facts.identity.processIdentifier != ownProcessIdentifier && facts.isRegular
+    }
 
-    /// The exits the Host would perform on `facts`, in `AppExit`'s order;
-    /// none for a protected App. `ownProcessIdentifier` is Spinnet's.
-    public static func exits(for facts: RunningAppFacts, ownProcessIdentifier: Int32) -> [AppExit] {
-        let bundle = facts.identity.bundleIdentifier
-        guard facts.identity.processIdentifier != ownProcessIdentifier, facts.isRegular,
-              !(bundle.map(systemBundleIdentifiers.contains) ?? false) else { return [] }
-        if let bundle, forceQuitProtectedBundleIdentifiers.contains(bundle) { return [.quit] }
-        return [.quit, .forceQuit]
+    /// The exits the Host would perform on `facts`, whose menu offers
+    /// `menu`, in `AppExit`'s order; none for Spinnet or an App that is not
+    /// regular.
+    public static func exits(for facts: RunningAppFacts, menu: Set<AppExit>, ownProcessIdentifier: Int32) -> [AppExit] {
+        guard isEligible(facts, ownProcessIdentifier: ownProcessIdentifier) else { return [] }
+        return AppExit.allCases.filter { $0.isMenuItem ? menu.contains($0) : true }
     }
 }
 
@@ -123,9 +156,20 @@ public protocol RunningApps: AnyObject {
     /// `app` as it runs now, or nil when that App is no longer running:
     /// a process that reused its ID is another App.
     func facts(of app: RunningAppIdentity) -> RunningAppFacts?
+    /// The exits `app`'s own menu offers now, of `close` and `quit`: an
+    /// enabled item whose shortcut is ⌘W or ⌘Q, Command alone, in one of
+    /// its menu bar's menus; none when it no longer runs or its menu does
+    /// not answer. It messages the App, within a bound, so the Host never
+    /// reads it on the main thread. Throws
+    /// `PluginHostServiceError.systemPermissionDenied(.accessibility)` when
+    /// Spinnet may not read other Apps' menus.
+    func menuExits(of app: RunningAppIdentity) throws -> Set<AppExit>
     /// Performs `exit` on exactly `app`, whose identity the caller has just
-    /// checked; false when the exit could not be delivered.
-    func perform(_ exit: AppExit, on app: RunningAppIdentity) -> Bool
+    /// checked: presses its menu item, found again now, for Close and Quit,
+    /// and ends its process for Force Quit. Like `menuExits`, it may message
+    /// the App and throws the same for Close and Quit without
+    /// Accessibility.
+    func perform(_ exit: AppExit, on app: RunningAppIdentity) throws -> AppExitDelivery
     /// Calls `terminated` with every App that quits from now on.
     func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void)
 }
@@ -144,7 +188,8 @@ public extension RunningApps {
 
 /// The App Targets the Host has given Plugins: opaque names for running
 /// Apps, which a Plugin allowed to identify the App in front receives and
-/// may name back to the Host, as `apps.quit`'s `target`. A target names one
+/// may name back to the Host, as `apps.quit`'s and `apps.close`'s `target`.
+/// A target names one
 /// App, identified by process ID, bundle identifier and launch date, for
 /// the Plugin it was given to only; it never contains the process ID, and
 /// no target names an App whose identity is incomplete.
@@ -251,17 +296,22 @@ public final class AppTargets {
     /// `apps.frontmost`'s result for `plugin`: the App in front with its
     /// target, name, bundle identifier and the exits the Host would perform
     /// on it, or null when Spinnet, no App or an App the Host cannot name is
-    /// in front. Any thread may ask.
+    /// in front. Any thread but the main thread may ask: it reads the App's
+    /// menu, which messages the App, on the calling thread.
     public func identifyFrontmost(of apps: RunningApps, for plugin: PluginID) -> JSONValue {
         guard let facts = apps.appInFront(), let target = target(naming: facts.identity, for: plugin) else {
             return .null
         }
+        let own = apps.ownProcessIdentifier
+        // Without Accessibility the menu cannot be read: no Close or Quit.
+        let menu = AppExitPolicy.isEligible(facts, ownProcessIdentifier: own)
+            ? (try? apps.menuExits(of: facts.identity)) ?? [] : []
         return .object([
             "target": .string(target),
             "name": .string(String(facts.identity.name.prefix(Self.maximumTextLength))),
             "bundle_id": facts.identity.bundleIdentifier.map { .string(String($0.prefix(Self.maximumTextLength))) }
                 ?? .null,
-            "exits": .array(AppExitPolicy.exits(for: facts, ownProcessIdentifier: apps.ownProcessIdentifier)
+            "exits": .array(AppExitPolicy.exits(for: facts, menu: menu, ownProcessIdentifier: own)
                 .map { .string($0.rawValue) })
         ])
     }
@@ -269,46 +319,54 @@ public final class AppTargets {
 
 // MARK: - The request
 
-/// `apps.quit`'s input: the App to end, named by an App Target or, without
-/// one, the App in front when the Host accepts the request; and whether to
-/// force quit it.
-public struct AppQuitRequest: Equatable {
+/// An `apps.quit` or `apps.close` request's input: the App, named by an App
+/// Target or, without one, the App in front when the Host accepts the
+/// request; and the exit, which for `apps.quit` is Force Quit when it says
+/// `force`.
+public struct AppExitRequest: Equatable {
     public let target: String?
-    public let force: Bool
+    public let exit: AppExit
 
-    public var exit: AppExit { force ? .forceQuit : .quit }
-
-    public init(target: String? = nil, force: Bool = false) {
+    public init(target: String? = nil, exit: AppExit = .quit) {
         self.target = target
-        self.force = force
+        self.exit = exit
     }
 
-    /// Reads `input` as a request carries it: null, or an object of an
-    /// optional `target` and an optional `force`.
-    public init(input: JSONValue) throws {
+    /// Reads `input` as a request of the operation `perform` carries it:
+    /// null, or an object of an optional `target` and, for `apps.quit`
+    /// only, an optional `force`.
+    public init(perform: String, input: JSONValue) throws {
+        let members: [String]
+        switch perform {
+        case CurrentAppAddition.quitID: members = ["target", "force"]
+        case CurrentAppAddition.closeID: members = ["target"]
+        default: throw PluginHostServiceError.invalidInput("\(perform) performs no exit of an App")
+        }
+        let base: AppExit = perform == CurrentAppAddition.closeID ? .close : .quit
         switch input {
         case .null:
-            self.init()
-        case .object(let members):
-            if let unknown = members.keys.sorted().first(where: { !["target", "force"].contains($0) }) {
-                throw PluginHostServiceError.invalidInput("apps.quit takes no input member \(unknown)")
+            self.init(exit: base)
+        case .object(let given):
+            if let unknown = given.keys.sorted().first(where: { !members.contains($0) }) {
+                throw PluginHostServiceError.invalidInput("\(perform) takes no input member \(unknown)")
             }
             var target: String?
-            switch members["target"] {
+            switch given["target"] {
             case nil: break
             case .string(let text)? where AppTargets.isWellFormed(text): target = text
             default:
-                throw PluginHostServiceError.invalidInput("apps.quit's target is an App Target apps.frontmost gave")
+                throw PluginHostServiceError.invalidInput("\(perform)'s target is an App Target apps.frontmost gave")
             }
             var force = false
-            switch members["force"] {
+            switch given["force"] {
             case nil: break
             case .bool(let value)?: force = value
-            default: throw PluginHostServiceError.invalidInput("apps.quit's force is true or false")
+            default: throw PluginHostServiceError.invalidInput("\(perform)'s force is true or false")
             }
-            self.init(target: target, force: force)
+            self.init(target: target, exit: force ? .forceQuit : base)
         default:
-            throw PluginHostServiceError.invalidInput("apps.quit's input is null or an object of target and force")
+            throw PluginHostServiceError.invalidInput(
+                "\(perform)'s input is null or an object of \(members.joined(separator: " and "))")
         }
     }
 }
@@ -341,10 +399,17 @@ public struct HostConfirmation: Equatable {
     /// Plugin named `plugin`.
     public static func exit(_ exit: AppExit, of app: String, requestedBy plugin: String) -> HostConfirmation {
         switch exit {
+        case .close:
+            return HostConfirmation(
+                title: "Close \(app)'s Front Window?",
+                message: "\(plugin) asks Spinnet to close the front window of \(app), as its Close menu item (⌘W) does. "
+                    + "\(app) may ask you to save your changes first.",
+                confirmTitle: "Close", isDestructive: true)
         case .quit:
             return HostConfirmation(
                 title: "Quit \(app)?",
-                message: "\(plugin) asks Spinnet to quit \(app). \(app) may ask you to save your changes first.",
+                message: "\(plugin) asks Spinnet to quit \(app), as its Quit menu item (⌘Q) does. "
+                    + "\(app) may ask you to save your changes first.",
                 confirmTitle: "Quit", isDestructive: true)
         case .forceQuit:
             return HostConfirmation(
@@ -374,17 +439,26 @@ public protocol HostConfirming: AnyObject {
 
 // MARK: - Performing the exit
 
-/// Performs `apps.quit` for the View Sessions' Requested Host Operations
-/// (ADR 0018), on their executor. Without a target, the App it acts on is
-/// the one in front when the Host accepted the request (`accept`); with
-/// one, the App the target names. It refuses a protected or unavailable
-/// App. A graceful quit of the App that was in front at acceptance, named
-/// by a target or not, runs at once, the App's own save prompts still
-/// applying; Force Quit, and a quit of an App that was not in front then,
-/// wait for the user to confirm a Host Confirmation. Either way the Host
-/// checks the requesting Action's authority and the App's identity again
-/// before ending exactly that App: a target that quit, or whose process ID
-/// another App now has, is refused, and nothing is ever retargeted.
+/// Performs `apps.quit` and `apps.close` for the View Sessions' Requested
+/// Host Operations (ADR 0018), on their executor. Without a target, the App
+/// it acts on is the one in front when the Host accepted the request
+/// (`accept`); with one, the App the target names. It refuses an App that
+/// is gone, Spinnet, an App that is not regular, and a Close or Quit the
+/// App's own menu does not offer. A Close or graceful Quit of the App that
+/// was in front at acceptance, named by a target or not, runs at once, the
+/// App's own save prompts still applying; Force Quit, and a Close or Quit
+/// of an App that was not in front then, wait for the user to confirm a
+/// Host Confirmation. Either way the Host checks the requesting Action's
+/// authority and the App's identity again, and for Close and Quit finds the
+/// App's menu item again, before acting on exactly that App: a target that
+/// quit, or whose process ID another App now has, or whose item went away,
+/// is refused, and nothing is ever retargeted.
+///
+/// Reading an App's menu and pressing its item message the App, which may
+/// be slow to answer, so the Host does both away from the executor
+/// (`detach`) and comes back to it with the answer. An operation whose
+/// owner ends while its App's menu is read is cancelled, and the late
+/// answer does nothing.
 ///
 /// One confirmation is on screen at a time, whichever Plugin asked: the
 /// others wait their turn in order, and each one's expiry runs from when it
@@ -392,35 +466,47 @@ public protocol HostConfirming: AnyObject {
 /// to a Plugin.
 public final class AppExitPerformer {
     public typealias Schedule = (TimeInterval, @escaping () -> Void) -> Void
+    /// Runs `work` away from the executor, where it may message another
+    /// App and wait for its answer, then `then` back on the executor.
+    public typealias Detach = (_ work: @escaping () -> Void, _ then: @escaping () -> Void) -> Void
 
-    /// An operation waiting for its Host Confirmation's answer.
-    private struct Pending {
+    /// An operation the Host accepted and has not finished.
+    private struct Operation {
         let serial: Int
         let plugin: PluginID
         let action: ActionConfiguration
-        let confirmation: HostConfirmation
         let exit: AppExit
         let app: RunningAppIdentity
+        let pluginName: String
+        /// Whether it waits for a Host Confirmation before it runs.
+        let asks: Bool
         let authorize: () throws -> Void
         let completion: (HostOperationResult) -> Void
         var dismiss: (() -> Void)?
+
+        var confirmation: HostConfirmation { .exit(exit, of: app.name, requestedBy: pluginName) }
     }
 
     private let apps: RunningApps
     private let targets: AppTargets
     private let confirmations: HostConfirming
     private let schedule: Schedule
+    private let detach: Detach
     private var serials = 0
+    /// The Close and Quit operations whose App's menu is being read.
+    private var checking: [Operation] = []
     /// The operations waiting for an answer, in the order they asked; the
     /// one `showing` names is on screen.
-    private var pending: [Pending] = []
+    private var pending: [Operation] = []
     private var showing: Int?
 
-    public init(apps: RunningApps, targets: AppTargets, confirmations: HostConfirming, schedule: @escaping Schedule) {
+    public init(apps: RunningApps, targets: AppTargets, confirmations: HostConfirming, schedule: @escaping Schedule,
+                detach: @escaping Detach = { work, then in work(); then() }) {
         self.apps = apps
         self.targets = targets
         self.confirmations = confirmations
         self.schedule = schedule
+        self.detach = detach
     }
 
     /// Whether an operation of `plugin` waits for a confirmation, on screen
@@ -434,9 +520,9 @@ public final class AppExitPerformer {
 
     /// Binds `request` to the App in front when the Host accepts it, or to
     /// no App when Spinnet, none or one the Host cannot name is: without a
-    /// target, the App it acts on; with one, the App whose graceful quit
-    /// needs no Host Confirmation.
-    public func accept(_ request: AppQuitRequest) -> AcceptedHostOperationTarget {
+    /// target, the App it acts on; with one, the App whose Close or
+    /// graceful Quit needs no Host Confirmation.
+    public func accept(_ request: AppExitRequest) -> AcceptedHostOperationTarget {
         .appInFront(apps.appInFront()?.identity)
     }
 
@@ -444,35 +530,64 @@ public final class AppExitPerformer {
     /// named `pluginName`. `authorize` checks the Action's authority as it
     /// stands, and throws what refuses it. A request that was never
     /// accepted is accepted now.
-    public func perform(_ request: AppQuitRequest, accepted: AcceptedHostOperationTarget,
+    public func perform(_ request: AppExitRequest, accepted: AcceptedHostOperationTarget,
                         for action: ActionConfiguration, pluginName: String,
                         authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
         let accepted = accepted == .none ? accept(request) : accepted
-        let exit = request.exit
         let facts: RunningAppFacts
         switch resolve(request, accepted: accepted, for: action.pluginID) {
         case .refused(let refusal): return completion(refusal)
         case .resolved(let resolved): facts = resolved
         }
-        if let refusal = protection(of: facts, from: exit) { return completion(refusal) }
-        if exit == .quit, case .appInFront(let front?) = accepted, front.isSameApp(as: facts.identity) {
-            return completion(execute(exit, on: facts.identity, authorize: authorize))
+        guard AppExitPolicy.isEligible(facts, ownProcessIdentifier: apps.ownProcessIdentifier) else {
+            return completion(Self.protected(facts.identity, from: request.exit))
         }
+        var wasInFront = false
+        if case .appInFront(let front?) = accepted { wasInFront = front.isSameApp(as: facts.identity) }
         serials += 1
-        pending.append(Pending(serial: serials, plugin: action.pluginID, action: action,
-                               confirmation: .exit(exit, of: facts.identity.name, requestedBy: pluginName),
-                               exit: exit, app: facts.identity, authorize: authorize, completion: completion))
-        showNext()
+        let operation = Operation(serial: serials, plugin: action.pluginID, action: action, exit: request.exit,
+                                  app: facts.identity, pluginName: pluginName,
+                                  asks: request.exit == .forceQuit || !wasInFront,
+                                  authorize: authorize, completion: completion)
+        guard operation.exit.isMenuItem else { return proceed(operation) }
+        // Close and Quit are only what the App's own menu offers now.
+        checking.append(operation)
+        var offered: Result<Set<AppExit>, Error> = .success([])
+        detach({ [apps] in
+            offered = Result { try apps.menuExits(of: operation.app) }
+        }, { [weak self] in
+            // Its owner may have ended while the menu was read.
+            guard let self, let index = self.checking.firstIndex(where: { $0.serial == operation.serial }) else { return }
+            self.checking.remove(at: index)
+            switch offered {
+            case .failure(let error): operation.completion(Self.refusal(error, of: operation.exit))
+            case .success(let menu) where !menu.contains(operation.exit):
+                operation.completion(Self.notOffered(operation.exit, by: operation.app))
+            case .success: self.proceed(operation)
+            }
+        })
     }
 
-    /// The operation's owner ended while it waited for its confirmation:
-    /// the confirmation goes away and the operation is cancelled, without a
-    /// word when the user closed the view. Nothing happens when `plugin` has
-    /// none waiting.
+    /// The operation's owner ended before it ran: while its App's menu was
+    /// read, or while it waited for its confirmation, which goes away. It is
+    /// cancelled, without a word when the user closed the view. Nothing
+    /// happens when `plugin` has none waiting, or one already running.
     public func abandon(_ plugin: PluginID, because reason: PluginViewSessionEnd) {
+        let message = { (exit: AppExit) in
+            reason == .viewClosed ? nil : "Nothing was \(exit == .close ? "closed" : "quit"): \(reason.explanation)"
+        }
+        if let index = checking.firstIndex(where: { $0.plugin == plugin }) {
+            let cancelled = checking.remove(at: index)
+            return cancelled.completion(HostOperationResult(.cancelled, message: message(cancelled.exit)))
+        }
         guard let waiting = pending.first(where: { $0.plugin == plugin }) else { return }
-        end(waiting.serial, with: HostOperationResult(
-            .cancelled, message: reason == .viewClosed ? nil : "Nothing was quit: \(reason.explanation)"))
+        end(waiting.serial, with: HostOperationResult(.cancelled, message: message(waiting.exit)))
+    }
+
+    private func proceed(_ operation: Operation) {
+        guard operation.asks else { return execute(operation) }
+        pending.append(operation)
+        showNext()
     }
 
     // MARK: Confirmations
@@ -490,17 +605,20 @@ public final class AppExitPerformer {
         schedule(HostConfirmation.expiry) { [weak self] in
             guard let self, self.showing == serial else { return }
             self.end(serial, with: HostOperationResult(
-                .expired, message: "The confirmation to \(next.exit.verb) \(next.app.name) went unanswered"))
+                .expired, message: "The confirmation to \(next.exit.phrase(next.app.name)) went unanswered"))
         }
     }
 
     private func answered(_ serial: Int, _ answer: HostConfirmationAnswer) {
-        guard showing == serial, let answered = pending.first(where: { $0.serial == serial }) else { return }
+        guard showing == serial, let index = pending.firstIndex(where: { $0.serial == serial }) else { return }
         switch answer {
         // The user's own answer needs no word.
         case .declined: end(serial, with: HostOperationResult(.declined), dismissing: false)
         case .confirmed:
-            end(serial, with: execute(answered.exit, on: answered.app, authorize: answered.authorize), dismissing: false)
+            let confirmed = pending.remove(at: index)
+            showing = nil
+            execute(confirmed)
+            showNext()
         }
     }
 
@@ -524,13 +642,13 @@ public final class AppExitPerformer {
         case refused(HostOperationResult)
     }
 
-    private func resolve(_ request: AppQuitRequest, accepted: AcceptedHostOperationTarget,
+    private func resolve(_ request: AppExitRequest, accepted: AcceptedHostOperationTarget,
                          for plugin: PluginID) -> Resolution {
         let app: RunningAppIdentity
         if let target = request.target {
             guard let named = targets.app(for: target, of: plugin) else {
                 return .refused(HostOperationResult(.refused(.noTarget),
-                                                    message: "The App the Plugin named is no longer one it may quit"))
+                                                    message: "The App the Plugin named is no longer one it may act on"))
             }
             app = named
         } else {
@@ -546,31 +664,63 @@ public final class AppExitPerformer {
         return .resolved(facts)
     }
 
-    private func protection(of facts: RunningAppFacts, from exit: AppExit) -> HostOperationResult? {
-        guard !AppExitPolicy.exits(for: facts, ownProcessIdentifier: apps.ownProcessIdentifier).contains(exit) else {
-            return nil
-        }
-        return HostOperationResult(.refused(.targetProtected), message: "Spinnet does not \(exit.verb) \(facts.identity.name)")
-    }
-
     /// At once, or after the user confirmed: authority and identity again,
-    /// then exactly the App resolved.
-    private func execute(_ exit: AppExit, on app: RunningAppIdentity, authorize: () throws -> Void) -> HostOperationResult {
+    /// then, away from the executor, exactly the App resolved, its menu item
+    /// found again for Close and Quit.
+    private func execute(_ operation: Operation) {
         do {
-            try authorize()
+            try operation.authorize()
         } catch {
-            return HostOperationResult.refusal(error)
+            return operation.completion(.refusal(error))
         }
+        let app = operation.app
         guard let facts = apps.facts(of: app) else {
             targets.forget(app)
-            return HostOperationResult(.refused(.noTarget), message: "\(app.name) quit before Spinnet could \(exit.verb) it")
+            return operation.completion(HostOperationResult(
+                .refused(.noTarget), message: "\(app.name) quit before Spinnet could \(operation.exit.phrase(app.name))"))
         }
-        if let refusal = protection(of: facts, from: exit) { return refusal }
-        guard apps.perform(exit, on: app) else {
-            return HostOperationResult(.failed(.hostServiceFailed), message: "\(app.name) could not be asked to quit")
+        guard AppExitPolicy.isEligible(facts, ownProcessIdentifier: apps.ownProcessIdentifier) else {
+            return operation.completion(Self.protected(app, from: operation.exit))
         }
-        if exit == .forceQuit { targets.forget(app) }
-        return HostOperationResult(.succeeded)
+        var delivery: Result<AppExitDelivery, Error> = .success(.failed)
+        detach({ [apps] in
+            delivery = Result { try apps.perform(operation.exit, on: app) }
+        }, { [targets] in
+            switch delivery {
+            case .success(.delivered):
+                if operation.exit == .forceQuit { targets.forget(app) }
+                operation.completion(HostOperationResult(.succeeded))
+            case .success(.notOffered):
+                operation.completion(Self.notOffered(operation.exit, by: app))
+            case .success(.failed):
+                operation.completion(HostOperationResult(
+                    .failed(.hostServiceFailed), message: "Spinnet could not \(operation.exit.phrase(app.name))"))
+            case .failure(let error):
+                operation.completion(Self.refusal(error, of: operation.exit))
+            }
+        })
+    }
+
+    private static func protected(_ app: RunningAppIdentity, from exit: AppExit) -> HostOperationResult {
+        HostOperationResult(.refused(.targetProtected), message: "Spinnet does not \(exit.phrase(app.name))")
+    }
+
+    /// The App's menu has no enabled item for `exit`.
+    private static func notOffered(_ exit: AppExit, by app: RunningAppIdentity) -> HostOperationResult {
+        HostOperationResult(.refused(.targetProtected),
+                            message: "\(app.name) has no enabled \(exit.menuItemTitle) menu item (⌘\(exit.menuKey ?? ""))")
+    }
+
+    /// Without Accessibility the Host can neither read nor press an App's
+    /// menu: the word names it.
+    private static func refusal(_ error: Error, of exit: AppExit) -> HostOperationResult {
+        guard case PluginHostServiceError.systemPermissionDenied(let permission)? = error as? PluginHostServiceError else {
+            return .refusal(error)
+        }
+        return HostOperationResult(
+            .refused(.systemPermissionDenied),
+            message: "Spinnet needs \(permission.title) to \(exit.verb) an App as its \(exit.menuItemTitle) menu item does. "
+                + "Allow Spinnet in System Settings > Privacy & Security > \(permission.title)")
     }
 }
 
@@ -578,8 +728,27 @@ extension AppExit {
     /// The verb a message uses.
     var verb: String {
         switch self {
+        case .close: return "close a window of"
         case .quit: return "quit"
         case .forceQuit: return "force quit"
+        }
+    }
+
+    /// The exit performed on the App named `app`, as a message says it.
+    func phrase(_ app: String) -> String {
+        switch self {
+        case .close: return "close the front window of \(app)"
+        case .quit: return "quit \(app)"
+        case .forceQuit: return "force quit \(app)"
+        }
+    }
+
+    /// The title the App's own menu item usually has.
+    var menuItemTitle: String {
+        switch self {
+        case .close: return "Close"
+        case .quit: return "Quit"
+        case .forceQuit: return "Force Quit"
         }
     }
 }

@@ -3,10 +3,12 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// `apps.quit` in View Sessions (#83): a graceful quit of the App in front
-/// when the Host accepted the request runs without a Host Confirmation;
-/// Force Quit, and a quit through a target naming an App that was not in
-/// front then, ask one. A confirmation holds the Plugin's operation slot,
+/// `apps.quit` and `apps.close` in View Sessions (#83): a Close or graceful
+/// Quit of the App in front when the Host accepted the request runs without
+/// a Host Confirmation; Force Quit, and a Close or Quit through a target
+/// naming an App that was not in front then, ask one. Close and Quit are
+/// only what the App's own menu offers, read and pressed away from the
+/// executor, and need Accessibility. A confirmation holds the Plugin's operation slot,
 /// closing the view cancels it without a word, a Plugin change or
 /// revocation cancels it with one, it expires unanswered, and a late answer
 /// after any of these does nothing. Without a target it quits the App in
@@ -56,12 +58,12 @@ final class CurrentAppSessionTests: XCTestCase {
     /// Asks to force quit the App in front, which always asks a Host
     /// Confirmation, or to quit it gracefully, which does not.
     private func requestQuit(_ session: PluginViewSession, force: Bool = true, target: String? = nil,
-                             notify: Bool = true) {
+                             notify: Bool = true, perform: String = "apps.quit") {
         session.send(.submitted(values: .null))
         var input: [String: JSONValue] = [:]
         if force { input["force"] = .bool(true) }
         if let target { input["target"] = .string(target) }
-        let quit = RequestedHostOperation(perform: "apps.quit", input: input.isEmpty ? .null : .object(input),
+        let quit = RequestedHostOperation(perform: perform, input: input.isEmpty ? .null : .object(input),
                                           id: "quit", notify: notify)
         runner.runs.last!.finish(.succeeded(.object(["view": .object(["title": .string("Current")]), "state": .null,
                                                     "operation": quit.json])))
@@ -106,6 +108,122 @@ final class CurrentAppSessionTests: XCTestCase {
         apps.bringToFront(.textEdit)
         confirmations.answer(.confirmed)
         XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+    }
+
+    // MARK: The App's own menu
+
+    /// Close is ⌘W: the Host presses the App's own Close menu item, so the
+    /// App closes its front window as it would for the user, and keeps
+    /// running. The App in front at acceptance asks nothing.
+    func testClosingTheAppInFrontPressesItsCloseItemWithoutAConfirmation() throws {
+        let session = try start()
+        requestQuit(session, force: false, perform: "apps.close")
+        XCTAssertEqual(confirmations.shown, [])
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .close)])
+        XCTAssertTrue(apps.isRunning(.textEdit))
+        XCTAssertEqual(runner.runs.last?.delivery.event?.json, .object([
+            "type": .string("operation_finished"), "operation": .string("quit"), "perform": .string("apps.close"),
+            "outcome": .string("succeeded")
+        ]))
+    }
+
+    /// A target naming an App not in front at acceptance asks before its
+    /// window is closed, naming the App.
+    func testClosingThroughATargetNotInFrontAsksAConfirmation() throws {
+        let session = try start()
+        let target = try XCTUnwrap(frontTarget())
+        apps.bringToFront(.safari)
+        requestQuit(session, force: false, target: target, perform: "apps.close")
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Close TextEdit's Front Window?"])
+        XCTAssertEqual(confirmations.shown.first?.confirmTitle, "Close")
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .close)])
+    }
+
+    /// An App whose menu has no enabled ⌘Q, such as Finder, is not quit:
+    /// refused at once, nothing asked, nothing pressed. The same holds for
+    /// ⌘W while it has no window to close.
+    func testAnExitTheAppsMenuDoesNotOfferIsRefusedWithoutAsking() throws {
+        apps.bringToFront(.finder)
+        let session = try start()
+        requestQuit(session, force: false, notify: false)
+        XCTAssertEqual(performer.results.map(\.outcome), [.refused(.targetProtected)])
+        XCTAssertTrue(performer.results.first?.message?.contains("⌘Q") == true, "\(performer.results)")
+        XCTAssertEqual(confirmations.shown, [])
+
+        apps.offer([.quit], in: .finder)
+        requestQuit(session, force: false, notify: false, perform: "apps.close")
+        XCTAssertEqual(performer.results.map(\.outcome), [.refused(.targetProtected), .refused(.targetProtected)])
+        XCTAssertEqual(apps.exits, [])
+    }
+
+    /// Checked again at execution: an item that went away or was disabled
+    /// while the confirmation was on screen refuses, and nothing else is
+    /// pressed or quit in its place.
+    func testAMenuItemGoneByExecutionIsRefusedAndNothingIsRetargeted() throws {
+        let session = try start()
+        let target = try XCTUnwrap(frontTarget())
+        apps.bringToFront(.safari)
+        requestQuit(session, force: false, target: target, perform: "apps.close")
+        XCTAssertEqual(confirmations.shown.count, 1)
+        apps.offer([.quit], in: .textEdit)  // its last window closed
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(performer.results.map(\.outcome), [.refused(.targetProtected)])
+        XCTAssertEqual(apps.exits, [])
+    }
+
+    /// Quit and Close press menu items through Accessibility. Without it
+    /// they are refused with a word naming it; Force Quit does not need it.
+    func testWithoutAccessibilityQuitAndCloseAreRefusedButForceQuitIsNot() throws {
+        apps.isAccessibilityTrusted = false
+        let session = try start()
+        requestQuit(session, force: false, notify: false)
+        requestQuit(session, force: false, notify: false, perform: "apps.close")
+        XCTAssertEqual(performer.results.map(\.outcome), [.refused(.systemPermissionDenied), .refused(.systemPermissionDenied)])
+        XCTAssertTrue(performer.results.allSatisfy { $0.message?.contains("Accessibility") == true }, "\(performer.results)")
+        XCTAssertEqual(confirmations.shown, [], "Nothing is asked for what the Host cannot do")
+
+        requestQuit(session)
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .forceQuit)])
+    }
+
+    /// The Host reads the App's menu and presses its item away from the
+    /// sessions' executor, which is the main thread: an App slow to answer
+    /// never holds it. An owner that ends meanwhile cancels the operation,
+    /// and the late reading does nothing.
+    func testTheMenuIsReadAwayFromTheExecutorAndAnOwnerEndingMeanwhileCancels() throws {
+        var held: [(work: () -> Void, then: () -> Void)] = []
+        exits = AppExitPerformer(apps: apps, targets: apps.targets, confirmations: confirmations, schedule: clock.schedule,
+                                 detach: { held.append(($0, $1)) })
+        performer = ExitOnlyPerformer(exits: exits, authorize: {})
+        sessions = PluginViewSessions(
+            renderer: renderer, runEvent: runner.run, schedule: clock.schedule, showFeedback: { _ in },
+            permitting: { _ in { PluginInterfaceContracts.levelTwoMembers.contains($0) } },
+            operations: performer, reportOperation: { [unowned self] _, message in reported.append(message) })
+
+        let session = try start()
+        requestQuit(session, force: false)
+        XCTAssertEqual(held.count, 1, "The menu is read off the executor")
+        XCTAssertEqual(performer.results, [])
+        session.close()
+        XCTAssertEqual(performer.results, [HostOperationResult(.cancelled)])
+        let late = held.removeFirst(); late.work(); late.then()
+        XCTAssertTrue(held.isEmpty)
+        XCTAssertEqual(apps.exits, [], "The late reading does nothing")
+
+        let again = try start()
+        requestQuit(again, force: false)
+        let read = held.removeFirst()
+        read.work()
+        read.then()
+        XCTAssertEqual(apps.exits, [], "Pressing the item is off the executor too")
+        let press = held.removeFirst()
+        press.work()
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+        XCTAssertEqual(performer.results.count, 1)
+        press.then()
+        XCTAssertEqual(performer.results.map(\.outcome), [.cancelled, .succeeded])
     }
 
     private func frontTarget() -> String? {
@@ -237,7 +355,7 @@ final class CurrentAppSessionTests: XCTestCase {
 
     private func quitFront(for action: ActionConfiguration, named name: String,
                            _ completion: @escaping (HostOperationResult) -> Void) {
-        let request = AppQuitRequest(force: true)
+        let request = AppExitRequest(exit: .forceQuit)
         exits.perform(request, accepted: exits.accept(request), for: action, pluginName: name, authorize: {},
                       completion: completion)
     }
@@ -306,7 +424,7 @@ final class HeldConfirmations: HostConfirming {
     func answer(_ answer: HostConfirmationAnswer) { respond?(answer) }
 }
 
-/// Performs only `apps.quit`, as the Host's performer does, with an
+/// Performs only `apps.quit` and `apps.close`, as the Host's performer does, with an
 /// authority check the test controls, and records each result.
 private final class ExitOnlyPerformer: HostOperationPerformer {
     let exits: AppExitPerformer
@@ -321,12 +439,12 @@ private final class ExitOnlyPerformer: HostOperationPerformer {
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws { try check() }
 
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
-        exits.accept(try! AppQuitRequest(input: operation.input))
+        exits.accept(try! AppExitRequest(perform: operation.perform, input: operation.input))
     }
 
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
                  accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
-        exits.perform(try! AppQuitRequest(input: operation.input), accepted: accepted, for: action,
+        exits.perform(try! AppExitRequest(perform: operation.perform, input: operation.input), accepted: accepted, for: action,
                       pluginName: "Current App", authorize: check) { [weak self] result in
             self?.results.append(result)
             completion(result)

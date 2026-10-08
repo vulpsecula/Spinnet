@@ -160,10 +160,12 @@ public struct RequestedHostOperation: Equatable, Hashable {
 
     /// The Level 1 Host Service that performs the request and its input as
     /// that service takes it, as for a call of the same ID; nil for
-    /// `host.showPluginSettings` and `apps.quit`, which the Host performs
-    /// itself.
+    /// `host.showPluginSettings`, `apps.quit` and `apps.close`, which the
+    /// Host performs itself.
     public func implementation() throws -> (service: PluginHostService, input: JSONValue)? {
-        guard perform != "host.showPluginSettings", perform != CurrentAppAddition.quitID, let definition else { return nil }
+        guard perform != "host.showPluginSettings", !CurrentAppAddition.exitIDs.contains(perform), let definition else {
+            return nil
+        }
         if perform == "clipboardHistory.show" { return (.presentClipboardHistory, .null) }
         return try definition.callImplementation(of: input)
     }
@@ -214,9 +216,9 @@ public struct RequestedHostOperation: Equatable, Hashable {
             guard input == .null else { throw violation("gives \(id) input, which it takes none of") }
             return
         }
-        if id == CurrentAppAddition.quitID {
+        if CurrentAppAddition.exitIDs.contains(id) {
             do {
-                _ = try AppQuitRequest(input: input)
+                _ = try AppExitRequest(perform: id, input: input)
             } catch PluginHostServiceError.invalidInput(let message) {
                 throw violation("gives \(id) input it refuses: \(message)")
             }
@@ -303,9 +305,10 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
     case secureInput = "secure_input"
     /// The target did not come to the front within its bound.
     case targetUnresponsive = "target_unresponsive"
-    /// The Host performs no such operation on the target, whoever asks:
-    /// `apps.quit` on Spinnet, a part of macOS or an App that is not a
-    /// regular App, or Force Quit on Finder.
+    /// The App does not offer this exit, or the Host performs none on it,
+    /// whoever asks: `apps.quit` or `apps.close` on Spinnet or an App that
+    /// is not a regular App, or a Close or Quit the App's own menu has no
+    /// enabled ⌘W or ⌘Q item for.
     case targetProtected = "target_protected"
 
     /// The reason a Host Service failure gives an operation.
@@ -327,8 +330,8 @@ public enum HostOperationOutcome: Hashable {
     case succeeded
     /// A check at execution failed and nothing was done.
     case refused(HostOperationReason)
-    /// The user declined a Host Confirmation; `apps.quit` is the operation
-    /// that asks for one.
+    /// The user declined a Host Confirmation; `apps.quit` and `apps.close`
+    /// are the operations that ask for one.
     case declined
     /// A Host Confirmation went unanswered for `HostConfirmation.expiry`.
     case expired

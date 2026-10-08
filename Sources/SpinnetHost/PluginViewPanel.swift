@@ -367,6 +367,9 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        // A Host Confirmation taking the keyboard is not the user leaving:
+        // it confirms this view's operation and hands the keyboard back.
+        if NSApp.windows.contains(where: { $0 is ConfirmationNSPanel && $0.isVisible }) { return }
         onResignKey?()
     }
 

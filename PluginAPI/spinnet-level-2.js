@@ -46,7 +46,7 @@
     clipboard: ["write"],
     clipboardHistory: ["show"],
     open: ["url", "path", "application"],
-    apps: ["perform", "openDeepLink", "quit"]
+    apps: ["perform", "openDeepLink", "quit", "close"]
   };
 
   function compact(members) {

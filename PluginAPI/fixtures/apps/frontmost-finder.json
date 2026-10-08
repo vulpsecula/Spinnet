@@ -3,6 +3,7 @@
   "name": "Finder",
   "bundle_id": "com.apple.finder",
   "exits": [
-    "quit"
+    "close",
+    "force_quit"
   ]
 }

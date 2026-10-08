@@ -211,7 +211,8 @@ holds only those two, and the namespaces with Command-only operations,
 | `apps` | `apps.perform` | call, Command, page action, request | `control_external_app` | Automation, asked by macOS |
 |  | `apps.openDeepLink` | call, Command, page action, request | `control_external_app` | none |
 |  | `apps.frontmost` | call | `read_frontmost_app` | none |
-|  | `apps.quit` | page action, request, after a Host Confirmation for Force Quit or an App not in front | `quit_frontmost_app` | none |
+|  | `apps.quit` | page action, request, after a Host Confirmation for Force Quit or an App not in front | `quit_frontmost_app` | Accessibility, except Force Quit |
+|  | `apps.close` | page action, request, after a Host Confirmation for an App not in front | `quit_frontmost_app` | Accessibility |
 | `system` | `system.runShortcut` | Command | none | none |
 |  | `system.runService` | Command | none | none |
 | `window` | `window.read` | call | `position_focused_window` | Accessibility |
@@ -291,12 +292,15 @@ into the open View Session) and `operation_finished` to Level 1's.
 `read_frontmost_app`: its name, bundle identifier and an App Target, an
 opaque name the Plugin may give back to the Host, never a process list or ID.
 `spinnet.apps.quit` asks the Host to quit or force quit that App, or the one
-a target names, under `quit_frontmost_app`. The Host asks the user first,
-in a Host Confirmation naming the App, before every Force Quit and before
-quitting an App that was not in front when it accepted the request; a
-graceful quit of the App in front asks nothing, the App's own save prompts
-still applying. Only a Level 2 manifest may
-declare the two Capabilities ([the App in front](reference/apps.md)).
+a target names, and `spinnet.apps.close` to close its front window, both
+under `quit_frontmost_app`. Quit and Close are exactly the App's own ⌘Q and
+⌘W: the Host presses the App's menu item, through Accessibility, and offers
+them only for an App whose menu has that item enabled. The Host asks the
+user first, in a Host Confirmation naming the App, before every Force Quit
+and before closing or quitting an App that was not in front when it
+accepted the request; closing or gracefully quitting the App in front asks
+nothing, the App's own save prompts still applying. Only a Level 2 manifest
+may declare the two Capabilities ([the App in front](reference/apps.md)).
 
 ### Level 1 at Level 2
 

@@ -120,6 +120,7 @@ public enum CollectionsContract {
         case "clipboardHistory.show": return "Clipboard History"
         case "open.url": return "Open in Browser"
         case CurrentAppAddition.quitID: return "Quit"
+        case CurrentAppAddition.closeID: return "Close Window"
         default: return "Open"
         }
     }
@@ -565,7 +566,7 @@ public struct PluginPageAction: Equatable {
                 .replacingOccurrences(of: "cannot be requested in an answer", with: "is not a page action"))
         }
         title = try declaredTitle.map { try PluginPage.text($0, "The page action \(operation.perform)'s title") }
-            ?? (operation.perform == CurrentAppAddition.quitID && (try? AppQuitRequest(input: operation.input))?.force == true
+            ?? ((try? AppExitRequest(perform: operation.perform, input: operation.input))?.exit == .forceQuit
                 ? "Force Quit" : CollectionsContract.defaultTitle(of: operation.perform))
         kind = .perform(operation)
     }

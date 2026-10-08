@@ -1,6 +1,6 @@
 {
   "type": "operation_finished",
-  "operation": "force",
+  "operation": "quit",
   "perform": "apps.quit",
   "outcome": "refused",
   "reason": "target_protected"

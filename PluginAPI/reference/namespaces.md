@@ -227,14 +227,15 @@ Handing a link, path or application to the App that opens it.
 
 ### `apps`
 
-External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it and quitting it ([the App in front](apps.md)).
+External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it, closing its window and quitting it ([the App in front](apps.md)).
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | null | call, Command, page action, request | `control_external_app`, Automation (macOS asks) |
 | `apps.openDeepLink` | `{template, parameters?}` | null | call, Command, page action, request | `control_external_app` |
 | `apps.frontmost` | none | `{target, name, bundle_id, exits}` or null | call | `read_frontmost_app` |
-| `apps.quit` | `{target?, force?}` or none | null | page action, request | `quit_frontmost_app`, and a Host Confirmation every time |
+| `apps.quit` | `{target?, force?}` or none | null | page action, request | `quit_frontmost_app`; Accessibility except for Force Quit; a Host Confirmation for Force Quit and for an App not in front |
+| `apps.close` | `{target?}` or none | null | page action, request | `quit_frontmost_app`, Accessibility; a Host Confirmation for an App not in front |
 
 ### `system`
 

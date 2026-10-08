@@ -128,7 +128,7 @@
       ]
     },
     "outcome": {
-      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran, its view closing among them, even while its Host Confirmation was shown. failed: the effect itself failed after the Host began it. apps.quit is the one operation of Level 2 that asks for a Host Confirmation, so only it reports declined and expired.",
+      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran, its view closing among them, even while its Host Confirmation was shown. failed: the effect itself failed after the Host began it. apps.quit and apps.close are the operations of Level 2 that ask for a Host Confirmation, so only they report declined and expired.",
       "enum": [
         "succeeded",
         "refused",
@@ -139,7 +139,7 @@
       ]
     },
     "reason": {
-      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace and apps.quit a reason about its target: apps.quit is refused with no_target when Spinnet or no App is in front or the App quit, and target_protected for an App the Host never ends that way. No reason names the App, its bundle ID, process or window.",
+      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace, apps.quit and apps.close a reason about its target: apps.quit and apps.close are refused with no_target when Spinnet or no App is in front or the App quit, with target_protected when the App does not offer that exit (its own menu has no enabled ⌘Q or ⌘W item) or the Host performs none on it (Spinnet, or an App that is not a regular App), and with system_permission_denied for a Close or Quit while Spinnet lacks Accessibility. No reason names the App, its bundle ID, process or window.",
       "enum": [
         "capability_denied",
         "system_permission_denied",

@@ -1,17 +1,17 @@
 {
-  "description": "Each fixture names the definition of ../../schemas/namespaces.schema.json it is checked against and whether it is valid: results of apps.frontmost the Host may give and inputs of apps.quit (#83). The Host's own answers for the recorded Apps of the test kit follow apps.frontmost.result.",
+  "description": "Each fixture names the definition of ../../schemas/namespaces.schema.json it is checked against and whether it is valid: results of apps.frontmost the Host may give and inputs of apps.quit and apps.close (#83). The Host's own answers for the recorded Apps of the test kit follow apps.frontmost.result.",
   "fixtures": [
     {
       "file": "frontmost-textedit.json",
       "definition": "apps.frontmost.result",
       "valid": true,
-      "note": "TextEdit in front, which the Host would quit or force quit"
+      "note": "TextEdit in front with a window open: its menu has enabled Close (⌘W) and Quit (⌘Q) items, and it may be force quit"
     },
     {
       "file": "frontmost-finder.json",
       "definition": "apps.frontmost.result",
       "valid": true,
-      "note": "Finder in front: the Host asks it to quit but never force quits it"
+      "note": "Finder in front with a window open: its menu has Close Window (⌘W) but no ⌘Q item, so no Quit; it may be force quit"
     },
     {
       "file": "frontmost-none.json",
@@ -48,6 +48,18 @@
       "definition": "apps.quit.input",
       "valid": false,
       "note": "No kill by process ID"
+    },
+    {
+      "file": "close-input-target.json",
+      "definition": "apps.close.input",
+      "valid": true,
+      "note": "Close the front window of the App an App Target names"
+    },
+    {
+      "file": "close-input-force.json",
+      "definition": "apps.close.input",
+      "valid": false,
+      "note": "apps.close takes only a target: there is no forced close"
     }
   ]
 }
