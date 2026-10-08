@@ -209,6 +209,13 @@ extension DesktopRunningApps {
     /// at `readingBound`, keeping what it read, so an App that is slow or
     /// hung bounds `apps.frontmost` and every Close and Quit; the first
     /// message the App does not answer ends the reading.
+    ///
+    /// Measured 2026-10-09 on an Apple M1 Pro with nine regular Apps
+    /// running: a whole reading took 28 to 219 ms (Outlook, 219 items;
+    /// Mail 182 ms; the rest under 70 ms), so the bounds leave over four
+    /// times the slowest. An App that is not active often reports its ⌘W
+    /// item disabled, having no key window; the App in front, which Close
+    /// acts on, does not.
     enum AccessibilityMenus {
         /// The longest wait for one answer of the App.
         static let messagingTimeout: Float = 0.25
