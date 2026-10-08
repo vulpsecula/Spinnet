@@ -245,7 +245,7 @@
       "file": "events/finished-quit-declined-after-close.json",
       "definition": "event",
       "valid": false,
-      "note": "A confirmation the close declined is never delivered after the view closed"
+      "note": "declined is never delivered after the view closed: closing the view cancels a Host Confirmation in it"
     }
   ]
 }

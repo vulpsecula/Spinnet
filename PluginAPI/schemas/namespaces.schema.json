@@ -456,7 +456,7 @@
       "type": "null"
     },
     "apps.quit.input": {
-      "description": "The App to end and how. Without target, the App in front when the Host starts the operation, which its Host Confirmation names; with one, the App that App Target names. force asks for Force Quit. null is the App in front, quit gracefully.",
+      "description": "The App to end and how. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen), which its Host Confirmation names; with one, the App that App Target names. force asks for Force Quit. null is the App in front, quit gracefully.",
       "oneOf": [
         {
           "type": "null"
@@ -827,7 +827,7 @@
       "type": "null"
     },
     "apps.frontmost.result": {
-      "description": "The App in front, or null while Spinnet or no App is in front. exits lists what apps.quit would do to it; an empty list means the Host protects it.",
+      "description": "The App in front, or null while Spinnet or no App is in front, or an App without a launch date, which the Host cannot tell from a later App with its process ID. exits lists what apps.quit would do to it; an empty list means the Host protects it.",
       "oneOf": [
         {
           "type": "null"

@@ -499,7 +499,7 @@ final class HeldPerformer: HostOperationPerformer {
     }
 
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
-                 completion: @escaping (HostOperationResult) -> Void) {
+                 accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
         performed.append(Performed(operation: operation, action: action, target: target, completion: completion))
     }
 

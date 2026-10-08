@@ -4,10 +4,13 @@ import XCTest
 import SpinnetPluginTestKit
 
 /// `apps.quit` in View Sessions (#83): its Host Confirmation holds the
-/// Plugin's operation slot, closing the view declines it without a word,
+/// Plugin's operation slot, closing the view cancels it without a word,
 /// a Plugin change or revocation cancels it with one, it expires unanswered,
-/// and a late answer after any of these does nothing. Driven through the
-/// sessions' seams with recorded Apps and a confirmation the test answers.
+/// and a late answer after any of these does nothing. Without a target it
+/// quits the App in front when the Host accepted the request, and one
+/// confirmation is on screen at a time, whichever Plugin asked. Driven
+/// through the sessions' seams with recorded Apps and a confirmation the
+/// test answers.
 final class CurrentAppSessionTests: XCTestCase {
     private var clock: ManualClock!
     private var renderer: RecordingRenderer!
@@ -15,6 +18,7 @@ final class CurrentAppSessionTests: XCTestCase {
     private var apps: RecordedApps!
     private var confirmations: HeldConfirmations!
     private var exits: AppExitPerformer!
+    private var performer: ExitOnlyPerformer!
     private var reported: [String] = []
     private var sessions: PluginViewSessions!
     private var revoked = false
@@ -30,7 +34,7 @@ final class CurrentAppSessionTests: XCTestCase {
         exits = AppExitPerformer(apps: apps, targets: apps.targets, confirmations: confirmations, schedule: clock.schedule)
         reported = []
         revoked = false
-        let performer = ExitOnlyPerformer(exits: exits, authorize: { [unowned self] in
+        performer = ExitOnlyPerformer(exits: exits, authorize: { [unowned self] in
             if revoked { throw PluginHostServiceError.capabilityDenied(.quitFrontmostApp) }
         })
         sessions = PluginViewSessions(
@@ -87,14 +91,17 @@ final class CurrentAppSessionTests: XCTestCase {
         ]))
     }
 
-    func testClosingTheViewDeclinesTheConfirmationSilentlyAndALateAnswerDoesNothing() throws {
+    /// As the published outcome table says: an operation whose view closed
+    /// before it ran is `cancelled`, and the user's own close needs no word.
+    func testClosingTheViewCancelsTheConfirmationSilentlyAndALateAnswerDoesNothing() throws {
         let session = try start()
         requestQuit(session)
         session.close()
         XCTAssertTrue(confirmations.dismissed)
         XCTAssertFalse(exits.isConfirming(Self.pluginID))
+        XCTAssertEqual(performer.results, [HostOperationResult(.cancelled)])
         XCTAssertEqual(reported, [])
-        XCTAssertEqual(runner.runs.count, 1, "A declined confirmation is not delivered after the view closed")
+        XCTAssertEqual(runner.runs.count, 1, "A cancelled operation is not delivered after the view closed")
 
         confirmations.answer(.confirmed)
         XCTAssertEqual(apps.exits, [], "A late click does nothing")
@@ -108,6 +115,7 @@ final class CurrentAppSessionTests: XCTestCase {
             sessions.end(pluginID: Self.pluginID, because: reason)
             XCTAssertTrue(session.isEnded)
             XCTAssertTrue(confirmations.dismissed)
+            XCTAssertEqual(performer.results.map(\.outcome), [.cancelled])
             XCTAssertEqual(reported.count, 1, "\(reason)")
             XCTAssertTrue(reported.first?.hasPrefix("Nothing was quit") == true, "\(reported)")
             confirmations.answer(.confirmed)
@@ -142,7 +150,71 @@ final class CurrentAppSessionTests: XCTestCase {
         XCTAssertEqual(renderer.presentations.last?.error?.category, .capabilityDenied)
     }
 
-    private static func action() throws -> ActionConfiguration {
+    /// #70's design: the working App is the one in front at the gesture,
+    /// re-validated by identity at execution. A request that waits for the
+    /// slot still quits the App in front when the Host accepted it.
+    func testWithoutATargetItQuitsTheAppInFrontWhenTheHostAcceptedTheRequest() throws {
+        let session = try start()
+        requestQuit(session, notify: false)
+        // Chosen while TextEdit is in front; it waits behind the first.
+        session.perform(RequestedHostOperation(perform: "apps.quit", id: "again"), insertionTarget: .notShown)
+        apps.bringToFront(.safari)
+        confirmations.answer(.declined)
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?", "Quit TextEdit?"],
+                       "Never the App in front when the operation started")
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+    }
+
+    // MARK: One confirmation at a time
+
+    private func quitFront(for action: ActionConfiguration, named name: String,
+                           _ completion: @escaping (HostOperationResult) -> Void) {
+        let request = AppQuitRequest()
+        exits.perform(request, accepted: exits.accept(request), for: action, pluginName: name, authorize: {},
+                      completion: completion)
+    }
+
+    func testAnotherPluginsConfirmationWaitsItsTurnAndExpiresOnlyAfterItIsShown() throws {
+        var first: [HostOperationResult] = [], second: [HostOperationResult] = []
+        quitFront(for: try Self.action(), named: "Current App") { first.append($0) }
+        apps.bringToFront(.safari)
+        let other = try Self.action(of: PluginID("com.example.other"))
+        quitFront(for: other, named: "Other") { second.append($0) }
+
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?"])
+        XCTAssertFalse(confirmations.dismissed, "Another Plugin's request never removes the first one's")
+        XCTAssertTrue(exits.isConfirming(other.pluginID))
+        XCTAssertFalse(exits.isShowing(other.pluginID))
+
+        clock.advance(by: 50)
+        confirmations.answer(.declined)
+        XCTAssertEqual(first, [HostOperationResult(.declined)])
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?", "Quit Safari?"])
+        XCTAssertTrue(exits.isShowing(other.pluginID))
+
+        clock.advance(by: HostConfirmation.expiry - 1)
+        XCTAssertEqual(second, [], "Its 60 seconds run from when it was shown")
+        clock.advance(by: 1)
+        XCTAssertEqual(second.map(\.outcome), [.expired])
+        XCTAssertEqual(first.count, 1)
+    }
+
+    func testAConfirmationWaitingItsTurnIsCancelledUnseenWhenItsOwnerEnds() throws {
+        var first: [HostOperationResult] = [], second: [HostOperationResult] = []
+        quitFront(for: try Self.action(), named: "Current App") { first.append($0) }
+        let other = try Self.action(of: PluginID("com.example.other"))
+        quitFront(for: other, named: "Other") { second.append($0) }
+
+        exits.abandon(other.pluginID, because: .pluginChanged)
+        XCTAssertEqual(second.map(\.outcome), [.cancelled])
+        XCTAssertFalse(confirmations.dismissed, "The one on screen stays")
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(first, [HostOperationResult(.succeeded)])
+        XCTAssertEqual(confirmations.shown.count, 1, "The cancelled one was never shown")
+    }
+
+    private static func action(of pluginID: PluginID = pluginID) throws -> ActionConfiguration {
         try ActionConfiguration(id: ActionID("current"), pluginID: pluginID,
                                 command: CommandDeclaration(id: CommandID("current"), title: "Current App",
                                                             execution: .javascript, script: "current.js"),
@@ -150,7 +222,7 @@ final class CurrentAppSessionTests: XCTestCase {
     }
 }
 
-/// Holds each Host Confirmation until the test answers it.
+/// Holds each Host Confirmation until the test answers the one shown last.
 final class HeldConfirmations: HostConfirming {
     private(set) var shown: [HostConfirmation] = []
     private(set) var dismissed = false
@@ -168,10 +240,11 @@ final class HeldConfirmations: HostConfirming {
 }
 
 /// Performs only `apps.quit`, as the Host's performer does, with an
-/// authority check the test controls.
+/// authority check the test controls, and records each result.
 private final class ExitOnlyPerformer: HostOperationPerformer {
     let exits: AppExitPerformer
     let check: () throws -> Void
+    private(set) var results: [HostOperationResult] = []
 
     init(exits: AppExitPerformer, authorize: @escaping () throws -> Void) {
         self.exits = exits
@@ -180,10 +253,17 @@ private final class ExitOnlyPerformer: HostOperationPerformer {
 
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws { try check() }
 
+    func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
+        exits.accept(try! AppQuitRequest(input: operation.input))
+    }
+
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
-                 completion: @escaping (HostOperationResult) -> Void) {
-        exits.perform(try! AppQuitRequest(input: operation.input), for: action, pluginName: "Current App",
-                      authorize: check, completion: completion)
+                 accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
+        exits.perform(try! AppQuitRequest(input: operation.input), accepted: accepted, for: action,
+                      pluginName: "Current App", authorize: check) { [weak self] result in
+            self?.results.append(result)
+            completion(result)
+        }
     }
 
     func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd) {

@@ -53,8 +53,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// the App in front only if it is the App the Host showed.
     private lazy var targetedInserter = TargetedTextInserter(tracker: insertionTargets, inserter: textInserter)
     /// The App in front and its exit (#83): the App Targets given to
-    /// Plugins, forgotten when a Plugin changes or loses a Capability, and
-    /// quits performed after a Host Confirmation.
+    /// Plugins, forgotten when their App quits or a Plugin changes or loses
+    /// a Capability, and quits performed after a Host Confirmation.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
     private lazy var appExits = AppExitPerformer(
@@ -200,15 +200,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     }
                 },
                 preferredScreenCapturer: captureScreen,
-                // `apps.frontmost`, read on the main thread, where the
-                // desktop says which App is in front.
+                // `apps.frontmost`, on the broker's thread: the main thread
+                // keeps which App is in front current, so this never waits
+                // on it.
                 frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
-                    if Thread.isMainThread { return appTargets.identifyFrontmost(of: runningApps, for: pluginID) }
-                    return DispatchQueue.main.sync { appTargets.identifyFrontmost(of: runningApps, for: pluginID) }
+                    appTargets.identifyFrontmost(of: runningApps, for: pluginID)
                 }
             )
             clipboardBroker = hostServiceBroker
             if appTargetObservers == nil {
+                appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
                     registry.observeInvalidation { [appTargets] in appTargets.forget($0) },
                     capabilityGrants.observeRevocation { [appTargets] in appTargets.forget($0) }

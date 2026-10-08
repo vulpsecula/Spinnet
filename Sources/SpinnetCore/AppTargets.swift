@@ -37,17 +37,47 @@ public enum AppExit: String, CaseIterable, Hashable {
     case forceQuit = "force_quit"
 }
 
+/// One running App as the Host names it to identify or end it: its process
+/// ID, bundle identifier and launch date together, so that another App that
+/// later reuses the process ID, or the same App started again, is another
+/// App. Its name is shown to the user and never given to a Plugin. It is
+/// not an Insertion Target: nothing is ever inserted into it.
+public struct RunningAppIdentity: Hashable {
+    public let processIdentifier: Int32
+    public let bundleIdentifier: String?
+    public let launchDate: Date?
+    public let name: String
+
+    public init(processIdentifier: Int32, bundleIdentifier: String?, launchDate: Date?, name: String) {
+        self.processIdentifier = processIdentifier
+        self.bundleIdentifier = bundleIdentifier
+        self.launchDate = launchDate
+        self.name = name
+    }
+
+    /// Whether the Host can tell this App from a later process that reuses
+    /// its ID: macOS gave it a launch date. An App started without Launch
+    /// Services has none, and the Host neither names nor ends it.
+    public var isComplete: Bool { launchDate != nil }
+
+    /// The same running App, whatever it is called now. An incomplete
+    /// identity is the same as no App, not even itself.
+    public func isSameApp(as other: RunningAppIdentity) -> Bool {
+        isComplete && other.isComplete && processIdentifier == other.processIdentifier
+            && bundleIdentifier == other.bundleIdentifier && launchDate == other.launchDate
+    }
+}
+
 /// What the Host knows of one running App when it decides what may be done
 /// to it.
 public struct RunningAppFacts: Hashable {
-    /// The App, identified so a reused process ID cannot match.
-    public let app: InsertionTargetApp
+    public let identity: RunningAppIdentity
     /// A regular App, one with a Dock icon and menus; agents and
     /// background-only processes are not.
     public let isRegular: Bool
 
-    public init(app: InsertionTargetApp, isRegular: Bool) {
-        self.app = app
+    public init(identity: RunningAppIdentity, isRegular: Bool) {
+        self.identity = identity
         self.isRegular = isRegular
     }
 }
@@ -72,8 +102,8 @@ public enum AppExitPolicy {
     /// The exits the Host would perform on `facts`, in `AppExit`'s order;
     /// none for a protected App. `ownProcessIdentifier` is Spinnet's.
     public static func exits(for facts: RunningAppFacts, ownProcessIdentifier: Int32) -> [AppExit] {
-        let bundle = facts.app.bundleIdentifier
-        guard facts.app.processIdentifier != ownProcessIdentifier, facts.isRegular,
+        let bundle = facts.identity.bundleIdentifier
+        guard facts.identity.processIdentifier != ownProcessIdentifier, facts.isRegular,
               !(bundle.map(systemBundleIdentifiers.contains) ?? false) else { return [] }
         if let bundle, forceQuitProtectedBundleIdentifiers.contains(bundle) { return [.quit] }
         return [.quit, .forceQuit]
@@ -81,7 +111,9 @@ public enum AppExitPolicy {
 }
 
 /// The running Apps the Host acts on: the desktop in the Host, recorded Apps
-/// in the Plugin test kit.
+/// in the Plugin test kit. The Host's answers `frontmost` on any thread, so
+/// `apps.frontmost` reads the App in front without waiting on the main
+/// thread.
 public protocol RunningApps: AnyObject {
     /// Spinnet's own process.
     var ownProcessIdentifier: Int32 { get }
@@ -89,10 +121,22 @@ public protocol RunningApps: AnyObject {
     func frontmost() -> RunningAppFacts?
     /// `app` as it runs now, or nil when that App is no longer running:
     /// a process that reused its ID is another App.
-    func facts(of app: InsertionTargetApp) -> RunningAppFacts?
+    func facts(of app: RunningAppIdentity) -> RunningAppFacts?
     /// Performs `exit` on exactly `app`, whose identity the caller has just
     /// checked; false when the exit could not be delivered.
-    func perform(_ exit: AppExit, on app: InsertionTargetApp) -> Bool
+    func perform(_ exit: AppExit, on app: RunningAppIdentity) -> Bool
+    /// Calls `terminated` with every App that quits from now on.
+    func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void)
+}
+
+public extension RunningApps {
+    /// The App in front that the Host can name: nil while Spinnet or no App
+    /// is in front, or an App whose identity is incomplete.
+    func appInFront() -> RunningAppFacts? {
+        guard let facts = frontmost(), facts.identity.processIdentifier != ownProcessIdentifier,
+              facts.identity.isComplete else { return nil }
+        return facts
+    }
 }
 
 // MARK: - App Targets
@@ -101,7 +145,8 @@ public protocol RunningApps: AnyObject {
 /// Apps, which a Plugin allowed to identify the App in front receives and
 /// may name back to the Host, as `apps.quit`'s `target`. A target names one
 /// App, identified by process ID, bundle identifier and launch date, for
-/// the Plugin it was given to only; it never contains the process ID.
+/// the Plugin it was given to only; it never contains the process ID, and
+/// no target names an App whose identity is incomplete.
 ///
 /// A target lasts until the App quits, the Plugin is updated, disabled or
 /// removed or loses a Capability, or Spinnet quits; the Host keeps at most
@@ -115,10 +160,13 @@ public final class AppTargets {
     public static let prefix = "app_"
     /// `prefix` and 32 lowercase hexadecimal digits.
     public static let length = prefix.count + 32
+    /// The most characters of a name or of a bundle identifier
+    /// `apps.frontmost` gives.
+    public static let maximumTextLength = 256
 
     private struct Entry {
         let target: String
-        let app: InsertionTargetApp
+        let identity: RunningAppIdentity
     }
 
     private let lock = NSLock()
@@ -141,12 +189,20 @@ public final class AppTargets {
         }
     }
 
-    /// The target naming `app` for `plugin`, made when it has none.
-    public func target(naming app: InsertionTargetApp, for plugin: PluginID) -> String {
+    /// Forgets the targets naming each App of `apps` as it quits, not only
+    /// once a Plugin names one again.
+    public func forgetTerminatedApps(of apps: RunningApps) {
+        apps.observeTerminations { [weak self] in self?.forget($0) }
+    }
+
+    /// The target naming `app` for `plugin`, made when it has none; nil when
+    /// `app`'s identity is incomplete.
+    public func target(naming app: RunningAppIdentity, for plugin: PluginID) -> String? {
+        guard app.isComplete else { return nil }
         lock.lock()
         defer { lock.unlock() }
         var held = entries[plugin] ?? []
-        if let index = held.firstIndex(where: { $0.app.isSameApp(as: app) }) {
+        if let index = held.firstIndex(where: { $0.identity.isSameApp(as: app) }) {
             let entry = held.remove(at: index)
             held.append(entry)
             entries[plugin] = held
@@ -154,7 +210,7 @@ public final class AppTargets {
         }
         var target = makeTarget()
         while held.contains(where: { $0.target == target }) { target = makeTarget() }
-        held.append(Entry(target: target, app: app))
+        held.append(Entry(target: target, identity: app))
         if held.count > Self.maximumPerPlugin { held.removeFirst(held.count - Self.maximumPerPlugin) }
         entries[plugin] = held
         return target
@@ -162,10 +218,10 @@ public final class AppTargets {
 
     /// The App `target` names for `plugin`; nil when it names none, whoever
     /// else it may have been given to.
-    public func app(for target: String, of plugin: PluginID) -> InsertionTargetApp? {
+    public func app(for target: String, of plugin: PluginID) -> RunningAppIdentity? {
         lock.lock()
         defer { lock.unlock() }
-        return entries[plugin]?.first { $0.target == target }?.app
+        return entries[plugin]?.first { $0.target == target }?.identity
     }
 
     /// Forgets every target of `plugin`.
@@ -176,10 +232,10 @@ public final class AppTargets {
     }
 
     /// Forgets every target naming `app`, which has quit.
-    public func forget(_ app: InsertionTargetApp) {
+    public func forget(_ app: RunningAppIdentity) {
         lock.lock()
         for (plugin, held) in entries {
-            entries[plugin] = held.filter { !$0.app.isSameApp(as: app) }
+            entries[plugin] = held.filter { !$0.identity.isSameApp(as: app) }
         }
         lock.unlock()
     }
@@ -193,26 +249,27 @@ public final class AppTargets {
 
     /// `apps.frontmost`'s result for `plugin`: the App in front with its
     /// target, name, bundle identifier and the exits the Host would perform
-    /// on it, or null when Spinnet or no App is in front.
+    /// on it, or null when Spinnet, no App or an App the Host cannot name is
+    /// in front. Any thread may ask.
     public func identifyFrontmost(of apps: RunningApps, for plugin: PluginID) -> JSONValue {
-        guard let facts = apps.frontmost(), facts.app.processIdentifier != apps.ownProcessIdentifier else { return .null }
+        guard let facts = apps.appInFront(), let target = target(naming: facts.identity, for: plugin) else {
+            return .null
+        }
         return .object([
-            "target": .string(target(naming: facts.app, for: plugin)),
-            "name": .string(String(facts.app.name.prefix(AppTargets.maximumNameLength))),
-            "bundle_id": facts.app.bundleIdentifier.map { .string(String($0.prefix(AppTargets.maximumNameLength))) } ?? .null,
+            "target": .string(target),
+            "name": .string(String(facts.identity.name.prefix(Self.maximumTextLength))),
+            "bundle_id": facts.identity.bundleIdentifier.map { .string(String($0.prefix(Self.maximumTextLength))) }
+                ?? .null,
             "exits": .array(AppExitPolicy.exits(for: facts, ownProcessIdentifier: apps.ownProcessIdentifier)
                 .map { .string($0.rawValue) })
         ])
     }
-
-    /// The longest name or bundle identifier `apps.frontmost` gives.
-    public static let maximumNameLength = 256
 }
 
 // MARK: - The request
 
 /// `apps.quit`'s input: the App to end, named by an App Target or, without
-/// one, the App in front when the Host starts the operation; and whether to
+/// one, the App in front when the Host accepts the request; and whether to
 /// force quit it.
 public struct AppQuitRequest: Equatable {
     public let target: String?
@@ -275,8 +332,8 @@ public struct HostConfirmation: Equatable {
         self.isDestructive = isDestructive
     }
 
-    /// How long a confirmation waits for an answer before the operation
-    /// expires (#70's P8).
+    /// How long a confirmation waits on screen for an answer before the
+    /// operation expires (#70's P8).
     public static let expiry: TimeInterval = 60
 
     /// The confirmation of `exit` on the App named `app`, asked for by the
@@ -307,7 +364,9 @@ public enum HostConfirmationAnswer: Equatable {
 /// Plugin test kit.
 public protocol HostConfirming: AnyObject {
     /// Shows `confirmation` for `action` and calls `answer` once, on the
-    /// sessions' executor, unless the returned dismissal runs first.
+    /// sessions' executor, unless the returned dismissal runs first. Each
+    /// confirmation stands alone: showing one never answers or removes
+    /// another.
     func confirm(_ confirmation: HostConfirmation, for action: ActionConfiguration,
                  answer: @escaping (HostConfirmationAnswer) -> Void) -> () -> Void
 }
@@ -315,24 +374,43 @@ public protocol HostConfirming: AnyObject {
 // MARK: - Performing the exit
 
 /// Performs `apps.quit` for the View Sessions' Requested Host Operations
-/// (ADR 0018), on their executor. It resolves the target, refuses a
-/// protected or unavailable one, asks for the Host Confirmation, and after
-/// the user confirms checks the requesting Action's authority and the App's
-/// identity again before ending exactly that App: a target that quit, or
-/// whose process ID another App now has, is refused, and nothing is ever
-/// retargeted. Messages name Apps; the Host shows them and never gives them
+/// (ADR 0018), on their executor. Without a target, the App it acts on is
+/// the one in front when the Host accepted the request (`accept`); with
+/// one, the App the target names. It refuses a protected or unavailable
+/// App, asks for the Host Confirmation, and after the user confirms checks
+/// the requesting Action's authority and the App's identity again before
+/// ending exactly that App: a target that quit, or whose process ID another
+/// App now has, is refused, and nothing is ever retargeted.
+///
+/// One confirmation is on screen at a time, whichever Plugin asked: the
+/// others wait their turn in order, and each one's expiry runs from when it
+/// is shown. Messages name Apps; the Host shows them and never gives them
 /// to a Plugin.
 public final class AppExitPerformer {
     public typealias Schedule = (TimeInterval, @escaping () -> Void) -> Void
+
+    /// An operation waiting for its Host Confirmation's answer.
+    private struct Pending {
+        let serial: Int
+        let plugin: PluginID
+        let action: ActionConfiguration
+        let confirmation: HostConfirmation
+        let exit: AppExit
+        let app: RunningAppIdentity
+        let authorize: () throws -> Void
+        let completion: (HostOperationResult) -> Void
+        var dismiss: (() -> Void)?
+    }
 
     private let apps: RunningApps
     private let targets: AppTargets
     private let confirmations: HostConfirming
     private let schedule: Schedule
     private var serials = 0
-    /// The confirmation on screen for each Plugin: its dismissal and how to
-    /// end the operation it holds.
-    private var confirming: [PluginID: (serial: Int, dismiss: () -> Void, end: (HostOperationResult) -> Void)] = [:]
+    /// The operations waiting for an answer, in the order they asked; the
+    /// one `showing` names is on screen.
+    private var pending: [Pending] = []
+    private var showing: Int?
 
     public init(apps: RunningApps, targets: AppTargets, confirmations: HostConfirming, schedule: @escaping Schedule) {
         self.apps = apps
@@ -341,60 +419,93 @@ public final class AppExitPerformer {
         self.schedule = schedule
     }
 
-    /// Whether a confirmation is on screen for `plugin`.
-    public func isConfirming(_ plugin: PluginID) -> Bool { confirming[plugin] != nil }
+    /// Whether an operation of `plugin` waits for a confirmation, on screen
+    /// or for its turn.
+    public func isConfirming(_ plugin: PluginID) -> Bool { pending.contains { $0.plugin == plugin } }
 
-    /// Performs `request` for `action` of the Plugin named `pluginName`.
-    /// `authorize` checks the Action's authority as it stands, and throws
-    /// what refuses it.
-    public func perform(_ request: AppQuitRequest, for action: ActionConfiguration, pluginName: String,
+    /// Whether `plugin`'s confirmation is the one on screen.
+    public func isShowing(_ plugin: PluginID) -> Bool {
+        pending.contains { $0.serial == showing && $0.plugin == plugin }
+    }
+
+    /// Binds `request` to what it acts on when the Host accepts it: without
+    /// a target, the App in front now, or no App when Spinnet, none or one
+    /// the Host cannot name is.
+    public func accept(_ request: AppQuitRequest) -> AcceptedHostOperationTarget {
+        request.target == nil ? .appInFront(apps.appInFront()?.identity) : .none
+    }
+
+    /// Performs `request`, as `accept` bound it, for `action` of the Plugin
+    /// named `pluginName`. `authorize` checks the Action's authority as it
+    /// stands, and throws what refuses it. A request without a target that
+    /// was never accepted acts on the App in front now.
+    public func perform(_ request: AppQuitRequest, accepted: AcceptedHostOperationTarget,
+                        for action: ActionConfiguration, pluginName: String,
                         authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
-        let plugin = action.pluginID
         let exit = request.exit
-        let resolved: InsertionTargetApp
-        switch resolve(request, for: plugin) {
+        let facts: RunningAppFacts
+        switch resolve(request, accepted: accepted, for: action.pluginID) {
         case .refused(let refusal): return completion(refusal)
-        case .resolved(let facts):
-            if let refusal = protection(of: facts, from: exit) { return completion(refusal) }
-            resolved = facts.app
+        case .resolved(let resolved): facts = resolved
         }
+        if let refusal = protection(of: facts, from: exit) { return completion(refusal) }
         serials += 1
-        let serial = serials
-        var ended = false
-        let end: (HostOperationResult) -> Void = { [weak self] result in
-            guard !ended else { return }
-            ended = true
-            if self?.confirming[plugin]?.serial == serial { self?.confirming[plugin] = nil }
-            completion(result)
+        pending.append(Pending(serial: serials, plugin: action.pluginID, action: action,
+                               confirmation: .exit(exit, of: facts.identity.name, requestedBy: pluginName),
+                               exit: exit, app: facts.identity, authorize: authorize, completion: completion))
+        showNext()
+    }
+
+    /// The operation's owner ended while it waited for its confirmation:
+    /// the confirmation goes away and the operation is cancelled, without a
+    /// word when the user closed the view. Nothing happens when `plugin` has
+    /// none waiting.
+    public func abandon(_ plugin: PluginID, because reason: PluginViewSessionEnd) {
+        guard let waiting = pending.first(where: { $0.plugin == plugin }) else { return }
+        end(waiting.serial, with: HostOperationResult(
+            .cancelled, message: reason == .viewClosed ? nil : "Nothing was quit: \(reason.explanation)"))
+    }
+
+    // MARK: Confirmations
+
+    private func showNext() {
+        guard showing == nil, let next = pending.first else { return }
+        let serial = next.serial
+        showing = serial
+        let dismiss = confirmations.confirm(next.confirmation, for: next.action) { [weak self] answer in
+            self?.answered(serial, answer)
         }
-        let dismiss = confirmations.confirm(.exit(exit, of: resolved.name, requestedBy: pluginName), for: action) {
-            [weak self] answer in
-            guard let self, !ended else { return }
-            switch answer {
-            // The user's own answer needs no word.
-            case .declined: end(HostOperationResult(.declined))
-            case .confirmed: end(self.execute(exit, on: resolved, authorize: authorize))
-            }
-        }
-        confirming[plugin] = (serial, dismiss, end)
+        // The confirmation may have been answered while it was drawn.
+        guard showing == serial, let index = pending.firstIndex(where: { $0.serial == serial }) else { return }
+        pending[index].dismiss = dismiss
         schedule(HostConfirmation.expiry) { [weak self] in
-            guard let self, let current = self.confirming[plugin], current.serial == serial else { return }
-            current.dismiss()
-            end(HostOperationResult(.expired, message: "The confirmation to \(exit.verb) \(resolved.name) went unanswered"))
+            guard let self, self.showing == serial else { return }
+            self.end(serial, with: HostOperationResult(
+                .expired, message: "The confirmation to \(next.exit.verb) \(next.app.name) went unanswered"))
         }
     }
 
-    /// The operation's owner ended while its confirmation was on screen:
-    /// the confirmation goes away, declined when the user closed the view
-    /// and cancelled otherwise. Nothing happens when none is on screen.
-    public func abandon(_ plugin: PluginID, because reason: PluginViewSessionEnd) {
-        guard let current = confirming[plugin] else { return }
-        confirming[plugin] = nil
-        current.dismiss()
-        switch reason {
-        case .viewClosed, .closedByPlugin: current.end(HostOperationResult(.declined))
-        default: current.end(HostOperationResult(.cancelled, message: "Nothing was quit: \(reason.explanation)"))
+    private func answered(_ serial: Int, _ answer: HostConfirmationAnswer) {
+        guard showing == serial, let answered = pending.first(where: { $0.serial == serial }) else { return }
+        switch answer {
+        // The user's own answer needs no word.
+        case .declined: end(serial, with: HostOperationResult(.declined), dismissing: false)
+        case .confirmed:
+            end(serial, with: execute(answered.exit, on: answered.app, authorize: answered.authorize), dismissing: false)
         }
+    }
+
+    /// Ends the operation `serial` with `result` and shows the next
+    /// confirmation. A confirmation the user did not answer goes away.
+    private func end(_ serial: Int, with result: HostOperationResult, dismissing: Bool = true) {
+        guard let index = pending.firstIndex(where: { $0.serial == serial }) else { return }
+        let ended = pending.remove(at: index)
+        if showing == serial {
+            showing = nil
+            if dismissing { ended.dismiss?() }
+        }
+        ended.completion(result)
+        showNext()
     }
 
     // MARK: Steps
@@ -404,20 +515,24 @@ public final class AppExitPerformer {
         case refused(HostOperationResult)
     }
 
-    private func resolve(_ request: AppQuitRequest, for plugin: PluginID) -> Resolution {
+    private func resolve(_ request: AppQuitRequest, accepted: AcceptedHostOperationTarget,
+                         for plugin: PluginID) -> Resolution {
+        let app: RunningAppIdentity
         if let target = request.target {
-            guard let app = targets.app(for: target, of: plugin) else {
+            guard let named = targets.app(for: target, of: plugin) else {
                 return .refused(HostOperationResult(.refused(.noTarget),
                                                     message: "The App the Plugin named is no longer one it may quit"))
             }
-            guard let facts = apps.facts(of: app) else {
-                targets.forget(app)
-                return .refused(HostOperationResult(.refused(.noTarget), message: "\(app.name) has quit"))
+            app = named
+        } else {
+            guard case .appInFront(let front?) = accepted == .none ? accept(request) : accepted else {
+                return .refused(HostOperationResult(.refused(.noTarget), message: "Spinnet or no App was in front"))
             }
-            return .resolved(facts)
+            app = front
         }
-        guard let facts = apps.frontmost(), facts.app.processIdentifier != apps.ownProcessIdentifier else {
-            return .refused(HostOperationResult(.refused(.noTarget), message: "Spinnet or no App is in front"))
+        guard let facts = apps.facts(of: app) else {
+            targets.forget(app)
+            return .refused(HostOperationResult(.refused(.noTarget), message: "\(app.name) has quit"))
         }
         return .resolved(facts)
     }
@@ -426,20 +541,16 @@ public final class AppExitPerformer {
         guard !AppExitPolicy.exits(for: facts, ownProcessIdentifier: apps.ownProcessIdentifier).contains(exit) else {
             return nil
         }
-        return HostOperationResult(.refused(.targetProtected), message: "Spinnet does not \(exit.verb) \(facts.app.name)")
+        return HostOperationResult(.refused(.targetProtected), message: "Spinnet does not \(exit.verb) \(facts.identity.name)")
     }
 
     /// After the user confirmed: authority and identity again, then exactly
     /// the App confirmed.
-    private func execute(_ exit: AppExit, on app: InsertionTargetApp, authorize: () throws -> Void) -> HostOperationResult {
+    private func execute(_ exit: AppExit, on app: RunningAppIdentity, authorize: () throws -> Void) -> HostOperationResult {
         do {
             try authorize()
-        } catch let error as PluginHostServiceError {
-            let reason = HostOperationReason(error)
-            return HostOperationResult(.refused(reason == .hostServiceFailed ? .commandUnavailable : reason),
-                                       message: error.description)
         } catch {
-            return HostOperationResult(.refused(.commandUnavailable), message: error.localizedDescription)
+            return HostOperationResult.refusal(error)
         }
         guard let facts = apps.facts(of: app) else {
             targets.forget(app)

@@ -327,12 +327,13 @@ public enum HostOperationOutcome: Hashable {
     case succeeded
     /// A check at execution failed and nothing was done.
     case refused(HostOperationReason)
-    /// The user declined a Host Confirmation, or closed the view it was in;
-    /// `apps.quit` is the operation that asks for one.
+    /// The user declined a Host Confirmation; `apps.quit` is the operation
+    /// that asks for one.
     case declined
     /// A Host Confirmation went unanswered for `HostConfirmation.expiry`.
     case expired
-    /// The owner ended before execution.
+    /// The owner ended before execution, its view closed among them, even
+    /// while a Host Confirmation in it waited.
     case cancelled
     /// The effect failed after the Host began it.
     case failed(HostOperationReason)

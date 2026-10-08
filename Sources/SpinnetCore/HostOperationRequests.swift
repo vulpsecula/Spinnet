@@ -12,15 +12,28 @@ public struct HostOperationResult: Equatable {
         self.message = message
     }
 
+    /// The refusal of an operation whose authority, read again when it
+    /// starts, threw `error`: the reason a call of the same ID fails with,
+    /// or `command_unavailable` for a failure without one, such as the
+    /// Plugin or its Command gone.
+    public static func refusal(_ error: Error) -> HostOperationResult {
+        guard let error = error as? PluginHostServiceError else {
+            return HostOperationResult(.refused(.commandUnavailable), message: error.localizedDescription)
+        }
+        let reason = HostOperationReason(error)
+        return HostOperationResult(.refused(reason == .hostServiceFailed ? .commandUnavailable : reason),
+                                   message: error.description)
+    }
+
     /// The failure to show for an outcome other than success, with the
     /// category that picks its repair route.
     func failure(for action: ActionConfiguration) -> ActionFailure? {
         let category: ActionFailureCategory
         switch outcome {
         case .succeeded: return nil
-        // The user declined, or closed the view the confirmation was in:
-        // their own answer needs no word.
-        case .declined where message == nil: return nil
+        // The user declined a Host Confirmation, or closed the view it was
+        // in: their own answer needs no word.
+        case .declined where message == nil, .cancelled where message == nil: return nil
         case .declined, .expired, .cancelled: category = .cancelled
         case .refused(let reason), .failed(let reason):
             switch reason {
@@ -48,22 +61,40 @@ public protocol HostOperationPerformer: AnyObject {
     /// declares the Capability, the user granted it, and macOS grants the
     /// System Permission. Throws what a call of the same ID would.
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws
+    /// The Host accepted `operation` for `action`: its answer committed, or
+    /// the user chose its page action. Binds what the operation acts on now,
+    /// when the operation defines its target so.
+    func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget
     /// Performs a committed operation for `action`: checks its authority and
     /// target again, then performs it and reports one result. `target` is
     /// what the Host showed as where text would go when the user made the
-    /// gesture.
+    /// gesture, and `accepted` what `accept` bound.
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration,
-                 target: InsertionTargetCapture, completion: @escaping (HostOperationResult) -> Void)
+                 target: InsertionTargetCapture, accepted: AcceptedHostOperationTarget,
+                 completion: @escaping (HostOperationResult) -> Void)
     /// The owner of the Plugin's running operation ended, or the Plugin
     /// changed: an operation still waiting for a Host Confirmation stops
-    /// waiting and reports its outcome, declined when the user closed the
-    /// view and cancelled otherwise. One already performing its effect
-    /// finishes.
+    /// waiting and is cancelled. One already performing its effect finishes.
     func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd)
 }
 
 public extension HostOperationPerformer {
+    func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
+        .none
+    }
+
     func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd) {}
+}
+
+/// What the Host bound a request to when it accepted it, before the
+/// operation starts.
+public enum AcceptedHostOperationTarget: Hashable {
+    /// Nothing: the operation names its target in its input, or resolves it
+    /// when it starts.
+    case none
+    /// `apps.quit` without a target: the App in front when the Host accepted
+    /// it, or nil when Spinnet, no App or an App the Host cannot name was.
+    case appInFront(RunningAppIdentity?)
 }
 
 /// The Requested Host Operations of every Plugin (ADR 0018), confined to the
@@ -82,6 +113,8 @@ final class HostOperationRequests {
         let action: ActionConfiguration
         weak var owner: PluginViewSession?
         let target: InsertionTargetCapture
+        /// What the performer bound when the Host accepted the request.
+        let accepted: AcceptedHostOperationTarget
         /// The Plugin declares `host_operations` r2: an outcome it asked to
         /// hear reaches it after its view closed.
         let deliversAfterClose: Bool
@@ -138,12 +171,14 @@ final class HostOperationRequests {
         try performer.authorize(operation, for: action)
     }
 
-    /// Takes a request that committed with its answer. It starts at once
-    /// when the Plugin's slot is free, in the same executor turn.
+    /// Takes a request that committed with its answer, binding what it acts
+    /// on now. It starts at once when the Plugin's slot is free, in the same
+    /// executor turn.
     func commit(_ operation: RequestedHostOperation, for action: ActionConfiguration, owner: PluginViewSession?,
                 target: InsertionTargetCapture, deliversAfterClose: Bool = false) {
         serials += 1
         let request = Request(serial: serials, operation: operation, action: action, owner: owner, target: target,
+                              accepted: performer.accept(operation, for: action),
                               deliversAfterClose: deliversAfterClose)
         waiting[action.pluginID, default: []].append(request)
         startNext(action.pluginID)
@@ -202,7 +237,8 @@ final class HostOperationRequests {
                   current.phase == .executing else { return }
             current.request.owner?.setPerformingOperation(true)
         }
-        performer.perform(request.operation, for: request.action, target: request.target) { [weak self] result in
+        performer.perform(request.operation, for: request.action, target: request.target,
+                          accepted: request.accepted) { [weak self] result in
             self?.finish(pluginID, serial: serial, with: result)
         }
     }
@@ -232,11 +268,10 @@ final class HostOperationRequests {
         // operation ran, by the user, by the Host or by its own
         // `closes_view`, still reaches the Action that asked, once and
         // without a view. One whose Plugin changed, lost a Capability or
-        // broke the interface does not.
-        // Only an outcome of an operation that ran: one cancelled, or whose
-        // Host Confirmation the close declined, is not delivered so.
-        if request.operation.notify, request.deliversAfterClose,
-           ![.cancelled, .declined, .expired].contains(result.outcome),
+        // broke the interface does not. A cancelled operation is never
+        // delivered so; closing a view cancels a Host Confirmation in it, so
+        // no `declined` or `expired` reaches here after a close either.
+        if request.operation.notify, request.deliversAfterClose, result.outcome != .cancelled,
            let ended = active[pluginID]?.request.ownerEnded, ended.reason == .viewClosed || ended.reason == .closedByPlugin {
             active[pluginID]?.phase = .awaitingAnswer
             deliverAfterClose(request.action,

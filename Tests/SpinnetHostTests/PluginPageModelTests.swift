@@ -611,7 +611,7 @@ final class RecordingPerformer: HostOperationPerformer {
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws {}
 
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
-                 completion: @escaping (HostOperationResult) -> Void) {
+                 accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
         performed.append((operation, target))
         completion(HostOperationResult(.succeeded))
     }

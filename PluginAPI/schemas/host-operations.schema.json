@@ -128,7 +128,7 @@
       ]
     },
     "outcome": {
-      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation, or closed the view while it was shown. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran. failed: the effect itself failed after the Host began it. No operation of Level 2 asks for a Host Confirmation, so declined and expired are not reported by it.",
+      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran, its view closing among them, even while its Host Confirmation was shown. failed: the effect itself failed after the Host began it. apps.quit is the one operation of Level 2 that asks for a Host Confirmation, so only it reports declined and expired.",
       "enum": [
         "succeeded",
         "refused",

@@ -113,7 +113,8 @@ public final class RecordedHostOperations {
         guard let request = try? AppQuitRequest(input: operation.input),
               let action = try? plugin.action(for: invocation) else { return (outcome, nil) }
         let capabilities = operation.definition?.capabilities ?? []
-        performer.perform(request, for: action, pluginName: plugin.manifest.name, authorize: { [weak self] in
+        performer.perform(request, accepted: performer.accept(request), for: action, pluginName: plugin.manifest.name,
+                          authorize: { [weak self] in
             for capability in capabilities where self?.deniedCapabilities.contains(capability) == true {
                 throw PluginHostServiceError.capabilityDenied(capability)
             }

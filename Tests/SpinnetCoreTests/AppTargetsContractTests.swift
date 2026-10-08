@@ -58,15 +58,15 @@ final class AppTargetsContractTests: XCTestCase {
 
     // MARK: App Targets
 
-    private func app(_ pid: Int32, _ bundle: String = "com.example.a", launched: TimeInterval = 1) -> InsertionTargetApp {
-        InsertionTargetApp(processIdentifier: pid, bundleIdentifier: bundle,
+    private func app(_ pid: Int32, _ bundle: String = "com.example.a", launched: TimeInterval = 1) -> RunningAppIdentity {
+        RunningAppIdentity(processIdentifier: pid, bundleIdentifier: bundle,
                            launchDate: Date(timeIntervalSince1970: launched), name: "A")
     }
 
-    func testATargetNamesOneAppForOnePluginOnly() {
+    func testATargetNamesOneAppForOnePluginOnly() throws {
         let targets = AppTargets()
         let one = PluginID("one"), two = PluginID("two")
-        let target = targets.target(naming: app(1), for: one)
+        let target = try XCTUnwrap(targets.target(naming: app(1), for: one))
         XCTAssertTrue(AppTargets.isWellFormed(target))
         XCTAssertFalse(target.contains("1") && target == "app_1", "Never the process ID")
         XCTAssertEqual(targets.target(naming: app(1), for: one), target, "The same App gives the same target")
@@ -77,16 +77,54 @@ final class AppTargetsContractTests: XCTestCase {
 
         targets.forget(app(1))
         XCTAssertNil(targets.app(for: target, of: one))
-        let again = targets.target(naming: app(5), for: one)
+        let again = try XCTUnwrap(targets.target(naming: app(5), for: one))
         targets.forget(one)
         XCTAssertNil(targets.app(for: again, of: one))
     }
 
-    func testAPluginHoldsAtMostSixteenForgettingTheLeastRecent() {
+    /// Without a launch date, a process that later reuses the ID could not
+    /// be told apart, so the Host neither names nor ends such an App.
+    func testAnAppWithoutALaunchDateIsNoAppTheHostNamesOrQuits() {
+        let unlaunched = RunningAppIdentity(processIdentifier: 1, bundleIdentifier: nil, launchDate: nil, name: "Tool")
+        XCTAssertFalse(unlaunched.isSameApp(as: unlaunched))
+        let targets = AppTargets()
+        XCTAssertNil(targets.target(naming: unlaunched, for: PluginID("one")))
+
+        let apps = OneRunningApp(unlaunched)
+        XCTAssertEqual(targets.identifyFrontmost(of: apps, for: PluginID("one")), .null)
+        XCTAssertEqual(targets.count(for: PluginID("one")), 0)
+
+        let exits = AppExitPerformer(apps: apps, targets: targets, confirmations: HeldConfirmations(),
+                                     schedule: { _, _ in })
+        var result: HostOperationResult?
+        let action = try! ActionConfiguration(id: ActionID("a"), pluginID: PluginID("one"),
+                                              command: CommandDeclaration(id: CommandID("c"), title: "C",
+                                                                          execution: .javascript, script: "c.js"),
+                                              input: .null)
+        exits.perform(AppQuitRequest(), accepted: exits.accept(AppQuitRequest()), for: action, pluginName: "One",
+                      authorize: {}) { result = $0 }
+        XCTAssertEqual(result?.outcome, .refused(.noTarget))
+        XCTAssertEqual(apps.exits, 0)
+    }
+
+    /// The Host forgets an App's targets as it quits, not when a Plugin next
+    /// names it.
+    func testAnAppThatQuitsLosesItsTargetsAtOnce() throws {
+        let apps = RecordedApps(front: .textEdit, running: [.safari])
+        let plugin = PluginID("one")
+        _ = apps.targets.identifyFrontmost(of: apps, for: plugin)
+        apps.bringToFront(.safari)
+        _ = apps.targets.identifyFrontmost(of: apps, for: plugin)
+        XCTAssertEqual(apps.targets.count(for: plugin), 2)
+        apps.quit(.textEdit)
+        XCTAssertEqual(apps.targets.count(for: plugin), 1)
+    }
+
+    func testAPluginHoldsAtMostSixteenForgettingTheLeastRecent() throws {
         let targets = AppTargets()
         let plugin = PluginID("one")
-        let first = targets.target(naming: app(1), for: plugin)
-        let second = targets.target(naming: app(2), for: plugin)
+        let first = try XCTUnwrap(targets.target(naming: app(1), for: plugin))
+        let second = try XCTUnwrap(targets.target(naming: app(2), for: plugin))
         for pid in 3...Int32(AppTargets.maximumPerPlugin) { _ = targets.target(naming: app(pid), for: plugin) }
         _ = targets.target(naming: app(1), for: plugin)  // read again: now the most recent
         _ = targets.target(naming: app(99), for: plugin)
@@ -100,7 +138,7 @@ final class AppTargetsContractTests: XCTestCase {
     func testTheHostProtectsItselfMacOSAndAgentsAndNeverForceQuitsFinder() {
         let own: Int32 = 7
         func exits(_ bundle: String?, pid: Int32 = 1, regular: Bool = true) -> [AppExit] {
-            AppExitPolicy.exits(for: RunningAppFacts(app: InsertionTargetApp(processIdentifier: pid, bundleIdentifier: bundle,
+            AppExitPolicy.exits(for: RunningAppFacts(identity: RunningAppIdentity(processIdentifier: pid, bundleIdentifier: bundle,
                                                                              launchDate: nil, name: "X"),
                                                      isRegular: regular), ownProcessIdentifier: own)
         }
@@ -124,4 +162,27 @@ final class AppTargetsContractTests: XCTestCase {
         XCTAssertEqual(HostServiceCatalogue.operation("apps.quit")?.capabilities, [.quitFrontmostApp])
         XCTAssertFalse(HostServiceCatalogue.operation("apps.quit")!.isOffered(at: .call), "No synchronous kill")
     }
+}
+
+/// One regular App in front, which the Host would find again only by an
+/// identity that matches it.
+private final class OneRunningApp: RunningApps {
+    let app: RunningAppIdentity
+    private(set) var exits = 0
+    let ownProcessIdentifier: Int32 = 100
+
+    init(_ app: RunningAppIdentity) { self.app = app }
+
+    func frontmost() -> RunningAppFacts? { RunningAppFacts(identity: app, isRegular: true) }
+
+    func facts(of other: RunningAppIdentity) -> RunningAppFacts? {
+        other.isSameApp(as: app) ? RunningAppFacts(identity: app, isRegular: true) : nil
+    }
+
+    func perform(_ exit: AppExit, on other: RunningAppIdentity) -> Bool {
+        exits += 1
+        return true
+    }
+
+    func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void) {}
 }

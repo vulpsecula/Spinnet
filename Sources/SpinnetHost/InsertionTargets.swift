@@ -78,7 +78,7 @@ extension InsertionTargetTracker.Environment {
     }
 }
 
-private final class ObservationTokens {
+final class ObservationTokens {
     let center: NotificationCenter
     let tokens: [NSObjectProtocol]
 
@@ -259,22 +259,31 @@ final class HostOperationsPerformer: HostOperationPerformer {
         }
     }
 
-    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
-                 completion: @escaping (HostOperationResult) -> Void) {
-        // Authority is read afresh: a Capability revoked, a permission
-        // removed or a Plugin changed since the commit refuses it.
+    /// The Action's authority over `operation` as it stands now: the Plugin
+    /// and its Command still available, then what `authorize` checks. A
+    /// Capability revoked, a permission removed or a Plugin changed since
+    /// the commit refuses it.
+    private func checkAuthorityAsItStands(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws {
         guard registry.package(for: action.pluginID) != nil, !Self.commandIsGone(registry.availability(for: action)) else {
-            return completion(HostOperationResult(.refused(.commandUnavailable),
-                                                  message: "The Plugin or its Command is no longer available"))
+            throw PluginHostServiceError.unavailable("The Plugin or its Command is no longer available")
         }
+        try authorize(operation, for: action)
+    }
+
+    /// `apps.quit` without a target acts on the App in front when the Host
+    /// accepts it, not when it starts.
+    func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
+        guard operation.perform == CurrentAppAddition.quitID, let exits,
+              let request = try? AppQuitRequest(input: operation.input) else { return .none }
+        return exits.accept(request)
+    }
+
+    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
+                 accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
         do {
-            try authorize(operation, for: action)
-        } catch let error as PluginHostServiceError {
-            let reason = HostOperationReason(error)
-            return completion(HostOperationResult(.refused(reason == .hostServiceFailed ? .commandUnavailable : reason),
-                                                  message: error.description))
+            try checkAuthorityAsItStands(operation, for: action)
         } catch {
-            return completion(HostOperationResult(.refused(.commandUnavailable), message: error.localizedDescription))
+            return completion(.refusal(error))
         }
         if let text = operation.insertedText {
             inserter.insert(text, shown: target, naming: true) { failure in
@@ -283,17 +292,23 @@ final class HostOperationsPerformer: HostOperationPerformer {
             return
         }
         if operation.perform == CurrentAppAddition.quitID {
-            guard let exits, let request = try? AppQuitRequest(input: operation.input) else {
+            guard let exits else {
                 return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot quit Apps"))
             }
+            let request: AppQuitRequest
+            do {
+                request = try AppQuitRequest(input: operation.input)
+            } catch {
+                // Checked when the answer committed, so only a Host fault
+                // reaches here.
+                let reason = (error as? PluginHostServiceError)?.description ?? error.localizedDescription
+                return completion(HostOperationResult(.refused(.hostServiceFailed),
+                                                      message: "Spinnet could not read what to quit: \(reason)"))
+            }
             let name = registry.package(for: action.pluginID)?.manifest.name ?? action.pluginID.rawValue
-            exits.perform(request, for: action, pluginName: name, authorize: { [weak self] in
+            exits.perform(request, accepted: accepted, for: action, pluginName: name, authorize: { [weak self] in
                 guard let self else { throw PluginHostServiceError.unavailable("Host Services") }
-                guard self.registry.package(for: action.pluginID) != nil,
-                      !Self.commandIsGone(self.registry.availability(for: action)) else {
-                    throw PluginHostServiceError.unavailable("The Plugin or its Command is no longer available")
-                }
-                try self.authorize(operation, for: action)
+                try self.checkAuthorityAsItStands(operation, for: action)
             }, completion: completion)
             return
         }

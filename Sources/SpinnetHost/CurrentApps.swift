@@ -22,30 +22,52 @@ extension NSRunningApplication: RunningApplication {}
 /// exactly the App a target or the confirmation named, checked by process
 /// ID, bundle identifier and launch date so a reused process ID never
 /// matches.
+///
+/// The main thread keeps which App is in front current from the desktop's
+/// activation notifications, so a Host Service reads it from any thread
+/// without waiting on the main thread. Each App that quits is told to the
+/// observers of terminations.
 final class DesktopRunningApps: RunningApps {
     struct Environment {
+        /// The App in front, read on the main thread.
         var frontmost: () -> RunningApplication?
         var application: (pid_t) -> RunningApplication?
         var ownProcessIdentifier: pid_t
+        /// Calls `activated` on the main thread whenever another App comes to
+        /// the front, and `terminated` with each application that quits,
+        /// until the returned token is released.
+        var observe: (_ activated: @escaping () -> Void,
+                      _ terminated: @escaping (RunningApplication) -> Void) -> AnyObject
     }
 
     private let environment: Environment
+    private let lock = NSLock()
+    private var front: RunningApplication?
+    private var terminationObservers: [(RunningAppIdentity) -> Void] = []
+    private var observation: AnyObject?
 
+    /// Made on the main thread.
     init(environment: Environment = .live) {
         self.environment = environment
+        front = environment.frontmost()
+        observation = environment.observe({ [weak self] in self?.refreshFront() },
+                                          { [weak self] in self?.terminated($0) })
     }
 
     var ownProcessIdentifier: Int32 { environment.ownProcessIdentifier }
 
     func frontmost() -> RunningAppFacts? {
-        environment.frontmost().flatMap(Self.facts)
+        lock.lock()
+        let front = front
+        lock.unlock()
+        return front.flatMap(Self.facts)
     }
 
-    func facts(of app: InsertionTargetApp) -> RunningAppFacts? {
+    func facts(of app: RunningAppIdentity) -> RunningAppFacts? {
         running(app).flatMap(Self.facts)
     }
 
-    func perform(_ exit: AppExit, on app: InsertionTargetApp) -> Bool {
+    func perform(_ exit: AppExit, on app: RunningAppIdentity) -> Bool {
         guard let running = running(app) else { return false }
         switch exit {
         case .quit: return running.terminate()
@@ -53,9 +75,31 @@ final class DesktopRunningApps: RunningApps {
         }
     }
 
+    func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void) {
+        lock.lock()
+        terminationObservers.append(terminated)
+        lock.unlock()
+    }
+
+    private func refreshFront() {
+        let now = environment.frontmost()
+        lock.lock()
+        front = now
+        lock.unlock()
+    }
+
+    private func terminated(_ application: RunningApplication) {
+        refreshFront()
+        lock.lock()
+        let observers = terminationObservers
+        lock.unlock()
+        let identity = Self.identity(of: application)
+        observers.forEach { $0(identity) }
+    }
+
     /// The application running as `app` now, or nil when it quit or its
     /// process ID belongs to another application.
-    private func running(_ app: InsertionTargetApp) -> RunningApplication? {
+    private func running(_ app: RunningAppIdentity) -> RunningApplication? {
         guard let running = environment.application(app.processIdentifier), !running.isTerminated,
               Self.identity(of: running).isSameApp(as: app) else { return nil }
         return running
@@ -63,11 +107,11 @@ final class DesktopRunningApps: RunningApps {
 
     private static func facts(_ running: RunningApplication) -> RunningAppFacts? {
         guard !running.isTerminated else { return nil }
-        return RunningAppFacts(app: identity(of: running), isRegular: running.activationPolicy == .regular)
+        return RunningAppFacts(identity: identity(of: running), isRegular: running.activationPolicy == .regular)
     }
 
-    static func identity(of running: RunningApplication) -> InsertionTargetApp {
-        InsertionTargetApp(processIdentifier: running.processIdentifier, bundleIdentifier: running.bundleIdentifier,
+    static func identity(of running: RunningApplication) -> RunningAppIdentity {
+        RunningAppIdentity(processIdentifier: running.processIdentifier, bundleIdentifier: running.bundleIdentifier,
                            launchDate: running.launchDate,
                            name: running.localizedName ?? running.bundleIdentifier ?? "the App in front")
     }
@@ -78,7 +122,21 @@ extension DesktopRunningApps.Environment {
         DesktopRunningApps.Environment(
             frontmost: { NSWorkspace.shared.frontmostApplication },
             application: { NSRunningApplication(processIdentifier: $0) },
-            ownProcessIdentifier: ProcessInfo.processInfo.processIdentifier
+            ownProcessIdentifier: ProcessInfo.processInfo.processIdentifier,
+            observe: { activated, terminated in
+                let center = NSWorkspace.shared.notificationCenter
+                let tokens = [
+                    center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil,
+                                       queue: .main) { _ in activated() },
+                    center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil,
+                                       queue: .main) { notification in
+                        guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                            as? NSRunningApplication else { return }
+                        terminated(application)
+                    }
+                ]
+                return ObservationTokens(center: center, tokens: tokens)
+            }
         )
     }
 }
@@ -88,21 +146,21 @@ extension DesktopRunningApps.Environment {
 /// Draws a Host Confirmation near the pointer in a small panel that takes
 /// the keyboard without activating Spinnet, so the App it names stays in
 /// front. Its words are the Host's. Cancel is the default button: Escape
-/// declines, and Return never confirms the destructive button.
+/// declines, and Return never confirms the destructive button. Each panel
+/// answers for its own confirmation only, and showing one never closes
+/// another.
 final class HostConfirmationPanel: HostConfirming {
-    private var shown: (panel: NSPanel, answer: (HostConfirmationAnswer) -> Void)?
+    private var shown: [UUID: NSPanel] = [:]
 
     func confirm(_ confirmation: HostConfirmation, for action: ActionConfiguration,
                  answer: @escaping (HostConfirmationAnswer) -> Void) -> () -> Void {
-        dismiss()
         let panel = ConfirmationNSPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 140),
                                         styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
                                         backing: .buffered, defer: false)
-        let token = ObjectIdentifier(panel)
+        let token = UUID()
         let respond: (HostConfirmationAnswer) -> Void = { [weak self] response in
-            guard let self, let shown = self.shown, ObjectIdentifier(shown.panel) == token else { return }
-            self.dismiss()
-            shown.answer(response)
+            guard self?.close(token) == true else { return }
+            answer(response)
         }
         let hosting = NSHostingController(rootView: HostConfirmationContent(confirmation: confirmation,
                                                                             respond: respond))
@@ -121,19 +179,17 @@ final class HostConfirmationPanel: HostConfirming {
         }
         panel.setAccessibilityLabel(confirmation.title)
         panel.onCancel = { respond(.declined) }
-        shown = (panel, answer)
+        shown[token] = panel
         place(panel, near: NSEvent.mouseLocation)
         panel.makeKeyAndOrderFront(nil)
-        return { [weak self] in
-            guard let self, let shown = self.shown, ObjectIdentifier(shown.panel) == token else { return }
-            self.dismiss()
-        }
+        return { [weak self] in _ = self?.close(token) }
     }
 
-    private func dismiss() {
-        guard let shown else { return }
-        self.shown = nil
-        shown.panel.orderOut(nil)
+    /// Closes the confirmation `token`; false when it already went.
+    private func close(_ token: UUID) -> Bool {
+        guard let panel = shown.removeValue(forKey: token) else { return false }
+        panel.orderOut(nil)
+        return true
     }
 
     private func place(_ panel: NSPanel, near pointer: NSPoint) {

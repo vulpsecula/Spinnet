@@ -97,7 +97,7 @@ answer being accepted.
 | `refused` | A check at execution failed, such as a revoked Capability or a changed target; nothing was done |
 | `failed` | The effect failed after the Host began it |
 | `cancelled` | The request's owner ended before it ran: its view closed, or the Plugin was updated, disabled, removed or lost a Capability |
-| `declined`, `expired` | A Host Confirmation was declined, or the view it was in closed, or it went unanswered for 60 seconds; only `apps.quit` asks for one |
+| `declined`, `expired` | A Host Confirmation was declined, or went unanswered for 60 seconds; only `apps.quit` asks for one |
 
 - The Host checks the Capability, the System Permission, the Plugin and its
   Command, and the target again when it starts the operation.
@@ -207,10 +207,11 @@ The Host draws it near the pointer without activating Spinnet, so the App it
 names stays in front; Cancel is its default button, so Return and Escape
 decline, and only a click on the Host's own button confirms. An
 operation waiting on it holds the Plugin's operation slot, so gestures
-wait behind it; closing the view declines it, and updating, disabling or
-removing the Plugin, revoking a Capability or quitting Spinnet cancels it.
-Unanswered for 60 seconds, it expires. `host.confirm`, a Plugin-worded
-question, stays reserved.
+wait behind it; closing the view, updating, disabling or removing the
+Plugin, revoking a Capability or quitting Spinnet cancels it. Unanswered
+for 60 seconds, it expires. One confirmation is on screen at a time: one
+another Plugin asks for meanwhile waits its turn, and its 60 seconds start
+when it is shown. `host.confirm`, a Plugin-worded question, stays reserved.
 
 ## Insertion
 

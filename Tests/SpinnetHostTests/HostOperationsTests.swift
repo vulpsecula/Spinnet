@@ -212,7 +212,8 @@ final class HostOperationsTests: XCTestCase {
                          for action: ActionConfiguration, target: InsertionTargetCapture = .notShown) -> HostOperationResult? {
         let done = expectation(description: operation.perform)
         var result: HostOperationResult?
-        performer.perform(operation, for: action, target: target) {
+        performer.perform(operation, for: action, target: target,
+                          accepted: performer.accept(operation, for: action)) {
             result = $0
             done.fulfill()
         }
@@ -279,6 +280,36 @@ final class HostOperationsTests: XCTestCase {
         XCTAssertEqual(perform(performer, insert, for: action, target: .shown(app: apps.notes, focus: nil)),
                        HostOperationResult(.succeeded))
         XCTAssertEqual(desktop.posted.map(\.pid), [99])
+    }
+
+    /// `apps.quit`'s input is read when its answer commits; should the Host
+    /// fail to read it when the operation starts, it says so rather than
+    /// that it cannot quit Apps.
+    func testAQuitWhoseInputTheHostCannotReadSaysSo() throws {
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants)
+        let manifest = try registry.register(packageAt: Self.probePackage.deletingLastPathComponent()
+            .appendingPathComponent("CurrentAppProbe.spinnetplugin", isDirectory: true))
+        for capability in manifest.capabilities {
+            grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: capability,
+                               scope: manifest.scope(for: capability))
+        }
+        let command = try XCTUnwrap(manifest.commands.first { $0.id == CommandID("probe.quit_front") })
+        let action = try ActionConfiguration(id: ActionID("quit"), pluginID: manifest.id, command: command, input: .null)
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
+                                                        selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
+        let desktop = DesktopRunningApps(environment: .init(frontmost: { nil }, application: { _ in nil },
+                                                            ownProcessIdentifier: 1, observe: { _, _ in NSObject() }))
+        let exits = AppExitPerformer(apps: desktop, targets: AppTargets(), confirmations: HostConfirmationPanel(),
+                                     schedule: { _, _ in })
+        let performer = HostOperationsPerformer(registry: registry, broker: { broker }, inserter: inserter, exits: exits,
+                                                openPluginSettings: { _ in })
+
+        let unread = RequestedHostOperation(perform: "apps.quit", input: .string("frontmost"))
+        let result = try XCTUnwrap(perform(performer, unread, for: action))
+        XCTAssertEqual(result.outcome, .refused(.hostServiceFailed))
+        XCTAssertNotEqual(result.message, "This Host cannot quit Apps")
+        XCTAssertTrue(result.message?.contains("apps.quit's input") == true, result.message ?? "")
     }
 
     func testShowingPluginSettingsNeedsOnlyThePluginsOwnCommand() throws {
