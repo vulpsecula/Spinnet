@@ -19,7 +19,7 @@ extension NSRunningApplication: RunningApplication {}
 
 /// The Apps running on this Mac, for `apps.frontmost` and `apps.quit`
 /// (#83): the App in front, never a list of Apps, and an exit performed on
-/// exactly the App a target or the confirmation named, checked by process
+/// exactly the App the Host resolved, checked by process
 /// ID, bundle identifier and launch date so a reused process ID never
 /// matches.
 ///

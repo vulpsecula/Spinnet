@@ -56,7 +56,7 @@ if (event?.type === "submitted") {
 | `open.application` | `application`, a path or bundle identifier | `open_local_path` |
 | `apps.perform` | `{bundle_id, operation, arguments?}` | `control_external_app`; macOS asks for Automation |
 | `apps.openDeepLink` | `{template, parameters?}` | `control_external_app` |
-| `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; a Host Confirmation every time ([the App in front](apps.md)) |
+| `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; a Host Confirmation for Force Quit and for an App not in front ([the App in front](apps.md)) |
 | `host.showPluginSettings` | none, and no `closes_view` | nothing |
 
 The SDK builds each request from its operation:
@@ -198,11 +198,14 @@ survives its owner.
 
 ## Host Confirmation
 
-Some operations always ask the user first, in a confirmation the Host draws
-with its own words and the target it resolved; a Plugin can neither skip nor
-word it, and a Plugin's own "Are you sure?" is an ordinary view that
-authorizes nothing. `apps.quit` is the one Level 2 operation that needs one,
-for Quit and Force Quit alike ([the App in front](apps.md#host-confirmation)).
+Some operations ask the user first, in a confirmation the Host draws with
+its own words and the target it resolved; when one is required, a Plugin
+can neither skip nor word it, and a Plugin's own "Are you sure?" is an
+ordinary view that authorizes nothing. `apps.quit` is the one Level 2
+operation that needs one: for every Force Quit, and for a quit of an App
+that was not in front when the Host accepted the request; a graceful quit
+of the App that was in front then asks nothing ([the App in
+front](apps.md#host-confirmation)).
 The Host draws it near the pointer without activating Spinnet, so the App it
 names stays in front; Cancel is its default button, so Return and Escape
 decline, and only a click on the Host's own button confirms. An

@@ -15,9 +15,12 @@ import SpinnetCore
 /// reaches the outcome recorded for its ID, by default success.
 ///
 /// Given `apps`, `apps.quit` is performed the Host's way on those recorded
-/// Apps: its target resolved and checked, a protected App refused, the Host
-/// Confirmation recorded and answered with `confirmation`, and authority
-/// and identity checked again after it. `whileConfirming` runs while the
+/// Apps, the App in front when `perform` is called being the one in front
+/// when the Host accepted the request: its target resolved and checked, a
+/// protected App refused, a Host Confirmation, for Force Quit or an App
+/// that was not in front, recorded and answered with `confirmation`, and
+/// authority and identity checked again before the exit. A graceful quit of
+/// the App in front asks nothing. `whileConfirming` runs while a
 /// confirmation is on screen, so a test can revoke a Capability or quit the
 /// App meanwhile.
 public final class RecordedHostOperations {
@@ -34,7 +37,8 @@ public final class RecordedHostOperations {
         /// asked to `notify`, while the requesting Command still handles the
         /// view: run it next with the state the answer kept.
         public let delivery: PluginViewEvent?
-        /// The Host Confirmation shown, in the Host's words.
+        /// The Host Confirmation shown, in the Host's words; nil when none
+        /// was asked.
         public let confirmation: HostConfirmation?
         /// What the Host shows the user for an outcome other than success;
         /// it may name the App and never reaches the Plugin.

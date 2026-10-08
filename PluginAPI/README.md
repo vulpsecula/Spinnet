@@ -17,7 +17,7 @@ licence.
 | [`reference/namespaces.md`](reference/namespaces.md) | Level 2: every Host Service under one `namespace.verb` ID, where each is offered, its input and authority |
 | [`reference/host-operations.md`](reference/host-operations.md) | Level 2: Requested Host Operations an answer commits and the Host performs, their outcomes, and where insertion goes in a View Session |
 | [`reference/pages.md`](reference/pages.md) | Level 2: pages of identified components with a List or Grid, the input the Host keeps, windows of items, and Explicit Calls into the open View Session |
-| [`reference/apps.md`](reference/apps.md) | Level 2: the App in front, its App Target, and quitting it after a Host Confirmation |
+| [`reference/apps.md`](reference/apps.md) | Level 2: the App in front, its App Target, and quitting it, after a Host Confirmation when it is forced or not in front |
 | [`reference/level-1-names.md`](reference/level-1-names.md) | Level 2: every Level 1 name and the catalogue ID that replaces it |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json`, the `list` field and `migrations` included |
 | [`schemas/plugin-view.schema.json`](schemas/plugin-view.schema.json) | The Plugin View a script answers with |
@@ -211,7 +211,7 @@ holds only those two, and the namespaces with Command-only operations,
 | `apps` | `apps.perform` | call, Command, page action, request | `control_external_app` | Automation, asked by macOS |
 |  | `apps.openDeepLink` | call, Command, page action, request | `control_external_app` | none |
 |  | `apps.frontmost` | call | `read_frontmost_app` | none |
-|  | `apps.quit` | page action, request, after a Host Confirmation | `quit_frontmost_app` | none |
+|  | `apps.quit` | page action, request, after a Host Confirmation for Force Quit or an App not in front | `quit_frontmost_app` | none |
 | `system` | `system.runShortcut` | Command | none | none |
 |  | `system.runService` | Command | none | none |
 | `window` | `window.read` | call | `position_focused_window` | Accessibility |
@@ -285,8 +285,11 @@ into the open View Session) and `operation_finished` to Level 1's.
 `read_frontmost_app`: its name, bundle identifier and an App Target, an
 opaque name the Plugin may give back to the Host, never a process list or ID.
 `spinnet.apps.quit` asks the Host to quit or force quit that App, or the one
-a target names, under `quit_frontmost_app`, and the Host asks the user first
-every time in a Host Confirmation naming it. Only a Level 2 manifest may
+a target names, under `quit_frontmost_app`. The Host asks the user first,
+in a Host Confirmation naming the App, before every Force Quit and before
+quitting an App that was not in front when it accepted the request; a
+graceful quit of the App in front asks nothing, the App's own save prompts
+still applying. Only a Level 2 manifest may
 declare the two Capabilities ([the App in front](reference/apps.md)).
 
 ### Level 1 at Level 2

@@ -5,8 +5,9 @@ import Foundation
 /// The App in front and its exit, appended to Plugin API Level 2 while it is
 /// open (#83): `apps.frontmost` identifies the App behind Spinnet's panel by
 /// an App Target, under `read_frontmost_app`, and `apps.quit` asks the Host
-/// to quit or force quit it, under `quit_frontmost_app`, after a Host
-/// Confirmation. The two Capabilities are separate, so identifying an App
+/// to quit or force quit it, under `quit_frontmost_app`. Force Quit, and a
+/// quit of an App that was not in front when the Host accepted the request,
+/// need a Host Confirmation. The two Capabilities are separate, so identifying an App
 /// never lets a Plugin end it, and ending one never tells the Plugin which
 /// it was.
 public enum CurrentAppAddition {
@@ -377,10 +378,13 @@ public protocol HostConfirming: AnyObject {
 /// (ADR 0018), on their executor. Without a target, the App it acts on is
 /// the one in front when the Host accepted the request (`accept`); with
 /// one, the App the target names. It refuses a protected or unavailable
-/// App, asks for the Host Confirmation, and after the user confirms checks
-/// the requesting Action's authority and the App's identity again before
-/// ending exactly that App: a target that quit, or whose process ID another
-/// App now has, is refused, and nothing is ever retargeted.
+/// App. A graceful quit of the App that was in front at acceptance, named
+/// by a target or not, runs at once, the App's own save prompts still
+/// applying; Force Quit, and a quit of an App that was not in front then,
+/// wait for the user to confirm a Host Confirmation. Either way the Host
+/// checks the requesting Action's authority and the App's identity again
+/// before ending exactly that App: a target that quit, or whose process ID
+/// another App now has, is refused, and nothing is ever retargeted.
 ///
 /// One confirmation is on screen at a time, whichever Plugin asked: the
 /// others wait their turn in order, and each one's expiry runs from when it
@@ -428,20 +432,22 @@ public final class AppExitPerformer {
         pending.contains { $0.serial == showing && $0.plugin == plugin }
     }
 
-    /// Binds `request` to what it acts on when the Host accepts it: without
-    /// a target, the App in front now, or no App when Spinnet, none or one
-    /// the Host cannot name is.
+    /// Binds `request` to the App in front when the Host accepts it, or to
+    /// no App when Spinnet, none or one the Host cannot name is: without a
+    /// target, the App it acts on; with one, the App whose graceful quit
+    /// needs no Host Confirmation.
     public func accept(_ request: AppQuitRequest) -> AcceptedHostOperationTarget {
-        request.target == nil ? .appInFront(apps.appInFront()?.identity) : .none
+        .appInFront(apps.appInFront()?.identity)
     }
 
     /// Performs `request`, as `accept` bound it, for `action` of the Plugin
     /// named `pluginName`. `authorize` checks the Action's authority as it
-    /// stands, and throws what refuses it. A request without a target that
-    /// was never accepted acts on the App in front now.
+    /// stands, and throws what refuses it. A request that was never
+    /// accepted is accepted now.
     public func perform(_ request: AppQuitRequest, accepted: AcceptedHostOperationTarget,
                         for action: ActionConfiguration, pluginName: String,
                         authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
+        let accepted = accepted == .none ? accept(request) : accepted
         let exit = request.exit
         let facts: RunningAppFacts
         switch resolve(request, accepted: accepted, for: action.pluginID) {
@@ -449,6 +455,9 @@ public final class AppExitPerformer {
         case .resolved(let resolved): facts = resolved
         }
         if let refusal = protection(of: facts, from: exit) { return completion(refusal) }
+        if exit == .quit, case .appInFront(let front?) = accepted, front.isSameApp(as: facts.identity) {
+            return completion(execute(exit, on: facts.identity, authorize: authorize))
+        }
         serials += 1
         pending.append(Pending(serial: serials, plugin: action.pluginID, action: action,
                                confirmation: .exit(exit, of: facts.identity.name, requestedBy: pluginName),
@@ -525,7 +534,7 @@ public final class AppExitPerformer {
             }
             app = named
         } else {
-            guard case .appInFront(let front?) = accepted == .none ? accept(request) : accepted else {
+            guard case .appInFront(let front?) = accepted else {
                 return .refused(HostOperationResult(.refused(.noTarget), message: "Spinnet or no App was in front"))
             }
             app = front
@@ -544,8 +553,8 @@ public final class AppExitPerformer {
         return HostOperationResult(.refused(.targetProtected), message: "Spinnet does not \(exit.verb) \(facts.identity.name)")
     }
 
-    /// After the user confirmed: authority and identity again, then exactly
-    /// the App confirmed.
+    /// At once, or after the user confirmed: authority and identity again,
+    /// then exactly the App resolved.
     private func execute(_ exit: AppExit, on app: RunningAppIdentity, authorize: () throws -> Void) -> HostOperationResult {
         do {
             try authorize()

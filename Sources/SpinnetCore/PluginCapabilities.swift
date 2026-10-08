@@ -21,8 +21,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// bundle identifier and an App Target. Separate from quitting it.
     case readFrontmostApp = "read_frontmost_app"
     /// Plugin API Level 2 (#83): asking the Host to quit or force quit the
-    /// App in front, or one an App Target names, after a Host Confirmation.
-    /// It tells the Plugin nothing about the App.
+    /// App in front, or one an App Target names; Force Quit, and a quit of
+    /// an App not in front, after a Host Confirmation. It tells the Plugin nothing about the App.
     case quitFrontmostApp = "quit_frontmost_app"
 
     public var isSupportedByHostServices: Bool {
@@ -73,7 +73,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would quit it. Never a list of your Apps."
-        case .quitFrontmostApp: return "Ask Spinnet to quit or force quit the App in front, or one the Plugin identified. Spinnet names the App and asks you every time; it never quits Spinnet or parts of macOS, and never force quits Finder."
+        case .quitFrontmostApp: return "Ask Spinnet to quit or force quit the App in front, or one the Plugin identified. Spinnet names the App and asks you before a force quit, or before quitting an App that is not in front; it never quits Spinnet or parts of macOS, and never force quits Finder."
         }
     }
 }

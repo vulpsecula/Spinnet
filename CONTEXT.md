@@ -201,7 +201,7 @@ Part of Plugin API Level 2: a Host Service a script asks the Host to perform aft
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` asks one every time, for Quit and Force Quit alike.
+A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` asks one for every Force Quit, and for a graceful quit of an App that was not in front when the Host accepted the request; a graceful quit of the App in front then asks none, the App's own save prompts still applying.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
 
 **App Target**:

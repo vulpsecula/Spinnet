@@ -270,8 +270,9 @@ final class HostOperationsPerformer: HostOperationPerformer {
         try authorize(operation, for: action)
     }
 
-    /// `apps.quit` without a target acts on the App in front when the Host
-    /// accepts it, not when it starts.
+    /// `apps.quit` binds the App in front when the Host accepts it, not when
+    /// it starts: without a target it acts on that App, and quits it
+    /// gracefully without a Host Confirmation.
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
         guard operation.perform == CurrentAppAddition.quitID, let exits,
               let request = try? AppQuitRequest(input: operation.input) else { return .none }

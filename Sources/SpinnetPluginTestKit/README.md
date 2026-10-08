@@ -252,6 +252,7 @@ let apps = RecordedApps(front: .textEdit, running: [.safari])
 let opened = try helper.run(PluginTestInvocation("current.show"), of: plugin,
                             answering: RecordedHostServices(apps: apps)).answer()
 // ... the user chooses Quit, whose answer requests apps.quit with the target
+apps.bringToFront(.safari)                                  // TextEdit is no longer in front: the Host asks
 let operations = RecordedHostOperations(apps: apps)          // the user confirms
 operations.whileConfirming = { apps.quit(.textEdit) }       // or revoke a Capability
 let performed = try XCTUnwrap(operations.perform(run, of: plugin, for: quit))
@@ -259,8 +260,11 @@ XCTAssertEqual(performed.confirmation?.title, "Quit TextEdit?")
 XCTAssertEqual(performed.outcome, .refused(.noTarget))
 ```
 
-`confirmation: .declined` declines the Host Confirmation and `nil` leaves it
-to expire. `apps.exits` lists what was quit; `performed.message` is the
+The App in front when `perform` is called is the one in front when the Host
+accepted the request: a graceful quit of it asks no Host Confirmation, and
+`performed.confirmation` is nil; Force Quit, or a quit of an App a target
+names while another is in front, asks one. `confirmation: .declined`
+declines it and `nil` leaves it to expire. `apps.exits` lists what was quit; `performed.message` is the
 Host's own text, which may name the App and never reaches the Plugin.
 
 ## Using the Host's own services

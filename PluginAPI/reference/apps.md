@@ -82,7 +82,9 @@ script's invocation, and a script cannot call it.
   request, as the answer commits or the user chooses the page action, which
   is the App behind Spinnet's panel; if it waits behind an earlier
   operation, it still acts on that App. With `target`, it acts on the App
-  that App Target names, whichever App is in front.
+  that App Target names, whichever App is in front; the Host still notes
+  which App was in front when it accepted the request, to decide whether
+  to ask (see [Host Confirmation](#host-confirmation)).
 - `force: true` asks for Force Quit; otherwise the Host asks the App to quit,
   as its Quit menu item does.
 - A page action without a `title` is called Quit, or Force Quit when it
@@ -98,19 +100,30 @@ script's invocation, and a script cannot call it.
    request, or the one the target names, if that App still runs as itself.
    It refuses Spinnet, an App the Host protects from that exit, or no App at
    all, without asking.
-3. It shows the Host Confirmation, which names that App.
-4. Once the user confirms, it checks the Capability, the Plugin and its
-   Command again, and that the same App still runs as itself, and only then
-   quits or force quits exactly that App. If the App quit, or another App
-   now has its process ID, it is refused and nothing else is quit: the Host
-   never moves a confirmed operation to another App.
+3. For Force Quit, or to quit an App that was not in front when it accepted
+   the request, it shows the Host Confirmation, which names that App. A
+   graceful quit of the App that was in front then goes on at once.
+4. Before it acts, at once or once the user confirms, it checks the
+   Capability, the Plugin and its Command again, and that the same App
+   still runs as itself, and only then quits or force quits exactly that
+   App. If the App quit, or another App now has its process ID, it is
+   refused and nothing else is quit: the Host never moves an operation to
+   another App.
 
 ### Host Confirmation
 
-Every `apps.quit` asks the user, for Quit as for Force Quit, in a
-confirmation the Host draws with its own words: "Quit TextEdit?" or "Force
-Quit TextEdit?", the Plugin that asks, and for Force Quit that unsaved
-changes will be lost. No Plugin text appears in it. It is drawn near the
+The Host asks the user before every Force Quit, and before quitting, even
+gracefully, an App that was not in front when it accepted the request: one
+a `target` names while another App, Spinnet included, is in front. A
+graceful quit of the App that was in front then, with no `target` or a
+`target` naming that App, asks nothing: it is the App the user is looking
+at, and its own save prompts still apply. Which App was in front is decided
+when the Host accepts the request, not when it runs, and nothing a Plugin
+sends changes it.
+
+The confirmation is drawn with the Host's own words: "Quit TextEdit?" or
+"Force Quit TextEdit?", the Plugin that asks, and for Force Quit that
+unsaved changes will be lost. No Plugin text appears in it. It is drawn near the
 pointer without activating Spinnet; Cancel is its default button, so Return
 and Escape decline. Closing the view, updating, disabling or removing the
 Plugin, revoking a Capability or quitting Spinnet cancels it; unanswered for
@@ -139,9 +152,9 @@ Plugin; no grant lifts them.
 | `refused` | `target_protected` | The Host never performs that exit on that App |
 | `refused` | `capability_denied`, `command_unavailable` | The Capability was revoked, or the Plugin or Command changed, by the time the Host acted |
 | `failed` | `host_service_failed` | macOS did not accept the exit |
-| `declined` | | The user declined the Host Confirmation |
+| `declined` | | The user declined the Host Confirmation; never for a graceful quit of the App in front, which asks nothing |
 | `expired` | | The Host Confirmation went unanswered for 60 seconds |
-| `cancelled` | | The view closed, the Plugin changed or lost a Capability, or Spinnet quit, before the operation ran, its Host Confirmation still unanswered or waiting its turn |
+| `cancelled` | | The view closed, the Plugin changed or lost a Capability, or Spinnet quit, before the operation ran: while it waited behind another operation, or its Host Confirmation was still unanswered or waiting its turn |
 
 No outcome, reason or message given to the Plugin names the App; the Host
 shows its own message, which may. An outcome after the view closed reaches
@@ -154,8 +167,9 @@ the Plugin only for an operation that ran (`succeeded`, `refused`,
 and the exits the Host performed. `RecordedHostServices(apps:)` answers
 `apps.frontmost` the Host's way from it, App Targets included, and
 `RecordedHostOperations(apps:confirmation:)` performs `apps.quit` with the
-Host's own rules, recording the Host Confirmation it showed and answering it
-as the test says. A test can bring another App to the front, quit or
+Host's own rules, the App in front when `perform` is called being the one
+in front when the Host accepted the request; it records the Host
+Confirmation it showed, if any, and answers it as the test says. A test can bring another App to the front, quit or
 relaunch an App, or revoke a Capability while the confirmation is shown
 (`whileConfirming`).
 

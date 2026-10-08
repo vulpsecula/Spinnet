@@ -3,14 +3,16 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// `apps.quit` in View Sessions (#83): its Host Confirmation holds the
-/// Plugin's operation slot, closing the view cancels it without a word,
-/// a Plugin change or revocation cancels it with one, it expires unanswered,
-/// and a late answer after any of these does nothing. Without a target it
-/// quits the App in front when the Host accepted the request, and one
-/// confirmation is on screen at a time, whichever Plugin asked. Driven
-/// through the sessions' seams with recorded Apps and a confirmation the
-/// test answers.
+/// `apps.quit` in View Sessions (#83): a graceful quit of the App in front
+/// when the Host accepted the request runs without a Host Confirmation;
+/// Force Quit, and a quit through a target naming an App that was not in
+/// front then, ask one. A confirmation holds the Plugin's operation slot,
+/// closing the view cancels it without a word, a Plugin change or
+/// revocation cancels it with one, it expires unanswered, and a late answer
+/// after any of these does nothing. Without a target it quits the App in
+/// front when the Host accepted the request, and one confirmation is on
+/// screen at a time, whichever Plugin asked. Driven through the sessions'
+/// seams with recorded Apps and a confirmation the test answers.
 final class CurrentAppSessionTests: XCTestCase {
     private var clock: ManualClock!
     private var renderer: RecordingRenderer!
@@ -51,18 +53,71 @@ final class CurrentAppSessionTests: XCTestCase {
         return try XCTUnwrap(sessions.session(for: Self.pluginID))
     }
 
-    private func requestQuit(_ session: PluginViewSession, force: Bool = false, notify: Bool = true) {
+    /// Asks to force quit the App in front, which always asks a Host
+    /// Confirmation, or to quit it gracefully, which does not.
+    private func requestQuit(_ session: PluginViewSession, force: Bool = true, target: String? = nil,
+                             notify: Bool = true) {
         session.send(.submitted(values: .null))
-        let quit = RequestedHostOperation(perform: "apps.quit", input: force ? .object(["force": .bool(true)]) : .null,
+        var input: [String: JSONValue] = [:]
+        if force { input["force"] = .bool(true) }
+        if let target { input["target"] = .string(target) }
+        let quit = RequestedHostOperation(perform: "apps.quit", input: input.isEmpty ? .null : .object(input),
                                           id: "quit", notify: notify)
         runner.runs.last!.finish(.succeeded(.object(["view": .object(["title": .string("Current")]), "state": .null,
                                                     "operation": quit.json])))
     }
 
-    func testConfirmingQuitsTheAppItNamedAndTellsTheScript() throws {
+    /// The App in front at acceptance is the App the user is looking at:
+    /// quitting it gracefully needs no Host Confirmation, as its own save
+    /// prompts still apply.
+    func testAGracefulQuitOfTheAppInFrontRunsWithoutAConfirmation() throws {
+        let session = try start()
+        requestQuit(session, force: false)
+        XCTAssertEqual(confirmations.shown, [])
+        XCTAssertFalse(exits.isConfirming(Self.pluginID))
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+        XCTAssertEqual(runner.runs.last?.delivery.event?.json, .object([
+            "type": .string("operation_finished"), "operation": .string("quit"), "perform": .string("apps.quit"),
+            "outcome": .string("succeeded")
+        ]))
+        XCTAssertEqual(reported, [])
+    }
+
+    /// A target naming the App in front at acceptance is that App: no
+    /// confirmation, even when another App is in front by execution, and
+    /// the App the target names is the one quit.
+    func testAGracefulQuitThroughATargetNamingTheAppInFrontRunsWithoutAConfirmation() throws {
+        let session = try start()
+        let target = try XCTUnwrap(frontTarget())
+        requestQuit(session, force: false, target: target)
+        XCTAssertEqual(confirmations.shown, [])
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+    }
+
+    /// A target naming an App that is not in front when the Host accepts the
+    /// request still asks, whichever App is in front by execution.
+    func testAGracefulQuitThroughATargetNamingAnAppNotInFrontAsksAConfirmation() throws {
+        let session = try start()
+        let target = try XCTUnwrap(frontTarget())
+        apps.bringToFront(.safari)
+        requestQuit(session, force: false, target: target)
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?"])
+        XCTAssertEqual(apps.exits, [])
+        apps.bringToFront(.textEdit)
+        confirmations.answer(.confirmed)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+    }
+
+    private func frontTarget() -> String? {
+        guard case .object(let app) = apps.targets.identifyFrontmost(of: apps, for: Self.pluginID),
+              case .string(let target)? = app["target"] else { return nil }
+        return target
+    }
+
+    func testConfirmingForceQuitsTheAppItNamedAndTellsTheScript() throws {
         let session = try start()
         requestQuit(session)
-        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?"])
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Force Quit TextEdit?"])
         XCTAssertTrue(exits.isConfirming(Self.pluginID))
 
         // A gesture waits behind the confirmation.
@@ -71,7 +126,7 @@ final class CurrentAppSessionTests: XCTestCase {
 
         apps.bringToFront(.safari)
         confirmations.answer(.confirmed)
-        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .forceQuit)])
         XCTAssertEqual(runner.runs[1].delivery.event?.json, .object([
             "type": .string("operation_finished"), "operation": .string("quit"), "perform": .string("apps.quit"),
             "outcome": .string("succeeded")
@@ -142,7 +197,7 @@ final class CurrentAppSessionTests: XCTestCase {
 
     func testARevocationDuringTheConfirmationRefusesAfterTheUserConfirms() throws {
         let session = try start()
-        requestQuit(session, force: true)
+        requestQuit(session)
         XCTAssertEqual(confirmations.shown.map(\.title), ["Force Quit TextEdit?"])
         revoked = true
         confirmations.answer(.confirmed)
@@ -152,7 +207,8 @@ final class CurrentAppSessionTests: XCTestCase {
 
     /// #70's design: the working App is the one in front at the gesture,
     /// re-validated by identity at execution. A request that waits for the
-    /// slot still quits the App in front when the Host accepted it.
+    /// slot still quits the App in front when the Host accepted it, and,
+    /// having been that App, without a confirmation.
     func testWithoutATargetItQuitsTheAppInFrontWhenTheHostAcceptedTheRequest() throws {
         let session = try start()
         requestQuit(session, notify: false)
@@ -160,17 +216,28 @@ final class CurrentAppSessionTests: XCTestCase {
         session.perform(RequestedHostOperation(perform: "apps.quit", id: "again"), insertionTarget: .notShown)
         apps.bringToFront(.safari)
         confirmations.answer(.declined)
-        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?", "Quit TextEdit?"],
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Force Quit TextEdit?"])
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)],
                        "Never the App in front when the operation started")
-        confirmations.answer(.confirmed)
-        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+    }
+
+    /// Nothing is ever retargeted: the App in front at acceptance that quit
+    /// and relaunched before execution is another App.
+    func testAGracefulQuitOfAnAppThatRelaunchedBeforeExecutionIsRefused() throws {
+        let session = try start()
+        requestQuit(session, notify: false)
+        session.perform(RequestedHostOperation(perform: "apps.quit", id: "again"), insertionTarget: .notShown)
+        apps.relaunch(.textEdit)
+        confirmations.answer(.declined)
+        XCTAssertEqual(performer.results.map(\.outcome), [.declined, .refused(.noTarget)])
+        XCTAssertEqual(apps.exits, [])
     }
 
     // MARK: One confirmation at a time
 
     private func quitFront(for action: ActionConfiguration, named name: String,
                            _ completion: @escaping (HostOperationResult) -> Void) {
-        let request = AppQuitRequest()
+        let request = AppQuitRequest(force: true)
         exits.perform(request, accepted: exits.accept(request), for: action, pluginName: name, authorize: {},
                       completion: completion)
     }
@@ -182,7 +249,7 @@ final class CurrentAppSessionTests: XCTestCase {
         let other = try Self.action(of: PluginID("com.example.other"))
         quitFront(for: other, named: "Other") { second.append($0) }
 
-        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?"])
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Force Quit TextEdit?"])
         XCTAssertFalse(confirmations.dismissed, "Another Plugin's request never removes the first one's")
         XCTAssertTrue(exits.isConfirming(other.pluginID))
         XCTAssertFalse(exits.isShowing(other.pluginID))
@@ -190,7 +257,7 @@ final class CurrentAppSessionTests: XCTestCase {
         clock.advance(by: 50)
         confirmations.answer(.declined)
         XCTAssertEqual(first, [HostOperationResult(.declined)])
-        XCTAssertEqual(confirmations.shown.map(\.title), ["Quit TextEdit?", "Quit Safari?"])
+        XCTAssertEqual(confirmations.shown.map(\.title), ["Force Quit TextEdit?", "Force Quit Safari?"])
         XCTAssertTrue(exits.isShowing(other.pluginID))
 
         clock.advance(by: HostConfirmation.expiry - 1)

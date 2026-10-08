@@ -1169,7 +1169,7 @@
     {
       "id": "apps.quit",
       "namespace": "apps",
-      "summary": "Quits or force quits the App in front, or the App an App Target names, after a Host Confirmation naming it (#83).",
+      "summary": "Quits or force quits the App in front, or the App an App Target names; Force Quit, and a quit of an App not in front when the Host accepts the request, after a Host Confirmation naming it (#83).",
       "status": "level2",
       "input": "schemas/namespaces.schema.json#/$defs/apps.quit.input",
       "result": "schemas/namespaces.schema.json#/$defs/apps.quit.result",
@@ -1187,7 +1187,7 @@
       "entry_points": {
         "call": {
           "status": "not_offered",
-          "reason": "It needs a Host Confirmation and acts on a Host-disclosed target, so it runs after the answer commits (ADR 0018)"
+          "reason": "It may need a Host Confirmation and acts on a Host-disclosed target, so it runs after the answer commits (ADR 0018)"
         },
         "command": {
           "status": "reserved",
@@ -1196,11 +1196,11 @@
         },
         "view_action": {
           "status": "level2",
-          "note": "Performed through the request path, its Host Confirmation included"
+          "note": "Performed through the request path, its Host Confirmation, when one is needed, included"
         },
         "request": {
           "status": "level2",
-          "note": "Always asks a Host Confirmation naming the App the Host resolved; never retargets after it"
+          "note": "Asks a Host Confirmation naming the App the Host resolved for Force Quit and for an App not in front at acceptance; a graceful quit of the App in front then asks none. Never retargets"
         }
       },
       "level1": []
@@ -2856,7 +2856,7 @@
         "apps.quit"
       ],
       "level1": [],
-      "note": "Level 2 only (#83): every quit and force quit asks a Host Confirmation; it reveals nothing about the App"
+      "note": "Level 2 only (#83): every force quit, and every quit of an App not in front when the Host accepts the request, asks a Host Confirmation; it reveals nothing about the App"
     }
   ],
   "not_offered": [

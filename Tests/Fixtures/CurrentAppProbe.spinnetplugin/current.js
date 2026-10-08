@@ -1,7 +1,7 @@
 // A Current App-shaped Plugin written against Plugin API Level 2's App in
 // front (#83): it names the App behind Spinnet's panel, keeps its App
-// Target, and offers Quit and Force Quit of that App, which the Host
-// confirms. It records each outcome it hears, which never names the App.
+// Target, and offers Quit and Force Quit of that App; the Host confirms
+// Force Quit, and a Quit once that App is no longer in front. It records each outcome it hears, which never names the App.
 (() => {
   const ui = spinnet.ui, c = ui.components;
 

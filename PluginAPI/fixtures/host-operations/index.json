@@ -203,13 +203,13 @@
       "file": "answers/quit-front-app.json",
       "definition": "answer",
       "valid": true,
-      "note": "Current App asks to quit the App in front, which the Host names in its Host Confirmation, and to hear the outcome (#83)"
+      "note": "Current App asks to quit the App in front gracefully, which needs no Host Confirmation, and to hear the outcome (#83)"
     },
     {
       "file": "answers/force-quit-target.json",
       "definition": "answer",
       "valid": true,
-      "note": "Force Quit of the App an App Target from apps.frontmost names, with a toast (#83)"
+      "note": "Force Quit of the App an App Target from apps.frontmost names, with a toast; the Host asks a Host Confirmation naming it (#83)"
     },
     {
       "file": "answers/quit-unknown-member.json",
@@ -239,7 +239,7 @@
       "file": "events/finished-quit-declined.json",
       "definition": "event",
       "valid": true,
-      "note": "The user declined the Host Confirmation"
+      "note": "The user declined the Host Confirmation of a Force Quit, or of a quit of an App not in front"
     },
     {
       "file": "events/finished-quit-declined-after-close.json",

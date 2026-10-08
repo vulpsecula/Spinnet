@@ -7,7 +7,8 @@ import SpinnetPluginTestKit
 /// external Plugin, run the way its author runs it: through the public test
 /// kit and the real helper. It identifies the App in front by an App Target,
 /// separately from asking to quit or force quit it, and the Host resolves,
-/// protects, confirms and re-checks every exit (#83).
+/// protects and re-checks every exit, and confirms each one but a graceful
+/// quit of the App in front when it accepted the request (#83).
 final class CurrentAppProbeRuntimeTests: XCTestCase {
     static let package = NamespacesProbeFixture.fixtures.appendingPathComponent("CurrentAppProbe.spinnetplugin",
                                                                                isDirectory: true)
@@ -80,7 +81,29 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
 
     // MARK: Quitting
 
-    func testQuitAsksAHostConfirmationNamingTheAppAndQuitsExactlyIt() throws {
+    /// The App in front when the Host accepts the request is the one the
+    /// user sees: quitting it gracefully, by its target or with none, asks
+    /// nothing, as the App's own save prompts still apply.
+    func testQuittingTheTargetInFrontRunsWithoutAConfirmation() throws {
+        let helper = try helper()
+        let apps = RecordedApps(front: .textEdit, running: [.safari])
+        let opened = try opened(helper, over: apps)
+        let invocation = choose("quit", after: opened)
+        let run = helper.run(invocation, of: plugin, answering: RecordedHostServices(apps: apps))
+        let operations = RecordedHostOperations(apps: apps, confirmation: .declined)
+        var asked = false
+        operations.whileConfirming = { asked = true }
+        let performed = try XCTUnwrap(operations.perform(run, of: plugin, for: invocation))
+        XCTAssertNil(performed.confirmation)
+        XCTAssertFalse(asked)
+        XCTAssertEqual(performed.outcome, .succeeded)
+        XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .textEdit, exit: .quit)])
+        XCTAssertTrue(apps.isRunning(.safari))
+    }
+
+    /// A target naming an App no longer in front when the Host accepts the
+    /// request asks a Host Confirmation naming that App.
+    func testQuitThroughATargetNotInFrontAsksAHostConfirmationNamingTheAppAndQuitsExactlyIt() throws {
         let helper = try helper()
         let apps = RecordedApps(front: .textEdit, running: [.safari])
         let opened = try opened(helper, over: apps)
@@ -142,7 +165,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         let helper = try helper()
         let apps = RecordedApps(front: .textEdit)
         let opened = try opened(helper, over: apps)
-        let invocation = choose("quit", after: opened)
+        let invocation = choose("force", after: opened)
         let run = helper.run(invocation, of: plugin, answering: RecordedHostServices(apps: apps))
         XCTAssertEqual(try RecordedHostOperations(apps: apps, confirmation: .declined)
             .perform(run, of: plugin, for: invocation)?.outcome, .declined)
@@ -182,8 +205,10 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         let invocation = choose("quit", after: opened)
         let run = helper.run(invocation, of: plugin, answering: RecordedHostServices(apps: apps))
 
+        // Safari is in front when the Host accepts the request, so it asks.
+        apps.bringToFront(.safari)
         let quitting = RecordedHostOperations(apps: apps)
-        quitting.whileConfirming = { apps.quit(.textEdit); apps.bringToFront(.safari) }
+        quitting.whileConfirming = { apps.quit(.textEdit) }
         let gone = try XCTUnwrap(quitting.perform(run, of: plugin, for: invocation))
         XCTAssertEqual(gone.outcome, .refused(.noTarget))
         XCTAssertTrue(gone.message?.contains("TextEdit") == true, "The Host's own message may name it")
@@ -191,7 +216,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
 
         apps.bringToFront(.textEdit)
         let reopened = try self.opened(helper, over: apps)
-        let again = choose("quit", after: reopened)
+        let again = choose("force", after: reopened)
         let second = helper.run(again, of: plugin, answering: RecordedHostServices(apps: apps))
         let revoking = RecordedHostOperations(apps: apps)
         revoking.whileConfirming = { revoking.deniedCapabilities.insert(.quitFrontmostApp) }
@@ -209,7 +234,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(run.requests, [])
         XCTAssertEqual(try run.answer().operation, RequestedHostOperation(perform: "apps.quit", id: "front"))
         let performed = try XCTUnwrap(RecordedHostOperations(apps: apps).perform(run, of: plugin, for: invocation))
-        XCTAssertEqual(performed.confirmation?.title, "Quit Safari?")
+        XCTAssertNil(performed.confirmation, "A graceful quit of the App in front asks nothing")
         XCTAssertEqual(apps.exits, [RecordedApps.Exit(app: .safari, exit: .quit)])
 
         apps.bringToFront(.spinnet)
@@ -241,7 +266,7 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
     }
 
     /// A page action performs the same request, Quit App in Front by its
-    /// title, which the Host confirms like any other.
+    /// title, which the Host performs like any other.
     func testThePageActionQuitsTheAppInFront() throws {
         let opened = try opened(try helper(), over: RecordedApps())
         let page = try XCTUnwrap(opened.page)

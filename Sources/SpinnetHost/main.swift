@@ -54,7 +54,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var targetedInserter = TargetedTextInserter(tracker: insertionTargets, inserter: textInserter)
     /// The App in front and its exit (#83): the App Targets given to
     /// Plugins, forgotten when their App quits or a Plugin changes or loses
-    /// a Capability, and quits performed after a Host Confirmation.
+    /// a Capability, and quits performed, after a Host Confirmation unless
+    /// they gracefully quit the App in front.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
     private lazy var appExits = AppExitPerformer(

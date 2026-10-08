@@ -679,8 +679,10 @@ export interface AppsNamespace {
    */
   readonly frontmost: Callable<"apps.frontmost">;
   /**
-   * Quits or force quits the App in front, or the App a target names,
-   * after a Host Confirmation naming it; needs quit_frontmost_app.
+   * Quits or force quits the App in front, or the App a target names;
+   * Force Quit, and a quit of an App not in front when the Host accepts
+   * the request, after a Host Confirmation naming it; needs
+   * quit_frontmost_app.
    * @id apps.quit @entry request view_action
    */
   readonly quit: Performable<"apps.quit">;
