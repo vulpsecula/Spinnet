@@ -568,6 +568,16 @@ granted.
 
 ## 14. Open product choices
 
+User decisions (2026-10-08):
+
+- **Metrics authority (#86):** a new Capability `read_system_status`.
+- **Spotify Automation (#85):** reuse `control_external_app`; a sample never
+  launches Spotify or raises the Automation prompt and fails with
+  `automation_permission_needed`, repaired by a page action the user
+  chooses.
+
+The remaining choices stay open until #82.
+
 Each is the user's to decide (#68: "new product choices or permissions
 return to the user with evidence"). The recommendation keeps work moving
 and is what the drafts assume.

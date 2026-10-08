@@ -570,6 +570,19 @@ Budgets this design proposes, all new (no existing budget is changed):
 
 ## 14. Product choices returned to the user
 
+User decisions (2026-10-08):
+
+- **P1: (b).** Tasks may act on `homebrew/core`, `homebrew/cask` and taps
+  the user has already trusted in Homebrew (`brew trust`); the tap is
+  named in the Host Confirmation. This departs from the recommendation, so
+  #88 must treat the trusted-tap list as a user-controlled source: read it
+  at admission, show it, and refuse a tap that is not trusted then.
+- **P8: Wait and Quit** is the default; at logout the same dialog without a
+  timeout.
+
+The other choices stay open until #87/#88; P3, P5, P10, P11 and P15 must be
+answered before #88 publishes.
+
 None of these is decided here. Each has a recommendation so #87 and #88 can
 start; the user may overrule any.
 
