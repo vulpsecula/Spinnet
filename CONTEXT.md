@@ -27,7 +27,7 @@ A Plugin added by the user that the Host does not load at launch, because its pa
 _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 
 **Plugin Removal**:
-Dropping a Plugin the user no longer wants. Its access decisions are forgotten and it leaves the Library, while Menu Items built from it are kept and reported as unavailable. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
+Dropping a Plugin the user no longer wants. Its access decisions, and whether its view was left pinned and where, are forgotten (an update keeps them), and it leaves the Library, while Menu Items built from it are kept and reported as unavailable. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Plugin Storage**:

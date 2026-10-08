@@ -26,8 +26,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
         registry: registry, grants: capabilityGrants,
         persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
-        storage: pluginStorage
+        storage: pluginStorage,
+        forgetHostPreferences: { [unowned self] in self.pluginViewPins.forget($0) }
     )
+    /// Each Plugin's Pin (ADR 0016), kept across launches and updates and
+    /// forgotten when the Plugin is removed.
+    private lazy var pluginViewPins = PluginViewPins(defaults: .standard)
     private var clipboardStore: ClipboardHistoryStore!
     private var clipboardCollector: ClipboardCollector?
     private var clipboardWindow: ClipboardHistoryWindow?
@@ -752,7 +756,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return PluginViewWindows(
             environment: environment,
             makeWindow: { PluginViewPanelWindow(model: $0) },
-            pins: PluginViewPins(defaults: .standard),
+            pins: pluginViewPins,
             pointer: { NSEvent.mouseLocation },
             frontmostApplication: {
                 NSWorkspace.shared.frontmostApplication.map {

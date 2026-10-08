@@ -6,7 +6,8 @@ import SpinnetCore
 /// Unpinning forgets only the preference, so pinning again later starts
 /// from the remembered geometry. It is a Host preference, not Plugin
 /// Storage, and outlives the Host process; nothing reopens from it at
-/// launch, it applies only when the Plugin's view next opens.
+/// launch, it applies only when the Plugin's view next opens. Updating the
+/// Plugin keeps it; removing the Plugin forgets it (#73).
 final class PluginViewPins {
     private struct Entry: Codable {
         var isPinned = false
@@ -36,6 +37,12 @@ final class PluginViewPins {
     func setGeometry(_ geometry: PluginPanelGeometry, for pluginID: PluginID) {
         guard entries[pluginID.rawValue]?.geometry != geometry else { return }
         entries[pluginID.rawValue, default: Entry()].geometry = geometry
+        save()
+    }
+
+    /// Forgets `pluginID`'s Pin and geometry, as when the Plugin is removed.
+    func forget(_ pluginID: PluginID) {
+        guard entries.removeValue(forKey: pluginID.rawValue) != nil else { return }
         save()
     }
 
