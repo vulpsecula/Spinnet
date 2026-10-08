@@ -10,7 +10,7 @@ Each acceptance criterion of #99 is answered here:
 | A catalogue covering every Level 1 Host Command, Host Service, standard action, Plugin Settings, Storage and environment access and view builder, with each operation's ID, input, output, Capability, System Permission, failure categories, entry points and the Level 1 name it replaces | [`catalogue.json`](catalogue.json), sections 3 to 6 and 8, [`level1-mapping.md`](level1-mapping.md) |
 | Candidates already designed fit: collections (#74), host operations (#70), current App (#83) and the other #68 probes; Raycast-style areas not offered stay listed with reasons | Sections 9 and 10 |
 | Level 1 unchanged; the unified names enter as a Candidate Contract in #75's format, grouped with `collections` and `host_operations` | Section 7, [`candidate.json`](candidate.json) |
-| Draft schema, `.d.ts`, SDK namespace layout, reference and fixtures; the #70 and #74 proposals updated; CONTEXT.md updated | Section 5, [`namespaces.schema.json`](namespaces.schema.json), [`namespaces.d.ts`](namespaces.d.ts), [`reference.md`](reference.md), [`fixtures/`](fixtures/), section 9 |
+| Draft schema, `.d.ts`, SDK namespace layout, reference and fixtures; the #70 and #74 proposals updated; GLOSSARY.md updated | Section 5, [`namespaces.schema.json`](namespaces.schema.json), [`namespaces.d.ts`](namespaces.d.ts), [`reference.md`](reference.md), [`fixtures/`](fixtures/), section 9 |
 | Product choices, with recommended defaults, decided by the user | Section 13 |
 
 ## 1. Problem

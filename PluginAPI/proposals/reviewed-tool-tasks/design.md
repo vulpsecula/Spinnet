@@ -617,6 +617,6 @@ P19.
 ## 15. Proposed Host-internal records
 
 The glossary gains proposed entries for Reviewed Tool Profile and Task in
-`CONTEXT.md`. Proposed ADR text and Host implementation touchpoints are in
+`GLOSSARY.md`. Proposed ADR text and Host implementation touchpoints are in
 #72's report for the Host's design notes in `docs/`, which are not part of
 this repository's history.

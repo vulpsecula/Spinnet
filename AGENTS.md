@@ -11,7 +11,7 @@ Use the five default canonical triage labels unchanged: `needs-triage`,
 
 ### Domain docs
 
-Single-context layout. Read `CONTEXT.md` for the domain glossary and the
+Single-context layout. Read `GLOSSARY.md` for the domain glossary and the
 relevant ADRs in `docs/adr/` before working in an area. Use the glossary's
 terms, and avoid the synonyms it lists.
 
