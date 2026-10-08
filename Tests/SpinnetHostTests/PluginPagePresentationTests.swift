@@ -7,8 +7,10 @@ import XCTest
 /// Styles, images and progress on a page (#81) as the Host draws them: the
 /// published track, metrics and task fixtures in the real panel in light and
 /// dark appearance, a colour for each appearance, the pictures the renderer
-/// asks for and lets go of, and the cancel View Action. VoiceOver speech,
-/// text-size changes and the look itself are checked by hand.
+/// asks for and lets go of, a coloured bar, and the cancel View Action.
+/// VoiceOver speech is checked by hand. (macOS does not scale SwiftUI body
+/// text, so there is no text-size change to check: rendering at the largest
+/// Dynamic Type size draws the same page, 2026-10-09.)
 final class PluginPagePresentationTests: XCTestCase {
     private var window: PluginViewPanelWindow?
 
@@ -129,6 +131,51 @@ final class PluginPagePresentationTests: XCTestCase {
     /// An indeterminate bar keeps running across answers to the same page:
     /// the panel keeps the very indicator it drew, still animating, so a
     /// refresh does not flash.
+    /// What `view` draws in a window of an App that is not active, as
+    /// Spinnet's non-activating panel always is. A window's capture is in
+    /// the display's colour space, so colours are compared with a swatch
+    /// captured the same way.
+    private func capture<V: View>(_ view: V, _ appearance: NSAppearance.Name) throws -> NSBitmapImageRep {
+        let hosting = NSHostingView(rootView: view)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 120), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: appearance)
+        window.contentView = hosting
+        defer { window.close() }
+        hosting.frame.size = hosting.fittingSize
+        settle()
+        hosting.layoutSubtreeIfNeeded()
+        let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return rep
+    }
+
+    /// A bar with a value is drawn in the colour its style gives, light or
+    /// dark, in an inactive App's window, where macOS's own bar turns grey
+    /// and takes no tint.
+    func testABarWithAValueIsDrawnInItsColour() throws {
+        let harness = try PageHarness()
+        try harness.open(try page("spotify-track.json"))
+        let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        guard case .progress(let position)? = model.page.component("position") else { return XCTFail("No progress") }
+        let green = NSColor(srgbRed: 0x1D / 255, green: 0xB9 / 255, blue: 0x54 / 255, alpha: 1)
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let swatch = try capture(Rectangle().fill(Color(nsColor: green)).frame(width: 20, height: 20), appearance)
+            let expected = try XCTUnwrap(swatch.colorAt(x: 10, y: 10)?.usingColorSpace(.sRGB))
+            let bar = try capture(PageProgressView(model: model, progress: position).frame(width: 300), appearance)
+            let drawn = (0..<bar.pixelsWide).contains { x in
+                (0..<bar.pixelsHigh).contains { y in
+                    guard let colour = bar.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
+                    return abs(colour.redComponent - expected.redComponent) < 0.03
+                        && abs(colour.greenComponent - expected.greenComponent) < 0.03
+                        && abs(colour.blueComponent - expected.blueComponent) < 0.03
+                }
+            }
+            XCTAssertTrue(drawn, "The position bar is #1DB954 in \(appearance.rawValue)")
+        }
+    }
+
     func testAnIndeterminateBarKeepsRunningAcrossAnswers() throws {
         let harness = try PageHarness()
         let running = try page("brew-task-running.json")

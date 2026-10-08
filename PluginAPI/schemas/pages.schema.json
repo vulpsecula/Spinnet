@@ -477,7 +477,7 @@
           "type": "number",
           "minimum": 9,
           "maximum": 40,
-          "description": "Points at the Host's default text size; scaled with the Host's text size."
+          "description": "Points, in step with the Host's body text should it ever scale (macOS does not scale it today)."
         },
         "font_weight": {
           "enum": [

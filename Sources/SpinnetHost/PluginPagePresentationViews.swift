@@ -160,9 +160,30 @@ private extension PageImageState {
     }
 }
 
+/// A bar with a value in the colour a progress's style gives. macOS's own
+/// bar ignores a tint and turns grey in a window of an App that is not
+/// active, which Spinnet's non-activating panel always is, so the Host
+/// draws this one: a track and a fill at the native bar's height.
+struct PageColouredBar: View {
+    let value: Double
+    let color: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.secondary.opacity(0.2))
+                Capsule().fill(color).frame(width: proxy.size.width * min(max(value, 0), 1))
+            }
+        }
+        .frame(height: 6)
+    }
+}
+
 /// A task's progress as the Plugin describes it: its title and status, a
-/// native bar (indeterminate unless the Plugin gave a value), its stages,
-/// and its cancel View Action while it runs. The Host derives no percentage.
+/// native bar (indeterminate unless the Plugin gave a value; drawn by the
+/// Host in the style's colour when it has a value and a colour), its
+/// stages, and its cancel View Action while it runs. The Host derives no
+/// percentage.
 struct PageProgressView: View {
     @ObservedObject var model: PluginPageModel
     let progress: PluginPageProgress
@@ -184,14 +205,14 @@ struct PageProgressView: View {
             }
             if progress.state == .running || progress.state == .cancelling {
                 Group {
-                    if let value = progress.value {
-                        ProgressView(value: value)
+                    if let value = progress.value, let color = progress.style?.color?.color {
+                        PageColouredBar(value: value, color: color)
+                    } else if let value = progress.value {
+                        ProgressView(value: value).progressViewStyle(.linear)
                     } else {
-                        ProgressView()
+                        ProgressView().progressViewStyle(.linear)
                     }
                 }
-                .progressViewStyle(.linear)
-                .tint(progress.style?.color?.color)
                 .accessibilityHidden(true)
             }
             if !progress.stages.isEmpty {

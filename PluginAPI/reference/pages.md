@@ -458,7 +458,7 @@ and focus rings keep their native look. Each kind takes these members:
 | --- | --- | --- |
 | `color` | `text`, `icon`, `progress` | A colour |
 | `background` | `text`, `row`, `column`, `image` | A colour |
-| `font_size` | `text` | 9 to 40 points at the default text size, scaled as the Host scales body text |
+| `font_size` | `text` | 9 to 40 points, in step with the Host's body text should it ever scale (macOS does not scale it today) |
 | `font_weight` | `text` | `regular`, `medium`, `semibold`, `bold` |
 | `monospaced_digits` | `text` | `true` keeps changing numbers from shifting |
 | `padding` | `text`, `row`, `column` | 0 to 24 points inside the background |
@@ -475,7 +475,7 @@ colour sits on is the Plugin's to keep.
 ### Icons
 
 An `icon` is a system symbol by its SF Symbols name, `{"symbol": "cpu"}`, at
-`size` points (10 to 64, default 16, scaled with the text), tinted by its
+`size` points (10 to 64, default 16, in step with the body text), tinted by its
 style's `color` (default `secondary`). With a `label` VoiceOver reads it;
 without one it is decoration. An item of a list or grid may carry `icon` in
 the same form, drawn as its row's leading icon, or as its grid cell when it
@@ -555,7 +555,9 @@ answers it; the Host runs nothing.
   disabled as "Cancelling…". Cancelling never means anything is undone.
 
 The bar and the stage under way use the system's own progress indicators
-and their animation; a Plugin defines no animation. VoiceOver reads the
+and their animation; a Plugin defines no animation. A bar with a `value`
+and a `color` is drawn by the Host in that colour, since the system's bar
+takes no colour; an indeterminate bar is always the system's. VoiceOver reads the
 title, the stage under way ("Pour, stage 2 of 4"), the status, and the
 value as a percentage only when the Plugin gave one, else "In progress".
 

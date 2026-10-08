@@ -288,7 +288,7 @@ export type Color = SingleColor | { light: SingleColor; dark: SingleColor };
 export interface TextStyle {
   color?: Color;
   background?: Color;
-  /** 9 to 40 points at the default text size, scaled with it. */
+  /** 9 to 40 points, in step with the Host's body text should it ever scale (macOS does not today). */
   font_size?: number;
   font_weight?: "regular" | "medium" | "semibold" | "bold";
   monospaced_digits?: boolean;
