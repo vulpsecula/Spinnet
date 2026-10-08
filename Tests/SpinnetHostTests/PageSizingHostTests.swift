@@ -123,4 +123,38 @@ final class PageSizingHostTests: XCTestCase {
         XCTAssertEqual(Double(PluginPanelLayout.minimumSize.height), PageSizing.minimumHeights.lowerBound)
         XCTAssertEqual(Double(PageCollectionView.contentWidth), PageSizing.defaultItemsWidth)
     }
+
+    /// However small the user drags it, a resizable panel keeps everything
+    /// outside its scrolling region and at least one row of its grid: the
+    /// minimum follows the page, above the declared one.
+    func testThePanelCannotBeMadeSmallerThanItsPageNeeds() throws {
+        _ = NSApplication.shared
+        let harness = try PageHarness()
+        try harness.open(Self.page(resizable: .object(["min_height": .number(120)])))
+        let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        let panel = PluginViewPanelWindow(pageModel: model)
+        window = panel
+        panel.resizing = model.page.resizing
+        panel.show(near: NSPoint(x: 500, y: 800))
+        settle()
+        let followed = panel.presentationSnapshot.frame.height
+        let minimum = panel.panelSnapshot.minimumSize.height
+        XCTAssertGreaterThan(minimum, 120, "The header, the field and a row need more than the declared minimum")
+        XCTAssertLessThan(minimum, followed, "Less than the six rows it opens with")
+
+        // While dragging, AppKit is never let below the minimum, so the
+        // panel does not shrink further and spring back on release.
+        XCTAssertEqual(panel.liveResizeProposal(NSSize(width: 300, height: 60)),
+                       NSSize(width: 440, height: minimum))
+        XCTAssertEqual(panel.liveResizeProposal(NSSize(width: 700, height: 500)), NSSize(width: 700, height: 500))
+
+        panel.simulateUserResize(to: NSRect(x: 100, y: 100, width: 500, height: 60))
+        settle()
+        XCTAssertEqual(panel.presentationSnapshot.frame.height, minimum, accuracy: 1)
+        XCTAssertEqual(model.window?.rows, 1, "One row of the grid still shows")
+
+        // A larger declared minimum wins.
+        panel.resizing = PluginPageResizing(minimumHeight: 500)
+        XCTAssertEqual(panel.panelSnapshot.minimumSize.height, 500)
+    }
 }

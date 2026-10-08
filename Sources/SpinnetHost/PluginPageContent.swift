@@ -10,6 +10,10 @@ import SwiftUI
 struct PluginPageContent: View {
     @ObservedObject var model: PluginPageModel
     @State private var pageHeight: CGFloat = 0
+    /// The drawn heights of the whole page and of its scrolling region, so
+    /// the panel knows the least it can be (#80).
+    @State private var totalHeight: CGFloat = 0
+    @State private var scrollingHeight: CGFloat = 0
     @Environment(\.pluginPanelFills) private var fills
 
     /// The height a page without a collection may take before it scrolls.
@@ -30,6 +34,7 @@ struct PluginPageContent: View {
                     .frame(maxWidth: fills ? .infinity : nil)
                     .frame(minHeight: fills ? PageCollectionView.listRowHeight : nil,
                            maxHeight: fills ? .infinity : nil, alignment: .topLeading)
+                    .background(Self.measuring { scrollingHeight = $0 })
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(model.collectionLabel)
                 components(model.page.content[(index + 1)...])
@@ -43,11 +48,14 @@ struct PluginPageContent: View {
                 }
                 .frame(height: fills ? nil : min(max(pageHeight, 40), Self.maximumScrollingHeight))
                 .frame(minHeight: fills ? 40 : nil, maxHeight: fills ? .infinity : nil)
+                .background(Self.measuring { scrollingHeight = $0 })
                 .onPreferenceChange(PageHeightKey.self) { pageHeight = $0 }
             }
             if let line = model.insertionTargetLine { targetLine(line) }
         }
         .padding(14)
+        .background(Self.measuring { totalHeight = $0 })
+        .preference(key: PluginPanelMinimumHeightKey.self, value: minimumHeight)
         .frame(minWidth: PluginViewPanelWindow.width, maxWidth: fills ? .infinity : PluginViewPanelWindow.width,
                maxHeight: fills ? .infinity : nil, alignment: .topLeading)
         .overlay(alignment: .bottom) { toast }
@@ -62,6 +70,29 @@ struct PluginPageContent: View {
         .onChange(of: model.error?.message) { message in
             guard let message else { return }
             Self.announce(message)
+        }
+    }
+
+    /// Everything outside the scrolling region, and the least of that
+    /// region: one row of the collection (with a section header), or 40
+    /// points of a page without one.
+    private var minimumHeight: CGFloat {
+        guard totalHeight > 0, scrollingHeight > 0 else { return 0 }
+        let least: CGFloat
+        if let collection = model.collection {
+            let header = collection.sections.contains { $0.title != nil } ? PageCollectionView.headerHeight : 0
+            least = PageCollectionView.rowHeight(of: collection) + header
+        } else {
+            least = 40
+        }
+        return (totalHeight - scrollingHeight + least).rounded(.up)
+    }
+
+    private static func measuring(_ height: @escaping (CGFloat) -> Void) -> some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { height(proxy.size.height) }
+                .onChange(of: proxy.size.height) { height($0) }
         }
     }
 

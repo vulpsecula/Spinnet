@@ -588,7 +588,9 @@ ui.page({ id: "search", title: "Emoji", resizable: { minHeight: 240 }, content: 
 - A page with `resizable` (`true`, or `{min_width, min_height}`) lets the
   user resize its panel, pinned or not, down to its minimum width (440 to
   1,200 points, 440 by default) and height (120 to 900 points, 160 by
-  default). Once the user has resized it, the page fills the panel: its
+  default), and never smaller than the page needs: everything outside its
+  scrolling region and one row of its collection (40 points of a page
+  without one). Once the user has resized it, the page fills the panel: its
   collection, or the whole page when it has none, takes the width and height
   left and scrolls; answers no longer change the panel's size.
 - A page without it, and every Level 1 view, keeps the Host's default

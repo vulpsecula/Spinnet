@@ -27,6 +27,16 @@ final class PluginPanelFill: ObservableObject {
     @Published var fillsPanel = false
     /// The content's own size, reported while it does not fill the panel.
     var onContentSize: ((NSSize) -> Void)?
+    /// The smallest height the content can be drawn in without losing what
+    /// lies outside its scrolling region (#80).
+    var onMinimumHeight: ((CGFloat) -> Void)?
+}
+
+/// The smallest height a page can be drawn in: everything outside its
+/// scrolling region, and the least of that region.
+struct PluginPanelMinimumHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 private struct PluginPanelFillsKey: EnvironmentKey {
@@ -60,6 +70,9 @@ private struct PluginPanelRoot<Content: View>: View {
                     .onAppear { report(proxy.size) }
                     .onChange(of: proxy.size) { report($0) }
             })
+            .onPreferenceChange(PluginPanelMinimumHeightKey.self) { height in
+                if height > 0 { fill.onMinimumHeight?(height) }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -105,6 +118,8 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     private var screenWatch: NSObjectProtocol?
     /// The size the content last reported at its own size.
     private var contentSize: NSSize?
+    /// The smallest height the content reported it can be drawn in.
+    private var contentMinimumHeight: CGFloat = 0
 
     convenience init(model: PluginViewModel) {
         let fill = PluginPanelFill()
@@ -139,6 +154,9 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
             guard size.width > 0, size.height > 0 else { return }
             self?.contentSize = size
             DispatchQueue.main.async { self?.contentSizeChanged(to: size) }
+        }
+        fill.onMinimumHeight = { [weak self] height in
+            DispatchQueue.main.async { self?.contentMinimumHeightChanged(to: height) }
         }
         hosting.view.layoutSubtreeIfNeeded()
         if let contentSize { panel.setContentSize(contentSize) }
@@ -187,16 +205,11 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     var resizing: PluginPageResizing? {
         didSet {
             guard resizing != oldValue else { return }
-            panel.contentMinSize = minimumSize
             if resizing != nil {
                 panel.styleMask.insert(.resizable)
-                // A larger minimum grows a size the user chose, from its top.
-                if let layout, !layout.followsContent,
-                   layout.frame.width < minimumSize.width || layout.frame.height < minimumSize.height {
-                    let frame = layout.frame, minimumSize = minimumSize
-                    change(reports: true) { $0.userResized(to: frame, minimumSize: minimumSize) }
-                }
+                minimumSizeChanged()
             } else {
+                panel.contentMinSize = minimumSize
                 panel.styleMask.remove(.resizable)
                 if layout?.followsContent == false, let contentSize {
                     let screens = screens()
@@ -206,11 +219,30 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         }
     }
 
-    /// The smallest size the user may give the panel.
+    /// The smallest size the user may give the panel: what the page
+    /// declares, and never less than its content needs.
     private var minimumSize: NSSize {
         guard let resizing else { return PluginPanelLayout.minimumSize }
         return NSSize(width: max(resizing.minimumWidth, PluginPanelLayout.minimumSize.width),
-                      height: max(resizing.minimumHeight, PluginPanelLayout.minimumSize.height))
+                      height: max(resizing.minimumHeight, PluginPanelLayout.minimumSize.height, contentMinimumHeight))
+    }
+
+    private func contentMinimumHeightChanged(to height: CGFloat) {
+        guard !isClosing, height != contentMinimumHeight else { return }
+        contentMinimumHeight = height
+        if resizing != nil { minimumSizeChanged() }
+    }
+
+    /// AppKit keeps live resizing above the minimum, and a size the user
+    /// chose below a larger minimum grows from its top.
+    private func minimumSizeChanged() {
+        let minimumSize = minimumSize
+        panel.contentMinSize = minimumSize
+        if let layout, !layout.followsContent,
+           layout.frame.width < minimumSize.width || layout.frame.height < minimumSize.height {
+            let frame = layout.frame
+            change(reports: true) { $0.userResized(to: frame, minimumSize: minimumSize) }
+        }
     }
 
     var geometry: PluginPanelGeometry {
@@ -303,6 +335,20 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
 
     // MARK: - NSWindowDelegate
 
+    /// Each step of a drag stays at or above the minimum, so the panel
+    /// never shrinks past it only to spring back on release. AppKit's own
+    /// `contentMinSize` cannot be relied on: the SwiftUI hosting view that
+    /// is the panel's content view resets it.
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        liveResizeProposal(frameSize)
+    }
+
+    /// The size a drag's step to `frameSize` is given.
+    func liveResizeProposal(_ frameSize: NSSize) -> NSSize {
+        let minimumSize = minimumSize
+        return NSSize(width: max(frameSize.width, minimumSize.width), height: max(frameSize.height, minimumSize.height))
+    }
+
     /// The size is the user's from the moment they take an edge.
     func windowWillStartLiveResize(_ notification: Notification) {
         change(reports: false) { $0.userBeganResizing() }
@@ -340,7 +386,7 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     var panelSnapshot: (level: NSWindow.Level, isFloating: Bool, isResizable: Bool, minimumSize: NSSize,
                         canBecomeKey: Bool, canBecomeMain: Bool, hidesOnDeactivate: Bool, isRestorable: Bool,
                         fills: Bool) {
-        (panel.level, panel.isFloatingPanel, panel.styleMask.contains(.resizable), panel.contentMinSize,
+        (panel.level, panel.isFloatingPanel, panel.styleMask.contains(.resizable), minimumSize,
          panel.canBecomeKey, panel.canBecomeMain, panel.hidesOnDeactivate, panel.isRestorable, fill.fillsPanel)
     }
 
