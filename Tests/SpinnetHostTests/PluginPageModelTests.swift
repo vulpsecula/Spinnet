@@ -98,6 +98,37 @@ final class PluginPageModelTests: XCTestCase {
     /// Up and Down in the search field move the selection by a grid row;
     /// Return performs the default item action with the item's snapshot and
     /// the target shown when it was pressed.
+    /// In a field searching a Grid, Left and Right move the selection one
+    /// item, as in the Grid (user decision 2026-10-08); the caret moves with
+    /// Option- or Command-arrows. Up and Down move by a row. A field that
+    /// searches a List, or nothing, keeps its arrows for the caret.
+    func testArrowKeysInTheSearchFieldMoveAroundTheGrid() throws {
+        try harness.open(PageHarness.search(items: (0..<20).map { "i\($0)" }))
+        XCTAssertTrue(model.searchFieldKey(.right, in: "query"))
+        XCTAssertEqual(model.selectedItem, "i1")
+        XCTAssertTrue(model.searchFieldKey(.down, in: "query"))
+        XCTAssertEqual(model.selectedItem, "i9")
+        XCTAssertTrue(model.searchFieldKey(.left, in: "query"))
+        XCTAssertEqual(model.selectedItem, "i8")
+        XCTAssertEqual(model.focused, "query", "Focus stays in the field")
+        XCTAssertFalse(model.searchFieldKey(.home, in: "query"), "Home and End stay the text's")
+        XCTAssertFalse(model.searchFieldKey(.left, in: "category"), "Not a search field")
+
+        var list = PageHarness.search(items: (0..<20).map { "i\($0)" })
+        if case .object(var page) = list, case .array(var content)? = page["content"], case .object(var grid) = content[1] {
+            grid["kind"] = .string("list")
+            grid["columns"] = nil
+            content[1] = .object(grid)
+            page["content"] = .array(content)
+            list = .object(page)
+        }
+        model.textChanged("query", to: "i", caret: nil)
+        harness.clock.advance(by: 0.2)
+        try harness.answer(list)
+        XCTAssertFalse(model.searchFieldKey(.right, in: "query"), "A List's search field keeps Left and Right for the caret")
+        XCTAssertTrue(model.searchFieldKey(.down, in: "query"))
+    }
+
     func testTheSearchFieldDrivesTheGrid() throws {
         try harness.open(PageHarness.search(items: (0..<20).map { "i\($0)" }))
         XCTAssertTrue(model.searchesCollection("query"))

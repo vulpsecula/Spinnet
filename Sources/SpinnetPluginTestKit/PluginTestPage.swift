@@ -183,7 +183,8 @@ public final class PluginTestPage {
     }
 
     /// An arrow, Page or Home/End key that moves the selection, in the
-    /// search field (Up and Down) or the collection. The selection is kept
+    /// search field (Up and Down, and Left and Right when it searches a
+    /// grid) or the collection. The selection is kept
     /// on screen; reaching within a screenful of the end asks for more, and
     /// reaching positions the Host does not hold asks for them, as the Host
     /// does.

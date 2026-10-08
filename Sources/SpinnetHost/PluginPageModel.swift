@@ -319,6 +319,20 @@ final class PluginPageModel: ObservableObject {
 
     /// Whether `field` searches the page's collection, so Up, Down and
     /// Return act on it.
+    /// An arrow key in a text field, with no modifier and no input-method
+    /// composition. A field searching the page's collection moves its
+    /// selection with Up and Down, and, searching a Grid, with Left and
+    /// Right too (user decision 2026-10-08), the caret moving with Option-
+    /// or Command-arrows. Returns false for a key the field keeps.
+    func searchFieldKey(_ move: PluginPageCollection.Move, in field: String) -> Bool {
+        guard searchesCollection(field) else { return false }
+        switch move {
+        case .up, .down: return moveSelection(move)
+        case .left, .right where collection?.style == .grid: return moveSelection(move)
+        default: return false
+        }
+    }
+
     func searchesCollection(_ field: String) -> Bool {
         guard case .textField(let declared)? = page.component(field) else { return false }
         return declared.collection != nil && declared.collection == collection?.id

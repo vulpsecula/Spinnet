@@ -103,10 +103,14 @@ struct PageTextField: NSViewRepresentable {
             // with marked text left is the input method's business too.
             guard !textView.hasMarkedText() else { return false }
             switch selector {
-            case #selector(NSResponder.moveUp(_:)) where model.searchesCollection(id):
-                return model.moveSelection(.up)
-            case #selector(NSResponder.moveDown(_:)) where model.searchesCollection(id):
-                return model.moveSelection(.down)
+            case #selector(NSResponder.moveUp(_:)):
+                return model.searchFieldKey(.up, in: id)
+            case #selector(NSResponder.moveDown(_:)):
+                return model.searchFieldKey(.down, in: id)
+            case #selector(NSResponder.moveLeft(_:)):
+                return model.searchFieldKey(.left, in: id)
+            case #selector(NSResponder.moveRight(_:)):
+                return model.searchFieldKey(.right, in: id)
             case #selector(NSResponder.insertNewline(_:)):
                 model.returnPressed(in: id)
                 return true

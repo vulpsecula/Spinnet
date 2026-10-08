@@ -65,13 +65,17 @@ final class PluginPagePanelTests: XCTestCase {
 
         try type("cat")
         XCTAssertEqual(model.text(of: "query"), "cat")
-        try key(123, "\u{F702}") // Left: the caret, not the grid
+        try key(124, "\u{F703}") // Right: one grid item, not the caret (2026-10-08)
+        XCTAssertEqual(model.selectedItem, "i1")
+        try key(123, "\u{F702}") // Left
         XCTAssertEqual(model.selectedItem, "i0")
         try key(125, "\u{F701}") // Down: one grid row, focus stays
         XCTAssertEqual(model.selectedItem, "i8")
         XCTAssertEqual(firstResponderComponent(), "query")
+        try key(123, "\u{F702}", modifiers: [.option, .function]) // Option-Left: the caret, by a word
+        XCTAssertEqual(model.selectedItem, "i8")
         try type("s")
-        XCTAssertEqual(model.text(of: "query"), "cast", "Typing went in at the caret, after Left")
+        XCTAssertEqual(model.text(of: "query"), "scat", "Typing went in at the caret, after Option-Left")
 
         try key(36, "\r") // Return: the typing first, then the default item action (C1)
         XCTAssertEqual(harness.events.last?.event?.typeName, "field_changed")
@@ -80,7 +84,7 @@ final class PluginPagePanelTests: XCTestCase {
             return XCTFail("Return performed \(String(describing: harness.events.last?.event))")
         }
         XCTAssertEqual(item.id, "i8")
-        XCTAssertEqual(values, .object(["query": .string("cast"), "category": .string("all")]))
+        XCTAssertEqual(values, .object(["query": .string("scat"), "category": .string("all")]))
     }
 
     func testTabArrowsReturnAndATypedKeyInTheCollection() throws {

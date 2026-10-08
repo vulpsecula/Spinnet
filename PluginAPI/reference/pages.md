@@ -241,10 +241,10 @@ the page.
 
 | Input | In the search field | In the collection |
 | --- | --- | --- |
-| Typing, Left, Right, Option/Command-arrows, Delete, ⌘A, ⌘Z | Edits the text | Typing returns to the search field, with a keyboard layout; with an input method selected it is ignored |
+| Typing, Option/Command-arrows, Delete, ⌘A, ⌘Z | Edits the text | Typing returns to the search field, with a keyboard layout; with an input method selected it is ignored |
 | Any key during an input-method composition | The input method | |
 | Up, Down | Moves the selection one row | Moves the selection one row |
-| Left, Right | Caret | Moves the selection one item |
+| Left, Right | Searching a grid, moves the selection one item; searching a list, the caret | Moves the selection one item |
 | Page Up/Down, Home/End | Text | By a screenful, to the first/last item of `total` |
 | Return | Default item action | Default item action |
 | Click / double-click / right click | | Select / default action / context menu |
@@ -257,7 +257,9 @@ search field while the answer to the latest typing is still to come sends
 that typing at once, waits for its answer, and then performs the default item
 action on the selection it produced; if that answer fails, nothing is
 performed. Arrow selection crosses section boundaries with the column
-clamped. VoiceOver reads each item by its title, its item actions as custom
+clamped. In a field searching a grid the caret moves with Option- and
+Command-arrows or the pointer, since Left and Right move around the grid (a
+change to Level 2 while it is open, 2026-10-08). VoiceOver reads each item by its title, its item actions as custom
 actions, and the insertion target line as text.
 
 ## Events
