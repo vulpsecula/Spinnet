@@ -122,6 +122,9 @@ public final class PluginViewSession {
     public private(set) var error: ActionFailure?
     /// The event whose failure `error` is, when an event failed.
     public private(set) var errorEvent: PluginViewEvent?
+    /// `error` is a committed operation's refusal or failure, which the
+    /// script's answer to being told of it does not clear.
+    private var errorIsOperations = false
     public private(set) var generation = 0
     /// How many times an Action has presented the view: 1 when the session
     /// starts, and one more each time presenting again replaces it. An
@@ -544,8 +547,14 @@ public final class PluginViewSession {
                 viewRevision += 1
                 answeredEvent = event
             }
-            error = nil
-            errorEvent = nil
+            // The answer to `operation_finished` keeps an operation's
+            // refusal shown; anything else moves past it.
+            if case .operationFinished = event, errorIsOperations {
+            } else {
+                error = nil
+                errorEvent = nil
+                errorIsOperations = false
+            }
             present()
             showToast(answer.toast)
             // The request commits in the same turn as the view and state, so
@@ -565,6 +574,7 @@ public final class PluginViewSession {
             // and the last good state; the next event may succeed.
             error = failure
             errorEvent = event
+            errorIsOperations = false
             present()
             finished(current.entry, .failed(failure.message))
         }
@@ -616,6 +626,7 @@ public final class PluginViewSession {
         if let failure = result.failure(for: requester) {
             error = failure
             errorEvent = nil
+            errorIsOperations = true
             present()
         } else if operation.closesView, renderer?.isPinned(self) != true {
             end(.closedByPlugin)

@@ -104,7 +104,8 @@ answer being accepted.
   Command, and the target again when it starts the operation.
 - The Host shows every outcome other than success in the view, with a repair
   route where there is one, or near the pointer when there is no view or it
-  has closed.
+  has closed. The script's answer to `operation_finished` keeps it shown;
+  the user's next gesture moves past it.
 - A Host Confirmation takes the keyboard without closing the view whose
   operation it confirms, pinned or not, and gives the keyboard back to it
   when it goes.

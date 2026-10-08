@@ -86,6 +86,15 @@ final class HostOperationSessionTests: XCTestCase {
         ]))
         XCTAssertEqual(runner.runs[1].delivery.insertionTarget, .notShown)
         XCTAssertEqual(reported, [], "The view showed it")
+
+        // The script's answer to being told keeps the Host's message on
+        // screen: it is not a step past it, as the user's next gesture is.
+        finish(1, view: "told", state: .object([:]))
+        XCTAssertEqual(renderer.presentations.last?.error?.message,
+                       "Spinnet showed App A, but App B is in front. Nothing was inserted.")
+        session.send(.submitted(values: .null), insertionTarget: Self.shownA)
+        finish(2, view: "again", state: .object([:]))
+        XCTAssertNil(renderer.presentations.last?.error, "The user's next gesture moves past it")
     }
 
     /// Scenario 05: a refused Capability refuses the whole answer: view,
