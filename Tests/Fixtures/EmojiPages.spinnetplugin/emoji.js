@@ -100,6 +100,7 @@
       id: "search",
       title: "Emoji",
       showsInsertionTarget: true,
+      resizable: true,
       reset,
       content: [
         c.row({ id: "bar", content: [
@@ -110,7 +111,7 @@
                           choiceTitles: ["All Categories"].concat(CATEGORIES.map((x) => x[1])) })
         ] }),
         c.grid({
-          id: "results", columns: 8, rows: 6, emptyText: "No emoji match",
+          id: "results", columns: "auto", rows: 6, emptyText: "No emoji match",
           total: positions.length, start: first, items, sections,
           actions: [
             c.itemAction({ id: "insert", title: "Insert", default: true, perform: "selection.replace",

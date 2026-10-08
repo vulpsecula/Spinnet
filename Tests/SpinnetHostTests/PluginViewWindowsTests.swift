@@ -453,6 +453,7 @@ final class FakePluginViewWindow: PluginViewWindow {
     private(set) var restored: [PluginPanelGeometry?] = []
     var title = ""
     var floats = false
+    var resizing: PluginPageResizing?
     var geometry = PluginPanelGeometry(frame: NSRect(x: 0, y: 0, width: 440, height: 160), isUserSized: false)
 
     func show(near pointer: NSPoint, restoring pinned: PluginPanelGeometry?) {

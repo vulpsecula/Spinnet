@@ -79,8 +79,9 @@ private final class PluginViewNSPanel: NSPanel {
 
 /// The Host's window for one Plugin View: a non-activating panel near the
 /// pointer that grows downwards as its content does and stays on screen.
-/// Pinned, it floats and the user may resize it; from then on its size is
-/// the user's (`PluginPanelLayout`) and its content fills it.
+/// Pinned, it floats. A page that declares it may be resized (#80) lets the
+/// user resize the panel, pinned or not; from then on its size is the
+/// user's (`PluginPanelLayout`) and its content fills it.
 final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate {
     /// Space between the pointer and the panel's top edge.
     static let pointerGap = PluginPanelLayout.pointerGap
@@ -170,15 +171,40 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         if let screenWatch { NotificationCenter.default.removeObserver(screenWatch) }
     }
 
-    /// Pinned: floats above other Apps' windows and may be resized.
-    /// Unpinning keeps the size the panel has.
+    /// Pinned: floats above other Apps' windows. Pinning and unpinning
+    /// leave the size alone.
     var floats: Bool {
         get { panel.isFloatingPanel }
         set {
             panel.isFloatingPanel = newValue
             panel.level = newValue ? .floating : .normal
-            if newValue { panel.styleMask.insert(.resizable) } else { panel.styleMask.remove(.resizable) }
         }
+    }
+
+    /// The page's declaration that the user may resize the panel, and how
+    /// small; nil keeps the Host's default layout, so a panel the user had
+    /// sized follows its content again.
+    var resizing: PluginPageResizing? {
+        didSet {
+            guard resizing != oldValue else { return }
+            panel.contentMinSize = minimumSize
+            if resizing != nil {
+                panel.styleMask.insert(.resizable)
+            } else {
+                panel.styleMask.remove(.resizable)
+                if layout?.followsContent == false, let contentSize {
+                    let screens = screens()
+                    change(reports: true) { $0.followContent(of: contentSize, screens: screens) }
+                }
+            }
+        }
+    }
+
+    /// The smallest size the user may give the panel.
+    private var minimumSize: NSSize {
+        guard let resizing else { return PluginPanelLayout.minimumSize }
+        return NSSize(width: max(resizing.minimumWidth, PluginPanelLayout.minimumSize.width),
+                      height: max(resizing.minimumHeight, PluginPanelLayout.minimumSize.height))
     }
 
     var geometry: PluginPanelGeometry {
@@ -193,10 +219,13 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         }
     }
 
+    /// A remembered size comes back only for a page that may be resized;
+    /// any other opens at its content's size where the pinned panel was.
     func show(near pointer: NSPoint, restoring pinned: PluginPanelGeometry? = nil) {
         hosting.view.layoutSubtreeIfNeeded()
+        let restoring = resizing == nil ? pinned.map { PluginPanelGeometry(frame: $0.frame, isUserSized: false) } : pinned
         apply(PluginPanelLayout.opening(contentSize: contentSize ?? panel.frame.size, pointer: pointer, screens: screens(),
-                                        restoring: pinned))
+                                        restoring: restoring, minimumSize: minimumSize))
         bringForward()
     }
 
@@ -274,8 +303,8 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
-        let frame = panel.frame
-        change(reports: true) { $0.userResized(to: frame) }
+        let frame = panel.frame, minimumSize = minimumSize
+        change(reports: true) { $0.userResized(to: frame, minimumSize: minimumSize) }
     }
 
     /// The user may drag the view; it then grows from where they left it.
@@ -300,11 +329,13 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
          panel.styleMask.contains(.nonactivatingPanel))
     }
 
-    /// The panel's AppKit configuration, which Pin changes.
-    var panelSnapshot: (level: NSWindow.Level, isFloating: Bool, isResizable: Bool, canBecomeKey: Bool,
-                        canBecomeMain: Bool, hidesOnDeactivate: Bool, isRestorable: Bool, fills: Bool) {
-        (panel.level, panel.isFloatingPanel, panel.styleMask.contains(.resizable), panel.canBecomeKey,
-         panel.canBecomeMain, panel.hidesOnDeactivate, panel.isRestorable, fill.fillsPanel)
+    /// The panel's AppKit configuration, which Pin and the page's
+    /// declaration change.
+    var panelSnapshot: (level: NSWindow.Level, isFloating: Bool, isResizable: Bool, minimumSize: NSSize,
+                        canBecomeKey: Bool, canBecomeMain: Bool, hidesOnDeactivate: Bool, isRestorable: Bool,
+                        fills: Bool) {
+        (panel.level, panel.isFloatingPanel, panel.styleMask.contains(.resizable), panel.contentMinSize,
+         panel.canBecomeKey, panel.canBecomeMain, panel.hidesOnDeactivate, panel.isRestorable, fill.fillsPanel)
     }
 
     /// Resizes the panel as the user's drag of an edge does, for tests:

@@ -354,6 +354,22 @@ final class LevelTwoBudgetsTests: XCTestCase {
 /// The bounds of styles, images and progress, appended to Level 2 by #81
 /// from the decoding measurements recorded in PluginAPI/reference/pages.md,
 /// "Images" (and docs/research/page-image-measurements.md).
+final class PageSizingBudgetsTests: XCTestCase {
+    /// PluginAPI/reference/pages.md, "Resizable pages"
+    func testResizingBoundsMatchThePublishedPage() {
+        XCTAssertPublished("down to its minimum width (440 to\n  1,200 points, 440 by default) and height (120 to 900 points, 160 by\n  default)",
+                           in: "reference/pages.md")
+        XCTAssertEqual(PageSizing.minimumWidths, 440...1_200)
+        XCTAssertEqual(PageSizing.minimumHeights, 120...900)
+        XCTAssertEqual(PageSizing.defaultMinimumHeight, 160)
+        XCTAssertPublished("`min_cell_size` points (32 to 128, 48 by default) as its width holds, 2\n  to 24 columns",
+                           in: "reference/pages.md")
+        XCTAssertEqual(PageSizing.minimumCellSizes, 32...128)
+        XCTAssertEqual(PageSizing.defaultMinimumCellSize, 48)
+        XCTAssertEqual(PageSizing.adaptiveColumns, 2...24)
+    }
+}
+
 final class PagePresentationBudgetsTests: XCTestCase {
     /// PluginAPI/reference/pages.md, "Images"
     func testImageBudgetsMatchThePublishedPage() {

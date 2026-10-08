@@ -141,6 +141,32 @@
           "items": {
             "$ref": "#/$defs/component"
           }
+        },
+        "resizable": {
+          "description": "Plugin API Level 2 addition (#80): the user may resize the page's panel, pinned or not, down to its minimum size. The Host lays the page out in the size there is (the collection, or a page without one, takes the room left; a grid with columns \"auto\" takes the columns its width holds) without running the script, and nothing tells the Plugin the size. Absent or false, the panel keeps the Host's default layout: fixed width, height following its content.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "min_width": {
+                  "description": "Points, 440 by default.",
+                  "type": "number",
+                  "minimum": 440,
+                  "maximum": 1200
+                },
+                "min_height": {
+                  "description": "Points, 160 by default.",
+                  "type": "number",
+                  "minimum": 120,
+                  "maximum": 900
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -1012,10 +1038,17 @@
           }
         },
         "columns": {
-          "description": "Cells across, 2 to 12; 8 by default. Cells are square and divide the width.",
-          "type": "integer",
-          "minimum": 2,
-          "maximum": 12
+          "description": "Cells across, 2 to 12; 8 by default. Cells are square and divide the width. \"auto\" (Level 2 addition, #80): as many cells of at least min_cell_size as the width holds, 2 to 24, which the Host chooses again as the panel is resized; moving by rows and load_range follow the columns there are.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 12
+            },
+            {
+              "const": "auto"
+            }
+          ]
         },
         "rows": {
           "description": "Rows visible initially, 1 to 12; 6 by default.",
@@ -1034,6 +1067,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2000
+        },
+        "min_cell_size": {
+          "description": "With columns \"auto\": the smallest cell side in points, 32 to 128; 48 by default.",
+          "type": "number",
+          "minimum": 32,
+          "maximum": 128
         }
       },
       "allOf": [
@@ -1086,6 +1125,24 @@
                 "items": {
                   "$ref": "#/$defs/section_header"
                 }
+              }
+            }
+          }
+        },
+        {
+          "description": "min_cell_size only with columns \"auto\".",
+          "if": {
+            "required": [
+              "min_cell_size"
+            ]
+          },
+          "then": {
+            "required": [
+              "columns"
+            ],
+            "properties": {
+              "columns": {
+                "const": "auto"
               }
             }
           }

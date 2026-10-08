@@ -1,0 +1,61 @@
+{
+  "page": {
+    "id": "search",
+    "title": "Emoji",
+    "content": [
+      {
+        "kind": "text_field",
+        "id": "query",
+        "title": "Search",
+        "value": "",
+        "collection": "results"
+      },
+      {
+        "kind": "grid",
+        "id": "results",
+        "items": [
+          {
+            "id": "e0",
+            "title": "grinning face",
+            "symbol": "😀"
+          },
+          {
+            "id": "e1",
+            "title": "cat face",
+            "symbol": "🐱"
+          },
+          {
+            "id": "e2",
+            "title": "dog face",
+            "symbol": "🐶"
+          },
+          {
+            "id": "e3",
+            "title": "red heart",
+            "symbol": "❤️"
+          },
+          {
+            "id": "e4",
+            "title": "thumbs up",
+            "symbol": "👍"
+          },
+          {
+            "id": "e5",
+            "title": "party popper",
+            "symbol": "🎉"
+          }
+        ],
+        "actions": [
+          {
+            "id": "insert",
+            "title": "Insert",
+            "perform": "selection.replace",
+            "default": true
+          }
+        ],
+        "columns": 8,
+        "min_cell_size": 48
+      }
+    ]
+  }
+}

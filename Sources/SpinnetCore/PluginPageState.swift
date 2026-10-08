@@ -39,8 +39,17 @@ public struct PluginCollectionWindow: Equatable {
 
     public private(set) var total = 0
     public private(set) var sections: [Section] = []
-    public private(set) var columns = 1
-    public private(set) var rows = 1
+    /// Cells across: the Grid's fixed columns, or for an adaptive one
+    /// (#80) those the width the Host measured holds.
+    public var columns: Int { fittedColumns ?? declaredColumns }
+    /// Rows on screen: those the Host measured, else the answer's `rows`.
+    public var rows: Int { fittedRows ?? declaredRows }
+    private var declaredColumns = 1
+    private var declaredRows = 1
+    /// An adaptive Grid's smallest cell side; nil for fixed columns.
+    private var minimumCellSize: Double?
+    private var fittedColumns: Int?
+    private var fittedRows: Int?
     public private(set) var isWindowed = false
     /// Counts the times positions stopped meaning what they meant: a new
     /// collection, or an answer with another total or other sections.
@@ -99,8 +108,7 @@ public struct PluginCollectionWindow: Equatable {
     mutating func replace(with collection: PluginPageCollection) {
         total = collection.total
         sections = Self.layout(of: collection)
-        columns = collection.columns
-        rows = collection.rows
+        declare(collection)
         isWindowed = collection.isWindowed
         items = [:]
         positions = [:]
@@ -127,13 +135,38 @@ public struct PluginCollectionWindow: Equatable {
             return true
         }
         sections = layout
-        columns = collection.columns
-        rows = collection.rows
+        declare(collection)
         if !answersRange {
             stale.formUnion(items.keys.filter { !collection.slice.contains($0) })
         }
         hold(collection)
         return false
+    }
+
+    /// Takes the answer's columns and rows. An adaptive Grid keeps the
+    /// columns its measured width holds, and any collection the rows the
+    /// Host measured, until the Host measures again.
+    private mutating func declare(_ collection: PluginPageCollection) {
+        declaredColumns = collection.columns
+        declaredRows = collection.rows
+        if collection.minimumCellSize != minimumCellSize {
+            minimumCellSize = collection.minimumCellSize
+            fittedColumns = nil
+        }
+    }
+
+    /// The Host measured the collection: its items are `itemsWidth` points
+    /// wide and `visibleRows` rows are on screen. An adaptive Grid takes the
+    /// columns that width holds; a fixed one keeps its own. Returns whether
+    /// the columns or rows changed.
+    @discardableResult
+    public mutating func fit(itemsWidth: Double, visibleRows: Int) -> Bool {
+        let before = (columns, rows)
+        if let minimumCellSize {
+            fittedColumns = PageSizing.columns(fitting: itemsWidth, minimumCellSize: minimumCellSize)
+        }
+        fittedRows = max(visibleRows, 1)
+        return before != (columns, rows)
     }
 
     private mutating func hold(_ collection: PluginPageCollection) {
@@ -510,6 +543,16 @@ public struct PluginPageMemory: Equatable {
         state.viewports[collection.id] = clamped
         window.evict(around: clamped)
         state.windows[collection.id] = window
+    }
+
+    /// The Host measured the page's collection (`PluginCollectionWindow.fit`).
+    /// Returns whether its columns or rows changed.
+    @discardableResult
+    public mutating func fitCollection(itemsWidth: Double, visibleRows: Int) -> Bool {
+        guard let collection = page?.collection, var window = state.windows[collection.id] else { return false }
+        let changed = window.fit(itemsWidth: itemsWidth, visibleRows: visibleRows)
+        state.windows[collection.id] = window
+        return changed
     }
 
     /// The range the Host should ask for with `load_range`, if any.

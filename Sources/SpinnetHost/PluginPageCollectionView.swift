@@ -61,9 +61,10 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     private weak var model: PluginPageModel?
     private let flowLayout = NSCollectionViewFlowLayout()
     private let emptyLabel = NSTextField(labelWithString: "")
-    /// What the cells are laid out for, so a new answer re-lays them out
-    /// only when it changes.
-    private var laidOut: (style: PluginPageCollection.Style, columns: Int, rowHeight: CGFloat)?
+    /// What the cells are laid out for, so a new answer or size re-lays
+    /// them out only when it changes.
+    private var laidOut: (style: PluginPageCollection.Style, columns: Int, rowHeight: CGFloat, width: CGFloat)?
+    private var collection: PluginPageCollection?
     private var lastViewport: Range<Int>?
     private var reportsViewport = false
 
@@ -126,27 +127,60 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
             model?.register(collectionView)
         }
         collectionView.setAccessibilityLabel(model?.collectionLabel)
-        let rowHeight = PageCollectionView.rowHeight(of: collection)
-        if laidOut?.style != collection.style || laidOut?.columns != collection.columns || laidOut?.rowHeight != rowHeight {
-            laidOut = (collection.style, collection.columns, rowHeight)
-            collectionView.style = collection.style
-            let width = PageCollectionView.itemsWidth
-            if collection.style == .grid {
-                let side = PageCollectionView.cellSide(columns: collection.columns)
-                flowLayout.itemSize = NSSize(width: side, height: side)
-                // The cells fill the row from the left; what is left over
-                // stays at the right instead of spreading the cells.
-                flowLayout.sectionInset = NSEdgeInsets(top: 0, left: 0, bottom: 0,
-                                                   right: max(width - side * CGFloat(collection.columns), 0))
-            } else {
-                flowLayout.itemSize = NSSize(width: width, height: rowHeight)
-                flowLayout.sectionInset = NSEdgeInsetsZero
-            }
-            collectionView.rowHeight = rowHeight
-            reloadCollection()
-        }
+        self.collection = collection
+        relayOut()
         emptyLabel.stringValue = collection.emptyText
         updateEmpty()
+    }
+
+    /// The width items take: the clip view's, which leaves out a scroll bar
+    /// that takes room, so the grid never runs under it; the default width
+    /// until the view is laid out.
+    private var itemsWidth: CGFloat {
+        let width = contentView.bounds.width
+        return width > 0 ? width : PageCollectionView.itemsWidth
+    }
+
+    /// Measures the collection for the page model, which fits an adaptive
+    /// Grid's columns to the width (#80), and lays the cells out for the
+    /// columns, row height and width there are now.
+    private func relayOut() {
+        guard let collection else { return }
+        let width = itemsWidth
+        if let model {
+            let cell = collection.minimumCellSize
+            let columns = cell.map { PageSizing.columns(fitting: Double(width), minimumCellSize: $0) } ?? collection.columns
+            let rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
+            let visibleRows = contentView.bounds.height > 0
+                ? Int((contentView.bounds.height / rowHeight).rounded(.up)) : collection.rows
+            model.collectionMeasured(itemsWidth: width, visibleRows: visibleRows)
+        }
+        let columns = model?.window?.columns ?? collection.columns
+        let rowHeight = Self.rowHeight(of: collection, columns: columns, width: width)
+        guard laidOut?.style != collection.style || laidOut?.columns != columns || laidOut?.rowHeight != rowHeight
+                || laidOut?.width != width else { return }
+        laidOut = (collection.style, columns, rowHeight, width)
+        collectionView.style = collection.style
+        if collection.style == .grid {
+            let side = rowHeight
+            flowLayout.itemSize = NSSize(width: side, height: side)
+            // The cells fill the row from the left; what is left over stays
+            // at the right instead of spreading the cells.
+            flowLayout.sectionInset = NSEdgeInsets(top: 0, left: 0, bottom: 0,
+                                                   right: max(width - side * CGFloat(columns), 0))
+        } else {
+            flowLayout.itemSize = NSSize(width: width, height: rowHeight)
+            flowLayout.sectionInset = NSEdgeInsetsZero
+        }
+        collectionView.rowHeight = rowHeight
+        reloadCollection()
+    }
+
+    /// A Grid's square cell side for `columns` across `width`, or a List's
+    /// row height.
+    private static func rowHeight(of collection: PluginPageCollection, columns: Int, width: CGFloat) -> CGFloat {
+        guard collection.style == .grid else { return PageCollectionView.rowHeight(of: collection) }
+        return (width / CGFloat(columns)).rounded(.down)
     }
 
     private func updateEmpty() {
@@ -207,6 +241,7 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
 
     override func layout() {
         super.layout()
+        relayOut()
         reportViewport()
     }
 

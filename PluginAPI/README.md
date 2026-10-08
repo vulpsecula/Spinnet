@@ -247,7 +247,7 @@ an `id` and up to 40 components, each with an `id` unique in the page:
 | `text` | `components.text` | Text in the Markdown subset |
 | `actions` | `components.actions`, `components.button` and `.action(...)` | Up to 8 buttons: event buttons and page actions the Host performs |
 | `list` | `components.list`, `section`, `item`, `itemAction` | A selectable list of up to 2,000 items, or a window of them |
-| `grid` | `components.grid`, `section`, `item`, `itemAction` | A selectable grid of 2 to 12 columns, likewise |
+| `grid` | `components.grid`, `section`, `item`, `itemAction` | A selectable grid of 2 to 12 columns, or as many as the width holds, likewise |
 | `icon` | `components.icon` | A system symbol, tinted |
 | `image` | `components.image` | A PNG or JPEG the Host loads from the package or a host the Plugin may contact, in a fixed frame |
 | `progress` | `components.progress` | A task's stages, status and state, indeterminate unless the Plugin knows its value, with a cancel View Action |
@@ -258,6 +258,12 @@ background, padding, corner radius); nothing inherits it, and the Host's
 fields, buttons, Collections and chrome keep their native look. Items may
 show a system symbol as their `icon`. These were appended to Level 2 by
 #81 while it is open ([Styles, images and progress](reference/pages.md#styles-images-and-progress)).
+
+A page may declare `resizable`, letting the user resize its panel whether
+pinned or not, and a `grid` may take `columns: "auto"`, whose columns the
+Host chooses from the width as the panel is resized; pages that do not
+declare it, and Level 1 views, keep the default layout. These were appended
+by #80 ([Resizable pages](reference/pages.md#resizable-pages)).
 
 The Host keeps each component's immediate state (typed text, caret,
 input-method composition, focus, selection, scroll) across answers to the

@@ -155,16 +155,20 @@ public struct PluginPage: Equatable {
     public let showsInsertionTarget: Bool
     public let focus: String?
     public let reset: Reset?
+    /// The page lets the user resize its panel (#80); nil keeps the Host's
+    /// default layout.
+    public let resizing: PluginPageResizing?
     public let content: [PluginPageComponent]
     /// Every component, row children included, in order.
     public let components: [PluginPageComponent]
 
     public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
-        let members = try Self.object(value, "The page", allowed: [
-            "id", "title", "subtitle", "shows_insertion_target", "focus", "reset", "content"
-        ])
+        var allowed: Set<String> = ["id", "title", "subtitle", "shows_insertion_target", "focus", "reset", "content"]
+        if permits(PageSizing.resizablePages) { allowed.insert("resizable") }
+        let members = try Self.object(value, "The page", allowed: allowed)
         let id = try Self.identifier(members["id"], "The page's id")
         self.id = id
+        resizing = try PluginPageResizing.parse(members["resizable"], page: id, permits: permits)
         title = try Self.text(members["title"], "The page \(id)'s title")
         subtitle = try members["subtitle"].map { try Self.text($0, "The page \(id)'s subtitle", allowsBlank: true) }
         switch members["shows_insertion_target"] {
@@ -580,8 +584,13 @@ public struct PluginPageCollection: Equatable {
     public let selected: String?
     public let emptyText: String
     public let actions: [PluginPageItemAction]
-    /// Cells across; 1 for a list.
+    /// Cells across; 1 for a list. For an adaptive Grid, the columns its
+    /// items' width in the panel's default width holds, until the Host has
+    /// measured the width it has.
     public let columns: Int
+    /// An adaptive Grid's smallest cell side (`columns: "auto"`); nil when
+    /// the Plugin fixed the columns.
+    public let minimumCellSize: Double?
     /// Rows visible initially.
     public let rows: Int
     /// How many items the collection has, given or not.
@@ -600,6 +609,7 @@ public struct PluginPageCollection: Equatable {
         let kind = style == .grid ? "grid" : "list"
         var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "empty_text", "actions", "rows"]
         if style == .grid { allowed.insert("columns") }
+        if style == .grid, permits(PageSizing.adaptiveGridColumns) { allowed.insert("min_cell_size") }
         if permits(CollectionsContract.collectionWindow) { allowed.formUnion(["total", "start"]) }
         let members = try PluginPage.object(value, "A \(kind)", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "A \(kind)'s id")
@@ -697,10 +707,21 @@ public struct PluginPageCollection: Equatable {
             throw PluginPage.violation("The \(kind) \(id)'s selected names \(selected), which is not one of its items")
         }
         emptyText = try members["empty_text"].map { try PluginPage.text($0, "The \(kind) \(id)'s empty_text") } ?? "No items"
-        columns = style == .grid
-            ? try PluginPage.integer(members["columns"], "The grid \(id)'s columns", in: CollectionsContract.columns,
-                                     default: CollectionsContract.defaultColumns)
-            : 1
+        if style == .grid, members["columns"] == .string("auto"), permits(PageSizing.adaptiveGridColumns) {
+            let cell = try PluginPageResizing.number(members["min_cell_size"], "The grid \(id)'s min_cell_size",
+                                                     in: PageSizing.minimumCellSizes) ?? PageSizing.defaultMinimumCellSize
+            minimumCellSize = cell
+            columns = PageSizing.columns(fitting: PageSizing.defaultItemsWidth, minimumCellSize: cell)
+        } else {
+            guard members["min_cell_size"] == nil else {
+                throw PluginPage.violation("The grid \(id) gives min_cell_size without columns \"auto\"")
+            }
+            minimumCellSize = nil
+            columns = style == .grid
+                ? try PluginPage.integer(members["columns"], "The grid \(id)'s columns", in: CollectionsContract.columns,
+                                         default: CollectionsContract.defaultColumns)
+                : 1
+        }
         rows = try PluginPage.integer(members["rows"], "The \(kind) \(id)'s rows", in: CollectionsContract.visibleRows,
                                       default: style == .grid ? CollectionsContract.defaultGridRows : CollectionsContract.defaultListRows)
     }

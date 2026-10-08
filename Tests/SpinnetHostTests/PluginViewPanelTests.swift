@@ -52,12 +52,16 @@ final class PluginViewPanelTests: XCTestCase {
 
     private func shownPanel(fields: Int = 1, near pointer: NSPoint = NSPoint(x: 400, y: 600),
                             restoring pinned: PluginPanelGeometry? = nil,
-                            screens: [PluginPanelScreen]? = nil) throws -> (PluginViewHarness, PluginViewPanelWindow) {
+                            screens: [PluginPanelScreen]? = nil,
+                            resizing: PluginPageResizing? = PluginPageResizing()) throws -> (PluginViewHarness, PluginViewPanelWindow) {
         _ = NSApplication.shared
         let harness = try PluginViewHarness()
         try harness.present(Self.form(fields: fields))
         let window = PluginViewPanelWindow(model: try XCTUnwrap(harness.windows.model(for: harness.pluginID)))
         if let screens { window.screens = { screens } }
+        // The panel is resizable as a page declares it (#80); the Level 1
+        // form here stands in for any content.
+        window.resizing = resizing
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         window.show(near: pointer, restoring: pinned)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
@@ -70,12 +74,12 @@ final class PluginViewPanelTests: XCTestCase {
         })
     }
 
-    /// Unpinned, the panel stays at the normal level and is not resizable;
-    /// pinned, it floats and may be resized. Either way it takes the
-    /// keyboard without becoming main or activating Spinnet, and AppKit
-    /// never restores it at launch.
-    func testPinFloatsTheNonActivatingPanelAndLetsTheUserResizeIt() throws {
-        let (_, window) = try shownPanel()
+    /// Pin floats the panel and nothing else: whether the user may resize
+    /// it is the page's declaration (#80, ADR 0016 amended), pinned or not.
+    /// Either way it takes the keyboard without becoming main or activating
+    /// Spinnet, and AppKit never restores it at launch.
+    func testPinFloatsThePanelAndTheDeclarationLetsTheUserResizeIt() throws {
+        let (_, window) = try shownPanel(resizing: nil)
         defer { window.close() }
         var panel = window.panelSnapshot
         XCTAssertEqual(panel.level, .normal)
@@ -92,15 +96,64 @@ final class PluginViewPanelTests: XCTestCase {
         panel = window.panelSnapshot
         XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.isFloating)
-        XCTAssertTrue(panel.isResizable)
+        XCTAssertFalse(panel.isResizable, "Pinning a page that does not declare resizing does not make it resizable")
+
+        window.floats = false
+        window.resizing = PluginPageResizing(minimumWidth: 500, minimumHeight: 200)
+        panel = window.panelSnapshot
+        XCTAssertEqual(panel.level, .normal)
+        XCTAssertTrue(panel.isResizable, "A declaring page is resizable unpinned")
+        XCTAssertEqual(panel.minimumSize, NSSize(width: 500, height: 200))
         XCTAssertTrue(window.presentationSnapshot.isNonActivating, "Resizable does not make it activating")
 
         let chosen = NSRect(x: 100, y: 100, width: 640, height: 420)
         window.simulateUserResize(to: chosen)
+        window.floats = true
         window.floats = false
-        XCTAssertEqual(window.panelSnapshot.level, .normal)
+        XCTAssertEqual(window.presentationSnapshot.frame, chosen, "Pinning and unpinning leave the size alone")
+        window.simulateUserResize(to: NSRect(x: 100, y: 100, width: 300, height: 100))
+        XCTAssertEqual(window.presentationSnapshot.frame.size, NSSize(width: 500, height: 200),
+                       "The declared minimum holds")
+    }
+
+    /// A page that stops declaring resizing returns to the Host's default
+    /// layout: not resizable, following its content again.
+    func testAPageThatStopsDeclaringResizingReturnsToItsContentsSize() throws {
+        let (_, window) = try shownPanel()
+        defer { window.close() }
+        let followed = window.presentationSnapshot.frame
+        window.simulateUserResize(to: NSRect(x: 120, y: 80, width: 700, height: 500))
+        XCTAssertTrue(window.panelSnapshot.fills)
+        var reported: [PluginPanelGeometry] = []
+        window.onGeometryChange = { reported.append($0) }
+
+        window.resizing = nil
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
         XCTAssertFalse(window.panelSnapshot.isResizable)
-        XCTAssertEqual(window.presentationSnapshot.frame, chosen, "Unpinning does not shrink the panel")
+        XCTAssertFalse(window.panelSnapshot.fills)
+        XCTAssertEqual(window.presentationSnapshot.frame.size.width, followed.width, accuracy: 1)
+        XCTAssertEqual(window.presentationSnapshot.frame.size.height, followed.height, accuracy: 1)
+        XCTAssertEqual(window.presentationSnapshot.frame.maxY, 580, accuracy: 1, "It keeps its top")
+        XCTAssertEqual(reported.last?.isUserSized, false)
+    }
+
+    /// A remembered user size is restored only for a page that declares
+    /// resizing; any other opens at its content's size where the pinned
+    /// panel last was.
+    func testAPinnedSizeIsRestoredOnlyForAResizablePage() throws {
+        let main = try XCTUnwrap(NSScreen.screens.first)
+        let screen = PluginPanelScreen(frame: main.frame, visible: main.visibleFrame)
+        let pinned = PluginPanelGeometry(frame: NSRect(x: screen.visible.minX + 200, y: screen.visible.minY + 100,
+                                                       width: 620, height: 400), isUserSized: true)
+        let (_, window) = try shownPanel(restoring: pinned, screens: [screen], resizing: nil)
+        defer { window.close() }
+        let frame = window.presentationSnapshot.frame
+        XCTAssertEqual(frame.width, PluginViewPanelWindow.width, accuracy: 1)
+        XCTAssertNotEqual(frame.height, pinned.frame.height)
+        XCTAssertEqual(frame.maxY, pinned.frame.maxY, accuracy: 1)
+        XCTAssertFalse(window.panelSnapshot.fills)
+        XCTAssertFalse(window.geometry.isUserSized)
     }
 
     /// Before the user resizes, the panel grows with its content from the
@@ -117,7 +170,6 @@ final class PluginViewPanelTests: XCTestCase {
         XCTAssertEqual(window.presentationSnapshot.frame.maxY, top, accuracy: 1)
         XCTAssertFalse(window.panelSnapshot.fills)
 
-        window.floats = true
         var reported: [PluginPanelGeometry] = []
         window.onGeometryChange = { reported.append($0) }
         let chosen = NSRect(x: 120, y: 80, width: 700, height: 300)
@@ -170,7 +222,6 @@ final class PluginViewPanelTests: XCTestCase {
         let wide = PluginPanelScreen(frame: main.frame, visible: main.visibleFrame)
         let (_, window) = try shownPanel(screens: [wide])
         defer { window.close() }
-        window.floats = true
         let origin = wide.visible.origin
         window.simulateUserResize(to: NSRect(x: origin.x + 600, y: origin.y + 300, width: 560, height: 400))
         var reported: [PluginPanelGeometry] = []

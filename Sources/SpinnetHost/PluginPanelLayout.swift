@@ -31,8 +31,8 @@ struct PluginPanelLayout: Equatable {
     /// Space kept between the panel and the screen's edges when the Host
     /// places it.
     static let screenMargin: CGFloat = 8
-    /// The smallest user size: the content is laid out for the default
-    /// width, so the panel only grows wider than it.
+    /// The smallest user size unless the page asks for more: the content is
+    /// laid out for the default width, so the panel only grows wider than it.
     static let minimumSize = NSSize(width: 440, height: 120)
     /// Used when AppKit reports no screen at all.
     static let fallbackScreen = PluginPanelScreen(frame: NSRect(x: 0, y: 0, width: 1440, height: 900),
@@ -50,7 +50,7 @@ struct PluginPanelLayout: Equatable {
     /// The panel's frame when a view opens: beside the pointer, or where the
     /// remembered pinned geometry puts it.
     static func opening(contentSize: NSSize, pointer: NSPoint, screens: [PluginPanelScreen],
-                        restoring pinned: PluginPanelGeometry?) -> PluginPanelLayout {
+                        restoring pinned: PluginPanelGeometry?, minimumSize: NSSize = minimumSize) -> PluginPanelLayout {
         let screens = screens.isEmpty ? [fallbackScreen] : screens
         if let pinned, pinned.isUserSized {
             let size = NSSize(width: max(pinned.frame.width, minimumSize.width),
@@ -119,11 +119,19 @@ struct PluginPanelLayout: Equatable {
         followsContent = false
     }
 
-    /// The user finished resizing to `frame`.
-    mutating func userResized(to newFrame: NSRect) {
+    /// The content's size drives the panel's again, from the panel's top,
+    /// as when a page stops declaring that it may be resized.
+    mutating func followContent(of size: NSSize, screens: [PluginPanelScreen]) {
+        followsContent = true
+        top = frame.maxY
+        contentSizeChanged(to: size, screens: screens)
+    }
+
+    /// The user finished resizing to `frame`, no smaller than `minimumSize`.
+    mutating func userResized(to newFrame: NSRect, minimumSize: NSSize = minimumSize) {
         followsContent = false
-        let size = NSSize(width: max(newFrame.width, Self.minimumSize.width),
-                          height: max(newFrame.height, Self.minimumSize.height))
+        let size = NSSize(width: max(newFrame.width, minimumSize.width),
+                          height: max(newFrame.height, minimumSize.height))
         frame = NSRect(x: newFrame.minX, y: newFrame.maxY - size.height, width: size.width, height: size.height)
         top = frame.maxY
     }

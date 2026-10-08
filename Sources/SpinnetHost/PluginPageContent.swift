@@ -22,11 +22,12 @@ struct PluginPageContent: View {
             if let collection = model.collection {
                 let index = model.page.content.firstIndex { $0.collection != nil } ?? 0
                 components(model.page.content[..<index])
-                // In a panel the user sized, the collection takes the height
-                // left; its items are still laid out in the default width.
+                // In a panel the user sized, the collection takes the width
+                // and height left, and lays its items out in that width.
                 PageCollectionView(model: model, collection: collection)
-                    .frame(width: PageCollectionView.contentWidth,
+                    .frame(width: fills ? nil : PageCollectionView.contentWidth,
                            height: fills ? nil : PageCollectionView.height(of: collection))
+                    .frame(maxWidth: fills ? .infinity : nil)
                     .frame(minHeight: fills ? PageCollectionView.listRowHeight : nil,
                            maxHeight: fills ? .infinity : nil, alignment: .topLeading)
                     .accessibilityElement(children: .contain)

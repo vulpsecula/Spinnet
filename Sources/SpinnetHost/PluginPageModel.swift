@@ -511,6 +511,15 @@ final class PluginPageModel: ObservableObject {
 
     // MARK: - Scrolling and windows
 
+    /// The collection view measured its items' width and the rows on
+    /// screen: an adaptive Grid takes the columns that width holds (#80).
+    /// Returns whether the columns or rows changed.
+    @discardableResult
+    func collectionMeasured(itemsWidth: CGFloat, visibleRows: Int) -> Bool {
+        guard memory.window != nil else { return false }
+        return memory.fitCollection(itemsWidth: Double(itemsWidth), visibleRows: visibleRows)
+    }
+
     /// The collection shows `viewport` now: the window lets go of what is
     /// far from it, and the Host asks for what it lacks.
     func viewportChanged(_ viewport: Range<Int>) {

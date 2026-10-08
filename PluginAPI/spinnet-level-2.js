@@ -124,6 +124,7 @@
       items: o.items,
       sections: o.sections,
       columns: kind === "grid" ? o.columns : undefined,
+      min_cell_size: kind === "grid" ? o.minCellSize : undefined,
       rows: o.rows,
       total: o.total,
       start: o.start,
@@ -227,6 +228,8 @@
       shows_insertion_target: o.showsInsertionTarget,
       focus: o.focus,
       reset: o.reset,
+      resizable: o.resizable === undefined || typeof o.resizable === "boolean" ? o.resizable
+        : compact({ min_width: o.resizable.minWidth, min_height: o.resizable.minHeight }),
       content: o.content
     });
   };

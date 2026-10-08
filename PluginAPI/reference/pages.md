@@ -68,7 +68,7 @@ page has at most 40 components and at most one collection.
 | `text` | `title`, `text`, `style` | Text in the Markdown subset |
 | `actions` | `actions`: up to 8 buttons | Event buttons (`id`, `title`) and page actions |
 | `list` | collection members, `rows` (1 to 12, default 8) | Rows: `symbol`, `title`, `subtitle`, `accessory` |
-| `grid` | collection members, `columns` (2 to 12 columns, default 8), `rows` (1 to 12, default 6) | Square cells showing `symbol`, else `title` |
+| `grid` | collection members, `columns` (2 to 12 columns, default 8, or `"auto"` with `min_cell_size`; see [Resizable pages](#resizable-pages)), `rows` (1 to 12, default 6) | Square cells showing `symbol`, else `title` |
 
 The page lays its components out top to bottom. With a collection, the
 components before it stay above, those after it stay below, and the
@@ -569,6 +569,48 @@ refresh of a track or metric does not flash.
 Style objects reused by name and inheritance, images in items, images the
 script produces, Canvas, video and custom continuous animation.
 
+## Resizable pages
+
+Appended to Level 2 by #80 while it is open, so a Plugin pinned to an
+earlier commit of Level 2 lacks them. Whether the user may resize a page's
+panel is the page's choice, not Pin's: Pin only keeps the panel above other
+Apps and remembers where it was.
+
+```js
+ui.page({ id: "search", title: "Emoji", resizable: { minHeight: 240 }, content: [
+  c.textField({ id: "query", title: "Search", value: query, collection: "results" }),
+  c.grid({ id: "results", columns: "auto", minCellSize: 44, total, start, items })
+] })
+```
+
+- A page with `resizable` (`true`, or `{min_width, min_height}`) lets the
+  user resize its panel, pinned or not, down to its minimum width (440 to
+  1,200 points, 440 by default) and height (120 to 900 points, 160 by
+  default). Once the user has resized it, the page fills the panel: its
+  collection, or the whole page when it has none, takes the width and height
+  left and scrolls; answers no longer change the panel's size.
+- A page without it, and every Level 1 view, keeps the Host's default
+  layout whether pinned or not: 440 points wide, as tall as its content. A
+  panel the user resized for an earlier page returns to that when such a
+  page replaces it.
+- A `grid` with `columns: "auto"` takes as many cells of at least
+  `min_cell_size` points (32 to 128, 48 by default) as its width holds, 2
+  to 24 columns; at the default width a 48-point minimum gives 8. The Host
+  chooses again as the panel is resized, without running the script: moving
+  by rows, a screenful and `load_range` follow the columns there are, and
+  the Plugin still gives the items and batches. A grid with a number of
+  columns keeps it at any width, its cells filling the width from the left.
+- Nothing tells the Plugin the panel's size. A page that must change what it
+  shows by size is a later direction, not part of Level 2.
+- The Host remembers a pinned panel's size only for a page that declares
+  `resizable`; any other page opens at its content's size where the pinned
+  panel last was.
+
+These bounds follow from the panel and its components, not from a
+measurement: 440 points is the width every component is laid out for, 24
+columns fill a wide display at the smallest cell, and a collection's window
+stays at most 600 items whatever its columns.
+
 ## Not in Level 2
 
 Host-run sources (#71), multiline, URL and
@@ -595,4 +637,6 @@ in page memory. A `load_range` asks for at most 600 positions. Since #81 a
 column holds at most 8 components, rows and columns nest at most 3 deep, a
 page has at most 8 images, and the Host decodes a picture of at most 1 MiB,
 4,194,304 pixels and 4,096 pixels on a side, loads at most 4 at once and
-holds at most 16 MiB decoded, shown pictures included.
+holds at most 16 MiB decoded, shown pictures included. Since #80 a
+resizable page's minimum is 440 to 1,200 points wide and 120 to 900 points
+tall, and an adaptive grid has 2 to 24 columns of at least 32 to 128 points.

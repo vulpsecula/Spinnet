@@ -251,6 +251,15 @@ export interface Page {
    * input-method composition is open.
    */
   reset?: "page" | ID[];
+  /**
+   * The user may resize the page's panel, pinned or not, down to a minimum
+   * width (440 to 1,200 points, 440 by default) and height (120 to 900, 160
+   * by default). The Host lays the page out in the size there is: the
+   * collection, or a page without one, takes the room left, and a Grid with
+   * `columns: "auto"` takes the columns its width holds. Nothing tells the
+   * Plugin the size. Without it the panel keeps the Host's default layout.
+   */
+  resizable?: boolean | { min_width?: number; min_height?: number };
   /** Top to bottom; at most 40 components counting row children, at most one collection. */
   content: Component[];
 }
@@ -452,8 +461,14 @@ export type Contents =
 export type List = CollectionMembers & { kind: "list" } & Contents;
 export type Grid = CollectionMembers & {
   kind: "grid";
-  /** Cells across, 2 to 12; 8 by default. */
-  columns?: number;
+  /**
+   * Cells across, 2 to 12; 8 by default. "auto": as many cells of at least
+   * `min_cell_size` as the width holds, 2 to 24, chosen by the Host as the
+   * panel is resized.
+   */
+  columns?: number | "auto";
+  /** With `columns: "auto"`, the smallest cell side in points, 32 to 128; 48 by default. */
+  min_cell_size?: number;
 } & Contents;
 
 export interface Section {
@@ -579,7 +594,7 @@ export interface PageComponents {
   /** A button delivering `action_chosen`. */
   button(options: { id: ID; title: string }): EventButton;
   list(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; rows?: number; selected?: ID; emptyText?: string; actions?: ItemAction[] }): List;
-  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number; rows?: number; selected?: ID; emptyText?: string; actions?: ItemAction[] }): Grid;
+  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number | "auto"; minCellSize?: number; rows?: number; selected?: ID; emptyText?: string; actions?: ItemAction[] }): Grid;
   /** With `items`, a section of a whole collection; with `count`, a header of one with a total. */
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   section(options: { id: ID; title?: string; count: number }): SectionHeader;
@@ -601,7 +616,7 @@ export interface UI extends Omit<UIArea, "view" | "show"> {
   /** An answer with no view or page that requests one operation, optionally with a toast. */
   request(operation: RequestedOperation, options?: { toast?: string }): Answer;
   components: PageComponents;
-  page(options: { id: ID; title: string; subtitle?: string; showsInsertionTarget?: boolean; focus?: ID; reset?: "page" | ID[]; content: Component[] }): Page;
+  page(options: { id: ID; title: string; subtitle?: string; showsInsertionTarget?: boolean; focus?: ID; reset?: "page" | ID[]; resizable?: boolean | { minWidth?: number; minHeight?: number }; content: Component[] }): Page;
   /** An answer showing `page`, with an optional state, toast and operation. */
   showPage(page: Page, options?: { state?: JSONValue; toast?: string; operation?: RequestedOperation }): Answer;
 }

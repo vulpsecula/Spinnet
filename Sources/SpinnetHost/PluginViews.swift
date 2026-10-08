@@ -396,6 +396,9 @@ protocol PluginViewWindow: AnyObject {
     var onUserClose: (() -> Void)? { get set }
     /// The view's title, which the window carries for VoiceOver.
     var title: String { get set }
+    /// The page's declaration that the user may resize the window (#80);
+    /// nil, as for every Level 1 view, keeps the Host's default layout.
+    var resizing: PluginPageResizing? { get set }
     /// Whether the window floats above other Apps' windows. Only a pinned
     /// view does: macOS's window-capture highlight tints only normal-level
     /// windows, and an unpinned view closes once another App takes focus.
@@ -543,6 +546,7 @@ final class PluginViewWindows: PluginViewRenderer {
                 model.update(presentation, page: page, newView: newView, presentedAnew: presentedAnew)
                 if newView { environment.images?.imagesPresented(page.imageRequests, in: session) }
                 entry.window.title = page.title
+                entry.window.resizing = page.resizing
                 if presentedAnew { entry.window.focus() }
                 entry.presentationCount = session.presentationCount
                 entry.viewRevision = session.viewRevision
@@ -558,6 +562,7 @@ final class PluginViewWindows: PluginViewRenderer {
         model.isPinned = opening.isPinned
         let window = makePageWindow(model)
         window.title = page.title
+        window.resizing = page.resizing
         window.onResignKey = { [weak model] in
             guard let model, !model.isPinned else { return }
             model.close()

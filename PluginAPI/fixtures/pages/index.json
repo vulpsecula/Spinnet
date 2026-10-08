@@ -638,6 +638,27 @@
       "valid": false,
       "note": "A page has at most 8 images",
       "level1": false
+    },
+    {
+      "file": "answers/emoji-resizable.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "Emoji lets the user resize its panel, pinned or not, and lets the Host choose the grid's columns from the width: cells of at least 44 points",
+      "level1": false
+    },
+    {
+      "file": "answers/resizable-too-narrow.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A resizable page cannot ask for less than the panel's default width of 440 points",
+      "level1": false
+    },
+    {
+      "file": "answers/min-cell-size-fixed-columns.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "min_cell_size is only for a grid whose columns are \"auto\"",
+      "level1": false
     }
   ]
 }
