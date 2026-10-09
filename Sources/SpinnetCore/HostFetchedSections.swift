@@ -255,7 +255,7 @@ struct FetchedAnswer: Equatable {
     /// What a section says when its request could not be sent or answered.
     static func message(for error: Error) -> String {
         switch error {
-        case PluginHostServiceError.capabilityDenied, PluginHostServiceError.capabilityScopeDenied:
+        case PluginHostServiceError.capabilityDenied(.contactHTTPS), PluginHostServiceError.capabilityScopeDenied(.contactHTTPS):
             return "Network access is not granted to this Plugin"
         case PluginHostServiceError.systemPermissionDenied(let permission):
             return "\(permission.title) is not granted"
