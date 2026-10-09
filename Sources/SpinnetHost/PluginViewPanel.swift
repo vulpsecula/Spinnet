@@ -108,6 +108,7 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     /// Where the screens are: AppKit's, unless a test gives its own.
     var screens: () -> [PluginPanelScreen] = PluginPanelScreen.current
     private let panel: PluginViewNSPanel
+    private weak var pageModel: PluginPageModel?
     private let hosting: NSViewController & HostingSizing
     private let fill: PluginPanelFill
     private var layout: PluginPanelLayout?
@@ -134,6 +135,7 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         self.init(content: NSHostingController(rootView: PluginPanelRoot(fill: fill,
                                                                          content: PluginPageContent(model: pageModel))),
                   fill: fill, title: pageModel.title)
+        self.pageModel = pageModel
     }
 
     private init(content hosting: NSViewController & HostingSizing, fill: PluginPanelFill, title: String) {
@@ -265,6 +267,9 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         apply(PluginPanelLayout.opening(contentSize: contentSize ?? panel.frame.size, pointer: pointer, screens: screens(),
                                         restoring: restoring, minimumSize: minimumSize))
         bringForward()
+        // Pages without fields or a collection open with no control
+        // selected. Tab still enters AppKit's normal keyboard navigation.
+        if pageModel?.focusStops.isEmpty == true { panel.makeFirstResponder(nil) }
     }
 
     func focus() {

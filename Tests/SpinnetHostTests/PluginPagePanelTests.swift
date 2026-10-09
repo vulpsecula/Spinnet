@@ -59,6 +59,56 @@ final class PluginPagePanelTests: XCTestCase {
         return (responder as? PluginPageFocusTarget)?.component
     }
 
+    func testAButtonOnlyPageOpensWithoutFocusingAControl() throws {
+        try show(.object([
+            "id": .string("coffee"), "title": .string("Coffee"),
+            "content": .array([.object([
+                "kind": .string("actions"), "id": .string("start"),
+                "actions": .array([.object(["id": .string("manual"), "title": .string("Until stopped")])])
+            ])])
+        ]))
+
+        XCTAssertTrue(panel.firstResponder === panel, "Opening must leave the keyboard on the panel, with no focused button")
+        try key(49, " ")
+        try key(36, "\r")
+        XCTAssertFalse(model.isPinned, "Space before keyboard navigation must not toggle Pin")
+        XCTAssertTrue(harness.events.isEmpty, "Space or Return before keyboard navigation must not choose a page action")
+        try key(53, "\u{1B}")
+        XCTAssertNil(harness.sessions.session(for: PageHarness.pluginID), "Escape still closes a panel with no control focused")
+    }
+
+    func testButtonFocusSurvivesARefreshAndPinRemainsKeyboardReachable() throws {
+        let page: JSONValue = .object([
+            "id": .string("coffee"), "title": .string("Coffee"),
+            "content": .array([.object([
+                "kind": .string("actions"), "id": .string("start"),
+                "actions": .array([
+                    .object(["id": .string("manual"), "title": .string("Until stopped")]),
+                    .object(["id": .string("timed"), "title": .string("For 5 seconds")])
+                ])
+            ])])
+        ])
+        try show(page)
+        try key(48, "\t")
+        try key(49, " ")
+        XCTAssertTrue(model.isPinned, "Tab must enter the normal keyboard order, including Pin")
+        try key(48, "\u{19}", modifiers: .shift)
+        try key(49, " ")
+        guard case .pageActionChosen("coffee", "timed", _, _)? = harness.events.last?.event else {
+            return XCTFail("Shift-Tab should reach the last page action")
+        }
+        try harness.answer(page)
+        settle()
+        try key(49, " ")
+        guard case .pageActionChosen("coffee", "timed", _, _)? = harness.events.last?.event else {
+            return XCTFail("A same-page answer must not steal the keyboard back to the first action")
+        }
+        try harness.answer(nil)
+        try key(48, "\t")
+        try key(49, " ")
+        XCTAssertFalse(model.isPinned, "Pin must remain reachable through the normal Tab order")
+    }
+
     func testTheSearchFieldTypesAndDrivesTheGrid() throws {
         try show(PageHarness.search(items: (0..<20).map { "i\($0)" }))
         XCTAssertEqual(firstResponderComponent(), "query", "The search field has the keyboard when the page opens")
