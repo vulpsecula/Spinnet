@@ -245,7 +245,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
                     registry.observeInvalidation { [appTargets, keepAwake] in appTargets.forget($0); keepAwake.invalidate($0) },
-                    capabilityGrants.observeRevocation { [appTargets, keepAwake] in appTargets.forget($0); keepAwake.invalidate($0) }
+                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake] in
+                        appTargets.forget($0.pluginID); keepAwake.revoke($0)
+                    }
                 )
             }
             actionRunner = HostActionRunner(
