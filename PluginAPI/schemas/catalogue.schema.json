@@ -56,7 +56,7 @@
     },
     "namespace_name": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
     "capability": {
-      "enum": ["read_selected_text", "write_clipboard", "read_current_clipboard", "read_clipboard_history", "monitor_clipboard", "contact_https", "control_external_app", "position_focused_window", "open_url", "open_local_path", "capture_screen", "insert_into_focused_app", "read_frontmost_app", "quit_frontmost_app"]
+      "enum": ["read_selected_text", "write_clipboard", "read_current_clipboard", "read_clipboard_history", "monitor_clipboard", "contact_https", "control_external_app", "position_focused_window", "open_url", "open_local_path", "capture_screen", "insert_into_focused_app", "read_frontmost_app", "quit_frontmost_app", "keep_awake"]
     },
     "failure": {
       "description": "Level 1's Host Service failure categories, plus Level 2's insertion_target_changed. An operation fails with the same category at every entry point.",
@@ -138,8 +138,8 @@
         "system_permission": { "enum": [null, "accessibility", "screen_recording", "automation"] },
         "failures": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/failure" } },
         "targets": {
-          "description": "What the operation acts on that the Host must resolve at execution: the focused App (the insertion target rules apply in a view), the focused window, the App in front behind Spinnet's panel or the App an App Target names, or nothing.",
-          "enum": [null, "focused_app", "focused_window", "frontmost_app"]
+          "description": "What the Host resolves at execution: the focused App/window, App in front or an App Target, a Plugin-owned effect/activity, or nothing.",
+          "enum": [null, "focused_app", "focused_window", "frontmost_app", "own_effect", "own_activity"]
         },
         "default_title": { "$ref": "#/$defs/text" },
         "item_action": { "description": "An item action may perform it on the item's text, which becomes the primary member text.", "const": true },

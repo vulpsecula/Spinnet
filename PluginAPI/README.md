@@ -215,6 +215,7 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `apps.close` | page action, request, after a Host Confirmation for an App not in front | `quit_frontmost_app` | Accessibility |
 | `system` | `system.runShortcut` | Command | none | none |
 |  | `system.runService` | Command | none | none |
+|  | `system.keepAwake` | Command, page action, request | `keep_awake`; App-alive also `read_frontmost_app` | none |
 | `window` | `window.read` | call | `position_focused_window` | Accessibility |
 |  | `window.setFrame` | call | `position_focused_window` | Accessibility |
 |  | `window.toggleFullScreen` | call, Command | `position_focused_window` | Accessibility |
@@ -227,8 +228,10 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `storage.remove` | call | none | none |
 |  | `storage.keys` | call | none | none |
 |  | `storage.clear` | call | none | none |
+| `activities` | `activities.list` | call, own activities only | none | none |
+|  | `activities.stop` | page action, request, own activities only | none | none |
 
-The IDs `catalogue.json` reserves, such as `system.keepAwake`, are refused until a later Level adds them, and
+The IDs `catalogue.json` reserves, such as `system.metrics`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
 and `system.runService` are offered only as Commands, whose input the user
 configures.
@@ -301,6 +304,16 @@ and before closing or quitting an App that was not in front when it
 accepted the request; closing or gracefully quitting the App in front asks
 nothing, the App's own save prompts still applying. Only a Level 2 manifest
 may declare the two Capabilities ([the App in front](reference/apps.md)).
+
+### Host-owned keep-awake effects (Level 2, #84)
+
+`system.keepAwake` prevents idle system and display sleep together under the
+new `keep_awake` Capability. Manual, duration and App-alive effects survive
+view closure and bounded helper retirement. `activities.list` exposes only
+the requesting Plugin's running effects; `activities.stop` releases its own
+activity. The Host Status Item lists and stops every owner's activities.
+See [lifetime and limitations](reference/keep-awake.md),
+[schemas](schemas/namespaces.schema.json) and [fixtures](fixtures/keep-awake/index.json).
 
 ### Level 1 at Level 2
 

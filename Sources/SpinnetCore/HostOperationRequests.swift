@@ -97,6 +97,9 @@ public enum AcceptedHostOperationTarget: Hashable {
     /// Without a target, the App it acts on; with one, the App it may close
     /// or quit gracefully without a Host Confirmation.
     case appInFront(RunningAppIdentity?)
+    /// #84: ownership/authority captured when the effect request commits,
+    /// before waiting or off-main dispatch. No incarnation is refreshed.
+    case keepAwakeOwner(KeepAwakeAdmission?)
 }
 
 /// The Requested Host Operations of every Plugin (ADR 0018), confined to the

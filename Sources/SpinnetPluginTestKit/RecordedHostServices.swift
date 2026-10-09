@@ -29,6 +29,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     private let operations: [String: Answer]
     private let storage: PluginStorage?
     private let apps: RecordedApps?
+    private let keepAwake: RecordedKeepAwake?
 
     /// `storage`, when given, answers the Plugin Storage services the Host's
     /// own way, for the Plugin under test, unless a recorded answer is given
@@ -43,11 +44,12 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     /// recorded App in front, with the App Target the Host would give the
     /// Plugin, unless `operations` records an answer for it.
     public init(_ answers: [PluginHostService: Answer] = [:], operations: [String: Answer] = [:],
-                storage: PluginStorage? = nil, apps: RecordedApps? = nil) {
+                storage: PluginStorage? = nil, apps: RecordedApps? = nil, keepAwake: RecordedKeepAwake? = nil) {
         self.answers = answers
         self.operations = operations
         self.storage = storage
-        self.apps = apps
+        self.apps = apps ?? keepAwake?.apps
+        self.keepAwake = keepAwake
     }
 
     public func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
@@ -70,6 +72,24 @@ public final class RecordedHostServices: PluginHostServiceBroker {
         case nil:
             if let storage, request.service.isPluginStorage {
                 return try storage.answer(request.service, input: request.input, for: package.manifest.id)
+            }
+            if let keepAwake {
+                switch request.service {
+                case .listActivities:
+                    guard request.input == .null else { throw PluginHostServiceError.invalidInput("activities.list takes no input") }
+                    return .array(keepAwake.activities.list(for: package.manifest.id).map(\.json))
+                case .keepAwakeEffect:
+                    let effect = try KeepAwakeRequest(input: request.input)
+                    if case .appAlive = effect.mode, !package.manifest.declares(.readFrontmostApp, for: action.commandID) {
+                        throw PluginHostServiceError.capabilityDenied(.readFrontmostApp)
+                    }
+                    try keepAwake.effects.start(effect, owner: package.manifest.id, pluginName: package.manifest.name)
+                    return .null
+                case .stopActivity:
+                    keepAwake.activities.stop(try KeepAwakeRequest.stopID(input: request.input), for: package.manifest.id)
+                    return .null
+                default: break
+                }
             }
             if let apps, request.service == .identifyFrontmostApp {
                 guard request.input == .null else {

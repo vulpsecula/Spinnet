@@ -243,6 +243,7 @@ public struct PluginInterfaceContracts: Equatable {
         PagePresentation.members
             // The App in front and its exit (#83).
             + CurrentAppAddition.members
+            + KeepAwakeAddition.members
             // Resizable pages and adaptive Grid columns (#80).
             + PageSizing.members
 

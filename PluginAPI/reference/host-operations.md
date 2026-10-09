@@ -58,6 +58,8 @@ if (event?.type === "submitted") {
 | `apps.openDeepLink` | `{template, parameters?}` | `control_external_app` |
 | `apps.quit` | `{target?, force?}`, or none for the App in front | `quit_frontmost_app`; Accessibility except for Force Quit; a Host Confirmation for Force Quit and for an App not in front ([the App in front](apps.md)) |
 | `apps.close` | `{target?}`, or none for the App in front | `quit_frontmost_app`, Accessibility; a Host Confirmation for an App not in front ([the App in front](apps.md)) |
+| `system.keepAwake` | `{mode: "manual"}`, `{mode: "duration", seconds}` or `{mode: "app_alive", target}` | `keep_awake`; App-alive also `read_frontmost_app`; [effect lifetime](keep-awake.md) survives view closure |
+| `activities.stop` | `{id}` | nothing; only its own Host activity, absent/foreign ID is a no-op ([activities](keep-awake.md#activities)) |
 | `host.showPluginSettings` | none, and no `closes_view` | nothing |
 
 The SDK builds each request from its operation:

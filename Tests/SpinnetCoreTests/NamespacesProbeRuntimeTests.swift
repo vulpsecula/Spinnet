@@ -174,8 +174,8 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
             return XCTFail("The probe did not report the SDK")
         }
         XCTAssertEqual(values[0], .array(ids.sorted().map(JSONValue.string)))
-        XCTAssertEqual(values[1], .array(["apps", "clipboard", "clipboardHistory", "environment", "host", "http", "open",
-                                          "screen", "selection", "storage", "text", "ui", "window"].map(JSONValue.string)))
+        XCTAssertEqual(values[1], .array(["activities", "apps", "clipboard", "clipboardHistory", "environment", "host", "http", "open",
+                                          "screen", "selection", "storage", "system", "text", "ui", "window"].map(JSONValue.string)))
         XCTAssertEqual(values[2], .array([.string("action"), .string("operation")]))
         XCTAssertEqual(values[3], .string("function"), "Level 1's view builders stay for Level 1 views")
         XCTAssertEqual(values[4], .string("function"))

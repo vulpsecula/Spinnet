@@ -274,6 +274,10 @@ final class HostOperationsPerformer: HostOperationPerformer {
     /// accepts them, not when they start: without a target they act on that
     /// App, and close or gracefully quit it without a Host Confirmation.
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
+        if operation.perform == KeepAwakeAddition.id {
+            let admission = registry.package(for: action.pluginID).flatMap { broker()?.keepAwakeAdmission(for: $0) }
+            return .keepAwakeOwner(admission)
+        }
         guard CurrentAppAddition.exitIDs.contains(operation.perform), let exits,
               let request = try? AppExitRequest(perform: operation.perform, input: operation.input) else { return .none }
         return exits.accept(request)
@@ -326,7 +330,15 @@ final class HostOperationsPerformer: HostOperationPerformer {
         queue.async {
             let result: HostOperationResult
             do {
-                _ = try request.namingItsOperation { try broker.execute(request: request, for: package, action: action) }
+                _ = try request.namingItsOperation {
+                    if operation.perform == KeepAwakeAddition.id {
+                        guard case .keepAwakeOwner(let admission?) = accepted else {
+                            throw PluginHostServiceError.unavailable("The effect had no current owner when accepted")
+                        }
+                        return try broker.execute(request: request, for: package, action: action, admittedOwner: admission)
+                    }
+                    return try broker.execute(request: request, for: package, action: action)
+                }
                 result = HostOperationResult(.succeeded)
             } catch let error as PluginHostServiceError {
                 result = HostOperationResult(.failed(HostOperationReason(error)), message: error.description)

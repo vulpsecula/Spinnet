@@ -54,8 +54,8 @@ const app = spinnet.apps.frontmost();
 
 `target` is an App Target: the Host's opaque name for that one running App,
 given to this Plugin only. The Plugin may keep it, in its state or Plugin
-Storage, and name it back as `apps.quit`'s or `apps.close`'s `target`; a
-later Level may take it elsewhere, such as an App-bound effect (#84).
+Storage, and name it back as `apps.quit`'s or `apps.close`'s `target`; `system.keepAwake`
+may also bind an App-alive effect to it (#84).
 
 - It names exactly the App it was read for, identified by its process ID,
   bundle identifier and launch date (or its process's start time) together,

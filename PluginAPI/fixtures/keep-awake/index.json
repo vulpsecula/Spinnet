@@ -1,0 +1,83 @@
+{
+  "description": "Level 2 #84 shapes. Authority, owner lifetime and real assertions are checked separately at public package/OS boundaries.",
+  "fixtures": [
+    {
+      "file": "manual.json",
+      "definition": "system.keepAwake.input",
+      "valid": true,
+      "note": "Manual effect"
+    },
+    {
+      "file": "duration.json",
+      "definition": "system.keepAwake.input",
+      "valid": true,
+      "note": "Duration expires without helper"
+    },
+    {
+      "file": "app-alive.json",
+      "definition": "system.keepAwake.input",
+      "valid": true,
+      "note": "An opaque target belonging to this Plugin"
+    },
+    {
+      "file": "display-choice.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "Both assertions fixed; no selectable display policy"
+    },
+    {
+      "file": "duration-zero.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "Positive integer duration"
+    },
+    {
+      "file": "duration-fraction.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "No fractional durations"
+    },
+    {
+      "file": "duration-over-limit.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "Bounded duration"
+    },
+    {
+      "file": "app-pid.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "No PID binding"
+    },
+    {
+      "file": "app-missing-target.json",
+      "definition": "system.keepAwake.input",
+      "valid": false,
+      "note": "No fallback to arbitrary frontmost App"
+    },
+    {
+      "file": "stop.json",
+      "definition": "activities.stop.input",
+      "valid": true,
+      "note": "Stop an owner-scoped opaque activity"
+    },
+    {
+      "file": "stop-pid.json",
+      "definition": "activities.stop.input",
+      "valid": false,
+      "note": "No raw process control"
+    },
+    {
+      "file": "list.json",
+      "definition": "activities.list.result",
+      "valid": true,
+      "note": "Host-generated own activity projection"
+    },
+    {
+      "file": "list-other-owner.json",
+      "definition": "activities.list.result",
+      "valid": false,
+      "note": "No other-owner data or internal ownership identity"
+    }
+  ]
+}

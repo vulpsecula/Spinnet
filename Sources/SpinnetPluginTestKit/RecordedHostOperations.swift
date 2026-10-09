@@ -61,15 +61,17 @@ public final class RecordedHostOperations {
     /// Runs while a Host Confirmation is on screen, before it is answered.
     public var whileConfirming: () -> Void = {}
     private let contracts: PluginInterfaceContracts
+    private let keepAwake: RecordedKeepAwake?
 
     public init(_ outcomes: [String: HostOperationOutcome] = [:], deniedCapabilities: Set<PluginCapability> = [],
                 apps: RecordedApps? = nil, confirmation: HostConfirmationAnswer? = .confirmed,
-                contracts: PluginInterfaceContracts = .host) {
+                contracts: PluginInterfaceContracts = .host, keepAwake: RecordedKeepAwake? = nil) {
         self.outcomes = outcomes
         self.deniedCapabilities = deniedCapabilities
         self.apps = apps
         self.confirmation = confirmation
         self.contracts = contracts
+        self.keepAwake = keepAwake
     }
 
     /// Commits and performs what `run`'s answer requested, `run` being
@@ -98,6 +100,22 @@ public final class RecordedHostOperations {
             outcome = exit.result.outcome
             confirmation = exit.confirmation
             message = exit.result.message
+        } else if let keepAwake, [KeepAwakeAddition.id, KeepAwakeAddition.stopID].contains(operation.perform) {
+            do {
+                if operation.perform == KeepAwakeAddition.id {
+                    let request = try KeepAwakeRequest(input: operation.input)
+                    if case .appAlive = request.mode,
+                       !manifest.declares(.readFrontmostApp, for: invocation.commandID) || deniedCapabilities.contains(.readFrontmostApp) {
+                        throw PluginHostServiceError.capabilityDenied(.readFrontmostApp)
+                    }
+                    try keepAwake.effects.start(request, owner: manifest.id, pluginName: manifest.name)
+                } else {
+                    keepAwake.activities.stop(try KeepAwakeRequest.stopID(input: operation.input), for: manifest.id)
+                }
+                outcome = .succeeded
+            } catch let error as PluginHostServiceError {
+                outcome = .failed(HostOperationReason(error))
+            }
         } else {
             outcome = outcomes[operation.perform] ?? .succeeded
         }

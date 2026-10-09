@@ -285,7 +285,8 @@ public enum HostServiceCatalogue {
                primary: "name", input: ["name", "input"], commands: [.invokeShortcut]),
         define("system.runService", [.call: .reserved, .command: ns, .viewAction: .reserved, .request: .reserved],
                primary: "name", input: ["name", "input"], commands: [.invokeService]),
-        reserve("system.keepAwake", at: [.command, .viewAction, .request]),
+        define(KeepAwakeAddition.id, [.call: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo],
+               capabilities: [.keepAwake], failures: failures, input: ["mode", "seconds", "target"]),
         reserve("system.metrics", at: [.call], source: true),
 
         define("window.read", calledOnly, capabilities: [.positionFocusedWindow], permission: .accessibility,
@@ -317,8 +318,9 @@ public enum HostServiceCatalogue {
         define("storage.keys", calledOnly, services: [.listStorageKeys]),
         define("storage.clear", calledOnly, services: [.clearStorage]),
 
-        reserve("activities.list", at: [.call]),
-        reserve("activities.stop", at: [.viewAction, .request]),
+        define(KeepAwakeAddition.listID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
+        define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo],
+               input: ["id"]),
         reserve("tools.read", at: [.call]),
         reserve("tools.startTask", at: [.viewAction, .request])
     ]
@@ -566,6 +568,9 @@ extension HostServiceDefinition {
             // Launching an application by path is already what
             // `open_local_path` grants (design 6.3).
             service = .openLocalPath
+        case KeepAwakeAddition.id: service = .keepAwakeEffect
+        case KeepAwakeAddition.listID: service = .listActivities
+        case KeepAwakeAddition.stopID: service = .stopActivity
         case CurrentAppAddition.frontmostID:
             service = .identifyFrontmostApp
         default:
@@ -670,6 +675,7 @@ extension HostServiceDefinition {
             throw PluginHostServiceError.invalidInput("\(id) expects \(primaryMember ?? "its input") as text")
         }
         switch id {
+        case KeepAwakeAddition.id: return .hostService(.keepAwakeEffect, input)
         case "host.toast": return .toast(try primaryText())
         case "host.showPluginSettings": return .pluginSettings
         case "selection.copy": return .hostCommand(.copyText, .null)
@@ -713,7 +719,8 @@ extension HostActionRunner {
     /// performs it with. A failure is the operation's category, the same as
     /// a call's (design 6.5).
     func invokeCatalogueCommand(_ action: ActionConfiguration, in package: PluginPackage,
-                                executor: HostCommandExecutor, broker: PluginHostServiceBroker?) -> ActionOutcome {
+                                executor: HostCommandExecutor, broker: PluginHostServiceBroker?,
+                                admittedKeepAwake: KeepAwakeAdmission? = nil) -> ActionOutcome {
         do {
             guard let id = action.hostServiceID, let operation = HostServiceCatalogue.operation(id),
                   operation.isOffered(at: .command),
@@ -733,7 +740,16 @@ extension HostActionRunner {
                 guard let broker else { throw PluginHostServiceError.unavailable("No Host Service broker is configured") }
                 let request = PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString, actionID: action.id,
                                                               service: service, input: input, operation: id)
-                result = try request.namingItsOperation { try broker.execute(request: request, for: package, action: action) }
+                result = try request.namingItsOperation {
+                    if id == KeepAwakeAddition.id, let admittedKeepAwake {
+                        guard let effectBroker = broker as? CapabilityCheckedHostServiceBroker else {
+                            throw PluginHostServiceError.unavailable("Keep Awake has no ownership-aware broker")
+                        }
+                        return try effectBroker.execute(request: request, for: package, action: action,
+                                                        admittedOwner: admittedKeepAwake)
+                    }
+                    return try broker.execute(request: request, for: package, action: action)
+                }
             case .hostCommand(let hostCommand, let input):
                 result = try catalogueExecutor(executor).perform(hostCommand, input: input, for: action, in: package)
             case .toast(let text):

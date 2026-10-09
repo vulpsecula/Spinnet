@@ -94,7 +94,8 @@
         "capture_screen",
         "insert_into_focused_app",
         "read_frontmost_app",
-        "quit_frontmost_app"
+        "quit_frontmost_app",
+        "keep_awake"
       ]
     },
     "levelOneCapability": {

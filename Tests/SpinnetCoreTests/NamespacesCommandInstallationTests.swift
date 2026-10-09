@@ -85,7 +85,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     /// Decision N8 and the catalogue's reservations: an ID kept for a later
     /// revision or ticket cannot run as a Command yet.
     func testAnIDReservedAsACommandIsRefused() throws {
-        for id in ["selection.replace", "apps.quit", "open.reveal", "system.keepAwake"] {
+        for id in ["selection.replace", "apps.quit", "open.reveal"] {
             try assertRefused(NamespacesProbeFixture.naming(id), with:
                 "Command probe.copy_greeting of Namespaces Probe names \(id), which is reserved: no Plugin API Level "
                     + "runs it as a Command yet.")

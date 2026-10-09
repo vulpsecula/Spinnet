@@ -216,6 +216,15 @@ public struct RequestedHostOperation: Equatable, Hashable {
             guard input == .null else { throw violation("gives \(id) input, which it takes none of") }
             return
         }
+        if id == KeepAwakeAddition.id || id == KeepAwakeAddition.stopID {
+            do {
+                if id == KeepAwakeAddition.id { _ = try KeepAwakeRequest(input: input) }
+                else { _ = try KeepAwakeRequest.stopID(input: input) }
+            } catch PluginHostServiceError.invalidInput(let message) {
+                throw violation("gives \(id) input it refuses: \(message)")
+            }
+            return
+        }
         if CurrentAppAddition.exitIDs.contains(id) {
             do {
                 _ = try AppExitRequest(perform: id, input: input)

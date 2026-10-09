@@ -35,7 +35,8 @@
     screen: ["capture"],
     http: ["request"],
     text: ["detectLanguage"],
-    storage: ["get", "set", "remove", "keys", "clear"]
+    storage: ["get", "set", "remove", "keys", "clear"],
+    activities: ["list"]
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
@@ -46,7 +47,9 @@
     clipboard: ["write"],
     clipboardHistory: ["show"],
     open: ["url", "path", "application"],
-    apps: ["perform", "openDeepLink", "quit", "close"]
+    apps: ["perform", "openDeepLink", "quit", "close"],
+    system: ["keepAwake"],
+    activities: ["stop"]
   };
 
   function compact(members) {

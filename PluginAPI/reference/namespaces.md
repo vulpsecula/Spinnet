@@ -134,7 +134,7 @@ and one a page action may perform `.action(input, options)`
 `spinnet.open.url.action(url, { title: "Homepage" })`);
 `spinnet.host.showPluginSettings`, which only a request or a page action
 reaches, is an object holding those two builders. A namespace none of whose
-operations a script can reach, `keyboard` and `system`, is absent, and so are
+operations a script can reach, `keyboard`, is absent, and so are
 Level 1's wrappers, such as `spinnet.clipboard.history`. `spinnet.ui` keeps
 Plugin API Level 1's builders, since a Level 2 Plugin may still answer with a
 Level 1 view whose standard actions keep Level 1's names; `ui.toast` and
@@ -239,12 +239,17 @@ External App integration through Reviewed App Interfaces and Deep Link Templates
 
 ### `system`
 
-macOS facilities no single App owns; later keep-awake (#84) and basic metrics (#86).
+macOS facilities no single App owns; Host-owned keep-awake (#84) and later basic metrics (#86).
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `system.runShortcut` | `name`, optionally `{name, input}` | null | Command | nothing |
 | `system.runService` | `name`, optionally `{name, input}` | null | Command | nothing |
+| `system.keepAwake` | `{mode, seconds? or target?}` | null | Command, page action, request | `keep_awake`; App-alive also `read_frontmost_app` |
+
+Keep Awake owns paired idle-system and idle-display assertions, survives view
+closure, and releases on its own lifetime or owner invalidation. See
+[effects and limitations](keep-awake.md).
 
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
 and `system.runService` are offered only as Commands, whose input the user
@@ -298,6 +303,19 @@ Plugin Storage.
 | `storage.keys` | none | the keys | call | nothing |
 | `storage.clear` | none | null | call | nothing |
 
+### `activities`
+
+Only the requesting Plugin's Host-owned effects, never another owner's.
+
+| ID | Input | Result | Offered as | Needs |
+| --- | --- | --- | --- | --- |
+| `activities.list` | none | own active activities | call | nothing |
+| `activities.stop` | `{id}` | null | page action, request | nothing |
+
+See [Host activity controls](keep-awake.md#activities). A missing, ended or
+foreign ID is a no-op; Host Status Item controls can stop every owner.
+Task cancellation remains a separate adapter policy for #88.
+
 ## Reserved
 
 These IDs are kept for the tickets that define them. Naming one is refused
@@ -309,7 +327,5 @@ until a later Level adds it.
 | `host.launchCommand` | README, candidates for later levels | Running another Command of the Plugin in the same View Session |
 | `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
 | `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
-| `system.keepAwake` | #84 | A Host-owned keep-awake effect |
 | `system.metrics` | #86 | Basic metrics while the view is visible |
-| `activities.list`, `activities.stop` | #84, #88 | The Plugin's running effects and tasks |
 | `tools.read`, `tools.startTask` | #87, #88 | Reviewed tool profiles such as Homebrew |

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "activity_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "kind": "keep_awake",
+    "name": "Coffee — Keep Awake",
+    "status": "Until stopped",
+    "expires_at": null,
+    "owner": "other"
+  }
+]

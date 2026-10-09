@@ -106,7 +106,8 @@
         "storage.set",
         "storage.remove",
         "storage.keys",
-        "storage.clear"
+        "storage.clear",
+        "activities.list"
       ]
     },
     "host_command_id": {
@@ -127,6 +128,7 @@
         "apps.openDeepLink",
         "system.runShortcut",
         "system.runService",
+        "system.keepAwake",
         "window.toggleFullScreen",
         "window.restore",
         "screen.capture"
@@ -145,7 +147,9 @@
         "apps.perform",
         "apps.openDeepLink",
         "apps.quit",
-        "apps.close"
+        "apps.close",
+        "system.keepAwake",
+        "activities.stop"
       ]
     },
     "item_action_id": {
@@ -168,7 +172,9 @@
         "apps.perform",
         "apps.openDeepLink",
         "apps.quit",
-        "apps.close"
+        "apps.close",
+        "system.keepAwake",
+        "activities.stop"
       ]
     },
     "app_target": {
@@ -1200,6 +1206,50 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "system.keepAwake"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/system.keepAwake.input"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "activities.stop"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/activities.stop.input"
+              }
+            }
+          }
         }
       ]
     },
@@ -1929,6 +1979,119 @@
           }
         }
       ]
+    },
+    "activity_id": {
+      "type": "string",
+      "pattern": "^activity_[0-9a-f]{32}$",
+      "maxLength": 41
+    },
+    "system.keepAwake.input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "manual"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "seconds"
+          ],
+          "properties": {
+            "mode": {
+              "const": "duration"
+            },
+            "seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "target"
+          ],
+          "properties": {
+            "mode": {
+              "const": "app_alive"
+            },
+            "target": {
+              "$ref": "#/$defs/app_target"
+            }
+          }
+        }
+      ]
+    },
+    "system.keepAwake.result": {
+      "type": "null"
+    },
+    "activities.list.input": {
+      "type": "null"
+    },
+    "activities.stop.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/activity_id"
+        }
+      }
+    },
+    "activities.stop.result": {
+      "type": "null"
+    },
+    "activities.list.result": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "status",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/activity_id"
+          },
+          "kind": {
+            "const": "keep_awake"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 280
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 280
+          },
+          "expires_at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
     }
   }
 }

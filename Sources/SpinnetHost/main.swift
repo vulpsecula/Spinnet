@@ -64,6 +64,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// thread, since the App may be slow to answer.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
+    private let activities = HostActivities()
+    private lazy var keepAwake = HostKeepAwake(activities: activities, power: DesktopPowerAssertions(),
+        apps: runningApps, targets: appTargets, schedule: { delay, work in
+            let timer = DispatchWorkItem(block: work)
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay, execute: timer)
+            return { timer.cancel() }
+        })
     private let appMessaging = DispatchQueue(label: "com.vulpsecula.Spinnet.app-exits", qos: .userInitiated)
     private lazy var appExits = AppExitPerformer(
         apps: runningApps, targets: appTargets, confirmations: HostConfirmationPanel(),
@@ -108,6 +115,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private static let defaultSlotCount = 8
 
     func applicationWillTerminate(_ notification: Notification) {
+        keepAwake.shutdown()
         pluginRuntime?.shutdown()
     }
 
@@ -219,14 +227,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 // read here, within its bound, so this never waits on it.
                 frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
                     appTargets.identifyFrontmost(of: runningApps, for: pluginID)
-                }
+                },
+                keepAwakeEffects: keepAwake, activities: activities, pluginRegistry: registry
             )
             clipboardBroker = hostServiceBroker
             if appTargetObservers == nil {
                 appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
-                    registry.observeInvalidation { [appTargets] in appTargets.forget($0) },
-                    capabilityGrants.observeRevocation { [appTargets] in appTargets.forget($0) }
+                    registry.observeInvalidation { [appTargets, keepAwake] in appTargets.forget($0); keepAwake.invalidate($0) },
+                    capabilityGrants.observeRevocation { [appTargets, keepAwake] in appTargets.forget($0); keepAwake.invalidate($0) }
                 )
             }
             actionRunner = HostActionRunner(
@@ -464,7 +473,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installStatusItem() {
         let controller = StatusItemController(
             openSettings: { [weak self] in self?.settings.present() },
-            quit: { NSApp.terminate(nil) }
+            quit: { NSApp.terminate(nil) }, activities: activities
         )
         controller.install()
         statusItemController = controller
@@ -532,8 +541,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         guard let actionRunner else { return }
         let registry = self.registry
         guard configuredAction.execution == .javascript else {
+            // Bind an ongoing effect's original owner before this click can
+            // wait on the dispatch queue, never after a replacement/regrant.
+            let invocation = actionRunner.prepareInvocation(configuredAction, using: registry)
             actionInvocationQueue.async { [weak self] in
-                let outcome = actionRunner.invoke(configuredAction, using: registry)
+                let outcome = invocation()
                 DispatchQueue.main.async { self?.feedback.showOutcome(outcome) }
             }
             return

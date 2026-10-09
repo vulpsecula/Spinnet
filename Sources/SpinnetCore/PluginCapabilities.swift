@@ -26,15 +26,17 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// a close or quit of an App not in front, after a Host Confirmation. It
     /// tells the Plugin nothing about the App.
     case quitFrontmostApp = "quit_frontmost_app"
+    /// Host-owned prevention of idle system and display sleep (Level 2).
+    case keepAwake = "keep_awake"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
-         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp].contains(self)
+         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake].contains(self)
     }
 
     /// The lowest Plugin API Level whose Plugins may declare it.
-    public var apiLevel: Int { CurrentAppAddition.capabilities.contains(self) ? 2 : 1 }
+    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -54,6 +56,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         case .readFrontmostApp: return "Identify the App in Front"
         case .quitFrontmostApp: return "Close or Quit the App in Front"
+        case .keepAwake: return "Keep the Mac and Display Awake"
         }
     }
 
@@ -75,6 +78,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
+        case .keepAwake: return "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item."
         case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
     }
@@ -514,12 +518,15 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Plugin API Level 2's `apps.frontmost` (#83), which has no Level 1
     /// name: the App in front and its App Target.
     case identifyFrontmostApp = "apps.frontmost"
+    case keepAwakeEffect = "system.keepAwake"
+    case listActivities = "activities.list"
+    case stopActivity = "activities.stop"
 
     /// The services of Plugin API Level 1, under their Level 1 names.
     public static let levelOne = allCases.filter(\.isLevelOne)
 
     /// Whether Plugin API Level 1 offers it under its raw value.
-    public var isLevelOne: Bool { self != .identifyFrontmostApp }
+    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity].contains(self) }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -550,6 +557,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
+        case .keepAwakeEffect: return .keepAwake
+        case .listActivities, .stopActivity: return nil
         case .identifyFrontmostApp:
             return .readFrontmostApp
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
@@ -574,7 +583,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
-        case .identifyFrontmostApp:
+        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity:
             return nil
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
@@ -725,6 +734,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     /// `apps.frontmost`'s result for a Plugin: the App in front with the App
     /// Target the Host gives that Plugin for it, or null.
     private let frontmostAppIdentifier: (PluginID) throws -> JSONValue
+    private let keepAwakeEffects: HostKeepAwake?
+    private let activities: HostActivities?
+    private let pluginRegistry: PluginRegistry?
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -785,7 +797,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         frontmostAppIdentifier: @escaping (PluginID) throws -> JSONValue = { _ in
             throw PluginHostServiceError.unavailable("The App in front")
-        }
+        },
+        keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
+        pluginRegistry: PluginRegistry? = nil
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -814,6 +828,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.applicationOpener = applicationOpener
         self.preferredScreenCapturer = preferredScreenCapturer
         self.frontmostAppIdentifier = frontmostAppIdentifier
+        self.keepAwakeEffects = keepAwakeEffects
+        self.activities = activities
+        self.pluginRegistry = pluginRegistry
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -869,10 +886,67 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         for package: PluginPackage,
         action: ActionConfiguration
     ) throws -> JSONValue {
+        let admission = request.service == .keepAwakeEffect ? keepAwakeAdmission(for: package) : nil
+        return try execute(request: request, for: package, action: action, effectAdmission: admission)
+    }
+
+    /// Captures ownership before dispatch; no manifest/version equality can
+    /// turn an old registration or revoked authority into a current one.
+    public func keepAwakeAdmission(for package: PluginPackage) -> KeepAwakeAdmission? {
+        guard let effect = keepAwakeEffects?.ownerAdmission(for: package.manifest.id),
+              let registry = pluginRegistry, let registration = registry.ownerAdmission(for: package.manifest.id),
+              registry.isCurrent(registration, for: package) else { return nil }
+        return KeepAwakeAdmission(registration: registration, effect: effect)
+    }
+
+    public func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
+                        action: ActionConfiguration, admittedOwner: KeepAwakeAdmission) throws -> JSONValue {
+        guard request.service == .keepAwakeEffect else {
+            throw PluginHostServiceError.invalidInput("Effect admission applies only to system.keepAwake")
+        }
+        return try execute(request: request, for: package, action: action, effectAdmission: admittedOwner)
+    }
+
+    private func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
+                         action: ActionConfiguration, effectAdmission: KeepAwakeAdmission?) throws -> JSONValue {
         let service = request.service
+        if service == .keepAwakeEffect, let registry = pluginRegistry {
+            guard let effectAdmission, registry.isCurrent(effectAdmission.registration, for: package),
+                  keepAwakeEffects?.isCurrent(effectAdmission.effect) == true else {
+                throw PluginHostServiceError.unavailable("The accepted effect owner is no longer current")
+            }
+        }
         try authorize(service, for: package, action: action)
 
         switch service {
+        case .keepAwakeEffect:
+            let effect = try KeepAwakeRequest(input: request.input)
+            if case .appAlive = effect.mode {
+                try authorize([.readFrontmostApp], permission: nil, for: package, action: action)
+            }
+            guard let keepAwakeEffects else { throw PluginHostServiceError.unavailable("Keep Awake") }
+            try keepAwakeEffects.start(effect, owner: package.manifest.id, pluginName: package.manifest.name,
+                                      admittedOwner: effectAdmission?.effect) {
+                if let registry = pluginRegistry {
+                    guard let effectAdmission, registry.isCurrent(effectAdmission.registration, for: package) else {
+                        throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
+                    }
+                }
+                try authorize(.keepAwakeEffect, for: package, action: action)
+                if case .appAlive = effect.mode {
+                    try authorize([.readFrontmostApp], permission: nil, for: package, action: action)
+                }
+            }
+            return .null
+        case .listActivities:
+            guard request.input == .null else { throw PluginHostServiceError.invalidInput("activities.list takes no input") }
+            guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
+            return .array(activities.list(for: package.manifest.id).map(\.json))
+        case .stopActivity:
+            let id = try KeepAwakeRequest.stopID(input: request.input)
+            guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
+            activities.stop(id, for: package.manifest.id)
+            return .null
         case .readClipboardHistoryContent:
             guard case .object(let fields) = request.input, fields.count == 3,
                   case .string(let id) = fields["entry_id"], let entryID = UUID(uuidString: id),

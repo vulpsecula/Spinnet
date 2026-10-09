@@ -195,6 +195,13 @@ public struct AvailableCommand: Equatable, Hashable {
     public var title: String { command.title }
 }
 
+/// Opaque identity of one enabled Plugin registration. Replacement and
+/// disable rotate it even when package content/version do not change.
+public struct PluginOwnerAdmission: Hashable {
+    let pluginID: PluginID
+    let identity: UUID
+}
+
 public final class PluginRegistry {
     private let lock = NSLock()
     private var packages: [PluginID: PluginPackage] = [:]
@@ -204,6 +211,21 @@ public final class PluginRegistry {
     /// What this Host offers Plugins; every registration is checked against it.
     public let contracts: PluginInterfaceContracts
     private var invalidationObservers: [UUID: (PluginID) -> Void] = [:]
+    private var ownerAdmissions: [PluginID: UUID] = [:]
+
+    public func ownerAdmission(for pluginID: PluginID) -> PluginOwnerAdmission? {
+        lock.lock(); defer { lock.unlock() }
+        guard packages[pluginID] != nil, !disabledPluginIDs.contains(pluginID), let identity = ownerAdmissions[pluginID] else { return nil }
+        return PluginOwnerAdmission(pluginID: pluginID, identity: identity)
+    }
+
+    public func isCurrent(_ admission: PluginOwnerAdmission, for package: PluginPackage) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard admission.pluginID == package.manifest.id,
+              ownerAdmissions[admission.pluginID] == admission.identity,
+              !disabledPluginIDs.contains(admission.pluginID), let current = packages[admission.pluginID] else { return false }
+        return current.rootURL == package.rootURL && current.manifest == package.manifest
+    }
 
     /// Observers must only retire runtime work; they must not reenter the registry.
     public func observeInvalidation(_ observer: @escaping (PluginID) -> Void) -> UUID {
@@ -237,6 +259,7 @@ public final class PluginRegistry {
         lock.lock()
         defer { lock.unlock() }
         packages.removeValue(forKey: pluginID)
+        ownerAdmissions[pluginID] = nil
         disabledPluginIDs.remove(pluginID)
         refused.removeValue(forKey: pluginID)
         for observer in invalidationObservers.values { observer(pluginID) }
@@ -282,6 +305,7 @@ public final class PluginRegistry {
         }
 
         packages[package.manifest.id] = package
+        ownerAdmissions[package.manifest.id] = UUID()
         refused.removeValue(forKey: package.manifest.id)
     }
 
@@ -325,6 +349,7 @@ public final class PluginRegistry {
             )
         }
         packages[package.manifest.id] = package
+        ownerAdmissions[package.manifest.id] = UUID()
         for observer in invalidationObservers.values { observer(package.manifest.id) }
     }
 
@@ -341,6 +366,7 @@ public final class PluginRegistry {
             disabledPluginIDs.remove(pluginID)
         } else {
             disabledPluginIDs.insert(pluginID)
+            ownerAdmissions[pluginID] = UUID()
             for observer in invalidationObservers.values { observer(pluginID) }
         }
     }

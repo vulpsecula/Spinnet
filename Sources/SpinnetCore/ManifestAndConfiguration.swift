@@ -735,7 +735,7 @@ public struct PluginManifest: Codable, Equatable {
                 throw ConfigurationError.invalidManifest("This Capability only inserts text into the focused App")
             }
         }
-        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .readFrontmostApp, .quitFrontmostApp].contains(capability) {
+        for capability in capabilities where ![.readSelectedText, .writeClipboard, .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .readFrontmostApp, .quitFrontmostApp, .keepAwake].contains(capability) {
             guard scope(for: capability) != nil else {
                 throw ConfigurationError.invalidManifest("\(capability.title) requires a concrete Capability scope")
             }
@@ -1657,6 +1657,31 @@ public struct HostActionRunner {
         control: ActionExecutionControl = ActionExecutionControl(),
         delivering delivery: ViewEventDelivery = .actionStart
     ) -> ActionOutcome {
+        invoke(action, using: registry, control: control, delivering: delivery, admittedKeepAwake: nil)
+    }
+
+    /// Prepares the actual Action entry before its dispatch queue runs. Only
+    /// ongoing-effect starts bind owner/authority now; unrelated Commands
+    /// retain their current availability/input behavior when they execute.
+    public func prepareInvocation(_ action: ActionConfiguration, using registry: PluginRegistry) -> () -> ActionOutcome {
+        guard action.hostServiceID == KeepAwakeAddition.id else {
+            return { invoke(action, using: registry) }
+        }
+        guard let broker = hostServiceBroker as? CapabilityCheckedHostServiceBroker,
+              let package = registry.package(for: action.pluginID),
+              let admission = broker.keepAwakeAdmission(for: package) else {
+            return { failure(for: action, category: .commandUnavailable,
+                             message: "Keep Awake had no current owner when invoked") }
+        }
+        return {
+            invoke(action, using: registry, control: ActionExecutionControl(), delivering: .actionStart,
+                   admittedKeepAwake: admission)
+        }
+    }
+
+    private func invoke(_ action: ActionConfiguration, using registry: PluginRegistry,
+                        control: ActionExecutionControl, delivering delivery: ViewEventDelivery,
+                        admittedKeepAwake: KeepAwakeAdmission?) -> ActionOutcome {
         switch registry.availability(
             for: action,
             resourceAvailability: resourceAvailability
@@ -1669,7 +1694,8 @@ public struct HostActionRunner {
                     return failure(for: action, category: .commandUnavailable,
                                    message: ActionUnavailableReason.pluginMissing.description)
                 }
-                return invokeCatalogueCommand(action, in: package, executor: executor, broker: hostServiceBroker)
+                return invokeCatalogueCommand(action, in: package, executor: executor, broker: hostServiceBroker,
+                                              admittedKeepAwake: admittedKeepAwake)
             }
             // A Deep Link Template opens through the Host Service a script
             // would ask for, with the same scope and grant checks; no helper

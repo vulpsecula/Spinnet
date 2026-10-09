@@ -1,0 +1,80 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.example.keep-awake-probe",
+  "name": "Coffee Probe",
+  "version": "1.0.0",
+  "capabilities": [
+    "keep_awake",
+    "read_frontmost_app"
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "probe.coffee",
+    "default_alternate_command_ids": [
+      "probe.list",
+      "probe.stop",
+      "probe.direct"
+    ]
+  },
+  "commands": [
+    {
+      "id": "probe.coffee",
+      "title": "Keep Awake",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    },
+    {
+      "id": "probe.list",
+      "title": "List Activities",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "list.js"
+    },
+    {
+      "id": "probe.stop",
+      "title": "Stop Activity",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "stop.js"
+    },
+    {
+      "id": "probe.direct",
+      "title": "Keep Awake Directly",
+      "execution": "host",
+      "host_command": "system.keepAwake",
+      "is_configurable": false,
+      "input": {
+        "mode": "manual"
+      }
+    }
+  ],
+  "optional_capabilities": [
+    "read_frontmost_app"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "keep_awake",
+      "command_ids": [
+        "probe.coffee",
+        "probe.direct"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    },
+    {
+      "capability": "read_frontmost_app",
+      "command_ids": [
+        "probe.coffee"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ]
+}

@@ -70,6 +70,9 @@ export interface Operations {
   "apps.frontmost": { input: null; result: FrontmostApp | null };
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
   "apps.close": { input: null | { target?: AppTarget }; result: null };
+  "system.keepAwake": { input: KeepAwakeInput; result: null };
+  "activities.list": { input: null; result: HostActivity[] };
+  "activities.stop": { input: { id: ActivityID }; result: null };
   "system.runShortcut": { input: string | { name: string; input?: string }; result: null };
   "system.runService": { input: string | { name: string; input?: string }; result: null };
   "window.read": { input: null; result: FocusedWindow };
@@ -97,21 +100,21 @@ export type CallID =
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink" | "apps.frontmost"
   | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture" | "http.request" | "text.detectLanguage"
-  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear";
+  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list";
 
 /** IDs a manifest Command with `execution: "host"` may name in `host_command`. */
 export type HostCommandID =
   | "host.toast" | "host.showPluginSettings" | "selection.copy" | "selection.cut" | "selection.paste"
   | "keyboard.press" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "system.runShortcut" | "system.runService" | "window.toggleFullScreen" | "window.restore"
+  | "system.runShortcut" | "system.runService" | "system.keepAwake" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture";
 
 /** IDs an answer to a gesture may request. */
 export type RequestID =
   | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.quit" | "apps.close";
+  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -780,8 +783,8 @@ export interface StorageNamespace {
  * The `spinnet` object at Level 2, by namespace. An operation offered only
  * as a Command (`selection.paste`, `keyboard.press`, `system.runShortcut`,
  * ...) or only as an answer member (`host.toast`, `host.closeView`) has no
- * member here: the manifest and `spinnet.ui` reach those, so `keyboard` and
- * `system` are absent.
+ * member here: the manifest and `spinnet.ui` reach those, so `keyboard` is
+ * absent. `system.keepAwake` has pure request/action builders.
  */
 export interface Spinnet {
   readonly host: HostNamespace;
@@ -790,6 +793,8 @@ export interface Spinnet {
   readonly clipboardHistory: ClipboardHistoryNamespace;
   readonly open: OpenNamespace;
   readonly apps: AppsNamespace;
+  readonly system: SystemNamespace;
+  readonly activities: ActivitiesNamespace;
   readonly window: WindowNamespace;
   readonly screen: ScreenNamespace;
   readonly http: HTTPNamespace;
@@ -805,4 +810,26 @@ export interface Globals {
   spinnet: Spinnet;
   event: ScriptEvent | null;
   requestHostService: RequestHostService;
+}
+
+/** Host-owned effect, independent of view/helper lifetime. */
+export type KeepAwakeInput = { mode: "manual" } | { mode: "duration"; seconds: number } | { mode: "app_alive"; target: AppTarget };
+export type ActivityID = string;
+export interface HostActivity {
+  readonly id: ActivityID;
+  readonly kind: "keep_awake";
+  readonly name: string;
+  readonly status: string;
+  /** Unix seconds, or null for manual and App-alive modes. */
+  readonly expires_at: number | null;
+}
+export interface SystemNamespace {
+  /** Prevents idle system AND display sleep; requires keep_awake. @id system.keepAwake @entry command request view_action */
+  readonly keepAwake: Performable<"system.keepAwake">;
+}
+export interface ActivitiesNamespace {
+  /** Lists this Plugin's active effects. @id activities.list @entry call */
+  readonly list: Callable<"activities.list">;
+  /** Stops its own activity; absent or foreign ids are no-ops. @id activities.stop @entry request view_action */
+  readonly stop: Performable<"activities.stop">;
 }

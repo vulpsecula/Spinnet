@@ -193,6 +193,9 @@ public struct PluginPermissionDisclosure {
             if manifest.capabilities.contains(.openLocalPath), !names(.openLocalPath).isEmpty {
                 affected.append("\(PluginCapability.openLocalPath.explanation) Commands: \(names(.openLocalPath)).\(optionalNote(.openLocalPath))")
             }
+            if manifest.capabilities.contains(.keepAwake), !names(.keepAwake).isEmpty {
+                affected.append("\(PluginCapability.keepAwake.explanation) Commands: \(names(.keepAwake)).\(optionalNote(.keepAwake))")
+            }
             if manifest.capabilities.contains(.quitFrontmostApp), !names(.quitFrontmostApp).isEmpty {
                 affected.append("\(PluginCapability.quitFrontmostApp.explanation) Commands: \(names(.quitFrontmostApp)).\(optionalNote(.quitFrontmostApp))")
             }
@@ -216,7 +219,7 @@ public extension PluginCapability {
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
         case .readFrontmostApp: return .reads
-        case .quitFrontmostApp: return .controls
+        case .quitFrontmostApp, .keepAwake: return .controls
         }
     }
 }

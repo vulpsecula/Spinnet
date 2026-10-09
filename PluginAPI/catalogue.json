@@ -88,8 +88,8 @@
     },
     {
       "name": "activities",
-      "holds": "reserved",
-      "summary": "The Plugin's running effects and tasks (#84, #88)"
+      "holds": "operations",
+      "summary": "Host-owned effects, visible and stoppable by their Plugin only; Host Status Item controls every owner"
     },
     {
       "name": "tools",
@@ -1333,40 +1333,41 @@
     {
       "id": "system.keepAwake",
       "namespace": "system",
-      "summary": "Starts a Host-owned keep-awake effect, manual, timed or bound to an App, that outlives the view and is stopped from the Host Status Item (ADR 0017).",
-      "status": "reserved",
+      "summary": "Host-owned prevention of idle system AND display sleep; manual, duration or App-alive. Survives view closure; any owner invalidation releases both assertions. App-alive also requires read_frontmost_app.",
+      "status": "level2",
       "owner": "#84",
-      "input": null,
-      "result": null,
+      "input": "schemas/namespaces.schema.json#/$defs/system.keepAwake.input",
+      "result": "schemas/namespaces.schema.json#/$defs/system.keepAwake.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "keep_awake"
+      ],
       "system_permission": null,
       "failures": [
+        "capability_denied",
         "host_service_failed"
       ],
-      "targets": null,
+      "targets": "own_effect",
       "entry_points": {
         "call": {
           "status": "not_offered",
-          "reason": "An effect that outlives the invocation starts after the answer that asked for it commits (ADR 0018)"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         },
         "command": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "A Menu Item could start a timed effect without a view"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         },
         "view_action": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "Its modes, lifetime and release rules are #84's"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         },
         "request": {
-          "status": "reserved",
-          "owner": "#84",
-          "reason": "Its modes, lifetime and release rules are #84's"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         }
       },
-      "level1": []
+      "level1": [],
+      "default_title": "Keep Awake"
     },
     {
       "id": "system.metrics",
@@ -1967,35 +1968,34 @@
     {
       "id": "activities.list",
       "namespace": "activities",
-      "summary": "Lists the effects and tasks the Plugin started that are still running, so a reopened view can show them.",
-      "status": "reserved",
+      "summary": "Lists only this Plugin's running Host-owned effects. No other Plugin activity or App identity is disclosed.",
+      "status": "level2",
       "owner": "#88",
-      "input": null,
-      "result": null,
+      "input": "schemas/namespaces.schema.json#/$defs/activities.list.input",
+      "result": "schemas/namespaces.schema.json#/$defs/activities.list.result",
       "primary_member": null,
       "capabilities": [],
       "system_permission": null,
       "failures": [
         "host_service_failed"
       ],
-      "targets": null,
+      "targets": "own_activity",
       "entry_points": {
         "call": {
-          "status": "reserved",
-          "owner": "#88",
-          "reason": "Reopening a Brew view queries its running task"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         },
         "command": {
           "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         },
         "view_action": {
           "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         },
         "request": {
           "status": "not_offered",
-          "reason": "It returns data, which only a script can use"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         }
       },
       "level1": []
@@ -2003,39 +2003,38 @@
     {
       "id": "activities.stop",
       "namespace": "activities",
-      "summary": "Stops an effect, or attempts to cancel a task, the Plugin started, by the handle the Host returned; never a rollback.",
-      "status": "reserved",
+      "summary": "Stops only this Plugin's activity by opaque id; absent/ended/foreign id is a successful no-op.",
+      "status": "level2",
       "owner": "#84, #88",
-      "input": null,
-      "result": null,
+      "input": "schemas/namespaces.schema.json#/$defs/activities.stop.input",
+      "result": "schemas/namespaces.schema.json#/$defs/activities.stop.result",
       "primary_member": null,
       "capabilities": [],
       "system_permission": null,
       "failures": [
         "host_service_failed"
       ],
-      "targets": null,
+      "targets": "own_activity",
       "entry_points": {
         "call": {
           "status": "not_offered",
-          "reason": "Stopping is a user's explicit act, made on a gesture"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         },
         "command": {
           "status": "not_offered",
-          "reason": "A Command has no handle to name; the Host Status Item stops any activity"
+          "reason": "The lifetime/input returns only through the entry points this operation offers"
         },
         "view_action": {
-          "status": "reserved",
-          "owner": "#84, #88",
-          "reason": "Shares owner, authority and cancellation machinery, not lifetimes (ADR 0017)"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         },
         "request": {
-          "status": "reserved",
-          "owner": "#84, #88",
-          "reason": "Shares owner, authority and cancellation machinery, not lifetimes (ADR 0017)"
+          "status": "level2",
+          "note": "Additive Level 2 (#84); scoped to this Plugin owner"
         }
       },
-      "level1": []
+      "level1": [],
+      "default_title": "Stop Activity"
     },
     {
       "id": "tools.read",
@@ -2899,6 +2898,14 @@
       ],
       "level1": [],
       "note": "Level 2 only (#83): Close and Quit are the App's own ⌘W and ⌘Q; every force quit, and every close or quit of an App not in front when the Host accepts the request, asks a Host Confirmation; it reveals nothing about the App"
+    },
+    {
+      "name": "keep_awake",
+      "operations": [
+        "system.keepAwake"
+      ],
+      "level1": [],
+      "note": "Level 2 (#84): user grant for preventing idle system and display sleep; no explicit Sleep/lid override. App-alive also needs read_frontmost_app."
     }
   ],
   "not_offered": [
