@@ -47,13 +47,17 @@ Item, which also discloses the scope and limitations.
   App-alive checks `read_frontmost_app` again at start. A Level 1 Plugin may
   not declare it. It needs no `capability_scopes` entry or System Permission.
 - Explicit Stop, expiry, bound App exit, any Plugin disable, update,
-  replacement/removal or Capability revocation, and Host exit release both
+  replacement/removal, `keep_awake` revocation, and Host exit release both
   assertions. **Update means every replacement/reload**, even if a package
   reuses its manifest version; effects are never migrated to the new copy.
-- A pending start keeps the owner registration and authority lifetime from
-  when the Host accepted it. Replacement with the same manifest, disabling
-  then enabling, or revoking then granting again cannot make that old start
-  current: it acquires no assertions, and only a new user call may start a
+- Revoking `read_frontmost_app` ends only App-alive effects. Manual and
+  duration effects do not depend on App identity and continue; unrelated
+  Capability revocations do not end any keep-awake effect. Removing all of
+  the Plugin's access decisions ends every effect.
+- A pending start keeps the owner registration and required authority
+  lifetime from when the Host accepted it. Replacement with the same
+  manifest, disabling then enabling, or revoking then granting a required
+  Capability again cannot make that old start current: it acquires no assertions, and only a new user call may start a
   new effect.
 - Closing/hiding the Plugin View and helper retirement have no effect on
   the ongoing resource. Pending requests still obey Requested Host Operation
@@ -87,8 +91,12 @@ own adapter, rather than copied from keep-awake effects.
 `RecordedKeepAwake` supplies the Host's real effect registry, recorded time,
 recorded power and `RecordedApps`. `advance(by:)` expires timers;
 `power.failing` can refuse either assertion, and `power.held` / `power.count`
-show their lifetime. `effects.invalidate(pluginID)` stands for disable,
-update/removal or revocation; `effects.shutdown()` stands for Host exit.
+show their lifetime. `effects.invalidate(pluginID)` stands for disable or
+update/removal. Use `grantStore.observeCapabilityRevocation` with
+`effects.revoke` to exercise the real Capability-specific cleanup;
+removing decisions or revoking `keep_awake` stops all effects, while
+revoking `read_frontmost_app` stops only App-alive effects.
+`effects.shutdown()` stands for Host exit.
 Pass it as `keepAwake:` to `RecordedHostServices` and
 `RecordedHostOperations`, then run an external package in the real helper.
 It substitutes OS/time boundaries; it does not prove actual sleep behaviour.
