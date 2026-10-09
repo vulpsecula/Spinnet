@@ -109,6 +109,9 @@ public struct PluginPermissionDisclosure {
                 if scope.capability == .contactHTTPS, !consentedHTTPSHosts.isEmpty {
                     lines.append("Hosts you added: " + consentedHTTPSHosts.joined(separator: ", "))
                 }
+                for tool in scope.reviewedTools {
+                    lines.append("\(tool.tool): \(tool.operations.joined(separator: ", ")); package kinds: \(tool.kinds.joined(separator: ", "))")
+                }
                 for app in scope.externalApps {
                     let label = app.displayName == app.bundleID ? app.bundleID : "\(app.displayName) (\(app.bundleID))"
                     if !app.operationFamilies.isEmpty {
@@ -218,7 +221,7 @@ public extension PluginCapability {
         case .openURL, .openLocalPath: return .controls
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
-        case .readFrontmostApp: return .reads
+        case .readFrontmostApp, .readReviewedTools: return .reads
         case .quitFrontmostApp, .keepAwake: return .controls
         }
     }

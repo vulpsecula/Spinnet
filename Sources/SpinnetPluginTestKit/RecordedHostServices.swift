@@ -62,6 +62,9 @@ public final class RecordedHostServices: PluginHostServiceBroker {
            !package.manifest.declares(capability, for: action.commandID) {
             throw PluginHostServiceError.capabilityDenied(capability)
         }
+        if request.service == .reviewedToolRead {
+            try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
+        }
         switch request.operation.flatMap({ operations[$0] }) ?? answers[request.service] {
         case .value(let value):
             return value

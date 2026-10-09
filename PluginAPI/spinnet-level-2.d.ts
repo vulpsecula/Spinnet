@@ -73,6 +73,7 @@ export interface Operations {
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
   "apps.close": { input: null | { target?: AppTarget }; result: null };
   "system.keepAwake": { input: KeepAwakeInput; result: null };
+  "tools.read": { input: ReviewedToolReadInput; result: ReviewedToolReadResult };
   "activities.list": { input: null; result: HostActivity[] };
   "activities.stop": { input: { id: ActivityID }; result: null };
   "system.runShortcut": { input: string | { name: string; input?: string }; result: null };
@@ -102,7 +103,7 @@ export type CallID =
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink" | "apps.frontmost"
   | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture" | "http.request" | "text.detectLanguage"
-  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list";
+  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list" | "tools.read";
 
 /** IDs a manifest Command with `execution: "host"` may name in `host_command`. */
 export type HostCommandID =
@@ -789,6 +790,7 @@ export interface StorageNamespace {
  * absent. `system.keepAwake` has pure request/action builders.
  */
 export interface Spinnet {
+  readonly tools: ToolsNamespace;
   readonly host: HostNamespace;
   readonly selection: SelectionNamespace;
   readonly clipboard: ClipboardNamespace;
@@ -835,3 +837,28 @@ export interface ActivitiesNamespace {
   /** Stops its own activity; absent or foreign ids are no-ops. @id activities.stop @entry request view_action */
   readonly stop: Performable<"activities.stop">;
 }
+
+/** Existing local Homebrew data. Bare names never name taps, paths or flags. */
+export type ReviewedPackageKind = "formula" | "cask";
+export type ReviewedToolReadInput =
+  | {tool: "homebrew"; operation: "installed"; kind?: ReviewedPackageKind}
+  | {tool: "homebrew"; operation: "outdated"; kind?: ReviewedPackageKind; greedy?: boolean}
+  | {tool: "homebrew"; operation: "search"; query: string; kind?: ReviewedPackageKind}
+  | {tool: "homebrew"; operation: "info"; kind: ReviewedPackageKind; names: string[]};
+export interface ReviewedPackage {
+  kind: ReviewedPackageKind; name: string; tap?: string; official?: true;
+  title?: string; description?: string; version?: string; installed_version?: string;
+  outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
+  needs_privileges?: true; quits_app?: true;
+}
+export interface ReviewedToolReadResult {
+  tool: "homebrew"; operation: ReviewedToolReadInput["operation"];
+  packages: ReviewedPackage[]; not_found?: string[]; truncated?: true;
+}
+export interface ToolsNamespace {
+  /** A 3 second local read. No refresh, install or upgrade. @id tools.read @entry call */
+  read(input: ReviewedToolReadInput): ReviewedToolReadResult;
+}
+
+export type ReviewedToolReadErrorCode = "tool_missing" | "tool_timed_out" | "tool_failed" | "output_too_large";
+export interface ReviewedToolReadError extends Error { readonly code: ReviewedToolReadErrorCode; }

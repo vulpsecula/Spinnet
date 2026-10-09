@@ -261,7 +261,7 @@ A link into an External App's documented URL interface, declared by a Plugin wit
 _Avoid_: URL action, custom scheme
 
 **Reviewed Tool Profile**:
-Proposed for a later Level 2 addition (#72): the Host's reviewed description of the operations one command-line tool, such as Homebrew, may run for Plugins: where the Host finds the executable, the fixed argv and environment of each operation, the input it accepts and the output it returns. A Plugin chooses among its typed operations and never supplies a command, flag, path or environment variable. Adding one is a Host release.
+The Host's reviewed description of the operations one command-line tool, such as Homebrew, may run for Plugins: where the Host finds the executable, the fixed argv and environment of each operation, the input it accepts and the output it returns. A Plugin chooses among its typed operations and never supplies a command, flag, path or environment variable. Adding one is a Host release.
 _Avoid_: Shell access, command runner, tool integration
 
 **Task**:

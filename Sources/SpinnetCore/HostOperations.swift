@@ -329,7 +329,7 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
         case .externalAppMissing: self = .externalAppMissing
         case .externalAppOperationUnsupported: self = .externalAppOperationUnsupported
         case .insertion(let failure): self = failure.reason
-        case .invalidInput, .unavailable, .failed, .storageLimitExceeded: self = .hostServiceFailed
+        case .invalidInput, .unavailable, .failed, .storageLimitExceeded, .tool: self = .hostServiceFailed
         }
     }
 }

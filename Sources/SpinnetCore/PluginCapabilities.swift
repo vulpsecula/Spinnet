@@ -28,15 +28,16 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case quitFrontmostApp = "quit_frontmost_app"
     /// Host-owned prevention of idle system and display sleep (Level 2).
     case keepAwake = "keep_awake"
+    case readReviewedTools = "read_reviewed_tools"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
-         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake].contains(self)
+         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools].contains(self)
     }
 
     /// The lowest Plugin API Level whose Plugins may declare it.
-    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake) ? 2 : 1 }
+    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -56,6 +57,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         case .readFrontmostApp: return "Identify the App in Front"
         case .quitFrontmostApp: return "Close or Quit the App in Front"
+        case .readReviewedTools: return "Read Reviewed Tools"
         case .keepAwake: return "Keep the Mac and Display Awake"
         }
     }
@@ -78,6 +80,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
+        case .readReviewedTools: return "Read existing local Homebrew package data for the declared operations and package kinds. No refresh, install or upgrade."
         case .keepAwake: return "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item."
         case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
@@ -518,6 +521,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Plugin API Level 2's `apps.frontmost` (#83), which has no Level 1
     /// name: the App in front and its App Target.
     case identifyFrontmostApp = "apps.frontmost"
+    case reviewedToolRead = "tools.read"
     case keepAwakeEffect = "system.keepAwake"
     case listActivities = "activities.list"
     case stopActivity = "activities.stop"
@@ -526,7 +530,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     public static let levelOne = allCases.filter(\.isLevelOne)
 
     /// Whether Plugin API Level 1 offers it under its raw value.
-    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity].contains(self) }
+    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead].contains(self) }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -557,6 +561,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
+        case .reviewedToolRead: return .readReviewedTools
         case .keepAwakeEffect: return .keepAwake
         case .listActivities, .stopActivity: return nil
         case .identifyFrontmostApp:
@@ -583,7 +588,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
-        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity:
+        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead:
             return nil
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
@@ -607,6 +612,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// An insertion under Candidate Contract `host_operations` refused or
     /// failed because of its target.
     case insertion(InsertionFailure)
+    case tool(ReviewedToolFailure)
 
     public var description: String {
         switch self {
@@ -628,6 +634,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Host Service failed: \(message)"
         case .storageLimitExceeded(let message):
             return message
+        case .tool(let failure): return failure.message
         case .insertion(let failure):
             return failure.message
         }
@@ -651,6 +658,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .hostServiceFailed
         case .storageLimitExceeded:
             return .storageLimitExceeded
+        case .tool(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
@@ -670,6 +678,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
+        case .tool: return .hostServiceFailed
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
@@ -737,6 +746,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let keepAwakeEffects: HostKeepAwake?
     private let activities: HostActivities?
     private let pluginRegistry: PluginRegistry?
+    private let reviewedTools: HomebrewReadProfile
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -799,7 +809,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The App in front")
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
-        pluginRegistry: PluginRegistry? = nil
+        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile()
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -831,6 +841,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.keepAwakeEffects = keepAwakeEffects
         self.activities = activities
         self.pluginRegistry = pluginRegistry
+        self.reviewedTools = reviewedTools
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -919,6 +930,24 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         try authorize(service, for: package, action: action)
 
         switch service {
+        case .reviewedToolRead:
+            let read = try HomebrewReadInput(request.input)
+            let registration = pluginRegistry?.ownerAdmission(for: package.manifest.id)
+            let validity = ReviewedToolReadValidity()
+            let revocation = grantStore.observeRevocation { owner in
+                if owner == package.manifest.id { validity.revoke() }
+            }
+            defer { grantStore.removeRevocationObserver(revocation) }
+            return try reviewedTools.read(request.input, owner: package.manifest.id) {
+                guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.readReviewedTools) }
+                try self.authorize(.reviewedToolRead, for: package, action: action)
+                try read.authorize(in: package.manifest.scope(for: .readReviewedTools))
+                if let registry = self.pluginRegistry {
+                    guard let registration, registry.isCurrent(registration, for: package) else {
+                        throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
+                    }
+                }
+            }
         case .keepAwakeEffect:
             let effect = try KeepAwakeRequest(input: request.input)
             if case .appAlive = effect.mode {

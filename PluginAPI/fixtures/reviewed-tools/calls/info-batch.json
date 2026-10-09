@@ -1,0 +1,10 @@
+{
+  "tool": "homebrew",
+  "operation": "info",
+  "kind": "formula",
+  "names": [
+    "wget",
+    "python@3.13",
+    "ffmpeg"
+  ]
+}

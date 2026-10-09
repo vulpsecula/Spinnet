@@ -36,7 +36,8 @@
     http: ["request"],
     text: ["detectLanguage"],
     storage: ["get", "set", "remove", "keys", "clear"],
-    activities: ["list"]
+    activities: ["list"],
+    tools: ["read"]
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
@@ -64,8 +65,19 @@
     return value === undefined || value === null ? {} : value;
   }
 
+  function validateToolRead(v) {
+    function invalid() { throw new TypeError("tools.read contains unsupported members, names or kinds"); }
+    if (!v || typeof v !== "object" || Array.isArray(v) || v.tool !== "homebrew") invalid();
+    const keys = {installed: ["tool", "operation", "kind"], outdated: ["tool", "operation", "kind", "greedy"], search: ["tool", "operation", "kind", "query"], info: ["tool", "operation", "kind", "names"]}[v.operation];
+    if (!keys || Object.keys(v).some(k => !keys.includes(k))) invalid();
+    if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();
+    if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid();
+    if (v.operation === "search" && (typeof v.query !== "string" || v.query.length < 2 || v.query.length > 64 || !/^[a-z0-9+_.@][a-z0-9+_.@-]*$/.test(v.query))) invalid();
+    if (v.operation === "info" && (v.kind === undefined || !Array.isArray(v.names) || v.names.length < 1 || v.names.length > 50 || new Set(v.names).size !== v.names.length || v.names.some(n => typeof n !== "string" || n.length > 64 || !/^[a-z0-9][a-z0-9+_.@-]*$/.test(n)))) invalid();
+  }
   function call(id) {
     return function (input) {
+      if (id === "tools.read") validateToolRead(input);
       return requestHostService(id, input === undefined ? null : input);
     };
   }

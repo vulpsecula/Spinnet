@@ -385,3 +385,5 @@ With `notify` the outcome runs as `operation_finished` in the session, an
 item action's with the item; when the view closed, it runs once more without
 a view, listed in `afterClose`, and its answer
 may hold a toast and nothing else.
+
+For reviewed Homebrew reads, record values under `operations: ["tools.read": .value(result)]` or typed failures such as `.failure(.tool(.missing))`. Recorded reads run the public input and tool/operation/kind scope checks before looking up the answer. A real-helper external fixture is `Tests/Fixtures/ReviewedToolsProbe.spinnetplugin`; it uses only the published SDK and can be copied to a separate public test-kit project.
