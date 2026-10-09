@@ -341,6 +341,11 @@ export interface StorageLimitError extends Error {
   readonly code: "storage_limit_exceeded";
 }
 
+/** A denied optional Capability declared for the current Command; later calls still check their grants. */
+export interface OptionalCapabilityError extends Error {
+  readonly code: "capability_denied";
+}
+
 /**
  * Pure builders for Plugin Views: each returns a new plain object in the
  * shape of `schemas/plugin-view.schema.json`, leaving out members that are

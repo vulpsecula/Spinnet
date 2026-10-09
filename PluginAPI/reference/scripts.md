@@ -52,12 +52,15 @@ holds.
 
 ## Failures
 
-A refused Capability or System Permission ends the whole invocation even if the
-script catches the error, so a denied request cannot fall through to a later
-protected operation. The one failure a script may catch is a Plugin Storage
-write over a limit, thrown as an `Error` whose `code` is
-`storage_limit_exceeded`. A business error, such as a service answering 404,
-is a result the script handles, not a failure.
+A refused required Capability or any System Permission ends the whole
+invocation even if the script catches the error. A denied Capability the
+manifest declares optional for the current Command is thrown as an `Error`
+whose `code` is `capability_denied`; the script may catch it and offer another
+path. Each later request still checks its own grant. An undeclared or
+out-of-scope Capability is never recoverable. A Plugin Storage write over a
+limit is also catchable, with `code` `storage_limit_exceeded`. A business
+error, such as a service answering 404, is a result the script handles,
+not a failure.
 
 A Host Service fails with one of these categories:
 
@@ -164,7 +167,14 @@ with `host_service_failed` and the reason.
 }
 ```
 
-A failed outcome carries one of the failure categories above. Each invocation
+A failed outcome carries one of the failure categories above. For a denied
+optional Capability declared and scoped to the current Command, the Host
+adds `"optional_capability_denied": true` to its response; this marks that
+single denial as catchable and grants no authority. It is omitted otherwise
+and valid only with a `capability_denied` failure. This is Host-to-helper
+metadata, never a Plugin request or answer member.
+
+Each invocation
 ends in exactly one terminal message, `succeeded` with the script's answer as
 `result`, or `failed` with a `failure`:
 
