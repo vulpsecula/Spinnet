@@ -5,6 +5,26 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostActivityPresentationTests: XCTestCase {
+    func testVisibleRowsRefreshWithTheActualRunLoopTimerAndPauseWhenHidden() throws {
+        let recorded = RecordedKeepAwake()
+        let owner = PluginID("clock")
+        try recorded.effects.start(KeepAwakeRequest(mode: .duration(60)), owner: owner, pluginName: "Clock")
+        let model = HostActivityListModel(activities: recorded.activities, owner: owner)
+        model.setAvailable(true)
+        model.setVisible(true)
+        recorded.advance(by: 1)
+        let visibleTick = expectation(description: "Actual run-loop timer refreshes the visible control")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { visibleTick.fulfill() }
+        wait(for: [visibleTick], timeout: 2)
+        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+        model.setVisible(false)
+        recorded.advance(by: 1)
+        let hiddenTick = expectation(description: "A hidden control stays unchanged across a timer interval")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { hiddenTick.fulfill() }
+        wait(for: [hiddenTick], timeout: 2)
+        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+    }
+
     func testVisibleOwnControlCountsSecondsAndStopsWithoutCallingPlugin() throws {
         let recorded = RecordedKeepAwake()
         let owner = PluginID("own"), other = PluginID("other")
@@ -71,6 +91,15 @@ final class HostActivityPresentationTests: XCTestCase {
         let panel = try XCTUnwrap(window)
         defer { panel.close(); recorded.effects.shutdown() }
         let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        guard panel.sourceIsVisible else {
+            throw XCTSkip("WindowServer did not report the test panel visible; live desktop acceptance remains required")
+        }
+        XCTAssertEqual(model.activityList.rows.first?.status, "60 seconds remaining")
+        recorded.advance(by: 1)
+        let visibleTick = expectation(description: "The visible panel updates using its actual one-second timer")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { visibleTick.fulfill() }
+        wait(for: [visibleTick], timeout: 2)
+        XCTAssertEqual(model.activityList.rows.first?.status, "59 seconds remaining")
         let center = NSWorkspace.shared.notificationCenter
         center.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
         // While hidden there is neither countdown nor registry delivery.
@@ -81,9 +110,8 @@ final class HostActivityPresentationTests: XCTestCase {
         wait(for: [waited], timeout: 2)
         XCTAssertEqual(model.activityList.rows, hiddenRows)
         center.post(name: NSWorkspace.screensDidWakeNotification, object: nil)
-        if panel.sourceIsVisible {
-            XCTAssertEqual(model.activityList.rows.first?.status, "59 seconds remaining")
-        }
+        XCTAssertTrue(panel.sourceIsVisible)
+        XCTAssertEqual(model.activityList.rows.first?.status, "58 seconds remaining")
         panel.close()
         XCTAssertEqual(recorded.power.count, 2, "Closing the actual panel does not stop its Effect")
     }
