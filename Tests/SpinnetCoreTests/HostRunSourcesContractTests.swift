@@ -42,6 +42,14 @@ final class HostRunSourcesContractTests: XCTestCase {
         let validator = try JSONSchemaSubsetValidator(definition: "source_delivered", inSchemaAt: api.appendingPathComponent("schemas/host-run-sources.schema.json"))
         XCTAssertEqual(validator.errors(for: try XCTUnwrap(missing.deliveries.first).json), [])
         missing.close()
+        let denied = try RecordedHostSources(of: plugin, for: invocation, deniedCapabilities: [.readReviewedTools],
+            operations: ["tools.read": .answer { _ in XCTFail("A denied source must not read tool data"); return packages }])
+        try denied.present(page); denied.setVisible(true)
+        XCTAssertEqual(denied.shown("name")?.text, "Capability read_reviewed_tools is not granted")
+        guard case .sourceDelivered(_, _, _, nil, let refusal)? = denied.deliveries.first else { return XCTFail("Expected tool authority failure") }
+        XCTAssertEqual(refusal?.category, .capabilityDenied)
+        XCTAssertEqual(refusal?.message, "Capability read_reviewed_tools is not granted")
+        denied.close()
         var periodic = try XCTUnwrap(page.value(atPointer: "/sources/0"))
         guard case .object(var fields) = periodic else { return XCTFail("Expected source definition") }
         fields["every"] = .number(1); periodic = .object(fields)
