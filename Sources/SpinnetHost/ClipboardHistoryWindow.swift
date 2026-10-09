@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import SpinnetCore
 
@@ -14,6 +15,7 @@ final class ClipboardHistoryWindowModel: ObservableObject {
     @Published private(set) var accessDenied = false
     @Published private(set) var isLoading = false
     @Published private(set) var isLoadingMore = false
+    @Published var isPinned = false
     /// Counts requests to give the list the keyboard, such as when a detail
     /// opened from it closes.
     @Published private(set) var listFocusRequests = 0
@@ -180,6 +182,14 @@ struct ClipboardHistoryView: View {
                 .padding(.horizontal, 8).padding(.vertical, 5)
                 .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 if busy { ProgressView().controlSize(.small) }
+                Button { model.isPinned.toggle() } label: {
+                    Image(systemName: model.isPinned ? "pin.fill" : "pin")
+                        .rotationEffect(.degrees(45))
+                        .foregroundStyle(model.isPinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.borderless)
+                .help(model.isPinned ? "Unpin" : "Keep this view open")
+                .accessibilityLabel(PluginViewModel.pinLabel(model.isPinned))
                 Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh")
                     .keyboardShortcut("r", modifiers: .command)
@@ -389,6 +399,11 @@ private struct ListKeys: ViewModifier {
 
 final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     let model: ClipboardHistoryWindowModel
+    let pluginID: PluginID
+    private let pins: PluginViewPins
+    private var pinWatch: AnyCancellable?
+    private var screenObserver: NSObjectProtocol?
+    private var isPasting = false
     private let grants: PluginCapabilityGrantStore
     private var observer: UUID?
     private let restoration: (UUID) throws -> [ClipboardHistoryRestoredItem]
@@ -406,7 +421,8 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     private(set) var previousApplication: NSRunningApplication?
     private var activationObserver: NSObjectProtocol?
 
-    init(grants: PluginCapabilityGrantStore, query: @escaping (Int) throws -> ClipboardHistorySnapshot,
+    init(pluginID: PluginID, pins: PluginViewPins = PluginViewPins(defaults: nil),
+         grants: PluginCapabilityGrantStore, query: @escaping (Int) throws -> ClipboardHistorySnapshot,
          restoration: @escaping (UUID) throws -> [ClipboardHistoryRestoredItem],
          openPrivacy: @escaping () -> Void, openPluginSettings: @escaping () -> Void,
          openIgnoredApplications: @escaping () -> Void,
@@ -415,17 +431,23 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
          saveText: @escaping (UUID, String, _ asNew: Bool, @escaping (String?) -> Void) -> Void = { $3(nil) },
          notify: @escaping (String) -> Void,
          paster: ClipboardHistoryPaster = ClipboardHistoryPaster()) {
+        self.pluginID = pluginID
+        self.pins = pins
         self.grants = grants
         self.restoration = restoration
         self.saveText = saveText
         self.notify = notify
         self.paster = paster
         model = ClipboardHistoryWindowModel(query: query)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
-                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        model.isPinned = pins.isPinned(pluginID)
+        let window = ClipboardHistoryPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
+                              styleMask: [.titled, .closable, .resizable, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Clipboard History"
         window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.hidesOnDeactivate = false
+        window.becomesKeyOnlyIfNeeded = false
         window.delegate = self
         window.contentView = NSHostingView(rootView: ClipboardHistoryView(model: model, openPrivacy: openPrivacy,
             openPluginSettings: openPluginSettings, openIgnoredApplications: openIgnoredApplications, clearHistory: clearHistory,
@@ -434,6 +456,22 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
             toggle: { [weak self] copy in self?.toggle(copy) },
             loadPreview: { [weak self] copyID in await self?.preview(of: copyID) }, deleteCopies: deleteCopies))
         window.center()
+        window.isFloatingPanel = model.isPinned
+        window.level = model.isPinned ? .floating : .normal
+        pinWatch = model.$isPinned.dropFirst().removeDuplicates().sink { [weak self] pinned in
+            guard let self else { return }
+            window.isFloatingPanel = pinned
+            window.level = pinned ? .floating : .normal
+            self.details.values.forEach { $0.floats = pinned }
+            pins.setPinned(pinned, for: pluginID)
+            if pinned { self.rememberGeometry() }
+        }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.window?.isVisible == true else { return }
+            self.constrainGeometry()
+        }
         observer = grants.observeChanges { [weak self] in
             if Thread.isMainThread { self?.refreshIfVisible() }
             else { DispatchQueue.main.async { [weak self] in self?.refreshIfVisible() } }
@@ -448,15 +486,21 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
 
     required init?(coder: NSCoder) { fatalError("Not supported") }
 
-    /// Puts items on the clipboard; pasting also closes the history and sends
-    /// them to the App that was in front before it.
+    /// Pasting leaves a pinned history open, handing the keyboard back to
+    /// the most recently active external App.
     private func put(_ items: [ClipboardHistoryRestoredItem], paste: Bool) {
         guard paste else {
             notify(paster.write(items) ? "Copied to the clipboard" : "The clipboard could not be updated")
             return
         }
-        close()
+        isPasting = true
+        if model.isPinned {
+            details.values.forEach { $0.close() }
+        } else {
+            close()
+        }
         paster.paste(items, into: previousApplication) { [weak self] message in
+            self?.isPasting = false
             if let message { self?.notify(message) }
         }
     }
@@ -464,12 +508,14 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     deinit {
         if let observer { grants.removeChangeObserver(observer) }
         if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
     }
     func refreshIfVisible() {
         model.discardSnapshot()
         if window?.isVisible == true { model.refresh() }
     }
     func windowWillClose(_ notification: Notification) {
+        rememberGeometry()
         model.discardSnapshot()
         // A detail belongs to the history it was opened from.
         details.values.forEach { $0.close() }
@@ -479,12 +525,35 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
            front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             previousApplication = front
         }
+        if window?.isVisible != true {
+            if model.isPinned, let geometry = pins.geometry(for: pluginID) {
+                window?.setFrame(PluginPanelLayout.constrain(geometry.frame, to: PluginPanelScreen.current()), display: false)
+            } else {
+                window?.setContentSize(NSSize(width: 640, height: 620))
+                window?.center()
+            }
+        }
         model.refresh()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        window?.orderFrontRegardless()
+        rememberGeometry()
     }
     func windowDidBecomeKey(_ notification: Notification) { model.refresh() }
+
+    func windowDidMove(_ notification: Notification) { rememberGeometry() }
+    func windowDidResize(_ notification: Notification) { rememberGeometry() }
+
+    private func rememberGeometry() {
+        guard model.isPinned, let window, window.isVisible else { return }
+        pins.remember(PluginPanelGeometry(frame: window.frame, isUserSized: true), for: pluginID)
+    }
+
+    private func constrainGeometry() {
+        guard let window else { return }
+        window.setFrame(PluginPanelLayout.constrain(window.frame, to: PluginPanelScreen.current()), display: true)
+        rememberGeometry()
+    }
 
     /// A row's image, read from the copy's payload through the same grant as
     /// a restore and scaled to what the row shows on this display.
@@ -548,19 +617,24 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
                     if error == nil { self?.model.refresh() }
                     completion(error)
                 }
-            }))
+            }, willPaste: { [weak self] in self?.isPasting = true }))
         window.onClose = { [weak self] in
             guard let self else { return }
             self.details[copyID] = nil
+            guard !self.isPasting else { return }
             // Hand the keyboard back to the list, so Space opens it again,
             // once the close is done and unless the history closed with it.
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.window?.isVisible == true else { return }
+                guard let self, !self.isPasting, self.window?.isVisible == true else { return }
                 self.window?.makeKeyAndOrderFront(nil)
                 self.model.focusList()
             }
         }
         details[copyID] = window
+        window.floats = model.isPinned
+        if let detailWindow = window.window {
+            self.window?.addChildWindow(detailWindow, ordered: .above)
+        }
         window.present()
     }
 
@@ -573,6 +647,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
                 guard let self else { return }
                 switch result {
                 case .failure(let error):
+                    self.isPasting = false
                     self.notify(error.localizedDescription)
                 case .success(let items):
                     self.put(items, paste: paste)
@@ -580,4 +655,10 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
             }
         }
     }
+}
+
+/// Accepts history search and list input without activating the Host.
+private final class ClipboardHistoryPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override func cancelOperation(_ sender: Any?) { close() }
 }

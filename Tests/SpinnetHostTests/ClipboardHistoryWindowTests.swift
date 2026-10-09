@@ -17,6 +17,7 @@ final class ClipboardHistoryWindowTests: XCTestCase {
                               sourceName: "Notes", sourceBundleID: "notes")
         }
         let controller = ClipboardHistoryWindow(
+            pluginID: PluginID("com.example.history"),
             grants: PluginCapabilityGrantStore(),
             query: { offset in try store.query(dataTypes: ["text"], offset: offset) },
             restoration: { _ in [] }, openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {},
@@ -49,6 +50,7 @@ final class ClipboardHistoryWindowTests: XCTestCase {
         defer { controller.close() }
         let window = try XCTUnwrap(controller.window)
         _ = store
+        controller.model.isPinned = true
         func detail() -> NSWindow? { NSApp.windows.first { $0 !== window && $0.title == "space bar" && $0.isVisible } }
 
         for round in 1...3 {
@@ -56,11 +58,18 @@ final class ClipboardHistoryWindowTests: XCTestCase {
             try key(49, " ", in: window)
             pump { detail() != nil }
             let opened = try XCTUnwrap(detail(), "round \(round): space opened the copy")
+            XCTAssertEqual(opened.level, .floating, "the detail must stay above ordinary App windows with its pinned history")
+            XCTAssertTrue(opened.parent === window, "the detail stays ordered above its history")
+            controller.model.isPinned = false
+            XCTAssertEqual(opened.level, .normal, "the open detail follows Unpin")
+            controller.model.isPinned = true
+            XCTAssertEqual(opened.level, .floating, "the open detail follows Pin")
             XCTAssertEqual((opened as? NSPanel)?.becomesKeyOnlyIfNeeded, true, "the detail leaves the keyboard to the list")
             XCTAssertTrue(window.firstResponder is NSTableView, "round \(round): the list kept the keyboard")
             try key(49, " ", in: window)
             pump { detail() == nil }
             XCTAssertNil(detail(), "round \(round): space closed it")
+            XCTAssertNil(opened.parent, "closing a detail removes its window relationship")
         }
     }
 
@@ -83,7 +92,85 @@ final class ClipboardHistoryWindowTests: XCTestCase {
         XCTAssertEqual(deleted, [[selected]])
     }
 
-    private func makeWindow(texts: [String], deleteCopies: @escaping (Set<UUID>, @escaping (String?) -> Void) -> Void = { $1(nil) })
+    func testPinPersistsAcrossControllersAndUnpinKeepsTheCurrentSize() throws {
+        let suite = "Spinnet.history-pin.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let pluginID = PluginID("com.example.history")
+        let pins = PluginViewPins(defaults: defaults)
+        let (controller, _) = try makeWindow(texts: ["pinned"], pins: pins)
+        let window = try XCTUnwrap(controller.window as? NSPanel)
+        defer { controller.close() }
+        XCTAssertTrue(window.styleMask.contains(.nonactivatingPanel))
+        XCTAssertFalse(window.isRestorable)
+        XCTAssertFalse(window.hidesOnDeactivate)
+        XCTAssertEqual(window.level, .normal)
+
+        controller.model.isPinned = true
+        window.setFrame(NSRect(x: window.frame.minX + 12, y: window.frame.minY + 12, width: 720, height: 700), display: true)
+        pump()
+        let frame = window.frame
+        XCTAssertEqual(window.level, .floating)
+        XCTAssertTrue(window.isFloatingPanel)
+        controller.close()
+
+        let restoredPins = PluginViewPins(defaults: defaults)
+        XCTAssertTrue(restoredPins.isPinned(pluginID))
+        let (reopened, _) = try makeWindow(texts: ["pinned"], pins: restoredPins)
+        defer { reopened.close() }
+        let restoredWindow = try XCTUnwrap(reopened.window)
+        XCTAssertEqual(restoredWindow.frame, PluginPanelLayout.constrain(frame, to: PluginPanelScreen.current()))
+        XCTAssertEqual(restoredWindow.level, .floating)
+        let pinnedFrame = restoredWindow.frame
+        reopened.model.isPinned = false
+        XCTAssertEqual(restoredWindow.frame, pinnedFrame, "Unpin does not resize or move the window")
+        XCTAssertEqual(restoredWindow.level, .normal)
+        reopened.close()
+        reopened.present()
+        pump()
+        XCTAssertEqual(restoredWindow.contentRect(forFrameRect: restoredWindow.frame).size, NSSize(width: 640, height: 620))
+        XCTAssertFalse(PluginViewPins(defaults: defaults).isPinned(pluginID))
+        XCTAssertFalse(restoredPins.isPinned(PluginID("com.example.other")), "Pin belongs only to the requesting Plugin")
+    }
+
+    func testPastingKeepsPinnedHistoryOpenAndClosesUnpinnedHistory() throws {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let paster = ClipboardHistoryPaster(pasteboard: board, isTrusted: { false }, sendPaste: { XCTFail("No real paste in this test"); return false })
+        let (controller, _) = try makeWindow(texts: ["paste me"], paster: paster)
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        controller.model.isPinned = true
+        try key(36, "\r", in: window)
+        pump { board.string(forType: .string) == "paste me" }
+        XCTAssertEqual(board.string(forType: .string), "paste me")
+        XCTAssertTrue(window.isVisible, "Paste leaves a pinned history open")
+        XCTAssertNotNil(controller.model.snapshot)
+
+        // Closing the detail for Paste must not queue a focus return to
+        // the pinned list after the external App takes the keyboard.
+        window.makeKeyAndOrderFront(nil)
+        controller.model.focusList()
+        pump()
+        try key(49, " ", in: window)
+        pump { NSApp.windows.contains { $0 !== window && $0.title == "paste me" && $0.isVisible } }
+        XCTAssertTrue(NSApp.windows.contains { $0 !== window && $0.title == "paste me" && $0.isVisible })
+        let focusRequests = controller.model.listFocusRequests
+        try key(36, "\r", in: window)
+        pump { !NSApp.windows.contains { $0 !== window && $0.title == "paste me" && $0.isVisible } }
+        XCTAssertEqual(controller.model.listFocusRequests, focusRequests, "Paste does not focus the history again")
+        XCTAssertTrue(window.isVisible)
+
+        controller.model.isPinned = false
+        try key(36, "\r", in: window)
+        pump { !window.isVisible }
+        XCTAssertFalse(window.isVisible, "Paste closes an unpinned history")
+        XCTAssertNil(controller.model.snapshot)
+    }
+
+    private func makeWindow(texts: [String], pins: PluginViewPins = PluginViewPins(defaults: nil),
+                            paster: ClipboardHistoryPaster = ClipboardHistoryPaster(),
+                            deleteCopies: @escaping (Set<UUID>, @escaping (String?) -> Void) -> Void = { $1(nil) })
         throws -> (ClipboardHistoryWindow, ClipboardHistoryStore) {
         _ = NSApplication.shared
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -94,11 +181,12 @@ final class ClipboardHistoryWindowTests: XCTestCase {
             try store.observe(changeCount: index + 1, content: .init(text: text, type: .text), sourceName: "Notes", sourceBundleID: "notes")
         }
         let controller = ClipboardHistoryWindow(
+            pluginID: PluginID("com.example.history"), pins: pins,
             grants: PluginCapabilityGrantStore(),
             query: { offset in try store.query(dataTypes: ["text"], offset: offset) },
             restoration: { try store.restoration(copyID: $0, dataTypes: ["text"]) },
             openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {},
-            clearHistory: { $0(nil) }, deleteCopies: deleteCopies, notify: { _ in }
+            clearHistory: { $0(nil) }, deleteCopies: deleteCopies, notify: { _ in }, paster: paster
         )
         controller.present()
         pump { controller.model.snapshot != nil }
@@ -125,4 +213,5 @@ final class ClipboardHistoryWindowTests: XCTestCase {
         for subview in view.subviews { if let found = searchField(in: subview) { return found } }
         return nil
     }
+
 }

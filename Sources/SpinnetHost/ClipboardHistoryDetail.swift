@@ -72,6 +72,8 @@ struct ClipboardHistoryDetailActions {
     var restoreText: (String, _ paste: Bool) -> Void
     /// Saves edited text over the copy, or as a new copy, and reports a failure.
     var save: (String, _ asNew: Bool, _ completion: @escaping (String?) -> Void) -> Void
+    /// Stops a closing detail from returning focus to history before Paste.
+    var willPaste: () -> Void = {}
 }
 
 /// One copy's detail, in a window of its own beside Clipboard History.
@@ -93,11 +95,17 @@ final class ClipboardHistoryDetailWindow: NSWindowController, NSWindowDelegate {
         switch detail {
         case .image(let data):
             window.contentView = NSHostingView(rootView: ClipboardHistoryImageDetailView(
-                image: NSImage(data: data), source: source, restore: { paste in if paste { close() }; actions.restoreOriginal(paste) }))
+                image: NSImage(data: data), source: source, restore: { paste in
+                    if paste { actions.willPaste(); close() }
+                    actions.restoreOriginal(paste)
+                }))
         case .text(let text, let dropsOtherFormats):
             window.contentView = NSHostingView(rootView: ClipboardHistoryTextDetailView(
                 original: text, dropsOtherFormats: dropsOtherFormats, source: source,
-                restore: { text, paste in if paste { close() }; actions.restoreText(text, paste) },
+                restore: { text, paste in
+                    if paste { actions.willPaste(); close() }
+                    actions.restoreText(text, paste)
+                },
                 save: { text, asNew, completion in
                     actions.save(text, asNew) { error in
                         if error == nil { close() }
@@ -110,15 +118,29 @@ final class ClipboardHistoryDetailWindow: NSWindowController, NSWindowDelegate {
 
     required init?(coder: NSCoder) { fatalError("Not supported") }
 
+    /// A detail shares its history's Pin: it must not sit underneath the
+    /// floating history while the user is trying to edit it.
+    var floats: Bool {
+        get { (window as? NSPanel)?.isFloatingPanel ?? false }
+        set {
+            (window as? NSPanel)?.isFloatingPanel = newValue
+            window?.level = newValue ? .floating : .normal
+            if window?.isVisible == true { window?.orderFrontRegardless() }
+        }
+    }
+
     /// Shows the detail beside the list without taking the keyboard, as Quick
     /// Look does, so Space in the list closes it again. It takes the keyboard
     /// only when the user clicks into its text.
     func present() {
         window?.makeFirstResponder(nil)
-        window?.orderFront(nil)
+        window?.orderFrontRegardless()
     }
 
-    func windowWillClose(_ notification: Notification) { onClose() }
+    func windowWillClose(_ notification: Notification) {
+        if let window { window.parent?.removeChildWindow(window) }
+        onClose()
+    }
 }
 
 /// Closes on Space, as Quick Look does, when nothing in it takes the key, and

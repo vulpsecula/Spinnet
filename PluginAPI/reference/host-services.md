@@ -109,6 +109,15 @@ and returns `null`. It is the one Host Surface: the user reads their own
 history there and the Plugin learns nothing, so the granted Capability is all
 it needs, whether the Plugin is Bundled or installed.
 
+The window offers Pin as a Host preference for the requesting Plugin. A
+pinned history floats above other Apps and stays open after pasting; Paste
+still goes to the most recently active external App. Unpin returns it to the
+normal window level without changing its size. The Host remembers the Pin
+and pinned position and size across launches and Plugin updates, constrains
+them to the current screens on the next explicit opening, and forgets them
+when the Plugin is removed. Restart opens no window. Closing the window
+closes its details whether pinned or not.
+
 ### read_clipboard_history
 
 `read_clipboard_history` accepts `null` for the newest page or

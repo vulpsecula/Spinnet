@@ -27,7 +27,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         registry: registry, grants: capabilityGrants,
         persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
         storage: pluginStorage,
-        forgetHostPreferences: { [unowned self] in self.pluginViewPins.forget($0) }
+        forgetHostPreferences: { [unowned self] pluginID in
+            if self.clipboardWindow?.pluginID == pluginID {
+                self.clipboardWindow?.close()
+                self.clipboardWindow = nil
+                self.clipboardWindowAction = nil
+            }
+            self.pluginViewPins.forget(pluginID)
+        }
     )
     /// Each Plugin's Pin (ADR 0016), kept across launches and updates and
     /// forgotten when the Plugin is removed.
@@ -35,6 +42,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var clipboardStore: ClipboardHistoryStore!
     private var clipboardCollector: ClipboardCollector?
     private var clipboardWindow: ClipboardHistoryWindow?
+    private var clipboardWindowAction: ActionConfiguration?
     private var clipboardBroker: CapabilityCheckedHostServiceBroker!
     private var actionRunner: HostActionRunner!
     private var pluginRuntime: PluginRuntimeSupervisor?
@@ -789,8 +797,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentClipboardHistory(package: PluginPackage, action: ActionConfiguration) {
+        if clipboardWindowAction == action, let clipboardWindow,
+           clipboardWindow.model.isPinned, clipboardWindow.window?.isVisible == true {
+            clipboardWindow.present()
+            return
+        }
         clipboardWindow?.close()
-        clipboardWindow = ClipboardHistoryWindow(grants: capabilityGrants, query: { [weak self] offset in
+        clipboardWindowAction = action
+        clipboardWindow = ClipboardHistoryWindow(pluginID: action.pluginID, pins: pluginViewPins,
+            grants: capabilityGrants, query: { [weak self] offset in
             guard let self else { throw PluginHostServiceError.unavailable("Host closed") }
             guard self.registry.availability(for: action).isAvailable,
                   let currentPackage = self.registry.package(for: action.pluginID) else {
