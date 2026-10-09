@@ -1,0 +1,10 @@
+{
+  "type": "source_delivered",
+  "page": "weather",
+  "source": "remote",
+  "sequence": 1,
+  "failure": {
+    "category": "tool_missing",
+    "message": "Homebrew is unavailable."
+  }
+}

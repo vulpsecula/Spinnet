@@ -33,7 +33,7 @@ public final class RecordedHostSources {
 
     public init(of plugin: PluginUnderTest, for invocation: PluginTestInvocation,
                 responses: [String: HTTPSTransportResponse] = [:], secrets: [String: String] = [:],
-                deniedCapabilities: Set<PluginCapability> = []) throws {
+                deniedCapabilities: Set<PluginCapability> = [], operations: [String: RecordedHostServices.Answer] = [:]) throws {
         self.plugin = plugin; self.invocation = invocation
         action = try plugin.action(for: invocation)
         transport = Transport(responses)
@@ -49,7 +49,15 @@ public final class RecordedHostSources {
         for (reference, secret) in secrets { try credentials.setSecret(secret, for: plugin.manifest.id, reference: reference) }
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, httpsTransport: transport, credentialStore: credentials)
-        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry)],
+        let tools = broker.reviewedToolSourceAdapter(using: registry)
+        let recorded = RecordedHostServices(operations: operations)
+        let toolSource = HostSourceAdapter(deadline: tools.deadline, ownerIdentity: tools.ownerIdentity, authorize: tools.authorize,
+            sample: { action, source, cancellation in
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
+                return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
+                    actionID: action.id, service: .reviewedToolRead, input: source.input, operation: ReviewedToolReads.id), for: plugin.package, action: action)
+            })
+        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource],
             now: { [weak self] in self?.clock ?? 0 }, schedule: { [weak self] delay, task in
                 guard let self else { return }; self.timers.append((self.clock + delay, task))
             }, background: { $0() }, executor: { $0() })

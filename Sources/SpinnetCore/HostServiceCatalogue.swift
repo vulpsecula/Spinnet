@@ -322,7 +322,7 @@ public enum HostServiceCatalogue {
         define(KeepAwakeAddition.listID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
         define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo],
                input: ["id"]),
-        define(ReviewedToolReads.id, [.call: levelTwo, .source: .reserved, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
+        define(ReviewedToolReads.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
                input: ["tool", "operation", "kind", "greedy", "query", "names"]),
         reserve("tools.startTask", at: [.viewAction, .request])

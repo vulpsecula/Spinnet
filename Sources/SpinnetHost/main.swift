@@ -667,7 +667,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             executor: { DispatchQueue.main.async(execute: $0) }
         )
         self.fetchedSections = fetchedSections
-        let sources = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry)],
+        let sources = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry),
+            ReviewedToolReads.id: broker.reviewedToolSourceAdapter(using: registry)],
             schedule: { delay, operation in
                 let timer = Timer(timeInterval: delay, repeats: false) { _ in operation() }
                 timer.tolerance = delay * 0.1

@@ -55,7 +55,8 @@ lists every Level 1 name and its ID.
 | Answer | The answer's `toast` and `close` members | When the answer commits |
 | Source | A Host-Fetched Section's `fetch.request` | While the view shows the section |
 
-An operation that returns data is offered as a call only. An effect with no
+An operation that returns data is offered as a call, and may also be offered as
+a visible-page source when the catalogue publishes its bounded read lifecycle. An effect with no
 result is offered as a Command, a page action and a request, with the same
 input. An effect is also offered as a call when it completes inside the
 invocation and needs neither a Host Confirmation nor a target the Host
@@ -328,4 +329,4 @@ until a later Level adds it.
 | `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
 | `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
 | `system.metrics` | #86 | Basic metrics while the view is visible |
-| `tools.read`, `tools.startTask` | #87, #88 | Reviewed tool profiles such as Homebrew |
+| `tools.startTask` | #88 | Mutating reviewed tool tasks such as Homebrew |

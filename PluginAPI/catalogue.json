@@ -2074,9 +2074,8 @@
           "reason": "It returns data, which only a script can use"
         },
         "source": {
-          "status": "reserved",
-          "owner": "#82",
-          "reason": "Host-run sources add the visible-page lifecycle"
+          "status": "level2",
+          "note": "Once-only visible-page reads; 15-second deadline, cancellation on hide/close (reference/tools.md)"
         }
       },
       "level1": []

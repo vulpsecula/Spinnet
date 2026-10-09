@@ -1,6 +1,8 @@
 # Reviewed Homebrew reads (Plugin API Level 2)
 
-`spinnet.tools.read(input)` reads existing local Homebrew data. `tools.startTask` remains reserved (#88). Only the call entry point is offered here; visible-page sources have their own lifecycle (#82).
+`spinnet.tools.read(input)` reads existing local Homebrew data. `tools.startTask` remains reserved (#88). Both calls and once-only visible-page sources are offered; sources follow the [visible-page lifecycle](sources.md).
+
+`spinnet.tools.read.source(id, input, {deliver: true})` builds a page source with the same input and result as a call. `deliver` is optional and may select a result pointer. A source has a **15 second** deadline including admission and all subprocesses. It samples once, refuses `every`, and stops its process group on hide, close, owner invalidation or revocation, discarding late results. A successful source does not repeat on hide/show; a cancelled incomplete source may resume when shown. Source definitions added in non-gesture answers wait at least one second before sampling. This grants no background schedule or additional authority. Its four typed tool failures appear in `source_delivered.failure` when delivery is requested.
 
 Declare `read_reviewed_tools` with a concrete `capability_scopes` entry. Its `reviewed_tools` array names `{"tool":"homebrew","operations":["installed","outdated","search","info"],"kinds":["formula","cask"]}`. Limit either list to the operations and kinds the Command needs. Scope changes invalidate the previous grant. A request without `kind` reads both kinds and needs both authorized. Out-of-scope requests end the invocation before discovery or process launch.
 

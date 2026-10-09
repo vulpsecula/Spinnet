@@ -765,7 +765,7 @@ export interface ScreenNamespace {
 
 export interface HTTPNamespace {
   /** One HTTPS request with Credential Uses. @id http.request @entry call */
-  readonly request: Callable<"http.request"> & { source(id: ID, input: HTTPSRequest, options?: SourceOptions): Source };
+  readonly request: Callable<"http.request"> & { source(id: ID, input: HTTPSRequest, options?: SourceOptions): HTTPSource };
 }
 
 export interface TextNamespace {
@@ -861,20 +861,22 @@ export interface ReviewedToolReadResult {
   packages: ReviewedPackage[]; not_found?: string[]; truncated?: true;
 }
 export interface ToolsNamespace {
-  /** A 3 second local read. No refresh, install or upgrade. @id tools.read @entry call */
-  read(input: ReviewedToolReadInput): ReviewedToolReadResult;
+  /** A 3 second local call or once-only 15 second visible-page source. No refresh, install or upgrade. @id tools.read @entry call */
+  readonly read: Callable<"tools.read"> & { source(id: ID, input: ReviewedToolReadInput, options?: Pick<SourceOptions, "deliver">): ToolSource };
 }
 
 export type ReviewedToolReadErrorCode = "tool_missing" | "tool_timed_out" | "tool_failed" | "output_too_large";
 export interface ReviewedToolReadError extends Error { readonly code: ReviewedToolReadErrorCode; }
 
-/** Host-run sources (#82); HTTPS samples once and forbids every. */
-export type SourceID = "http.request";
+/** Host-run sources (#82, #87); HTTPS and Homebrew sample once and forbid every. */
+export type SourceID = "http.request" | "tools.read";
 export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
-export interface Source { id: ID; perform: SourceID; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
+export interface HTTPSource { id: ID; perform: "http.request"; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
+export interface ToolSource { id: ID; perform: "tools.read"; input: ReviewedToolReadInput; deliver?: { pointer?: string }; }
+export type Source = HTTPSource | ToolSource;
 export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
 export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
-export type SourceResult = HTTPSResponse & { json?: JSONValue };
+export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult;
 /** Not a gesture; requesting an operation in its answer is refused. */
 export type SourceDeliveredEvent = { type: "source_delivered"; page: ID; source: ID; sequence: number } &
-  ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out"; message: string }; result?: never });
+  ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out" | ReviewedToolReadErrorCode; message: string }; result?: never });

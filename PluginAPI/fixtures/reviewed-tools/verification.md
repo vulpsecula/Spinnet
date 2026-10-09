@@ -16,3 +16,15 @@ Native subprocess regression launches a fixture with a child holding inherited s
 An independent project at `/private/tmp/brew87-public-package` uses only `SpinnetCore` and `SpinnetPluginTestKit` public imports plus copied Plugin SDK fixture scripts. Its Measure executable runs actual Host profile reads; its external tests record lists and all four typed read failures through the real helper. The project must pin the final integration revision before archival or reuse.
 
 Limits: no second Mac without Homebrew was available; missing-tool behavior is injected at the public fixture boundary and executable discovery is fixed-path only. Homebrew mutation and long-task cancellation remain #88; the final Homebrew Plugin UX remains #93. The full native app build and integrated suite belong to the integration branch.
+
+Review fixes (10 October 2026) add the once-only `tools.read` source after #82.
+The real-helper package builds its published source, then recorded Host sampling
+renders its projected name and delivers a typed missing-tool failure without
+another helper invocation. The real broker source adapter passes a 15-second
+deadline, forwards cancellation on hide, drops the late result and resumes an
+incomplete read after the one-second floor. A native subprocess fixture verifies
+cancellation kills a child still holding stdout after its leader has exited;
+its delayed marker is absent. Optional out-of-scope reads remain terminal with
+both granted and denied grants and never discover or launch Homebrew. A valid
+denied optional grant remains catchable. Literal budget guards quote the committed
+source and tool reference pages in `DocumentedBudgetsTests`.

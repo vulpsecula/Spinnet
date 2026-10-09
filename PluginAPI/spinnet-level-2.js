@@ -137,6 +137,7 @@
       error_pointer: o.errorPointer, status_messages: o.statusMessages });
   }
   sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
+  sdk.tools.read.source = function (id, input, value) { validateToolRead(input); return source(id, "tools.read", input, value); };
   for (const name of Object.keys(sdk)) sdk[name] = Object.freeze(sdk[name]);
 
   function collection(kind, o) {

@@ -94,7 +94,7 @@ final class ReviewedAppInterfaceTests: XCTestCase {
         let cases: [(String, JSONValue, PluginHostServiceError)] = [
             ("an app outside the scope", operation("translateText", bundleID: "com.example.other",
                                                     arguments: ["text": .string("x")]),
-             .capabilityDenied(.controlExternalApp)),
+             .capabilityScopeDenied(.controlExternalApp)),
             ("an app without a Reviewed App Interface", operation("translate", bundleID: "com.example.unreviewed"),
              .externalAppOperationUnsupported("com.example.unreviewed has no Apple Events interface Spinnet has reviewed")),
             ("an operation the interface lacks", operation("deleteHistory"),
@@ -127,7 +127,7 @@ final class ReviewedAppInterfaceTests: XCTestCase {
         let broker = broker(for: package) { sent.append($0) }
 
         XCTAssertThrowsError(try perform(operation("snipTranslate"), with: broker, in: package)) { error in
-            XCTAssertEqual(error as? PluginHostServiceError, .capabilityDenied(.controlExternalApp))
+            XCTAssertEqual(error as? PluginHostServiceError, .capabilityScopeDenied(.controlExternalApp))
         }
         XCTAssertTrue(sent.isEmpty)
     }

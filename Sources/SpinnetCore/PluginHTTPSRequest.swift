@@ -341,7 +341,7 @@ struct PluginHTTPSRequestPerformer {
         }
         guard consentedHosts.contains(host) else {
             if isRedirect { throw PluginHostServiceError.failed("The server redirected to \(host), which is outside the consented hosts") }
-            throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
+            throw PluginHostServiceError.capabilityScopeDenied(.contactHTTPS)
         }
     }
 

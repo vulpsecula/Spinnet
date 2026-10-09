@@ -3,13 +3,15 @@ import Darwin
 
 public enum ReviewedToolReads {
     public static let id = "tools.read"
-    public static let members: [PluginInterfaceMember] = [.hostService(id)]
+    public static let members: [PluginInterfaceMember] = [.hostService(id), .source(id)]
     public static let callDeadline: TimeInterval = 3
     public static let sourceDeadline: TimeInterval = 15
     public static let stdoutBytes = 4 * 1024 * 1024
     public static let stderrBytes = 64 * 1024
     public static let resultBytes = 512 * 1024
     public static let maximumPackages = 2000
+    public static let maximumConcurrentReadsPerPlugin = 1
+    public static let maximumConcurrentReads = 2
 }
 
 /// Validates the complete typed request before any executable discovery or process launch.
@@ -54,16 +56,16 @@ public struct HomebrewReadInput {
     public func authorize(in scope: PluginCapabilityScope?) throws {
         guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }),
               tool.operations.contains(operation), kinds.allSatisfy(tool.kinds.contains) else {
-            throw PluginHostServiceError.capabilityDenied(.readReviewedTools)
+            throw PluginHostServiceError.capabilityScopeDenied(.readReviewedTools)
         }
     }
-    public func arguments(kind: String? = nil) -> [String] {
+    public func arguments(kind: String? = nil, names: [String]? = nil) -> [String] {
         let flag = (kind ?? self.kind).map { ["--" + $0] } ?? []
         switch operation {
         case "installed": return ["info", "--json=v2", "--installed"] + flag
         case "outdated": return ["outdated", "--json=v2"] + flag + (greedy ? ["--greedy"] : [])
         case "search": return ["search"] + flag + ["--", query!]
-        default: return ["info", "--json=v2"] + flag + ["--"] + names
+        default: return ["info", "--json=v2"] + flag + ["--"] + (names ?? self.names)
         }
     }
 }
@@ -77,11 +79,15 @@ private final class HomebrewReadAdmission {
     static let shared = HomebrewReadAdmission()
     let condition = NSCondition()
     var owners = Set<PluginID>()
-    func take(_ owner: PluginID, until deadline: Date) throws {
+    func take(_ owner: PluginID, until deadline: Date, cancellation: HostFetchedSections.Cancellation) throws {
         condition.lock(); defer { condition.unlock() }
-        while owners.contains(owner) || owners.count >= 2 {
-            guard condition.wait(until: deadline) else { throw PluginHostServiceError.tool(.timedOut) }
+        while owners.filter({ $0 == owner }).count >= ReviewedToolReads.maximumConcurrentReadsPerPlugin
+            || owners.count >= ReviewedToolReads.maximumConcurrentReads {
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
+            guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
+            _ = condition.wait(until: min(deadline, Date().addingTimeInterval(0.05)))
         }
+        guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
         guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
         owners.insert(owner)
     }
@@ -89,10 +95,15 @@ private final class HomebrewReadAdmission {
 }
 public final class HomebrewReadProfile {
     public typealias Executor = (URL, [String], [String: String], Date) throws -> HomebrewReadOutput
+    public typealias CancellableExecutor = (URL, [String], [String: String], Date, HostFetchedSections.Cancellation) throws -> HomebrewReadOutput
     private let executable: () throws -> URL
-    private let execute: Executor
-    public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: @escaping Executor = HomebrewReadProfile.execute) {
-        self.executable = executable; self.execute = execute
+    private let execute: CancellableExecutor
+    public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil) {
+        self.executable = executable
+        self.execute = execute.map { operation in { executable, arguments, environment, deadline, _ in try operation(executable, arguments, environment, deadline) } } ?? Self.executeCancellable
+    }
+    public init(executable: @escaping () throws -> URL, executeCancellable: @escaping CancellableExecutor) {
+        self.executable = executable; self.execute = executeCancellable
     }
     public static func discover() throws -> URL {
         for path in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
@@ -117,9 +128,10 @@ public final class HomebrewReadProfile {
         for key in ["NO_AUTO_UPDATE", "NO_ANALYTICS", "NO_ENV_HINTS", "NO_COLOR", "NO_EMOJI", "NO_GITHUB_API", "NO_SUDO", "NO_INSECURE_REDIRECT"] { result["HOMEBREW_" + key] = "1" }
         return result
     }
-    public func read(_ input: JSONValue, owner: PluginID, timeout: TimeInterval = ReviewedToolReads.callDeadline, stillAuthorized: () throws -> Void = {}) throws -> JSONValue {
+    public func read(_ input: JSONValue, owner: PluginID, timeout: TimeInterval = ReviewedToolReads.callDeadline,
+                     cancellation: HostFetchedSections.Cancellation = .init(), stillAuthorized: () throws -> Void = {}) throws -> JSONValue {
         let request = try HomebrewReadInput(input), deadline = Date().addingTimeInterval(min(timeout, ReviewedToolReads.sourceDeadline))
-        try stillAuthorized(); try HomebrewReadAdmission.shared.take(owner, until: deadline)
+        try stillAuthorized(); try HomebrewReadAdmission.shared.take(owner, until: deadline, cancellation: cancellation)
         defer { HomebrewReadAdmission.shared.release(owner) }
         try stillAuthorized()
         let executable = try executable()
@@ -128,8 +140,9 @@ public final class HomebrewReadProfile {
         while !runs.isEmpty {
             let (kind, names) = runs.removeFirst()
             try stillAuthorized()
-            let arguments = request.operation == "info" ? ["info", "--json=v2", "--" + kind!, "--"] + names : request.arguments(kind: kind)
-            let output = try execute(executable, arguments, Self.environment, deadline)
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
+            let arguments = request.arguments(kind: kind, names: names)
+            let output = try execute(executable, arguments, Self.environment, deadline, cancellation)
             guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
             try stillAuthorized()
             guard output.stdout.count <= ReviewedToolReads.stdoutBytes, output.stderr.count <= ReviewedToolReads.stderrBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
@@ -217,6 +230,10 @@ public final class HomebrewReadProfile {
     }
     /// A separate process group, bounded pipes and no stdin. Stop attempts never undo work.
     public static func execute(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date) throws -> HomebrewReadOutput {
+        try executeCancellable(executable, arguments, environment, deadline, .init())
+    }
+    public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
+                                          _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
@@ -237,16 +254,21 @@ public final class HomebrewReadProfile {
         let argv = ([launcher] + sandboxArguments).map { strdup($0) } + [nil], env = environment.map { strdup($0.key + "=" + $0.value) } + [nil]
         defer { for item in argv + env { if let item { free(item) } } }
         var pid: pid_t = 0
+        guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
         guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
         let spawn = argv.withUnsafeBufferPointer { a in env.withUnsafeBufferPointer { e in
             posix_spawn(&pid, launcher, &actions, &attributes, UnsafeMutablePointer(mutating: a.baseAddress!), UnsafeMutablePointer(mutating: e.baseAddress!))
         } }
         guard spawn == 0 else { throw PluginHostServiceError.tool(.failed) }
+        let childGroup = pid
+        let forgetCancellation = cancellation.onCancel { kill(-childGroup, SIGKILL) }
+        defer { forgetCancellation() }
         close(out[1]); close(err[1]); out[1] = -1; err[1] = -1
         _ = fcntl(out[0], F_SETFL, O_NONBLOCK); _ = fcntl(err[0], F_SETFL, O_NONBLOCK)
         var stdout = Data(), stderr = Data(), status: Int32 = 0, ended = false, open = [true, true]
         defer { kill(-pid, SIGKILL); if !ended { while waitpid(pid, &status, 0) == -1 && errno == EINTR {} } }
         while !ended || open.contains(true) {
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
             guard Date() < deadline else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.timedOut) }
             for (index, fd) in [out[0], err[0]].enumerated() where open[index] {
                 var buffer = [UInt8](repeating: 0, count: 8192)

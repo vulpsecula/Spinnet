@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Host-run sources (Plugin API Level 2)",
-  "description": "Visible-page bounded Host-run sources (#82). HTTPS is once only. Other adapters may register through Host ownership seams; their public offerings remain reserved.",
+  "description": "Visible-page bounded Host-run sources (#82, #87). HTTPS and reviewed Homebrew reads sample once; every is refused.",
   "$defs": {
     "identifier": {
       "$ref": "./pages.schema.json#/$defs/identifier"
@@ -51,35 +51,14 @@
       }
     },
     "source": {
-      "description": "A source #82 offers: http.request. Kept, with its cadence, last result and waiting delivery, while an answer keeps the page and the handler's Command and gives it an equal definition.",
-      "type": "object",
-      "required": [
-        "id",
-        "perform",
-        "input"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/identifier"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/http_source"
         },
-        "perform": {
-          "const": "http.request"
-        },
-        "input": {
-          "$ref": "./namespaces.schema.json#/$defs/http.request.input"
-        },
-        "deliver": {
-          "$ref": "#/$defs/deliver"
-        },
-        "error_pointer": {
-          "description": "Where a bound component finds the message of a failed JSON response, as a show section's error_pointer; read in the json member of the result.",
-          "$ref": "#/$defs/pointer"
-        },
-        "status_messages": {
-          "$ref": "./host-fetched-section.schema.json#/$defs/fetch/properties/status_messages"
+        {
+          "$ref": "#/$defs/tools_source"
         }
-      }
+      ]
     },
     "text_additions": {
       "description": "The member a text component adds.",
@@ -135,7 +114,11 @@
           "enum": [
             "capability_denied",
             "host_service_failed",
-            "timed_out"
+            "timed_out",
+            "tool_missing",
+            "tool_timed_out",
+            "tool_failed",
+            "output_too_large"
           ]
         },
         "message": {
@@ -195,6 +178,61 @@
           }
         }
       ]
+    },
+    "http_source": {
+      "description": "Once-only visible-page HTTPS source.",
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "http.request"
+        },
+        "input": {
+          "$ref": "./namespaces.schema.json#/$defs/http.request.input"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        },
+        "error_pointer": {
+          "description": "Where a bound component finds the message of a failed JSON response, as a show section's error_pointer; read in the json member of the result.",
+          "$ref": "#/$defs/pointer"
+        },
+        "status_messages": {
+          "$ref": "./host-fetched-section.schema.json#/$defs/fetch/properties/status_messages"
+        }
+      }
+    },
+    "tools_source": {
+      "description": "Once-only visible-page reviewed Homebrew read; every is refused.",
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "tools.read"
+        },
+        "input": {
+          "$ref": "./reviewed-tools.schema.json#/$defs/tools.read.input"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        }
+      }
     }
   }
 }
