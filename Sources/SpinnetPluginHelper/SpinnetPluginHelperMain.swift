@@ -95,7 +95,7 @@ struct SpinnetPluginHelperMain {
                     inputJSON: inputJSON
                 )
             } catch let error as PluginRuntimeHostServiceClientError
-                        where error.failure.category.isCatchableByScript {
+                        where error.failure.category.isCatchableByScript || error.optionalCapabilityDenied {
                 // A failure that harms nothing, such as a Plugin Storage write
                 // over a limit, is thrown into the script as an Error with the
                 // failure's category as its `code`, for it to catch.
@@ -279,6 +279,7 @@ struct SpinnetPluginHelperMain {
 
 private struct PluginRuntimeHostServiceClientError: Error {
     let failure: PluginRuntimeFailure
+    var optionalCapabilityDenied = false
 }
 
 private final class PluginRuntimeHostServiceClient {
@@ -359,7 +360,8 @@ private final class PluginRuntimeHostServiceClient {
                 let resultData = try JSONEncoder().encode(result)
                 return String(decoding: resultData, as: UTF8.self)
             case .failed(let failure):
-                throw PluginRuntimeHostServiceClientError(failure: failure)
+                throw PluginRuntimeHostServiceClientError(failure: failure,
+                                                         optionalCapabilityDenied: response.optionalCapabilityDenied)
             }
         } catch let error as PluginRuntimeHostServiceClientError {
             throw error

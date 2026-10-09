@@ -112,6 +112,97 @@ final class SpinnetSDKTests: XCTestCase {
         XCTAssertEqual(run.requests.map(\.service), [.writeClipboard])
     }
 
+    func testOptionalCapabilityDenialCanBeCaughtBeforeAnIndependentGrantedOperation() throws {
+        let plugin = try writePlugin(capabilities: ["read_selected_text", "write_clipboard"],
+                                     optional: ["read_selected_text"], script: """
+            (() => {
+              try { spinnet.selection.readText(); }
+              catch (error) {
+                if (error.code !== "capability_denied") throw error;
+                spinnet.clipboard.write("manual input");
+                return "continued safely";
+              }
+              return "unexpected read";
+            })()
+            """)
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .failure(.capabilityDenied(.readSelectedText)),
+            .writeClipboard: .value(.null)
+        ]))
+        XCTAssertEqual(try run.result.get(), .string("continued safely"))
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText, .writeClipboard])
+    }
+
+    func testOptionalSystemPermissionDenialStillEndsInvocation() throws {
+        let plugin = try writePlugin(capabilities: ["read_selected_text", "write_clipboard"],
+                                     optional: ["read_selected_text"], script: """
+            (() => {
+              try { spinnet.selection.readText(); } catch (error) {}
+              spinnet.clipboard.write("must not reach here");
+              return "continued";
+            })()
+            """)
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .failure(.systemPermissionDenied(.accessibility)),
+            .writeClipboard: .value(.null)
+        ]))
+        XCTAssertEqual(failureOf(run)?.failureCategory, .systemPermissionDenied)
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText])
+    }
+
+    func testDeclaredRequiredDenialCannotFallThroughEvenAlongsideAnOptionalCapability() throws {
+        let plugin = try writePlugin(capabilities: ["read_selected_text", "write_clipboard"],
+                                     optional: ["write_clipboard"], script: """
+            (() => {
+              try { spinnet.selection.readText(); } catch (error) {}
+              spinnet.clipboard.write("must not reach here");
+              return "continued";
+            })()
+            """)
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .failure(.capabilityDenied(.readSelectedText)),
+            .writeClipboard: .value(.null)
+        ]))
+        XCTAssertEqual(failureOf(run)?.failureCategory, .capabilityDenied)
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText])
+    }
+
+    func testOptionalCapabilityOutsideCommandScopeCannotBeCaught() throws {
+        let source = try writePlugin(capabilities: ["read_selected_text", "write_clipboard"],
+                                     optional: ["read_selected_text"], script: """
+            (() => {
+              try { spinnet.selection.readText(); } catch (error) {}
+              spinnet.clipboard.write("must not reach here");
+              return "continued";
+            })()
+            """)
+        let manifestURL = source.package.rootURL.appendingPathComponent("manifest.json")
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        var commands = try XCTUnwrap(manifest["commands"] as? [[String: Any]])
+        var second = commands[0]
+        second["id"] = "example.other"
+        commands.append(second)
+        manifest["commands"] = commands
+        manifest["capability_scopes"] = [["capability": "read_selected_text", "command_ids": ["example.other"],
+            "data_types": [], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []]]
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
+        let plugin = try PluginUnderTest(packageAt: source.package.rootURL)
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .value(.string("private")), .writeClipboard: .value(.null)
+        ]))
+        XCTAssertEqual(failureOf(run)?.failureCategory, .capabilityDenied)
+        XCTAssertEqual(run.requests.map(\.service), [.readSelectedText])
+    }
+
+    func testUncaughtOptionalDenialKeepsCapabilityFailureCategory() throws {
+        let plugin = try writePlugin(capabilities: ["read_selected_text"], optional: ["read_selected_text"],
+                                     script: "spinnet.selection.readText()")
+        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
+            .readSelectedText: .failure(.capabilityDenied(.readSelectedText))
+        ]))
+        XCTAssertEqual(failureOf(run)?.failureCategory, .capabilityDenied)
+    }
+
     /// `requestHostService` stays as the raw call beside the SDK.
     func testTheRawCallRemains() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text"], script: """
@@ -506,16 +597,18 @@ final class SpinnetSDKTests: XCTestCase {
     }
 
     /// A one-Command package in a temporary directory, removed after the test.
-    private func writePlugin(capabilities: [String], script: String) throws -> PluginUnderTest {
+    private func writePlugin(capabilities: [String], optional: [String] = [], script: String) throws -> PluginUnderTest {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpinnetSDK-\(UUID().uuidString).spinnetplugin", isDirectory: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let list = capabilities.map { "\"\($0)\"" }.joined(separator: ", ")
+        let optionalList = optional.map { "\"\($0)\"" }.joined(separator: ", ")
         try """
         {
           "protocol_version": "1.0", "id": "com.example.sdk", "name": "SDK Example", "version": "1.0.0",
           "capabilities": [\(list)],
+          "optional_capabilities": [\(optionalList)],
           "commands": [
             {"id": "example.run", "title": "Run", "execution": "javascript", "is_configurable": false, "script": "run.js"}
           ]

@@ -225,6 +225,19 @@ final class PluginRuntimeTests: XCTestCase {
         XCTAssertThrowsError(try PluginRuntimeProtocol.encodeInvocation(above))
     }
 
+    func testOptionalDenialMetadataCannotMakeOtherFailuresRecoverable() throws {
+        for outcome in [PluginRuntimeHostServiceOutcome.succeeded(.null),
+                        .failed(PluginRuntimeFailure(category: .systemPermissionDenied, message: "No System Permission"))] {
+            let response = PluginRuntimeHostServiceResponse(invocationID: "invocation-1", actionID: ActionID("action-1"),
+                requestID: "request-1", outcome: outcome, optionalCapabilityDenied: true)
+            XCTAssertThrowsError(try PluginRuntimeProtocol.encodeHostServiceResponse(response))
+        }
+        let response = PluginRuntimeHostServiceResponse(invocationID: "invocation-1", actionID: ActionID("action-1"),
+            requestID: "request-1", outcome: .failed(PluginRuntimeFailure(category: .capabilityDenied, message: "No optional grant")),
+            optionalCapabilityDenied: true)
+        XCTAssertEqual(try PluginRuntimeProtocol.decodeHostServiceResponse(PluginRuntimeProtocol.encodeHostServiceResponse(response)), response)
+    }
+
     func testResponseMessageLimitAcceptsAtMostOneMiB() throws {
         let makeResponse: (String) -> PluginRuntimeResponse = { value in
             PluginRuntimeResponse(

@@ -261,6 +261,11 @@ public enum PluginRuntimeProtocol {
         try validateIdentifier(response.invocationID, named: "Invocation ID")
         try validateIdentifier(response.actionID.rawValue, named: "Action ID")
         try validateIdentifier(response.requestID, named: "Host Service request ID")
+        if response.optionalCapabilityDenied {
+            guard case .failed(let failure) = response.outcome, failure.category == .capabilityDenied else {
+                throw PluginRuntimeError.protocolViolation("Optional Capability recovery requires a Capability denial")
+            }
+        }
         if case .failed(let failure) = response.outcome {
             guard !failure.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw PluginRuntimeError.protocolViolation("Host Service failure has no message")
@@ -704,19 +709,24 @@ public struct PluginRuntimeHostServiceResponse: Codable, Equatable, Hashable {
     public let actionID: ActionID
     public let requestID: String
     public let outcome: PluginRuntimeHostServiceOutcome
+    /// Set only by the Host for a denied optional Capability declared by the
+    /// current Command. Helpers cannot use this to grant a later request.
+    public let optionalCapabilityDenied: Bool
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
         invocationID: String,
         actionID: ActionID,
         requestID: String,
-        outcome: PluginRuntimeHostServiceOutcome
+        outcome: PluginRuntimeHostServiceOutcome,
+        optionalCapabilityDenied: Bool = false
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
         self.actionID = actionID
         self.requestID = requestID
         self.outcome = outcome
+        self.optionalCapabilityDenied = optionalCapabilityDenied
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -726,6 +736,7 @@ public struct PluginRuntimeHostServiceResponse: Codable, Equatable, Hashable {
         case actionID = "action_id"
         case requestID = "request_id"
         case outcome
+        case optionalCapabilityDenied = "optional_capability_denied"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -740,6 +751,7 @@ public struct PluginRuntimeHostServiceResponse: Codable, Equatable, Hashable {
         try container.encode(actionID, forKey: .actionID)
         try container.encode(requestID, forKey: .requestID)
         try container.encode(outcome, forKey: .outcome)
+        if optionalCapabilityDenied { try container.encode(true, forKey: .optionalCapabilityDenied) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -758,7 +770,8 @@ public struct PluginRuntimeHostServiceResponse: Codable, Equatable, Hashable {
             outcome: try container.decode(
                 PluginRuntimeHostServiceOutcome.self,
                 forKey: .outcome
-            )
+            ),
+            optionalCapabilityDenied: try container.decodeIfPresent(Bool.self, forKey: .optionalCapabilityDenied) ?? false
         )
         try PluginRuntimeProtocol.validate(response)
         self = response
@@ -1588,6 +1601,13 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                         outcome: .succeeded(result)
                     )
                 } catch let error as PluginHostServiceError {
+                    let optionalDenial: Bool
+                    if case .capabilityDenied(let capability) = error,
+                       package.manifest.optionalCapabilities.contains(capability),
+                       package.manifest.declares(capability, for: action.commandID),
+                       (try? resolved.get().service.requiredCapability) == capability {
+                        optionalDenial = true
+                    } else { optionalDenial = false }
                     response = PluginRuntimeHostServiceResponse(
                         invocationID: request.invocationID,
                         actionID: request.actionID,
@@ -1595,7 +1615,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                         outcome: .failed(PluginRuntimeFailure(
                             category: error.runtimeFailureCategory,
                             message: error.localizedDescription
-                        ))
+                        )),
+                        optionalCapabilityDenied: optionalDenial
                     )
                 } catch {
                     response = PluginRuntimeHostServiceResponse(
