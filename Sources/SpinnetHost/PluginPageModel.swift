@@ -79,6 +79,10 @@ final class PluginPageModel: ObservableObject {
     private var toastCount = 0
     private var targetChanges: AnyCancellable?
     private let environment: PluginViewEnvironment
+    func sourcesChanged() { objectWillChange.send() }
+    func sourceText(_ id: String) -> HostSourceShown? {
+        environment.sources?.shown(component: id, pluginID: session.pluginID)
+    }
     /// Reads a text field's caret where it is being edited.
     private var carets: [String: () -> PluginPageCaret?] = [:]
     /// The views that take the keyboard, by component.

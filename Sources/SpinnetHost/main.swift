@@ -115,6 +115,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// The Host-Fetched Sections of those sessions' views. The renderer
     /// presents each view's sections to it (W11 #58).
     private var fetchedSections: HostFetchedSections!
+    private var sources: HostRunSources!
+    private var sourceGrantObserver: UUID?
     private var pluginQueues: [PluginID: DispatchQueue] = [:]
     private let actionInvocationQueue = DispatchQueue(
         label: "com.vulpsecula.Spinnet.action-invocation",
@@ -665,6 +667,21 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             executor: { DispatchQueue.main.async(execute: $0) }
         )
         self.fetchedSections = fetchedSections
+        let sources = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry)],
+            schedule: { delay, operation in
+                let timer = Timer(timeInterval: delay, repeats: false) { _ in operation() }
+                timer.tolerance = delay * 0.1
+                RunLoop.main.add(timer, forMode: .common)
+            }, executor: { DispatchQueue.main.async(execute: $0) })
+        self.sources = sources
+        pluginCredentials.onChange = { [weak sources] pluginID in
+            sources?.credentialsChanged(pluginID: pluginID)
+        }
+        sourceGrantObserver = capabilityGrants.observeChanges { [weak sources] in
+            DispatchQueue.main.async {
+                for plugin in registry.manifests() { sources?.authorityChanged(pluginID: plugin.id) }
+            }
+        }
         let sessions = PluginViewSessions(
             renderer: makePluginViewWindows(sections: fetchedSections),
             runEvent: { [weak self] action, delivery, control, started, finish in
@@ -691,6 +708,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 )
             },
             fetchedSections: fetchedSections,
+            sources: sources,
             permitting: { action in
                 registry.package(for: action.pluginID).map { registry.contracts.permitting($0.manifest) } ?? { _ in false }
             },
@@ -780,7 +798,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     return try broker.loadPageImage(source, for: action, using: registry, cancellation: cancellation)
                 },
                 executor: { DispatchQueue.main.async(execute: $0) }
-            )
+            ),
+            sources: sources
         )
         return PluginViewWindows(
             environment: environment,

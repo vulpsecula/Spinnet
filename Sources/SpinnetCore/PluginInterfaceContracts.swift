@@ -34,6 +34,7 @@ public struct PluginInterfaceMember: Codable, Hashable {
         /// A Host Service a script's answer asks the Host to perform after
         /// the answer commits, by the name it gives in `perform`.
         case request
+        case source
         /// A rule the Host applies, such as how an insertion picks its target,
         /// that a Plugin gets only by declaring the contract defining it.
         case behaviour
@@ -53,6 +54,7 @@ public struct PluginInterfaceMember: Codable, Hashable {
     public static func viewEvent(_ name: String) -> PluginInterfaceMember { .init(kind: .viewEvent, name: name) }
     public static func hostCommand(_ name: String) -> PluginInterfaceMember { .init(kind: .hostCommand, name: name) }
     public static func request(_ name: String) -> PluginInterfaceMember { .init(kind: .request, name: name) }
+    public static func source(_ name: String) -> PluginInterfaceMember { .init(kind: .source, name: name) }
     public static func behaviour(_ name: String) -> PluginInterfaceMember { .init(kind: .behaviour, name: name) }
 }
 
@@ -246,6 +248,7 @@ public struct PluginInterfaceContracts: Equatable {
             + KeepAwakeAddition.members
             // Resizable pages and adaptive Grid columns (#80).
             + PageSizing.members
+            + HostRunSourceAddition.members
 
     /// Every Candidate Contract revision this Host provided before Level 2,
     /// all retired into it.

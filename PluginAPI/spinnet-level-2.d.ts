@@ -239,6 +239,8 @@ export type ID = string;
  * 4 earlier pages' immediate state by ID.
  */
 export interface Page {
+  /** Up to eight sources; sampled only while this page is visible. */
+  sources?: Source[];
   id: ID;
   title: string;
   subtitle?: string;
@@ -400,6 +402,7 @@ export interface ChoiceField {
 /** Text in Level 1's Markdown subset. */
 export interface TextBlock {
   kind: "text";
+  bind?: Binding;
   id: ID;
   title?: string;
   text: string;
@@ -559,7 +562,7 @@ export type PageEvent =
 export type CallEvent = { type: "called" };
 
 /** A Level 2 script's `event` global: null when the Action starts. */
-export type ScriptEvent = ViewEvent | PageEvent | CallEvent | OperationFinishedEvent;
+export type ScriptEvent = ViewEvent | PageEvent | CallEvent | OperationFinishedEvent | SourceDeliveredEvent;
 
 // MARK: Answers
 
@@ -586,6 +589,7 @@ export type _Level1AnswersRemainValid = ScriptAnswer extends Answer ? true : nev
 
 /** Builders of page components. Camel-case options map to the snake-case members. */
 export interface PageComponents {
+  bind(source: ID, pointer: string, options?: { format?: BindingFormat; unavailable?: string }): Binding;
   row(options: { id: ID; content: (Leaf | Column)[]; style?: StyleOptions }): Row;
   column(options: { id: ID; content: (Leaf | Row)[]; style?: StyleOptions }): Column;
   icon(options: { id: ID; source: SymbolSource; label?: string; size?: number; style?: StyleOptions }): Icon;
@@ -593,7 +597,7 @@ export interface PageComponents {
   progress(options: { id: ID; title?: string; value?: number; status?: string; stages?: { id: ID; title: string }[]; stage?: ID; state?: ProgressState; cancel?: { id: ID; title?: string }; style?: StyleOptions }): Progress;
   textField(options: { id: ID; title: string; placeholder?: string; value?: string; status?: string; accent?: Accent; collection?: ID }): TextField;
   choiceField(options: { id: ID; title: string; choices: string[]; choiceTitles?: string[]; value?: string }): ChoiceField;
-  text(options: { id: ID; text: string; title?: string; style?: StyleOptions }): TextBlock;
+  text(options: { id: ID; text: string; title?: string; style?: StyleOptions; bind?: Binding }): TextBlock;
   actions(options: { id: ID; actions: PageAction[] }): Actions;
   /** A button delivering `action_chosen`. */
   button(options: { id: ID; title: string }): EventButton;
@@ -613,6 +617,7 @@ export interface PageComponents {
  * answer forms of `host.toast` and `host.closeView`.
  */
 export interface UI extends Omit<UIArea, "view" | "show"> {
+  source(id: ID, perform: SourceID, input: InputOf<SourceID>, options?: SourceOptions): Source;
   /** Level 1's `view`, which also takes `showsInsertionTarget`. */
   view(value: Parameters<UIArea["view"]>[0] & { showsInsertionTarget?: boolean }): View;
   /** `show` as in Level 1, with an optional operation committed together with the view. */
@@ -620,7 +625,7 @@ export interface UI extends Omit<UIArea, "view" | "show"> {
   /** An answer with no view or page that requests one operation, optionally with a toast. */
   request(operation: RequestedOperation, options?: { toast?: string }): Answer;
   components: PageComponents;
-  page(options: { id: ID; title: string; subtitle?: string; showsInsertionTarget?: boolean; focus?: ID; reset?: "page" | ID[]; resizable?: boolean | { minWidth?: number; minHeight?: number }; content: Component[] }): Page;
+  page(options: { sources?: Source[]; id: ID; title: string; subtitle?: string; showsInsertionTarget?: boolean; focus?: ID; reset?: "page" | ID[]; resizable?: boolean | { minWidth?: number; minHeight?: number }; content: Component[] }): Page;
   /** An answer showing `page`, with an optional state, toast and operation. */
   showPage(page: Page, options?: { state?: JSONValue; toast?: string; operation?: RequestedOperation }): Answer;
 }
@@ -757,7 +762,7 @@ export interface ScreenNamespace {
 
 export interface HTTPNamespace {
   /** One HTTPS request with Credential Uses. @id http.request @entry call */
-  readonly request: Callable<"http.request">;
+  readonly request: Callable<"http.request"> & { source(id: ID, input: HTTPSRequest, options?: SourceOptions): Source };
 }
 
 export interface TextNamespace {
@@ -833,3 +838,14 @@ export interface ActivitiesNamespace {
   /** Stops its own activity; absent or foreign ids are no-ops. @id activities.stop @entry request view_action */
   readonly stop: Performable<"activities.stop">;
 }
+
+/** Host-run sources (#82); HTTPS samples once and forbids every. */
+export type SourceID = "http.request";
+export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
+export interface Source { id: ID; perform: SourceID; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
+export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
+export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
+export type SourceResult = HTTPSResponse & { json?: JSONValue };
+/** Not a gesture; requesting an operation in its answer is refused. */
+export type SourceDeliveredEvent = { type: "source_delivered"; page: ID; source: ID; sequence: number } &
+  ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out"; message: string }; result?: never });

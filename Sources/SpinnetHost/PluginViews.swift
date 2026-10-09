@@ -25,6 +25,7 @@ struct PluginViewEnvironment {
     /// Loads the pictures of pages' `image` components (#81); without one
     /// every picture shows as unavailable.
     var images: PluginPageImageProvider? = nil
+    var sources: HostRunSources? = nil
 }
 
 /// What a Detail section shows.
@@ -465,6 +466,9 @@ final class PluginViewWindows: PluginViewRenderer {
             guard let entry = self?.entries[session.pluginID], entry.session === session else { return }
             entry.model?.sectionChanged(id)
         }
+        environment.sources?.onChange = { [weak self] pluginID in
+            self?.entries[pluginID]?.page?.sourcesChanged()
+        }
         environment.images?.onChange = { [weak self] pluginID in
             self?.entries[pluginID]?.page?.imagesChanged()
         }
@@ -477,6 +481,7 @@ final class PluginViewWindows: PluginViewRenderer {
 
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
         if let page = presentation.page { return present(page, presentation, of: session) }
+        environment.sources?.end(pluginID: session.pluginID)
         // A page gave way to a Level 1 view: the page's window goes, and the
         // view gets a window of its own, keeping the pin and, pinned, its
         // place.
@@ -538,6 +543,12 @@ final class PluginViewWindows: PluginViewRenderer {
 
     /// Shows a page, or updates the page shown in place.
     private func present(_ page: PluginPage, _ presentation: PluginViewPresentation, of session: PluginViewSession) {
+        do { try environment.sources?.present(page, for: session.action, answering: session.answeredEvent) }
+        catch {
+            report("\(environment.pluginName(session.pluginID)): \(error)")
+            DispatchQueue.main.async { [weak session] in session?.close() }
+            return
+        }
         var replaced: (isPinned: Bool, geometry: PluginPanelGeometry)?
         if var entry = entries[session.pluginID], entry.session === session {
             if let model = entry.page {
@@ -591,6 +602,11 @@ final class PluginViewWindows: PluginViewRenderer {
 
     private func show(_ window: PluginViewWindow, for pluginID: PluginID,
                       _ opening: (isPinned: Bool, restoring: PluginPanelGeometry?)) {
+        if let native = window as? PluginViewPanelWindow {
+            native.onSourceVisibility = { [weak sources = environment.sources] visible in
+                sources?.setVisible(visible, pluginID: pluginID)
+            }
+        }
         window.show(near: pointer(), restoring: opening.restoring)
         if opening.isPinned { pins.remember(window.geometry, for: pluginID) }
     }

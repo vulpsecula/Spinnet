@@ -385,3 +385,19 @@ With `notify` the outcome runs as `operation_finished` in the session, an
 item action's with the item; when the view closed, it runs once more without
 a view, listed in `afterClose`, and its answer
 may hold a toast and nothing else.
+
+## Recorded Host-run sources (Level 2, #82)
+
+`RecordedHostSources` runs a page's sources through the real broker and source
+engine with recorded HTTPS answers and a deterministic clock. Its page starts
+hidden: `present(page)` declares it and `setVisible(true)` permits sampling.
+`shown(component)` reads its Host-formatted value; `deliveries` holds the recorded
+`source_delivered` events to feed to `PluginTestHelper`; `advance(by:)` runs source
+deadlines and floors without sleeping. `requests` records applied Credential Uses.
+Its mutable `grants`, `registry` and `credentials` exercise authority changes;
+call `authorityChanged()`, `credentialChanged()` or `close()` as the Host does.
+The source engine needs no helper and can update a binding after the kit retires
+one. The kit records scheduling, not AppKit occlusion or actual network latency.
+
+`Tests/Fixtures/SourcesProbe.spinnetplugin` demonstrates the same published SDK
+and package boundary as an external Plugin, with no privileged source calls.

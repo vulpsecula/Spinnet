@@ -50,6 +50,8 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// session's last good state. It names no page, so no page change drops
     /// it.
     case called
+    /// A bounded Host-run source result, never a user gesture.
+    case sourceDelivered(page: String, source: String, sequence: Int, result: JSONValue?, failure: PluginRuntimeFailure?)
 
     /// A field change waits out the debounce and gives way to a later one;
     /// every other event is delivered, in order.
@@ -64,6 +66,10 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// collection, without a debounce: the Host asks only for what the user
     /// is looking at now.
     func replaces(_ waiting: PluginViewEvent) -> Bool {
+        if case .sourceDelivered(let page, let source, _, _, _) = self,
+           case .sourceDelivered(let waitingPage, let waitingSource, _, _, _) = waiting {
+            return page == waitingPage && source == waitingSource
+        }
         guard case .loadRange(let page, let collection, _, _) = self,
               case .loadRange(let waitingPage, let waitingCollection, _, _) = waiting else { return false }
         return page == waitingPage && collection == waitingCollection
@@ -97,7 +103,7 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction, .called: return true
         case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished, .pageFieldChanged,
-             .loadRange:
+             .loadRange, .sourceDelivered:
             return false
         }
     }
@@ -139,6 +145,11 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .loadRange(let page, let collection, let start, let count):
             return .object(["type": .string("load_range"), "page": .string(page), "collection": .string(collection),
                             "start": .number(Double(start)), "count": .number(Double(count))])
+        case .sourceDelivered(let page, let source, let sequence, let result, let failure):
+            var fields: [String: JSONValue] = ["type": .string("source_delivered"), "page": .string(page), "source": .string(source), "sequence": .number(Double(sequence))]
+            if let result { fields["result"] = result }
+            if let failure { fields["failure"] = .object(["category": .string(failure.category.rawValue), "message": .string(failure.message)]) }
+            return .object(fields)
         case .called:
             return .object(["type": .string("called")])
         }

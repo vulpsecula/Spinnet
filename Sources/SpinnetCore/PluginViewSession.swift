@@ -169,15 +169,17 @@ public final class PluginViewSession {
         /// and under which its answer is read; every other event runs under
         /// the handler.
         let call: ActionConfiguration?
+        let sourceIsCurrent: (() -> Bool)?
 
         init(_ event: PluginViewEvent, insertionTarget: InsertionTargetCapture = .notShown,
              result: (serial: Int, requestedBy: ActionConfiguration)? = nil, origin: PageIdentity.Stamp? = nil,
-             call: ActionConfiguration? = nil) {
+             call: ActionConfiguration? = nil, sourceIsCurrent: (() -> Bool)? = nil) {
             self.event = event
             self.insertionTarget = insertionTarget
             self.result = result
             self.origin = origin
             self.call = call
+            self.sourceIsCurrent = sourceIsCurrent
         }
 
         /// Whether a view that replaces the one it was made in drops it:
@@ -324,6 +326,13 @@ public final class PluginViewSession {
     /// or the Host does.
     public func close() { end(.viewClosed) }
 
+    /// Source provenance is tested on dispatch, even when queued behind a script.
+    public func deliverSource(_ event: PluginViewEvent, stillCurrent: @escaping () -> Bool) {
+        guard !isEnded else { return }
+        enqueue(Entry(event, sourceIsCurrent: stillCurrent))
+        dispatchNext()
+    }
+
     /// Queues an explicit call of `action`, a complete Action of the
     /// session's Plugin (Candidate Contract `collections` r2): it runs as
     /// `called` in order behind what is waiting, never merged with another
@@ -442,6 +451,7 @@ public final class PluginViewSession {
         let busy = operations?.isBusy(pluginID) ?? false
         guard let index = queue.firstIndex(where: { !busy || !$0.event.isGesture }) else { return }
         let entry = queue.remove(at: index)
+        if entry.sourceIsCurrent?() == false { return dispatchNext() }
         if let origin = entry.origin, !identity.isCurrent(origin) {
             // The page or component it was made in was replaced, changed
             // kind or was reset: the user is looking at what replaced it.
@@ -667,6 +677,7 @@ public final class PluginViewSessions {
     private let schedule: PluginViewSession.Schedule
     private let showFeedback: (String) -> Void
     private let fetchedSections: HostFetchedSections?
+    private let sources: HostRunSources?
     private let permitting: PluginViewSession.Permitting
     /// The Requested Host Operations of every Plugin, when the Host was
     /// given something to perform them.
@@ -695,6 +706,7 @@ public final class PluginViewSessions {
                 schedule: @escaping PluginViewSession.Schedule, showFeedback: @escaping (String) -> Void,
                 readView: @escaping PluginViewSession.ReadView = { _, _ in },
                 fetchedSections: HostFetchedSections? = nil,
+                sources: HostRunSources? = nil,
                 permitting: @escaping PluginViewSession.Permitting = { _ in { _ in false } },
                 operations performer: HostOperationPerformer? = nil,
                 reportOperation: ((ActionConfiguration, String) -> Void)? = nil) {
@@ -704,6 +716,7 @@ public final class PluginViewSessions {
         self.schedule = schedule
         self.showFeedback = showFeedback
         self.fetchedSections = fetchedSections
+        self.sources = sources
         self.permitting = permitting
         let report = reportOperation ?? { _, message in showFeedback(message) }
         self.report = report
@@ -711,6 +724,9 @@ public final class PluginViewSessions {
             HostOperationRequests(performer: $0, schedule: schedule, report: report)
         }
         fetchedSections?.sessions = self
+        sources?.onDelivery = { [weak self] action, event, current in
+            self?.sessions[action.pluginID]?.deliverSource(event, stillCurrent: current)
+        }
         operations?.onSlotFree = { [weak self] pluginID in self?.sessions[pluginID]?.dispatchNext() }
         operations?.deliverAfterClose = { [weak self] action, event, state, done in
             guard let self else { return done() }
@@ -879,6 +895,7 @@ public final class PluginViewSessions {
                                                 guard self?.sessions[ended.pluginID] === ended else { return }
                                                 self?.sessions.removeValue(forKey: ended.pluginID)
                                                 self?.fetchedSections?.end(pluginID: ended.pluginID)
+                                                self?.sources?.end(pluginID: ended.pluginID)
                                             })
             sessions[action.pluginID] = session
             session.present()

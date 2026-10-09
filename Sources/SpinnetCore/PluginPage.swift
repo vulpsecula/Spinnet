@@ -161,12 +161,15 @@ public struct PluginPage: Equatable {
     /// The page lets the user resize its panel (#80); nil keeps the Host's
     /// default layout.
     public let resizing: PluginPageResizing?
+    public let sources: [PluginPageSource]
     public let content: [PluginPageComponent]
     /// Every component, row children included, in order.
     public let components: [PluginPageComponent]
 
-    public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
+    public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool,
+                sourceOperation: (String) -> Bool = { HostServiceCatalogue.operation($0)?.isOffered(at: .source) == true }) throws {
         var allowed: Set<String> = ["id", "title", "subtitle", "shows_insertion_target", "focus", "reset", "content"]
+        if permits(HostRunSourceAddition.pageSources) { allowed.insert("sources") }
         if permits(PageSizing.resizablePages) { allowed.insert("resizable") }
         let members = try Self.object(value, "The page", allowed: allowed)
         let id = try Self.identifier(members["id"], "The page's id")
@@ -179,6 +182,8 @@ public struct PluginPage: Equatable {
         case .bool(let shows)?: showsInsertionTarget = shows
         default: throw Self.violation("The page \(id)'s shows_insertion_target is not true or false")
         }
+        sources = try members["sources"].map { try Self.array($0, "The page's sources", minimum: 1, maximum: HostRunSourceAddition.maximumSources).map { try PluginPageSource(parsing: $0, permits: permits, offered: sourceOperation) } } ?? []
+        guard Set(sources.map(\.id)).count == sources.count else { throw Self.violation("The page repeats a source ID") }
         content = try Self.array(members["content"] ?? .null, "The page \(id)'s content", minimum: 1,
                                  maximum: CollectionsContract.maximumComponents)
             .map { try PluginPageComponent(parsing: $0, in: nil, depth: 0, permits: permits) }
@@ -189,6 +194,11 @@ public struct PluginPage: Equatable {
         var ids: Set<String> = []
         for component in components where !ids.insert(component.id).inserted {
             throw Self.violation("The page \(id) has two components with the ID \(component.id)")
+        }
+        for case .text(let text) in components {
+            if let binding = text.binding, !sources.contains(where: { $0.id == binding.source }) {
+                throw Self.violation("The text \(text.id)'s binding names no source on the page")
+            }
         }
         let collections = components.compactMap(\.collection)
         guard collections.count <= 1 else { throw Self.violation("The page \(id) has more than one collection") }
@@ -435,12 +445,15 @@ public enum PluginPageComponent: Equatable {
         case .choiceField:
             self = .choiceField(try PluginPageChoiceField(parsing: value))
         case .text:
-            let fields = try PluginPage.object(value, "A text component", allowed: ["kind", "id", "title", "text", "style"])
+            var allowed: Set<String> = ["kind", "id", "title", "text", "style"]
+            if permits(HostRunSourceAddition.bindings) { allowed.insert("bind") }
+            let fields = try PluginPage.object(value, "A text component", allowed: allowed)
             let id = try PluginPage.identifier(fields["id"], "A text component's id")
             self = .text(PluginPageText(
                 id: id, title: try fields["title"].map { try PluginPage.text($0, "The text \(id)'s title") },
                 text: try PluginPage.text(fields["text"], "The text \(id)'s text", allowsBlank: true),
-                style: try PluginPageStyle.parse(fields, kind: "text", id: id, permits: permits)))
+                style: try PluginPageStyle.parse(fields, kind: "text", id: id, permits: permits),
+                binding: try fields["bind"].map { try PluginSourceBinding(parsing: $0) }))
         case .actions:
             let fields = try PluginPage.object(value, "An actions component", allowed: ["kind", "id", "actions"])
             let id = try PluginPage.identifier(fields["id"], "An actions component's id")

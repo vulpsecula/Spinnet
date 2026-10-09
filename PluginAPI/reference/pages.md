@@ -649,3 +649,10 @@ page has at most 8 images, and the Host decodes a picture of at most 1 MiB,
 holds at most 16 MiB decoded, shown pictures included. Since #80 a
 resizable page's minimum is 440 to 1,200 points wide and 120 to 900 points
 tall, and an adaptive grid has 2 to 24 columns of at least 32 to 128 points.
+
+## Host-run sources (#82)
+
+A Level 2 page may append `sources` and a text component may append `bind`.
+See [sources](sources.md) for visibility, authority, retention, formatting,
+change-gated `source_delivered` events and bounds. Sources do not alter a page's
+Immediate State and offer no background schedule. HTTPS is once-only in this addition.

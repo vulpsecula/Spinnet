@@ -1,0 +1,14 @@
+{
+  "type": "source_delivered",
+  "page": "weather",
+  "source": "remote",
+  "sequence": 1,
+  "result": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"temperature\":24.5}",
+    "json": {
+      "temperature": 24.5
+    }
+  }
+}

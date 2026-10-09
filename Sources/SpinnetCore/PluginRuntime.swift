@@ -611,6 +611,7 @@ public struct PluginRuntimeHostServiceCall: Codable, Equatable, Hashable {
 }
 
 public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
+    case timedOut = "timed_out"
     case invalidInvocation = "invalid_invocation"
     case scriptError = "script_error"
     case helperError = "helper_error"
@@ -1508,6 +1509,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         case .failed(let failure):
             let runtimeError: PluginRuntimeError
             switch failure.category {
+            case .timedOut:
+                runtimeError = .timedOut
             case .scriptError:
                 runtimeError = .scriptFailed(failure.message)
             case .invalidInvocation, .helperError:

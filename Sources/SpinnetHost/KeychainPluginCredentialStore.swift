@@ -14,6 +14,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
     }
 
     private let service: String
+    var onChange: ((PluginID) -> Void)?
 
     init(service: String = defaultService) {
         self.service = service
@@ -65,6 +66,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         guard status == errSecSuccess else {
             throw ConfigurationError.invalidAction("The credential could not be saved to the Keychain")
         }
+        onChange?(pluginID)
     }
 
     func removeSecret(for pluginID: PluginID, reference: String) throws {
@@ -72,5 +74,6 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw ConfigurationError.invalidAction("The credential could not be removed from the Keychain")
         }
+        onChange?(pluginID)
     }
 }
