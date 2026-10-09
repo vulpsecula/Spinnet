@@ -80,6 +80,7 @@ public struct KeepAwakeAdmission: Hashable {
 public struct EffectOwnerAdmission: Hashable {
     let owner: PluginID
     let generation: Int
+    let appGeneration: Int
 }
 
 /// Effects owned by the Host, independent of helper and View Session life.
@@ -95,6 +96,7 @@ public final class HostKeepAwake {
     private let lock = NSRecursiveLock()
     private var appBindings: [String: RunningAppIdentity] = [:]
     private var generations: [PluginID: Int] = [:]
+    private var appGenerations: [PluginID: Int] = [:]
     private var isShutdown = false
 
     public init(activities: HostActivities, power: PowerAssertions, apps: RunningApps? = nil, targets: AppTargets? = nil,
@@ -107,7 +109,8 @@ public final class HostKeepAwake {
     public func ownerAdmission(for owner: PluginID) -> EffectOwnerAdmission? {
         lock.lock(); defer { lock.unlock() }
         guard !isShutdown else { return nil }
-        return EffectOwnerAdmission(owner: owner, generation: generations[owner, default: 0])
+        return EffectOwnerAdmission(owner: owner, generation: generations[owner, default: 0],
+                                    appGeneration: appGenerations[owner, default: 0])
     }
 
     public func isCurrent(_ admission: EffectOwnerAdmission) -> Bool {
@@ -121,6 +124,7 @@ public final class HostKeepAwake {
                       authorize: () throws -> Void = {}) throws -> HostActivity {
         lock.lock()
         let generation = generations[owner, default: 0]
+        let appGeneration = appGenerations[owner, default: 0]
         let stopped = isShutdown
         lock.unlock()
         guard !stopped else { throw PluginHostServiceError.unavailable("The Host is exiting") }
@@ -135,6 +139,9 @@ public final class HostKeepAwake {
         let bound: RunningAppIdentity?
         switch request.mode {
         case .appAlive(let target):
+            guard admittedOwner == nil || admittedOwner?.appGeneration == appGeneration else {
+                throw PluginHostServiceError.unavailable("The accepted App authority is no longer current")
+            }
             guard let app = targets?.app(for: target, of: owner), apps?.facts(of: app) != nil else {
                 throw PluginHostServiceError.unavailable("The App Target no longer names a running App")
             }
@@ -153,7 +160,7 @@ public final class HostKeepAwake {
         lock.lock()
         defer { lock.unlock() }
         guard !isShutdown, generations[owner, default: 0] == generation,
-              bound == nil || apps?.facts(of: bound!) != nil else {
+              bound == nil || (appGenerations[owner, default: 0] == appGeneration && apps?.facts(of: bound!) != nil) else {
             display(); system()
             throw PluginHostServiceError.unavailable("The effect owner or bound App changed")
         }
@@ -181,6 +188,20 @@ public final class HostKeepAwake {
             cancellation.install(schedule(Double(seconds)) { [weak activities] in activities?.stop(activity.id, for: owner) })
         }
         return activity
+    }
+
+    /// Ongoing effects depend on Keep Awake; only App-bound effects also
+    /// depend on identifying Apps. Other revocations do not affect them.
+    public func revoke(_ revocation: PluginCapabilityRevocation) {
+        lock.lock(); defer { lock.unlock() }
+        switch revocation.capability {
+        case nil, .keepAwake?: invalidate(revocation.pluginID)
+        case .readFrontmostApp?:
+            appGenerations[revocation.pluginID, default: 0] += 1
+            activities.list(for: revocation.pluginID).filter { appBindings[$0.id] != nil }
+                .forEach { activities.stop($0.id, for: revocation.pluginID) }
+        default: break
+        }
     }
 
     public func invalidate(_ owner: PluginID) {

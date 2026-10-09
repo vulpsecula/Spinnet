@@ -129,6 +129,14 @@ public struct PluginCapabilityGrant: Codable, Equatable, Hashable {
     }
 }
 
+/// Authority removed from one Capability, or every Capability when the
+/// Plugin's decisions are removed. Resource owners can release only work
+/// that depended on this authority.
+public struct PluginCapabilityRevocation {
+    public let pluginID: PluginID
+    public let capability: PluginCapability?
+}
+
 /// Host-owned storage for the current user decision for each Plugin
 /// Capability. The store is deliberately independent from the Plugin package
 /// so revocation is observed by the next Host Service request.
@@ -138,6 +146,7 @@ public final class PluginCapabilityGrantStore {
     private var scopes: [PluginID: [String: [PluginCapability: PluginCapabilityScope]]] = [:]
 
     private var revocationObservers: [UUID: (PluginID) -> Void] = [:]
+    private var capabilityRevocationObservers: [UUID: (PluginCapabilityRevocation) -> Void] = [:]
     private var changeObservers: [UUID: () -> Void] = [:]
 
     public func observeChanges(_ observer: @escaping () -> Void) -> UUID {
@@ -163,10 +172,20 @@ public final class PluginCapabilityGrantStore {
         return token
     }
 
+    /// Synchronous authority-lifetime notification. Observers must not
+    /// reenter this store; callbacks complete before new grants can be read.
+    public func observeCapabilityRevocation(_ observer: @escaping (PluginCapabilityRevocation) -> Void) -> UUID {
+        lock.lock(); defer { lock.unlock() }
+        let token = UUID()
+        capabilityRevocationObservers[token] = observer
+        return token
+    }
+
     public func removeRevocationObserver(_ token: UUID) {
         lock.lock()
         defer { lock.unlock() }
         revocationObservers.removeValue(forKey: token)
+        capabilityRevocationObservers.removeValue(forKey: token)
     }
 
     public init(grants: [PluginCapabilityGrant] = []) {
@@ -275,6 +294,8 @@ public final class PluginCapabilityGrantStore {
         scopes[pluginID, default: [:]][pluginVersion, default: [:]][capability] = scope
         if previous == .granted && (decision != .granted || previousScope != scope) {
             for observer in revocationObservers.values { observer(pluginID) }
+            let revocation = PluginCapabilityRevocation(pluginID: pluginID, capability: capability)
+            for observer in capabilityRevocationObservers.values { observer(revocation) }
         }
         let observers = Array(changeObservers.values)
         lock.unlock()
@@ -289,6 +310,10 @@ public final class PluginCapabilityGrantStore {
         lock.lock()
         let hadGrants = decisions.removeValue(forKey: pluginID) != nil
         scopes.removeValue(forKey: pluginID)
+        if hadGrants {
+            let revocation = PluginCapabilityRevocation(pluginID: pluginID, capability: nil)
+            for observer in capabilityRevocationObservers.values { observer(revocation) }
+        }
         let revocations = hadGrants ? Array(revocationObservers.values) : []
         let observers = hadGrants ? Array(changeObservers.values) : []
         lock.unlock()
@@ -397,6 +422,8 @@ public final class PluginCapabilityGrantStore {
         let removed = !Set(matches ? previousScope?.consentedHTTPSHosts ?? [] : []).subtracting(unique).isEmpty
         if previousDecision == .granted && removed {
             for observer in revocationObservers.values { observer(pluginID) }
+            let revocation = PluginCapabilityRevocation(pluginID: pluginID, capability: capability)
+            for observer in capabilityRevocationObservers.values { observer(revocation) }
         }
         let observers = Array(changeObservers.values)
         lock.unlock()

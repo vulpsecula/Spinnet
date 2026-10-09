@@ -39,7 +39,7 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
             selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
             keepAwakeEffects: recorded.effects, activities: recorded.activities)
-        let token = grants.observeRevocation { recorded.effects.invalidate($0) }
+        let token = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
         defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
         let helper = try PluginTestHelper()
         defer { helper.shutdown() }
@@ -56,6 +56,99 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(recorded.activities.list(), [])
     }
 
+    func testRevokingAppIdentityStopsOnlyTheAppBoundEffect() throws {
+        let plugin = try PluginUnderTest(packageAt: fixture)
+        let recorded = RecordedKeepAwake()
+        let grants = PluginCapabilityGrantStore()
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            keepAwakeEffects: recorded.effects, activities: recorded.activities)
+        let token = grants.observeCapabilityRevocation { recorded.apps.targets.forget($0.pluginID); recorded.effects.revoke($0) }
+        defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
+        for capability in [PluginCapability.keepAwake, .readFrontmostApp] {
+            grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+                capability: capability, scope: plugin.manifest.scope(for: capability))
+        }
+        guard case .object(let front) = recorded.apps.targets.identifyFrontmost(of: recorded.apps, for: plugin.manifest.id),
+              case .string(let target)? = front["target"] else { return XCTFail("No App Target") }
+        let action = try plugin.action(for: PluginTestInvocation("probe.coffee"))
+        for mode in [KeepAwakeRequest.Mode.manual, .duration(60), .appAlive(target)] {
+            let request = PluginRuntimeHostServiceRequest(invocationID: "start", actionID: action.id,
+                service: .keepAwakeEffect, input: KeepAwakeRequest(mode: mode).json, operation: "system.keepAwake")
+            _ = try broker.execute(request: request, for: plugin.package, action: action)
+        }
+        XCTAssertEqual(recorded.power.count, 6)
+        grants.setDecision(.denied, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+            capability: .readFrontmostApp, scope: plugin.manifest.scope(for: .readFrontmostApp))
+        XCTAssertEqual(recorded.power.count, 4, "Revoking App identity must preserve manual and timed effects")
+        XCTAssertEqual(recorded.activities.list(for: plugin.manifest.id).map(\.status).sorted(), ["For 60 seconds", "Until stopped"])
+        recorded.advance(by: 60)
+        XCTAssertEqual(recorded.power.count, 2, "The preserved timer still expires normally")
+    }
+
+    func testUnrelatedRevocationPreservesEffectsButRemovingAllGrantsStopsThem() throws {
+        let plugin = try PluginUnderTest(packageAt: fixture)
+        let recorded = RecordedKeepAwake()
+        let grants = PluginCapabilityGrantStore()
+        let token = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
+        defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
+        for capability in [PluginCapability.keepAwake, .contactHTTPS] {
+            grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+                capability: capability, scope: plugin.manifest.scope(for: capability))
+        }
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            keepAwakeEffects: recorded.effects, activities: recorded.activities)
+        let action = try plugin.action(for: PluginTestInvocation("probe.direct"))
+        let request = PluginRuntimeHostServiceRequest(invocationID: "start", actionID: action.id,
+            service: .keepAwakeEffect, input: KeepAwakeRequest().json, operation: "system.keepAwake")
+        _ = try broker.execute(request: request, for: plugin.package, action: action)
+        grants.setDecision(.denied, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+            capability: .contactHTTPS, scope: plugin.manifest.scope(for: .contactHTTPS))
+        XCTAssertEqual(recorded.power.count, 2)
+        XCTAssertEqual(recorded.activities.list(for: plugin.manifest.id).count, 1)
+        grants.removeGrants(for: plugin.manifest.id)
+        XCTAssertEqual(recorded.power.count, 0)
+        XCTAssertEqual(recorded.activities.list(), [])
+    }
+
+    func testAppAuthorityRegrantCannotReviveAnAcceptedAppStartButManualStartRemainsCurrent() throws {
+        let plugin = try PluginUnderTest(packageAt: fixture)
+        let recorded = RecordedKeepAwake()
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry()
+        try registry.register(plugin.package)
+        // Keep the target here to isolate authority-lifetime protection from
+        // App Target forgetting, which the production observer also performs.
+        let token = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
+        defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
+        for capability in [PluginCapability.keepAwake, .readFrontmostApp] {
+            grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+                capability: capability, scope: plugin.manifest.scope(for: capability))
+        }
+        guard case .object(let front) = recorded.apps.targets.identifyFrontmost(of: recorded.apps, for: plugin.manifest.id),
+              case .string(let target)? = front["target"] else { return XCTFail("No App Target") }
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
+            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            keepAwakeEffects: recorded.effects, activities: recorded.activities, pluginRegistry: registry)
+        let action = try plugin.action(for: PluginTestInvocation("probe.coffee"))
+        let admitted = try XCTUnwrap(broker.keepAwakeAdmission(for: plugin.package))
+        let appRequest = PluginRuntimeHostServiceRequest(invocationID: "paused", actionID: action.id,
+            service: .keepAwakeEffect, input: KeepAwakeRequest(mode: .appAlive(target)).json, operation: "system.keepAwake")
+        for decision in [PluginCapabilityGrantDecision.denied, .granted] {
+            grants.setDecision(decision, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+                capability: .readFrontmostApp, scope: plugin.manifest.scope(for: .readFrontmostApp))
+        }
+        XCTAssertThrowsError(try broker.execute(request: appRequest, for: plugin.package, action: action, admittedOwner: admitted))
+        XCTAssertEqual(recorded.power.count, 0)
+        let manualRequest = PluginRuntimeHostServiceRequest(invocationID: "paused-manual", actionID: action.id,
+            service: .keepAwakeEffect, input: KeepAwakeRequest().json, operation: "system.keepAwake")
+        _ = try broker.execute(request: manualRequest, for: plugin.package, action: action, admittedOwner: admitted)
+        XCTAssertEqual(recorded.power.count, 2)
+        _ = try broker.execute(request: appRequest, for: plugin.package, action: action)
+        XCTAssertEqual(recorded.power.count, 4, "Only a new App-bound call may use the new authority lifetime")
+    }
+
     func testPausedAcceptedEffectCannotStartAfterReplacementReenableOrRegrant() throws {
         for change in ["replace", "enable", "regrant"] {
             let plugin = try PluginUnderTest(packageAt: fixture)
@@ -64,7 +157,7 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
             let registry = PluginRegistry()
             try registry.register(plugin.package)
             let observation = registry.observeInvalidation { recorded.effects.invalidate($0) }
-            let revocation = grants.observeRevocation { recorded.effects.invalidate($0) }
+            let revocation = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
             defer { registry.removeInvalidationObserver(observation); grants.removeRevocationObserver(revocation); recorded.effects.shutdown() }
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
                 capability: .keepAwake, scope: plugin.manifest.scope(for: .keepAwake))
@@ -106,7 +199,7 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
             let registry = PluginRegistry()
             try registry.register(plugin.package)
             let mutation = registry.observeInvalidation { recorded.effects.invalidate($0) }
-            let revocation = grants.observeRevocation { recorded.effects.invalidate($0) }
+            let revocation = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
             defer { registry.removeInvalidationObserver(mutation); grants.removeRevocationObserver(revocation); recorded.effects.shutdown() }
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
                 capability: .keepAwake, scope: plugin.manifest.scope(for: .keepAwake))
