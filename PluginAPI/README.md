@@ -230,6 +230,7 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `storage.clear` | call | none | none |
 | `activities` | `activities.list` | call, own activities only | none | none |
 |  | `activities.stop` | page action, request, own activities only | none | none |
+| `tools` | `tools.read` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind | none |
 
 The IDs `catalogue.json` reserves, such as `system.metrics`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`

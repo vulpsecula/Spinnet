@@ -317,6 +317,18 @@ See [Host activity controls](keep-awake.md#activities). A missing, ended or
 foreign ID is a no-op; Host Status Item controls can stop every owner.
 Task cancellation remains a separate adapter policy for #88.
 
+### `tools`
+
+Bounded reads of existing local data through a Reviewed Tool Profile.
+
+| ID | Input | Result | Offered as | Needs |
+| --- | --- | --- | --- | --- |
+| `tools.read` | `{tool: "homebrew", operation, kind?, greedy?, query?, names?}` | `{tool, operation, packages, not_found?, truncated?}` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind; no System Permission |
+
+Calls have a three-second deadline; sources have a fifteen-second deadline and
+stop on hide or close. Neither refreshes a catalogue or installs a package.
+See [Reviewed Homebrew reads](tools.md) for each operation's input and bounds.
+
 ## Reserved
 
 These IDs are kept for the tickets that define them. Naming one is refused
