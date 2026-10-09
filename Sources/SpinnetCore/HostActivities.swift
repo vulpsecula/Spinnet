@@ -26,6 +26,7 @@ public struct HostActivity: Equatable {
 public final class HostActivities {
     public static let maximumPerPlugin = 8
     public static let maximumTotal = 64
+    public static let visibleRefreshInterval: TimeInterval = 1
     private struct Entry { let activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]

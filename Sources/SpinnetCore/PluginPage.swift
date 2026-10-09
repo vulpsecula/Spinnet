@@ -200,6 +200,9 @@ public struct PluginPage: Equatable {
                 throw Self.violation("The text \(text.id)'s binding names no source on the page")
             }
         }
+        guard components.filter({ if case .activityList = $0 { return true }; return false }).count <= 1 else {
+            throw Self.violation("A page has at most one activity list")
+        }
         let collections = components.compactMap(\.collection)
         guard collections.count <= 1 else { throw Self.violation("The page \(id) has more than one collection") }
         for case .textField(let field) in components {
@@ -334,6 +337,7 @@ public enum PluginPageComponent: Equatable {
         case icon
         case image
         case progress
+        case activityList = "activity_list"
     }
 
     case row(PluginPageStack)
@@ -346,6 +350,7 @@ public enum PluginPageComponent: Equatable {
     case icon(PluginPageIcon)
     case image(PluginPageImage)
     case progress(PluginPageProgress)
+    case activityList(PluginPageActivityList)
 
     public var id: String {
         switch self {
@@ -358,6 +363,7 @@ public enum PluginPageComponent: Equatable {
         case .icon(let icon): return icon.id
         case .image(let image): return image.id
         case .progress(let progress): return progress.id
+        case .activityList(let list): return list.id
         }
     }
 
@@ -373,6 +379,7 @@ public enum PluginPageComponent: Equatable {
         case .icon: return .icon
         case .image: return .image
         case .progress: return .progress
+        case .activityList: return .activityList
         }
     }
 
@@ -418,7 +425,7 @@ public enum PluginPageComponent: Equatable {
         }
         if let container {
             let holdsContainers = permits(.viewComponent(Kind.column.rawValue))
-            let refused = kind == container || kind == .list || kind == .grid
+            let refused = kind == container || kind == .list || kind == .grid || kind == .activityList
                 || (!holdsContainers && (kind == .row || kind == .column))
             if refused {
                 throw PluginPage.violation(holdsContainers
@@ -471,6 +478,12 @@ public enum PluginPageComponent: Equatable {
             self = .image(try PluginPageImage(parsing: value, permits: permits))
         case .progress:
             self = .progress(try PluginPageProgress(parsing: value, permits: permits))
+        case .activityList:
+            let fields = try PluginPage.object(value, "An activity list", allowed: ["kind", "id", "empty_text"])
+            self = .activityList(PluginPageActivityList(
+                id: try PluginPage.identifier(fields["id"], "An activity list's id"),
+                emptyText: try fields["empty_text"].map { try PluginPage.text($0, "An activity list's empty text", maximum: 256) }
+                    ?? "No active activities"))
         }
     }
 }
@@ -1033,4 +1046,10 @@ public struct PluginPageItemSnapshot: Equatable, Hashable {
         if !marks.isEmpty { members["marks"] = .array(marks.map(JSONValue.string)) }
         return .object(members)
     }
+}
+
+/// A Host resource control. No Plugin-supplied owner, rows or Stop actions.
+public struct PluginPageActivityList: Equatable {
+    public let id: String
+    public let emptyText: String
 }

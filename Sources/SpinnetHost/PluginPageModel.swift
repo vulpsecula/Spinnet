@@ -37,6 +37,8 @@ final class PluginPageModel: ObservableObject {
         let isChecked: Bool
     }
 
+    let activityList: HostActivityListModel
+    func setActivityListVisible(_ visible: Bool) { activityList.setVisible(visible) }
     let session: PluginViewSession
     @Published private(set) var page: PluginPage
     /// The AppKit collection drawing the page's List or Grid, which the
@@ -102,6 +104,7 @@ final class PluginPageModel: ObservableObject {
         self.session = session
         self.page = page
         self.environment = environment
+        self.activityList = HostActivityListModel(activities: environment.activities, owner: session.pluginID)
         update(presentation, page: page, newView: true, presentedAnew: true)
         if session.showsInsertionTargets {
             targetChanges = environment.insertionTargets?.objectWillChange.sink { [weak self] _ in
@@ -152,6 +155,7 @@ final class PluginPageModel: ObservableObject {
         let selectedBefore = memory.selectedPosition
         let applied = memory.show(next, composing: composing, answersRange: answersRange)
         page = next
+        activityList.setAvailable(next.components.contains { if case .activityList = $0 { return true }; return false })
         for case .textField(let field) in next.components where applied.renewed.contains(field.id) {
             textRevisions[field.id, default: 0] += 1
         }

@@ -84,6 +84,29 @@ public final class PluginTestPage {
     public var selectedPosition: Int? { memory.selectedPosition }
     public var focus: String? { memory.state.focus }
 
+    /// Current own Host-generated rows when this page contains activity_list.
+    /// No helper runs, matching the native resource control.
+    public func activityRows() throws -> JSONValue {
+        guard page?.components.contains(where: { if case .activityList = $0 { return true }; return false }) == true else {
+            return .array([])
+        }
+        return try activityService(.listActivities, input: .null)
+    }
+
+    /// Presses the Host's native Stop without a Plugin View Event.
+    public func stopActivity(_ id: String) throws {
+        guard page?.components.contains(where: { if case .activityList = $0 { return true }; return false }) == true else {
+            throw PluginTestKitError.unknownCommand("activity_list")
+        }
+        _ = try activityService(.stopActivity, input: .object(["id": .string(id)]))
+    }
+
+    private func activityService(_ service: PluginHostService, input: JSONValue) throws -> JSONValue {
+        let action = try plugin.action(for: PluginTestInvocation(handler.commandID, input: handler.input))
+        return try services.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
+            actionID: action.id, service: service, input: input), for: plugin.package, action: action)
+    }
+
     public func text(of field: String) -> String? { memory.state.texts[field] }
     public func choice(of field: String) -> String? { memory.state.choices[field] }
 

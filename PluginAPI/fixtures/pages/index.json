@@ -344,7 +344,7 @@
       "file": "events/finished-copy-item.json",
       "definition": "event",
       "valid": true,
-      "note": "⌘C performed a Copy item action that asked to notify: the outcome names the item",
+      "note": "\u2318C performed a Copy item action that asked to notify: the outcome names the item",
       "level1": false
     },
     {
@@ -659,6 +659,13 @@
       "valid": false,
       "note": "min_cell_size is only for a grid whose columns are \"auto\"",
       "level1": false
+    },
+    {
+      "file": "answers/activity-list.json",
+      "definition": "answer",
+      "valid": true,
+      "level1": false,
+      "note": "Host-generated own activity control, no Plugin rows or actions"
     }
   ]
 }

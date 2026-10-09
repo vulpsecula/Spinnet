@@ -7,7 +7,7 @@ public enum KeepAwakeAddition {
     public static let stopID = "activities.stop"
     public static let members: [PluginInterfaceMember] = [
         .hostCommand(id), .standardAction(id), .request(id), .hostService(listID),
-        .standardAction(stopID), .request(stopID)
+        .standardAction(stopID), .request(stopID), .viewComponent("activity_list")
     ]
 }
 
@@ -92,6 +92,7 @@ public final class HostKeepAwake {
     private let apps: RunningApps?
     private let targets: AppTargets?
     private let now: () -> Date
+    private let monotonicNow: () -> TimeInterval
     private let schedule: Schedule
     private let lock = NSRecursiveLock()
     private var appBindings: [String: RunningAppIdentity] = [:]
@@ -100,9 +101,10 @@ public final class HostKeepAwake {
     private var isShutdown = false
 
     public init(activities: HostActivities, power: PowerAssertions, apps: RunningApps? = nil, targets: AppTargets? = nil,
-                now: @escaping () -> Date = Date.init, schedule: @escaping Schedule) {
+                now: @escaping () -> Date = Date.init,
+                monotonicNow: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }, schedule: @escaping Schedule) {
         self.activities = activities; self.power = power; self.apps = apps; self.targets = targets
-        self.now = now; self.schedule = schedule
+        self.now = now; self.monotonicNow = monotonicNow; self.schedule = schedule
         apps?.observeTerminations { [weak self] in self?.terminated($0) }
     }
 
@@ -171,11 +173,16 @@ public final class HostKeepAwake {
         case .duration(let seconds): expiry = now().addingTimeInterval(Double(seconds)); status = "For \(seconds) seconds"
         case .appAlive: expiry = nil; status = "While \(bound!.name.prefix(256)) is running"
         }
+        let countdown: (() -> Int)?
+        if case .duration(let seconds) = request.mode {
+            let deadline = monotonicNow() + Double(seconds)
+            countdown = { [monotonicNow] in max(0, Int(ceil(deadline - monotonicNow()))) }
+        } else { countdown = nil }
         let cancellation = EffectTimer()
         let activity: HostActivity
         do {
             activity = try activities.register(owner: owner, pluginName: pluginName, kind: "keep_awake", status: status,
-                                              expiresAt: expiry) { [weak self] in
+                                              expiresAt: expiry, remainingSeconds: countdown) { [weak self] in
                 cancellation.cancel(); display(); system()
                 guard let self else { return }
                 self.lock.lock(); self.appBindings[cancellation.activityID] = nil; self.lock.unlock()

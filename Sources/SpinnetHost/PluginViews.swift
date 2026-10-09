@@ -26,6 +26,7 @@ struct PluginViewEnvironment {
     /// every picture shows as unavailable.
     var images: PluginPageImageProvider? = nil
     var sources: HostRunSources? = nil
+    var activities: HostActivities? = nil
 }
 
 /// What a Detail section shows.
@@ -603,8 +604,9 @@ final class PluginViewWindows: PluginViewRenderer {
     private func show(_ window: PluginViewWindow, for pluginID: PluginID,
                       _ opening: (isPinned: Bool, restoring: PluginPanelGeometry?)) {
         if let native = window as? PluginViewPanelWindow {
-            native.onSourceVisibility = { [weak sources = environment.sources] visible in
+            native.onSourceVisibility = { [weak self, weak sources = environment.sources] visible in
                 sources?.setVisible(visible, pluginID: pluginID)
+                self?.entries[pluginID]?.page?.setActivityListVisible(visible)
             }
         }
         window.show(near: pointer(), restoring: opening.restoring)
@@ -631,6 +633,7 @@ final class PluginViewWindows: PluginViewRenderer {
     /// Removes the window shown for `session` without ending it.
     private func closeWindow(of session: PluginViewSession) {
         guard let entry = entries.removeValue(forKey: session.pluginID) else { return }
+        entry.page?.setActivityListVisible(false)
         entry.window.onResignKey = nil
         entry.window.onUserClose = nil
         entry.window.onGeometryChange = nil
@@ -659,6 +662,7 @@ final class PluginViewWindows: PluginViewRenderer {
     func close(_ session: PluginViewSession, because reason: PluginViewSessionEnd) {
         guard let entry = entries[session.pluginID], entry.session === session else { return }
         entries.removeValue(forKey: session.pluginID)
+        entry.page?.setActivityListVisible(false)
         entry.window.onResignKey = nil
         entry.window.onUserClose = nil
         entry.window.onGeometryChange = nil

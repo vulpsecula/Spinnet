@@ -28,7 +28,8 @@ public final class RecordedKeepAwake {
     private var now = Date(timeIntervalSince1970: 1_000)
     private var timers: [UUID: (Date, () -> Void)] = [:]
     public lazy var effects = HostKeepAwake(activities: activities, power: power, apps: apps, targets: apps.targets,
-        now: { [unowned self] in self.now }, schedule: { [unowned self] delay, work in
+        now: { [unowned self] in self.now },
+        monotonicNow: { [weak self] in self?.now.timeIntervalSince1970 ?? 0 }, schedule: { [unowned self] delay, work in
             let id = UUID(); self.timers[id] = (self.now.addingTimeInterval(delay), work)
             return { [weak self] in self?.timers[id] = nil }
         })

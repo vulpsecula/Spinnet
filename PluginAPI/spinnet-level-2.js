@@ -194,6 +194,7 @@
         stage: o.stage, state: o.state, cancel: o.cancel, style: style(o.style)
       });
     },
+    activityList: function (o) { return compact({kind: "activity_list", id: o.id, empty_text: o.emptyText}); },
     textField: function (o) {
       return compact({
         kind: "text_field", id: o.id, title: o.title, placeholder: o.placeholder, value: o.value,

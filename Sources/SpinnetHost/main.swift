@@ -802,7 +802,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 },
                 executor: { DispatchQueue.main.async(execute: $0) }
             ),
-            sources: sources
+            sources: sources,
+            activities: activities
         )
         return PluginViewWindows(
             environment: environment,

@@ -447,7 +447,8 @@ final class PageHarness {
     private(set) var windows: PluginViewWindows!
     private(set) var sessions: PluginViewSessions!
 
-    init(images: PluginPageImageProvider? = nil) throws {
+    init(images: PluginPageImageProvider? = nil, activities: HostActivities? = nil,
+         makePageWindow: ((PluginPageModel) -> PluginViewWindow)? = nil) throws {
         let desktop = FakeDesktop()
         desktop.frontmost = 42
         apps = FakeApps(desktop: desktop)
@@ -460,7 +461,7 @@ final class PageHarness {
         let environment = PluginViewEnvironment(
             hostActions: hostActions, sections: RecordingSectionProvider(), settingsFields: { _ in [] },
             pluginName: { _ in "Emoji Pages" }, repair: { _, _ in }, copy: { _ in },
-            schedule: { _, _ in }, report: { _ in }, insertionTargets: tracker, images: images
+            schedule: { _, _ in }, report: { _ in }, insertionTargets: tracker, images: images, activities: activities
         )
         windows = PluginViewWindows(
             environment: environment,
@@ -469,7 +470,8 @@ final class PageHarness {
                 levelOneWindows.append(window)
                 return window
             },
-            makePageWindow: { [unowned self] _ in
+            makePageWindow: { [unowned self] model in
+                if let makePageWindow { return makePageWindow(model) }
                 let window = FakePluginViewWindow()
                 pageWindows.append(window)
                 return window
