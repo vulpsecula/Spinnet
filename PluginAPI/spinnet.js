@@ -8,10 +8,11 @@
 //
 // Each wrapper requests exactly one Host Service, with its argument as the
 // service's input, unchanged, and returns the service's answer. It therefore
-// fails exactly as `requestHostService` does: a refused Capability or System
-// Permission ends the whole invocation, even if the script catches the error.
-// Only a Plugin Storage write over a limit throws an error the script may
-// catch, with `code` "storage_limit_exceeded".
+// fails exactly as `requestHostService` does: a refused required Capability
+// or System Permission ends the invocation even if the script catches it.
+// A denied optional Capability declared for this Command may be caught with
+// `code` "capability_denied". A Plugin Storage write over a limit is also
+// catchable, with `code` "storage_limit_exceeded".
 //
 // To add a wrapper, give it a camelCase name in the area it belongs to, name
 // its service with `service(...)`, and declare it in `spinnet.d.ts` with an

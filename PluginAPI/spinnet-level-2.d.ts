@@ -44,6 +44,8 @@ import type {
   WindowRect,
 } from "./spinnet";
 
+export type { OptionalCapabilityError, StorageLimitError } from "./spinnet";
+
 // MARK: Operations
 
 /** Input and result of every operation Level 2 offers, by catalogue ID. */

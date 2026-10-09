@@ -449,7 +449,7 @@ answers the sorted key names only. A value may be up to 512 KiB as JSON, so it
 always fits in one helper message; a Plugin may keep up to 10 MiB, the default
 capacity of Raycast's `Cache`, and it may keep up to 1000 keys, so the list of
 its keys always fits in one message too. A write over a limit stores nothing and
-fails with `storage_limit_exceeded`, the one Host Service failure the helper
+fails with `storage_limit_exceeded`, a Host Service failure the helper
 throws into the script as an `Error` (with that `code`) the script may catch;
 uncaught, it ends the Action as `host_service_failed`. A write replaces only
 its own key's value, all at once.
