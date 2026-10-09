@@ -10,6 +10,8 @@ public struct HostActivity: Equatable {
     public let kind: String
     public let status: String
     public let expiresAt: Date?
+    /// Whole seconds left from the resource's monotonic clock, not wall time.
+    public let remainingSeconds: Int?
 
     public var name: String { "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : "Activity")" }
     public var json: JSONValue {
@@ -24,7 +26,8 @@ public struct HostActivity: Equatable {
 public final class HostActivities {
     public static let maximumPerPlugin = 8
     public static let maximumTotal = 64
-    private struct Entry { let activity: HostActivity; let stop: () -> Void }
+    public static let visibleRefreshInterval: TimeInterval = 1
+    private struct Entry { let activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
     private var observers: [UUID: () -> Void] = [:]
@@ -33,7 +36,7 @@ public final class HostActivities {
 
     @discardableResult
     public func register(owner: PluginID, pluginName: String, kind: String, status: String,
-                         expiresAt: Date? = nil, stop: @escaping () -> Void) throws -> HostActivity {
+                         expiresAt: Date? = nil, remainingSeconds: (() -> Int)? = nil, stop: @escaping () -> Void) throws -> HostActivity {
         lock.lock()
         guard entries.count < Self.maximumTotal,
               entries.values.filter({ $0.activity.owner == owner }).count < Self.maximumPerPlugin else {
@@ -42,8 +45,8 @@ public final class HostActivities {
         }
         let activity = HostActivity(id: "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
                                     owner: owner, pluginName: String(pluginName.prefix(256)), kind: kind,
-                                    status: status, expiresAt: expiresAt)
-        entries[activity.id] = Entry(activity: activity, stop: stop)
+                                    status: status, expiresAt: expiresAt, remainingSeconds: remainingSeconds?())
+        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop)
         let changed = Array(observers.values)
         lock.unlock()
         changed.forEach { $0() }
@@ -52,9 +55,15 @@ public final class HostActivities {
 
     public func list(for owner: PluginID? = nil) -> [HostActivity] {
         lock.lock()
-        defer { lock.unlock() }
-        return entries.values.map(\.activity).filter { owner == nil || $0.owner == owner }
-            .sorted { $0.id < $1.id }
+        let snapshots = entries.values.filter { owner == nil || $0.activity.owner == owner }
+        lock.unlock()
+        return snapshots.map { entry in
+            let held = entry.activity
+            let remaining = entry.remainingSeconds.map { max(0, $0()) }
+            return HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
+                                status: remaining.map { "\($0) seconds remaining" } ?? held.status,
+                                expiresAt: held.expiresAt, remainingSeconds: remaining)
+        }.sorted { $0.id < $1.id }
     }
 
     /// Removes the entry before calling its stop adapter, ensuring races

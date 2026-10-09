@@ -5,20 +5,29 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let actionTarget: StatusItemActionTarget
     private let activities: HostActivities?
     private var observation: UUID?
+    private weak var openMenu: NSMenu?
+    private var cancelTick: (() -> Void)?
+    private let scheduleTick: (@escaping () -> Void) -> (() -> Void)
 
     private(set) var statusItem: NSStatusItem?
 
-    init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, activities: HostActivities? = nil) {
+    init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, activities: HostActivities? = nil,
+         scheduleTick: @escaping (@escaping () -> Void) -> (() -> Void) = HostActivityListModel.schedule) {
+        self.scheduleTick = scheduleTick
         self.activities = activities
         actionTarget = StatusItemActionTarget(openSettings: openSettings, quit: quit,
                                               stop: { activities?.stop($0) })
         super.init()
         observation = activities?.observeChanges { [weak self] in
-            DispatchQueue.main.async { self?.statusItem?.menu = self?.makeMenu() }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let menu = self.openMenu { self.replaceItems(in: menu); self.reconcileTick() }
+                else { self.statusItem?.menu = self.makeMenu() }
+            }
         }
     }
 
-    deinit { if let observation { activities?.removeChangeObserver(observation) } }
+    deinit { cancelTick?(); if let observation { activities?.removeChangeObserver(observation) } }
 
     func install() {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -56,6 +65,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(heading)
             let status = NSMenuItem(title: activity.status, action: nil, keyEquivalent: "")
             status.isEnabled = false; status.indentationLevel = 1
+            status.identifier = NSUserInterfaceItemIdentifier("activity-status:" + activity.id)
             menu.addItem(status)
             if activity.kind == "keep_awake" {
                 let scope = NSMenuItem(title: "Mac and display stay awake while idle", action: nil, keyEquivalent: "")
@@ -85,10 +95,40 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        openMenu = menu
+        replaceItems(in: menu)
+        reconcileTick()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        openMenu = nil
+        cancelTick?(); cancelTick = nil
+    }
+
+    private func replaceItems(in menu: NSMenu) {
         let current = makeMenu()
         menu.removeAllItems()
         for item in current.items { current.removeItem(item); menu.addItem(item) }
     }
+
+    private func reconcileTick() {
+        guard openMenu != nil, activities?.list().contains(where: { $0.remainingSeconds != nil }) == true else {
+            cancelTick?(); cancelTick = nil; return
+        }
+        if cancelTick == nil { cancelTick = scheduleTick { [weak self] in self?.refreshCountdowns() } }
+    }
+
+    private func refreshCountdowns() {
+        guard let menu = openMenu else { return }
+        let statuses = Dictionary(uniqueKeysWithValues: (activities?.list() ?? []).map { ("activity-status:" + $0.id, $0.status) })
+        // Update titles in place: a second tick must not replace the menu
+        // or disturb the user pointing at its Stop control.
+        for item in menu.items {
+            if let id = item.identifier?.rawValue, let status = statuses[id] { item.title = status }
+        }
+        reconcileTick()
+    }
+
 }
 
 private final class StatusItemActionTarget: NSObject {

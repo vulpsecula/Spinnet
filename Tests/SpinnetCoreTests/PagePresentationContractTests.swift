@@ -25,7 +25,7 @@ final class PagePresentationContractTests: XCTestCase {
             XCTAssertTrue(levelTwo(member), "\(member)")
             XCTAssertFalse(levelOne(member), "\(member)")
         }
-        XCTAssertEqual(Set(PagePresentation.componentKinds + CollectionsContract.componentKinds),
+        XCTAssertEqual(Set(PagePresentation.componentKinds + CollectionsContract.componentKinds + ["activity_list"]),
                        Set(PluginPageComponent.Kind.allCases.map(\.rawValue)))
     }
 

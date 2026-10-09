@@ -308,6 +308,9 @@ may declare the two Capabilities ([the App in front](reference/apps.md)).
 
 ### Host-owned keep-awake effects (Level 2, #84)
 
+`ui.components.activityList({id, emptyText})` renders the Plugin’s own Host Activities,
+with native Stop and a live countdown in seconds, without invoking its helper.
+
 `system.keepAwake` prevents idle system and display sleep together under the
 new `keep_awake` Capability. Manual, duration and App-alive effects survive
 view closure and bounded helper retirement. `activities.list` exposes only

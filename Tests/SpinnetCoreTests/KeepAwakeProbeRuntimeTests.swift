@@ -81,7 +81,7 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         grants.setDecision(.denied, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
             capability: .readFrontmostApp, scope: plugin.manifest.scope(for: .readFrontmostApp))
         XCTAssertEqual(recorded.power.count, 4, "Revoking App identity must preserve manual and timed effects")
-        XCTAssertEqual(recorded.activities.list(for: plugin.manifest.id).map(\.status).sorted(), ["For 60 seconds", "Until stopped"])
+        XCTAssertEqual(recorded.activities.list(for: plugin.manifest.id).map(\.status).sorted(), ["60 seconds remaining", "Until stopped"])
         recorded.advance(by: 60)
         XCTAssertEqual(recorded.power.count, 2, "The preserved timer still expires normally")
     }

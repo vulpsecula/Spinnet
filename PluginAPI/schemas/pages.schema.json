@@ -208,6 +208,9 @@
         },
         {
           "$ref": "#/$defs/progress"
+        },
+        {
+          "$ref": "#/$defs/activity_list"
         }
       ]
     },
@@ -1669,6 +1672,28 @@
           "$ref": "host-operations.schema.json#/$defs/operation_finished_members"
         }
       ]
+    },
+    "activity_list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "const": "activity_list"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "empty_text": {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 256
+        }
+      },
+      "description": "A top-level Host control showing only this Plugin\u2019s active Host Activities and their native Stop. At most one/page; no Plugin items, owner, or actions. Timed status updates in whole seconds while visible."
     }
   }
 }

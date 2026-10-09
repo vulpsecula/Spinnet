@@ -274,7 +274,9 @@ export interface Page {
 }
 
 export type Leaf = TextField | ChoiceField | TextBlock | Actions | Icon | Image | Progress;
-export type Component = Row | Column | Leaf | List | Grid;
+export type Component = Row | Column | Leaf | List | Grid | ActivityList;
+/** Host-generated own activity rows, live seconds and native Stop; no helper polling. */
+export interface ActivityList { kind: "activity_list"; id: ID; empty_text?: string; }
 
 /** Up to 4 components side by side: leaves and columns, never a row directly. Containers nest at most 3 deep. */
 export interface Row {
@@ -592,6 +594,7 @@ export type _Level1AnswersRemainValid = ScriptAnswer extends Answer ? true : nev
 
 /** Builders of page components. Camel-case options map to the snake-case members. */
 export interface PageComponents {
+  activityList(options: {id: ID; emptyText?: string}): ActivityList;
   bind(source: ID, pointer: string, options?: { format?: BindingFormat; unavailable?: string }): Binding;
   row(options: { id: ID; content: (Leaf | Column)[]; style?: StyleOptions }): Row;
   column(options: { id: ID; content: (Leaf | Row)[]; style?: StyleOptions }): Column;

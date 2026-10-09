@@ -71,7 +71,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinnetHostTests",
-            dependencies: ["SpinnetHost"]
+            dependencies: ["SpinnetHost", "SpinnetPluginTestKit"]
         )
     ]
 )

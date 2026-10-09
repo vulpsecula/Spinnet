@@ -102,3 +102,30 @@ Pass it as `keepAwake:` to `RecordedHostServices` and
 It substitutes OS/time boundaries; it does not prove actual sleep behaviour.
 Published [fixtures](../fixtures/keep-awake/index.json) match the
 [namespaces schema](../schemas/namespaces.schema.json).
+
+## Live activity control
+
+A Level 2 page may contain one top-level `activity_list` component:
+
+```js
+const c = spinnet.ui.components;
+c.activityList({id: "held", emptyText: "No active effects"});
+```
+
+It shows only the owning Plugin's current Host Activities (at most 8), with
+Host-generated names and statuses and a native Stop button. The Plugin supplies
+no owner, rows or actions. Stop removes the resource immediately without a View
+Event or helper invocation. Empty text is nonblank and at most 256 characters;
+its default is “No active activities”. Resource IDs keep row identity stable.
+
+Timed effects display whole remaining seconds, rounded upward from the Host's
+monotonic deadline. The Plugin View and open Status Item menu refresh once per
+second while they contain timed activities. Hiding, occluding, closing, screen
+sleep or an inactive user session cancels the Plugin View refresh; closing the
+Status Item menu cancels its refresh. These refreshes never run a Plugin, deliver
+a source event or alter the effect lifetime. Structural resource changes update
+the visible control immediately. `activities.list()` remains a snapshot call;
+its `status` contains the remaining whole seconds at the time of that call.
+
+The public test kit's `PluginTestPage.activityRows()` and `stopActivity(id)`
+exercise the same own-activity read/stop services without running the helper.

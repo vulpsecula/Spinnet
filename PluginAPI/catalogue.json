@@ -2442,6 +2442,12 @@
       "summary": "Builds a text binding: bind(source, pointer, {format, unavailable})",
       "status": "level2",
       "level1": []
+    },
+    {
+      "id": "ui.components.activityList",
+      "status": "level2",
+      "summary": "Host-generated own activity rows with live remaining seconds and native Stop; activityList({id, emptyText})",
+      "level1": []
     }
   ],
   "values": [

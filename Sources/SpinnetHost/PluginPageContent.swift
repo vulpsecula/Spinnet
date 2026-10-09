@@ -275,6 +275,8 @@ private struct PageComponentView: View {
                     .accessibilityLabel(model.insertionTargetLabel(of: action).map { "\(action.title), \($0)" } ?? action.title)
                 }
             }
+        case .activityList(let declaration):
+            PluginPageActivityListView(model: model.activityList, declaration: declaration)
         case .collection:
             EmptyView()
         }

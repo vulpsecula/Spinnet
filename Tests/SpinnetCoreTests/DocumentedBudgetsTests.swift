@@ -456,3 +456,15 @@ final class PagePresentationBudgetsTests: XCTestCase {
         XCTAssertEqual(PagePresentation.maximumStatusLength, 256)
     }
 }
+
+final class ActivityPresentationBudgetsTests: XCTestCase {
+    func testVisibleActivityCountdownRefreshIsOneSecondAndOwnerRowsRemainBounded() throws {
+        XCTAssertEqual(HostActivities.visibleRefreshInterval, 1)
+        XCTAssertEqual(HostActivities.maximumPerPlugin, 8)
+        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("PluginAPI/reference/keep-awake.md")
+        let reference = try String(contentsOf: api)
+        XCTAssertTrue(reference.contains("refresh once per\nsecond"))
+        XCTAssertTrue(reference.contains("at most 8"))
+    }
+}
