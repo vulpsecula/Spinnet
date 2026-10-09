@@ -6,6 +6,47 @@ import SpinnetPluginTestKit
 final class HostRunSourcesContractTests: XCTestCase {
     private let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
     private var fixture: URL { api.deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/SourcesProbe.spinnetplugin") }
+
+    func testExternalPackageBuildsAOnceReviewedToolSource() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".spinnetplugin")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let brew = api.deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/ReviewedToolsProbe.spinnetplugin")
+        try FileManager.default.copyItem(at: brew, to: directory)
+        try """
+        spinnet.ui.showPage(spinnet.ui.page({id: "brew", title: "Packages",
+          sources: [spinnet.tools.read.source("local", {tool: "homebrew", operation: "installed", kind: "formula"}, {deliver: true})],
+          content: [spinnet.ui.components.text({id: "name", text: "Waiting", bind: spinnet.ui.components.bind("local", "/packages/0/name")})]
+        }))
+        """.write(to: directory.appendingPathComponent("read.js"), atomically: true, encoding: .utf8)
+        let plugin = try PluginUnderTest(packageAt: directory)
+        let helper = try PluginTestHelper(); defer { helper.shutdown() }
+        let invocation = PluginTestInvocation("probe.read")
+        let answer = try helper.run(invocation, of: plugin, answering: RecordedHostServices()).answer()
+        let page = try XCTUnwrap(answer.description)
+        XCTAssertEqual(page.value(atPointer: "/sources/0/perform"), .string("tools.read"))
+        let packages: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("installed"), "packages": .array([.object(["kind": .string("formula"), "name": .string("wget")])])])
+        var reads = 0
+        let recording = try RecordedHostSources(of: plugin, for: invocation, operations: ["tools.read": .answer { _ in reads += 1; return packages }])
+        try recording.present(page)
+        recording.setVisible(true)
+        XCTAssertEqual(recording.shown("name")?.text, "wget")
+        XCTAssertEqual(recording.deliveries.count, 1)
+        recording.setVisible(false); recording.setVisible(true); recording.advance(by: 60)
+        XCTAssertEqual(reads, 1, "A successful Homebrew source is once only")
+        XCTAssertEqual(helper.launchCount, 1, "The Host reads without holding the helper alive")
+        recording.close()
+        let missing = try RecordedHostSources(of: plugin, for: invocation, operations: ["tools.read": .failure(.tool(.missing))])
+        try missing.present(page); missing.setVisible(true)
+        guard case .sourceDelivered(_, _, _, nil, let failure)? = missing.deliveries.first else { return XCTFail("Expected bounded tool failure delivery") }
+        XCTAssertEqual(failure?.category, .toolMissing)
+        let validator = try JSONSchemaSubsetValidator(definition: "source_delivered", inSchemaAt: api.appendingPathComponent("schemas/host-run-sources.schema.json"))
+        XCTAssertEqual(validator.errors(for: try XCTUnwrap(missing.deliveries.first).json), [])
+        missing.close()
+        var periodic = try XCTUnwrap(page.value(atPointer: "/sources/0"))
+        guard case .object(var fields) = periodic else { return XCTFail("Expected source definition") }
+        fields["every"] = .number(1); periodic = .object(fields)
+        XCTAssertThrowsError(try PluginPageSource(parsing: periodic, permits: CollectionsFixtures.permits))
+    }
     func testExternalPackageBuildsBoundPageAndShowsRecordedAnswerWithoutHelperRun() throws {
         let plugin = try PluginUnderTest(packageAt: fixture)
         let helper = try PluginTestHelper(); defer { helper.shutdown() }

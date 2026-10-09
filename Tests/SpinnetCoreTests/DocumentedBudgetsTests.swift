@@ -1,6 +1,45 @@
 import XCTest
 @testable import SpinnetCore
 
+final class HostRunSourceBudgetsTests: XCTestCase {
+    func testSourceBudgetsMatchThePublishedPage() {
+        XCTAssertPublished("Bounds: eight sources/page", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.maximumSources, 8)
+        XCTAssertPublished("source result at most 512 KiB of encoded JSON", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.maximumResultBytes, 524_288)
+        XCTAssertPublished("shown text is truncated at 4,096 characters", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.maximumText, 4_096)
+        XCTAssertPublished("Deliveries of one source ID are at least 15 seconds apart", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.deliveryInterval, 15)
+        XCTAssertPublished("Local adapters must publish a minimum of at least one second", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.minimumInterval, 1)
+        XCTAssertPublished("pointer at most 512 characters", in: "reference/sources.md")
+        XCTAssertEqual(HostFetchedSectionBudgets.maximumPointerLength, 512)
+        XCTAssertPublished("failure message at most 512", in: "reference/sources.md")
+        XCTAssertEqual(HostRunSourceAddition.maximumFailureMessage, 512)
+        XCTAssertPublished("HTTPS samples once and has a 15-second deadline", in: "reference/sources.md")
+        XCTAssertEqual(ScriptedActionBudgets.hostFetchedSectionDeadline, 15)
+    }
+}
+
+final class ReviewedToolReadBudgetsTests: XCTestCase {
+    func testReadBudgetsMatchThePublishedPage() {
+        XCTAssertPublished("A call has a **3 second** deadline", in: "reference/tools.md")
+        XCTAssertEqual(ReviewedToolReads.callDeadline, 3)
+        XCTAssertPublished("A source has a **15 second** deadline", in: "reference/tools.md")
+        XCTAssertEqual(ReviewedToolReads.sourceDeadline, 15)
+        XCTAssertPublished("One read per Plugin and two Host-wide may run", in: "reference/tools.md")
+        XCTAssertEqual(ReviewedToolReads.maximumConcurrentReadsPerPlugin, 1)
+        XCTAssertEqual(ReviewedToolReads.maximumConcurrentReads, 2)
+        XCTAssertPublished("Results hold at most 2,000 packages and 512 KiB", in: "reference/tools.md")
+        XCTAssertEqual(ReviewedToolReads.maximumPackages, 2_000)
+        XCTAssertEqual(ReviewedToolReads.resultBytes, 524_288)
+        XCTAssertPublished("Raw stdout is capped at 4 MiB and stderr at 64 KiB", in: "reference/tools.md")
+        XCTAssertEqual(ReviewedToolReads.stdoutBytes, 4_194_304)
+        XCTAssertEqual(ReviewedToolReads.stderrBytes, 65_536)
+    }
+}
+
 /// These tests pin the budgets Spinnet publishes to Plugin authors against the
 /// documents that promise them. Every expected value below is a literal copied
 /// from the cited document, never a reference to the constant under test, so

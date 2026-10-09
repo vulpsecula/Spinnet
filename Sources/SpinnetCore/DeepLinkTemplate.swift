@@ -263,7 +263,7 @@ public extension PluginManifest {
         guard let id = action.deepLinkTemplate,
               let template = scope(for: .controlExternalApp)?.externalApps
                   .flatMap(\.deepLinkTemplates).first(where: { $0.id == id }) else {
-            throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
+            throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
         var fields: [String: JSONValue] = ["template": .string(id)]
         if !template.parameters.isEmpty {
@@ -283,7 +283,7 @@ public extension PluginCapabilityScope {
     func deepLink(template id: String, parameters: [String: JSONValue]) throws -> DeepLink {
         guard let app = externalApps.first(where: { $0.deepLinkTemplates.contains { $0.id == id } }),
               let template = app.deepLinkTemplates.first(where: { $0.id == id }) else {
-            throw PluginHostServiceError.capabilityDenied(capability)
+            throw PluginHostServiceError.capabilityScopeDenied(capability)
         }
         return DeepLink(bundleID: app.bundleID, applicationName: app.displayName,
                         url: try template.link(with: parameters))

@@ -323,7 +323,7 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
     /// The reason a Host Service failure gives an operation.
     public init(_ error: PluginHostServiceError) {
         switch error {
-        case .capabilityDenied: self = .capabilityDenied
+        case .capabilityDenied, .capabilityScopeDenied: self = .capabilityDenied
         case .systemPermissionDenied: self = .systemPermissionDenied
         case .automationPermissionDenied: self = .automationPermissionDenied
         case .externalAppMissing: self = .externalAppMissing

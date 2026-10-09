@@ -1,0 +1,29 @@
+{
+  "page": {
+    "id": "weather",
+    "title": "Weather",
+    "sources": [
+      {
+        "id": "remote",
+        "perform": "tools.read",
+        "input": {
+          "tool": "homebrew",
+          "operation": "installed",
+          "kind": "formula"
+        },
+        "deliver": {}
+      }
+    ],
+    "content": [
+      {
+        "kind": "text",
+        "id": "temperature",
+        "text": "Waiting",
+        "bind": {
+          "source": "remote",
+          "pointer": "/packages/0/name"
+        }
+      }
+    ]
+  }
+}

@@ -9,6 +9,8 @@ public enum HostRunSourceAddition {
     public static let maximumText = 4_096
     public static let maximumResultBytes = 512 * 1024
     public static let deliveryInterval: TimeInterval = 15
+    public static let minimumInterval: TimeInterval = 1
+    public static let maximumFailureMessage = 512
 }
 
 /// All result and authority inputs are retained as the complete JSON definition.
@@ -32,6 +34,11 @@ public struct PluginPageSource: Equatable {
         guard let input = fields["input"] else { throw PluginPage.violation("The source \(id) has no input") }
         self.input = input
         every = try PluginPage.number(fields["every"], "The source \(id)'s every", in: 1...3_600)
+        if perform == ReviewedToolReads.id {
+            guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
+            do { _ = try HomebrewReadInput(input) }
+            catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
+        }
         if perform == "http.request" {
             guard every == nil else { throw PluginPage.violation("http.request sources sample once") }
             var request: [String: JSONValue] = ["request": input, "mode": .string("show"), "pointer": .string("/unused")]
@@ -196,7 +203,7 @@ public final class HostRunSources {
     public func present(_ description: PluginPage, for action: ActionConfiguration, answering event: PluginViewEvent? = nil) throws {
         for source in description.sources {
             guard let adapter = adapters[source.perform] else { throw PluginPage.violation("No source adapter for \(source.perform)") }
-            if let every = source.every, every < max(1, adapter.minimumInterval ?? 1) {
+            if let every = source.every, every < max(HostRunSourceAddition.minimumInterval, adapter.minimumInterval ?? HostRunSourceAddition.minimumInterval) {
                 throw PluginPage.violation("The source \(source.id)'s every is below its adapter's minimum")
             }
         }
@@ -216,7 +223,7 @@ public final class HostRunSources {
         for (id, old) in page.records where kept[id] !== old { cancel(old) }
         page.description = description; page.records = kept; pages[plugin] = page
         for record in kept.values where record.sequence == 0 && page.visible {
-            let minimum = adapters[record.source.perform]?.minimumInterval ?? 1
+            let minimum = adapters[record.source.perform]?.minimumInterval ?? HostRunSourceAddition.minimumInterval
             let delay: TimeInterval
             switch event {
             case .sourceDelivered?, .loadRange?, .pageFieldChanged?, .operationFinished?: delay = minimum
@@ -234,7 +241,7 @@ public final class HostRunSources {
             if visible, record.pending != nil { deliver(record, plugin: pluginID) }
             if !visible { cancel(record); record.stale = record.result != nil }
             else if record.result == nil || record.source.every != nil {
-                let minimum = adapters[record.source.perform]?.minimumInterval ?? 1
+                let minimum = adapters[record.source.perform]?.minimumInterval ?? HostRunSourceAddition.minimumInterval
                 let wait = record.lastStart.map { max(0, $0 + minimum - now()) } ?? 0
                 start(record, plugin: pluginID, after: wait)
             }
@@ -254,7 +261,7 @@ public final class HostRunSources {
         for (id, old) in page.records where old.source.input.containsCredentialUse {
             cancel(old)
             let renewed = Record(old.source, action: old.action, owner: adapters[old.source.perform]?.ownerIdentity(old.action)); page.records[id] = renewed
-            if page.visible { start(renewed, plugin: pluginID, after: adapters[renewed.source.perform]?.minimumInterval ?? 1) }
+            if page.visible { start(renewed, plugin: pluginID, after: adapters[renewed.source.perform]?.minimumInterval ?? HostRunSourceAddition.minimumInterval) }
         }
         onChange?(pluginID)
     }
@@ -263,7 +270,7 @@ public final class HostRunSources {
     public func authorityChanged(pluginID: PluginID) {
         guard let page = pages[pluginID], page.visible else { return }
         for record in page.records.values where record.failure?.category == .capabilityDenied && record.cancellation == nil {
-            let minimum = adapters[record.source.perform]?.minimumInterval ?? 1
+            let minimum = adapters[record.source.perform]?.minimumInterval ?? HostRunSourceAddition.minimumInterval
             let wait = record.lastStart.map { max(0, $0 + minimum - now()) } ?? 0
             start(record, plugin: pluginID, after: wait)
         }
@@ -334,7 +341,7 @@ public final class HostRunSources {
             if case PluginRuntimeError.timedOut = error { category = .timedOut }
             else if let service = error as? PluginHostServiceError { category = service.runtimeFailureCategory }
             else { category = .hostServiceFailed }
-            let failure = PluginRuntimeFailure(category: category, message: String(FetchedAnswer.message(for: error).prefix(512)))
+            let failure = PluginRuntimeFailure(category: category, message: String(FetchedAnswer.message(for: error).prefix(HostRunSourceAddition.maximumFailureMessage)))
             record.failure = failure; record.stale = record.result != nil
             payload = .object(["category": .string(category.rawValue), "message": .string(failure.message)]); failed = true
         }
@@ -426,7 +433,7 @@ public extension CapabilityCheckedHostServiceBroker {
                     if case .object(let options) = source.definition, options["error_pointer"] == .string(""),
                        options["status_messages"]?.value(atPointer: "/\(Int(status))") == nil,
                        case .string(let text)? = fields["json"], !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        throw PluginHostServiceError.failed(String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(512)))
+                        throw PluginHostServiceError.failed(String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(HostRunSourceAddition.maximumFailureMessage)))
                     }
                     if case .failed(let message) = request.shownState(for: response) { throw PluginHostServiceError.failed(message) }
                 }

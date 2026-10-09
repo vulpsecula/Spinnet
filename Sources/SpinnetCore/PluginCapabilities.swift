@@ -598,6 +598,9 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
 
 public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, LocalizedError {
     case capabilityDenied(PluginCapability)
+    /// The request exceeds the declared scope, regardless of the grant decision.
+    /// It has the same wire category as a denied grant, but is never recoverable.
+    case capabilityScopeDenied(PluginCapability)
     case systemPermissionDenied(PluginSystemPermission)
     /// macOS refused Spinnet's Apple Events to the named application.
     case automationPermissionDenied(String)
@@ -618,6 +621,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
         switch self {
         case .capabilityDenied(let capability):
             return "Capability \(capability.rawValue) is not granted"
+        case .capabilityScopeDenied(let capability):
+            return "The request is outside the scope of Capability \(capability.rawValue)"
         case .systemPermissionDenied(let permission):
             return "System Permission \(permission.rawValue) is not granted"
         case .automationPermissionDenied(let application):
@@ -644,7 +649,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
 
     public var runtimeFailureCategory: PluginRuntimeFailureCategory {
         switch self {
-        case .capabilityDenied:
+        case .capabilityDenied, .capabilityScopeDenied:
             return .capabilityDenied
         case .systemPermissionDenied:
             return .systemPermissionDenied
@@ -666,7 +671,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
 
     public var actionFailureCategory: ActionFailureCategory {
         switch self {
-        case .capabilityDenied:
+        case .capabilityDenied, .capabilityScopeDenied:
             return .capabilityDenied
         case .systemPermissionDenied:
             return .systemPermissionDenied
@@ -927,27 +932,24 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 throw PluginHostServiceError.unavailable("The accepted effect owner is no longer current")
             }
         }
+        // Request scope is independent of a grant. Check it first so denial of
+        // an optional grant cannot turn an invalid request into a catchable one.
+        switch service {
+        case .reviewedToolRead:
+            try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
+        case .httpsRequest:
+            try httpsPerformer(for: package).validate(request.input)
+        case .performAppOperation:
+            _ = try appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+        case .openDeepLink:
+            _ = try deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+        default: break
+        }
         try authorize(service, for: package, action: action)
 
         switch service {
         case .reviewedToolRead:
-            let read = try HomebrewReadInput(request.input)
-            let registration = pluginRegistry?.ownerAdmission(for: package.manifest.id)
-            let validity = ReviewedToolReadValidity()
-            let revocation = grantStore.observeRevocation { owner in
-                if owner == package.manifest.id { validity.revoke() }
-            }
-            defer { grantStore.removeRevocationObserver(revocation) }
-            return try reviewedTools.read(request.input, owner: package.manifest.id) {
-                guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.readReviewedTools) }
-                try self.authorize(.reviewedToolRead, for: package, action: action)
-                try read.authorize(in: package.manifest.scope(for: .readReviewedTools))
-                if let registry = self.pluginRegistry {
-                    guard let registration, registry.isCurrent(registration, for: package) else {
-                        throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
-                    }
-                }
-            }
+            return try readReviewedTool(request.input, for: package, action: action)
         case .keepAwakeEffect:
             let effect = try KeepAwakeRequest(input: request.input)
             if case .appAlive = effect.mode {
@@ -1122,23 +1124,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try appleEventSender(appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
             return .null
         case .openDeepLink:
-            guard case .object(let fields) = request.input, case .string(let template)? = fields["template"],
-                  Set(fields.keys).isSubset(of: ["template", "parameters"]) else {
-                throw PluginHostServiceError.invalidInput("open_deep_link expects a template and optional parameters")
-            }
-            var parameters: [String: JSONValue] = [:]
-            if let supplied = fields["parameters"] {
-                guard case .object(let values) = supplied else {
-                    throw PluginHostServiceError.invalidInput("open_deep_link parameters must be an object")
-                }
-                parameters = values
-            }
-            // A template outside the consented scope is refused like any
-            // other target the user did not allow.
-            guard let scope = package.manifest.scope(for: .controlExternalApp) else {
-                throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
-            }
-            try deepLinkOpener(scope.deepLink(template: template, parameters: parameters))
+            try deepLinkOpener(deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
             return .null
         case .insertText:
             guard case .string(let text) = request.input,
@@ -1202,6 +1188,49 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         try httpsPerformer(for: package).validate(input)
     }
 
+    /// A visible-page read has no helper and the source's fifteen-second
+    /// deadline; it shares the call's scope, admission and result checks.
+    public func reviewedToolSourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
+        HostSourceAdapter(deadline: ReviewedToolReads.sourceDeadline,
+            ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
+            authorize: { [self] action, source in
+                guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+                }
+                try HomebrewReadInput(source.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
+                try self.authorize(.reviewedToolRead, for: package, action: action)
+            }, sample: { [self] action, source, cancellation in
+                guard let package = registry.package(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+                }
+                return try readReviewedTool(source.input, for: package, action: action,
+                    timeout: ReviewedToolReads.sourceDeadline, cancellation: cancellation, registry: registry)
+            })
+    }
+
+    private func readReviewedTool(_ input: JSONValue, for package: PluginPackage, action: ActionConfiguration,
+                                  timeout: TimeInterval = ReviewedToolReads.callDeadline,
+                                  cancellation: HostFetchedSections.Cancellation = .init(), registry: PluginRegistry? = nil) throws -> JSONValue {
+        let read = try HomebrewReadInput(input)
+        let registry = registry ?? pluginRegistry
+        let registration = registry?.ownerAdmission(for: package.manifest.id)
+        let validity = ReviewedToolReadValidity()
+        let revocation = grantStore.observeRevocation { owner in
+            if owner == package.manifest.id { validity.revoke(); cancellation.cancel() }
+        }
+        defer { grantStore.removeRevocationObserver(revocation) }
+        return try reviewedTools.read(input, owner: package.manifest.id, timeout: timeout, cancellation: cancellation) {
+            guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.readReviewedTools) }
+            try read.authorize(in: package.manifest.scope(for: .readReviewedTools))
+            try self.authorize(.reviewedToolRead, for: package, action: action)
+            if let registry {
+                guard let registration, registry.isCurrent(registration, for: package), registry.isEnabled(for: package.manifest.id) else {
+                    throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
+                }
+            }
+        }
+    }
+
     /// Runs `send`; when its destination is outside the consented hosts,
     /// though the grant stood a moment ago, it is a host the user never
     /// allowed, such as a self-hosted endpoint, and the refusal names it.
@@ -1209,9 +1238,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                                          _ send: () throws -> T) throws -> T {
         do {
             return try send()
-        } catch PluginHostServiceError.capabilityDenied(.contactHTTPS) {
+        } catch PluginHostServiceError.capabilityScopeDenied(.contactHTTPS) {
             guard let host = destination.flatMap(HTTPSDestination.host(of:)) else {
-                throw PluginHostServiceError.capabilityDenied(.contactHTTPS)
+                throw PluginHostServiceError.capabilityScopeDenied(.contactHTTPS)
             }
             throw PluginHostServiceError.failed(package.manifest.refusalToContact(host))
         }
@@ -1281,7 +1310,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             arguments = values
         }
         guard let target = scope?.externalApps.first(where: { $0.bundleID == bundleID }) else {
-            throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
+            throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
         guard let interface = ReviewedAppInterface.interface(for: bundleID) else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
@@ -1290,9 +1319,25 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
         if let family = interface.operations.first(where: { $0.name == operation })?.family,
            !target.operationFamilies.contains(family) {
-            throw PluginHostServiceError.capabilityDenied(.controlExternalApp)
+            throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
         return try interface.request(operation: operation, arguments: arguments)
+    }
+
+    private func deepLink(from input: JSONValue, scope: PluginCapabilityScope?) throws -> DeepLink {
+        guard case .object(let fields) = input, case .string(let template)? = fields["template"],
+              Set(fields.keys).isSubset(of: ["template", "parameters"]) else {
+            throw PluginHostServiceError.invalidInput("open_deep_link expects a template and optional parameters")
+        }
+        var parameters: [String: JSONValue] = [:]
+        if let supplied = fields["parameters"] {
+            guard case .object(let values) = supplied else {
+                throw PluginHostServiceError.invalidInput("open_deep_link parameters must be an object")
+            }
+            parameters = values
+        }
+        guard let scope else { throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp) }
+        return try scope.deepLink(template: template, parameters: parameters)
     }
 
     /// A performer for the Plugin's declared hosts plus those the user

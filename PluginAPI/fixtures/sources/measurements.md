@@ -57,8 +57,10 @@ injected source offering. It is a fixture, never a published operation.
 The actual NSPanel test uses the Host's `.accessory` activation policy,
 NSApplication event pumping, WindowServer occlusion and real NSWorkspace
 notification observers. Under the initial SwiftPM runner, the ordered-in panel
-was reported occluded; actual visible-desktop scenarios therefore require a
-rerun, and the guarded native test skips rather than asserting visibility.
+was reported occluded. The integration rerun on 10 October passed both native
+panel visibility tests, including an ordered-in unoccluded panel and real
+NSWorkspace notification observers. The Xcode integration run also passed both
+tests. These checks exercise native visibility and close cleanup.
 No actual machine sleep, lock or fast user switch was induced. Native redraw
 latency, visual alignment and VoiceOver speech have not been measured in this
 run; model/text formatter values are not screen-rendering evidence.

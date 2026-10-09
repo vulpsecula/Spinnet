@@ -35,6 +35,16 @@
       "file": "missing-source.json",
       "definition": "answer",
       "valid": false
+    },
+    {
+      "file": "bound-tools.json",
+      "definition": "answer",
+      "valid": true
+    },
+    {
+      "file": "failed-tools.json",
+      "definition": "event",
+      "valid": true
     }
   ]
 }

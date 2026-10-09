@@ -291,7 +291,7 @@ final class DeepLinkHostServiceTests: XCTestCase {
         ])
 
         let refusals: [(JSONValue, PluginHostServiceError)] = [
-            (.object(["template": .string("delete-all")]), .capabilityDenied(.controlExternalApp)),
+            (.object(["template": .string("delete-all")]), .capabilityScopeDenied(.controlExternalApp)),
             (.string("notes-example://note/new"),
              .invalidInput("open_deep_link expects a template and optional parameters")),
             (.object(["template": .string("new"), "url": .string("notes-example://x")]),

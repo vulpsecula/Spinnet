@@ -57,7 +57,7 @@ invocation even if the script catches the error. A denied Capability the
 manifest declares optional for the current Command is thrown as an `Error`
 whose `code` is `capability_denied`; the script may catch it and offer another
 path. Each later request still checks its own grant. An undeclared or
-out-of-scope Capability is never recoverable. A Plugin Storage write over a
+out-of-scope Capability is never recoverable, even when its optional grant is denied. The Host checks the request's target, operation and data scope independently before deciding whether a missing optional grant can be caught. A Plugin Storage write over a
 limit is also catchable, with `code` `storage_limit_exceeded`. A business
 error, such as a service answering 404, is a result the script handles,
 not a failure.

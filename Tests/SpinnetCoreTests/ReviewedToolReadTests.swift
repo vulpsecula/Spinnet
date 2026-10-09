@@ -72,6 +72,31 @@ final class ReviewedToolReadTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
 
+    func testSourceCancellationStopsAChildAfterItsLeaderExited() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = directory.appendingPathComponent("started"), survivor = directory.appendingPathComponent("survivor")
+        let cancellation = HostFetchedSections.Cancellation()
+        let finished = expectation(description: "cancelled process group was reaped")
+        DispatchQueue.global().async {
+            defer { finished.fulfill() }
+            do {
+                _ = try HomebrewReadProfile.executeCancellable(URL(fileURLWithPath: "/bin/sh"),
+                    ["-c", "(sleep 0.5; echo survivor > \"$2\") & echo started > \"$1\"; exit 0", "source-fixture", started.path, survivor.path],
+                    HomebrewReadProfile.environment, Date().addingTimeInterval(15), cancellation)
+                XCTFail("The cancelled read returned an answer")
+            } catch { XCTAssertEqual(error as? PluginHostServiceError, .unavailable("The reviewed read was cancelled")) }
+        }
+        let deadline = Date().addingTimeInterval(1)
+        while !FileManager.default.fileExists(atPath: started.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.002) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: started.path))
+        cancellation.cancel()
+        wait(for: [finished], timeout: 1)
+        Thread.sleep(forTimeInterval: 0.55)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: survivor.path), "Cancellation must stop children, not just discard the read")
+    }
+
     func testPublishedReadProtocolFixturesMatchTheirSchemasAndHostInputRules() throws {
         struct Index: Decodable { let fixtures: [Fixture] }
         struct Fixture: Decodable { let file: String; let definition: String; let valid: Bool }

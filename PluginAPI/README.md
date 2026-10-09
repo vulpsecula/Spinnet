@@ -367,7 +367,9 @@ Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inp
 ### Host-run sources (#82)
 
 Level 2 pages may declare up to eight visible-page sources, with text bindings
-rendered by the Host and optional `source_delivered` events. HTTPS `http.request`
+rendered by the Host and optional `source_delivered` events. Reviewed Homebrew `tools.read`
+sources sample once within 15 seconds, use the call's scope and result, and stop
+their process group when hidden or closed. HTTPS `http.request`
 samples once, within 15 seconds, bypasses the section cache and adds parsed `json`.
 Local adapters have a one-second minimum; each source ID's deliveries are at least
 15 seconds apart, coalesced to the latest changed result. No metrics or Spotify

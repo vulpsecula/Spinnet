@@ -391,7 +391,7 @@ For reviewed Homebrew reads, record values under `operations: ["tools.read": .va
 ## Recorded Host-run sources (Level 2, #82)
 
 `RecordedHostSources` runs a page's sources through the real broker and source
-engine with recorded HTTPS answers and a deterministic clock. Its page starts
+engine with recorded HTTPS answers, reviewed tool answers and a deterministic clock. Record a Homebrew source with `operations: ["tools.read": .value(result)]` or a typed failure such as `.failure(.tool(.missing))`; the broker checks its current grant and tool/operation/kind scope before looking up any answer. Its page starts
 hidden: `present(page)` declares it and `setVisible(true)` permits sampling.
 `shown(component)` reads its Host-formatted value; `deliveries` holds the recorded
 `source_delivered` events to feed to `PluginTestHelper`; `advance(by:)` runs source

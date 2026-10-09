@@ -121,7 +121,7 @@ final class HTTPSHostServiceTests: XCTestCase {
 
     func testAHostOutsideTheConsentedScopeIsRefusedBeforeAnythingIsSent() throws {
         XCTAssertThrowsError(try request(get("https://attacker.example.net/collect"))) { error in
-            XCTAssertEqual(error as? PluginHostServiceError, .capabilityDenied(.contactHTTPS))
+            XCTAssertEqual(error as? PluginHostServiceError, .capabilityScopeDenied(.contactHTTPS))
         }
         // A declared host's subdomain or a look-alike is a different host.
         XCTAssertThrowsError(try request(get("https://evil.api.example.com/")))
