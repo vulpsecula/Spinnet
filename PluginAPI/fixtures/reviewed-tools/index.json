@@ -1,0 +1,173 @@
+{
+  "description": "Plugin API Level 2 reviewed read protocol fixtures (#87).",
+  "fixtures": [
+    {
+      "file": "calls/installed.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Everything installed, formulae and casks"
+    },
+    {
+      "file": "calls/installed-casks.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Installed casks only"
+    },
+    {
+      "file": "calls/outdated.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Outdated packages, self-updating casks left out"
+    },
+    {
+      "file": "calls/outdated-greedy.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Outdated packages including casks that update themselves"
+    },
+    {
+      "file": "calls/search-lib.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "A name search over the official catalogue"
+    },
+    {
+      "file": "calls/search-cask.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "A name search over casks only"
+    },
+    {
+      "file": "calls/info-batch.json",
+      "definition": "tools.read.input",
+      "valid": true,
+      "note": "Exact details for the names a page of results shows"
+    },
+    {
+      "file": "calls/search-regex.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Homebrew's /regex/ search form is refused"
+    },
+    {
+      "file": "calls/search-option.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A query that starts with - could be read as an option"
+    },
+    {
+      "file": "calls/search-one-character.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "At least two characters"
+    },
+    {
+      "file": "calls/search-without-query.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "search needs its query"
+    },
+    {
+      "file": "calls/info-without-kind.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Exact info names one kind, so docker (formula and cask) is never ambiguous"
+    },
+    {
+      "file": "calls/info-tap-qualified.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Input never names a tap while P1 stands"
+    },
+    {
+      "file": "calls/info-option-name.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A name cannot start with -"
+    },
+    {
+      "file": "calls/info-path-name.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "A name is not a path to a formula file"
+    },
+    {
+      "file": "calls/info-uppercase.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Package names are lowercase"
+    },
+    {
+      "file": "calls/info-51-names.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "At most 50 names per info read"
+    },
+    {
+      "file": "calls/installed-with-query.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "installed takes no query"
+    },
+    {
+      "file": "calls/argv.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "No argv, flags or environment pass through"
+    },
+    {
+      "file": "calls/other-tool.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "Homebrew is the only reviewed tool"
+    },
+    {
+      "file": "calls/update.json",
+      "definition": "tools.read.input",
+      "valid": false,
+      "note": "update is not a read; the profile offers no update"
+    },
+    {
+      "file": "results/installed.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Projected installed records, as measured about 170 bytes each"
+    },
+    {
+      "file": "results/outdated.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "One outdated cask"
+    },
+    {
+      "file": "results/search-truncated.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Search returns names only; truncated when more than 2,000 matched"
+    },
+    {
+      "file": "results/info-with-not-found.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Names Homebrew does not know come back in not_found"
+    },
+    {
+      "file": "results/raw-homebrew-member.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Homebrew's own members (caveats, artifacts) are not passed through"
+    },
+    {
+      "file": "results/false-flag.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Flags that do not hold are left out, never false"
+    },
+    {
+      "file": "results/too-long-description.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Descriptions are cut to 200 characters"
+    }
+  ]
+}

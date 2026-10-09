@@ -694,6 +694,18 @@ public struct PluginManifest: Codable, Equatable {
                 throw ConfigurationError.invalidManifest("Invalid Capability scope")
             }
             try validateDeepLinkTemplates(in: scope)
+            if scope.capability == .readReviewedTools {
+                guard !scope.reviewedTools.isEmpty, Set(scope.reviewedTools.map(\.tool)).count == scope.reviewedTools.count,
+                      scope.dataTypes.isEmpty, !scope.includesExistingHostData, scope.httpsHosts.isEmpty, scope.externalApps.isEmpty,
+                      scope.reviewedTools.allSatisfy({ tool in
+                          tool.tool == "homebrew" && !tool.operations.isEmpty && !tool.kinds.isEmpty
+                          && Set(tool.operations).count == tool.operations.count && Set(tool.kinds).count == tool.kinds.count
+                          && tool.operations.allSatisfy { ["installed", "outdated", "search", "info"].contains($0) }
+                          && tool.kinds.allSatisfy { ["formula", "cask"].contains($0) }
+                      }) else { throw ConfigurationError.invalidManifest("Invalid reviewed tool read scope") }
+            } else if !scope.reviewedTools.isEmpty {
+                throw ConfigurationError.invalidManifest("Only read_reviewed_tools declares reviewed_tools")
+            }
             if (scope.capability == .contactHTTPS && scope.httpsHosts.isEmpty)
                 || (scope.capability == .controlExternalApp && scope.externalApps.isEmpty)
                 || ([PluginCapability.readCurrentClipboard, .readClipboardHistory, .monitorClipboard].contains(scope.capability) && scope.dataTypes.isEmpty)

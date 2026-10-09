@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spinnet.app/plugin-api/reviewed-tools.schema.json",
+  "title": "Plugin API Level 2 reviewed Homebrew reads",
+  "description": "Existing local data only; the Host projects bounded results and prohibits network for the process group.",
+  "$defs": {
+    "tool": {
+      "description": "The reviewed tool profile. Homebrew is the only one; a second profile is a Host release, as a Reviewed App Interface is.",
+      "const": "homebrew"
+    },
+    "package_kind": {
+      "description": "A Homebrew formula or cask. Exact info and every task name one kind, so a name Homebrew has as both a formula and a cask is never ambiguous.",
+      "enum": [
+        "formula",
+        "cask"
+      ]
+    },
+    "package_name": {
+      "description": "A bare package name in an official tap: lowercase letters, digits and + _ . @ -, starting with a letter or digit, so it can never be read as an option, a path, a URL, a regular expression or a tap-qualified name. Every one of the 16,421 official formula and cask names on the measured machine matches, the longest 54 characters.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9+_.@-]*$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "qualified_name": {
+      "description": "A package as the Host reports it: its bare name for an official tap, user/repository/name for any other tap (only ever reported, never accepted as input while P1 stands).",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$",
+      "maxLength": 160
+    },
+    "tap": {
+      "description": "The tap a reported package comes from, user/repository.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$",
+      "maxLength": 96
+    },
+    "search_query": {
+      "description": "A substring of package names, as a plain string: the package-name characters only, not starting with -, so Homebrew's /regex/ form and anything option-like are refused. At least two characters.",
+      "type": "string",
+      "pattern": "^[a-z0-9+_.@][a-z0-9+_.@-]*$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "short_text": {
+      "description": "Text the Host copies from Homebrew's metadata, control characters removed and cut to its bound.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "tools.read.input": {
+      "description": "One read of the reviewed Homebrew profile. installed and outdated list what this Mac has; search finds names in the official catalogue Homebrew last fetched; info gives exact details for 1 to 50 names of one kind.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "propertyNames": {
+        "enum": [
+          "tool",
+          "operation",
+          "kind",
+          "greedy",
+          "query",
+          "names"
+        ]
+      },
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "greedy": {
+          "description": "outdated only: include casks that update themselves (brew outdated --greedy).",
+          "type": "boolean"
+        },
+        "query": {
+          "$ref": "#/$defs/search_query"
+        },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/package_name"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "installed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "greedy": false,
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "outdated"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "search"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "query"
+            ],
+            "properties": {
+              "greedy": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "info"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "names",
+              "kind"
+            ],
+            "properties": {
+              "greedy": false,
+              "query": false
+            }
+          }
+        }
+      ]
+    },
+    "package": {
+      "description": "One package as the Host projects it from Homebrew's JSON: about 170 bytes where Homebrew's own record is about 4 KB (measurements.md). Members that are false or absent in Homebrew are left out.",
+      "type": "object",
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "name": {
+          "$ref": "#/$defs/qualified_name"
+        },
+        "tap": {
+          "$ref": "#/$defs/tap"
+        },
+        "official": {
+          "description": "The package comes from homebrew/core or homebrew/cask, the only taps a task may act on while P1 stands.",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "A cask's application name.",
+          "$ref": "#/$defs/short_text"
+        },
+        "description": {
+          "$ref": "#/$defs/short_text"
+        },
+        "version": {
+          "description": "The version Homebrew's data offers.",
+          "$ref": "#/$defs/version"
+        },
+        "installed_version": {
+          "$ref": "#/$defs/version"
+        },
+        "outdated": {
+          "const": true
+        },
+        "pinned": {
+          "const": true
+        },
+        "auto_updates": {
+          "description": "A cask that updates itself, listed as outdated only with greedy.",
+          "const": true
+        },
+        "deprecated": {
+          "const": true
+        },
+        "disabled": {
+          "const": true
+        },
+        "needs_privileges": {
+          "description": "info only: a cask whose installation runs a pkg or installer artifact, which needs an administrator; a task refuses it (P3).",
+          "const": true
+        },
+        "quits_app": {
+          "description": "info only: upgrading this cask quits its running application first, which the Host Confirmation states.",
+          "const": true
+        }
+      }
+    },
+    "tools.read.result": {
+      "description": "What a read returns. search returns names only (kind, name); the Plugin asks info for the names it shows. truncated means more matched than max_items.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "packages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "packages": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/package"
+          }
+        },
+        "not_found": {
+          "description": "info only: names Homebrew has no package of that kind for.",
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/package_name"
+          }
+        },
+        "truncated": {
+          "const": true
+        }
+      }
+    },
+    "reviewedToolScope": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "formula",
+              "cask"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

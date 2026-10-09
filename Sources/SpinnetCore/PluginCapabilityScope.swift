@@ -9,6 +9,16 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
     public let includesExistingHostData: Bool
     public let httpsHosts: [String]
     public let externalApps: [ExternalAppScope]
+    public let reviewedTools: [ReviewedToolScope]
+
+    public struct ReviewedToolScope: Codable, Equatable, Hashable {
+        public let tool: String
+        public let operations: [String]
+        public let kinds: [String]
+        public init(tool: String, operations: [String], kinds: [String]) {
+            self.tool = tool; self.operations = operations; self.kinds = kinds
+        }
+    }
     /// Hosts the user added to a `contact_https` scope in a Configuration
     /// Sheet, such as a self-hosted endpoint. Only the Host records them, so a
     /// manifest that declares any is rejected; they persist with the grant and
@@ -22,6 +32,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
         case includesExistingHostData = "includes_existing_host_data"
         case httpsHosts = "https_hosts"
         case externalApps = "external_apps"
+        case reviewedTools = "reviewed_tools"
         case consentedHTTPSHosts = "consented_https_hosts"
     }
 
@@ -80,13 +91,14 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
 
     public init(capability: PluginCapability, commandIDs: [CommandID], dataTypes: [String] = [],
                 includesExistingHostData: Bool = false, httpsHosts: [String] = [],
-                externalApps: [ExternalAppScope] = [], consentedHTTPSHosts: [String] = []) {
+                externalApps: [ExternalAppScope] = [], reviewedTools: [ReviewedToolScope] = [], consentedHTTPSHosts: [String] = []) {
         self.capability = capability
         self.commandIDs = commandIDs
         self.dataTypes = dataTypes
         self.includesExistingHostData = includesExistingHostData
         self.httpsHosts = httpsHosts
         self.externalApps = externalApps
+        self.reviewedTools = reviewedTools
         self.consentedHTTPSHosts = consentedHTTPSHosts
     }
 
@@ -99,6 +111,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
             includesExistingHostData: try container.decode(Bool.self, forKey: .includesExistingHostData),
             httpsHosts: try container.decode([String].self, forKey: .httpsHosts),
             externalApps: try container.decode([ExternalAppScope].self, forKey: .externalApps),
+            reviewedTools: try container.decodeIfPresent([ReviewedToolScope].self, forKey: .reviewedTools) ?? [],
             consentedHTTPSHosts: try container.decodeIfPresent([String].self, forKey: .consentedHTTPSHosts) ?? []
         )
     }
@@ -111,6 +124,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
         try container.encode(includesExistingHostData, forKey: .includesExistingHostData)
         try container.encode(httpsHosts, forKey: .httpsHosts)
         try container.encode(externalApps, forKey: .externalApps)
+        if !reviewedTools.isEmpty { try container.encode(reviewedTools, forKey: .reviewedTools) }
         if !consentedHTTPSHosts.isEmpty {
             try container.encode(consentedHTTPSHosts, forKey: .consentedHTTPSHosts)
         }
@@ -124,7 +138,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
     public func withConsentedHTTPSHosts(_ hosts: [String]) -> PluginCapabilityScope {
         PluginCapabilityScope(capability: capability, commandIDs: commandIDs, dataTypes: dataTypes,
                               includesExistingHostData: includesExistingHostData, httpsHosts: httpsHosts,
-                              externalApps: externalApps, consentedHTTPSHosts: hosts)
+                              externalApps: externalApps, reviewedTools: reviewedTools, consentedHTTPSHosts: hosts)
     }
 
     /// Every host a request may reach: the declared ones, then the ones the

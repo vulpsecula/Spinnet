@@ -359,3 +359,7 @@ Progress, icons and images (#81).
 
 The files in this directory are published under the MIT licence in
 [`LICENSE`](LICENSE). The Host that implements them is `GPL-3.0-only`.
+
+## Reviewed local Homebrew data
+
+Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources and bounds](reference/tools.md), [schema](schemas/reviewed-tools.schema.json) and [read-only verification](fixtures/reviewed-tools/verification.md). Install and upgrade remain reserved for #88.

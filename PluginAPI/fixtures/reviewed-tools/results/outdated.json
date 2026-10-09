@@ -1,0 +1,15 @@
+{
+  "tool": "homebrew",
+  "operation": "outdated",
+  "packages": [
+    {
+      "kind": "cask",
+      "name": "cc-switch",
+      "tap": "homebrew/cask",
+      "official": true,
+      "version": "3.20.4",
+      "installed_version": "3.20.2",
+      "outdated": true
+    }
+  ]
+}

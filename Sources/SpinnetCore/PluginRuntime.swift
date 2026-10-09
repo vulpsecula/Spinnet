@@ -617,6 +617,10 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
+    case toolMissing = "tool_missing"
+    case toolTimedOut = "tool_timed_out"
+    case toolFailed = "tool_failed"
+    case outputTooLarge = "output_too_large"
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
@@ -632,7 +636,7 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     /// refusal can never fall through to a later protected operation; a
     /// write that did not fit harms nothing and the script may recover.
     public var isCatchableByScript: Bool {
-        self == .storageLimitExceeded
+        [.storageLimitExceeded, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge].contains(self)
     }
 }
 
@@ -1523,7 +1527,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .externalAppMissing(failure.message)
             case .externalAppOperationUnsupported:
                 runtimeError = .externalAppOperationUnsupported(failure.message)
-            case .hostServiceFailed, .storageLimitExceeded:
+            case .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge, .hostServiceFailed, .storageLimitExceeded:
                 runtimeError = .hostServiceFailed(failure.message)
             case .insertionTargetChanged:
                 runtimeError = .insertionTargetChanged(failure.message)

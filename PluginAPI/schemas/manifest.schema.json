@@ -95,7 +95,8 @@
         "insert_into_focused_app",
         "read_frontmost_app",
         "quit_frontmost_app",
-        "keep_awake"
+        "keep_awake",
+        "read_reviewed_tools"
       ]
     },
     "levelOneCapability": {
@@ -128,6 +129,7 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "reviewed_tools": {"type": "array", "minItems": 1, "items": {"$ref": "reviewed-tools.schema.json#/$defs/reviewedToolScope"}},
         "capability": { "$ref": "#/$defs/capability" },
         "command_ids": {
           "type": "array",

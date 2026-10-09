@@ -49,7 +49,7 @@
     {
       "name": "apps",
       "holds": "operations",
-      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it by an App Target, and closing its window or quitting it as its own ⌘W and ⌘Q do, or force quitting it (#83)"
+      "summary": "External App integration through Reviewed App Interfaces and Deep Link Templates, and the App in front: identifying it by an App Target, and closing its window or quitting it as its own \u2318W and \u2318Q do, or force quitting it (#83)"
     },
     {
       "name": "system",
@@ -1169,7 +1169,7 @@
     {
       "id": "apps.quit",
       "namespace": "apps",
-      "summary": "Quits the App in front, or the App an App Target names, exactly as its own ⌘Q menu item does, which the Host presses through Accessibility, or force quits it; Force Quit, and a quit of an App not in front when the Host accepts the request, after a Host Confirmation naming it (#83).",
+      "summary": "Quits the App in front, or the App an App Target names, exactly as its own \u2318Q menu item does, which the Host presses through Accessibility, or force quits it; Force Quit, and a quit of an App not in front when the Host accepts the request, after a Host Confirmation naming it (#83).",
       "status": "level2",
       "input": "schemas/namespaces.schema.json#/$defs/apps.quit.input",
       "result": "schemas/namespaces.schema.json#/$defs/apps.quit.result",
@@ -1201,7 +1201,7 @@
         },
         "request": {
           "status": "level2",
-          "note": "Quit only when the App's menu has an enabled ⌘Q item, and only with Accessibility; Force Quit needs no System Permission. Asks a Host Confirmation naming the App the Host resolved for Force Quit and for an App not in front at acceptance; a graceful quit of the App in front then asks none. Never retargets"
+          "note": "Quit only when the App's menu has an enabled \u2318Q item, and only with Accessibility; Force Quit needs no System Permission. Asks a Host Confirmation naming the App the Host resolved for Force Quit and for an App not in front at acceptance; a graceful quit of the App in front then asks none. Never retargets"
         }
       },
       "level1": []
@@ -1209,7 +1209,7 @@
     {
       "id": "apps.close",
       "namespace": "apps",
-      "summary": "Closes the front window of the App in front, or of the App an App Target names, exactly as its own ⌘W menu item does, which the Host presses through Accessibility; for an App not in front when the Host accepts the request, after a Host Confirmation naming it (#83).",
+      "summary": "Closes the front window of the App in front, or of the App an App Target names, exactly as its own \u2318W menu item does, which the Host presses through Accessibility; for an App not in front when the Host accepts the request, after a Host Confirmation naming it (#83).",
       "status": "level2",
       "input": "schemas/namespaces.schema.json#/$defs/apps.close.input",
       "result": "schemas/namespaces.schema.json#/$defs/apps.close.result",
@@ -1241,7 +1241,7 @@
         },
         "request": {
           "status": "level2",
-          "note": "Only when the App's menu has an enabled ⌘W item. Asks a Host Confirmation naming the App the Host resolved for an App not in front at acceptance; closing the App in front then asks none. Never retargets"
+          "note": "Only when the App's menu has an enabled \u2318W item. Asks a Host Confirmation naming the App the Host resolved for an App not in front at acceptance; closing the App in front then asks none. Never retargets"
         }
       },
       "level1": []
@@ -2040,22 +2040,26 @@
       "id": "tools.read",
       "namespace": "tools",
       "summary": "Runs one read operation of a reviewed tool profile, such as Homebrew's search or info, and returns bounded typed data.",
-      "status": "reserved",
-      "owner": "#87",
-      "input": null,
-      "result": null,
+      "status": "level2",
+      "input": "schemas/namespaces.schema.json#/$defs/tools.read.input",
+      "result": "schemas/namespaces.schema.json#/$defs/tools.read.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "read_reviewed_tools"
+      ],
       "system_permission": null,
       "failures": [
-        "host_service_failed"
+        "capability_denied",
+        "host_service_failed",
+        "tool_missing",
+        "tool_timed_out",
+        "tool_failed",
+        "output_too_large"
       ],
       "targets": null,
       "entry_points": {
         "call": {
-          "status": "reserved",
-          "owner": "#87",
-          "reason": "The profile, argv, sources, timeouts and output bounds are #72's and #87's"
+          "status": "level2"
         },
         "command": {
           "status": "not_offered",
@@ -2068,6 +2072,11 @@
         "request": {
           "status": "not_offered",
           "reason": "It returns data, which only a script can use"
+        },
+        "source": {
+          "status": "reserved",
+          "owner": "#82",
+          "reason": "Host-run sources add the visible-page lifecycle"
         }
       },
       "level1": []
@@ -2897,7 +2906,7 @@
         "apps.close"
       ],
       "level1": [],
-      "note": "Level 2 only (#83): Close and Quit are the App's own ⌘W and ⌘Q; every force quit, and every close or quit of an App not in front when the Host accepts the request, asks a Host Confirmation; it reveals nothing about the App"
+      "note": "Level 2 only (#83): Close and Quit are the App's own \u2318W and \u2318Q; every force quit, and every close or quit of an App not in front when the Host accepts the request, asks a Host Confirmation; it reveals nothing about the App"
     },
     {
       "name": "keep_awake",
@@ -2906,6 +2915,14 @@
       ],
       "level1": [],
       "note": "Level 2 (#84): user grant for preventing idle system and display sleep; no explicit Sleep/lid override. App-alive also needs read_frontmost_app."
+    },
+    {
+      "name": "read_reviewed_tools",
+      "operations": [
+        "tools.read"
+      ],
+      "level1": [],
+      "note": "Level 2 (#87): requires reviewed_tools scopes by tool, operations and kinds; existing local package data only."
     }
   ],
   "not_offered": [

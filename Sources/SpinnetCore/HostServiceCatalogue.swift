@@ -73,6 +73,7 @@ public enum HostServiceFailure: String, Hashable {
     case storageLimitExceeded = "storage_limit_exceeded"
     /// `host_operations`' failure for an insertion whose target changed.
     case insertionTargetChanged = "insertion_target_changed"
+    case toolMissing = "tool_missing", toolTimedOut = "tool_timed_out", toolFailed = "tool_failed", outputTooLarge = "output_too_large"
 }
 
 /// One Host Service of the Plugin API catalogue, under its one
@@ -321,7 +322,9 @@ public enum HostServiceCatalogue {
         define(KeepAwakeAddition.listID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
         define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo],
                input: ["id"]),
-        reserve("tools.read", at: [.call]),
+        define(ReviewedToolReads.id, [.call: levelTwo, .source: .reserved, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
+               failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
+               input: ["tool", "operation", "kind", "greedy", "query", "names"]),
         reserve("tools.startTask", at: [.viewAction, .request])
     ]
 }
@@ -568,6 +571,7 @@ extension HostServiceDefinition {
             // Launching an application by path is already what
             // `open_local_path` grants (design 6.3).
             service = .openLocalPath
+        case ReviewedToolReads.id: service = .reviewedToolRead
         case KeepAwakeAddition.id: service = .keepAwakeEffect
         case KeepAwakeAddition.listID: service = .listActivities
         case KeepAwakeAddition.stopID: service = .stopActivity
