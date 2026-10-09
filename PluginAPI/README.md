@@ -363,3 +363,13 @@ The files in this directory are published under the MIT licence in
 ## Reviewed local Homebrew data
 
 Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources and bounds](reference/tools.md), [schema](schemas/reviewed-tools.schema.json) and [read-only verification](fixtures/reviewed-tools/verification.md). Install and upgrade remain reserved for #88.
+
+### Host-run sources (#82)
+
+Level 2 pages may declare up to eight visible-page sources, with text bindings
+rendered by the Host and optional `source_delivered` events. HTTPS `http.request`
+samples once, within 15 seconds, bypasses the section cache and adds parsed `json`.
+Local adapters have a one-second minimum; each source ID's deliveries are at least
+15 seconds apart, coalesced to the latest changed result. No metrics or Spotify
+source is offered yet. See [sources](reference/sources.md),
+[schemas](schemas/host-run-sources.schema.json), and [recordings](fixtures/sources/index.json).

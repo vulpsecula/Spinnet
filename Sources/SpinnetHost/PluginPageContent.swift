@@ -246,8 +246,15 @@ private struct PageComponentView: View {
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
                 }
-                PluginViewMarkdownText(blocks: PluginViewMarkdown.parse(text.text))
-                    .modifier(PageTextStyle(style: text.style))
+                if let shown = model.sourceText(text.id) {
+                    Text(shown.text)
+                        .modifier(PageTextStyle(style: text.style))
+                        .opacity(shown.isStale ? 0.5 : 1)
+                        .accessibilityLabel([text.title, shown.text, shown.isStale ? "out of date" : nil].compactMap { $0 }.joined(separator: ", "))
+                } else {
+                    PluginViewMarkdownText(blocks: PluginViewMarkdown.parse(text.text))
+                        .modifier(PageTextStyle(style: text.style))
+                }
             }
             .modifier(PageBoxStyle(style: text.style))
             .accessibilityElement(children: .contain)

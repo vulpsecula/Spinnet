@@ -1,0 +1,10 @@
+{
+  "type": "source_delivered",
+  "page": "weather",
+  "source": "remote",
+  "sequence": 1,
+  "failure": {
+    "category": "capability_denied",
+    "message": "Capability denied"
+  }
+}

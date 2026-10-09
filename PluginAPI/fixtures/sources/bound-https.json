@@ -1,0 +1,28 @@
+{
+  "page": {
+    "id": "weather",
+    "title": "Weather",
+    "sources": [
+      {
+        "id": "remote",
+        "perform": "http.request",
+        "input": {
+          "method": "GET",
+          "url": "https://example.com/weather"
+        }
+      }
+    ],
+    "content": [
+      {
+        "kind": "text",
+        "id": "temperature",
+        "text": "Waiting",
+        "bind": {
+          "source": "remote",
+          "pointer": "/json/temperature",
+          "format": "decimal"
+        }
+      }
+    ]
+  }
+}

@@ -130,6 +130,13 @@
     }
     sdk[name] = members;
   }
+  function source(id, perform, input, value) {
+    const o = options(value);
+    return compact({ id: id, perform: perform, input: input, every: o.every,
+      deliver: o.deliver === true ? {} : o.deliver,
+      error_pointer: o.errorPointer, status_messages: o.statusMessages });
+  }
+  sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
   for (const name of Object.keys(sdk)) sdk[name] = Object.freeze(sdk[name]);
 
   function collection(kind, o) {
@@ -165,6 +172,10 @@
   }
 
   const components = Object.freeze({
+    bind: function (source, pointer, value) {
+      const o = options(value);
+      return compact({ source: source, pointer: pointer, format: o.format, unavailable: o.unavailable });
+    },
     row: function (o) { return compact({ kind: "row", id: o.id, content: o.content, style: style(o.style) }); },
     column: function (o) { return compact({ kind: "column", id: o.id, content: o.content, style: style(o.style) }); },
     icon: function (o) {
@@ -195,7 +206,7 @@
       });
     },
     text: function (o) {
-      return compact({ kind: "text", id: o.id, title: o.title, text: o.text, style: style(o.style) });
+      return compact({ kind: "text", id: o.id, title: o.title, text: o.text, style: style(o.style), bind: o.bind });
     },
     actions: function (o) { return compact({ kind: "actions", id: o.id, actions: o.actions }); },
     button: function (o) { return compact({ id: o.id, title: o.title }); },
@@ -234,6 +245,7 @@
     return compact({ toast: o.toast, operation: requested });
   };
   ui.components = components;
+  ui.source = source;
   ui.page = function (value) {
     const o = options(value);
     return compact({
@@ -245,7 +257,8 @@
       reset: o.reset,
       resizable: o.resizable === undefined || typeof o.resizable === "boolean" ? o.resizable
         : compact({ min_width: o.resizable.minWidth, min_height: o.resizable.minHeight }),
-      content: o.content
+      content: o.content,
+      sources: o.sources
     });
   };
   ui.showPage = function (page, value) {

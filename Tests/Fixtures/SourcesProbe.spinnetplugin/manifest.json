@@ -1,0 +1,39 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.example.sources-probe",
+  "name": "Sources Probe",
+  "version": "1.0.0",
+  "commands": [
+    {
+      "id": "sources.show",
+      "title": "Sources",
+      "execution": "javascript",
+      "script": "show.js",
+      "is_configurable": false
+    }
+  ],
+  "capabilities": [
+    "contact_https"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "contact_https",
+      "command_ids": [
+        "sources.show"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [
+        "example.com"
+      ],
+      "external_apps": []
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "sources.show",
+    "default_alternate_command_ids": []
+  }
+}

@@ -387,3 +387,19 @@ a view, listed in `afterClose`, and its answer
 may hold a toast and nothing else.
 
 For reviewed Homebrew reads, record values under `operations: ["tools.read": .value(result)]` or typed failures such as `.failure(.tool(.missing))`. Recorded reads run the public input and tool/operation/kind scope checks before looking up the answer. A real-helper external fixture is `Tests/Fixtures/ReviewedToolsProbe.spinnetplugin`; it uses only the published SDK and can be copied to a separate public test-kit project.
+
+## Recorded Host-run sources (Level 2, #82)
+
+`RecordedHostSources` runs a page's sources through the real broker and source
+engine with recorded HTTPS answers and a deterministic clock. Its page starts
+hidden: `present(page)` declares it and `setVisible(true)` permits sampling.
+`shown(component)` reads its Host-formatted value; `deliveries` holds the recorded
+`source_delivered` events to feed to `PluginTestHelper`; `advance(by:)` runs source
+deadlines and floors without sleeping. `requests` records applied Credential Uses.
+Its mutable `grants`, `registry` and `credentials` exercise authority changes;
+call `authorityChanged()`, `credentialChanged()` or `close()` as the Host does.
+The source engine needs no helper and can update a binding after the kit retires
+one. The kit records scheduling, not AppKit occlusion or actual network latency.
+
+`Tests/Fixtures/SourcesProbe.spinnetplugin` demonstrates the same published SDK
+and package boundary as an external Plugin, with no privileged source calls.

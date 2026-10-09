@@ -167,6 +167,9 @@
               }
             }
           ]
+        },
+        "sources": {
+          "$ref": "host-run-sources.schema.json#/$defs/sources"
         }
       }
     },
@@ -383,6 +386,9 @@
         },
         "style": {
           "$ref": "#/$defs/text_style"
+        },
+        "bind": {
+          "$ref": "host-run-sources.schema.json#/$defs/binding"
         }
       }
     },
@@ -664,7 +670,7 @@
       }
     },
     "image": {
-      "description": "A picture the Host loads from its source (#81) into a frame of width × height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
+      "description": "A picture the Host loads from its source (#81) into a frame of width \u00d7 height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
       "type": "object",
       "required": [
         "kind",
@@ -1259,7 +1265,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own \u2318C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
       "type": "object",
       "required": [
         "id",
@@ -1380,6 +1386,9 @@
         },
         {
           "$ref": "#/$defs/operation_finished"
+        },
+        {
+          "$ref": "host-run-sources.schema.json#/$defs/source_delivered"
         }
       ]
     },

@@ -1,0 +1,40 @@
+{
+  "description": "Recorded Level 2 source answers and deliveries; missing-source is a Host referential check beyond schema.",
+  "fixtures": [
+    {
+      "file": "bound-https.json",
+      "definition": "answer",
+      "valid": true
+    },
+    {
+      "file": "delivered.json",
+      "definition": "event",
+      "valid": true
+    },
+    {
+      "file": "failed.json",
+      "definition": "event",
+      "valid": true
+    },
+    {
+      "file": "repeating-https.json",
+      "definition": "answer",
+      "valid": false
+    },
+    {
+      "file": "bad-pointer.json",
+      "definition": "answer",
+      "valid": false
+    },
+    {
+      "file": "too-many.json",
+      "definition": "answer",
+      "valid": false
+    },
+    {
+      "file": "missing-source.json",
+      "definition": "answer",
+      "valid": false
+    }
+  ]
+}

@@ -105,6 +105,12 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     var onResignKey: (() -> Void)?
     var onUserClose: (() -> Void)?
     var onGeometryChange: ((PluginPanelGeometry) -> Void)?
+    var onSourceVisibility: ((Bool) -> Void)?
+    private var sourceWatches: [(NotificationCenter, NSObjectProtocol)] = []
+    private var displaysAwake = true
+    private var userSessionActive = true
+    var sourceIsVisible: Bool { panel.isVisible && panel.occlusionState.contains(.visible) && displaysAwake && userSessionActive && !isClosing }
+    private func sourceVisibilityChanged() { onSourceVisibility?(sourceIsVisible) }
     /// Where the screens are: AppKit's, unless a test gives its own.
     var screens: () -> [PluginPanelScreen] = PluginPanelScreen.current
     private let panel: PluginViewNSPanel
@@ -185,10 +191,27 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         screenWatch = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.screensChanged() }
+        let center = NSWorkspace.shared.notificationCenter
+        let changes: [(Notification.Name, Bool?, Bool?)] = [
+            (NSWorkspace.screensDidSleepNotification, false, nil),
+            (NSWorkspace.screensDidWakeNotification, true, nil),
+            (NSWorkspace.sessionDidResignActiveNotification, nil, false),
+            (NSWorkspace.sessionDidBecomeActiveNotification, nil, true)
+        ]
+        for (name, awake, active) in changes {
+            let watch = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                if let awake { self.displaysAwake = awake }
+                if let active { self.userSessionActive = active }
+                self.sourceVisibilityChanged()
+            }
+            sourceWatches.append((center, watch))
+        }
     }
 
     deinit {
         if let screenWatch { NotificationCenter.default.removeObserver(screenWatch) }
+        for (center, token) in sourceWatches { center.removeObserver(token) }
     }
 
     /// Pinned: floats above other Apps' windows. Pinning and unpinning
@@ -284,11 +307,13 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
     private func bringForward() {
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+        sourceVisibilityChanged()
     }
 
     func close() {
         guard !isClosing else { return }
         isClosing = true
+        sourceVisibilityChanged()
         panel.delegate = nil
         panel.close()
     }
@@ -370,6 +395,10 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         let frame = panel.frame
         change(reports: true) { $0.moved(to: frame) }
     }
+
+    func windowDidChangeOcclusionState(_ notification: Notification) { sourceVisibilityChanged() }
+    func windowDidMiniaturize(_ notification: Notification) { sourceVisibilityChanged() }
+    func windowDidDeminiaturize(_ notification: Notification) { sourceVisibilityChanged() }
 
     func windowDidResignKey(_ notification: Notification) {
         // A Host Confirmation taking the keyboard is not the user leaving:

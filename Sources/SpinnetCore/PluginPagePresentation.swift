@@ -204,7 +204,9 @@ public struct PluginPageText: Equatable {
     public let text: String
     public let style: PluginPageStyle?
 
-    public init(id: String, title: String? = nil, text: String, style: PluginPageStyle? = nil) {
+    public let binding: PluginSourceBinding?
+    public init(id: String, title: String? = nil, text: String, style: PluginPageStyle? = nil, binding: PluginSourceBinding? = nil) {
+        self.binding = binding
         self.id = id
         self.title = title
         self.text = text

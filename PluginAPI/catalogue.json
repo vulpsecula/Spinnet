@@ -8,7 +8,7 @@
     "view_action": "A page action or item action names it in perform with its input; the Host performs it on the user's click or key without a View Event.",
     "request": "An answer to a gesture names it in operation: {perform, input}; the Host performs it after the answer commits (ADR 0018).",
     "answer": "A member of the answer itself is this operation: toast, close.",
-    "source": "The Host sends it for a view and delivers or shows the result: a Host-Fetched Section, later a Host-run source (#71, #82)."
+    "source": "The Host performs it for a visible Level 2 page source (reference/sources.md), or a Level 1 Host-Fetched Section."
   },
   "namespaces": [
     {
@@ -1694,7 +1694,7 @@
         },
         "source": {
           "status": "level1",
-          "note": "A Host-Fetched Section's fetch.request is this operation's input; Host-run sources (#71, #82) generalise this entry point"
+          "note": "Level 1 fetch.request; Level 2 once-only visible page sources, result adds parsed json (reference/sources.md)"
         }
       },
       "level1": [
@@ -2431,6 +2431,18 @@
       "status": "level2",
       "summary": "A page component (#81): a task's stages, status and state, with a cancel View Action",
       "level1": []
+    },
+    {
+      "id": "ui.source",
+      "summary": "Builds a visible-page source: source(id, perform, input, options)",
+      "status": "level2",
+      "level1": []
+    },
+    {
+      "id": "ui.components.bind",
+      "summary": "Builds a text binding: bind(source, pointer, {format, unavailable})",
+      "status": "level2",
+      "level1": []
     }
   ],
   "values": [
@@ -2735,6 +2747,12 @@
       "name": "called",
       "status": "level2",
       "note": "An Explicit Call of the Plugin into its open View Session",
+      "level1": []
+    },
+    {
+      "name": "source_delivered",
+      "status": "level2",
+      "note": "Bounded change-gated source result; no gesture and no operation slot",
       "level1": []
     }
   ],

@@ -192,6 +192,10 @@ _Avoid_: Primary Action (a Menu Item's), row button, shortcut
 A short name an item of a Collection carries, such as `favourite`, which the toggle Item Action naming it shows as checked. The Plugin decides which items carry it.
 _Avoid_: Flag, tag, checked state
 
+**Host-Run Source**:
+A Host Service a View Page names for the Host to read while the page is visible, whose latest result the Host shows in bound View Components and may deliver to the Plugin when it changes. It belongs to the page being seen and grants no authority of its own.
+_Avoid_: Subscription, timer, polling, background refresh, live query
+
 **Host-Fetched Section**:
 A part of a Plugin View whose request the Host sends and whose answer the Host shows, so the Plugin need not see the answer; the Plugin declares whether the answer is also delivered to it.
 _Avoid_: Result popup, remote section

@@ -1198,6 +1198,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
     }
 
+    func validateHTTPSource(_ input: JSONValue, for package: PluginPackage) throws {
+        try httpsPerformer(for: package).validate(input)
+    }
+
     /// Runs `send`; when its destination is outside the consented hosts,
     /// though the grant stood a moment ago, it is a host the user never
     /// allowed, such as a self-hosted endpoint, and the refusal names it.
