@@ -12,6 +12,7 @@ public struct HomebrewTaskPlan {
     public let confirmation: HostConfirmation
     public var scope: PluginCapabilityScope? = nil
     public var steps: [HomebrewTaskInput] = []
+    public var privilegedCasks: [HomebrewPrivilegePlan.Cask] = []
     public var needsPrivileges: Bool {
         if package.value(atPointer: "/needs_privileges") == .bool(true) { return true }
         if case .array(let records)? = package.value(atPointer: "/packages") { return records.contains { $0.value(atPointer: "/needs_privileges") == .bool(true) } }
@@ -32,6 +33,10 @@ public final class HostReviewedToolTasks {
     private let preflight: Preflight
     private let trustedTaps: () throws -> [String]
     private let targetResolver: TargetResolver
+    private let privilegeReview: (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask]
+    private let prepareSystemAuthorization: () throws -> Void
+    private let admitSystemAuthorization: (HomebrewPrivilegePlan) throws -> Void
+    private let cancelSystemAuthorization: (String) -> Void
     private let lock = NSRecursiveLock()
     private var pending: HomebrewTaskPlan?
     private var generations: [PluginID: Int] = [:]
@@ -43,11 +48,16 @@ public final class HostReviewedToolTasks {
     public init(activities: HostActivities, journal: URL, runnerURL: URL,
                 executable: @escaping () throws -> URL = HomebrewReadProfile.discover,
                 preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil,
-                targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) }) {
+                targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) },
+                privilegeReview: @escaping (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask] = HomebrewPrivilegeReview.casks,
+                prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
+                admitSystemAuthorization: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.admit,
+                cancelSystemAuthorization: @escaping (String) -> Void = HomebrewSystemAuthorization.cancelAdmission) {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = preflight ?? { input in try Self.preflight(input, executable: executable()) }
         self.trustedTaps = trustedTaps ?? { try Self.readTrustedTaps(executable: executable()) }
-        self.targetResolver = targetResolver
+        self.targetResolver = targetResolver; self.privilegeReview = privilegeReview; self.prepareSystemAuthorization = prepareSystemAuthorization
+        self.admitSystemAuthorization = admitSystemAuthorization; self.cancelSystemAuthorization = cancelSystemAuthorization
         recover()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
@@ -62,6 +72,7 @@ public final class HostReviewedToolTasks {
     public func prepare(_ input: HomebrewTaskInput, owner: PluginID, pluginName: String,
                         scope: PluginCapabilityScope? = nil,
                         authorize: () throws -> Void = {}) throws -> HomebrewTaskPlan {
+        if let scope { try input.authorize(in: scope) }
         try authorize()
         lock.lock()
         guard !exiting, pending == nil, !records.values.contains(where: { $0.result == nil }) else {
@@ -76,6 +87,10 @@ public final class HostReviewedToolTasks {
         do {
             let executable = try self.executable()
             let (resolvedTarget, package) = try review(input, owner: owner)
+            if let scope {
+                let concreteSteps = try steps(resolvedTarget, package: package)
+                for kind in concreteSteps.isEmpty ? [resolvedTarget.kind] : concreteSteps.map(\.kind) { try input.authorizeResolvedKind(kind, in: scope) }
+            }
             guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             try checkSource(package)
             try Self.checkOptions(input, package: package)
@@ -93,6 +108,7 @@ public final class HostReviewedToolTasks {
             if input.operation == "cleanup" { disclosure += input.fields["pruneAll"] == .bool(true) ? " All eligible Homebrew cache downloads and old package versions may be deleted." : " Eligible files older than the selected threshold and old package versions may be deleted." }
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
+            if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
             if reviewedPackages.contains(where: { $0.value(atPointer: "/needs_privileges") == .bool(true) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
             if reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
@@ -101,7 +117,7 @@ public final class HostReviewedToolTasks {
                 confirmation: .init(title: "Confirm Homebrew: \(input.displayOperation)", message: disclosure, confirmTitle: "Continue", isDestructive: true), generation: generation)
             plan.scope = scope
             plan.steps = try steps(resolved, package: package)
-            if !plan.steps.isEmpty {
+            if !plan.steps.isEmpty, input.operation != "doctorFix" {
                 let targets = plan.steps.flatMap { step -> [String] in
                     guard case .array(let names)? = step.fields["names"] else { return [] }
                     return names.compactMap { if case .string(let name) = $0 { return name }; return nil }
@@ -112,6 +128,7 @@ public final class HostReviewedToolTasks {
                     confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
+            if plan.needsPrivileges { plan.privilegedCasks = try privilegeReview(resolved, package, executable) }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
             pending = plan; return plan
@@ -120,18 +137,27 @@ public final class HostReviewedToolTasks {
     public func decline(_ plan: HomebrewTaskPlan) { lock.lock(); if pending?.id == plan.id { pending = nil }; lock.unlock() }
     @discardableResult
     public func launch(_ plan: HomebrewTaskPlan, authorize: () throws -> Void = {}) throws -> String {
+        var admitted: String?
         do {
             try authorize()
             guard try executable() == plan.executable else { throw PluginHostServiceError.tool(.missing) }
             let (resolved, currentPackage) = try review(plan.input, owner: plan.owner)
+            if let scope = plan.scope {
+                let concreteSteps = try steps(resolved, package: currentPackage)
+                for kind in concreteSteps.isEmpty ? [resolved.kind] : concreteSteps.map(\.kind) { try plan.input.authorizeResolvedKind(kind, in: scope) }
+            }
             try checkSource(currentPackage)
             try Self.checkOptions(plan.input, package: currentPackage)
             guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
+            if plan.needsPrivileges {
+                guard try privilegeReview(plan.resolvedInput, currentPackage, plan.executable) == plan.privilegedCasks else { throw PluginHostServiceError.tool(.planChanged) }
+                try prepareSystemAuthorization()
+            }
             try authorize()
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == plan.id, generations[plan.owner, default: 0] == plan.generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
-            let id = "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            let id = "activity_" + plan.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let directory = root.appendingPathComponent(id, isDirectory: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -139,8 +165,17 @@ public final class HostReviewedToolTasks {
                 input: plan.resolvedInput.json, package: plan.package, executable: plan.executable.path, started: Date(),
                 detached: false, runnerPID: nil, runnerIdentity: nil, processGroup: nil, processIdentity: nil,
                 stage: "starting", log: [], result: nil, ended: nil)
+            if plan.needsPrivileges {
+                let prefix = plan.executable.deletingLastPathComponent().deletingLastPathComponent().path
+                let directories: [String] = { if case .array(let values)? = plan.package.value(atPointer: "/repair_directories") { return values.compactMap { if case .string(let path) = $0 { return path }; return nil } }; return [] }()
+                let privilegePlan = try HomebrewPrivilegePlan(taskID: id, prefix: prefix, casks: plan.privilegedCasks, repairDirectories: directories, operation: plan.input.operation)
+                record.privilegePlan = privilegePlan
+                do { try admitSystemAuthorization(privilegePlan); admitted = id; try authorize() }
+                catch { try? FileManager.default.removeItem(at: directory); throw error }
+            }
             record.scope = plan.scope
             record.steps = plan.steps.isEmpty ? nil : plan.steps.map(\.json)
+            if case .array(let values)? = plan.package.value(atPointer: "/doctor_steps") { record.stepMetadata = values.compactMap { $0.value(atPointer: "/metadata") } }
             try record.save(to: directory)
             // Reserve a visible bounded Host control before spawning. A
             // resource-limit error must never leave a mutating orphan.
@@ -165,7 +200,7 @@ public final class HostReviewedToolTasks {
             try? JSONEncoder().encode(JSONValue.object(["pid": .number(Double(process.processIdentifier)), "identity": record.runnerIdentity.map { .number(Double($0)) } ?? .null])).write(to: directory.appendingPathComponent("runner.json"), options: .atomic)
             pending = nil; records[id] = record
             return id
-        } catch { decline(plan); throw error }
+        } catch { if let admitted { cancelSystemAuthorization(admitted) }; decline(plan); throw error }
     }
     public func stop(_ id: String, for owner: PluginID? = nil) throws {
         lock.lock(); defer { lock.unlock() }
@@ -262,6 +297,26 @@ public final class HostReviewedToolTasks {
     private func review(_ input: HomebrewTaskInput, owner: PluginID) throws -> (HomebrewTaskInput, JSONValue) {
         if ["adopt", "doctorFix"].contains(input.operation) {
             let (resolved, metadata) = try targetResolver(input.name, owner)
+            if input.operation == "doctorFix", case .array(let values)? = metadata.value(atPointer: "/doctor_steps") {
+                guard (1...8).contains(values.count) else { throw PluginHostServiceError.tool(.planChanged) }
+                var reviewedSteps: [JSONValue] = [], packages: [JSONValue] = [], summaries: [String] = [], directories: [JSONValue] = []
+                for value in values {
+                    guard let json = value.value(atPointer: "/input"), case .object(let metadata)? = value.value(atPointer: "/metadata") else { throw PluginHostServiceError.tool(.planChanged) }
+                    let step = try HomebrewTaskInput(json)
+                    guard ["cleanup", "link"].contains(step.operation), case .object(var fields) = try preflight(step) else { throw PluginHostServiceError.tool(.planChanged) }
+                    for (key, value) in metadata { fields[key] = value }
+                    if let summary = value.value(atPointer: "/repair_summary") { fields["repair_summary"] = summary }
+                    let package = JSONValue.object(fields)
+                    packages.append(package)
+                    reviewedSteps.append(.object(["input": step.json, "metadata": package]))
+                    summaries.append(Self.text(package, "repair_summary").isEmpty ? step.displayOperation + (step.name.isEmpty ? "" : " " + step.name) : Self.text(package, "repair_summary"))
+                    if case .array(let paths)? = package.value(atPointer: "/repair_directories") { directories += paths }
+                }
+                guard Set(directories).count <= 16 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+                let privileged = packages.contains { $0.value(atPointer: "/needs_privileges") == .bool(true) }
+                return (resolved, .object(["doctor_steps": .array(reviewedSteps), "packages": .array(packages), "repair_summary": .string(summaries.joined(separator: "; ")),
+                    "repair_directories": .array(Array(Set(directories)).sorted { String(describing: $0) < String(describing: $1) }), "needs_privileges": .bool(privileged), "privileged_repair": .bool(privileged)]))
+            }
             guard ["install", "link", "cleanup"].contains(resolved.operation),
                   input.operation != "adopt" || (resolved.operation == "install" && resolved.kind == "cask" && metadata.value(atPointer: "/adopt") == .bool(true)) else {
                 throw PluginHostServiceError.tool(.planChanged)
@@ -285,6 +340,13 @@ public final class HostReviewedToolTasks {
         return input
     }
     private func steps(_ input: HomebrewTaskInput, package: JSONValue) throws -> [HomebrewTaskInput] {
+        if case .array(let values)? = package.value(atPointer: "/doctor_steps") {
+            guard (1...8).contains(values.count) else { throw PluginHostServiceError.tool(.planChanged) }
+            return try values.map { value in
+                guard let json = value.value(atPointer: "/input") else { throw PluginHostServiceError.tool(.planChanged) }
+                return try HomebrewTaskInput(json)
+            }
+        }
         guard input.operation == "upgradeAll", case .array(let packages)? = package.value(atPointer: "/packages") else { return [] }
         var result: [HomebrewTaskInput] = []
         for kind in input.kind == "both" ? ["formula", "cask"] : [input.kind] {
@@ -374,6 +436,8 @@ public struct HomebrewTaskJournal: Codable {
     public var ended: Date?
     public var scope: PluginCapabilityScope? = nil
     public var steps: [JSONValue]? = nil
+    public var privilegePlan: HomebrewPrivilegePlan? = nil
+    public var stepMetadata: [JSONValue]? = nil
     public func save(to directory: URL) throws {
         let data = try JSONEncoder().encode(self)
         guard data.count <= 2 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }

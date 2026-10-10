@@ -318,9 +318,9 @@ public final class HomebrewManagementReads {
                         value = HomebrewReadInput.validToken(name) ? .init(operation: "link", kind: "formula", name: name,
                             arguments: ["link", "--formula", "--", name], needsPrivileges: false, summary: "Link " + name,
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
-                    } else { value = nil }
+                    } else { value = HomebrewOwnershipRepair.resolve(command: command, prefix: executable.deletingLastPathComponent().deletingLastPathComponent()) }
                     if let value {
-                        let key = targets.issue(value, owner: owner, domain: "doctor")
+                        let key = targets.issue(value, owner: owner, domain: "doctor", current: { value.metadata.value(atPointer: "/privileged_repair") != .bool(true) || HomebrewOwnershipRepair.isCurrent(value.metadata) })
                         repairs.append(.object(["target": .string(key), "title": .string(value.summary)]))
                         if reviewedSet.count < 8, !reviewedSet.contains(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { reviewedSet.append((key, value)) }
                     }
