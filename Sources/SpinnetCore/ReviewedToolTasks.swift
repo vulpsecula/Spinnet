@@ -6,7 +6,7 @@ public enum ReviewedToolTasksAddition {
 }
 
 public struct HomebrewTaskInput: Equatable {
-    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "doctorFix"]
+    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "doctorFix", "changeLanguage"]
     public let operation: String
     public let kind: String
     public let name: String
@@ -19,6 +19,7 @@ public struct HomebrewTaskInput: Equatable {
         case "serviceStop": return "Stop Service"
         case "serviceRestart": return "Restart Service"
         case "doctorFix": return "Repair Homebrew"
+        case "changeLanguage": return "Change App Language"
         case "adopt": return "Adopt App"
         case "cleanup": return "Clean Up"
         case "untrust": return "Stop Trusting Tap"
@@ -60,6 +61,10 @@ public struct HomebrewTaskInput: Equatable {
             guard Self.validPackageName(name) else { throw Self.invalid() }
             if operation.hasPrefix("service"), !HomebrewReadInput.validToken(name) { throw Self.invalid() }
             if !operation.hasPrefix("service") { allowed.insert("kind"); guard text("kind") != nil else { throw Self.invalid() } }
+            if operation == "changeLanguage" {
+                allowed.insert("language")
+                guard kind == "cask", let language = text("language"), language.range(of: "^[A-Za-z][A-Za-z0-9_-]{0,31}$", options: .regularExpression) != nil else { throw Self.invalid() }
+            }
             if operation == "uninstall" { allowed.insert("zap"); if let zap = fields["zap"] { guard case .bool = zap, kind == "cask" else { throw Self.invalid() } } }
         }
         guard (["formula", "cask"].contains(kind) || (operation == "upgradeAll" && kind == "both" && fields["kind"] == nil)), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
@@ -81,6 +86,8 @@ public struct HomebrewTaskInput: Equatable {
             if kind == "both" { return [] }
             let names: [String] = { if case .array(let values)? = fields["names"] { return values.compactMap { if case .string(let n) = $0 { return n }; return nil } }; return [] }()
             return ["upgrade", "--" + kind] + (fields["greedy"] == .bool(true) ? ["--greedy"] : []) + ["--"] + names
+        case "changeLanguage":
+            if case .string(let language)? = fields["language"] { return ["reinstall", "--cask", "--language=" + language, "--", name] }; return []
         case "doctorFix", "adopt": return [] // Resolved only from a Host-issued plan target.
         default: return [operation, "--" + kind] + (fields["zap"] == .bool(true) ? ["--zap"] : []) + ["--", name]
         }

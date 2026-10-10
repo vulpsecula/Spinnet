@@ -1,7 +1,23 @@
 import XCTest
 import SpinnetCore
+import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
+    func testPublishedTaskFixturesMatchPublicSchemaAndHostAdmission() throws {
+        struct Entry: Decodable { let valid: Bool; let file: String; let definition: String }
+        struct Index: Decodable { let fixtures: [Entry] }
+        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let directory = api.appendingPathComponent("fixtures/reviewed-tasks")
+        let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: directory.appendingPathComponent("index.json")))
+        for entry in index.fixtures {
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent(entry.file)))
+            let validator = try JSONSchemaSubsetValidator(definition: entry.definition, inSchemaAt: api.appendingPathComponent("schemas/reviewed-tools.schema.json"))
+            XCTAssertEqual(validator.errors(for: value).isEmpty, entry.valid, entry.file)
+            if entry.definition == "tools.startTask.input" {
+                if entry.valid { XCTAssertNoThrow(try HomebrewTaskInput(value), entry.file) } else { XCTAssertThrowsError(try HomebrewTaskInput(value), entry.file) }
+            }
+        }
+    }
     func testTaskInputNamesExactlyOnePackageAndRejectsOptionsOrUnreviewedWork() throws {
         let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("wget")])
         XCTAssertEqual(try HomebrewTaskInput(input).arguments, ["install", "--formula", "--", "wget"])
@@ -15,6 +31,20 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertEqual(try HomebrewTaskInput(.object(base)).kind, "both")
         var explicit = base; explicit["kind"] = .string("both")
         XCTAssertThrowsError(try HomebrewTaskInput(.object(explicit)))
+    }
+    func testCaskLanguageChangeUsesOnlyReviewedDeclaredLanguage() throws {
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("changeLanguage"), "kind": .string("cask"), "name": .string("firefox"), "language": .string("en-GB")])
+        XCTAssertEqual(try HomebrewTaskInput(input).arguments, ["reinstall", "--cask", "--language=en-GB", "--", "firefox"])
+        guard case .object(var fields) = input else { return XCTFail("input") }; fields["language"] = .string("--evil")
+        XCTAssertThrowsError(try HomebrewTaskInput(.object(fields)))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["tap": .string("homebrew/cask"), "installed_version": .string("1"), "languages": .array([.string("en-US")])]) }, trustedTaps: { [] })
+        XCTAssertThrowsError(try host.prepare(HomebrewTaskInput(input), owner: PluginID("a"), pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged)) }
+        fields["language"] = .string("en-US")
+        let plan = try host.prepare(HomebrewTaskInput(.object(fields)), owner: PluginID("a"), pluginName: "Homebrew")
+        XCTAssertTrue(plan.confirmation.message.contains("Reinstalls the App with language en-US"))
+        host.decline(plan)
     }
     func testStopReachesChildAfterLeaderExitedAndReportsNoRollback() throws {
         let process = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", "(sleep 5) & exit 0"], environment: HomebrewReadProfile.environment, interruptGrace: 0.05, terminateGrace: 0.05)

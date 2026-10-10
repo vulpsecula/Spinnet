@@ -69,3 +69,5 @@ Typed refusals include `tool_busy`, `package_not_found`,
 `source_not_allowed`, `already_installed`, `not_outdated`,
 `task_not_found`, `task_finished` and `plan_changed`. Existing effect Stop
 semantics remain an idempotent no-op for absent effect handles.
+
+`changeLanguage` takes `kind: "cask"`, an installed package name and one language from the Host-projected `languages` list. The Host revalidates that choice before confirmation and execution, discloses App reinstallation, and constructs fixed `reinstall --cask --language=<choice>` arguments. It accepts no extra flags.

@@ -207,7 +207,8 @@
               "previewUpgrade",
               "adoptionCandidates",
               "adoptionPreview",
-              "packageAnalytics"
+              "packageAnalytics",
+              "changeLanguage"
             ]
           }
         },
@@ -492,7 +493,8 @@
             },
             "operation": {
               "enum": [
-                "doctorFix"
+                "doctorFix",
+                "changeLanguage"
               ]
             },
             "target": {
@@ -506,6 +508,35 @@
             "operation",
             "target"
           ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "name",
+            "language"
+          ],
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "changeLanguage"
+            },
+            "kind": {
+              "const": "cask"
+            },
+            "name": {
+              "$ref": "#/$defs/qualified_name"
+            },
+            "language": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+            }
+          }
         }
       ]
     },
@@ -566,7 +597,8 @@
             "serviceStop",
             "serviceRestart",
             "cleanup",
-            "doctorFix"
+            "doctorFix",
+            "changeLanguage"
           ]
         },
         "stage": {

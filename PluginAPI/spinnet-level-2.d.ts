@@ -891,6 +891,7 @@ export type ReviewedToolTaskInput =
   | {tool: "homebrew"; operation: "tap" | "untap" | "trust" | "untrust"; tap: string}
   | {tool: "homebrew"; operation: "serviceStart" | "serviceStop" | "serviceRestart"; name: string}
   | {tool: "homebrew"; operation: "cleanup"; days?: number; pruneAll?: boolean}
+  | {tool: "homebrew"; operation: "changeLanguage"; kind: "cask"; name: string; language: string}
   | {tool: "homebrew"; operation: "doctorFix" | "adopt"; target: string};
 export interface ToolsNamespace {
   /** Controlled native user-owned services Surface. Read grant opens it; controls require a separate current Task grant and confirmation. @id tools.showServices @entry command request view_action */

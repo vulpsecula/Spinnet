@@ -19,6 +19,11 @@
       "valid": true,
       "file": "task-running.json",
       "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "cask-language.json",
+      "definition": "tools.startTask.input"
     }
   ],
   "description": "Published reviewed Task input and activity boundary fixtures."

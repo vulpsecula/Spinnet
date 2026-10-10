@@ -78,6 +78,7 @@ public final class HostReviewedToolTasks {
             let (resolvedTarget, package) = try review(input, owner: owner)
             guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             try checkSource(package)
+            try Self.checkOptions(input, package: package)
             let resolved = try resolvedInput(resolvedTarget, package: package)
             try authorize()
             let target = resolved.name.isEmpty ? "eligible \(resolved.kind) packages" : resolved.name
@@ -87,6 +88,7 @@ public final class HostReviewedToolTasks {
             if !tap.isEmpty { disclosure += " Source: \(tap)." }
             if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
             if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
+            if case .string(let language)? = input.fields["language"] { disclosure += " Reinstalls the App with language \(language)." }
             if input.fields["zap"] == .bool(true) { disclosure += " Zap deletes related settings and files and may delete files shared by Apps." }
             if input.operation == "cleanup" { disclosure += input.fields["pruneAll"] == .bool(true) ? " All eligible Homebrew cache downloads and old package versions may be deleted." : " Eligible files older than the selected threshold and old package versions may be deleted." }
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
@@ -122,6 +124,7 @@ public final class HostReviewedToolTasks {
             guard try executable() == plan.executable else { throw PluginHostServiceError.tool(.missing) }
             let (resolved, currentPackage) = try review(plan.input, owner: plan.owner)
             try checkSource(currentPackage)
+            try Self.checkOptions(plan.input, package: currentPackage)
             guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
             try authorize()
@@ -293,6 +296,13 @@ public final class HostReviewedToolTasks {
         return result
     }
     private static func text(_ value: JSONValue, _ key: String) -> String { if case .string(let text)? = value.value(atPointer: "/" + key) { return text }; return "" }
+    private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue) throws {
+        if input.operation == "changeLanguage" {
+            guard package.value(atPointer: "/installed_version") != nil,
+                  case .array(let languages)? = package.value(atPointer: "/languages"),
+                  let language = input.fields["language"], languages.contains(language) else { throw PluginHostServiceError.tool(.planChanged) }
+        }
+    }
     public static func preflight(_ input: HomebrewTaskInput, executable: URL) throws -> JSONValue {
         if ["tap", "untap", "trust", "untrust", "cleanup"].contains(input.operation) { return .object([:]) }
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
