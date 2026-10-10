@@ -10,6 +10,8 @@ import Foundation
 /// Which Command uses which operation is the Plugin's business, never this
 /// description's.
 public struct ReviewedAppInterface: Equatable {
+    /// The first stable Plugin API Level that provides this interface.
+    public let minimumAPILevel: Int
     public let bundleID: String
     /// The application's name, for repair guidance and consent.
     public let name: String
@@ -54,6 +56,10 @@ public struct ReviewedAppInterface: Equatable {
     /// Every interface this Host has reviewed.
     public static let reviewed: [ReviewedAppInterface] = [bob, spotify]
 
+    public static func reviewed(atAPILevel level: Int) -> [ReviewedAppInterface] {
+        reviewed.filter { $0.minimumAPILevel <= level }
+    }
+
     public static func interface(for bundleID: String) -> ReviewedAppInterface? {
         reviewed.first { $0.bundleID == bundleID }
     }
@@ -63,6 +69,7 @@ public struct ReviewedAppInterface: Equatable {
     /// window where an operation asks it to, and shows the result itself;
     /// only `translateText` carries text, up to the External App budget.
     static let bob = ReviewedAppInterface(
+        minimumAPILevel: 1,
         bundleID: "com.hezongyidev.Bob",
         name: "Bob",
         handler: "request",
@@ -76,7 +83,7 @@ public struct ReviewedAppInterface: Equatable {
         ]
     )
 
-    static let spotify = ReviewedAppInterface(bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") })
+    static let spotify = ReviewedAppInterface(minimumAPILevel: 2, bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") })
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.

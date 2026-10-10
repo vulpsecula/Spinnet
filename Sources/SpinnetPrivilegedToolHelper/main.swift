@@ -45,9 +45,8 @@ final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
     func admit(_ data: Data, reply: @escaping (String) -> Void) {
         do {
-            guard data.count <= 64 * 1024, uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
-            let decoded = try JSONDecoder().decode(HomebrewPrivilegePlan.self, from: data)
-            let plan = try HomebrewPrivilegePlan(taskID: decoded.taskID, prefix: decoded.prefix, casks: decoded.casks, repairDirectories: decoded.repairDirectories, operation: decoded.operation)
+            guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
+            let plan = try HomebrewPrivilegePlan.decodeValidated(data)
             state.lock.lock(); defer { state.lock.unlock() }
             guard state.tasks.isEmpty, state.admissions.isEmpty else { throw PluginHostServiceError.tool(.busy) }
             state.admissions[plan.taskID] = HostAdmission(plan: plan, pid: pid, identity: identity, uid: uid, expires: ProcessInfo.processInfo.systemUptime + 60)
@@ -65,9 +64,8 @@ final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
     func begin(_ data: Data, reply: @escaping (String) -> Void) {
         do {
-            guard data.count <= 64 * 1024, uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
-            let decoded = try JSONDecoder().decode(HomebrewPrivilegePlan.self, from: data)
-            let plan = try HomebrewPrivilegePlan(taskID: decoded.taskID, prefix: decoded.prefix, casks: decoded.casks, repairDirectories: decoded.repairDirectories, operation: decoded.operation)
+            guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
+            let plan = try HomebrewPrivilegePlan.decodeValidated(data)
             state.lock.lock(); defer { state.lock.unlock() }
             guard state.tasks.isEmpty, let admission = state.admissions[plan.taskID], admission.plan == plan, admission.uid == uid,
                   admission.expires > ProcessInfo.processInfo.systemUptime, HomebrewTaskProcess.startIdentity(admission.pid) == admission.identity,

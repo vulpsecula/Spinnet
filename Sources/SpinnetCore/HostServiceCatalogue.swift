@@ -328,7 +328,7 @@ public enum HostServiceCatalogue {
         define(ReviewedToolReads.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
                input: ["tool", "operation", "kind", "greedy", "query", "names", "name", "tap", "target", "id", "offset"]),
-        define(ReviewedServicesAddition.id, [.call: .notOffered, .source: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo], capabilities: [.readReviewedTools], failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge], input: ["tool"]),
+        define(ReviewedServicesAddition.id, [.call: .notOffered, .source: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo], capabilities: [.readReviewedTools], failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge], input: ["tool", "presentation"]),
         define(ReviewedToolTasksAddition.id, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo], capabilities: [.runReviewedToolTasks],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolFailed, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged],
                input: ["tool", "operation", "kind", "name", "names", "tap", "target", "zap", "greedy", "pruneAll", "days"])

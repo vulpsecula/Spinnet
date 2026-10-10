@@ -256,3 +256,18 @@ extension ReviewedToolTaskTests {
         XCTAssertThrowsError(try host.prepare(input, owner: PluginID("repairer"), pluginName: "Homebrew", scope: scope)) { XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.runReviewedToolTasks)) }
     }
 }
+
+
+extension ReviewedToolTaskTests {
+    func testGreedyUpgradeAllOnlyAddsGreedyToItsCaskStep() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+            .object(["packages": .array([.object(["kind": .string("formula"), "name": .string("wget")]), .object(["kind": .string("cask"), "name": .string("firefox")])])])
+        }, trustedTaps: { [] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll"), "greedy": .bool(true)]))
+        let plan = try host.prepare(input, owner: PluginID("upgrader"), pluginName: "Homebrew")
+        XCTAssertEqual(plan.steps.map(\.arguments), [["upgrade", "--formula", "--", "wget"], ["upgrade", "--cask", "--greedy", "--", "firefox"]])
+        host.decline(plan)
+    }
+}

@@ -18,6 +18,8 @@ licence.
 | [`reference/host-operations.md`](reference/host-operations.md) | Level 2: Requested Host Operations an answer commits and the Host performs, their outcomes, and where insertion goes in a View Session |
 | [`reference/pages.md`](reference/pages.md) | Level 2: pages of identified components with a List or Grid, the input the Host keeps, windows of items, and Explicit Calls into the open View Session |
 | [`reference/apps.md`](reference/apps.md) | Level 2: the App in front, its App Target, and quitting it, after a Host Confirmation when it is forced or not in front |
+| [`reference/reviewed-tasks.md`](reference/reviewed-tasks.md) | Level 2: Confirmed Reviewed Tool Tasks and lifecycle |
+| [`reference/homebrew-system-authorization.md`](reference/homebrew-system-authorization.md) | Level 2: Reviewed Homebrew system authorization |
 | [`reference/level-1-names.md`](reference/level-1-names.md) | Level 2: every Level 1 name and the catalogue ID that replaces it |
 | [`schemas/manifest.schema.json`](schemas/manifest.schema.json) | JSON Schema (draft 2020-12) for a package's `manifest.json`, the `list` field and `migrations` included |
 | [`schemas/plugin-view.schema.json`](schemas/plugin-view.schema.json) | The Plugin View a script answers with |
@@ -216,6 +218,7 @@ holds only those two, and the namespaces with Command-only operations,
 | `system` | `system.runShortcut` | Command | none | none |
 |  | `system.runService` | Command | none | none |
 |  | `system.keepAwake` | Command, page action, request | `keep_awake`; App-alive also `read_frontmost_app` | none |
+|  | `system.metrics` | call, source | `read_system_status` | none |
 | `window` | `window.read` | call | `position_focused_window` | Accessibility |
 |  | `window.setFrame` | call | `position_focused_window` | Accessibility |
 |  | `window.toggleFullScreen` | call, Command | `position_focused_window` | Accessibility |
@@ -231,6 +234,8 @@ holds only those two, and the namespaces with Command-only operations,
 | `activities` | `activities.list` | call, own activities only | none | none |
 |  | `activities.stop` | page action, request, own activities only | none | none |
 | `tools` | `tools.read` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind | none |
+| | `tools.showServices` | Command, page action, request | `read_reviewed_tools` | none |
+| | `tools.startTask` | page action, request | `run_reviewed_tool_tasks`, scoped to operations and package kinds | system authorization for reviewed privileged steps |
 
 The IDs `catalogue.json` reserves, such as `system.runShortcut`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
