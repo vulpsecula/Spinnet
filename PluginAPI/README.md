@@ -392,3 +392,6 @@ in [spotify.md](reference/spotify.md), with [typed schema](schemas/spotify.schem
 `tools.showServices` presents a controlled [native Services Host Surface](reference/services-surface.md)
 under a scoped Homebrew services read grant. Its native user-owned Start/Stop/Restart
 controls separately enter Host-confirmed reviewed Task admission.
+The expanded Homebrew `tools.read` profile is documented in
+[management reads](reference/homebrew-management-reads.md), with
+[typed operations/results](schemas/homebrew-management-reads.schema.json).

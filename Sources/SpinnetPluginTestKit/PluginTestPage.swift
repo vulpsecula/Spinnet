@@ -351,6 +351,10 @@ public final class PluginTestPage {
     /// tells the Plugin when it asked: in the session, or after the view
     /// closed.
     private func hostPerforms(_ operation: RequestedHostOperation, targetShown: Bool) throws {
+        if operation.perform == ReviewedServicesAddition.id {
+            guard plugin.manifest.declares(.readReviewedTools, for: CommandID(handler.commandID)) else { throw PluginHostServiceError.capabilityDenied(.readReviewedTools) }
+            try ReviewedServicesAddition.authorize(in: plugin.manifest.scope(for: .readReviewedTools))
+        }
         let outcome: HostOperationOutcome = operation.perform == "selection.replace" && !targetShown
             ? .refused(.targetNotShown)
             : operationOutcomes[operation.perform] ?? .succeeded

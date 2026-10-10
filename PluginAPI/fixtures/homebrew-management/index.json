@@ -1,0 +1,29 @@
+{
+  "fixtures": [
+    {
+      "file": "version-input.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "advisory-input.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "unsupported-url.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "version-result.json",
+      "definition": "result",
+      "valid": true
+    },
+    {
+      "file": "doctor-result.json",
+      "definition": "result",
+      "valid": true
+    }
+  ]
+}

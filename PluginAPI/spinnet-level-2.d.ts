@@ -1,3 +1,5 @@
+import type { HomebrewManagementReadInput, HomebrewManagementReadResult } from "./homebrew-management";
+export type { HomebrewManagementReadInput, HomebrewManagementReadResult } from "./homebrew-management";
 // Type definitions for Spinnet Plugin scripts, Plugin API Level 2.
 // SPDX-License-Identifier: MIT
 //
@@ -866,6 +868,7 @@ export interface ActivitiesNamespace {
 /** Existing local Homebrew data. Bare names never name taps, paths or flags. */
 export type ReviewedPackageKind = "formula" | "cask";
 export type ReviewedToolReadInput =
+  | HomebrewManagementReadInput
   | {tool: "homebrew"; operation: "installed"; kind?: ReviewedPackageKind}
   | {tool: "homebrew"; operation: "outdated"; kind?: ReviewedPackageKind; greedy?: boolean}
   | {tool: "homebrew"; operation: "search"; query: string; kind?: ReviewedPackageKind}
@@ -874,11 +877,12 @@ export interface ReviewedPackage {
   kind: ReviewedPackageKind; name: string; tap?: string; official?: true;
   title?: string; description?: string; version?: string; installed_version?: string;
   outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
-  needs_privileges?: true; quits_app?: true;
-  dependencies?: string[]; homepage?: string; download_url?: string; installed_on_request?: true; installed_as_dependency?: true;
+  needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
+  installed_on_request?: boolean; installed_as_dependency?: boolean;
 }
-export interface ReviewedToolReadResult {
-  tool: "homebrew"; operation: ReviewedToolReadInput["operation"];
+export type ReviewedToolReadResult = LegacyReviewedToolReadResult | HomebrewManagementReadResult;
+export interface LegacyReviewedToolReadResult {
+  tool: "homebrew"; operation: "installed" | "outdated" | "search" | "info";
   packages: ReviewedPackage[]; not_found?: string[]; truncated?: true;
 }
 export type ReviewedToolTaskInput =

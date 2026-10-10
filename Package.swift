@@ -32,7 +32,7 @@ let package = Package(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
             exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
-                      "spinnet-level-2.d.ts", "catalogue.json", "fixtures", "candidates"],
+                      "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates"],
             sources: ["SpinnetSDK.swift"],
             resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js")]
         ),
