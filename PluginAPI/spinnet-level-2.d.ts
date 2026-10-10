@@ -865,7 +865,7 @@ export interface ActivitiesNamespace {
   readonly stop: Performable<"activities.stop">;
 }
 
-/** Existing local Homebrew data. Bare names never name taps, paths or flags. */
+/** Controlled Homebrew data. Package identities may name a tap; paths and flags are refused. */
 export type ReviewedPackageKind = "formula" | "cask";
 export type ReviewedToolReadInput =
   | HomebrewManagementReadInput
@@ -879,6 +879,8 @@ export interface ReviewedPackage {
   outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
   needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
   installed_on_request?: boolean; installed_as_dependency?: boolean;
+  installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean;
+  languages?: string[]; selected_language?: string;
 }
 export type ReviewedToolReadResult = LegacyReviewedToolReadResult | HomebrewManagementReadResult;
 export interface LegacyReviewedToolReadResult {

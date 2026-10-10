@@ -21,7 +21,8 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
     | { name: string; installed_version: string; advisories: Advisory[] })[];
   applications?: { target: string; name: string; bundle_id: string; version: string }[];
   target?: string; name?: string; kind?: PackageKind; summary?: string; estimated?: true;
-  packages?: { name: string; kind: PackageKind; version?: string; installed_version?: string; dependencies?: string[]; homepage?: string; download_url?: string }[];
+  packages?: { name: string; kind: PackageKind; version?: string; installed_version?: string; dependencies?: string[]; homepage?: string; download_url?: string;
+    installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean; languages?: string[]; selected_language?: string }[];
   checked?: number; total?: number; offset?: number; next_offset?: number;
   skipped?: { name: string; reason: string }[]; advisory?: Advisory;
   analytics?: { install: { "30d"?: number; "90d"?: number; "365d"?: number } };
