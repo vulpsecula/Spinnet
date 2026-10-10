@@ -63,6 +63,9 @@
         },
         {
           "$ref": "#/$defs/metrics_source"
+        },
+        {
+          "$ref": "#/$defs/activity_source"
         }
       ]
     },
@@ -288,6 +291,33 @@
         },
         "input": {
           "$ref": "./system-metrics.schema.json#/$defs/input"
+        },
+        "every": {
+          "$ref": "#/$defs/every"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        }
+      }
+    },
+    "activity_source": {
+      "description": "Visible-page own Host Activities including bounded task progress; at least one second between samples.",
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "activities.list"
+        },
+        "input": {
+          "type": "null"
         },
         "every": {
           "$ref": "#/$defs/every"

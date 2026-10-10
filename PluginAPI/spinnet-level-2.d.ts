@@ -904,7 +904,7 @@ export type ReviewedToolReadErrorCode = "tool_missing" | "tool_timed_out" | "too
 export interface ReviewedToolReadError extends Error { readonly code: ReviewedToolReadErrorCode; }
 
 /** Host-run sources (#82, #87); HTTPS and Homebrew sample once and forbid every. */
-export type SourceID = "http.request" | "tools.read" | "system.metrics" | "apps.perform";
+export type SourceID = "http.request" | "tools.read" | "system.metrics" | "apps.perform" | "activities.list";
 export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
 export interface HTTPSource { id: ID; perform: "http.request"; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
 export interface ToolSource { id: ID; perform: "tools.read"; input: ReviewedToolReadInput; deliver?: { pointer?: string }; }
@@ -913,7 +913,7 @@ export interface MetricsSource { id: ID; perform: "system.metrics"; input: Syste
 export type Source = HTTPSource | ToolSource | ActivitySource | MetricsSource | AppSource;
 export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
 export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
-export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult | SystemMetricsResult | SpotifyPlayback;
+export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult | SystemMetricsResult | SpotifyPlayback | HostActivity[];
 /** Not a gesture; requesting an operation in its answer is refused. */
 export type SourceDeliveredEvent = { type: "source_delivered"; page: ID; source: ID; sequence: number } &
   ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out" | "external_app_missing" | "external_app_not_running" | "automation_permission_needed" | "automation_permission_denied" | "external_app_operation_unsupported" | ReviewedToolReadErrorCode; message: string }; result?: never });

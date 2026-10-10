@@ -76,6 +76,7 @@ public final class HostReviewedToolTasks {
         do {
             let executable = try self.executable()
             let (resolvedTarget, package) = try review(input, owner: owner)
+            guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             try checkSource(package)
             let resolved = try resolvedInput(resolvedTarget, package: package)
             try authorize()
@@ -362,7 +363,11 @@ public struct HomebrewTaskJournal: Codable {
     public var ended: Date?
     public var scope: PluginCapabilityScope? = nil
     public var steps: [JSONValue]? = nil
-    public func save(to directory: URL) throws { try JSONEncoder().encode(self).write(to: directory.appendingPathComponent("task.json"), options: .atomic) }
+    public func save(to directory: URL) throws {
+        let data = try JSONEncoder().encode(self)
+        guard data.count <= 2 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+        try data.write(to: directory.appendingPathComponent("task.json"), options: .atomic)
+    }
     public static func load(from directory: URL) throws -> Self {
         let data = try Data(contentsOf: directory.appendingPathComponent("task.json"), options: .mappedIfSafe)
         guard data.count <= 2 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
