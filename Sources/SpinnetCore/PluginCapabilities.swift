@@ -83,7 +83,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
         case .readSystemStatus: return "Read aggregate CPU use, memory use, startup disk capacity and internal battery status. No process names, paths or history."
-        case .readReviewedTools: return "Read existing local Homebrew package data for the declared operations and package kinds. No refresh, install or upgrade."
+        case .readReviewedTools: return "Read declared Homebrew package, tap, service, Doctor and application-adoption data. Vulnerability checks send installed upstream repository identities and source versions to api.osv.dev; selected-package analytics contacts formulae.brew.sh. Reads never install, upgrade or change source trust."
         case .keepAwake: return "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item."
         case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
@@ -788,6 +788,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let pluginRegistry: PluginRegistry?
     let systemMetrics = SystemMetricsSampler()
     private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
+    private var managementInvalidationObserver: UUID?
+    private var managementRevocationObserver: UUID?
     private let reviewedTools: HomebrewReadProfile
 
     public init(
@@ -852,7 +854,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
         reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
-        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile()
+        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile? = nil
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -884,8 +886,16 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.keepAwakeEffects = keepAwakeEffects
         self.activities = activities
         self.pluginRegistry = pluginRegistry
-        self.reviewedTools = reviewedTools
+        self.reviewedTools = reviewedTools ?? HomebrewReadProfile(management: HomebrewManagementReads(targets: .shared, transport: httpsTransport))
+        let reads = self.reviewedTools
+        managementInvalidationObserver = pluginRegistry?.observeInvalidation { reads.invalidateManagementTargets(owner: $0) }
+        managementRevocationObserver = grantStore.observeRevocation { reads.invalidateManagementTargets(owner: $0) }
         self.reviewedAppPerformer = reviewedAppPerformer
+    }
+
+    deinit {
+        if let token = managementInvalidationObserver { pluginRegistry?.removeInvalidationObserver(token) }
+        if let token = managementRevocationObserver { grantStore.removeRevocationObserver(token) }
     }
 
     /// Checks what a request for `service` needs before anything is touched:

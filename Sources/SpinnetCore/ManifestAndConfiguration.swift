@@ -700,7 +700,7 @@ public struct PluginManifest: Codable, Equatable {
                       scope.reviewedTools.allSatisfy({ tool in
                           tool.tool == "homebrew" && !tool.operations.isEmpty && !tool.kinds.isEmpty
                           && Set(tool.operations).count == tool.operations.count && Set(tool.kinds).count == tool.kinds.count
-                          && tool.operations.allSatisfy { ["installed", "outdated", "search", "info"].contains($0) }
+                          && tool.operations.allSatisfy { HomebrewReadInput.operations.contains($0) }
                           && tool.kinds.allSatisfy { ["formula", "cask"].contains($0) }
                       }) else { throw ConfigurationError.invalidManifest("Invalid reviewed tool read scope") }
             } else if !scope.reviewedTools.isEmpty {

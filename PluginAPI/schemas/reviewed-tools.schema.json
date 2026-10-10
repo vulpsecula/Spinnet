@@ -23,7 +23,7 @@
       "maxLength": 64
     },
     "qualified_name": {
-      "description": "A package as the Host reports it: its bare name for an official tap, user/repository/name for any other tap (only ever reported, never accepted as input while P1 stands).",
+      "description": "An exact selected package identity: bare name or user/repository/name from its tap. The Host always passes it as a value after -- and checks current actual source trust before a mutation.",
       "type": "string",
       "pattern": "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$",
       "maxLength": 160
@@ -52,6 +52,160 @@
       "maxLength": 80
     },
     "tools.read.input": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tools.read.legacy_input"
+        },
+        {
+          "$ref": "homebrew-management-reads.schema.json#/$defs/input"
+        }
+      ]
+    },
+    "package": {
+      "description": "One package as the Host projects it from Homebrew's JSON: about 170 bytes where Homebrew's own record is about 4 KB (measurements.md). Members that are false or absent in Homebrew are left out.",
+      "type": "object",
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "name": {
+          "$ref": "#/$defs/qualified_name"
+        },
+        "tap": {
+          "$ref": "#/$defs/tap"
+        },
+        "official": {
+          "description": "The package comes from homebrew/core or homebrew/cask, the only taps a task may act on while P1 stands.",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "A cask's application name.",
+          "$ref": "#/$defs/short_text"
+        },
+        "description": {
+          "$ref": "#/$defs/short_text"
+        },
+        "version": {
+          "description": "The version Homebrew's data offers.",
+          "$ref": "#/$defs/version"
+        },
+        "installed_version": {
+          "$ref": "#/$defs/version"
+        },
+        "outdated": {
+          "const": true
+        },
+        "pinned": {
+          "const": true
+        },
+        "auto_updates": {
+          "description": "A cask that updates itself, listed as outdated only with greedy.",
+          "const": true
+        },
+        "deprecated": {
+          "const": true
+        },
+        "disabled": {
+          "const": true
+        },
+        "needs_privileges": {
+          "description": "info only: a cask whose installation runs a pkg or installer artifact, which needs an administrator; a task refuses it (P3).",
+          "const": true
+        },
+        "quits_app": {
+          "description": "info only: upgrading this cask quits its running application first, which the Host Confirmation states.",
+          "const": true
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+          }
+        },
+        "homepage": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https?://[^/@]+/"
+        },
+        "download_url": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https?://[^/@]+/"
+        },
+        "installed_on_request": {
+          "type": "boolean"
+        },
+        "installed_as_dependency": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tools.read.result": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tools.read.legacy_result"
+        },
+        {
+          "$ref": "homebrew-management-reads.schema.json#/$defs/result"
+        }
+      ]
+    },
+    "reviewedToolScope": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info",
+              "version",
+              "taps",
+              "services",
+              "vulnerabilities",
+              "vulnerabilityDetail",
+              "doctor",
+              "previewInstall",
+              "previewUpgrade",
+              "adoptionCandidates",
+              "adoptionPreview",
+              "packageAnalytics"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "formula",
+              "cask"
+            ]
+          }
+        }
+      }
+    },
+    "tools.read.legacy_input": {
       "description": "One read of the reviewed Homebrew profile. installed and outdated list what this Mac has; search finds names in the official catalogue Homebrew last fetched; info gives exact details for 1 to 50 names of one kind.",
       "type": "object",
       "required": [
@@ -96,7 +250,7 @@
           "maxItems": 50,
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/package_name"
+            "$ref": "#/$defs/qualified_name"
           }
         }
       },
@@ -171,69 +325,7 @@
         }
       ]
     },
-    "package": {
-      "description": "One package as the Host projects it from Homebrew's JSON: about 170 bytes where Homebrew's own record is about 4 KB (measurements.md). Members that are false or absent in Homebrew are left out.",
-      "type": "object",
-      "required": [
-        "kind",
-        "name"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "$ref": "#/$defs/package_kind"
-        },
-        "name": {
-          "$ref": "#/$defs/qualified_name"
-        },
-        "tap": {
-          "$ref": "#/$defs/tap"
-        },
-        "official": {
-          "description": "The package comes from homebrew/core or homebrew/cask, the only taps a task may act on while P1 stands.",
-          "type": "boolean"
-        },
-        "title": {
-          "description": "A cask's application name.",
-          "$ref": "#/$defs/short_text"
-        },
-        "description": {
-          "$ref": "#/$defs/short_text"
-        },
-        "version": {
-          "description": "The version Homebrew's data offers.",
-          "$ref": "#/$defs/version"
-        },
-        "installed_version": {
-          "$ref": "#/$defs/version"
-        },
-        "outdated": {
-          "const": true
-        },
-        "pinned": {
-          "const": true
-        },
-        "auto_updates": {
-          "description": "A cask that updates itself, listed as outdated only with greedy.",
-          "const": true
-        },
-        "deprecated": {
-          "const": true
-        },
-        "disabled": {
-          "const": true
-        },
-        "needs_privileges": {
-          "description": "info only: a cask whose installation runs a pkg or installer artifact, which needs an administrator; a task refuses it (P3).",
-          "const": true
-        },
-        "quits_app": {
-          "description": "info only: upgrading this cask quits its running application first, which the Host Confirmation states.",
-          "const": true
-        }
-      }
-    },
-    "tools.read.result": {
+    "tools.read.legacy_result": {
       "description": "What a read returns. search returns names only (kind, name); the Plugin asks info for the names it shows. truncated means more matched than max_items.",
       "type": "object",
       "required": [
@@ -271,44 +363,6 @@
         },
         "truncated": {
           "const": true
-        }
-      }
-    },
-    "reviewedToolScope": {
-      "type": "object",
-      "required": [
-        "tool",
-        "operations",
-        "kinds"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "tool": {
-          "const": "homebrew"
-        },
-        "operations": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "installed",
-              "outdated",
-              "search",
-              "info"
-            ]
-          }
-        },
-        "kinds": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "formula",
-              "cask"
-            ]
-          }
         }
       }
     }

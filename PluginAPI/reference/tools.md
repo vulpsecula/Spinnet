@@ -30,3 +30,11 @@ The result is `{tool, operation, packages, not_found?, truncated?}`. Package rec
 `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` are catchable JavaScript errors with `error.code` and a bounded Host message. A Plugin may render a guidance page. Permission denial is governed by the ordinary Capability rules. Unknown packages/search misses return bounded empty results; cache failures and unrelated errors never become a false `not_found`.
 
 Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../spinnet-level-2.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks. See [verification evidence](../fixtures/reviewed-tools/verification.md).
+
+## Management additions
+
+The approved expanded Homebrew profile adds the typed management operations in
+[management reads](homebrew-management-reads.md). The earlier four reads stay
+offline; selected remote metadata has fixed disclosed destinations and bounded
+HTTPS transfers. Exact info can now name a controlled tap-qualified identity,
+keeping a user-selected package from resolving to another tap's same bare name.

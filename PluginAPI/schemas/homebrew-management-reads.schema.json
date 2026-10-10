@@ -1,0 +1,1024 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reviewed Homebrew management reads (Plugin API Level 2)",
+  "$defs": {
+    "input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "version"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "taps"
+            },
+            "tap": {
+              "$ref": "reviewed-tools.schema.json#/$defs/tap"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "services"
+            },
+            "kind": {
+              "const": "formula"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "doctor"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "adoptionCandidates"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "names"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "previewInstall"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "names"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "previewUpgrade"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "names"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "packageAnalytics"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "target",
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "adoptionPreview"
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^app_[a-z0-9-]+$"
+            },
+            "name": {
+              "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "id"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "vulnerabilityDetail"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "vulnerabilities"
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1999
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "names"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "offset": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operation": {
+          "enum": [
+            "version",
+            "taps",
+            "services",
+            "vulnerabilities",
+            "vulnerabilityDetail",
+            "doctor",
+            "previewInstall",
+            "previewUpgrade",
+            "adoptionCandidates",
+            "adoptionPreview",
+            "packageAnalytics"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "requires_homebrew_7"
+          ]
+        },
+        "features": {
+          "type": "object",
+          "properties": {
+            "vulnerabilities": {
+              "type": "boolean"
+            },
+            "doctorJSON": {
+              "type": "boolean"
+            },
+            "trust": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "taps": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "official",
+              "trusted",
+              "formula_count",
+              "cask_count"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "reviewed-tools.schema.json#/$defs/tap"
+              },
+              "official": {
+                "type": "boolean"
+              },
+              "trusted": {
+                "type": "boolean"
+              },
+              "remote": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^https?://[^/@]+/"
+              },
+              "formula_count": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cask_count": {
+                "type": "number",
+                "minimum": 0
+              },
+              "packages": {
+                "type": "array",
+                "maxItems": 1000,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "kind"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+                    },
+                    "kind": {
+                      "enum": [
+                        "formula",
+                        "cask"
+                      ]
+                    }
+                  }
+                }
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "services": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "status",
+              "user_owned"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              },
+              "status": {
+                "enum": [
+                  "started",
+                  "scheduled",
+                  "stopped",
+                  "none",
+                  "error",
+                  "unknown",
+                  "other"
+                ]
+              },
+              "user_owned": {
+                "const": true
+              }
+            }
+          }
+        },
+        "tier": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "text",
+                  "links",
+                  "commands",
+                  "repairs"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "guidance": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "links": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "pattern": "^https?://[^/@]+/"
+                    }
+                  },
+                  "commands": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 512
+                    }
+                  },
+                  "repairs": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "target",
+                        "title"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "pattern": "^fix_[a-z0-9-]+$"
+                        },
+                        "title": {
+                          "type": "string",
+                          "maxLength": 512
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "name",
+                  "installed_version",
+                  "advisories"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+                  },
+                  "installed_version": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "advisories": {
+                    "type": "array",
+                    "maxItems": 40,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "summary": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "details": {
+                          "type": "string",
+                          "maxLength": 8192
+                        },
+                        "severity": {
+                          "enum": [
+                            "UNKNOWN",
+                            "LOW",
+                            "MEDIUM",
+                            "HIGH",
+                            "CRITICAL"
+                          ]
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "pattern": "^https?://[^/@]+/"
+                        },
+                        "detail_available": {
+                          "type": "boolean"
+                        },
+                        "fixed_versions": {
+                          "type": "array",
+                          "maxItems": 20,
+                          "items": {
+                            "type": "string",
+                            "maxLength": 80
+                          }
+                        },
+                        "references": {
+                          "type": "array",
+                          "maxItems": 20,
+                          "items": {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "pattern": "^https?://[^/@]+/"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "packages": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "reviewed-tools.schema.json#/$defs/package"
+          }
+        },
+        "estimated": {
+          "const": true
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "applications": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "required": [
+              "target",
+              "name",
+              "bundle_id",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^app_[a-z0-9-]+$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "bundle_id": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "version": {
+                "type": "string",
+                "maxLength": 80
+              }
+            }
+          }
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^adoption_[a-z0-9-]+$"
+        },
+        "name": {
+          "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "checked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "next_offset": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1999
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "skipped": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "reason"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "advisory": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "details": {
+              "type": "string",
+              "maxLength": 8192
+            },
+            "severity": {
+              "enum": [
+                "UNKNOWN",
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "CRITICAL"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^https?://[^/@]+/"
+            },
+            "detail_available": {
+              "type": "boolean"
+            },
+            "fixed_versions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^https?://[^/@]+/"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "severity",
+            "url"
+          ]
+        },
+        "analytics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "install": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "30d": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "90d": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "365d": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "version"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "features"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "taps"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "taps"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "services"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "services"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "previewInstall"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "packages",
+              "estimated",
+              "summary"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "previewUpgrade"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "packages",
+              "estimated",
+              "summary"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "adoptionCandidates"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "applications"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "adoptionPreview"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name",
+              "kind",
+              "target",
+              "summary"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "packageAnalytics"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name",
+              "kind",
+              "analytics",
+              "available"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "doctor"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "available"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "doctor"
+              },
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "tier",
+              "findings"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "vulnerabilities"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "available"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "vulnerabilities"
+              },
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "checked",
+              "findings",
+              "skipped",
+              "offset",
+              "total"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "vulnerabilityDetail"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "available"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "vulnerabilityDetail"
+              },
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "advisory"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
