@@ -1379,22 +1379,23 @@
       "id": "system.metrics",
       "namespace": "system",
       "summary": "Reads basic CPU, memory, disk-capacity and battery figures, refreshed only while the view is visible.",
-      "status": "reserved",
-      "owner": "#86",
-      "input": null,
-      "result": null,
+      "status": "level2",
+      "input": "schemas/namespaces.schema.json#/$defs/system.metrics.input",
+      "result": "schemas/namespaces.schema.json#/$defs/system.metrics.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "read_system_status"
+      ],
       "system_permission": null,
       "failures": [
+        "capability_denied",
         "host_service_failed"
       ],
       "targets": null,
       "entry_points": {
         "call": {
-          "status": "reserved",
-          "owner": "#86",
-          "reason": "Metric meanings, units and authority are #86's"
+          "status": "level2",
+          "note": "Additive Level 2 (#86); aggregate metrics only, no System Permission"
         },
         "command": {
           "status": "not_offered",
@@ -1409,9 +1410,8 @@
           "reason": "It returns data, which only a script can use"
         },
         "source": {
-          "status": "reserved",
-          "owner": "#86",
-          "reason": "A visible-view source run by the Host (#71, #82)"
+          "status": "level2",
+          "note": "Additive Level 2 (#86); aggregate metrics only, no System Permission"
         }
       },
       "level1": []
@@ -2952,6 +2952,14 @@
       ],
       "level1": [],
       "note": "Level 2 (#87): requires reviewed_tools scopes by tool, operations and kinds; existing local package data only."
+    },
+    {
+      "name": "read_system_status",
+      "operations": [
+        "system.metrics"
+      ],
+      "level1": [],
+      "note": "Level 2 (#86): aggregate CPU, physical memory, startup disk capacity and internal battery only; no System Permission or continuous Sensitive Data Collection."
     }
   ],
   "not_offered": [

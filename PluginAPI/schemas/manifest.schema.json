@@ -96,7 +96,8 @@
         "read_frontmost_app",
         "quit_frontmost_app",
         "keep_awake",
-        "read_reviewed_tools"
+        "read_reviewed_tools",
+        "read_system_status"
       ]
     },
     "levelOneCapability": {

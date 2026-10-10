@@ -671,7 +671,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         )
         self.fetchedSections = fetchedSections
         let sources = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry),
-            ReviewedToolReads.id: broker.reviewedToolSourceAdapter(using: registry), "apps.perform": broker.reviewedAppSourceAdapter(using: registry)],
+            ReviewedToolReads.id: broker.reviewedToolSourceAdapter(using: registry),
+            SystemMetrics.id: broker.systemMetricsSourceAdapter(using: registry),
+            "apps.perform": broker.reviewedAppSourceAdapter(using: registry)],
             schedule: { delay, operation in
                 let timer = Timer(timeInterval: delay, repeats: false) { _ in operation() }
                 timer.tolerance = delay * 0.1

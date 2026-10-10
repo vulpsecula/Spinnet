@@ -60,6 +60,9 @@
         },
         {
           "$ref": "#/$defs/app_source"
+        },
+        {
+          "$ref": "#/$defs/metrics_source"
         }
       ]
     },
@@ -259,6 +262,32 @@
         },
         "input": {
           "$ref": "spotify.schema.json#/$defs/source_input"
+        },
+        "every": {
+          "$ref": "#/$defs/every"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        }
+      }
+    },
+    "metrics_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "system.metrics"
+        },
+        "input": {
+          "$ref": "./system-metrics.schema.json#/$defs/input"
         },
         "every": {
           "$ref": "#/$defs/every"

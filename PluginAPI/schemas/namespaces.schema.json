@@ -95,6 +95,7 @@
         "apps.perform",
         "apps.openDeepLink",
         "apps.frontmost",
+        "system.metrics",
         "window.read",
         "window.setFrame",
         "window.toggleFullScreen",
@@ -2135,6 +2136,12 @@
     },
     "tools.read.result": {
       "$ref": "reviewed-tools.schema.json#/$defs/tools.read.result"
+    },
+    "system.metrics.input": {
+      "$ref": "system-metrics.schema.json#/$defs/input"
+    },
+    "system.metrics.result": {
+      "$ref": "system-metrics.schema.json#/$defs/result"
     }
   }
 }

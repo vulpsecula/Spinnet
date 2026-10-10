@@ -37,7 +37,8 @@
     text: ["detectLanguage"],
     storage: ["get", "set", "remove", "keys", "clear"],
     activities: ["list"],
-    tools: ["read"]
+    tools: ["read"],
+    system: ["metrics"]
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
@@ -140,6 +141,7 @@
       deliver: o.deliver === true ? {} : o.deliver,
       error_pointer: o.errorPointer, status_messages: o.statusMessages });
   }
+  sdk.system.metrics.source = function (id, input, value) { return source(id, "system.metrics", input, value); };
   sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
   sdk.tools.read.source = function (id, input, value) { validateToolRead(input); return source(id, "tools.read", input, value); };
   for (const name of Object.keys(sdk)) sdk[name] = Object.freeze(sdk[name]);

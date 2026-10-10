@@ -1,0 +1,8 @@
+{
+  "metrics": [
+    "cpu",
+    "memory",
+    "disk",
+    "battery"
+  ]
+}
