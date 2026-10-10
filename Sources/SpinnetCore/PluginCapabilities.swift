@@ -792,7 +792,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let pluginRegistry: PluginRegistry?
     let systemMetrics = SystemMetricsSampler()
     private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
-    private let reviewedServicesPresenter: (PluginPackage, ActionConfiguration) throws -> Void
+    private let reviewedServicesPresenter: (PluginPackage, ActionConfiguration, ReviewedServicesAddition.Presentation) throws -> Void
     private var managementInvalidationObserver: UUID?
     private var managementRevocationObserver: UUID?
     private let reviewedTools: HomebrewReadProfile
@@ -860,7 +860,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
         reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
-        reviewedServicesPresenter: @escaping (PluginPackage, ActionConfiguration) throws -> Void = { _, _ in throw PluginHostServiceError.unavailable("The reviewed Services surface is unavailable") },
+        reviewedServicesPresenter: @escaping (PluginPackage, ActionConfiguration, ReviewedServicesAddition.Presentation) throws -> Void = { _, _, _ in throw PluginHostServiceError.unavailable("The reviewed Services surface is unavailable") },
         pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile? = nil, reviewedTasks: HostReviewedToolTasks? = nil
     ) {
         self.grantStore = grantStore
@@ -1012,7 +1012,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
         switch service {
         case .showReviewedServices:
-            try reviewedServicesPresenter(package, action); return .null
+            try reviewedServicesPresenter(package, action, ReviewedServicesAddition.presentation(request.input)); return .null
         case .systemMetrics:
             return try systemMetrics.read(request.input, owner: package.manifest.id)
         case .reviewedToolRead:
