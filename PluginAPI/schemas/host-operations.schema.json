@@ -145,6 +145,8 @@
         "system_permission_denied",
         "automation_permission_denied",
         "external_app_missing",
+        "external_app_not_running",
+        "automation_permission_needed",
         "external_app_operation_unsupported",
         "host_service_failed",
         "command_unavailable",

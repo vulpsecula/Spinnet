@@ -648,6 +648,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// failed because of its target.
     case insertion(InsertionFailure)
     case tool(ReviewedToolFailure)
+    case appRead(ReviewedAppReadFailure)
 
     public var description: String {
         switch self {
@@ -671,6 +672,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Host Service failed: \(message)"
         case .storageLimitExceeded(let message):
             return message
+        case .appRead(let failure): return failure.message
         case .tool(let failure): return failure.message
         case .insertion(let failure):
             return failure.message
@@ -695,6 +697,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .hostServiceFailed
         case .storageLimitExceeded:
             return .storageLimitExceeded
+        case .appRead(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .tool(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
@@ -715,7 +718,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
-        case .tool: return .hostServiceFailed
+        case .tool, .appRead: return .hostServiceFailed
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
@@ -784,6 +787,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let activities: HostActivities?
     private let pluginRegistry: PluginRegistry?
     let systemMetrics = SystemMetricsSampler()
+    private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
     private let reviewedTools: HomebrewReadProfile
 
     public init(
@@ -847,6 +851,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The App in front")
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
+        reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
         pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile()
     ) {
         self.grantStore = grantStore
@@ -880,6 +885,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.activities = activities
         self.pluginRegistry = pluginRegistry
         self.reviewedTools = reviewedTools
+        self.reviewedAppPerformer = reviewedAppPerformer
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -1158,7 +1164,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
         case .performAppOperation:
-            try appleEventSender(appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
+            let event = try appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+            if event.bundleID == SpotifyPlayback.bundleID {
+                guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
+                return try performReviewedApp(event, package: package, action: action, allowsPrompt: true)
+            }
+            try appleEventSender(event)
             return .null
         case .openDeepLink:
             try deepLinkOpener(deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
@@ -1223,6 +1234,49 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     func validateHTTPSource(_ input: JSONValue, for package: PluginPackage) throws {
         try httpsPerformer(for: package).validate(input)
+    }
+
+    public func reviewedAppSourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
+        HostSourceAdapter(minimumInterval: 1, deadline: 3,
+            ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
+            authorize: { [self] action, source in
+                try SpotifyPlayback.validateSource(source.input)
+                guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+                }
+                _ = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                try self.authorize(.performAppOperation, for: package, action: action)
+            }, sample: { [self] action, source, cancellation in
+                guard !cancellation.isCancelled, let package = registry.package(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The playback read was cancelled")
+                }
+                let request = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                let result = try self.performReviewedApp(request, package: package, action: action, allowsPrompt: false, registry: registry)
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The playback read was cancelled") }
+                return result
+            })
+    }
+
+    private func performReviewedApp(_ request: AppleEventRequest, package: PluginPackage, action: ActionConfiguration,
+                                    allowsPrompt: Bool, registry: PluginRegistry? = nil) throws -> JSONValue {
+        let registry = registry ?? pluginRegistry
+        let admission = registry?.ownerAdmission(for: package.manifest.id)
+        let validity = ReviewedToolReadValidity()
+        let observer = grantStore.observeRevocation { owner in if owner == package.manifest.id { validity.revoke() } }
+        defer { grantStore.removeRevocationObserver(observer) }
+        func check() throws {
+            guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.controlExternalApp) }
+            try authorize(.performAppOperation, for: package, action: action)
+            if let registry {
+                guard let admission, registry.isCurrent(admission, for: package), registry.isEnabled(for: package.manifest.id) else {
+                    throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
+                }
+            }
+        }
+        try check()
+        let result = try reviewedAppPerformer(request, allowsPrompt)
+        try check()
+        return result
     }
 
     /// A visible-page read has no helper and the source's fifteen-second

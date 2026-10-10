@@ -127,6 +127,10 @@
       const member = callable ? function (input) { return callable(input); } : {};
       member.operation = operation(name + "." + verb);
       member.action = action(name + "." + verb);
+      if (name === "apps" && verb === "perform") member.source = function (id, input, value) {
+        if (!input || input.bundle_id !== "com.spotify.client" || input.operation !== "playback" || (input.arguments && Object.keys(input.arguments).length)) throw new Error("apps.perform sources require Spotify playback");
+        return source(id, "apps.perform", input, value);
+      };
       members[verb] = Object.freeze(member);
     }
     sdk[name] = members;

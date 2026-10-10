@@ -1,0 +1,7 @@
+{
+  "bundle_id": "com.spotify.client",
+  "operation": "playback",
+  "arguments": {
+    "script": "do shell script"
+  }
+}

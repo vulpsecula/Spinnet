@@ -38,6 +38,9 @@ public struct PluginPageSource: Equatable {
             do { _ = try SystemMetricsInput(input) }
             catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
         }
+        if perform == "apps.perform" {
+            do { try SpotifyPlayback.validateSource(input) } catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
+        }
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
             do { _ = try HomebrewReadInput(input) }

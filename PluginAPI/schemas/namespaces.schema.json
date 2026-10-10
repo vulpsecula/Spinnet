@@ -457,7 +457,14 @@
       ]
     },
     "apps.perform.input": {
-      "$ref": "external-apps.schema.json#/$defs/perform_app_operation.input"
+      "allOf": [
+        {
+          "$ref": "external-apps.schema.json#/$defs/perform_app_operation.input"
+        },
+        {
+          "$ref": "spotify.schema.json#/$defs/reviewed_interface"
+        }
+      ]
     },
     "apps.openDeepLink.input": {
       "$ref": "external-apps.schema.json#/$defs/open_deep_link.input"
@@ -849,7 +856,14 @@
       "type": "null"
     },
     "apps.perform.result": {
-      "type": "null"
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "spotify.schema.json#/$defs/playback"
+        }
+      ]
     },
     "apps.openDeepLink.result": {
       "type": "null"
