@@ -95,12 +95,11 @@ public struct PluginPermissionDisclosure {
         }
         var sections = scopes.map { scope in
                 let affected = commands.filter { scope.commandIDs.contains($0.id) }.map(\.title).joined(separator: ", ")
-                var lines = ["\(scope.capability.title) — Commands: \(affected)"]
+                var lines = ["\(scope.capability.title) — Commands: \(affected)", explanation(for: scope)]
                 let optionalCommands = commands.filter {
                     manifest.optionalCapabilities(forCommand: $0).contains(scope.capability)
                 }
                 if !optionalCommands.isEmpty {
-                    lines.append(scope.capability.explanation)
                     lines.append("Optional for these Commands: they remain available without this grant; the Host skips the operation that needs it.")
                 }
                 if !scope.dataTypes.isEmpty { lines.append("Data types: " + scope.dataTypes.joined(separator: ", ")) }
@@ -132,6 +131,22 @@ public struct PluginPermissionDisclosure {
             }
         if let implicit = implicitDetails(for: group) { sections.append(implicit) }
         return sections.isEmpty ? "None" : sections.joined(separator: "\n\n")
+    }
+
+    private func explanation(for scope: PluginCapabilityScope) -> String {
+        guard scope.capability == .readReviewedTools else { return scope.capability.explanation }
+        let operations = Set(scope.reviewedTools.filter { $0.tool == "homebrew" }.flatMap(\.operations))
+        var lines = ["Read the declared Homebrew data through reviewed Host operations."]
+        if operations.contains("vulnerabilities") {
+            lines.append("Vulnerability checks send installed upstream repository identities and source versions to api.osv.dev.")
+        } else if operations.contains("vulnerabilityDetail") {
+            lines.append("Advisory details send the selected advisory identifier to api.osv.dev.")
+        }
+        if operations.contains("packageAnalytics") {
+            lines.append("Selected-package analytics contacts formulae.brew.sh.")
+        }
+        lines.append("Reads never install, upgrade or change source trust.")
+        return lines.joined(separator: " ")
     }
 
     private func implicitDetails(for group: PluginConsentGroup) -> String? {
