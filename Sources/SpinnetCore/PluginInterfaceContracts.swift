@@ -247,6 +247,7 @@ public struct PluginInterfaceContracts: Equatable {
             + CurrentAppAddition.members
             + KeepAwakeAddition.members
             + ReviewedToolReads.members
+            + [SpotifyPlayback.sourceMember]
             // Resizable pages and adaptive Grid columns (#80).
             + PageSizing.members
             + HostRunSourceAddition.members

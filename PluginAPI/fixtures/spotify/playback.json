@@ -1,0 +1,12 @@
+{
+  "state": "playing",
+  "position": 42.5,
+  "track": {
+    "id": "spotify:track:example",
+    "name": "Example",
+    "artist": "Example Artist",
+    "album": "Example Album",
+    "duration": 241,
+    "artwork_url": "https://i.scdn.co/image/example"
+  }
+}

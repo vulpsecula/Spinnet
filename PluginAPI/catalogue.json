@@ -1048,6 +1048,8 @@
       "failures": [
         "capability_denied",
         "automation_permission_denied",
+        "automation_permission_needed",
+        "external_app_not_running",
         "external_app_missing",
         "external_app_operation_unsupported",
         "host_service_failed"
@@ -1067,6 +1069,10 @@
         },
         "request": {
           "status": "level2"
+        },
+        "source": {
+          "status": "level2",
+          "note": "Only the reviewed Spotify playback read; no launch or Automation prompt"
         }
       },
       "level1": [

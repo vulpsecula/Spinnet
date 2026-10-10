@@ -44,7 +44,7 @@ public struct HostOperationResult: Equatable {
             case .externalAppOperationUnsupported: category = .externalAppOperationUnsupported
             case .commandUnavailable: category = .commandUnavailable
             case .targetChanged: category = .insertionTargetChanged
-            case .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive, .targetProtected:
+            case .externalAppNotRunning, .automationPermissionNeeded, .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive, .targetProtected:
                 category = .hostServiceFailed
             }
         }

@@ -57,6 +57,9 @@
         },
         {
           "$ref": "#/$defs/tools_source"
+        },
+        {
+          "$ref": "#/$defs/app_source"
         }
       ]
     },
@@ -118,7 +121,12 @@
             "tool_missing",
             "tool_timed_out",
             "tool_failed",
-            "output_too_large"
+            "output_too_large",
+            "external_app_missing",
+            "external_app_not_running",
+            "automation_permission_needed",
+            "automation_permission_denied",
+            "external_app_operation_unsupported"
           ]
         },
         "message": {
@@ -228,6 +236,32 @@
         },
         "input": {
           "$ref": "./reviewed-tools.schema.json#/$defs/tools.read.input"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        }
+      }
+    },
+    "app_source": {
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "apps.perform"
+        },
+        "input": {
+          "$ref": "spotify.schema.json#/$defs/source_input"
+        },
+        "every": {
+          "$ref": "#/$defs/every"
         },
         "deliver": {
           "$ref": "#/$defs/deliver"

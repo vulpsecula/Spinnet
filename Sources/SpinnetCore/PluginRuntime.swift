@@ -627,6 +627,8 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case toolTimedOut = "tool_timed_out"
     case toolFailed = "tool_failed"
     case outputTooLarge = "output_too_large"
+    case externalAppNotRunning = "external_app_not_running"
+    case automationPermissionNeeded = "automation_permission_needed"
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
@@ -1543,7 +1545,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .externalAppMissing(failure.message)
             case .externalAppOperationUnsupported:
                 runtimeError = .externalAppOperationUnsupported(failure.message)
-            case .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge, .hostServiceFailed, .storageLimitExceeded:
+            case .externalAppNotRunning, .automationPermissionNeeded, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge, .hostServiceFailed, .storageLimitExceeded:
                 runtimeError = .hostServiceFailed(failure.message)
             case .insertionTargetChanged:
                 runtimeError = .insertionTargetChanged(failure.message)
