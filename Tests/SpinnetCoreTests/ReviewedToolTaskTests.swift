@@ -154,7 +154,7 @@ final class ReviewedToolTaskTests: XCTestCase {
             .object(["packages": .array([
                 .object(["kind": .string("formula"), "name": .string("wget"), "tap": .string("homebrew/core")]),
                 .object(["kind": .string("formula"), "name": .string("git"), "tap": .string("homebrew/core"), "pinned": .bool(true)]),
-                .object(["kind": .string("cask"), "name": .string("firefox"), "tap": .string("homebrew/cask")])])])
+                .object(["kind": .string("cask"), "name": .string("firefox"), "tap": .string("homebrew/cask"), "needs_privileges": .bool(true), "quits_app": .bool(true)])])])
         }, trustedTaps: { [] })
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll")]))
         let plan = try host.prepare(input, owner: PluginID("brew"), pluginName: "Homebrew")
@@ -162,5 +162,7 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertTrue(plan.confirmation.message.contains("wget"))
         XCTAssertTrue(plan.confirmation.message.contains("firefox"))
         XCTAssertFalse(plan.confirmation.message.contains(" git"))
+        XCTAssertTrue(plan.confirmation.message.contains("macOS system authorization"))
+        XCTAssertTrue(plan.confirmation.message.contains("may quit the affected App"))
     }
 }

@@ -92,8 +92,9 @@ public final class HostReviewedToolTasks {
             if input.fields["zap"] == .bool(true) { disclosure += " Zap deletes related settings and files and may delete files shared by Apps." }
             if input.operation == "cleanup" { disclosure += input.fields["pruneAll"] == .bool(true) ? " All eligible Homebrew cache downloads and old package versions may be deleted." : " Eligible files older than the selected threshold and old package versions may be deleted." }
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
-            if package.value(atPointer: "/needs_privileges") == .bool(true) { disclosure += " macOS system authorization is required for reviewed privileged work." }
-            if package.value(atPointer: "/quits_app") == .bool(true) { disclosure += " Homebrew may quit the affected App first." }
+            let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
+            if reviewedPackages.contains(where: { $0.value(atPointer: "/needs_privileges") == .bool(true) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
+            if reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,
                 resolvedInput: resolved, package: package, executable: executable,
