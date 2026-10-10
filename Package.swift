@@ -12,10 +12,12 @@ let package = Package(
         .library(name: "SpinnetCore", targets: ["SpinnetCore"]),
         .library(name: "SpinnetPluginTestKit", targets: ["SpinnetPluginTestKit"]),
         .executable(name: "SpinnetHost", targets: ["SpinnetHost"]),
-        .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"])
+        .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"]),
+        .executable(name: "SpinnetToolTaskRunner", targets: ["SpinnetToolTaskRunner"])
     ],
     targets: [
         .target(name: "SpinnetCore"),
+        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore"],
@@ -30,7 +32,7 @@ let package = Package(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
             exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
-                      "spinnet-level-2.d.ts", "catalogue.json", "fixtures", "candidates"],
+                      "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates"],
             sources: ["SpinnetSDK.swift"],
             resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js")]
         ),

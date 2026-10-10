@@ -1,0 +1,10 @@
+{
+  "tool": "homebrew",
+  "operation": "version",
+  "version": "7.0.0",
+  "features": {
+    "vulnerabilities": true,
+    "doctorJSON": true,
+    "trust": true
+  }
+}

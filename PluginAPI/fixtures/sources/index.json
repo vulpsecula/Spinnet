@@ -45,6 +45,11 @@
       "file": "failed-tools.json",
       "definition": "event",
       "valid": true
+    },
+    {
+      "file": "task-progress.json",
+      "definition": "answer",
+      "valid": true
     }
   ]
 }

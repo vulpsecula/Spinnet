@@ -58,6 +58,13 @@ public final class RecordedHostSources {
                 return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
                     actionID: action.id, service: .reviewedToolRead, input: source.input, operation: ReviewedToolReads.id), for: plugin.package, action: action)
             })
+        let activityAdapter = broker.activitySourceAdapter(using: registry)
+        let activitySource = HostSourceAdapter(minimumInterval: 1, deadline: 1, ownerIdentity: activityAdapter.ownerIdentity,
+            authorize: activityAdapter.authorize, sample: { action, source, cancellation in
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
+                return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
+                    actionID: action.id, service: .listActivities, input: .null, operation: "activities.list"), for: plugin.package, action: action)
+            })
         let metrics = broker.systemMetricsSourceAdapter(using: registry)
         let metricSource = HostSourceAdapter(minimumInterval: metrics.minimumInterval, deadline: metrics.deadline,
             ownerIdentity: metrics.ownerIdentity, authorize: metrics.authorize, retire: metrics.retire,
@@ -73,7 +80,7 @@ public final class RecordedHostSources {
                 return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
                     actionID: action.id, service: .performAppOperation, input: source.input, operation: "apps.perform"), for: plugin.package, action: action)
             })
-        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource, "apps.perform": appSource, SystemMetrics.id: metricSource],
+        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource, "apps.perform": appSource, SystemMetrics.id: metricSource, "activities.list": activitySource],
             now: { [weak self] in self?.clock ?? 0 }, schedule: { [weak self] delay, task in
                 guard let self else { return }; self.timers.append((self.clock + delay, task))
             }, background: { $0() }, executor: { $0() })

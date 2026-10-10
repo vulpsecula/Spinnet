@@ -42,9 +42,11 @@ pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
 swift build --product SpinnetPluginHelper
+swift build --product SpinnetToolTaskRunner
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
+BUILD_TASK_RUNNER="$BUILD_DIR/SpinnetToolTaskRunner"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
@@ -53,6 +55,8 @@ chmod +x "$APP_BINARY"
 mkdir -p "$APP_CONTENTS/Helpers"
 cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+cp "$BUILD_TASK_RUNNER" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+chmod +x "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
 
 # Bundled Plugins ship as Plugin packages so the Host reads them the same way
 # it reads an installed Plugin. They live under Resources rather than PlugIns
@@ -99,10 +103,12 @@ PLIST
 
 if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
     codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+    codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --entitlements "$HOST_ENTITLEMENTS" --sign - "$APP_BUNDLE"
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
     codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
+    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --options runtime --entitlements "$HOST_ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi

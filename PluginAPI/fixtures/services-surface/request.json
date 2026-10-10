@@ -1,0 +1,6 @@
+{
+  "perform": "tools.showServices",
+  "input": {
+    "tool": "homebrew"
+  }
+}

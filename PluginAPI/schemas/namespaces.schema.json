@@ -133,7 +133,8 @@
         "system.keepAwake",
         "window.toggleFullScreen",
         "window.restore",
-        "screen.capture"
+        "screen.capture",
+        "tools.showServices"
       ]
     },
     "view_action_id": {
@@ -151,7 +152,9 @@
         "apps.quit",
         "apps.close",
         "system.keepAwake",
-        "activities.stop"
+        "activities.stop",
+        "tools.showServices",
+        "tools.startTask"
       ]
     },
     "item_action_id": {
@@ -176,7 +179,9 @@
         "apps.quit",
         "apps.close",
         "system.keepAwake",
-        "activities.stop"
+        "activities.stop",
+        "tools.showServices",
+        "tools.startTask"
       ]
     },
     "app_target": {
@@ -1266,6 +1271,28 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "tools.showServices"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/tools.showServices.input"
+              }
+            }
+          }
         }
       ]
     },
@@ -2098,37 +2125,44 @@
       "type": "array",
       "maxItems": 8,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "kind",
-          "name",
-          "status",
-          "expires_at"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/activity_id"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "name",
+              "status",
+              "expires_at"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/activity_id"
+              },
+              "kind": {
+                "const": "keep_awake"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 280
+              },
+              "status": {
+                "type": "string",
+                "maxLength": 280
+              },
+              "expires_at": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
           },
-          "kind": {
-            "const": "keep_awake"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 280
-          },
-          "status": {
-            "type": "string",
-            "maxLength": 280
-          },
-          "expires_at": {
-            "type": [
-              "number",
-              "null"
-            ]
+          {
+            "$ref": "reviewed-tools.schema.json#/$defs/taskActivity"
           }
-        }
+        ]
       }
     },
     "tools.read.input": {
@@ -2137,11 +2171,32 @@
     "tools.read.result": {
       "$ref": "reviewed-tools.schema.json#/$defs/tools.read.result"
     },
+    "tools.startTask.input": {
+      "$ref": "reviewed-tools.schema.json#/$defs/tools.startTask.input"
+    },
+    "tools.startTask.result": {
+      "type": "null"
+    },
     "system.metrics.input": {
       "$ref": "system-metrics.schema.json#/$defs/input"
     },
     "system.metrics.result": {
       "$ref": "system-metrics.schema.json#/$defs/result"
+    },
+    "tools.showServices.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool"
+      ],
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        }
+      }
+    },
+    "tools.showServices.result": {
+      "type": "null"
     }
   }
 }

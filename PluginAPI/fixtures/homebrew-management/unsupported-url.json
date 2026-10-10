@@ -1,0 +1,5 @@
+{
+  "tool": "homebrew",
+  "operation": "vulnerabilityDetail",
+  "url": "https://unknown.example"
+}

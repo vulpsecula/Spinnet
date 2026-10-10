@@ -12,10 +12,16 @@ public struct HostActivity: Equatable {
     public let expiresAt: Date?
     /// Whole seconds left from the resource's monotonic clock, not wall time.
     public let remainingSeconds: Int?
+    public var detail: JSONValue? = nil
+    public var canStop: Bool { kind != "task" || detail?.value(atPointer: "/status") == .string("running") }
 
-    public var name: String { "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : "Activity")" }
+    public var name: String {
+        if kind == "task", case .string(let task)? = detail?.value(atPointer: "/name") { return "\(pluginName.prefix(128)) — \(task.prefix(128))" }
+        return "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : "Activity")"
+    }
     public var json: JSONValue {
-        .object(["id": .string(id), "kind": .string(kind), "name": .string(name),
+        if let detail { return detail }
+        return .object(["id": .string(id), "kind": .string(kind), "name": .string(name),
                  "status": .string(status), "expires_at": expiresAt.map { .number($0.timeIntervalSince1970) } ?? .null])
     }
 }
@@ -27,7 +33,7 @@ public final class HostActivities {
     public static let maximumPerPlugin = 8
     public static let maximumTotal = 64
     public static let visibleRefreshInterval: TimeInterval = 1
-    private struct Entry { let activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void }
+    private struct Entry { var activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void; var visibleToOwner = true; let removesOnStop: Bool }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
     private var observers: [UUID: () -> Void] = [:]
@@ -36,17 +42,18 @@ public final class HostActivities {
 
     @discardableResult
     public func register(owner: PluginID, pluginName: String, kind: String, status: String,
-                         expiresAt: Date? = nil, remainingSeconds: (() -> Int)? = nil, stop: @escaping () -> Void) throws -> HostActivity {
+                         expiresAt: Date? = nil, remainingSeconds: (() -> Int)? = nil,
+                         id: String? = nil, removesOnStop: Bool = true, stop: @escaping () -> Void) throws -> HostActivity {
         lock.lock()
         guard entries.count < Self.maximumTotal,
               entries.values.filter({ $0.activity.owner == owner }).count < Self.maximumPerPlugin else {
             lock.unlock()
             throw PluginHostServiceError.failed("The Host activity limit was reached")
         }
-        let activity = HostActivity(id: "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
+        let activity = HostActivity(id: id ?? "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
                                     owner: owner, pluginName: String(pluginName.prefix(256)), kind: kind,
                                     status: status, expiresAt: expiresAt, remainingSeconds: remainingSeconds?())
-        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop)
+        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop, removesOnStop: removesOnStop)
         let changed = Array(observers.values)
         lock.unlock()
         changed.forEach { $0() }
@@ -55,15 +62,22 @@ public final class HostActivities {
 
     public func list(for owner: PluginID? = nil) -> [HostActivity] {
         lock.lock()
-        let snapshots = entries.values.filter { owner == nil || $0.activity.owner == owner }
+        let snapshots = entries.values.filter { owner == nil || ($0.visibleToOwner && $0.activity.owner == owner) }
         lock.unlock()
         return snapshots.map { entry in
             let held = entry.activity
             let remaining = entry.remainingSeconds.map { max(0, $0()) }
-            return HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
+            var snapshot = HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
                                 status: remaining.map(Self.remainingStatus) ?? held.status,
                                 expiresAt: held.expiresAt, remainingSeconds: remaining)
-        }.sorted { $0.id < $1.id }
+            snapshot.detail = held.detail
+            return snapshot
+        }.sorted {
+            let leftEnded = $0.detail?.value(atPointer: "/status") == .string("ended")
+            let rightEnded = $1.detail?.value(atPointer: "/status") == .string("ended")
+            if leftEnded != rightEnded { return !leftEnded }
+            return $0.id < $1.id
+        }
     }
 
     private static func remainingStatus(_ seconds: Int) -> String {
@@ -81,10 +95,10 @@ public final class HostActivities {
     @discardableResult
     public func stop(_ id: String, for owner: PluginID? = nil) -> Bool {
         lock.lock()
-        guard let entry = entries[id], owner == nil || entry.activity.owner == owner else {
+        guard let entry = entries[id], owner == nil || (entry.visibleToOwner && entry.activity.owner == owner) else {
             lock.unlock(); return false
         }
-        entries[id] = nil
+        if entry.removesOnStop { entries[id] = nil }
         let changed = Array(observers.values)
         lock.unlock()
         entry.stop()
@@ -98,6 +112,19 @@ public final class HostActivities {
     public func invalidate(_ owner: PluginID) {
         list(for: owner).forEach { stop($0.id, for: owner) }
     }
+
+    public func updateTask(_ id: String, status: String, detail: JSONValue, detached: Bool = false) {
+        lock.lock()
+        guard var entry = entries[id], entry.activity.kind == "task" else { lock.unlock(); return }
+        let held = entry.activity
+        entry.activity = HostActivity(id: id, owner: held.owner, pluginName: held.pluginName, kind: "task", status: status, expiresAt: nil, remainingSeconds: nil)
+        entry.activity.detail = detail
+        entry.visibleToOwner = !detached
+        entries[id] = entry
+        let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
+    }
+
+    public func removeEndedTask(_ id: String) { lock.lock(); entries[id] = nil; lock.unlock() }
 
     public func shutdown() { list().forEach { stop($0.id) } }
 

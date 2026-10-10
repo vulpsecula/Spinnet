@@ -16,15 +16,23 @@ public enum ReviewedToolReads {
 
 /// Validates the complete typed request before any executable discovery or process launch.
 public struct HomebrewReadInput {
+    public static let operations = ["installed", "outdated", "search", "info"] + HomebrewManagementReads.operations
+    public let rawInput: JSONValue
     public let operation: String
     public let kind: String?
     public let query: String?
     public let names: [String]
     public let greedy: Bool
-    public var kinds: [String] { kind.map { [$0] } ?? ["formula", "cask"] }
+    public var kinds: [String] {
+        if ["version", "taps", "doctor"].contains(operation) { return [] }
+        if ["adoptionCandidates", "adoptionPreview"].contains(operation) { return ["cask"] }
+        if ["services", "vulnerabilities", "vulnerabilityDetail"].contains(operation) { return ["formula"] }
+        return kind.map { [$0] } ?? ["formula", "cask"]
+    }
     public init(_ input: JSONValue) throws {
+        rawInput = input
         guard case .object(let fields) = input, fields["tool"] == .string("homebrew"),
-              case .string(let operation)? = fields["operation"], ["installed", "outdated", "search", "info"].contains(operation) else { throw Self.invalid() }
+              case .string(let operation)? = fields["operation"], Self.operations.contains(operation) else { throw Self.invalid() }
         self.operation = operation
         if let value = fields["kind"] {
             guard case .string(let kind) = value, ["formula", "cask"].contains(kind) else { throw Self.invalid() }
@@ -35,6 +43,10 @@ public struct HomebrewReadInput {
             names = values.map { if case .string(let text) = $0 { return text }; return "" }
         } else { names = [] }
         if let value = fields["greedy"] { guard case .bool(let flag) = value else { throw Self.invalid() }; greedy = flag } else { greedy = false }
+        if HomebrewManagementReads.operations.contains(operation) {
+            try HomebrewManagementReads.validate(input)
+            return
+        }
         let allowed: Set<String>
         switch operation {
         case "installed": allowed = ["tool", "operation", "kind"]
@@ -44,11 +56,14 @@ public struct HomebrewReadInput {
             guard let query, Self.validToken(query, search: true) else { throw Self.invalid() }
         default:
             allowed = ["tool", "operation", "kind", "names"]
-            guard kind != nil, (1...50).contains(names.count), Set(names).count == names.count, names.allSatisfy({ Self.validToken($0) }) else { throw Self.invalid() }
+            guard kind != nil, (1...50).contains(names.count), Set(names).count == names.count, names.allSatisfy({ Self.validPackageName($0) }) else { throw Self.invalid() }
         }
         guard Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
     }
     static func invalid() -> PluginHostServiceError { .invalidInput("tools.read contains unsupported members, names or kinds") }
+    public static func validPackageName(_ text: String) -> Bool {
+        text.count <= 160 && text.range(of: "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil
+    }
     static func validToken(_ text: String, search: Bool = false) -> Bool {
         guard ((search ? 2 : 1)...64).contains(text.count) else { return false }
         return text.range(of: search ? "^[a-z0-9+_.@][a-z0-9+_.@-]*$" : "^[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil
@@ -98,13 +113,16 @@ public final class HomebrewReadProfile {
     public typealias CancellableExecutor = (URL, [String], [String: String], Date, HostFetchedSections.Cancellation) throws -> HomebrewReadOutput
     private let executable: () throws -> URL
     private let execute: CancellableExecutor
-    public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil) {
+    private let management: HomebrewManagementReads
+    public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil, management: HomebrewManagementReads = HomebrewManagementReads()) {
         self.executable = executable
+        self.management = management
         self.execute = execute.map { operation in { executable, arguments, environment, deadline, _ in try operation(executable, arguments, environment, deadline) } } ?? Self.executeCancellable
     }
-    public init(executable: @escaping () throws -> URL, executeCancellable: @escaping CancellableExecutor) {
-        self.executable = executable; self.execute = executeCancellable
+    public init(executable: @escaping () throws -> URL, executeCancellable: @escaping CancellableExecutor, management: HomebrewManagementReads = HomebrewManagementReads()) {
+        self.executable = executable; self.execute = executeCancellable; self.management = management
     }
+    public func invalidateManagementTargets(owner: PluginID) { management.invalidateTargets(owner: owner) }
     public static func discover() throws -> URL {
         for path in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
             let url = URL(fileURLWithPath: path), resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath()
@@ -135,6 +153,12 @@ public final class HomebrewReadProfile {
         defer { HomebrewReadAdmission.shared.release(owner) }
         try stillAuthorized()
         let executable = try executable()
+        if HomebrewManagementReads.operations.contains(request.operation) {
+            let result = try management.read(request.rawInput, owner: owner, executable: executable, deadline: deadline,
+                cancellation: cancellation, execute: execute, stillAuthorized: stillAuthorized)
+            guard try JSONEncoder().encode(result).count <= ReviewedToolReads.resultBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            try stillAuthorized(); return result
+        }
         var packages: [JSONValue] = [], notFound: [String] = []
         var runs: [(String?, [String])] = request.operation == "search" ? request.kinds.map { ($0, []) } : [(request.kind, request.names)]
         while !runs.isEmpty {
@@ -175,14 +199,22 @@ public final class HomebrewReadProfile {
                 for (key, packageKind) in [("formulae", "formula"), ("casks", "cask")] {
                     guard let records = raw[key] as? [[String: Any]] else { continue }
                     if let chosen = request.kind, chosen != packageKind { continue }
-                    for record in records { if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated") { packages.append(projected) } }
+                    for record in records { if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: HomebrewManagementReads.prefix(of: executable), includeConfiguration: request.operation == "info") { packages.append(projected) } }
                 }
                 if request.operation == "info" {
                     let found = packages.compactMap { value -> String? in
                         guard case .object(let record) = value, case .string(let name)? = record["name"] else { return nil }
-                        return name.split(separator: "/").last.map(String.init)
+                        return name
                     }
-                    notFound += names.filter { !found.contains($0) }
+                    notFound += names.filter { requested in
+                        !found.contains(requested) && !found.contains(where: { returned in
+                            // A bare alias or an official tap-qualified name may
+                            // be canonicalized by Homebrew; a third-party tap's
+                            // qualified identity must match in full.
+                            let official = requested.hasPrefix("homebrew/core/") || requested.hasPrefix("homebrew/cask/")
+                            return (!requested.contains("/") || official) && returned.split(separator: "/").last == requested.split(separator: "/").last
+                        })
+                    }
                 }
             }
         }
@@ -209,7 +241,7 @@ public final class HomebrewReadProfile {
     private static func clean(_ text: String) -> String { String(String.UnicodeScalarView(text.replacingOccurrences(of: NSHomeDirectory(), with: "~")
         .replacingOccurrences(of: "(?i)(bearer\\s+|(?:token|password|secret|api[_-]?key)[=:]\\s*)[^\\s,;]+", with: "$1[redacted]", options: .regularExpression)
         .unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }).prefix(200)) }
-    private static func project(_ raw: [String: Any], kind: String, outdated: Bool) -> JSONValue? {
+    static func project(_ raw: [String: Any], kind: String, outdated: Bool, prefix: URL? = nil, includeConfiguration: Bool = false) -> JSONValue? {
         guard let name = (raw[kind == "formula" ? "full_name" : "full_token"] ?? (raw[kind == "formula" ? "name" : "token"] ?? raw["name"])) as? String, validReturnedName(name) else { return nil }
         var result: [String: JSONValue] = ["kind": .string(kind), "name": .string(name)]
         if outdated { result["outdated"] = .bool(true) }
@@ -226,6 +258,17 @@ public final class HomebrewReadProfile {
             if artifacts.contains(where: { $0["pkg"] != nil || $0["installer"] != nil }) { result["needs_privileges"] = .bool(true) }
             if artifacts.contains(where: { ($0["uninstall"] as? [String: Any])?["quit"] != nil }) { result["quits_app"] = .bool(true) }
         }
+        if let dependencies = raw["dependencies"] as? [String] {
+            result["dependencies"] = .array(dependencies.prefix(128).filter(HomebrewReadInput.validPackageName).map(JSONValue.string))
+        }
+        for key in ["homepage"] { if let value = raw[key] as? String, let safe = HomebrewManagementReads.safeURL(value) { result[key] = .string(safe) } }
+        if let source = (kind == "cask" ? raw["url"] : ((raw["urls"] as? [String: Any])?["stable"] as? [String: Any])?["url"]) as? String,
+           let safe = HomebrewManagementReads.safeURL(source) { result["download_url"] = .string(safe) }
+        if let installed = raw["installed"] as? [[String: Any]], let first = installed.first {
+            if let flag = first["installed_on_request"] as? Bool { result["installed_on_request"] = .bool(flag) }
+            if let flag = first["installed_as_dependency"] as? Bool { result["installed_as_dependency"] = .bool(flag) }
+        }
+        result.merge(HomebrewPackageMetadata.project(raw, kind: kind, name: name, prefix: prefix, includeConfiguration: includeConfiguration)) { _, new in new }
         return .object(result)
     }
     /// A separate process group, bounded pipes and no stdin. Stop attempts never undo work.
@@ -286,12 +329,22 @@ public final class HomebrewReadProfile {
 }
 public enum ReviewedToolFailure: String, Codable, Equatable {
     case missing = "tool_missing", timedOut = "tool_timed_out", failed = "tool_failed", outputTooLarge = "output_too_large"
+    case busy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed"
+    case alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     public var message: String {
         switch self {
         case .missing: return "Homebrew is unavailable at /opt/homebrew/bin/brew or /usr/local/bin/brew. See https://brew.sh for installation information."
         case .timedOut: return "The reviewed Homebrew read exceeded its deadline."
         case .failed: return "Homebrew could not complete the reviewed read."
         case .outputTooLarge: return "Homebrew output exceeded the reviewed read limit."
+        case .busy: return "Another reviewed Homebrew Task is running or awaiting confirmation."
+        case .packageNotFound: return "The selected package is no longer available."
+        case .sourceNotAllowed: return "The package source is not currently trusted in Homebrew."
+        case .alreadyInstalled: return "This package is already installed."
+        case .notOutdated: return "This package has no eligible update or is pinned."
+        case .taskNotFound: return "No Task of this Plugin has this handle."
+        case .taskFinished: return "This Task has already ended."
+        case .planChanged: return "The reviewed plan changed. Review and confirm it again."
         }
     }
 }

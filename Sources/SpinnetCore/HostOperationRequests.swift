@@ -44,7 +44,7 @@ public struct HostOperationResult: Equatable {
             case .externalAppOperationUnsupported: category = .externalAppOperationUnsupported
             case .commandUnavailable: category = .commandUnavailable
             case .targetChanged: category = .insertionTargetChanged
-            case .externalAppNotRunning, .automationPermissionNeeded, .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive, .targetProtected:
+            case .externalAppNotRunning, .automationPermissionNeeded, .toolMissing, .toolFailed, .toolTimedOut, .outputTooLarge, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged, .hostServiceFailed, .targetNotShown, .noTarget, .secureInput, .targetUnresponsive, .targetProtected:
                 category = .hostServiceFailed
             }
         }
@@ -100,6 +100,7 @@ public enum AcceptedHostOperationTarget: Hashable {
     /// #84: ownership/authority captured when the effect request commits,
     /// before waiting or off-main dispatch. No incarnation is refreshed.
     case keepAwakeOwner(KeepAwakeAdmission?)
+    case reviewedTaskOwner(PluginOwnerAdmission?, Int)
 }
 
 /// The Requested Host Operations of every Plugin (ADR 0018), confined to the

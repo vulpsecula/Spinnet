@@ -1,0 +1,22 @@
+{
+  "page": {
+    "id": "tasks",
+    "title": "Homebrew Tasks",
+    "content": [
+      {
+        "id": "summary",
+        "text": "Waiting for task status",
+        "kind": "text"
+      }
+    ],
+    "sources": [
+      {
+        "id": "tasks",
+        "perform": "activities.list",
+        "input": null,
+        "every": 1,
+        "deliver": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "tool": "homebrew",
+  "operation": "info",
+  "packages": [
+    {
+      "kind": "formula",
+      "name": "owner/tap/example",
+      "installed_version": "1.0",
+      "installed_path": "/opt/homebrew/Cellar/example/1.0",
+      "keg_only": false,
+      "linkable": true,
+      "linked": false
+    }
+  ]
+}

@@ -163,7 +163,7 @@ public struct RequestedHostOperation: Equatable, Hashable {
     /// `host.showPluginSettings`, `apps.quit` and `apps.close`, which the
     /// Host performs itself.
     public func implementation() throws -> (service: PluginHostService, input: JSONValue)? {
-        guard perform != "host.showPluginSettings", !CurrentAppAddition.exitIDs.contains(perform), let definition else {
+        guard perform != "host.showPluginSettings", perform != ReviewedToolTasksAddition.id, !CurrentAppAddition.exitIDs.contains(perform), let definition else {
             return nil
         }
         if perform == "clipboardHistory.show" { return (.presentClipboardHistory, .null) }
@@ -205,6 +205,14 @@ public struct RequestedHostOperation: Equatable, Hashable {
 
     private static func checkInput(_ input: JSONValue, of definition: HostServiceDefinition) throws {
         let id = definition.id
+        if id == ReviewedServicesAddition.id {
+            do { try ReviewedServicesAddition.validate(input) } catch { throw violation("gives tools.showServices invalid input") }
+            return
+        }
+        if id == ReviewedToolTasksAddition.id {
+            do { _ = try HomebrewTaskInput(input) } catch { throw violation("gives tools.startTask invalid reviewed input") }
+            return
+        }
         if let primary = definition.primaryMember {
             guard let text = primaryText(input, member: primary) else {
                 throw violation("gives \(id) no \(primary): its input is \(primary) as a string, or an object of \(primary) alone")
@@ -295,6 +303,8 @@ public struct RequestedHostOperation: Equatable, Hashable {
 /// Why a Requested Host Operation was refused or failed. No reason names
 /// the App, its bundle ID, process or window.
 public enum HostOperationReason: String, CaseIterable, Hashable {
+    case toolMissing = "tool_missing", toolFailed = "tool_failed", toolTimedOut = "tool_timed_out", outputTooLarge = "output_too_large"
+    case toolBusy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed", alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
@@ -332,7 +342,8 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
         case .externalAppMissing: self = .externalAppMissing
         case .externalAppOperationUnsupported: self = .externalAppOperationUnsupported
         case .insertion(let failure): self = failure.reason
-        case .invalidInput, .unavailable, .failed, .storageLimitExceeded, .tool: self = .hostServiceFailed
+        case .tool(let failure): self = HostOperationReason(rawValue: failure.rawValue) ?? .hostServiceFailed
+        case .invalidInput, .unavailable, .failed, .storageLimitExceeded: self = .hostServiceFailed
         }
     }
 }

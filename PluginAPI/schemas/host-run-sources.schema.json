@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Host-run sources (Plugin API Level 2)",
-  "description": "Visible-page bounded Host-run sources (#82, #85, #87). HTTPS and reviewed Homebrew reads sample once; Spotify playback permits a one-second minimum repeating source without prompting or launching.",
+  "description": "Visible-page bounded Host-run sources (#82, #85, #86, #87). HTTPS and reviewed Homebrew reads sample once; Spotify playback permits a one-second minimum repeating source without prompting or launching. Basic system.metrics snapshots permit a one-second minimum repeating source with a one-second deadline and require read_system_status.",
   "$defs": {
     "identifier": {
       "$ref": "./pages.schema.json#/$defs/identifier"
@@ -63,6 +63,9 @@
         },
         {
           "$ref": "#/$defs/metrics_source"
+        },
+        {
+          "$ref": "#/$defs/activity_source"
         }
       ]
     },
@@ -288,6 +291,33 @@
         },
         "input": {
           "$ref": "./system-metrics.schema.json#/$defs/input"
+        },
+        "every": {
+          "$ref": "#/$defs/every"
+        },
+        "deliver": {
+          "$ref": "#/$defs/deliver"
+        }
+      }
+    },
+    "activity_source": {
+      "description": "Visible-page own Host Activities including bounded task progress; at least one second between samples.",
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "perform": {
+          "const": "activities.list"
+        },
+        "input": {
+          "type": "null"
         },
         "every": {
           "$ref": "#/$defs/every"

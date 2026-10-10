@@ -51,7 +51,8 @@
     open: ["url", "path", "application"],
     apps: ["perform", "openDeepLink", "quit", "close"],
     system: ["keepAwake"],
-    activities: ["stop"]
+    activities: ["stop"],
+    tools: ["showServices", "startTask"]
   };
 
   function compact(members) {
@@ -66,15 +67,44 @@
     return value === undefined || value === null ? {} : value;
   }
 
+  function validateManagementRead(v) {
+    function invalid() { throw new TypeError("tools.read contains unsupported management input"); }
+    const globals = ["version", "doctor", "adoptionCandidates"];
+    const name = n => typeof n === "string" && n.length <= 160 && /^([a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9+_.@-]*$/.test(n);
+    let allowed = ["tool", "operation"];
+    if (v.operation === "services") {
+      allowed.push("kind");
+      if (v.kind !== undefined && v.kind !== "formula") invalid();
+    } else if (v.operation === "taps") {
+      allowed.push("tap");
+      if (v.tap !== undefined && (typeof v.tap !== "string" || v.tap.length > 96 || !/^[a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*$/.test(v.tap))) invalid();
+    } else if (["previewInstall", "previewUpgrade", "packageAnalytics"].includes(v.operation)) {
+      allowed.push("kind", "names");
+      if (!["formula", "cask"].includes(v.kind) || !Array.isArray(v.names) || !v.names.length || v.names.length > 20 || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n))) invalid();
+      if (v.operation === "packageAnalytics" && v.names.length !== 1) invalid();
+    } else if (v.operation === "adoptionPreview") {
+      allowed.push("target", "name");
+      if (typeof v.target !== "string" || !v.target.startsWith("app_") || v.target.length > 80 || !name(v.name)) invalid();
+    } else if (v.operation === "vulnerabilityDetail") {
+      allowed.push("id");
+      if (typeof v.id !== "string" || v.id.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v.id)) invalid();
+    } else if (v.operation === "vulnerabilities") {
+      allowed.push("names", "offset");
+      if (v.names !== undefined && (v.offset !== undefined || !Array.isArray(v.names) || !v.names.length || v.names.length > 20 || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n)))) invalid();
+      if (v.offset !== undefined && (!Number.isInteger(v.offset) || v.offset < 0 || v.offset > 1999)) invalid();
+    } else if (!globals.includes(v.operation)) invalid();
+    if (Object.keys(v).some(k => !allowed.includes(k))) invalid();
+  }
   function validateToolRead(v) {
     function invalid() { throw new TypeError("tools.read contains unsupported members, names or kinds"); }
     if (!v || typeof v !== "object" || Array.isArray(v) || v.tool !== "homebrew") invalid();
+    if (["version", "taps", "services", "doctor", "adoptionCandidates", "adoptionPreview", "previewInstall", "previewUpgrade", "packageAnalytics", "vulnerabilities", "vulnerabilityDetail"].includes(v.operation)) return validateManagementRead(v);
     const keys = {installed: ["tool", "operation", "kind"], outdated: ["tool", "operation", "kind", "greedy"], search: ["tool", "operation", "kind", "query"], info: ["tool", "operation", "kind", "names"]}[v.operation];
     if (!keys || Object.keys(v).some(k => !keys.includes(k))) invalid();
     if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();
     if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid();
     if (v.operation === "search" && (typeof v.query !== "string" || v.query.length < 2 || v.query.length > 64 || !/^[a-z0-9+_.@][a-z0-9+_.@-]*$/.test(v.query))) invalid();
-    if (v.operation === "info" && (v.kind === undefined || !Array.isArray(v.names) || v.names.length < 1 || v.names.length > 50 || new Set(v.names).size !== v.names.length || v.names.some(n => typeof n !== "string" || n.length > 64 || !/^[a-z0-9][a-z0-9+_.@-]*$/.test(n)))) invalid();
+    if (v.operation === "info" && (v.kind === undefined || !Array.isArray(v.names) || v.names.length < 1 || v.names.length > 50 || new Set(v.names).size !== v.names.length || v.names.some(n => typeof n !== "string" || n.length > 160 || !/^([a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9+_.@-]*$/.test(n)))) invalid();
   }
   function call(id) {
     return function (input) {
@@ -144,6 +174,7 @@
   sdk.system.metrics.source = function (id, input, value) { return source(id, "system.metrics", input, value); };
   sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
   sdk.tools.read.source = function (id, input, value) { validateToolRead(input); return source(id, "tools.read", input, value); };
+  sdk.activities.list.source = function (id, value) { return source(id, "activities.list", null, value); };
   for (const name of Object.keys(sdk)) sdk[name] = Object.freeze(sdk[name]);
 
   function collection(kind, o) {

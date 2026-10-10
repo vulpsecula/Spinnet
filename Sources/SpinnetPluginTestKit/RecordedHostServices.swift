@@ -72,6 +72,10 @@ public final class RecordedHostServices: PluginHostServiceBroker {
                 throw PluginHostServiceError.externalAppOperationUnsupported("Spotify does not support this operation")
             }
         }
+        if request.service == .showReviewedServices {
+            try ReviewedServicesAddition.validate(request.input)
+            try ReviewedServicesAddition.authorize(in: package.manifest.scope(for: .readReviewedTools))
+        }
         if request.service == .reviewedToolRead {
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         }

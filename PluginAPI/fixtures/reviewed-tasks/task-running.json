@@ -1,0 +1,1 @@
+{"id":"activity_00000000000000000000000000000001","kind":"task","tool":"homebrew","name":"install wget","status":"running","operation":"install","stage":"fetching","elapsed_seconds":2,"log":["==> Downloading wget"],"prevents_idle_sleep":true,"package":{"name":"wget","kind":"formula"}}
