@@ -232,7 +232,7 @@ External App integration through Reviewed App Interfaces and Deep Link Templates
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
-| `apps.perform` | `{bundle_id, operation, arguments?}` | null | call, Command, page action, request | `control_external_app`, Automation (macOS asks) |
+| `apps.perform` | `{bundle_id, operation, arguments?}` | null, or [Spotify playback](spotify.md) | call, Command, page action, request; source for Spotify playback only | `control_external_app`, Automation (sources never prompt) |
 | `apps.openDeepLink` | `{template, parameters?}` | null | call, Command, page action, request | `control_external_app` |
 | `apps.frontmost` | none | `{target, name, bundle_id, exits}` or null | call | `read_frontmost_app` |
 | `apps.quit` | `{target?, force?}` or none | null | page action, request | `quit_frontmost_app`; Accessibility except for Force Quit; a Host Confirmation for Force Quit and for an App not in front |
