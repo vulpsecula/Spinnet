@@ -61,9 +61,19 @@ public final class HostActivities {
             let held = entry.activity
             let remaining = entry.remainingSeconds.map { max(0, $0()) }
             return HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
-                                status: remaining.map { "\($0) seconds remaining" } ?? held.status,
+                                status: remaining.map(Self.remainingStatus) ?? held.status,
                                 expiresAt: held.expiresAt, remainingSeconds: remaining)
         }.sorted { $0.id < $1.id }
+    }
+
+    private static func remainingStatus(_ seconds: Int) -> String {
+        let secondsPart = String(format: "%02d", seconds % 60)
+        if seconds >= 3_600 {
+            let minutesPart = String(format: "%02d", (seconds / 60) % 60)
+            return "\(seconds / 3_600)h \(minutesPart)m \(secondsPart)s remaining"
+        }
+        if seconds >= 60 { return "\(seconds / 60)m \(secondsPart)s remaining" }
+        return "\(seconds)s remaining"
     }
 
     /// Removes the entry before calling its stop adapter, ensuring races

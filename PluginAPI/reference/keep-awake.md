@@ -118,14 +118,15 @@ no owner, rows or actions. Stop removes the resource immediately without a View
 Event or helper invocation. Empty text is nonblank and at most 256 characters;
 its default is “No active activities”. Resource IDs keep row identity stable.
 
-Timed effects display whole remaining seconds, rounded upward from the Host's
+Timed effects display an adaptive duration such as `59s`, `1m 00s` or
+`1h 02m 03s`, with whole-second precision rounded upward from the Host's
 monotonic deadline. The Plugin View and open Status Item menu refresh once per
 second while they contain timed activities. Hiding, occluding, closing, screen
 sleep or an inactive user session cancels the Plugin View refresh; closing the
 Status Item menu cancels its refresh. These refreshes never run a Plugin, deliver
 a source event or alter the effect lifetime. Structural resource changes update
 the visible control immediately. `activities.list()` remains a snapshot call;
-its `status` contains the remaining whole seconds at the time of that call.
+its `status` contains the adaptive remaining duration at the time of that call.
 
 The public test kit's `PluginTestPage.activityRows()` and `stopActivity(id)`
 exercise the same own-activity read/stop services without running the helper.

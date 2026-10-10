@@ -182,7 +182,10 @@ System Access. Installing copies the package into Host-owned storage and grants
 that access; cancelling installs nothing. A package asking for no new access
 installs at once, and a refused one, such as one needing an unsupported Plugin
 API Level, is reported. An update keeps the decisions for unchanged scopes and
-asks again for new or changed ones. Revoking access later leaves the Plugin
+asks again for new or changed ones before replacing the installed copy;
+cancelling keeps that copy and its access decisions. The Access page immediately
+shows inherited granted and denied decisions for the updated version.
+Revoking access later leaves the Plugin
 and its Menu Items in place and makes the affected Commands unavailable with a
 Grant Access repair route; it also retires a running helper at once.
 

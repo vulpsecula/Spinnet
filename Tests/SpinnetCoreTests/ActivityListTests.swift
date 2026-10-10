@@ -3,12 +3,24 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ActivityListTests: XCTestCase {
+    func testRemainingTimeAdaptsHoursMinutesAndSecondsAcrossBoundaries() throws {
+        let recorded = RecordedKeepAwake()
+        let owner = PluginID("clock")
+        try recorded.effects.start(KeepAwakeRequest(mode: .duration(3661)), owner: owner, pluginName: "Clock")
+        XCTAssertEqual(recorded.activities.list(for: owner).first?.status, "1h 01m 01s remaining")
+        recorded.advance(by: 62)
+        XCTAssertEqual(recorded.activities.list(for: owner).first?.status, "59m 59s remaining")
+        recorded.advance(by: 3540)
+        XCTAssertEqual(recorded.activities.list(for: owner).first?.status, "59s remaining")
+        XCTAssertEqual(recorded.activities.list(for: owner).first?.remainingSeconds, 59)
+    }
+
     func testDurationReadShowsRemainingSecondsAfterOneSecondWithoutHelper() throws {
         let recorded = RecordedKeepAwake()
         let owner = PluginID("com.example.clock")
         try recorded.effects.start(KeepAwakeRequest(mode: .duration(60)), owner: owner, pluginName: "Clock")
         recorded.advance(by: 1)
-        XCTAssertEqual(recorded.activities.list(for: owner).first?.status, "59 seconds remaining")
+        XCTAssertEqual(recorded.activities.list(for: owner).first?.status, "59s remaining")
     }
 
     func testWallClockChangesDoNotAlterMonotonicRemainingSeconds() throws {
@@ -17,10 +29,10 @@ final class ActivityListTests: XCTestCase {
         let effects = HostKeepAwake(activities: registry, power: power, now: { wall }, monotonicNow: { uptime }, schedule: { _, _ in {} })
         try effects.start(KeepAwakeRequest(mode: .duration(60)), owner: PluginID("clock"), pluginName: "Clock")
         wall = wall.addingTimeInterval(10_000); uptime += 1
-        XCTAssertEqual(registry.list().first?.status, "59 seconds remaining")
+        XCTAssertEqual(registry.list().first?.status, "59s remaining")
         XCTAssertEqual(registry.list().first?.expiresAt, Date(timeIntervalSince1970: 1_060))
         wall = wall.addingTimeInterval(-20_000); uptime += 1
-        XCTAssertEqual(registry.list().first?.status, "58 seconds remaining")
+        XCTAssertEqual(registry.list().first?.status, "58s remaining")
         XCTAssertEqual(power.count, 2)
     }
 

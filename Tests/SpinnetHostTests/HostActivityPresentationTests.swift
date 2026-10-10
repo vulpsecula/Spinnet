@@ -16,13 +16,13 @@ final class HostActivityPresentationTests: XCTestCase {
         let visibleTick = expectation(description: "Actual run-loop timer refreshes the visible control")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { visibleTick.fulfill() }
         wait(for: [visibleTick], timeout: 2)
-        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+        XCTAssertEqual(model.rows.first?.status, "59s remaining")
         model.setVisible(false)
         recorded.advance(by: 1)
         let hiddenTick = expectation(description: "A hidden control stays unchanged across a timer interval")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { hiddenTick.fulfill() }
         wait(for: [hiddenTick], timeout: 2)
-        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+        XCTAssertEqual(model.rows.first?.status, "59s remaining")
     }
 
     func testVisibleOwnControlCountsSecondsAndStopsWithoutCallingPlugin() throws {
@@ -40,15 +40,15 @@ final class HostActivityPresentationTests: XCTestCase {
         XCTAssertEqual(model.rows.map(\.id), [own.id])
         XCTAssertEqual(schedules, 1)
         recorded.advance(by: 1); tick?()
-        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+        XCTAssertEqual(model.rows.first?.status, "59s remaining")
         model.stop(foreign.id)
         XCTAssertEqual(recorded.activities.list(for: other).count, 1)
         model.setVisible(false)
         XCTAssertEqual(cancellations, 1)
         recorded.advance(by: 1); tick?()
-        XCTAssertEqual(model.rows.first?.status, "59 seconds remaining")
+        XCTAssertEqual(model.rows.first?.status, "59s remaining")
         model.setVisible(true)
-        XCTAssertEqual(model.rows.first?.status, "58 seconds remaining")
+        XCTAssertEqual(model.rows.first?.status, "58s remaining")
         model.stop(own.id)
         XCTAssertTrue(model.rows.isEmpty)
         XCTAssertEqual(cancellations, 2)
@@ -67,15 +67,15 @@ final class HostActivityPresentationTests: XCTestCase {
         let menu = controller.makeMenu()
         XCTAssertNil(tick, "A closed menu has no timer")
         controller.menuWillOpen(menu)
-        let row = try XCTUnwrap(menu.items.first { $0.title == "60 seconds remaining" })
+        let row = try XCTUnwrap(menu.items.first { $0.title == "1m 00s remaining" })
         let stop = try XCTUnwrap(menu.items.first { $0.action != nil && $0.title.hasPrefix("Stop ") })
         recorded.advance(by: 1); tick?()
-        XCTAssertEqual(row.title, "59 seconds remaining")
+        XCTAssertEqual(row.title, "59s remaining")
         XCTAssertTrue(menu.items.contains { $0 === stop }, "Tick keeps the native Stop item identity")
         controller.menuDidClose(menu)
         XCTAssertEqual(cancellations, 1)
         recorded.advance(by: 1); tick?()
-        XCTAssertEqual(row.title, "59 seconds remaining")
+        XCTAssertEqual(row.title, "59s remaining")
     }
 
     func testActualPanelWorkspaceVisibilityPausesNativeActivityUpdatesAndCloseLeavesEffectHeld() throws {
@@ -105,12 +105,12 @@ final class HostActivityPresentationTests: XCTestCase {
         guard panel.sourceIsVisible else {
             throw XCTSkip("WindowServer did not report the test panel visible; live desktop acceptance remains required")
         }
-        XCTAssertEqual(model.activityList.rows.first?.status, "60 seconds remaining")
+        XCTAssertEqual(model.activityList.rows.first?.status, "1m 00s remaining")
         recorded.advance(by: 1)
         let visibleTick = expectation(description: "The visible panel updates using its actual one-second timer")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { visibleTick.fulfill() }
         wait(for: [visibleTick], timeout: 2)
-        XCTAssertEqual(model.activityList.rows.first?.status, "59 seconds remaining")
+        XCTAssertEqual(model.activityList.rows.first?.status, "59s remaining")
         let center = NSWorkspace.shared.notificationCenter
         center.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
         // While hidden there is neither countdown nor registry delivery.
@@ -122,7 +122,7 @@ final class HostActivityPresentationTests: XCTestCase {
         XCTAssertEqual(model.activityList.rows, hiddenRows)
         center.post(name: NSWorkspace.screensDidWakeNotification, object: nil)
         XCTAssertTrue(panel.sourceIsVisible)
-        XCTAssertEqual(model.activityList.rows.first?.status, "58 seconds remaining")
+        XCTAssertEqual(model.activityList.rows.first?.status, "58s remaining")
         panel.close()
         XCTAssertEqual(recorded.power.count, 2, "Closing the actual panel does not stop its Effect")
     }

@@ -63,7 +63,8 @@ final class MenuEditorModel: ObservableObject {
     @Published var installationResult: PluginInstallationResult?
     var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
     var installPlugin: ((URL) throws -> PluginManifest)?
-    /// Records the user's allowing an install as granting the access it asked for.
+    /// Grants reviewed requests after registration; an empty list refreshes
+    /// inherited decisions for the newly installed version without granting access.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
     var removePlugin: ((PluginID) throws -> Void)?
     @Published private(set) var pluginPendingRemoval: PendingPluginRemoval?
@@ -245,7 +246,9 @@ final class MenuEditorModel: ObservableObject {
             ?? refused?.manifest?.version
         let manifest = try installPlugin(url)
         let requested = review.requestedAccess
-        if !requested.isEmpty { grantRequestedAccess?(manifest, requested) }
+        // Inheritance notifications precede registration. Even an update
+        // needing no consent must refresh Access against the new manifest.
+        grantRequestedAccess?(manifest, requested)
         refreshMenuSlots()
         refreshToken += 1
         let kept = requested.isEmpty ? " Its access decisions are kept." : ""
