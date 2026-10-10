@@ -20,6 +20,7 @@ struct PluginPageActivityListView: View {
                     }
                     Spacer(minLength: 8)
                     Button("Stop") { model.stop(activity.id) }
+                        .disabled(!activity.canStop)
                         .accessibilityLabel("Stop \(activity.name), \(activity.status)")
                         .help("Stop this Host-owned activity")
                 }

@@ -219,15 +219,17 @@ final class HostOperationsPerformer: HostOperationPerformer {
     /// Closes, quits and force quits for `apps.close` and `apps.quit`
     /// (#83), after their Host Confirmation when one is needed.
     private let exits: AppExitPerformer?
+    private let tasks: ReviewedTaskOperationPerformer?
     private let queue = DispatchQueue(label: "com.vulpsecula.Spinnet.host-operations", qos: .userInitiated)
 
     init(registry: PluginRegistry, broker: @escaping () -> CapabilityCheckedHostServiceBroker?,
-         inserter: TargetedTextInserter, exits: AppExitPerformer? = nil,
+         inserter: TargetedTextInserter, exits: AppExitPerformer? = nil, tasks: ReviewedTaskOperationPerformer? = nil,
          openPluginSettings: @escaping (PluginID) -> Void) {
         self.registry = registry
         self.broker = broker
         self.inserter = inserter
         self.exits = exits
+        self.tasks = tasks
         self.openPluginSettings = openPluginSettings
     }
 
@@ -235,9 +237,11 @@ final class HostOperationsPerformer: HostOperationPerformer {
         guard let package = registry.package(for: action.pluginID) else {
             throw PluginHostServiceError.unavailable("The Plugin is no longer installed")
         }
-        if CurrentAppAddition.exitIDs.contains(operation.perform), let definition = operation.definition {
+        if (CurrentAppAddition.exitIDs.contains(operation.perform) || operation.perform == ReviewedToolTasksAddition.id), let definition = operation.definition {
             guard let broker = broker() else { throw PluginHostServiceError.unavailable("Host Services") }
-            return try broker.authorize(definition, for: package, action: action)
+            try broker.authorize(definition, for: package, action: action)
+            if operation.perform == ReviewedToolTasksAddition.id { try HomebrewTaskInput(operation.input).authorize(in: package.manifest.scope(for: .runReviewedToolTasks)) }
+            return
         }
         guard let (service, _) = try operation.implementation() else {
             // `host.showPluginSettings` needs nothing but the Plugin's own Command.
@@ -274,6 +278,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
     /// accepts them, not when they start: without a target they act on that
     /// App, and close or gracefully quit it without a Host Confirmation.
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
+        if operation.perform == ReviewedToolTasksAddition.id { return tasks?.accept(owner: action.pluginID) ?? .none }
         if operation.perform == KeepAwakeAddition.id {
             let admission = registry.package(for: action.pluginID).flatMap { broker()?.keepAwakeAdmission(for: $0) }
             return .keepAwakeOwner(admission)
@@ -294,6 +299,14 @@ final class HostOperationsPerformer: HostOperationPerformer {
             inserter.insert(text, shown: target, naming: true) { failure in
                 completion(failure.map { HostOperationResult($0.outcome, message: $0.message) } ?? HostOperationResult(.succeeded))
             }
+            return
+        }
+        if operation.perform == ReviewedToolTasksAddition.id {
+            guard let tasks, let input = try? HomebrewTaskInput(operation.input) else { return completion(.init(.refused(.hostServiceFailed), message: "Reviewed tool Tasks are unavailable")) }
+            tasks.perform(input, for: action, accepted: accepted, authorize: { [weak self] in
+                guard let self else { throw PluginHostServiceError.unavailable("Host Services") }
+                try self.checkAuthorityAsItStands(operation, for: action)
+            }, completion: completion)
             return
         }
         if CurrentAppAddition.exitIDs.contains(operation.perform) {
@@ -351,5 +364,6 @@ final class HostOperationsPerformer: HostOperationPerformer {
 
     func abandon(_ pluginID: PluginID, because reason: PluginViewSessionEnd) {
         exits?.abandon(pluginID, because: reason)
+        tasks?.abandon(pluginID, because: reason)
     }
 }

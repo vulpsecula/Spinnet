@@ -33,6 +33,7 @@ public struct PluginPageSource: Equatable {
         }
         guard let input = fields["input"] else { throw PluginPage.violation("The source \(id) has no input") }
         self.input = input
+        if perform == "activities.list", input != .null { throw PluginPage.violation("activities.list sources take null input") }
         every = try PluginPage.number(fields["every"], "The source \(id)'s every", in: 1...3_600)
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }

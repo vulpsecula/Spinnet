@@ -73,6 +73,7 @@ public enum HostServiceFailure: String, Hashable {
     case storageLimitExceeded = "storage_limit_exceeded"
     /// `host_operations`' failure for an insertion whose target changed.
     case insertionTargetChanged = "insertion_target_changed"
+    case toolBusy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed", alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     case toolMissing = "tool_missing", toolTimedOut = "tool_timed_out", toolFailed = "tool_failed", outputTooLarge = "output_too_large"
 }
 
@@ -319,13 +320,15 @@ public enum HostServiceCatalogue {
         define("storage.keys", calledOnly, services: [.listStorageKeys]),
         define("storage.clear", calledOnly, services: [.clearStorage]),
 
-        define(KeepAwakeAddition.listID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
+        define(KeepAwakeAddition.listID, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
         define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo],
                input: ["id"]),
         define(ReviewedToolReads.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
                input: ["tool", "operation", "kind", "greedy", "query", "names"]),
-        reserve("tools.startTask", at: [.viewAction, .request])
+        define(ReviewedToolTasksAddition.id, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo], capabilities: [.runReviewedToolTasks],
+               failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolFailed, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged],
+               input: ["tool", "operation", "kind", "name", "names", "tap", "target", "zap", "greedy", "pruneAll", "days"])
     ]
 }
 

@@ -57,7 +57,14 @@ public final class RecordedHostSources {
                 return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
                     actionID: action.id, service: .reviewedToolRead, input: source.input, operation: ReviewedToolReads.id), for: plugin.package, action: action)
             })
-        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource],
+        let activityAdapter = broker.activitySourceAdapter(using: registry)
+        let activitySource = HostSourceAdapter(minimumInterval: 1, deadline: 1, ownerIdentity: activityAdapter.ownerIdentity,
+            authorize: activityAdapter.authorize, sample: { action, source, cancellation in
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
+                return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
+                    actionID: action.id, service: .listActivities, input: .null, operation: "activities.list"), for: plugin.package, action: action)
+            })
+        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource, "activities.list": activitySource],
             now: { [weak self] in self?.clock ?? 0 }, schedule: { [weak self] delay, task in
                 guard let self else { return }; self.timers.append((self.clock + delay, task))
             }, background: { $0() }, executor: { $0() })

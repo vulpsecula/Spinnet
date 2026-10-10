@@ -53,6 +53,10 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// A bounded Host-run source result, never a user gesture.
     case sourceDelivered(page: String, source: String, sequence: Int, result: JSONValue?, failure: PluginRuntimeFailure?)
 
+    public var isReviewedTaskGesture: Bool {
+        switch self { case .itemAction, .pageActionChosen, .pageSubmitted: return true; default: return false }
+    }
+
     /// A field change waits out the debounce and gives way to a later one;
     /// every other event is delivered, in order.
     public var coalesces: Bool {
@@ -305,6 +309,9 @@ public struct PluginScriptAnswer: Equatable {
     public init(parsing value: JSONValue, answering event: PluginViewEvent?,
                 permits: (PluginInterfaceMember) -> Bool) throws {
         try self.init(parsing: value, permits: permits)
+        if operation?.perform == ReviewedToolTasksAddition.id, event?.isReviewedTaskGesture != true {
+            throw Self.violation("starts a reviewed Task without a choice in a Plugin Page")
+        }
         if operation != nil, let event, !event.isGesture {
             throw Self.violation("to \(event.typeName) requests an operation; only an answer to a gesture may")
         }

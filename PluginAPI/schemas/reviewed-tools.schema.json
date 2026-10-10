@@ -23,7 +23,7 @@
       "maxLength": 64
     },
     "qualified_name": {
-      "description": "A package as the Host reports it: its bare name for an official tap, user/repository/name for any other tap (only ever reported, never accepted as input while P1 stands).",
+      "description": "A bounded bare or tap-qualified Homebrew package token; never an option, path, URL or shell text.",
       "type": "string",
       "pattern": "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$",
       "maxLength": 160
@@ -295,7 +295,26 @@
               "installed",
               "outdated",
               "search",
-              "info"
+              "info",
+              "install",
+              "upgrade",
+              "upgradeSelected",
+              "upgradeAll",
+              "uninstall",
+              "pin",
+              "unpin",
+              "link",
+              "unlink",
+              "adopt",
+              "tap",
+              "untap",
+              "trust",
+              "untrust",
+              "serviceStart",
+              "serviceStop",
+              "serviceRestart",
+              "cleanup",
+              "doctorFix"
             ]
           }
         },
@@ -308,6 +327,426 @@
               "formula",
               "cask"
             ]
+          }
+        }
+      }
+    },
+    "tools.startTask.input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "install",
+                "upgrade",
+                "pin",
+                "unpin",
+                "link",
+                "unlink"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "name": {
+              "$ref": "#/$defs/qualified_name"
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "uninstall"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "name": {
+              "$ref": "#/$defs/qualified_name"
+            },
+            "zap": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "name"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "zap"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "kind": {
+                    "const": "cask"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "tap",
+                "untap",
+                "trust",
+                "untrust"
+              ]
+            },
+            "tap": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}/[a-z0-9][a-z0-9_.-]{0,63}$"
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "tap"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "serviceStart",
+                "serviceStop",
+                "serviceRestart"
+              ]
+            },
+            "name": {
+              "$ref": "#/$defs/package_name"
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "cleanup"
+              ]
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            },
+            "pruneAll": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "not": {
+            "required": [
+              "days",
+              "pruneAll"
+            ],
+            "properties": {
+              "pruneAll": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "upgradeAll"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "greedy": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tool",
+            "operation"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "upgradeSelected"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/qualified_name"
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "greedy": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "names"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "adopt"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "pattern": "^adoption_",
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "target"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "enum": [
+                "doctorFix"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "pattern": "^fix_",
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "tool",
+            "operation",
+            "target"
+          ]
+        }
+      ]
+    },
+    "taskActivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "tool",
+        "name",
+        "status",
+        "operation",
+        "stage",
+        "elapsed_seconds",
+        "log",
+        "prevents_idle_sleep"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^activity_[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "task"
+        },
+        "tool": {
+          "const": "homebrew"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "status": {
+          "enum": [
+            "running",
+            "stopping",
+            "ended"
+          ]
+        },
+        "operation": {
+          "enum": [
+            "install",
+            "upgrade",
+            "upgradeSelected",
+            "upgradeAll",
+            "uninstall",
+            "pin",
+            "unpin",
+            "link",
+            "unlink",
+            "adopt",
+            "tap",
+            "untap",
+            "trust",
+            "untrust",
+            "serviceStart",
+            "serviceStop",
+            "serviceRestart",
+            "cleanup",
+            "doctorFix"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "starting",
+            "fetching",
+            "installing",
+            "linking",
+            "finishing",
+            "stopping"
+          ]
+        },
+        "elapsed_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prevents_idle_sleep": {
+          "type": "boolean"
+        },
+        "log": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "name"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 160
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ],
+          "properties": {
+            "outcome": {
+              "enum": [
+                "completed",
+                "failed",
+                "stopped",
+                "interrupted",
+                "unknown"
+              ]
+            },
+            "reason": {
+              "const": "tool_failed"
+            },
+            "stop": {
+              "enum": [
+                "interrupted",
+                "terminated",
+                "killed"
+              ]
+            }
           }
         }
       }

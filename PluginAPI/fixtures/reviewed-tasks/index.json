@@ -1,0 +1,8 @@
+{
+  "fixtures": [
+    {"path": "install.json", "schema": "tools.startTask.input", "valid": true},
+    {"path": "trust.json", "schema": "tools.startTask.input", "valid": true},
+    {"path": "unsupported-shell.json", "schema": "tools.startTask.input", "valid": false},
+    {"path": "task-running.json", "schema": "taskActivity", "valid": true}
+  ]
+}

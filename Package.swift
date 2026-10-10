@@ -12,10 +12,12 @@ let package = Package(
         .library(name: "SpinnetCore", targets: ["SpinnetCore"]),
         .library(name: "SpinnetPluginTestKit", targets: ["SpinnetPluginTestKit"]),
         .executable(name: "SpinnetHost", targets: ["SpinnetHost"]),
-        .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"])
+        .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"]),
+        .executable(name: "SpinnetToolTaskRunner", targets: ["SpinnetToolTaskRunner"])
     ],
     targets: [
         .target(name: "SpinnetCore"),
+        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore"],

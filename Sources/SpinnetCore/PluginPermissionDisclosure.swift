@@ -222,7 +222,7 @@ public extension PluginCapability {
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
         case .readFrontmostApp, .readReviewedTools: return .reads
-        case .quitFrontmostApp, .keepAwake: return .controls
+        case .quitFrontmostApp, .keepAwake, .runReviewedToolTasks: return .controls
         }
     }
 }

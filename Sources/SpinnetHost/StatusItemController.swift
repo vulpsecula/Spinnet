@@ -78,6 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             let stop = NSMenuItem(title: "Stop \(activity.name)", action: #selector(StatusItemActionTarget.stop(_:)), keyEquivalent: "")
             stop.target = actionTarget; stop.representedObject = activity.id
             stop.setAccessibilityHelp("Stop this Host-owned activity.")
+            stop.isEnabled = activity.canStop
             menu.addItem(stop)
             menu.addItem(.separator())
         }

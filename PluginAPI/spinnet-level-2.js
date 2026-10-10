@@ -50,7 +50,8 @@
     open: ["url", "path", "application"],
     apps: ["perform", "openDeepLink", "quit", "close"],
     system: ["keepAwake"],
-    activities: ["stop"]
+    activities: ["stop"],
+    tools: ["startTask"]
   };
 
   function compact(members) {
@@ -73,7 +74,7 @@
     if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();
     if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid();
     if (v.operation === "search" && (typeof v.query !== "string" || v.query.length < 2 || v.query.length > 64 || !/^[a-z0-9+_.@][a-z0-9+_.@-]*$/.test(v.query))) invalid();
-    if (v.operation === "info" && (v.kind === undefined || !Array.isArray(v.names) || v.names.length < 1 || v.names.length > 50 || new Set(v.names).size !== v.names.length || v.names.some(n => typeof n !== "string" || n.length > 64 || !/^[a-z0-9][a-z0-9+_.@-]*$/.test(n)))) invalid();
+    if (v.operation === "info" && (v.kind === undefined || !Array.isArray(v.names) || v.names.length < 1 || v.names.length > 50 || new Set(v.names).size !== v.names.length || v.names.some(n => typeof n !== "string" || n.length > 160 || !/^([a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9+_.@-]*$/.test(n)))) invalid();
   }
   function call(id) {
     return function (input) {
@@ -138,6 +139,7 @@
   }
   sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
   sdk.tools.read.source = function (id, input, value) { validateToolRead(input); return source(id, "tools.read", input, value); };
+  sdk.activities.list.source = function (id, value) { return source(id, "activities.list", null, value); };
   for (const name of Object.keys(sdk)) sdk[name] = Object.freeze(sdk[name]);
 
   function collection(kind, o) {

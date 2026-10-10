@@ -29,15 +29,16 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// Host-owned prevention of idle system and display sleep (Level 2).
     case keepAwake = "keep_awake"
     case readReviewedTools = "read_reviewed_tools"
+    case runReviewedToolTasks = "run_reviewed_tool_tasks"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
-         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools].contains(self)
+         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools, .runReviewedToolTasks].contains(self)
     }
 
     /// The lowest Plugin API Level whose Plugins may declare it.
-    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools) ? 2 : 1 }
+    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools || self == .runReviewedToolTasks) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -58,6 +59,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .readFrontmostApp: return "Identify the App in Front"
         case .quitFrontmostApp: return "Close or Quit the App in Front"
         case .readReviewedTools: return "Read Reviewed Tools"
+        case .runReviewedToolTasks: return "Manage Reviewed Homebrew Tasks"
         case .keepAwake: return "Keep the Mac and Display Awake"
         }
     }
@@ -80,7 +82,8 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
-        case .readReviewedTools: return "Read existing local Homebrew package data for the declared operations and package kinds. No refresh, install or upgrade."
+        case .readReviewedTools: return "Read bounded Homebrew data for declared reviewed operations and kinds."
+        case .runReviewedToolTasks: return "Manage packages, taps and user-owned services through reviewed Host-confirmed tasks. Tasks continue after the view closes, prevent idle system sleep and can be stopped without rollback."
         case .keepAwake: return "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item."
         case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
@@ -779,6 +782,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let activities: HostActivities?
     private let pluginRegistry: PluginRegistry?
     private let reviewedTools: HomebrewReadProfile
+    private let reviewedTasks: HostReviewedToolTasks?
 
     public init(
         grantStore: PluginCapabilityGrantStore,
@@ -841,7 +845,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The App in front")
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
-        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile()
+        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile(), reviewedTasks: HostReviewedToolTasks? = nil
     ) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
@@ -874,6 +878,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.activities = activities
         self.pluginRegistry = pluginRegistry
         self.reviewedTools = reviewedTools
+        self.reviewedTasks = reviewedTasks
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -1003,6 +1008,10 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .stopActivity:
             let id = try KeepAwakeRequest.stopID(input: request.input)
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
+            if activities.list(for: package.manifest.id).contains(where: { $0.id == id && $0.kind == "task" }), let reviewedTasks {
+                try reviewedTasks.stop(id, for: package.manifest.id)
+                return .null
+            }
             activities.stop(id, for: package.manifest.id)
             return .null
         case .readClipboardHistoryContent:
@@ -1232,6 +1241,18 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 }
                 return try readReviewedTool(source.input, for: package, action: action,
                     timeout: ReviewedToolReads.sourceDeadline, cancellation: cancellation, registry: registry)
+            })
+    }
+
+    public func activitySourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
+        HostSourceAdapter(minimumInterval: 1, deadline: 1,
+            ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
+            authorize: { action, source in
+                guard source.input == .null, registry.isEnabled(for: action.pluginID),
+                      registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
+            }, sample: { [self] action, _, cancellation in
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
+                return .array(activities?.list(for: action.pluginID).map(\.json) ?? [])
             })
     }
 

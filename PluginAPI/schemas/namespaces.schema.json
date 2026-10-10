@@ -150,7 +150,8 @@
         "apps.quit",
         "apps.close",
         "system.keepAwake",
-        "activities.stop"
+        "activities.stop",
+        "tools.startTask"
       ]
     },
     "item_action_id": {
@@ -175,7 +176,8 @@
         "apps.quit",
         "apps.close",
         "system.keepAwake",
-        "activities.stop"
+        "activities.stop",
+        "tools.startTask"
       ]
     },
     "app_target": {
@@ -2083,37 +2085,44 @@
       "type": "array",
       "maxItems": 8,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "kind",
-          "name",
-          "status",
-          "expires_at"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/activity_id"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "name",
+              "status",
+              "expires_at"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/activity_id"
+              },
+              "kind": {
+                "const": "keep_awake"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 280
+              },
+              "status": {
+                "type": "string",
+                "maxLength": 280
+              },
+              "expires_at": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
           },
-          "kind": {
-            "const": "keep_awake"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 280
-          },
-          "status": {
-            "type": "string",
-            "maxLength": 280
-          },
-          "expires_at": {
-            "type": [
-              "number",
-              "null"
-            ]
+          {
+            "$ref": "reviewed-tools.schema.json#/$defs/taskActivity"
           }
-        }
+        ]
       }
     },
     "tools.read.input": {
@@ -2121,6 +2130,12 @@
     },
     "tools.read.result": {
       "$ref": "reviewed-tools.schema.json#/$defs/tools.read.result"
+    },
+    "tools.startTask.input": {
+      "$ref": "reviewed-tools.schema.json#/$defs/tools.startTask.input"
+    },
+    "tools.startTask.result": {
+      "type": "null"
     }
   }
 }

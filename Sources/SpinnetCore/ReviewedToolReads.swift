@@ -16,6 +16,7 @@ public enum ReviewedToolReads {
 
 /// Validates the complete typed request before any executable discovery or process launch.
 public struct HomebrewReadInput {
+    public static let operations = ["installed", "outdated", "search", "info"]
     public let operation: String
     public let kind: String?
     public let query: String?
@@ -286,12 +287,22 @@ public final class HomebrewReadProfile {
 }
 public enum ReviewedToolFailure: String, Codable, Equatable {
     case missing = "tool_missing", timedOut = "tool_timed_out", failed = "tool_failed", outputTooLarge = "output_too_large"
+    case busy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed"
+    case alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     public var message: String {
         switch self {
         case .missing: return "Homebrew is unavailable at /opt/homebrew/bin/brew or /usr/local/bin/brew. See https://brew.sh for installation information."
         case .timedOut: return "The reviewed Homebrew read exceeded its deadline."
         case .failed: return "Homebrew could not complete the reviewed read."
         case .outputTooLarge: return "Homebrew output exceeded the reviewed read limit."
+        case .busy: return "Another reviewed Homebrew Task is running or awaiting confirmation."
+        case .packageNotFound: return "The selected package is no longer available."
+        case .sourceNotAllowed: return "The package source is not currently trusted in Homebrew."
+        case .alreadyInstalled: return "This package is already installed."
+        case .notOutdated: return "This package has no eligible update or is pinned."
+        case .taskNotFound: return "No Task of this Plugin has this handle."
+        case .taskFinished: return "This Task has already ended."
+        case .planChanged: return "The reviewed plan changed. Review and confirm it again."
         }
     }
 }

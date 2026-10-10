@@ -623,6 +623,7 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
+    case toolBusy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed", alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     case toolMissing = "tool_missing"
     case toolTimedOut = "tool_timed_out"
     case toolFailed = "tool_failed"
@@ -642,7 +643,7 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     /// refusal can never fall through to a later protected operation; a
     /// write that did not fit harms nothing and the script may recover.
     public var isCatchableByScript: Bool {
-        [.storageLimitExceeded, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge].contains(self)
+        [.storageLimitExceeded, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge].contains(self)
     }
 }
 
@@ -1543,7 +1544,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 runtimeError = .externalAppMissing(failure.message)
             case .externalAppOperationUnsupported:
                 runtimeError = .externalAppOperationUnsupported(failure.message)
-            case .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge, .hostServiceFailed, .storageLimitExceeded:
+            case .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge, .hostServiceFailed, .storageLimitExceeded:
                 runtimeError = .hostServiceFailed(failure.message)
             case .insertionTargetChanged:
                 runtimeError = .insertionTargetChanged(failure.message)

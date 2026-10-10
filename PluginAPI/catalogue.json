@@ -1968,7 +1968,7 @@
     {
       "id": "activities.list",
       "namespace": "activities",
-      "summary": "Lists only this Plugin's running Host-owned effects. No other Plugin activity or App identity is disclosed.",
+      "summary": "Lists only this Plugin own effects and running/recently-ended Tasks. Detached tasks remain Host-only.",
       "status": "level2",
       "owner": "#88",
       "input": "schemas/namespaces.schema.json#/$defs/activities.list.input",
@@ -1996,6 +1996,10 @@
         "request": {
           "status": "not_offered",
           "reason": "The lifetime/input returns only through the entry points this operation offers"
+        },
+        "source": {
+          "status": "level2",
+          "note": "Visible-page own-activity observation, every at least 1 second"
         }
       },
       "level1": []
@@ -2084,17 +2088,30 @@
       "id": "tools.startTask",
       "namespace": "tools",
       "summary": "Starts one mutating operation of a reviewed tool profile as a Host-owned task, after a Host Confirmation (#70's illustrative start_task).",
-      "status": "reserved",
+      "status": "level2",
       "owner": "#88",
-      "input": null,
-      "result": null,
+      "input": "schemas/namespaces.schema.json#/$defs/tools.startTask.input",
+      "result": "schemas/namespaces.schema.json#/$defs/tools.startTask.result",
       "primary_member": null,
-      "capabilities": [],
+      "capabilities": [
+        "run_reviewed_tool_tasks"
+      ],
       "system_permission": null,
       "failures": [
-        "host_service_failed"
+        "capability_denied",
+        "host_service_failed",
+        "tool_missing",
+        "tool_failed",
+        "tool_busy",
+        "package_not_found",
+        "source_not_allowed",
+        "already_installed",
+        "not_outdated",
+        "task_not_found",
+        "task_finished",
+        "plan_changed"
       ],
-      "targets": null,
+      "targets": "reviewed_tool_task",
       "entry_points": {
         "call": {
           "status": "not_offered",
@@ -2105,14 +2122,12 @@
           "reason": "A task acts on a package the user chose in a view, never from the Menu alone"
         },
         "view_action": {
-          "status": "reserved",
-          "owner": "#88",
-          "reason": "The Host Confirmation still applies"
+          "status": "level2",
+          "note": "Host-confirmed reviewed management Task; explicit gesture only"
         },
         "request": {
-          "status": "reserved",
-          "owner": "#88",
-          "reason": "#70's illustrative start_task, under this ID"
+          "status": "level2",
+          "note": "Host-confirmed reviewed management Task; explicit gesture only"
         }
       },
       "level1": []
@@ -2946,6 +2961,14 @@
       ],
       "level1": [],
       "note": "Level 2 (#87): requires reviewed_tools scopes by tool, operations and kinds; existing local package data only."
+    },
+    {
+      "name": "run_reviewed_tool_tasks",
+      "operations": [
+        "tools.startTask"
+      ],
+      "level1": [],
+      "note": "Separate scoped mutation authority; trusted Host confirmation and current resolved targets required."
     }
   ],
   "not_offered": [

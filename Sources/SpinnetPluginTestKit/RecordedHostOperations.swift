@@ -85,6 +85,10 @@ public final class RecordedHostOperations {
                         for invocation: PluginTestInvocation) throws -> Performed? {
         guard let operation = try run.answer().operation else { return nil }
         let manifest = plugin.manifest
+        if operation.perform == ReviewedToolTasksAddition.id {
+            guard invocation.event?.isReviewedTaskGesture == true else { throw PluginRuntimeError.protocolViolation("A reviewed Task starts only from a choice made in a Plugin Page") }
+            try HomebrewTaskInput(operation.input).authorize(in: manifest.scope(for: .runReviewedToolTasks))
+        }
         for capability in operation.definition?.capabilities ?? []
         where !manifest.declares(capability, for: invocation.commandID) || deniedCapabilities.contains(capability) {
             throw PluginHostServiceError.capabilityDenied(capability)

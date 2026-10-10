@@ -856,6 +856,7 @@ public final class PluginViewSessions {
         let permits = permitting(action)
         let answer = try PluginScriptAnswer(parsing: value, permits: permits)
         if let operation = answer.operation {
+            guard operation.perform != ReviewedToolTasksAddition.id else { throw PluginRuntimeError.protocolViolation("A reviewed Task starts only from a choice made in a Plugin Page") }
             guard let operations else {
                 throw PluginHostServiceError.unavailable("This Host performs no Requested Host Operations")
             }

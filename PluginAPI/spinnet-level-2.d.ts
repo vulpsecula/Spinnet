@@ -73,6 +73,7 @@ export interface Operations {
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
   "apps.close": { input: null | { target?: AppTarget }; result: null };
   "system.keepAwake": { input: KeepAwakeInput; result: null };
+  "tools.startTask": { input: ReviewedToolTaskInput; result: null };
   "tools.read": { input: ReviewedToolReadInput; result: ReviewedToolReadResult };
   "activities.list": { input: null; result: HostActivity[] };
   "activities.stop": { input: { id: ActivityID }; result: null };
@@ -117,7 +118,7 @@ export type HostCommandID =
 export type RequestID =
   | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop";
+  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop" | "tools.startTask";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -829,11 +830,13 @@ export type KeepAwakeInput = { mode: "manual" } | { mode: "duration"; seconds: n
 export type ActivityID = string;
 export interface HostActivity {
   readonly id: ActivityID;
-  readonly kind: "keep_awake";
+  readonly kind: "keep_awake" | "task";
   readonly name: string;
   readonly status: string;
   /** Unix seconds, or null for manual and App-alive modes. */
-  readonly expires_at: number | null;
+  readonly expires_at?: number | null;
+  readonly stage?: string; readonly log?: string[]; readonly elapsed_seconds?: number; readonly prevents_idle_sleep?: boolean;
+  readonly result?: {outcome: "completed" | "failed" | "stopped" | "interrupted" | "unknown"; reason?: string; stop?: "interrupted" | "terminated" | "killed"};
 }
 export interface SystemNamespace {
   /** Prevents idle system AND display sleep; requires keep_awake. @id system.keepAwake @entry command request view_action */
@@ -841,7 +844,7 @@ export interface SystemNamespace {
 }
 export interface ActivitiesNamespace {
   /** Lists this Plugin's active effects. @id activities.list @entry call */
-  readonly list: Callable<"activities.list">;
+  readonly list: Callable<"activities.list"> & {source(id: ID, options?: {every?: number; deliver?: true | {pointer?: string}}): ActivitySource};
   /** Stops its own activity; absent or foreign ids are no-ops. @id activities.stop @entry request view_action */
   readonly stop: Performable<"activities.stop">;
 }
@@ -863,7 +866,15 @@ export interface ReviewedToolReadResult {
   tool: "homebrew"; operation: ReviewedToolReadInput["operation"];
   packages: ReviewedPackage[]; not_found?: string[]; truncated?: true;
 }
+export type ReviewedToolTaskInput =
+  | {tool: "homebrew"; operation: "install" | "upgrade" | "uninstall" | "pin" | "unpin" | "link" | "unlink"; kind: ReviewedPackageKind; name: string; zap?: boolean}
+  | {tool: "homebrew"; operation: "upgradeAll" | "upgradeSelected"; kind?: ReviewedPackageKind; names?: string[]; greedy?: boolean}
+  | {tool: "homebrew"; operation: "tap" | "untap" | "trust" | "untrust"; tap: string}
+  | {tool: "homebrew"; operation: "serviceStart" | "serviceStop" | "serviceRestart"; name: string}
+  | {tool: "homebrew"; operation: "cleanup"; days?: number; pruneAll?: boolean}
+  | {tool: "homebrew"; operation: "doctorFix" | "adopt"; target: string};
 export interface ToolsNamespace {
+  readonly startTask: Performable<"tools.startTask">;
   /** A 3 second local call or once-only 15 second visible-page source. No refresh, install or upgrade. @id tools.read @entry call */
   readonly read: Callable<"tools.read"> & { source(id: ID, input: ReviewedToolReadInput, options?: Pick<SourceOptions, "deliver">): ToolSource };
 }
@@ -876,7 +887,8 @@ export type SourceID = "http.request" | "tools.read";
 export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
 export interface HTTPSource { id: ID; perform: "http.request"; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
 export interface ToolSource { id: ID; perform: "tools.read"; input: ReviewedToolReadInput; deliver?: { pointer?: string }; }
-export type Source = HTTPSource | ToolSource;
+export interface ActivitySource { id: ID; perform: "activities.list"; input: null; every?: number; deliver?: {pointer?: string}; }
+export type Source = HTTPSource | ToolSource | ActivitySource;
 export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
 export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
 export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult;

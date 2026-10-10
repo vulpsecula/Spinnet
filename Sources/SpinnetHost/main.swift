@@ -73,6 +73,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
     private let activities = HostActivities()
+    private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
+        journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
+        runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"))
+    private lazy var reviewedTaskOperations = ReviewedTaskOperationPerformer(tasks: reviewedTasks, confirmations: HostConfirmationPanel(), registry: registry)
+    private var taskQuitTimer: Timer?
+    private var taskQuitAlert: NSAlert?
     private lazy var keepAwake = HostKeepAwake(activities: activities, power: DesktopPowerAssertions(),
         apps: runningApps, targets: appTargets, schedule: { delay, work in
             let timer = DispatchWorkItem(block: work)
@@ -238,15 +244,24 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
                     appTargets.identifyFrontmost(of: runningApps, for: pluginID)
                 },
-                keepAwakeEffects: keepAwake, activities: activities, pluginRegistry: registry
+                keepAwakeEffects: keepAwake, activities: activities, pluginRegistry: registry, reviewedTasks: reviewedTasks
             )
             clipboardBroker = hostServiceBroker
             if appTargetObservers == nil {
                 appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
-                    registry.observeInvalidation { [appTargets, keepAwake] in appTargets.forget($0); keepAwake.invalidate($0) },
-                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake] in
+                    registry.observeInvalidation { [appTargets, keepAwake, reviewedTasks, registry, capabilityGrants] owner in
+                        appTargets.forget(owner); keepAwake.invalidate(owner)
+                        DispatchQueue.main.async {
+                            let package = registry.isEnabled(for: owner) ? registry.package(for: owner) : nil
+                            let scope = package?.manifest.scope(for: .runReviewedToolTasks)
+                            let granted = package.map { capabilityGrants.decision(for: owner, pluginVersion: $0.manifest.version, capability: .runReviewedToolTasks, scope: scope) == .granted } ?? false
+                            reviewedTasks.ownerChanged(owner, scope: granted ? scope : nil)
+                        }
+                    },
+                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake, reviewedTasks] in
                         appTargets.forget($0.pluginID); keepAwake.revoke($0)
+                        reviewedTasks.revoke($0)
                     }
                 )
             }
@@ -410,7 +425,40 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        reviewedTasks.refresh()
+        if reviewedTasks.hasRunningTasks {
+            reviewedTasks.beginExit()
+            let alert = NSAlert()
+            alert.messageText = "Homebrew Tasks Are Still Running"
+            alert.informativeText = "Wait for confirmed work to finish, or attempt to stop it before quitting. Stopping does not undo package changes."
+            alert.addButton(withTitle: "Wait and Quit")
+            alert.addButton(withTitle: "Stop and Quit")
+            alert.addButton(withTitle: "Don't Quit")
+            taskQuitAlert = alert
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] timer in
+                    guard let self else { timer.invalidate(); return }
+                    self.reviewedTasks.refresh()
+                    if !self.reviewedTasks.hasRunningTasks { NSApp.stopModal(withCode: .OK); alert.window.orderOut(nil) }
+                }
+                self.taskQuitTimer = timer; RunLoop.main.add(timer, forMode: .common)
+                while self.reviewedTasks.hasRunningTasks {
+                    let answer = alert.runModal()
+                    if answer == .alertThirdButtonReturn {
+                        timer.invalidate(); self.taskQuitTimer = nil; self.taskQuitAlert = nil
+                        self.reviewedTasks.cancelExit(); NSApp.reply(toApplicationShouldTerminate: false); return
+                    }
+                    if answer == .alertSecondButtonReturn { self.reviewedTasks.stopAll(); alert.informativeText = "Attempting to stop running Homebrew Tasks. Stopping does not undo package changes." }
+                    else { alert.informativeText = "Waiting for running Homebrew Tasks to finish. You can still choose Stop and Quit." }
+                }
+                timer.invalidate(); self.taskQuitTimer = nil; self.taskQuitAlert = nil
+                self.triggers?.stop(); NSApp.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
+        }
         triggers?.stop()
+        reviewedTasks.beginExit()
         return .terminateNow
     }
 
@@ -670,7 +718,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         )
         self.fetchedSections = fetchedSections
         let sources = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry),
-            ReviewedToolReads.id: broker.reviewedToolSourceAdapter(using: registry)],
+            ReviewedToolReads.id: broker.reviewedToolSourceAdapter(using: registry),
+            "activities.list": broker.activitySourceAdapter(using: registry)],
             schedule: { delay, operation in
                 let timer = Timer(timeInterval: delay, repeats: false) { _ in operation() }
                 timer.tolerance = delay * 0.1
@@ -718,6 +767,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             operations: HostOperationsPerformer(
                 registry: registry, broker: { [weak self] in self?.clipboardBroker }, inserter: targetedInserter,
                 exits: appExits,
+                tasks: reviewedTaskOperations,
                 openPluginSettings: { [weak self] pluginID in self?.settings?.showPluginSettings(pluginID) }
             ),
             // An outcome no view shows is told near the pointer, as the
