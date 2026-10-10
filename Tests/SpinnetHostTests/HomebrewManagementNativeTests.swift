@@ -44,3 +44,17 @@ final class HomebrewManagementNativeTests: XCTestCase {
         print("HOMEBREW_PUBLIC_METADATA_NATIVE advisory_result_bytes=\(try JSONEncoder().encode(advisory).count)")
     }
 }
+
+extension HomebrewManagementNativeTests {
+    func testActualPreviewIsReadOnlyHomebrewOutputWithoutNetwork() throws {
+        guard ProcessInfo.processInfo.environment["SPINNET_PREVIEW_NATIVE"] == "1" else { throw XCTSkip("Opt-in local dry-run; networking and persistent writes denied") }
+        let profile = HomebrewReadProfile()
+        let start = Date()
+        let value = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewInstall"), "kind": .string("cask"), "names": .array([.string("firefox")])]), owner: PluginID("native.preview"), timeout: 15)
+        XCTAssertEqual(value.value(atPointer: "/estimated"), .bool(false))
+        XCTAssertEqual(value.value(atPointer: "/dry_run"), .bool(true))
+        XCTAssertEqual(value.value(atPointer: "/succeeded"), .bool(true))
+        XCTAssertEqual(value.value(atPointer: "/stages/0/title"), .string("Would install 1 cask:"))
+        print("HOMEBREW_PREVIEW_NATIVE seconds=\(Date().timeIntervalSince(start)) result=\(value)")
+    }
+}

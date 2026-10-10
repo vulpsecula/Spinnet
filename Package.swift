@@ -16,7 +16,7 @@ let package = Package(
         .executable(name: "SpinnetToolTaskRunner", targets: ["SpinnetToolTaskRunner"])
     ],
     targets: [
-        .target(name: "SpinnetCore"),
+        .target(name: "SpinnetCore", resources: [.copy("Resources/HomebrewDryRun.rb")]),
         .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(
             name: "SpinnetHost",
