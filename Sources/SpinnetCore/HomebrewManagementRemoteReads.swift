@@ -8,7 +8,7 @@ public final class HomebrewManagementRemoteReads {
     private let transport: HTTPSTransport?
     public init(transport: HTTPSTransport?) { self.transport = transport }
     public func read(operation: String, input: JSONValue, inventory: [(name: String, version: String)] = [],
-                     prefix: URL, deadline: Date, cancellation: HostFetchedSections.Cancellation,
+                     recipes: [String: JSONValue] = [:], prefix: URL, deadline: Date, cancellation: HostFetchedSections.Cancellation,
                      stillAuthorized: () throws -> Void) throws -> [String: JSONValue] {
         guard let transport else { throw PluginHostServiceError.unavailable("The Host's reviewed Homebrew metadata network transport is unavailable") }
         var totalBytes = 0
@@ -87,7 +87,33 @@ public final class HomebrewManagementRemoteReads {
                 }
             }
             if !advisories.isEmpty {
-                findings.append(.object(["name": .string(package.name), "installed_version": .string(package.version), "advisories": .array(advisories)]))
+                let recipe = recipes[package.name]
+                let stable: String? = { if case .string(let value)? = recipe?.value(atPointer: "/versions/stable") { return value }; return nil }()
+                let revision: Int? = { if case .number(let value)? = recipe?.value(atPointer: "/revision"), value >= 0, value <= 10000, value.rounded() == value { return Int(value) }; return nil }()
+                let recipeVersion = stable.flatMap { version in revision.map { version + ($0 == 0 ? "" : "_" + String($0)) } }
+                let currentRecipe = recipeVersion == package.version
+                var resolved = Set<String>()
+                if currentRecipe, case .array(let patches)? = recipe?.value(atPointer: "/patches") {
+                    for patch in patches.prefix(100) {
+                        if case .array(let resolutions)? = patch.value(atPointer: "/resolves") {
+                            for resolution in resolutions.prefix(100) where resolution.value(atPointer: "/type") == .string("security") {
+                                if case .string(let id)? = resolution.value(atPointer: "/id"), Self.validID(id) { resolved.insert(id.uppercased()) }
+                            }
+                        }
+                    }
+                }
+                var counts = ["open": 0, "patched": 0, "unknown": 0]
+                let partitioned: [JSONValue] = advisories.map { advisory in
+                    guard case .object(var fields) = advisory else { return advisory }
+                    let identifiers = [fields["id"]] + { if case .array(let aliases)? = fields["aliases"] { return aliases.map(Optional.some) }; return [] }()
+                    let patched = identifiers.contains { if case .string(let id)? = $0 { return resolved.contains(id.uppercased()) }; return false }
+                    let status = patched ? "patched" : recipeVersion == nil || (currentRecipe && !resolved.isEmpty && fields["detail_available"] == .bool(true)) ? "unknown" : "open"
+                    fields["status"] = .string(status); counts[status, default: 0] += 1
+                    return .object(fields)
+                }
+                findings.append(.object(["name": .string(package.name), "installed_version": .string(package.version), "advisories": .array(partitioned),
+                    "open_count": .number(Double(counts["open"] ?? 0)), "patched_count": .number(Double(counts["patched"] ?? 0)), "unknown_count": .number(Double(counts["unknown"] ?? 0)),
+                    "upgrade_available": .bool(recipe?.value(atPointer: "/outdated") == .bool(true) && recipe?.value(atPointer: "/pinned") != .bool(true))]))
             }
         }
         var result: [String: JSONValue] = ["checked": .number(Double(selected.count)), "findings": .array(findings), "skipped": .array(skipped)]
@@ -102,6 +128,7 @@ public final class HomebrewManagementRemoteReads {
             if case .string(let text)? = fields[key] { result[key] = .string(HomebrewManagementReads.clean(text, maximum: maximum)) }
         }
         text("summary", maximum: 512); text("details", maximum: 8192)
+        if case .array(let aliases)? = fields["aliases"] { result["aliases"] = .array(aliases.prefix(40).filter { if case .string(let id) = $0 { return Self.validID(id) }; return false }) }
         let severity = value.value(atPointer: "/database_specific/severity")
         result["severity"] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map(JSONValue.string).contains(severity ?? .null) ? severity : .string("UNKNOWN")
         var fixed: [JSONValue] = []

