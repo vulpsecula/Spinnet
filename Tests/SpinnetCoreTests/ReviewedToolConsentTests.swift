@@ -33,4 +33,12 @@ final class ReviewedToolConsentTests: XCTestCase {
         XCTAssertTrue(text.contains("api.osv.dev"))
         XCTAssertFalse(text.contains("installed upstream"))
     }
+
+    func testFormulaPreviewGrantDisclosesBottleMetadataDestination() throws {
+        let disclosure = PluginPermissionDisclosure(manifest: try manifest(operations: ["previewInstall"]))
+        let text = disclosure.details(for: .reads)
+        XCTAssertTrue(text.contains("ghcr.io"))
+        XCTAssertTrue(text.contains("selected"))
+        XCTAssertFalse(text.contains("installed upstream"))
+    }
 }
