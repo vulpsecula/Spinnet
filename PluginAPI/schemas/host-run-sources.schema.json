@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Host-run sources (Plugin API Level 2)",
-  "description": "Visible-page bounded Host-run sources (#82, #87). HTTPS and reviewed Homebrew reads sample once; every is refused.",
+  "description": "Visible-page bounded Host-run sources (#82, #85, #87). HTTPS and reviewed Homebrew reads sample once; Spotify playback permits a one-second minimum repeating source without prompting or launching.",
   "$defs": {
     "identifier": {
       "$ref": "./pages.schema.json#/$defs/identifier"
