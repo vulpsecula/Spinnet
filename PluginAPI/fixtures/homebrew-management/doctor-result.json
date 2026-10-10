@@ -1,0 +1,23 @@
+{
+  "tool": "homebrew",
+  "operation": "doctor",
+  "version": "7.0.0",
+  "available": true,
+  "tier": "2",
+  "findings": [
+    {
+      "id": "finding-0",
+      "text": "Unlinked package",
+      "links": [],
+      "commands": [
+        "brew link wget"
+      ],
+      "repairs": [
+        {
+          "target": "fix_00000000-0000-0000-0000-000000000001",
+          "title": "Link wget"
+        }
+      ]
+    }
+  ]
+}

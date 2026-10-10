@@ -76,7 +76,7 @@
     {
       "file": "calls/info-tap-qualified.json",
       "definition": "tools.read.input",
-      "valid": false,
+      "valid": true,
       "note": "Input never names a tap while P1 stands"
     },
     {

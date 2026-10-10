@@ -75,7 +75,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let activities = HostActivities()
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
         journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
-        runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"))
+        runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"),
+        targetResolver: { target, owner in
+            let resolved = try HomebrewManagementTargets.shared.resolve(target: target, owner: owner)
+            var input: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string(resolved.operation)]
+            if resolved.operation == "cleanup" { input["days"] = resolved.metadata.value(atPointer: "/days") ?? .number(120) }
+            else { input["kind"] = .string(resolved.kind); input["name"] = .string(resolved.name) }
+            return (try HomebrewTaskInput(.object(input)), resolved.metadata)
+        })
     private lazy var reviewedTaskOperations = ReviewedTaskOperationPerformer(tasks: reviewedTasks, confirmations: HostConfirmationPanel(), registry: registry)
     private var taskQuitTimer: Timer?
     private var taskQuitAlert: NSAlert?

@@ -28,7 +28,7 @@ final class ReviewedToolReadTests: XCTestCase {
         }
         for input in [
             JSONValue.object(["tool": .string("homebrew"), "operation": .string("install")]),
-            .object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("hashicorp/tap/terraform")])]),
+            .object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("/opt/homebrew/terraform")])]),
             .object(["tool": .string("homebrew"), "operation": .string("search"), "query": .string("/regex/")]),
             .object(["tool": .string("homebrew"), "operation": .string("installed"), "argv": .array([.string("update")])])
         ] { XCTAssertThrowsError(try profile.read(input, owner: PluginID("probe"))) }

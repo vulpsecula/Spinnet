@@ -2049,7 +2049,7 @@
     {
       "id": "tools.read",
       "namespace": "tools",
-      "summary": "Runs one read operation of a reviewed tool profile, such as Homebrew's search or info, and returns bounded typed data.",
+      "summary": "Reads scoped local Homebrew data and reviewed management metadata, with disclosed bounded OSV/analytics routes.",
       "status": "level2",
       "input": "schemas/namespaces.schema.json#/$defs/tools.read.input",
       "result": "schemas/namespaces.schema.json#/$defs/tools.read.result",

@@ -52,122 +52,12 @@
       "maxLength": 80
     },
     "tools.read.input": {
-      "description": "One read of the reviewed Homebrew profile. installed and outdated list what this Mac has; search finds names in the official catalogue Homebrew last fetched; info gives exact details for 1 to 50 names of one kind.",
-      "type": "object",
-      "required": [
-        "tool",
-        "operation"
-      ],
-      "propertyNames": {
-        "enum": [
-          "tool",
-          "operation",
-          "kind",
-          "greedy",
-          "query",
-          "names"
-        ]
-      },
-      "properties": {
-        "tool": {
-          "$ref": "#/$defs/tool"
-        },
-        "operation": {
-          "enum": [
-            "installed",
-            "outdated",
-            "search",
-            "info"
-          ]
-        },
-        "kind": {
-          "$ref": "#/$defs/package_kind"
-        },
-        "greedy": {
-          "description": "outdated only: include casks that update themselves (brew outdated --greedy).",
-          "type": "boolean"
-        },
-        "query": {
-          "$ref": "#/$defs/search_query"
-        },
-        "names": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 50,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/package_name"
-          }
-        }
-      },
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "operation": {
-                "const": "installed"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "greedy": false,
-              "query": false,
-              "names": false
-            }
-          }
+          "$ref": "#/$defs/tools.read.legacy_input"
         },
         {
-          "if": {
-            "properties": {
-              "operation": {
-                "const": "outdated"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "query": false,
-              "names": false
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "operation": {
-                "const": "search"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "query"
-            ],
-            "properties": {
-              "greedy": false,
-              "names": false
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "operation": {
-                "const": "info"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "names",
-              "kind"
-            ],
-            "properties": {
-              "greedy": false,
-              "query": false
-            }
-          }
+          "$ref": "homebrew-management-reads.schema.json#/$defs/input"
         }
       ]
     },
@@ -240,60 +130,31 @@
         },
         "homepage": {
           "type": "string",
-          "maxLength": 2048
+          "maxLength": 2048,
+          "pattern": "^https?://[^/@]+/"
         },
         "download_url": {
           "type": "string",
-          "maxLength": 2048
+          "maxLength": 2048,
+          "pattern": "^https?://[^/@]+/"
         },
         "installed_on_request": {
-          "const": true
+          "type": "boolean"
         },
         "installed_as_dependency": {
-          "const": true
+          "type": "boolean"
         }
       }
     },
     "tools.read.result": {
-      "description": "What a read returns. search returns names only (kind, name); the Plugin asks info for the names it shows. truncated means more matched than max_items.",
-      "type": "object",
-      "required": [
-        "tool",
-        "operation",
-        "packages"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "tool": {
-          "$ref": "#/$defs/tool"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tools.read.legacy_result"
         },
-        "operation": {
-          "enum": [
-            "installed",
-            "outdated",
-            "search",
-            "info"
-          ]
-        },
-        "packages": {
-          "type": "array",
-          "maxItems": 2000,
-          "items": {
-            "$ref": "#/$defs/package"
-          }
-        },
-        "not_found": {
-          "description": "info only: names Homebrew has no package of that kind for.",
-          "type": "array",
-          "maxItems": 50,
-          "items": {
-            "$ref": "#/$defs/package_name"
-          }
-        },
-        "truncated": {
-          "const": true
+        {
+          "$ref": "homebrew-management-reads.schema.json#/$defs/result"
         }
-      }
+      ]
     },
     "reviewedToolScope": {
       "type": "object",
@@ -335,7 +196,18 @@
               "serviceStop",
               "serviceRestart",
               "cleanup",
-              "doctorFix"
+              "doctorFix",
+              "version",
+              "taps",
+              "services",
+              "vulnerabilities",
+              "vulnerabilityDetail",
+              "doctor",
+              "previewInstall",
+              "previewUpgrade",
+              "adoptionCandidates",
+              "adoptionPreview",
+              "packageAnalytics"
             ]
           }
         },
@@ -769,6 +641,167 @@
               ]
             }
           }
+        }
+      }
+    },
+    "tools.read.legacy_input": {
+      "description": "One read of the reviewed Homebrew profile. installed and outdated list what this Mac has; search finds names in the official catalogue Homebrew last fetched; info gives exact details for 1 to 50 names of one kind.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "propertyNames": {
+        "enum": [
+          "tool",
+          "operation",
+          "kind",
+          "greedy",
+          "query",
+          "names"
+        ]
+      },
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/package_kind"
+        },
+        "greedy": {
+          "description": "outdated only: include casks that update themselves (brew outdated --greedy).",
+          "type": "boolean"
+        },
+        "query": {
+          "$ref": "#/$defs/search_query"
+        },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/qualified_name"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "installed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "greedy": false,
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "outdated"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "search"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "query"
+            ],
+            "properties": {
+              "greedy": false,
+              "names": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "info"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "names",
+              "kind"
+            ],
+            "properties": {
+              "greedy": false,
+              "query": false
+            }
+          }
+        }
+      ]
+    },
+    "tools.read.legacy_result": {
+      "description": "What a read returns. search returns names only (kind, name); the Plugin asks info for the names it shows. truncated means more matched than max_items.",
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "packages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "operation": {
+          "enum": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ]
+        },
+        "packages": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/package"
+          }
+        },
+        "not_found": {
+          "description": "info only: names Homebrew has no package of that kind for.",
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/package_name"
+          }
+        },
+        "truncated": {
+          "const": true
         }
       }
     }

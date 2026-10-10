@@ -388,3 +388,7 @@ and unavailable-value rules in [the namespace reference](reference/namespaces.md
 and [schema](schemas/system-metrics.schema.json).
 Local Spotify's Level 2 Reviewed App Interface and playback source are documented
 in [spotify.md](reference/spotify.md), with [typed schema](schemas/spotify.schema.json).
+
+The expanded Homebrew `tools.read` profile is documented in
+[management reads](reference/homebrew-management-reads.md), with
+[typed operations/results](schemas/homebrew-management-reads.schema.json).
