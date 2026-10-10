@@ -62,7 +62,7 @@ public struct HomebrewTaskInput: Equatable {
             if !operation.hasPrefix("service") { allowed.insert("kind"); guard text("kind") != nil else { throw Self.invalid() } }
             if operation == "uninstall" { allowed.insert("zap"); if let zap = fields["zap"] { guard case .bool = zap, kind == "cask" else { throw Self.invalid() } } }
         }
-        guard (["formula", "cask"].contains(kind) || (operation == "upgradeAll" && kind == "both")), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
+        guard (["formula", "cask"].contains(kind) || (operation == "upgradeAll" && kind == "both" && fields["kind"] == nil)), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
     }
     public static func validPackageName(_ name: String) -> Bool {
         name.count <= 160 && name.range(of: "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil

@@ -10,6 +10,12 @@ final class ReviewedToolTaskTests: XCTestCase {
         }
         XCTAssertThrowsError(try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("exec"), "kind": .string("formula"), "name": .string("wget")])))
     }
+    func testUpgradeAllBothKindsMustOmitKindInsteadOfAddingUndocumentedKind() throws {
+        let base: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string("upgradeAll")]
+        XCTAssertEqual(try HomebrewTaskInput(.object(base)).kind, "both")
+        var explicit = base; explicit["kind"] = .string("both")
+        XCTAssertThrowsError(try HomebrewTaskInput(.object(explicit)))
+    }
     func testStopReachesChildAfterLeaderExitedAndReportsNoRollback() throws {
         let process = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", "(sleep 5) & exit 0"], environment: HomebrewReadProfile.environment, interruptGrace: 0.05, terminateGrace: 0.05)
         let finished = expectation(description: "process group ended")
