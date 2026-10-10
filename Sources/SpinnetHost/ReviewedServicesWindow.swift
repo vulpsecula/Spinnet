@@ -1,6 +1,11 @@
 import AppKit
 import SpinnetCore
 
+private final class ReviewedServicesPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
 /// Controlled Host Surface: names/status come from a reviewed profile and
 /// every native control enters the existing confirmed Task admission path.
 final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
@@ -23,7 +28,6 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
         model.onChange = { [weak self] in self?.update() }
         panel?.title = "Homebrew Services"
         panel?.center(); panel?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
         model.setVisible(true); update()
     }
     func invalidate(_ owner: PluginID) { if self.owner == owner { close() } }
@@ -44,9 +48,10 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
     }
 
     private func makePanel() {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 580, height: 420),
-            styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
+        let panel = ReviewedServicesPanel(contentRect: NSRect(x: 0, y: 0, width: 580, height: 420),
+            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.delegate = self; panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = false; panel.hidesOnDeactivate = false; panel.isRestorable = false
         panel.minSize = NSSize(width: 440, height: 280)
         let root = NSStackView(); root.orientation = .vertical; root.alignment = .leading; root.spacing = 12
         root.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)

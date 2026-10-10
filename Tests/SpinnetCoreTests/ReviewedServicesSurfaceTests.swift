@@ -43,6 +43,12 @@ extension ReviewedServicesSurfaceTests {
         XCTAssertFalse(PluginHostService.showReviewedServices.isLevelOne)
         XCTAssertFalse(HostServiceCatalogue.operation("tools.showServices")!.isOffered(at: .call))
     }
+
+    func testPublicServiceMenuChoiceIsTypedAndPreservesDefaultSurface() throws {
+        XCTAssertNoThrow(try ReviewedServicesAddition.validate(.object(["tool": .string("homebrew"), "presentation": .string("menu")])))
+        XCTAssertNoThrow(try ReviewedServicesAddition.validate(.object(["tool": .string("homebrew"), "presentation": .string("surface")])))
+        XCTAssertThrowsError(try ReviewedServicesAddition.validate(.object(["tool": .string("homebrew"), "presentation": .string("resident_script")])))
+    }
 }
 
 extension ReviewedServicesSurfaceTests {
@@ -81,17 +87,21 @@ extension ReviewedServicesSurfaceTests {
         let manifest = try PluginManifest(apiLevel: 2, id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
-        let grants = PluginCapabilityGrantStore(); var shown = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in XCTFail("Services requires no System Permission"); return false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedServicesPresenter: { _, _ in shown += 1 })
+        let grants = PluginCapabilityGrantStore(); var shown = 0, presentations: [ReviewedServicesAddition.Presentation] = []
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in XCTFail("Services requires no System Permission"); return false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedServicesPresenter: { _, _, presentation in shown += 1; presentations.append(presentation) })
         let request = PluginRuntimeHostServiceRequest(invocationID: "surface", actionID: action.id, service: .showReviewedServices, input: .object(["tool": .string("homebrew")]), operation: ReviewedServicesAddition.id)
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
         XCTAssertEqual(shown, 0)
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .readReviewedTools, scope: scope)
         XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .null)
         XCTAssertEqual(shown, 1)
+        XCTAssertEqual(presentations, [.surface])
+        let menuRequest = PluginRuntimeHostServiceRequest(invocationID: "menu", actionID: action.id, service: .showReviewedServices, input: .object(["tool": .string("homebrew"), "presentation": .string("menu")]), operation: ReviewedServicesAddition.id)
+        XCTAssertEqual(try broker.execute(request: menuRequest, for: package, action: action), .null)
+        XCTAssertEqual(presentations, [.surface, .menu])
         grants.setDecision(.denied, for: manifest.id, pluginVersion: manifest.version, capability: .readReviewedTools, scope: scope)
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
-        XCTAssertEqual(shown, 1)
+        XCTAssertEqual(shown, 2)
     }
 }
 

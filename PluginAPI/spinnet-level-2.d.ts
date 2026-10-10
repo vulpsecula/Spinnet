@@ -76,7 +76,7 @@ export interface Operations {
   "apps.close": { input: null | { target?: AppTarget }; result: null };
   "system.metrics": { input: SystemMetricsInput; result: SystemMetricsResult };
   "system.keepAwake": { input: KeepAwakeInput; result: null };
-  "tools.showServices": { input: {tool: "homebrew"}; result: null };
+  "tools.showServices": { input: {tool: "homebrew"; presentation?: "surface" | "menu"}; result: null };
   "tools.startTask": { input: ReviewedToolTaskInput; result: null };
   "tools.read": { input: ReviewedToolReadInput; result: ReviewedToolReadResult };
   "activities.list": { input: null; result: HostActivity[] };
@@ -896,7 +896,7 @@ export type ReviewedToolTaskInput =
   | {tool: "homebrew"; operation: "changeLanguage"; kind: "cask"; name: string; language: string}
   | {tool: "homebrew"; operation: "doctorFix" | "adopt"; target: string};
 export interface ToolsNamespace {
-  /** Controlled native user-owned services Surface. Read grant opens it; controls require a separate current Task grant and confirmation. @id tools.showServices @entry command request view_action */
+  /** Controlled native user-owned services Surface or Status Item menu. Read grant opens it; controls require a separate current Task grant and confirmation. @id tools.showServices @entry command request view_action */
   readonly showServices: Performable<"tools.showServices">;
   readonly startTask: Performable<"tools.startTask">;
   /** A 3 second local call or once-only 15 second visible-page source. No refresh, install or upgrade. @id tools.read @entry call */

@@ -2192,6 +2192,12 @@
       "properties": {
         "tool": {
           "const": "homebrew"
+        },
+        "presentation": {
+          "enum": [
+            "surface",
+            "menu"
+          ]
         }
       }
     },
