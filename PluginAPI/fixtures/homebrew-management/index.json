@@ -39,6 +39,16 @@
       "file": "preview-result.json",
       "definition": "result",
       "valid": true
+    },
+    {
+      "file": "analytics-window-input.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "analytics-window-result.json",
+      "definition": "result",
+      "valid": true
     }
   ]
 }

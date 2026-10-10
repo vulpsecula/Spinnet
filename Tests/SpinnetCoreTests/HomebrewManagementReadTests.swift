@@ -382,3 +382,39 @@ extension HomebrewManagementReadTests {
         XCTAssertNil(result.value(atPointer: "/applications/0/path"))
     }
 }
+
+extension HomebrewManagementReadTests {
+    func testSelectedPackageAnalyticsSupportBoundedPopularityRankingWithoutCatalogueRoute() throws {
+        let network = ManagementMetadataTransport { request in
+            XCTAssertTrue(["https://formulae.brew.sh/api/formula/wget.json", "https://formulae.brew.sh/api/formula/curl.json"].contains(request.url.absoluteString))
+            let count = request.url.path.contains("wget") ? 12 : 500
+            return HTTPSTransportResponse(status: 200, headers: [:], body: Data("{\"analytics\":{\"install\":{\"30d\":{\"package\":\(count)}}}}".utf8))
+        }
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            XCTAssertEqual(args, ["--version"])
+            return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8))
+        }, management: HomebrewManagementReads(transport: network))
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("packageAnalytics"), "kind": .string("formula"), "names": .array([.string("wget"), .string("curl")])]), owner: PluginID("rankings"))
+        XCTAssertEqual(result.value(atPointer: "/rankings/0/name"), .string("wget"))
+        XCTAssertEqual(result.value(atPointer: "/rankings/1/analytics/install/30d"), .number(500))
+        let validator = try JSONSchemaSubsetValidator(definition: "result", inSchemaAt: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI/schemas/homebrew-management-reads.schema.json"))
+        XCTAssertTrue(validator.errors(for: result).isEmpty)
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testLargeDoctorReportCannotEvictItsFreshReviewedRepairSet() throws {
+        let targets = HomebrewManagementTargets()
+        let findings: [[String: Any]] = (0..<100).map { finding in ["text": "Finding \(finding)", "remediation": ["commands": (0..<8).map { "brew link package\(finding * 8 + $0)" }]] }
+        let report = try JSONSerialization.data(withJSONObject: ["findings": findings])
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return HomebrewReadOutput(status: 1, stdout: report)
+        }, management: HomebrewManagementReads(targets: targets))
+        let owner = PluginID("doctor-set")
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("doctor")]), owner: owner)
+        guard case .string(let key)? = result.value(atPointer: "/fix_all/target") else { return XCTFail("Repair set missing") }
+        XCTAssertNoThrow(try targets.resolve(target: key, owner: owner))
+        XCTAssertEqual(result.value(atPointer: "/truncated"), .bool(true))
+    }
+}
