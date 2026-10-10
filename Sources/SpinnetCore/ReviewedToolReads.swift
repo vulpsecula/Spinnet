@@ -280,7 +280,7 @@ public final class HomebrewReadProfile {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
-        let sandbox = "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
+        let sandbox = arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))" : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
         let launcher = "/usr/bin/sandbox-exec"
         let sandboxArguments = ["-p", sandbox, executable.path] + arguments
         var out: [Int32] = [0, 0], err: [Int32] = [0, 0]

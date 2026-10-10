@@ -18,7 +18,7 @@ let package = Package(
         .executable(name: "SpinnetPrivilegedToolHelper", targets: ["SpinnetPrivilegedToolHelper"])
     ],
     targets: [
-        .target(name: "SpinnetCore"),
+        .target(name: "SpinnetCore", resources: [.copy("Resources/HomebrewDryRun.rb")]),
         .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], resources: [.copy("Resources/HomebrewPrivilegeBridge.rb")], linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetCore"]),

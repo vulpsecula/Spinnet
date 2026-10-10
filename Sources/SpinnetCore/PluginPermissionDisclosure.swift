@@ -145,6 +145,12 @@ public struct PluginPermissionDisclosure {
         if operations.contains("packageAnalytics") {
             lines.append("Selected-package analytics contacts formulae.brew.sh.")
         }
+        if scope.reviewedTools.contains(where: { tool in
+            tool.tool == "homebrew" && tool.kinds.contains("formula")
+                && tool.operations.contains(where: { ["previewInstall", "previewUpgrade", "previewUpgradeAll"].contains($0) })
+        }) {
+            lines.append("Previews may send selected formula names and planned bottle versions to ghcr.io for download metadata.")
+        }
         lines.append("Reads never install, upgrade or change source trust.")
         return lines.joined(separator: " ")
     }

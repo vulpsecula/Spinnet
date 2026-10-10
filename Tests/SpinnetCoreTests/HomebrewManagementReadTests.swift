@@ -74,6 +74,7 @@ extension HomebrewManagementReadTests {
         let management = HomebrewManagementReads(targets: targets, applications: { [app] })
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            if args.first == "ruby" { XCTAssertTrue(args.contains("--adopt")); return .init(status: 0, stdout: Data("==> Would install 1 cask:\nexample\n".utf8)) }
             XCTAssertEqual(args, ["info", "--json=v2", "--cask", "--", "example"])
             return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[],"casks":[{"token":"example","version":"2.0","installed":null,"artifacts":[{"app":["Example.app"]}]}]}"#.utf8))
         }, management: management)
@@ -81,6 +82,7 @@ extension HomebrewManagementReadTests {
         guard case .string(let candidate)? = candidates.value(atPointer: "/applications/0/target") else { return XCTFail("Missing native target") }
         let preview = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("adoptionPreview"), "target": .string(candidate), "name": .string("example")]), owner: PluginID("management"))
         guard case .string(let key)? = preview.value(atPointer: "/target") else { return XCTFail("Missing review target") }
+        XCTAssertEqual(preview.value(atPointer: "/dry_run"), .bool(true))
         let target = try targets.resolve(target: key, owner: PluginID("management"))
         XCTAssertEqual(target.arguments, ["install", "--cask", "--adopt", "--", "example"])
         XCTAssertEqual(target.metadata.value(atPointer: "/adopt"), .bool(true))
@@ -90,16 +92,24 @@ extension HomebrewManagementReadTests {
 }
 
 extension HomebrewManagementReadTests {
-    func testLocalPreviewNamesItsEstimateAndReportsDependenciesWithoutInstallArgv() throws {
+    func testInstallPreviewRunsActualDryRunAndPreservesDependenciesAndWarnings() throws {
+        var dryRuns = 0
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
-            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
-            XCTAssertEqual(args, ["info", "--json=v2", "--formula", "--", "wget"])
-            return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","full_name":"wget","versions":{"stable":"1.25"},"dependencies":["libidn2","openssl@3"],"installed":[]}],"casks":[]}"#.utf8))
+            if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"dependencies":["libidn2","openssl@3"],"installed":[]}],"casks":[]}"#.utf8)) }
+            XCTAssertEqual(args.first, "ruby")
+            XCTAssertEqual(Array(args.suffix(6)), ["install", "--dry-run", "--no-ask", "--formula", "--", "wget"])
+            dryRuns += 1
+            return HomebrewReadOutput(status: 0, stdout: Data("==> Would install 1 formula:\nwget 1.25\n==> Would install 2 dependencies for wget:\nlibidn2 openssl@3\n".utf8), stderr: Data("Warning: openssl@3 is keg-only\n".utf8))
         })
         let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewInstall"), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("management"))
-        XCTAssertEqual(result.value(atPointer: "/estimated"), .bool(true))
+        XCTAssertEqual(dryRuns, 1)
+        XCTAssertEqual(result.value(atPointer: "/estimated"), .bool(false))
+        XCTAssertEqual(result.value(atPointer: "/stages/1/title"), .string("Would install 2 dependencies for wget:"))
+        XCTAssertEqual(result.value(atPointer: "/warnings/0"), .string("Warning: openssl@3 is keg-only"))
         XCTAssertEqual(result.value(atPointer: "/packages/0/dependencies/1"), .string("openssl@3"))
     }
+
 }
 
 private struct ManagementMetadataTransport: HTTPSTransport {
@@ -218,5 +228,84 @@ extension HomebrewManagementReadTests {
         try source.present(page); source.setVisible(true)
         XCTAssertEqual(source.shown("version")?.text, "7.0.0")
         source.close()
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testBatchPreviewExcludesPinsAndCoversBothKindsWithGreedyChoice() throws {
+        var calls: [[String]] = []
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            calls.append(args)
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "outdated" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","pinned":false},{"name":"openssl@3","pinned":true}],"casks":[{"name":"spotify","pinned":false}]}"#.utf8)) }
+            if args.first == "info" {
+                return .init(status: 0, stdout: Data((args.contains("--cask") ? #"{"formulae":[],"casks":[{"token":"spotify","tap":"homebrew/cask","version":"2.0","installed":"1.0"}]}"# : #"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"installed":[{"version":"1.24"}]}],"casks":[]}"#).utf8))
+            }
+            return .init(status: 0, stdout: Data("==> Would upgrade 1 package:\nexample 1.0 -> 2.0 (2 MB)\n".utf8))
+        })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUpgradeAll"), "greedy": .bool(true)]), owner: PluginID("management"))
+        XCTAssertEqual(result.value(atPointer: "/packages/0/name"), .string("wget"))
+        XCTAssertEqual(result.value(atPointer: "/packages/1/name"), .string("spotify"))
+        let dry = calls.filter { $0.first == "ruby" }
+        XCTAssertEqual(dry.count, 2)
+        XCTAssertTrue(dry.contains { $0.contains("--cask") && $0.contains("--greedy") })
+        XCTAssertFalse(dry.contains { $0.contains("openssl@3") })
+        XCTAssertEqual(result.value(atPointer: "/dry_run"), .bool(true))
+    }
+
+    func testUntrustedQualifiedPreviewIsRefusedBeforeExecutingDryRun() throws {
+        var dryRuns = 0
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","full_name":"acme/tools/wget","tap":"acme/tools","versions":{"stable":"1.25"},"installed":[]}],"casks":[]}"#.utf8)) }
+            if args.first == "trust" { return .init(status: 0, stdout: Data("[]".utf8)) }
+            dryRuns += 1
+            return .init(status: 0, stdout: Data())
+        })
+        XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewInstall"), "kind": .string("formula"), "names": .array([.string("acme/tools/wget")])]), owner: PluginID("management"))) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed)) }
+        XCTAssertEqual(dryRuns, 0)
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testPreviewBrokersOnlyBoundedOfficialManifestAndKeepsTokenOutOfResult() throws {
+        var requests: [URL] = [], passes = 0
+        let transport = ManagementMetadataTransport { req in
+            requests.append(req.url)
+            XCTAssertEqual(req.maximumResponseBytes, 128 * 1024)
+            if req.url.path == "/token" { return .init(status: 200, headers: [:], body: Data(#"{"token":"private-registry-token"}"#.utf8)) }
+            XCTAssertEqual(req.url.absoluteString, "https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0")
+            XCTAssertEqual(req.headers["Authorization"], "Bearer private-registry-token")
+            return .init(status: 200, headers: [:], body: Data(#"{"manifests":[{"annotations":{"sh.brew.bottle.size":"2097152"}}]}"#.utf8))
+        }
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, env, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"installed":[{"version":"1.24"}]}],"casks":[]}"#.utf8)) }
+            passes += 1
+            let metadata = #"[{"name":"wget","url":"https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0","file":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa--wget-1.25.0.bottle_manifest.json"}]"#
+            if passes == 2 { XCTAssertNotNil(env["HOMEBREW_SPINNET_PREVIEW_MANIFESTS"]); return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25 (2 MB)\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8)) }
+            return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8))
+        }, management: HomebrewManagementReads(transport: transport))
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUpgrade"), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("management"))
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(passes, 2)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-registry-token"))
+        XCTAssertEqual(result.value(atPointer: "/stages/0/lines/0"), .string("wget 1.24 -> 1.25 (2 MB)"))
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testDocumentedManagementFixturesAgreeWithPublicInputAndResultSchemas() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let directory = root.appendingPathComponent("fixtures/homebrew-management")
+        let index = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent("index.json")))
+        guard case .array(let fixtures)? = index.value(atPointer: "/fixtures") else { return XCTFail("Missing fixtures") }
+        for fixture in fixtures {
+            guard case .string(let file)? = fixture.value(atPointer: "/file"), case .string(let definition)? = fixture.value(atPointer: "/definition"), case .bool(let valid)? = fixture.value(atPointer: "/valid") else { return XCTFail("Invalid index") }
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent(file)))
+            let validator = try JSONSchemaSubsetValidator(definition: definition, inSchemaAt: root.appendingPathComponent("schemas/homebrew-management-reads.schema.json"))
+            XCTAssertEqual(validator.errors(for: value).isEmpty, valid, file)
+            if definition == "input" { XCTAssertEqual((try? HomebrewReadInput(value)) != nil, valid, file) }
+        }
     }
 }
