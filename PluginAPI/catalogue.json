@@ -2091,6 +2091,52 @@
       "level1": []
     },
     {
+      "id": "tools.showServices",
+      "namespace": "tools",
+      "summary": "Shows a controlled native Host Surface for current user-owned Homebrew service status and confirmed typed controls.",
+      "status": "level2",
+      "input": "schemas/namespaces.schema.json#/$defs/tools.showServices.input",
+      "result": "schemas/namespaces.schema.json#/$defs/tools.showServices.result",
+      "primary_member": null,
+      "capabilities": [
+        "read_reviewed_tools"
+      ],
+      "system_permission": null,
+      "failures": [
+        "capability_denied",
+        "host_service_failed",
+        "tool_missing",
+        "tool_timed_out",
+        "tool_failed",
+        "output_too_large"
+      ],
+      "targets": null,
+      "entry_points": {
+        "call": {
+          "status": "not_offered",
+          "reason": "Controlled native presentation, not a script result or source"
+        },
+        "command": {
+          "status": "level2",
+          "note": "Read scope homebrew/services/formula; native controls separately require scoped run_reviewed_tool_tasks and Host Confirmation"
+        },
+        "view_action": {
+          "status": "level2",
+          "note": "Read scope homebrew/services/formula; native controls separately require scoped run_reviewed_tool_tasks and Host Confirmation"
+        },
+        "request": {
+          "status": "level2",
+          "note": "Read scope homebrew/services/formula; native controls separately require scoped run_reviewed_tool_tasks and Host Confirmation"
+        },
+        "source": {
+          "status": "not_offered",
+          "reason": "Controlled native presentation, not a script result or source"
+        }
+      },
+      "level1": [],
+      "default_title": "Homebrew Services"
+    },
+    {
       "id": "tools.startTask",
       "namespace": "tools",
       "summary": "Starts one mutating operation of a reviewed tool profile as a Host-owned task, after a Host Confirmation (#70's illustrative start_task).",
@@ -2963,7 +3009,8 @@
     {
       "name": "read_reviewed_tools",
       "operations": [
-        "tools.read"
+        "tools.read",
+        "tools.showServices"
       ],
       "level1": [],
       "note": "Level 2 (#87): requires reviewed_tools scopes by tool, operations and kinds; existing local package data only."

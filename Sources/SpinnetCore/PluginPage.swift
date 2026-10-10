@@ -121,6 +121,7 @@ public enum CollectionsContract {
         case "open.url": return "Open in Browser"
         case CurrentAppAddition.quitID: return "Quit"
         case CurrentAppAddition.closeID: return "Close Window"
+        case ReviewedServicesAddition.id: return "Homebrew Services"
         case KeepAwakeAddition.id: return "Keep Awake"
         case KeepAwakeAddition.stopID: return "Stop Activity"
         default: return "Open"

@@ -328,6 +328,7 @@ public enum HostServiceCatalogue {
         define(ReviewedToolReads.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
                input: ["tool", "operation", "kind", "greedy", "query", "names"]),
+        define(ReviewedServicesAddition.id, [.call: .notOffered, .source: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo], capabilities: [.readReviewedTools], failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge], input: ["tool"]),
         define(ReviewedToolTasksAddition.id, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo], capabilities: [.runReviewedToolTasks],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolFailed, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged],
                input: ["tool", "operation", "kind", "name", "names", "tap", "target", "zap", "greedy", "pruneAll", "days"])
@@ -576,6 +577,7 @@ extension HostServiceDefinition {
             // Launching an application by path is already what
             // `open_local_path` grants (design 6.3).
             service = .openLocalPath
+        case ReviewedServicesAddition.id: service = .showReviewedServices
         case SystemMetrics.id: service = .systemMetrics
         case ReviewedToolReads.id: service = .reviewedToolRead
         case KeepAwakeAddition.id: service = .keepAwakeEffect
@@ -685,6 +687,8 @@ extension HostServiceDefinition {
             throw PluginHostServiceError.invalidInput("\(id) expects \(primaryMember ?? "its input") as text")
         }
         switch id {
+        case ReviewedServicesAddition.id:
+            try ReviewedServicesAddition.validate(input); return .hostService(.showReviewedServices, input)
         case KeepAwakeAddition.id: return .hostService(.keepAwakeEffect, input)
         case "host.toast": return .toast(try primaryText())
         case "host.showPluginSettings": return .pluginSettings

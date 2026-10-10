@@ -76,6 +76,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
         journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
         runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"))
+    private let reviewedServicesWindow = ReviewedServicesWindowController()
     private lazy var reviewedTaskOperations = ReviewedTaskOperationPerformer(tasks: reviewedTasks, confirmations: HostConfirmationPanel(), registry: registry)
     private var taskQuitTimer: Timer?
     private var taskQuitAlert: NSAlert?
@@ -251,18 +252,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             if appTargetObservers == nil {
                 appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
-                    registry.observeInvalidation { [appTargets, keepAwake, reviewedTasks, registry, capabilityGrants] owner in
+                    registry.observeInvalidation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow, registry, capabilityGrants] owner in
                         appTargets.forget(owner); keepAwake.invalidate(owner)
                         DispatchQueue.main.async {
+                            reviewedServicesWindow.invalidate(owner)
                             let package = registry.isEnabled(for: owner) ? registry.package(for: owner) : nil
                             let scope = package?.manifest.scope(for: .runReviewedToolTasks)
                             let granted = package.map { capabilityGrants.decision(for: owner, pluginVersion: $0.manifest.version, capability: .runReviewedToolTasks, scope: scope) == .granted } ?? false
                             reviewedTasks.ownerChanged(owner, scope: granted ? scope : nil)
                         }
                     },
-                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake, reviewedTasks] in
-                        appTargets.forget($0.pluginID); keepAwake.revoke($0)
-                        reviewedTasks.revoke($0)
+                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow] revocation in
+                        appTargets.forget(revocation.pluginID); keepAwake.revoke(revocation)
+                        reviewedTasks.revoke(revocation)
+                        DispatchQueue.main.async { reviewedServicesWindow.invalidate(revocation.pluginID) }
                     }
                 )
             }
@@ -870,6 +873,44 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             },
             report: { [weak self] message in self?.feedback?.showMessage(message) }
         )
+    }
+
+    private func presentReviewedServices(package: PluginPackage, action: ActionConfiguration, admission: PluginOwnerAdmission) {
+        guard registry.isCurrent(admission, for: package), let broker = clipboardBroker else { return }
+        let registry = registry
+        do {
+            let source = try PluginPageSource(parsing: .object(["id": .string("services"), "perform": .string(ReviewedToolReads.id),
+                "input": .object(["tool": .string("homebrew"), "operation": .string("services"), "kind": .string("formula")])]), permits: registry.contracts.permitting(package.manifest))
+            let adapter = broker.reviewedToolSourceAdapter(using: registry)
+            let authorizeRead = {
+                guard registry.isCurrent(admission, for: package), registry.isEnabled(for: action.pluginID) else { throw PluginHostServiceError.unavailable("The Services owner changed") }
+                try ReviewedServicesAddition.authorize(in: package.manifest.scope(for: .readReviewedTools))
+                try broker.authorize(.showReviewedServices, for: package, action: action)
+                try adapter.authorize(action, source)
+            }
+            try authorizeRead()
+            let taskOperations = reviewedTaskOperations
+            let authorizeControl: (ReviewedServicesSurface.Operation, String) throws -> Void = { operation, name in
+                try authorizeRead()
+                let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string(operation.rawValue), "name": .string(name)]))
+                try input.authorize(in: package.manifest.scope(for: .runReviewedToolTasks))
+                guard let definition = HostServiceCatalogue.operation(ReviewedToolTasksAddition.id) else { throw PluginHostServiceError.unavailable("Reviewed Tasks") }
+                try broker.authorize(definition, for: package, action: action)
+            }
+            let model = ReviewedServicesSurface(authorizeRead: authorizeRead,
+                read: { try adapter.sample(action, source, $0) }, authorizeControl: authorizeControl,
+                control: { operation, name, done in
+                    do {
+                        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string(operation), "name": .string(name)]))
+                        let accepted = taskOperations.accept(owner: action.pluginID)
+                        taskOperations.perform(input, for: action, accepted: accepted, authorize: {
+                            guard let operation = ReviewedServicesSurface.Operation(rawValue: operation) else { throw PluginHostServiceError.invalidInput("Unknown service control") }
+                            try authorizeControl(operation, name)
+                        }, completion: { result in done(result.outcome == .succeeded ? nil : result.message ?? result.outcome.name) })
+                    } catch { done(error.localizedDescription) }
+                }, closeControl: { taskOperations.abandon(action.pluginID, because: .viewClosed) })
+            reviewedServicesWindow.show(model, owner: action.pluginID)
+        } catch { feedback?.showMessage(error.localizedDescription) }
     }
 
     private func presentClipboardHistory(package: PluginPackage, action: ActionConfiguration) {

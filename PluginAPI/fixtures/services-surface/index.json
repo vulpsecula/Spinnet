@@ -1,0 +1,21 @@
+{
+  "fixtures": [
+    {
+      "file": "input.json",
+      "definition": "tools.showServices.input",
+      "valid": true
+    },
+    {
+      "file": "request.json",
+      "definition": "operation",
+      "schema": "host-operations.schema.json",
+      "valid": true
+    },
+    {
+      "file": "bad-request.json",
+      "definition": "operation",
+      "schema": "host-operations.schema.json",
+      "valid": false
+    }
+  ]
+}

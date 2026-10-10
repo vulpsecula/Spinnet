@@ -74,6 +74,7 @@ export interface Operations {
   "apps.close": { input: null | { target?: AppTarget }; result: null };
   "system.metrics": { input: SystemMetricsInput; result: SystemMetricsResult };
   "system.keepAwake": { input: KeepAwakeInput; result: null };
+  "tools.showServices": { input: {tool: "homebrew"}; result: null };
   "tools.startTask": { input: ReviewedToolTaskInput; result: null };
   "tools.read": { input: ReviewedToolReadInput; result: ReviewedToolReadResult };
   "activities.list": { input: null; result: HostActivity[] };
@@ -113,13 +114,13 @@ export type HostCommandID =
   | "keyboard.press" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
   | "system.runShortcut" | "system.runService" | "system.keepAwake" | "window.toggleFullScreen" | "window.restore"
-  | "screen.capture";
+  | "screen.capture" | "tools.showServices";
 
 /** IDs an answer to a gesture may request. */
 export type RequestID =
   | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop" | "tools.startTask";
+  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop" | "tools.showServices" | "tools.startTask";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -888,6 +889,8 @@ export type ReviewedToolTaskInput =
   | {tool: "homebrew"; operation: "cleanup"; days?: number; pruneAll?: boolean}
   | {tool: "homebrew"; operation: "doctorFix" | "adopt"; target: string};
 export interface ToolsNamespace {
+  /** Controlled native user-owned services Surface. Read grant opens it; controls require a separate current Task grant and confirmation. @id tools.showServices @entry command request view_action */
+  readonly showServices: Performable<"tools.showServices">;
   readonly startTask: Performable<"tools.startTask">;
   /** A 3 second local call or once-only 15 second visible-page source. No refresh, install or upgrade. @id tools.read @entry call */
   readonly read: Callable<"tools.read"> & { source(id: ID, input: ReviewedToolReadInput, options?: Pick<SourceOptions, "deliver">): ToolSource };

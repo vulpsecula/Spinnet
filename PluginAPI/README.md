@@ -388,3 +388,7 @@ and unavailable-value rules in [the namespace reference](reference/namespaces.md
 and [schema](schemas/system-metrics.schema.json).
 Local Spotify's Level 2 Reviewed App Interface and playback source are documented
 in [spotify.md](reference/spotify.md), with [typed schema](schemas/spotify.schema.json).
+
+`tools.showServices` presents a controlled [native Services Host Surface](reference/services-surface.md)
+under a scoped Homebrew services read grant. Its native user-owned Start/Stop/Restart
+controls separately enter Host-confirmed reviewed Task admission.
