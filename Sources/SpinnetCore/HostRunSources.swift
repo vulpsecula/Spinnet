@@ -34,6 +34,9 @@ public struct PluginPageSource: Equatable {
         guard let input = fields["input"] else { throw PluginPage.violation("The source \(id) has no input") }
         self.input = input
         every = try PluginPage.number(fields["every"], "The source \(id)'s every", in: 1...3_600)
+        if perform == "apps.perform" {
+            do { try SpotifyPlayback.validateSource(input) } catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
+        }
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
             do { _ = try HomebrewReadInput(input) }

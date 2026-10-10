@@ -67,7 +67,7 @@ export interface Operations {
   "open.url": { input: string | { url: string }; result: null };
   "open.path": { input: string | { path: string }; result: null };
   "open.application": { input: string | { application: string }; result: null };
-  "apps.perform": { input: { bundle_id: string; operation: string; arguments?: Record<string, JSONValue> }; result: null };
+  "apps.perform": { input: { bundle_id: string; operation: string; arguments?: Record<string, JSONValue> }; result: SpotifyPlayback | null };
   "apps.openDeepLink": { input: { template: string; parameters?: Record<string, string> }; result: null };
   "apps.frontmost": { input: null; result: FrontmostApp | null };
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
@@ -699,7 +699,7 @@ export interface OpenNamespace {
 /** External Apps through reviewed interfaces and Deep Link Templates. */
 export interface AppsNamespace {
   /** One operation of a Reviewed App Interface. @id apps.perform @entry call request view_action */
-  readonly perform: Callable<"apps.perform"> & Performable<"apps.perform">;
+  readonly perform: Callable<"apps.perform"> & Performable<"apps.perform"> & { source(id: ID, input: SpotifyReadInput, options?: SourceOptions): AppSource };
   /** One of the Plugin's Deep Link Templates. @id apps.openDeepLink @entry call request view_action */
   readonly openDeepLink: Callable<"apps.openDeepLink"> & Performable<"apps.openDeepLink">;
   /**
@@ -872,14 +872,18 @@ export type ReviewedToolReadErrorCode = "tool_missing" | "tool_timed_out" | "too
 export interface ReviewedToolReadError extends Error { readonly code: ReviewedToolReadErrorCode; }
 
 /** Host-run sources (#82, #87); HTTPS and Homebrew sample once and forbid every. */
-export type SourceID = "http.request" | "tools.read";
+export type SourceID = "http.request" | "tools.read" | "apps.perform";
 export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
 export interface HTTPSource { id: ID; perform: "http.request"; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
 export interface ToolSource { id: ID; perform: "tools.read"; input: ReviewedToolReadInput; deliver?: { pointer?: string }; }
-export type Source = HTTPSource | ToolSource;
+export type Source = HTTPSource | ToolSource | AppSource;
 export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
 export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
-export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult;
+export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult | SpotifyPlayback;
 /** Not a gesture; requesting an operation in its answer is refused. */
 export type SourceDeliveredEvent = { type: "source_delivered"; page: ID; source: ID; sequence: number } &
-  ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out" | ReviewedToolReadErrorCode; message: string }; result?: never });
+  ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out" | "external_app_missing" | "external_app_not_running" | "automation_permission_needed" | "automation_permission_denied" | "external_app_operation_unsupported" | ReviewedToolReadErrorCode; message: string }; result?: never });
+
+export interface SpotifyReadInput { bundle_id: "com.spotify.client"; operation: "playback"; arguments?: Record<string, never>; }
+export interface SpotifyPlayback { state: "playing" | "paused" | "stopped"; position: number; track: null | { id?: string; name?: string; artist?: string; album?: string; duration?: number; artwork_url?: string }; }
+export interface AppSource { id: ID; perform: "apps.perform"; input: SpotifyReadInput; every?: number; deliver?: {pointer?: string}; }

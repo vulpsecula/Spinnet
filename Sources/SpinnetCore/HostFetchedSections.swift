@@ -265,7 +265,7 @@ struct FetchedAnswer: Equatable {
                  .invalidInput(let message), .unavailable(let message), .failed(let message),
                  .storageLimitExceeded(let message):
                 return message
-            case .capabilityDenied, .capabilityScopeDenied, .systemPermissionDenied, .automationPermissionDenied, .insertion, .tool:
+            case .capabilityDenied, .capabilityScopeDenied, .systemPermissionDenied, .automationPermissionDenied, .insertion, .tool, .appRead:
                 return error.description
             }
         case PluginRuntimeError.protocolViolation(let message):

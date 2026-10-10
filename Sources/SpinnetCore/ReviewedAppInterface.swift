@@ -22,6 +22,7 @@ public struct ReviewedAppInterface: Equatable {
     public enum RequestFormat: Equatable {
         /// A JSON object `{"path": …, "body": {"action": operation, …arguments}}`.
         case jsonPathAndBody
+        case spotify
     }
 
     public struct Operation: Equatable {
@@ -51,7 +52,7 @@ public struct ReviewedAppInterface: Equatable {
     }
 
     /// Every interface this Host has reviewed.
-    public static let reviewed: [ReviewedAppInterface] = [bob]
+    public static let reviewed: [ReviewedAppInterface] = [bob, spotify]
 
     public static func interface(for bundleID: String) -> ReviewedAppInterface? {
         reviewed.first { $0.bundleID == bundleID }
@@ -74,6 +75,8 @@ public struct ReviewedAppInterface: Equatable {
             ])
         ]
     )
+
+    static let spotify = ReviewedAppInterface(bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") })
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.
@@ -99,6 +102,8 @@ public struct ReviewedAppInterface: Equatable {
 
         let argument: JSONValue
         switch format {
+        case .spotify:
+            return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "")
         case .jsonPathAndBody:
             var body = arguments
             body["action"] = .string(name)

@@ -380,3 +380,6 @@ Local adapters have a one-second minimum; each source ID's deliveries are at lea
 15 seconds apart, coalesced to the latest changed result. No metrics or Spotify
 source is offered yet. See [sources](reference/sources.md),
 [schemas](schemas/host-run-sources.schema.json), and [recordings](fixtures/sources/index.json).
+
+Local Spotify's Level 2 Reviewed App Interface and playback source are documented
+in [spotify.md](reference/spotify.md), with [typed schema](schemas/spotify.schema.json).

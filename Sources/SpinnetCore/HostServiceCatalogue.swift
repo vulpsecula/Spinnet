@@ -67,6 +67,8 @@ public enum HostServiceFailure: String, Hashable {
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
+    case externalAppNotRunning = "external_app_not_running"
+    case automationPermissionNeeded = "automation_permission_needed"
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
@@ -259,9 +261,9 @@ public enum HostServiceCatalogue {
                commandCapabilities: [], commands: [.openApplication]),
         reserve("open.reveal", at: [.call, .command, .viewAction, .request]),
 
-        define("apps.perform", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew],
+        define("apps.perform", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew, .source: levelTwo],
                capabilities: [.controlExternalApp], permission: .automation,
-               failures: [.capabilityDenied, .automationPermissionDenied, .externalAppMissing,
+               failures: [.capabilityDenied, .automationPermissionDenied, .automationPermissionNeeded, .externalAppNotRunning, .externalAppMissing,
                           .externalAppOperationUnsupported, .hostServiceFailed],
                input: ["bundle_id", "operation", "arguments"], services: [.performAppOperation]),
         define("apps.openDeepLink", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],

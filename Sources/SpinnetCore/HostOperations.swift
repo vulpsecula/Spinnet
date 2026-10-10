@@ -298,6 +298,8 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
+    case externalAppNotRunning = "external_app_not_running"
+    case automationPermissionNeeded = "automation_permission_needed"
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
@@ -326,6 +328,7 @@ public enum HostOperationReason: String, CaseIterable, Hashable {
         case .capabilityDenied, .capabilityScopeDenied: self = .capabilityDenied
         case .systemPermissionDenied: self = .systemPermissionDenied
         case .automationPermissionDenied: self = .automationPermissionDenied
+        case .appRead(let failure): self = HostOperationReason(rawValue: failure.rawValue)!
         case .externalAppMissing: self = .externalAppMissing
         case .externalAppOperationUnsupported: self = .externalAppOperationUnsupported
         case .insertion(let failure): self = failure.reason
