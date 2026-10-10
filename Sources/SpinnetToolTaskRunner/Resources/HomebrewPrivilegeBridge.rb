@@ -61,7 +61,9 @@ module SpinnetReviewedPkgInstaller
     relative = path.relative_path_from(cask.staged_path).to_s
     raise "The cask installer path escaped its package" if relative.start_with?("/") || relative.split("/").include?("..")
     client = SPINNET_PRIVILEGE_CONTEXT.fetch("client")
-    command.run!(client, args: ["--installer", binding.fetch("name"), path.to_s, Digest::SHA256.file(path).hexdigest, archive.to_s, relative, "--target", "/"], print_stdout: true)
+    result = command.run(client, args: ["--installer", binding.fetch("name"), path.to_s, Digest::SHA256.file(path).hexdigest, archive.to_s, relative, "--target", "/"], print_stdout: true)
+    exit 70 if result.exit_status == 70
+    raise "The reviewed native installer was refused, cancelled or failed" unless result.success?
   end
 end
 Cask::Artifact::Pkg.prepend(SpinnetReviewedPkgInstaller)

@@ -3,6 +3,13 @@ import Darwin
 import IOKit.pwr_mgt
 import SpinnetCore
 
+// Packaging smoke check: no Task, source read, authorization or subprocess.
+if CommandLine.arguments.count == 2, CommandLine.arguments[1] == "--verify-resources" {
+    guard Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") != nil else { exit(70) }
+    print("Reviewed Task runner resources available")
+    exit(0)
+}
+
 // Fixed Host-owned journal entry, never arbitrary Plugin process input. The
 // directory is private to this account; the runner refuses symlinked roots,
 // mismatched handles, an already-started record or any inherited mutation.
@@ -108,9 +115,11 @@ do {
     }
     lock.lock()
     log.finish(); record.log = log.lines; record.stage = log.stage
-    var outcome: [String: JSONValue] = ["outcome": .string(lastResult?.outcome ?? "unknown")]
+    let lostPrivilegedResult = record.privilegePlan != nil && lastResult?.exitStatus == 70
+    var outcome: [String: JSONValue] = ["outcome": .string(lostPrivilegedResult ? "unknown" : lastResult?.outcome ?? "unknown")]
     if let stop = lastResult?.stop { outcome["stop"] = .string(stop) }
-    if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
+    if lostPrivilegedResult { outcome["reason"] = .string("privileged_result_lost") }
+    else if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
     record.result = .object(outcome); record.ended = Date()
     try record.save(to: directory); lock.unlock()
 

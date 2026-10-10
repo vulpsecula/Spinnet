@@ -168,6 +168,23 @@ final class ReviewedToolTaskTests: XCTestCase {
 }
 
 extension ReviewedToolTaskTests {
+    func testIssuedDoctorBatchTargetReachesHostConfirmationThroughRealResolver() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let targets = HomebrewManagementTargets(), owner = PluginID("doctor")
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return .init(status: 1, stdout: Data(#"{"tier":2,"findings":[{"text":"Repairs","remediation":{"commands":["brew link wget","brew cleanup"]}}]}"#.utf8))
+        }, management: HomebrewManagementReads(targets: targets))
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("doctor")]), owner: owner)
+        guard case .string(let key)? = result.value(atPointer: "/fix_all/target") else { return XCTFail("Missing opaque Doctor set") }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object([:]) }, trustedTaps: { [] }, targetResolver: targets.resolveTask)
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("doctorFix"), "target": .string(key)]))
+        let plan = try host.prepare(input, owner: owner, pluginName: "Homebrew")
+        XCTAssertEqual(plan.steps.map(\.arguments), [["link", "--formula", "--", "wget"], ["cleanup", "--prune=120"]])
+        XCTAssertTrue(plan.confirmation.message.contains("stale downloads"))
+        host.decline(plan)
+    }
     func testPrivilegedTaskRequiresAuthenticatedHostAdmissionBeforeRunnerStarts() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -129,6 +129,7 @@ else
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"
+"$APP_CONTENTS/Helpers/SpinnetToolTaskRunner" --verify-resources
 
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"

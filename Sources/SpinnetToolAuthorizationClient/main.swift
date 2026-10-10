@@ -30,7 +30,7 @@ do {
     // system prompt. No general admin grant can authorize a different Task.
     let (authorization, form) = try HomebrewSystemAuthorization.authorize(prompt: prompt, rightName: rightName)
     defer { AuthorizationFree(authorization, [.destroyRights]) }
-    var status: Int32 = 77
+    var status: Int32 = 70
     proxy.perform(data, authorization: form) { code, text in
         status = code
         if !text.isEmpty { FileHandle.standardOutput.write(Data((String(text.prefix(4000)) + "\n").utf8)) }
@@ -39,6 +39,7 @@ do {
     // The helper owns installation; runner Stop is forwarded through its
     // separate signed connection and reaches the root process group.
     guard done.wait(timeout: .now() + 7200) == .success else { exit(70) }
+    if status == 70 { FileHandle.standardError.write(Data("Privileged helper communication was lost; installation outcome is unknown. No retry was performed.\n".utf8)) }
     exit(status)
 } catch {
     FileHandle.standardError.write(Data("Spinnet system authorization was cancelled, refused or unavailable.\n".utf8)); exit(77)

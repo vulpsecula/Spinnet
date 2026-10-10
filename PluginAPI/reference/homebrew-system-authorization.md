@@ -25,6 +25,9 @@ right; it expires and is consumed once. Authorization forms remain only in
 native memory and XPC, never Plugin responses, argv, environment, journals or
 logs. Stop reaches supervised privileged subprocesses and prevents subsequent
 operations; earlier changes remain.
+If communication with the privileged helper is lost after authorization, the
+Task reports `unknown` and never retries. Installer work may already have
+changed the system; that refusal is not evidence of rollback or a clean state.
 
 Homebrew itself remains the current user with ordinary sudo refused. A sealed
 Host Ruby adapter checks reviewed Homebrew source SHA-256 digests before

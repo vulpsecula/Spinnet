@@ -305,6 +305,7 @@ public final class HostReviewedToolTasks {
                     let step = try HomebrewTaskInput(json)
                     guard ["cleanup", "link"].contains(step.operation), case .object(var fields) = try preflight(step) else { throw PluginHostServiceError.tool(.planChanged) }
                     for (key, value) in metadata { fields[key] = value }
+                    if let summary = value.value(atPointer: "/repair_summary") { fields["repair_summary"] = summary }
                     let package = JSONValue.object(fields)
                     packages.append(package)
                     reviewedSteps.append(.object(["input": step.json, "metadata": package]))
