@@ -4,6 +4,7 @@ import SpinnetCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let actionTarget: StatusItemActionTarget
     private let activities: HostActivities?
+    private let services = ReviewedServicesMenuController()
     private var observation: UUID?
     private weak var openMenu: NSMenu?
     private var cancelTick: (() -> Void)?
@@ -40,6 +41,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem.button?.toolTip = "Spinnet Status Item"
         statusItem.menu = makeMenu()
         self.statusItem = statusItem
+    }
+
+    func showServices(_ model: ReviewedServicesSurface, owner: PluginID) {
+        services.show(model, owner: owner)
+        if let menu = openMenu { replaceItems(in: menu) }
+        else { statusItem?.menu = makeMenu() }
+    }
+    func invalidateServices(_ owner: PluginID) {
+        services.invalidate(owner)
+        if let menu = openMenu { replaceItems(in: menu) }
+        else { statusItem?.menu = makeMenu() }
+    }
+    func closeServices() {
+        services.close()
+        if let menu = openMenu { replaceItems(in: menu) }
+        else { statusItem?.menu = makeMenu() }
     }
 
     func makeMenu() -> NSMenu {
@@ -83,6 +100,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
+        services.append(to: menu)
         let quitItem = NSMenuItem(
             title: "Quit Spinnet",
             action: #selector(StatusItemActionTarget.quit(_:)),
@@ -102,6 +120,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        services.hide()
         openMenu = nil
         cancelTick?(); cancelTick = nil
     }

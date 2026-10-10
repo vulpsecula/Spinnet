@@ -16,6 +16,17 @@
       "definition": "operation",
       "schema": "host-operations.schema.json",
       "valid": false
+    },
+    {
+      "file": "menu-request.json",
+      "definition": "operation",
+      "schema": "host-operations.schema.json",
+      "valid": true
+    },
+    {
+      "file": "bad-presentation.json",
+      "definition": "tools.showServices.input",
+      "valid": false
     }
   ]
 }
