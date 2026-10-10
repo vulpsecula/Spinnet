@@ -1,0 +1,20 @@
+{
+  "cpu": {
+    "busy": 0.37
+  },
+  "memory": {
+    "total_bytes": 17179869184,
+    "used_bytes": 8589934592,
+    "compressed_bytes": 536870912
+  },
+  "disk": {
+    "total_bytes": 500000000000,
+    "available_bytes": 200000000000
+  },
+  "battery": {
+    "present": true,
+    "charge": 0.84,
+    "charging": false,
+    "power_source": "Battery Power"
+  }
+}

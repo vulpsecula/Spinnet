@@ -240,7 +240,7 @@ External App integration through Reviewed App Interfaces and Deep Link Templates
 
 ### `system`
 
-macOS facilities no single App owns; Host-owned keep-awake (#84) and later basic metrics (#86).
+macOS facilities no single App owns; Host-owned keep-awake (#84) and basic metrics (#86).
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
@@ -340,5 +340,32 @@ until a later Level adds it.
 | `host.launchCommand` | README, candidates for later levels | Running another Command of the Plugin in the same View Session |
 | `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
 | `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
-| `system.metrics` | #86 | Basic metrics while the view is visible |
 | `tools.startTask` | #88 | Mutating reviewed tool tasks such as Homebrew |
+
+### `system.metrics` (Level 2, #86)
+
+A call or visible-page source reads 1–4 distinct names in `metrics`: `cpu`,
+`memory`, `disk`, `battery`. Requires `read_system_status`, no System Permission
+or Sensitive Data Collection opt-in. Only aggregate current readings are exposed:
+no process names, network, temperatures, file names, history or disk identifiers.
+
+`cpu.busy` is the busy fraction across all CPUs between consecutive reads for
+this Plugin (user + system + nice ticks / all ticks). It is null on the first
+read, if no ticks advanced, or after a gap exceeding twice the source interval.
+`memory.total_bytes` is physical RAM; `used_bytes` is active + wired + compressed
+physical pages (not Activity Monitor's app-memory figure); `compressed_bytes`
+is compressor pages. `disk.total_bytes` and `available_bytes` are `statfs`
+capacity and space available to the user on the startup Data volume, excluding
+purgeable estimates. All sizes are bytes. `battery.present` reports an internal
+battery, `charge` is current/max capacity as a fraction, `charging` is a boolean,
+and `power_source` is the IOKit AC/Battery power-source description. No battery:
+`present:false` and the other fields null. A failed/unsupported OS read makes
+that metric null. Unrequested metrics are omitted; unavailable bindings use
+`unavailable` (default `Unavailable`). The result is below 1 KiB.
+
+Sources have a one-second minimum and one-second deadline, one snapshot in
+flight per source, fixed delay and no catch-up. Omit `every` for a single read.
+Reads never launch a helper; bindings update without script deliveries. Adding
+`deliver` uses #82's 15-second latest-result delivery floor. Hide/close, inactive
+session, sleeping display, owner replacement and revocation cancel or discard
+reads through the shared source engine. No background collection is retained.

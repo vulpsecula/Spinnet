@@ -19,6 +19,7 @@ public final class RecordedHostSources {
     public let grants: PluginCapabilityGrantStore
     public let registry: PluginRegistry
     public let credentials: InMemoryPluginCredentialStore
+    public private(set) var samples: [(perform: String, sequence: Int)] = []
     public private(set) var deliveries: [PluginViewEvent] = []
     public var requests: [HTTPSTransportRequest] { transport.requests }
     public var responses: [String: HTTPSTransportResponse] {
@@ -57,10 +58,19 @@ public final class RecordedHostSources {
                 return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
                     actionID: action.id, service: .reviewedToolRead, input: source.input, operation: ReviewedToolReads.id), for: plugin.package, action: action)
             })
-        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource],
+        let metrics = broker.systemMetricsSourceAdapter(using: registry)
+        let metricSource = HostSourceAdapter(minimumInterval: metrics.minimumInterval, deadline: metrics.deadline,
+            ownerIdentity: metrics.ownerIdentity, authorize: metrics.authorize, retire: metrics.retire,
+            sample: { action, source, cancellation in
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The metric read was cancelled") }
+                return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,
+                    actionID: action.id, service: .systemMetrics, input: source.input, operation: SystemMetrics.id), for: plugin.package, action: action)
+            })
+        engine = HostRunSources(adapters: ["http.request": broker.httpSourceAdapter(using: registry), ReviewedToolReads.id: toolSource, SystemMetrics.id: metricSource],
             now: { [weak self] in self?.clock ?? 0 }, schedule: { [weak self] delay, task in
                 guard let self else { return }; self.timers.append((self.clock + delay, task))
             }, background: { $0() }, executor: { $0() })
+        engine.onSample = { [weak self] _, source, sequence in self?.samples.append((source.perform, sequence)) }
         engine.onDelivery = { [weak self] _, event, current in if current() { self?.deliveries.append(event) } }
     }
     public func present(_ page: JSONValue, answering event: PluginViewEvent? = nil) throws {

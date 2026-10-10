@@ -72,6 +72,7 @@ export interface Operations {
   "apps.frontmost": { input: null; result: FrontmostApp | null };
   "apps.quit": { input: null | { target?: AppTarget; force?: boolean }; result: null };
   "apps.close": { input: null | { target?: AppTarget }; result: null };
+  "system.metrics": { input: SystemMetricsInput; result: SystemMetricsResult };
   "system.keepAwake": { input: KeepAwakeInput; result: null };
   "tools.read": { input: ReviewedToolReadInput; result: ReviewedToolReadResult };
   "activities.list": { input: null; result: HostActivity[] };
@@ -103,7 +104,7 @@ export type CallID =
   | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink" | "apps.frontmost"
   | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
   | "screen.capture" | "http.request" | "text.detectLanguage"
-  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list" | "tools.read";
+  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list" | "tools.read" | "system.metrics";
 
 /** IDs a manifest Command with `execution: "host"` may name in `host_command`. */
 export type HostCommandID =
@@ -623,7 +624,7 @@ export interface PageComponents {
  * answer forms of `host.toast` and `host.closeView`.
  */
 export interface UI extends Omit<UIArea, "view" | "show"> {
-  source(id: ID, perform: SourceID, input: InputOf<SourceID>, options?: SourceOptions): Source;
+  source(id: ID, perform: SourceID, input: InputOf<SourceID>, options?: SourceOptions & {every?: number}): Source;
   /** Level 1's `view`, which also takes `showsInsertionTarget`. */
   view(value: Parameters<UIArea["view"]>[0] & { showsInsertionTarget?: boolean }): View;
   /** `show` as in Level 1, with an optional operation committed together with the view. */
@@ -835,7 +836,17 @@ export interface HostActivity {
   /** Unix seconds, or null for manual and App-alive modes. */
   readonly expires_at: number | null;
 }
+export type SystemMetric = "cpu" | "memory" | "disk" | "battery";
+export interface SystemMetricsInput { metrics: SystemMetric[]; }
+export interface SystemMetricsResult {
+  cpu?: {busy: number | null} | null;
+  memory?: {total_bytes: number; used_bytes: number; compressed_bytes: number} | null;
+  disk?: {total_bytes: number; available_bytes: number} | null;
+  battery?: {present: boolean; charge: number | null; charging: boolean | null; power_source: string | null} | null;
+}
 export interface SystemNamespace {
+  /** Aggregate system snapshots, read_system_status, no System Permission. @id system.metrics @entry call */
+  readonly metrics: Callable<"system.metrics"> & {source(id: ID, input: SystemMetricsInput, options?: {every?: number; deliver?: {pointer?: string} | true}): MetricsSource};
   /** Prevents idle system AND display sleep; requires keep_awake. @id system.keepAwake @entry command request view_action */
   readonly keepAwake: Performable<"system.keepAwake">;
 }
@@ -872,14 +883,15 @@ export type ReviewedToolReadErrorCode = "tool_missing" | "tool_timed_out" | "too
 export interface ReviewedToolReadError extends Error { readonly code: ReviewedToolReadErrorCode; }
 
 /** Host-run sources (#82, #87); HTTPS and Homebrew sample once and forbid every. */
-export type SourceID = "http.request" | "tools.read";
+export type SourceID = "http.request" | "tools.read" | "system.metrics";
 export interface SourceOptions { deliver?: { pointer?: string } | true; errorPointer?: string; statusMessages?: Record<string, string>; }
 export interface HTTPSource { id: ID; perform: "http.request"; input: HTTPSRequest; deliver?: { pointer?: string }; error_pointer?: string; status_messages?: Record<string, string>; }
 export interface ToolSource { id: ID; perform: "tools.read"; input: ReviewedToolReadInput; deliver?: { pointer?: string }; }
-export type Source = HTTPSource | ToolSource;
+export interface MetricsSource { id: ID; perform: "system.metrics"; input: SystemMetricsInput; every?: number; deliver?: {pointer?: string}; }
+export type Source = HTTPSource | ToolSource | MetricsSource;
 export type BindingFormat = "text" | "integer" | "decimal" | "percent" | "bytes" | "duration";
 export interface Binding { source: ID; pointer: string; format?: BindingFormat; unavailable?: string; }
-export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult;
+export type SourceResult = (HTTPSResponse & { json?: JSONValue }) | ReviewedToolReadResult | SystemMetricsResult;
 /** Not a gesture; requesting an operation in its answer is refused. */
 export type SourceDeliveredEvent = { type: "source_delivered"; page: ID; source: ID; sequence: number } &
   ({ result: JSONValue; failure?: never } | { failure: { category: "capability_denied" | "host_service_failed" | "timed_out" | ReviewedToolReadErrorCode; message: string }; result?: never });

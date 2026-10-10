@@ -1,0 +1,11 @@
+{
+  "cpu": {
+    "busy": null
+  },
+  "battery": {
+    "present": false,
+    "charge": null,
+    "charging": null,
+    "power_source": null
+  }
+}
