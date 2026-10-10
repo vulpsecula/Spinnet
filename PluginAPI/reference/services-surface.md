@@ -5,7 +5,11 @@ current user-owned services. Any installed Plugin declaring and granted
 `read_reviewed_tools` for Homebrew operation `services`, kind `formula`, may
 request it. Origin grants nothing. No System Permission is needed.
 
-Input is exactly `{tool:"homebrew"}`. It is offered as a Host Command,
+Input is `{tool:"homebrew", presentation?:"surface"|"menu"}`. The default
+`surface` is a nonactivating native panel. `menu` registers a Host-generated
+Homebrew Services section in the Spinnet Status Item, without activating the
+Host or starting a Plugin helper. No labels or arbitrary menu content can be
+supplied by a Plugin. It is offered as a Host Command,
 Requested Host Operation or View Action; no script call or source is offered.
 The SDK provides `spinnet.tools.showServices.operation({tool:"homebrew"})`
 and `.action({tool:"homebrew"}, {title:"Services"})`. Success means the Host
@@ -16,10 +20,15 @@ with the same scopes, 15-second read deadline, cancellation and 512 KiB result
 bounds. It accepts at most 2000 unique service records; names follow the
 reviewed package-name grammar and status strings are bounded to 64 characters.
 Only the latest result is kept. No Plugin helper runs for status or controls.
-One native Surface is shown at a time. A new request replaces its owner.
+One Services presentation is registered at a time. A new request replaces its
+owner, with the invoking Plugin registration and Action retained for current
+read and control authorization. Revocation, disable, removal or replacement
+removes the menu section or closes the panel.
 
-The Host reads once on show or manual Refresh, then with a five-second fixed
-delay after each answer while the Surface is visible. At most one read is in
+The panel reads once on show or manual Refresh, then with a five-second fixed
+delay after each answer while visible. The menu reads only while its Services
+submenu is expanded, with the same five-second delay; registering a closed
+menu does not collect status. At most one read is in
 flight; it cancels on hide, close, display sleep, inactive user session,
 owner replacement or revocation. A hidden interval creates no backlog and
 late results never redraw a closed or replaced Surface.
@@ -36,6 +45,8 @@ commands, flags, paths, usernames, environment or `launchctl` calls.
 A Plugin can make the Task grant optional on a JavaScript Command requesting
 the Surface, so users may inspect status with mutation controls disabled.
 The Host Command entry follows ordinary declarative Command capability rules.
-A pending confirmation cancels when the Surface closes; already confirmed
+Closing/replacing the panel or removing/replacing the menu registration
+cancels pending confirmation. Collapsing the menu pauses reads and leaves an
+explicitly selected Host Confirmation available; already confirmed
 Tasks follow their usual independent lifetime, prevent idle sleep, and remain
 stoppable in the Spinnet Status Item. Stopping never promises rollback.

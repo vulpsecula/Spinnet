@@ -84,6 +84,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             return (try HomebrewTaskInput(.object(input)), resolved.metadata)
         })
     private let reviewedServicesWindow = ReviewedServicesWindowController()
+    private var reviewedServicesAction: ActionConfiguration?
     private lazy var reviewedTaskOperations = ReviewedTaskOperationPerformer(tasks: reviewedTasks, confirmations: HostConfirmationPanel(), registry: registry)
     private var taskQuitTimer: Timer?
     private var taskQuitAlert: NSAlert?
@@ -253,26 +254,33 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     appTargets.identifyFrontmost(of: runningApps, for: pluginID)
                 },
                 keepAwakeEffects: keepAwake, activities: activities,
-                reviewedAppPerformer: { request, prompt in try SpotifyAppleEvents().perform(request, allowsPrompt: prompt) }, pluginRegistry: registry, reviewedTasks: reviewedTasks
+                reviewedAppPerformer: { request, prompt in try SpotifyAppleEvents().perform(request, allowsPrompt: prompt) },
+                reviewedServicesPresenter: { [weak self, registry] package, action, presentation in
+                    guard let admission = registry.ownerAdmission(for: action.pluginID), registry.isCurrent(admission, for: package) else {
+                        throw PluginHostServiceError.unavailable("The Services owner changed")
+                    }
+                    DispatchQueue.main.async { [weak self] in self?.presentReviewedServices(package: package, action: action, admission: admission, presentation: presentation) }
+                }, pluginRegistry: registry, reviewedTasks: reviewedTasks
             )
             clipboardBroker = hostServiceBroker
             if appTargetObservers == nil {
                 appTargets.forgetTerminatedApps(of: runningApps)
                 appTargetObservers = (
-                    registry.observeInvalidation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow, registry, capabilityGrants] owner in
+                    registry.observeInvalidation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow, weak self, registry, capabilityGrants] owner in
                         appTargets.forget(owner); keepAwake.invalidate(owner)
                         DispatchQueue.main.async {
                             reviewedServicesWindow.invalidate(owner)
+                            self?.statusItemController?.invalidateServices(owner)
                             let package = registry.isEnabled(for: owner) ? registry.package(for: owner) : nil
                             let scope = package?.manifest.scope(for: .runReviewedToolTasks)
                             let granted = package.map { capabilityGrants.decision(for: owner, pluginVersion: $0.manifest.version, capability: .runReviewedToolTasks, scope: scope) == .granted } ?? false
                             reviewedTasks.ownerChanged(owner, scope: granted ? scope : nil)
                         }
                     },
-                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow] revocation in
+                    capabilityGrants.observeCapabilityRevocation { [appTargets, keepAwake, reviewedTasks, reviewedServicesWindow, weak self] revocation in
                         appTargets.forget(revocation.pluginID); keepAwake.revoke(revocation)
                         reviewedTasks.revoke(revocation)
-                        DispatchQueue.main.async { reviewedServicesWindow.invalidate(revocation.pluginID) }
+                        DispatchQueue.main.async { reviewedServicesWindow.invalidate(revocation.pluginID); self?.statusItemController?.invalidateServices(revocation.pluginID) }
                     }
                 )
             }
@@ -512,6 +520,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func applyConfiguration(_ configuration: HostConfiguration) {
         currentConfiguration = configuration
         actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
+        if let action = reviewedServicesAction, actions[action.id] != action {
+            reviewedServicesWindow.close(); statusItemController?.closeServices(); reviewedServicesAction = nil
+        }
         menu?.reload(items: makeMenuSlots(from: configuration))
     }
 
@@ -882,8 +893,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func presentReviewedServices(package: PluginPackage, action: ActionConfiguration, admission: PluginOwnerAdmission) {
-        guard registry.isCurrent(admission, for: package), let broker = clipboardBroker else { return }
+    private func presentReviewedServices(package: PluginPackage, action: ActionConfiguration, admission: PluginOwnerAdmission, presentation: ReviewedServicesAddition.Presentation) {
+        guard registry.isCurrent(admission, for: package), actions[action.id] == action, let broker = clipboardBroker else { return }
         let registry = registry
         do {
             let source = try PluginPageSource(parsing: .object(["id": .string("services"), "perform": .string(ReviewedToolReads.id),
@@ -916,7 +927,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                         }, completion: { result in done(result.outcome == .succeeded ? nil : result.message ?? result.outcome.name) })
                     } catch { done(error.localizedDescription) }
                 }, closeControl: { taskOperations.abandon(action.pluginID, because: .viewClosed) })
-            reviewedServicesWindow.show(model, owner: action.pluginID)
+            if presentation == .menu {
+                reviewedServicesWindow.close()
+                statusItemController?.showServices(model, owner: action.pluginID)
+            } else {
+                statusItemController?.closeServices()
+                reviewedServicesWindow.show(model, owner: action.pluginID)
+            }
+            reviewedServicesAction = action
         } catch { feedback?.showMessage(error.localizedDescription) }
     }
 

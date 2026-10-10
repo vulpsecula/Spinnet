@@ -2093,7 +2093,7 @@
     {
       "id": "tools.showServices",
       "namespace": "tools",
-      "summary": "Shows a controlled native Host Surface for current user-owned Homebrew service status and confirmed typed controls.",
+      "summary": "Shows a controlled native Host Surface or Status Item services menu for current user-owned Homebrew service status and confirmed typed controls.",
       "status": "level2",
       "input": "schemas/namespaces.schema.json#/$defs/tools.showServices.input",
       "result": "schemas/namespaces.schema.json#/$defs/tools.showServices.result",
