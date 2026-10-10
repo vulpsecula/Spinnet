@@ -69,6 +69,12 @@ page has at most 40 components and at most one collection.
 | `actions` | `actions`: up to 8 buttons | Event buttons (`id`, `title`) and page actions |
 | `list` | collection members, `rows` (1 to 12, default 8) | Rows: `symbol`, `title`, `subtitle`, `accessory` |
 | `grid` | collection members, `columns` (2 to 12 columns, default 8, or `"auto"` with `min_cell_size`; see [Resizable pages](#resizable-pages)), `rows` (1 to 12, default 6) | Square cells showing `symbol`, else `title` |
+| `activity_list` | `empty_text` | This Plugin's active Host resources and native Stop controls; see [Host activities](keep-awake.md#live-activity-control) |
+
+An `activity_list` is a top-level Host resource control, separate from a
+Collection. A page may contain at most one. It accepts no owner, items or
+actions from the Plugin. The Host updates its own rows and remaining seconds
+while visible; Stop invokes no Plugin View Event.
 
 The page lays its components out top to bottom. With a collection, the
 components before it stay above, those after it stay below, and the

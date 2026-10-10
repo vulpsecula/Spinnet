@@ -80,6 +80,10 @@ final class HostActivityPresentationTests: XCTestCase {
 
     func testActualPanelWorkspaceVisibilityPausesNativeActivityUpdatesAndCloseLeavesEffectHeld() throws {
         _ = NSApplication.shared
+        let oldPolicy = NSApplication.shared.activationPolicy()
+        _ = NSApplication.shared.setActivationPolicy(.accessory)
+        defer { _ = NSApplication.shared.setActivationPolicy(oldPolicy) }
+        NSApplication.shared.finishLaunching()
         let recorded = RecordedKeepAwake()
         try recorded.effects.start(KeepAwakeRequest(mode: .duration(60)), owner: PageHarness.pluginID, pluginName: "Clock")
         var window: PluginViewPanelWindow?
@@ -91,6 +95,13 @@ final class HostActivityPresentationTests: XCTestCase {
         let panel = try XCTUnwrap(window)
         defer { panel.close(); recorded.effects.shutdown() }
         let model = try XCTUnwrap(harness.windows.pageModel(for: PageHarness.pluginID))
+        // Let WindowServer deliver ordering and occlusion notifications
+        // before deciding whether a visible-desktop check is available.
+        let deadline = Date().addingTimeInterval(0.2)
+        while let event = NSApplication.shared.nextEvent(matching: .any, until: deadline, inMode: .default, dequeue: true) {
+            NSApplication.shared.sendEvent(event)
+            if Date() >= deadline { break }
+        }
         guard panel.sourceIsVisible else {
             throw XCTSkip("WindowServer did not report the test panel visible; live desktop acceptance remains required")
         }

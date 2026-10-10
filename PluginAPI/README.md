@@ -256,6 +256,7 @@ an `id` and up to 40 components, each with an `id` unique in the page:
 | `icon` | `components.icon` | A system symbol, tinted |
 | `image` | `components.image` | A PNG or JPEG the Host loads from the package or a host the Plugin may contact, in a fixed frame |
 | `progress` | `components.progress` | A task's stages, status and state, indeterminate unless the Plugin knows its value, with a cancel View Action |
+| `activity_list` | `components.activityList` | This Plugin's active Host resources, remaining seconds and native Stop controls |
 
 `text`, `row`, `column`, `icon`, `image` and `progress` take a `style` of
 their own (colours, including custom ones, a font size and weight,
