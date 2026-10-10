@@ -609,9 +609,42 @@
                             "maxLength": 2048,
                             "pattern": "^https?://[^/@]+/"
                           }
+                        },
+                        "aliases": {
+                          "type": "array",
+                          "maxItems": 40,
+                          "items": {
+                            "type": "string",
+                            "maxLength": 128
+                          }
+                        },
+                        "status": {
+                          "enum": [
+                            "open",
+                            "patched",
+                            "unknown"
+                          ]
                         }
                       }
                     }
+                  },
+                  "open_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 40
+                  },
+                  "patched_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 40
+                  },
+                  "unknown_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 40
+                  },
+                  "upgrade_available": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -662,6 +695,36 @@
               "version": {
                 "type": "string",
                 "maxLength": 80
+              },
+              "candidates": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "confidence",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+                    },
+                    "confidence": {
+                      "enum": [
+                        "ready",
+                        "likely",
+                        "unlikely",
+                        "cannot"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string",
+                      "maxLength": 512
+                    }
+                  }
+                }
               }
             }
           }
@@ -774,6 +837,14 @@
                 "maxLength": 2048,
                 "pattern": "^https?://[^/@]+/"
               }
+            },
+            "aliases": {
+              "type": "array",
+              "maxItems": 40,
+              "items": {
+                "type": "string",
+                "maxLength": 128
+              }
             }
           },
           "required": [
@@ -859,6 +930,31 @@
                   "maxLength": 2048
                 }
               }
+            }
+          }
+        },
+        "fix_all": {
+          "type": "object",
+          "required": [
+            "target",
+            "title",
+            "count"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^fix_[a-z0-9-]+$"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
             }
           }
         }

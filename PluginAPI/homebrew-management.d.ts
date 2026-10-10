@@ -12,7 +12,7 @@ export type HomebrewManagementReadInput =
   | { tool: "homebrew"; operation: "vulnerabilities"; names?: string[]; offset?: number };
 export interface Advisory {
   id: string; summary?: string; details?: string; severity: "UNKNOWN" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  url: string; fixed_versions?: string[]; references?: string[]; detail_available?: boolean;
+  url: string; aliases?: string[]; status?: "open" | "patched" | "unknown"; fixed_versions?: string[]; references?: string[]; detail_available?: boolean;
 }
 export interface ManagementReadBase { tool: "homebrew"; operation: HomebrewManagementReadInput["operation"]; version: string; available?: boolean; reason?: "requires_homebrew_7" | "requires_reviewed_homebrew_version"; truncated?: boolean; }
 export type HomebrewManagementReadResult = ManagementReadBase & {
@@ -20,8 +20,9 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
   taps?: { name: string; official: boolean; trusted: boolean; remote?: string; formula_count: number; cask_count: number; packages?: {kind: PackageKind; name: string}[]; truncated?: boolean }[];
   services?: { name: string; status: "started" | "scheduled" | "stopped" | "none" | "error" | "unknown" | "other"; user_owned: true }[];
   findings?: ({ id: string; text: string; guidance?: string; links: string[]; commands: string[]; repairs: { target: string; title: string }[] }
-    | { name: string; installed_version: string; advisories: Advisory[] })[];
-  applications?: { target: string; name: string; bundle_id: string; version: string }[];
+    | { name: string; installed_version: string; advisories: Advisory[]; open_count?: number; patched_count?: number; unknown_count?: number; upgrade_available?: boolean })[];
+  applications?: { target: string; name: string; bundle_id: string; version: string; candidates?: {name: string; confidence: "ready" | "likely" | "unlikely" | "cannot"; reason: string}[] }[];
+  fix_all?: {target: string; title: string; count: number};
   target?: string; name?: string; kind?: PackageKind; summary?: string; estimated?: false; dry_run?: true; succeeded?: boolean; exit_status?: number; stdout?: string; stderr?: string;
   stages?: {title: string; lines: string[]}[]; warnings?: string[];
   packages?: { name: string; kind: PackageKind; version?: string; installed_version?: string; dependencies?: string[]; homepage?: string; download_url?: string;
