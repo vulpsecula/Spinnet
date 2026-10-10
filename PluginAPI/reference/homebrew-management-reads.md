@@ -70,6 +70,13 @@ outdated inventory and exclude pins, resolving at most 2,000 records and running
 fixed selections of at most 50 packages each. The existing fifteen-second source
 deadline covers the whole preview, so a large inventory can time out explicitly.
 
+Homebrew's install-write permission diagnostics are deferred during the preview,
+because the read-only sandbox makes persistent paths appear unwritable. The
+adapter emits this warning; other Homebrew diagnostics remain intact. Actual
+Task admission and execution perform the normal installation permission checks.
+This dry-run describes package changes without certifying that installation will
+succeed.
+
 Only the Host may broker missing official bottle manifests. Fixed HTTPS routes
 are `ghcr.io/token` with `repository:homebrew/core/<image>:pull`, then the exact
 `ghcr.io/v2/homebrew/core/<image>/manifests/<version>` reported by Homebrew.

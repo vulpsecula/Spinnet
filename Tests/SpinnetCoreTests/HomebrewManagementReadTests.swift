@@ -283,7 +283,7 @@ extension HomebrewManagementReadTests {
             if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"installed":[{"version":"1.24"}]}],"casks":[]}"#.utf8)) }
             passes += 1
             let metadata = #"[{"name":"wget","url":"https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0","file":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa--wget-1.25.0.bottle_manifest.json"}]"#
-            if passes == 2 { XCTAssertNotNil(env["SPINNET_PREVIEW_MANIFESTS"]); return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25 (2 MB)\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8)) }
+            if passes == 2 { XCTAssertNotNil(env["HOMEBREW_SPINNET_PREVIEW_MANIFESTS"]); return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25 (2 MB)\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8)) }
             return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8))
         }, management: HomebrewManagementReads(transport: transport))
         let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUpgrade"), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("management"))

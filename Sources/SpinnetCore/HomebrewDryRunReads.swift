@@ -54,7 +54,9 @@ enum HomebrewDryRunReads {
                 }
             }
             if fetched > 0 {
-                var environment = HomebrewReadProfile.environment; environment["SPINNET_PREVIEW_MANIFESTS"] = directory.path
+                // Homebrew's launcher filters non-HOMEBREW_ environment names.
+                // This path is chosen by the Host, never by a Plugin.
+                var environment = HomebrewReadProfile.environment; environment["HOMEBREW_SPINNET_PREVIEW_MANIFESTS"] = directory.path
                 answer = try execute(executable, args, environment, deadline, cancellation)
             }
         }

@@ -3,6 +3,7 @@
 require 'trust'
 require 'tap'
 require 'bottle'
+require 'diagnostic'
 abort 'Unsupported reviewed preview arguments' unless %w[install upgrade].include?(ARGV[0]) && ARGV[1..2] == ['--dry-run', '--no-ask']
 args = ARGV.dup
 kind = args[3]
@@ -11,6 +12,16 @@ args.delete_at(4) if args[4] == '--greedy' && args[0] == 'upgrade' && kind == '-
 args.delete_at(4) if args[4] == '--adopt' && args[0] == 'install' && kind == '--cask' # Validate optional typed greedy flag separately.
 names = args[5..]
 abort 'Invalid package identities' unless args[4] == '--' && names&.length&.between?(1, 50) && names.all? { |n| n.match?(/\A(?:[a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9+_.@-]*\z/) }
+# The sandbox intentionally reports every persistent path as unwritable. Skip
+# only the two install-write permission diagnostics which would turn that
+# protection into a false refusal. All real installation checks still run in
+# the confirmed Task; all other dry-run diagnostics remain Homebrew's own.
+module SpinnetPreviewWriteDiagnostics
+  def check_access_directories = nil
+  def check_exist_directories = nil
+end
+Homebrew::Diagnostic::Checks.prepend(SpinnetPreviewWriteDiagnostics)
+warn 'Warning: installation write permissions are checked only when the confirmed Task runs; this preview cannot write to the Homebrew prefix'
 # Homebrew's normal fully qualified install/upgrade implicitly trusts items.
 # A preview must preserve trust; its loader still enforces existing trust.
 module SpinnetPreviewTrust
@@ -27,16 +38,18 @@ Tap.prepend(SpinnetPreviewTap)
 # No subprocess networking. Missing manifests stay unknown, rather than
 # fetching arbitrary URLs or inventing a size. Host may broker fixed metadata.
 $spinnet_preview_requests = []
+$spinnet_preview_sizes = {}
 module SpinnetPreviewBottle
   def fetch_tab(timeout: nil, quiet: false)
     resource = github_packages_manifest_resource
     return unless resource
     if resource.downloaded?
       resource.verify_download_integrity(resource.cached_download)
+      $spinnet_preview_sizes[name] = resource.bottle_size if resource.bottle_size
       return
     end
     file = resource.cached_download.basename.to_s
-    directory = ENV['SPINNET_PREVIEW_MANIFESTS']
+    directory = ENV['HOMEBREW_SPINNET_PREVIEW_MANIFESTS']
     supplied = directory && Pathname.new(directory)/file
     if supplied&.file? && supplied.size <= 128 * 1024
       json = JSON.parse(supplied.read)
@@ -47,6 +60,7 @@ module SpinnetPreviewBottle
       if annotations
         resource.manifest_annotations = annotations
         @spinnet_manifest_available = true
+        $spinnet_preview_sizes[name] = resource.bottle_size if resource.bottle_size
         return
       end
     end
@@ -65,6 +79,10 @@ if ARGV[0] == 'install'
 else
   require 'cmd/upgrade'
   Homebrew::Cmd::UpgradeCmd.new(ARGV[1..]).run
+end
+unless $spinnet_preview_sizes.empty?
+  puts '==> Official bottle download metadata (checksum-matched):'
+  $spinnet_preview_sizes.sort.each { |name, bytes| puts "#{name}: #{bytes} bytes download; not the installed footprint" }
 end
 puts '__SPINNET_MANIFEST_REQUESTS__' + $spinnet_preview_requests.to_json unless $spinnet_preview_requests.empty?
 exit(Homebrew.failed? ? 1 : 0)
