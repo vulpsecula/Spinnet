@@ -13,6 +13,12 @@ do {
     guard lstat(directory.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == getuid(), info.st_mode & 0o077 == 0 else { exit(77) }
     var record = try HomebrewTaskJournal.load(from: directory)
     guard record.id == directory.lastPathComponent, record.result == nil, record.processGroup == nil else { exit(77) }
+    defer {
+        if record.result == nil {
+            record.result = .object(["outcome": .string("failed"), "reason": .string("runner_refused")])
+            record.ended = Date(); try? record.save(to: directory)
+        }
+    }
     let input = try HomebrewTaskInput(record.input)
     let steps = try record.steps?.map(HomebrewTaskInput.init) ?? [input]
     guard !steps.isEmpty, steps.count <= 80, steps.allSatisfy({ !$0.arguments.isEmpty }),
@@ -40,7 +46,7 @@ do {
             record.result = .object(["outcome": .string("failed"), "reason": .string("system_authorization_unavailable")]); record.ended = Date(); try record.save(to: directory); exit(77)
         }
         privilegeConnection = connection; privilegeProxy = proxy
-        environment["SPINNET_TASK_ID"] = record.id
+        environment["HOMEBREW_SPINNET_TASK_ID"] = record.id
     }
     defer { privilegeConnection?.invalidate() }
     var lastResult: HomebrewTaskProcess.Result?
@@ -70,7 +76,7 @@ do {
             continue
         }
         if let privilegePlan = record.privilegePlan, !privilegePlan.casks.isEmpty, step.kind == "cask" {
-            guard let bridge = Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") else { exit(70) }
+            guard let bridge = Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") else { throw PluginHostServiceError.tool(.failed) }
             let client = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("SpinnetToolAuthorizationClient")
             let context: [String: JSONValue] = ["arguments": .array(arguments.map(JSONValue.string)), "client": .string(client.path),
                 "casks": .array(privilegePlan.casks.map { .object(["name": .string($0.name), "version": .string($0.version), "sha256": .string($0.sha256), "packages": .array($0.packages.map(JSONValue.string))]) })]

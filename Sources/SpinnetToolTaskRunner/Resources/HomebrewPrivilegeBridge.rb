@@ -66,7 +66,7 @@ module SpinnetReviewedPkgInstaller
 end
 Cask::Artifact::Pkg.prepend(SpinnetReviewedPkgInstaller)
 if context["mode"] == "verify"
-  puts JSON.generate({ native_elevation: SystemCommand.sudo_available?, pkg_adapter: Cask::Artifact::Pkg.ancestors.include?(SpinnetReviewedPkgInstaller), uid: Process.uid })
+  puts JSON.generate({ native_elevation: SystemCommand.sudo_available?, pkg_adapter: Cask::Artifact::Pkg.ancestors.include?(SpinnetReviewedPkgInstaller), task_bound: ENV["HOMEBREW_SPINNET_TASK_ID"] == "activity_verify", uid: Process.uid })
   exit 0
 end
 arguments = context.fetch("arguments")

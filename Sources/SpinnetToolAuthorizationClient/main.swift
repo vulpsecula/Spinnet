@@ -7,7 +7,7 @@ do {
     // Only fixed bridge arguments are accepted. The root helper independently
     // checks the Task, signed client, runner ancestry, authorization and target.
     let arguments = CommandLine.arguments
-    guard let task = ProcessInfo.processInfo.environment["SPINNET_TASK_ID"] else { exit(64) }
+    guard let task = ProcessInfo.processInfo.environment["HOMEBREW_SPINNET_TASK_ID"] else { exit(64) }
     let request: HomebrewPrivilegeRequest
     let prompt: String
     if arguments.count == 9, arguments[1] == "--installer", arguments[7] == "--target", arguments[8] == "/", HomebrewPrivilegePlan.validDigest(arguments[4]) {
@@ -21,16 +21,15 @@ do {
     let connection = try HomebrewSystemAuthorization.clientConnection()
     defer { connection.invalidate() }
     let data = try JSONEncoder().encode(request)
-    let prepared = DispatchSemaphore(value: 0)
+    let prepared = DispatchSemaphore(value: 0), done = DispatchSemaphore(value: 0)
     var rightName = ""
-    guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in prepared.signal() }) as? HomebrewPrivilegeClientProtocol else { exit(77) }
+    guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in prepared.signal(); done.signal() }) as? HomebrewPrivilegeClientProtocol else { exit(77) }
     proxy.prepare(data) { value in rightName = value; prepared.signal() }
     guard prepared.wait(timeout: .now() + 15) == .success, rightName.hasPrefix(HomebrewSystemAuthorization.right + ".") else { exit(77) }
     // A fresh request-bound right is prepared in the root helper before the
     // system prompt. No general admin grant can authorize a different Task.
     let (authorization, form) = try HomebrewSystemAuthorization.authorize(prompt: prompt, rightName: rightName)
     defer { AuthorizationFree(authorization, [.destroyRights]) }
-    let done = DispatchSemaphore(value: 0)
     var status: Int32 = 77
     proxy.perform(data, authorization: form) { code, text in
         status = code
