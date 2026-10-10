@@ -45,6 +45,16 @@ public final class HomebrewManagementTargets {
         return record.value
     }
     public func isCurrent(target: String, owner: PluginID) -> Bool { (try? resolve(target: target, owner: owner)) != nil }
+    public func resolveTask(target: String, owner: PluginID) throws -> (HomebrewTaskInput, JSONValue) {
+        let resolved = try resolve(target: target, owner: owner)
+        // doctorBatch is private Host review vocabulary. Its actual fixed
+        // cleanup/link steps stay in Host metadata, never Plugin Task input.
+        let operation = resolved.operation == "doctorBatch" ? "cleanup" : resolved.operation
+        var input: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string(operation)]
+        if operation == "cleanup" { input["days"] = resolved.metadata.value(atPointer: "/days") ?? .number(120) }
+        else { input["kind"] = .string(resolved.kind); input["name"] = .string(resolved.name) }
+        return (try HomebrewTaskInput(.object(input)), resolved.metadata)
+    }
 }
 
 /// A native App snapshot for adoption; paths remain Host-only. The fixed roots

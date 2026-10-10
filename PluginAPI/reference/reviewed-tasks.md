@@ -64,6 +64,14 @@ Complete line handling prevents a secret split over OS reads leaking.
 The runner keeps no Plugin helper alive. `HOMEBREW_NO_SUDO=1` remains on
 for nonprivileged work; administrator operations require the separately
 reviewed system-authorization route after Host Confirmation.
+Its supported artifacts, system approval and refusal behavior are specified in
+[Homebrew system authorization](homebrew-system-authorization.md).
+
+An opaque adoption target requires the `cask` kind in the original `adopt`
+scope. Doctor targets require each resolved repair's package kind under the
+original `doctorFix` scope; they do not borrow an unrelated `install`, `link`
+or `cleanup` grant. A Fix All target freezes at most eight reviewed repairs
+under one Host Confirmation. Unsupported guidance is never part of that set.
 
 Typed refusals include `tool_busy`, `package_not_found`,
 `source_not_allowed`, `already_installed`, `not_outdated`,
