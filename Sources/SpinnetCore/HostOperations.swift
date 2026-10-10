@@ -205,6 +205,10 @@ public struct RequestedHostOperation: Equatable, Hashable {
 
     private static func checkInput(_ input: JSONValue, of definition: HostServiceDefinition) throws {
         let id = definition.id
+        if id == ReviewedServicesAddition.id {
+            do { try ReviewedServicesAddition.validate(input) } catch { throw violation("gives tools.showServices invalid input") }
+            return
+        }
         if id == ReviewedToolTasksAddition.id {
             do { _ = try HomebrewTaskInput(input) } catch { throw violation("gives tools.startTask invalid reviewed input") }
             return

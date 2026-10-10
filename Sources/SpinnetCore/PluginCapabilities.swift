@@ -555,6 +555,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// name: the App in front and its App Target.
     case identifyFrontmostApp = "apps.frontmost"
     case systemMetrics = "system.metrics"
+    case showReviewedServices = "tools.showServices"
     case reviewedToolRead = "tools.read"
     case keepAwakeEffect = "system.keepAwake"
     case listActivities = "activities.list"
@@ -564,7 +565,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     public static let levelOne = allCases.filter(\.isLevelOne)
 
     /// Whether Plugin API Level 1 offers it under its raw value.
-    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics].contains(self) }
+    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics, .showReviewedServices].contains(self) }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -596,7 +597,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
         case .insertText:
             return .insertIntoFocusedApp
         case .systemMetrics: return .readSystemStatus
-        case .reviewedToolRead: return .readReviewedTools
+        case .showReviewedServices, .reviewedToolRead: return .readReviewedTools
         case .keepAwakeEffect: return .keepAwake
         case .listActivities, .stopActivity: return nil
         case .identifyFrontmostApp:
@@ -623,7 +624,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
-        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics:
+        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics, .showReviewedServices:
             return nil
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
@@ -791,6 +792,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let pluginRegistry: PluginRegistry?
     let systemMetrics = SystemMetricsSampler()
     private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
+    private let reviewedServicesPresenter: (PluginPackage, ActionConfiguration) throws -> Void
     private var managementInvalidationObserver: UUID?
     private var managementRevocationObserver: UUID?
     private let reviewedTools: HomebrewReadProfile
@@ -858,6 +860,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
         reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
+        reviewedServicesPresenter: @escaping (PluginPackage, ActionConfiguration) throws -> Void = { _, _ in throw PluginHostServiceError.unavailable("The reviewed Services surface is unavailable") },
         pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile? = nil, reviewedTasks: HostReviewedToolTasks? = nil
     ) {
         self.grantStore = grantStore
@@ -890,11 +893,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.keepAwakeEffects = keepAwakeEffects
         self.activities = activities
         self.pluginRegistry = pluginRegistry
+        self.reviewedServicesPresenter = reviewedServicesPresenter
+        self.reviewedTasks = reviewedTasks
         self.reviewedTools = reviewedTools ?? HomebrewReadProfile(management: HomebrewManagementReads(targets: .shared, transport: httpsTransport))
         let reads = self.reviewedTools
         managementInvalidationObserver = pluginRegistry?.observeInvalidation { reads.invalidateManagementTargets(owner: $0) }
         managementRevocationObserver = grantStore.observeRevocation { reads.invalidateManagementTargets(owner: $0) }
-        self.reviewedTasks = reviewedTasks
         self.reviewedAppPerformer = reviewedAppPerformer
     }
 
@@ -989,6 +993,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         // Request scope is independent of a grant. Check it first so denial of
         // an optional grant cannot turn an invalid request into a catchable one.
         switch service {
+        case .showReviewedServices:
+            try ReviewedServicesAddition.validate(request.input)
+            try ReviewedServicesAddition.authorize(in: package.manifest.scope(for: .readReviewedTools))
         case .systemMetrics:
             _ = try SystemMetricsInput(request.input)
         case .reviewedToolRead:
@@ -1004,6 +1011,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         try authorize(service, for: package, action: action)
 
         switch service {
+        case .showReviewedServices:
+            try reviewedServicesPresenter(package, action); return .null
         case .systemMetrics:
             return try systemMetrics.read(request.input, owner: package.manifest.id)
         case .reviewedToolRead:

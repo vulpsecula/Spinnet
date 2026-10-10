@@ -133,7 +133,8 @@
         "system.keepAwake",
         "window.toggleFullScreen",
         "window.restore",
-        "screen.capture"
+        "screen.capture",
+        "tools.showServices"
       ]
     },
     "view_action_id": {
@@ -152,6 +153,7 @@
         "apps.close",
         "system.keepAwake",
         "activities.stop",
+        "tools.showServices",
         "tools.startTask"
       ]
     },
@@ -178,6 +180,7 @@
         "apps.close",
         "system.keepAwake",
         "activities.stop",
+        "tools.showServices",
         "tools.startTask"
       ]
     },
@@ -1268,6 +1271,28 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "tools.showServices"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "$ref": "#/$defs/tools.showServices.input"
+              }
+            }
+          }
         }
       ]
     },
@@ -2157,6 +2182,21 @@
     },
     "system.metrics.result": {
       "$ref": "system-metrics.schema.json#/$defs/result"
+    },
+    "tools.showServices.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool"
+      ],
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        }
+      }
+    },
+    "tools.showServices.result": {
+      "type": "null"
     }
   }
 }

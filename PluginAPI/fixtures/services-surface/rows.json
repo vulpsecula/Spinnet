@@ -1,0 +1,14 @@
+{
+  "services": [
+    {
+      "name": "postgresql@16",
+      "status": "started",
+      "user_owned": true
+    },
+    {
+      "name": "redis",
+      "status": "none",
+      "user_owned": true
+    }
+  ]
+}

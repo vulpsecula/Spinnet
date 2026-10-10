@@ -52,7 +52,7 @@
     apps: ["perform", "openDeepLink", "quit", "close"],
     system: ["keepAwake"],
     activities: ["stop"],
-    tools: ["startTask"]
+    tools: ["showServices", "startTask"]
   };
 
   function compact(members) {
