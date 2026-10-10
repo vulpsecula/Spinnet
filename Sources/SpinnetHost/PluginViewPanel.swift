@@ -290,9 +290,10 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         apply(PluginPanelLayout.opening(contentSize: contentSize ?? panel.frame.size, pointer: pointer, screens: screens(),
                                         restoring: restoring, minimumSize: minimumSize))
         bringForward()
-        // Pages without fields or a collection open with no control
-        // selected. Tab still enters AppKit's normal keyboard navigation.
-        if pageModel?.focusStops.isEmpty == true { panel.makeFirstResponder(nil) }
+        // A choice field can be reachable by Tab without being an initial
+        // focus target. Clear AppKit's automatic Pin selection whenever the
+        // page has no desired component focus; keep declared/restored focus.
+        if let pageModel, pageModel.focused == nil { panel.makeFirstResponder(nil) }
     }
 
     func focus() {

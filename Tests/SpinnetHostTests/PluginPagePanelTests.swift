@@ -109,6 +109,41 @@ final class PluginPagePanelTests: XCTestCase {
         XCTAssertFalse(model.isPinned, "Pin must remain reachable through the normal Tab order")
     }
 
+    func testAChoiceOnlyPageLeavesInitialFocusOnThePanelAndPinReachableByTab() throws {
+        try show(.object([
+            "id": .string("choose"), "title": .string("Choose duration"),
+            "content": .array([
+                .object(["kind": .string("choice_field"), "id": .string("mode"),
+                    "title": .string("Mode"), "choices": .array([.string("manual"), .string("duration")]),
+                    "value": .string("manual")]),
+                .object(["kind": .string("actions"), "id": .string("controls"),
+                    "actions": .array([.object(["id": .string("start"), "title": .string("Start")])])])
+            ])
+        ]))
+        guard panel.firstResponder === panel else {
+            return XCTFail("A page without an initial focus target must not focus Pin")
+        }
+        try key(49, " ")
+        XCTAssertFalse(model.isPinned, "Space on opening must not toggle Pin")
+        try key(36, "\r")
+        XCTAssertTrue(harness.events.isEmpty, "Return on opening must not choose an action")
+        try key(48, "\t")
+        try key(49, " ")
+        XCTAssertTrue(model.isPinned, "Tab must still make Pin reachable")
+    }
+
+    func testAChoiceFieldKeepsItsExplicitInitialFocus() throws {
+        try show(.object([
+            "id": .string("choose"), "title": .string("Choose duration"), "focus": .string("mode"),
+            "content": .array([.object([
+                "kind": .string("choice_field"), "id": .string("mode"), "title": .string("Mode"),
+                "choices": .array([.string("manual"), .string("duration")]), "value": .string("manual")
+            ])])
+        ]))
+        XCTAssertEqual(firstResponderComponent(), "mode", "The panel must honor a declared choice-field focus")
+        XCTAssertFalse(model.isPinned)
+    }
+
     func testTheSearchFieldTypesAndDrivesTheGrid() throws {
         try show(PageHarness.search(items: (0..<20).map { "i\($0)" }))
         XCTAssertEqual(firstResponderComponent(), "query", "The search field has the keyboard when the page opens")
