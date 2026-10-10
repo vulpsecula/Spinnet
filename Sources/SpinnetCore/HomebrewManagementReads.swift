@@ -3,8 +3,9 @@ import Foundation
 /// Reviewed Homebrew management reads. Plugin input never supplies argv, a path,
 /// a script, an environment or a URL. Old #87 reads keep their offline executor.
 public final class HomebrewManagementReads {
-    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
+    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "previewUpgradeAll", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
     private let remote: HomebrewManagementRemoteReads
+    private let previewTransport: HTTPSTransport?
     private let applications: () -> [HomebrewAdoptionApplication]
     private let lock = NSLock()
     private var appSnapshots: [String: HomebrewAdoptionApplication] = [:]
@@ -12,6 +13,7 @@ public final class HomebrewManagementReads {
     public convenience init() { self.init(targets: .shared) }
     public init(targets: HomebrewManagementTargets, applications: @escaping () -> [HomebrewAdoptionApplication] = HomebrewAdoptionApplication.discover,
                 transport: HTTPSTransport? = nil) {
+        self.previewTransport = transport
         self.targets = targets; self.applications = applications; self.remote = HomebrewManagementRemoteReads(transport: transport)
     }
     public convenience init(transport: HTTPSTransport) { self.init(targets: .shared, transport: transport) }
@@ -44,12 +46,19 @@ public final class HomebrewManagementReads {
             if let offset = fields["offset"] { guard case .number(let n) = offset, n.rounded() == n, (0...1999).contains(n) else { throw invalid() } }
             return
         }
+        if operation == "previewUpgradeAll" {
+            guard Set(fields.keys).isSubset(of: ["tool", "operation", "kind", "greedy"]),
+                  fields["kind"] == nil || [JSONValue.string("formula"), .string("cask")].contains(fields["kind"]!) else { throw invalid() }
+            if let greedy = fields["greedy"], case .bool = greedy {} else if fields["greedy"] != nil { throw invalid() }
+            return
+        }
         if ["previewInstall", "previewUpgrade", "packageAnalytics"].contains(operation) {
-            let allowed: Set<String> = ["tool", "operation", "kind", "names"]
-            guard Set(fields.keys) == allowed, case .string(let kind)? = fields["kind"], ["formula", "cask"].contains(kind),
-                  case .array(let names)? = fields["names"], (1...20).contains(names.count), Set(names).count == names.count,
+            let allowed: Set<String> = ["tool", "operation", "kind", "names", "greedy"]
+            guard Set(fields.keys).isSubset(of: allowed), case .string(let kind)? = fields["kind"], ["formula", "cask"].contains(kind),
+                  case .array(let names)? = fields["names"], (1...(operation == "packageAnalytics" ? 1 : 50)).contains(names.count), Set(names).count == names.count,
                   names.allSatisfy({ if case .string(let name) = $0 { return HomebrewReadInput.validPackageName(name) }; return false }) else { throw invalid() }
-            if operation == "packageAnalytics", names.count != 1 { throw invalid() }
+            if operation != "previewUpgrade", fields["greedy"] != nil { throw invalid() }
+            if let greedy = fields["greedy"], case .bool = greedy {} else if fields["greedy"] != nil { throw invalid() }
             return
         }
         if operation == "adoptionPreview" {
@@ -166,15 +175,62 @@ public final class HomebrewManagementReads {
             if input.value(atPointer: "/names") == nil, offset + 20 < inventory.count { result["next_offset"] = .number(Double(offset + 20)) }
             return .object(result)
         }
-        if ["previewInstall", "previewUpgrade"].contains(operation) {
-            guard case .string(let kind)? = input.value(atPointer: "/kind"), case .array(let names)? = input.value(atPointer: "/names") else { throw Self.invalid() }
-            let selected = names.compactMap { if case .string(let name) = $0 { return name }; return nil }
-            let answer = try run(["info", "--json=v2", "--" + kind, "--"] + selected)
-            guard answer.status == 0, let raw = try JSONSerialization.jsonObject(with: answer.stdout) as? [String: Any],
-                  let packages = raw[kind == "formula" ? "formulae" : "casks"] as? [[String: Any]] else { throw PluginHostServiceError.tool(.failed) }
-            result["packages"] = .array(packages.prefix(20).compactMap { HomebrewReadProfile.project($0, kind: kind, outdated: false, prefix: Self.prefix(of: executable)) })
-            result["estimated"] = .bool(true)
-            result["summary"] = .string("Estimated plan from local metadata. Homebrew rechecks dependencies, pins and source trust before a confirmed task; this is not a brew dry-run.")
+        if ["previewInstall", "previewUpgrade", "previewUpgradeAll"].contains(operation) {
+            guard String(version).hasPrefix("7.0.") else {
+                result["available"] = .bool(false); result["reason"] = .string("requires_reviewed_homebrew_version")
+                result["estimated"] = .bool(false); result["summary"] = .string("Actual previews currently require reviewed Homebrew 7.0.x")
+                result["packages"] = .array([]); return .object(result)
+            }
+            var selections: [(String, [String])] = []
+            let greedy = input.value(atPointer: "/greedy") == .bool(true)
+            if operation == "previewUpgradeAll" {
+                let kind: String? = { if case .string(let k)? = input.value(atPointer: "/kind") { return k }; return nil }()
+                let args = ["outdated", "--json=v2"] + (kind.map { ["--" + $0] } ?? []) + (greedy ? ["--greedy"] : [])
+                let out = try run(args)
+                guard out.status == 0, let raw = try JSONSerialization.jsonObject(with: out.stdout) as? [String: Any] else { throw PluginHostServiceError.tool(.failed) }
+                for kind in kind.map({ [$0] }) ?? ["formula", "cask"] {
+                    guard let rows = raw[kind == "formula" ? "formulae" : "casks"] as? [[String: Any]], rows.count <= 2000 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+                    let names = rows.filter { $0["pinned"] as? Bool != true }.compactMap { $0["full_name"] as? String ?? $0["full_token"] as? String ?? $0["name"] as? String ?? $0["token"] as? String }
+                    guard names.count == rows.filter({ $0["pinned"] as? Bool != true }).count, names.allSatisfy(HomebrewReadInput.validPackageName) else { throw PluginHostServiceError.tool(.failed) }
+                    for offset in stride(from: 0, to: names.count, by: 50) { selections.append((kind, Array(names.dropFirst(offset).prefix(50)))) }
+                }
+            } else {
+                guard case .string(let kind)? = input.value(atPointer: "/kind"), case .array(let names)? = input.value(atPointer: "/names") else { throw Self.invalid() }
+                selections = [(kind, names.compactMap { if case .string(let n) = $0 { return n }; return nil })]
+            }
+            var projected: [JSONValue] = [], stages: [JSONValue] = [], warnings: [JSONValue] = [], stdout = "", stderr = "", succeeded = true, exitStatus: JSONValue = .number(0)
+            func trusted(_ packages: [[String: Any]], kind: String) throws {
+                let thirdParty = packages.compactMap { $0["tap"] as? String }.filter { !["homebrew/core", "homebrew/cask"].contains($0) }
+                guard packages.allSatisfy({ ($0["tap"] as? String)?.isEmpty == false }) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                if !thirdParty.isEmpty {
+                    let out = try run(["trust", "--tap", "--json=v1"])
+                    guard out.status == 0, let allowed = try? JSONDecoder().decode([String].self, from: out.stdout), thirdParty.allSatisfy(allowed.contains) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                }
+            }
+            var networkBytes = 0, metadataRequests = 0
+            for (kind, names) in selections {
+                let args = ["info", "--json=v2", "--" + kind, "--"] + names
+                let before = try run(args)
+                guard before.status == 0, let raw = try JSONSerialization.jsonObject(with: before.stdout) as? [String: Any],
+                      let packages = raw[kind == "formula" ? "formulae" : "casks"] as? [[String: Any]], packages.count == names.count else { throw PluginHostServiceError.tool(.packageNotFound) }
+                try trusted(packages, kind: kind)
+                projected += packages.compactMap { HomebrewReadProfile.project($0, kind: kind, outdated: false, prefix: Self.prefix(of: executable)) }
+                let dry = try HomebrewDryRunReads.read(operation: operation, kind: kind, names: names, greedy: greedy && kind == "cask",
+                    executable: executable, deadline: deadline, cancellation: cancellation, execute: execute, networkBytes: &networkBytes, metadataRequests: &metadataRequests, transport: previewTransport, stillAuthorized: stillAuthorized)
+                let after = try run(args)
+                guard after.status == 0, try JSONSerialization.jsonObject(with: after.stdout) as? NSDictionary == raw as NSDictionary else { throw PluginHostServiceError.tool(.planChanged) }
+                try trusted(packages, kind: kind)
+                if case .array(let v)? = dry["stages"] { stages += v }
+                if case .array(let v)? = dry["warnings"] { warnings += v }
+                if case .string(let v)? = dry["stdout"] { stdout += v + "\n" }
+                if case .string(let v)? = dry["stderr"] { stderr += v + "\n" }
+                if dry["succeeded"] == .bool(false) { succeeded = false; exitStatus = dry["exit_status"] ?? .number(1) }
+                guard stdout.utf8.count + stderr.utf8.count <= 128 * 1024, stages.count <= 256, warnings.count <= 128 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            }
+            result.merge(["packages": .array(projected), "estimated": .bool(false), "dry_run": .bool(true), "available": .bool(true),
+                "succeeded": .bool(succeeded), "exit_status": exitStatus, "stdout": .string(stdout), "stderr": .string(stderr),
+                "stages": .array(stages), "warnings": .array(warnings),
+                "summary": .string(selections.isEmpty ? "No eligible unpinned upgrades in the current inventory." : succeeded ? "Homebrew dry-run. Versions, dependencies and warnings below come from Homebrew. Missing download sizes are unknown." : "Homebrew refused the dry-run. Review its diagnostics before choosing a Task.")]) { _, new in new }
             return .object(result)
         }
         if operation == "adoptionCandidates" {
@@ -222,6 +278,15 @@ public final class HomebrewManagementReads {
                   cask["installed"] == nil || cask["installed"] is NSNull || (cask["installed"] as? [Any])?.isEmpty == true else {
                 throw PluginHostServiceError.invalidInput("This cask does not match the installed App and version, is already managed, or needs an installer; choose a matching application-only cask")
             }
+            guard String(version).hasPrefix("7.0.") else { throw PluginHostServiceError.unavailable("Actual adoption preview requires reviewed Homebrew 7.0.x") }
+            var networkBytes = 0, metadataRequests = 0
+            let dry = try HomebrewDryRunReads.read(operation: "previewInstall", kind: "cask", names: [name], adopt: true,
+                executable: executable, deadline: deadline, cancellation: cancellation, execute: execute,
+                networkBytes: &networkBytes, metadataRequests: &metadataRequests, stillAuthorized: stillAuthorized)
+            result.merge(dry) { _, new in new }
+            result["name"] = .string(name); result["kind"] = .string("cask")
+            guard dry["succeeded"] == .bool(true) else { return .object(result) }
+            _ = try targets.resolve(target: key, owner: owner)
             let target = HomebrewManagementTarget(operation: "install", kind: "cask", name: name,
                 arguments: ["install", "--cask", "--adopt", "--", name], needsPrivileges: false,
                 summary: "Adopt " + app.name + " as Homebrew cask " + name,

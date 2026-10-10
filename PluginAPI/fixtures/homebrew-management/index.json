@@ -24,6 +24,21 @@
       "file": "doctor-result.json",
       "definition": "result",
       "valid": true
+    },
+    {
+      "file": "preview-all-input.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "preview-raw-argv-invalid.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "preview-result.json",
+      "definition": "result",
+      "valid": true
     }
   ]
 }

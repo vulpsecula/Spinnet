@@ -237,6 +237,7 @@
               "doctor",
               "previewInstall",
               "previewUpgrade",
+              "previewUpgradeAll",
               "adoptionCandidates",
               "adoptionPreview",
               "packageAnalytics",

@@ -1,0 +1,18 @@
+{
+  "tool": "homebrew",
+  "operation": "previewUpgrade",
+  "version": "7.0.8",
+  "packages": [],
+  "estimated": false,
+  "available": true,
+  "dry_run": true,
+  "succeeded": false,
+  "exit_status": 1,
+  "stdout": "",
+  "stderr": "Error: Not upgrading 1 pinned package:\nopenssl@3\n",
+  "stages": [],
+  "warnings": [
+    "Error: Not upgrading 1 pinned package:"
+  ],
+  "summary": "Homebrew refused the dry-run."
+}
