@@ -58,6 +58,7 @@ public struct HomebrewTaskInput: Equatable {
         } else {
             allowed.insert("name")
             guard Self.validPackageName(name) else { throw Self.invalid() }
+            if operation.hasPrefix("service"), !HomebrewReadInput.validToken(name) { throw Self.invalid() }
             if !operation.hasPrefix("service") { allowed.insert("kind"); guard text("kind") != nil else { throw Self.invalid() } }
             if operation == "uninstall" { allowed.insert("zap"); if let zap = fields["zap"] { guard case .bool = zap, kind == "cask" else { throw Self.invalid() } } }
         }

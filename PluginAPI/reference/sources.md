@@ -1,9 +1,9 @@
 # Host-run sources (Plugin API Level 2)
 
-Implemented by #82 and #87. A visible page may name up to eight `http.request` or `tools.read` sources.
+Implemented by #82, #85 and #87. A visible page may name up to eight `http.request`, `tools.read` or reviewed `apps.perform` sources.
 The Host performs them without keeping the helper alive and renders each result
 as plain text through bindings. HTTPS samples once and has a 15-second deadline;
-`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). Metrics and Spotify are reserved for their own adapters.
+`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). The local Spotify playback adapter samples at a minimum of one second with a three-second deadline, without launching Spotify or prompting for Automation; see [Local Spotify](spotify.md). Metrics are reserved for their own adapter.
 
 ```js
 const c = spinnet.ui.components;
@@ -17,7 +17,7 @@ return spinnet.ui.showPage(spinnet.ui.page({
 }));
 ```
 
-A source is `{id, perform, input, deliver?, error_pointer?, status_messages?}`.
+A source is `{id, perform, input, every?, deliver?, error_pointer?, status_messages?}`.
 `input` is the operation's complete input, Credential Uses included. IDs are
 unique within a page. `deliver: {}` also hands a changed result to the script;
 `deliver: {pointer: "/json/version"}` watches only that RFC 6901 pointer. The
@@ -59,7 +59,9 @@ With `deliver`, the first outcome is queued, then only changes to the watched
 value or failure category. `source_delivered` contains `page`, `source`, positive
 `sequence`, and exactly one of `result` and `failure: {category, message}`.
 Supported failure categories are `capability_denied`, `host_service_failed` and
-`timed_out`, plus `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` for reviewed tool sources. It is not a gesture; its answer may not request an operation.
+`timed_out`; reviewed App sources also offer `external_app_missing`,
+`external_app_not_running`, `automation_permission_needed`,
+`automation_permission_denied` and `external_app_operation_unsupported`, plus `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` for reviewed tool sources. It is not a gesture; its answer may not request an operation.
 Deliveries of one source ID are at least 15 seconds apart, across redefinitions.
 At most one waits per source; newer results replace older waiting ones. A floor-held
 result waits while hidden and is considered on show; a result already queued in

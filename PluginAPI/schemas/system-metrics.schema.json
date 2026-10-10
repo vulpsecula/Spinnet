@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Basic system metrics (Level 2 #86)",
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": [
+        "metrics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "cpu",
+              "memory",
+              "disk",
+              "battery"
+            ]
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "required": [
+                "busy"
+              ],
+              "properties": {
+                "busy": {
+                  "oneOf": [
+                    {
+                      "minimum": 0,
+                      "maximum": 1,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memory": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "required": [
+                "total_bytes",
+                "used_bytes",
+                "compressed_bytes"
+              ],
+              "properties": {
+                "total_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "used_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "compressed_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disk": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "required": [
+                "total_bytes",
+                "available_bytes"
+              ],
+              "properties": {
+                "total_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "available_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "battery": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "required": [
+                "present",
+                "charge",
+                "charging",
+                "power_source"
+              ],
+              "properties": {
+                "present": {
+                  "type": "boolean"
+                },
+                "charge": {
+                  "oneOf": [
+                    {
+                      "minimum": 0,
+                      "maximum": 1,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "charging": {
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "power_source": {
+                  "oneOf": [
+                    {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

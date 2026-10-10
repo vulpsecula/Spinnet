@@ -37,7 +37,8 @@
     text: ["detectLanguage"],
     storage: ["get", "set", "remove", "keys", "clear"],
     activities: ["list"],
-    tools: ["read"]
+    tools: ["read"],
+    system: ["metrics"]
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
@@ -127,6 +128,10 @@
       const member = callable ? function (input) { return callable(input); } : {};
       member.operation = operation(name + "." + verb);
       member.action = action(name + "." + verb);
+      if (name === "apps" && verb === "perform") member.source = function (id, input, value) {
+        if (!input || input.bundle_id !== "com.spotify.client" || input.operation !== "playback" || (input.arguments && Object.keys(input.arguments).length)) throw new Error("apps.perform sources require Spotify playback");
+        return source(id, "apps.perform", input, value);
+      };
       members[verb] = Object.freeze(member);
     }
     sdk[name] = members;
@@ -137,6 +142,7 @@
       deliver: o.deliver === true ? {} : o.deliver,
       error_pointer: o.errorPointer, status_messages: o.statusMessages });
   }
+  sdk.system.metrics.source = function (id, input, value) { return source(id, "system.metrics", input, value); };
   sdk.http.request.source = function (id, input, value) { return source(id, "http.request", input, value); };
   sdk.tools.read.source = function (id, input, value) { validateToolRead(input); return source(id, "tools.read", input, value); };
   sdk.activities.list.source = function (id, value) { return source(id, "activities.list", null, value); };

@@ -62,6 +62,16 @@ public final class RecordedHostServices: PluginHostServiceBroker {
            !package.manifest.declares(capability, for: action.commandID) {
             throw PluginHostServiceError.capabilityDenied(capability)
         }
+        if request.service == .performAppOperation, request.input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID) {
+            let operation = request.input.value(atPointer: "/operation")
+            let family = operation == .string("playback") ? "playback_read" : "playback_control"
+            guard package.manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == SpotifyPlayback.bundleID && $0.operationFamilies.contains(family) }) == true else {
+                throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
+            }
+            guard let name = operation, ["playback", "play", "pause", "previous", "next"].map(JSONValue.string).contains(name) else {
+                throw PluginHostServiceError.externalAppOperationUnsupported("Spotify does not support this operation")
+            }
+        }
         if request.service == .reviewedToolRead {
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         }

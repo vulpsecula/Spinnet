@@ -67,6 +67,8 @@ public enum HostServiceFailure: String, Hashable {
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"
     case automationPermissionDenied = "automation_permission_denied"
+    case externalAppNotRunning = "external_app_not_running"
+    case automationPermissionNeeded = "automation_permission_needed"
     case externalAppMissing = "external_app_missing"
     case externalAppOperationUnsupported = "external_app_operation_unsupported"
     case hostServiceFailed = "host_service_failed"
@@ -260,9 +262,9 @@ public enum HostServiceCatalogue {
                commandCapabilities: [], commands: [.openApplication]),
         reserve("open.reveal", at: [.call, .command, .viewAction, .request]),
 
-        define("apps.perform", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew],
+        define("apps.perform", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew, .source: levelTwo],
                capabilities: [.controlExternalApp], permission: .automation,
-               failures: [.capabilityDenied, .automationPermissionDenied, .externalAppMissing,
+               failures: [.capabilityDenied, .automationPermissionDenied, .automationPermissionNeeded, .externalAppNotRunning, .externalAppMissing,
                           .externalAppOperationUnsupported, .hostServiceFailed],
                input: ["bundle_id", "operation", "arguments"], services: [.performAppOperation]),
         define("apps.openDeepLink", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
@@ -289,7 +291,7 @@ public enum HostServiceCatalogue {
                primary: "name", input: ["name", "input"], commands: [.invokeService]),
         define(KeepAwakeAddition.id, [.call: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo],
                capabilities: [.keepAwake], failures: failures, input: ["mode", "seconds", "target"]),
-        reserve("system.metrics", at: [.call], source: true),
+        define(SystemMetrics.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readSystemStatus], failures: failures, input: ["metrics"]),
 
         define("window.read", calledOnly, capabilities: [.positionFocusedWindow], permission: .accessibility,
                failures: permissionFailures, services: [.readFocusedWindow]),
@@ -574,6 +576,7 @@ extension HostServiceDefinition {
             // Launching an application by path is already what
             // `open_local_path` grants (design 6.3).
             service = .openLocalPath
+        case SystemMetrics.id: service = .systemMetrics
         case ReviewedToolReads.id: service = .reviewedToolRead
         case KeepAwakeAddition.id: service = .keepAwakeEffect
         case KeepAwakeAddition.listID: service = .listActivities

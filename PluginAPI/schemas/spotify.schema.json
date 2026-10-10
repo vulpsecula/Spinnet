@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reviewed Spotify interface (Plugin API Level 2)",
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": [
+        "bundle_id",
+        "operation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_id": {
+          "const": "com.spotify.client"
+        },
+        "operation": {
+          "enum": [
+            "playback",
+            "play",
+            "pause",
+            "previous",
+            "next"
+          ]
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      }
+    },
+    "source_input": {
+      "type": "object",
+      "required": [
+        "bundle_id",
+        "operation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_id": {
+          "const": "com.spotify.client"
+        },
+        "operation": {
+          "const": "playback"
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      }
+    },
+    "playback": {
+      "type": "object",
+      "required": [
+        "state",
+        "position",
+        "track"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "playing",
+            "paused",
+            "stopped"
+          ]
+        },
+        "position": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 604800
+        },
+        "track": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "artist": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "album": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "duration": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 604800
+                },
+                "artwork_url": {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "pattern": "^https://i\\.scdn\\.co(:443)?/"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "reviewed_interface": {
+      "if": {
+        "properties": {
+          "bundle_id": {
+            "const": "com.spotify.client"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/input"
+      }
+    }
+  }
+}

@@ -35,6 +35,13 @@ public struct PluginPageSource: Equatable {
         self.input = input
         if perform == "activities.list", input != .null { throw PluginPage.violation("activities.list sources take null input") }
         every = try PluginPage.number(fields["every"], "The source \(id)'s every", in: 1...3_600)
+        if perform == SystemMetrics.id {
+            do { _ = try SystemMetricsInput(input) }
+            catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
+        }
+        if perform == "apps.perform" {
+            do { try SpotifyPlayback.validateSource(input) } catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
+        }
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
             do { _ = try HomebrewReadInput(input) }
@@ -135,15 +142,18 @@ public struct HostSourceAdapter {
     /// Opaque current owner registration, rotated even for equal-version updates.
     public let ownerIdentity: (ActionConfiguration) -> AnyHashable?
     public let authorize: (ActionConfiguration, PluginPageSource) throws -> Void
+    public let retire: (ActionConfiguration, PluginPageSource) -> Void
     public let sample: (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue
     public init(minimumInterval: TimeInterval? = nil, deadline: TimeInterval,
                 ownerIdentity: @escaping (ActionConfiguration) -> AnyHashable? = { _ in nil },
                 authorize: @escaping (ActionConfiguration, PluginPageSource) throws -> Void,
+                retire: @escaping (ActionConfiguration, PluginPageSource) -> Void = { _, _ in },
                 sample: @escaping (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue) {
         self.minimumInterval = minimumInterval
         self.deadline = deadline
         self.ownerIdentity = ownerIdentity
         self.authorize = authorize
+        self.retire = retire
         self.sample = sample
     }
 }
@@ -284,7 +294,8 @@ public final class HostRunSources {
         return HostSourceShown(text: record.failure?.message ?? text.text, isStale: false)
     }
 
-    private func cancel(_ record: Record) {
+    private func cancel(_ record: Record, retires: Bool = true) {
+        if retires { adapters[record.source.perform]?.retire(record.action, record.source) }
         record.cancellation?.cancel(); record.cancellation = nil; record.sampleToken = nil; record.wakeToken = UUID()
     }
     private func current(_ record: Record, plugin: PluginID) -> Bool {
@@ -331,7 +342,7 @@ public final class HostRunSources {
            ((try? JSONEncoder().encode(answer).count) ?? Int.max) > HostRunSourceAddition.maximumResultBytes {
             outcome = .failure(PluginHostServiceError.failed("The source result exceeds 512 KiB"))
         }
-        cancel(record)
+        cancel(record, retires: false)
         do { try adapters[record.source.perform]?.authorize(record.action, record.source) } catch { outcome = .failure(error) }
         let payload: JSONValue
         let failed: Bool

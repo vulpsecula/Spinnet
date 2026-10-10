@@ -221,7 +221,7 @@ public extension PluginCapability {
         case .openURL, .openLocalPath: return .controls
         case .captureScreen: return .controls
         case .insertIntoFocusedApp: return .changes
-        case .readFrontmostApp, .readReviewedTools: return .reads
+        case .readFrontmostApp, .readReviewedTools, .readSystemStatus: return .reads
         case .quitFrontmostApp, .keepAwake, .runReviewedToolTasks: return .controls
         }
     }

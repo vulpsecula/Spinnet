@@ -1,0 +1,40 @@
+{
+  "fixtures": [
+    {
+      "file": "playback.json",
+      "definition": "playback",
+      "valid": true,
+      "schema": "spotify.schema.json"
+    },
+    {
+      "file": "source.json",
+      "definition": "source_input",
+      "valid": true,
+      "schema": "spotify.schema.json"
+    },
+    {
+      "file": "transport-source.json",
+      "definition": "source_input",
+      "valid": false,
+      "schema": "spotify.schema.json"
+    },
+    {
+      "file": "script.json",
+      "definition": "input",
+      "valid": false,
+      "schema": "spotify.schema.json"
+    },
+    {
+      "file": "not-running.json",
+      "definition": "failure",
+      "valid": true,
+      "schema": "host-run-sources.schema.json"
+    },
+    {
+      "file": "permission-needed.json",
+      "definition": "failure",
+      "valid": true,
+      "schema": "host-run-sources.schema.json"
+    }
+  ]
+}

@@ -295,6 +295,14 @@ public final class HostReviewedToolTasks {
     public static func preflight(_ input: HomebrewTaskInput, executable: URL) throws -> JSONValue {
         if ["tap", "untap", "trust", "untrust", "cleanup"].contains(input.operation) { return .object([:]) }
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
+        if input.operation.hasPrefix("service") {
+            let current = try HomebrewReadProfile.execute(executable, ["services", "list", "--json"], HomebrewReadProfile.environment, Date().addingTimeInterval(15))
+            guard current.status == 0, let rows = try JSONSerialization.jsonObject(with: current.stdout) as? [[String: Any]],
+                  let service = rows.first(where: { $0["name"] as? String == input.name }),
+                  service["user"] == nil || service["user"] is NSNull || service["user"] as? String == "" || service["user"] as? String == NSUserName() else {
+                throw PluginHostServiceError.tool(.sourceNotAllowed)
+            }
+        }
         let profile = HomebrewReadProfile(executable: { executable })
         if input.operation == "upgradeAll" {
             var request: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string("outdated"), "greedy": input.fields["greedy"] ?? .bool(false)]

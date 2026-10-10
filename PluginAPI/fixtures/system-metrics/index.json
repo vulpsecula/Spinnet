@@ -1,0 +1,29 @@
+{
+  "fixtures": [
+    {
+      "file": "input.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "bad-input.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "duplicate-input.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "no-battery.json",
+      "definition": "result",
+      "valid": true
+    },
+    {
+      "file": "snapshot.json",
+      "definition": "result",
+      "valid": true
+    }
+  ]
+}

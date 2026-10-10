@@ -30,15 +30,16 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     case keepAwake = "keep_awake"
     case readReviewedTools = "read_reviewed_tools"
     case runReviewedToolTasks = "run_reviewed_tool_tasks"
+    case readSystemStatus = "read_system_status"
 
     public var isSupportedByHostServices: Bool {
         [.readSelectedText, .writeClipboard, .readCurrentClipboard, .readClipboardHistory,
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
-         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools, .runReviewedToolTasks].contains(self)
+         .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools, .runReviewedToolTasks, .readSystemStatus].contains(self)
     }
 
     /// The lowest Plugin API Level whose Plugins may declare it.
-    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools || self == .runReviewedToolTasks) ? 2 : 1 }
+    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools || self == .runReviewedToolTasks || self == .readSystemStatus) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -58,6 +59,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .insertIntoFocusedApp: return "Insert Text into the Focused App"
         case .readFrontmostApp: return "Identify the App in Front"
         case .quitFrontmostApp: return "Close or Quit the App in Front"
+        case .readSystemStatus: return "Read Basic System Status"
         case .readReviewedTools: return "Read Reviewed Tools"
         case .runReviewedToolTasks: return "Manage Reviewed Homebrew Tasks"
         case .keepAwake: return "Keep the Mac and Display Awake"
@@ -84,6 +86,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .readFrontmostApp: return "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps."
         case .readReviewedTools: return "Read bounded Homebrew data for declared reviewed operations and kinds."
         case .runReviewedToolTasks: return "Manage packages, taps and user-owned services through reviewed Host-confirmed tasks. Tasks continue after the view closes, prevent idle system sleep and can be stopped without rollback."
+        case .readSystemStatus: return "Read aggregate CPU use, memory use, startup disk capacity and internal battery status. No process names, paths or history."
         case .keepAwake: return "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item."
         case .quitFrontmostApp: return "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS."
         }
@@ -551,6 +554,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Plugin API Level 2's `apps.frontmost` (#83), which has no Level 1
     /// name: the App in front and its App Target.
     case identifyFrontmostApp = "apps.frontmost"
+    case systemMetrics = "system.metrics"
     case reviewedToolRead = "tools.read"
     case keepAwakeEffect = "system.keepAwake"
     case listActivities = "activities.list"
@@ -560,7 +564,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     public static let levelOne = allCases.filter(\.isLevelOne)
 
     /// Whether Plugin API Level 1 offers it under its raw value.
-    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead].contains(self) }
+    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics].contains(self) }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -591,6 +595,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return .controlExternalApp
         case .insertText:
             return .insertIntoFocusedApp
+        case .systemMetrics: return .readSystemStatus
         case .reviewedToolRead: return .readReviewedTools
         case .keepAwakeEffect: return .keepAwake
         case .listActivities, .stopActivity: return nil
@@ -618,7 +623,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
             return nil
         case .insertText:
             return .accessibility
-        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead:
+        case .identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics:
             return nil
         case .detectLanguage, .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             return nil
@@ -646,6 +651,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// failed because of its target.
     case insertion(InsertionFailure)
     case tool(ReviewedToolFailure)
+    case appRead(ReviewedAppReadFailure)
 
     public var description: String {
         switch self {
@@ -669,6 +675,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return "Host Service failed: \(message)"
         case .storageLimitExceeded(let message):
             return message
+        case .appRead(let failure): return failure.message
         case .tool(let failure): return failure.message
         case .insertion(let failure):
             return failure.message
@@ -693,6 +700,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .hostServiceFailed
         case .storageLimitExceeded:
             return .storageLimitExceeded
+        case .appRead(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .tool(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
@@ -713,7 +721,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
-        case .tool: return .hostServiceFailed
+        case .tool, .appRead: return .hostServiceFailed
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
@@ -781,6 +789,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let keepAwakeEffects: HostKeepAwake?
     private let activities: HostActivities?
     private let pluginRegistry: PluginRegistry?
+    let systemMetrics = SystemMetricsSampler()
+    private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
     private let reviewedTools: HomebrewReadProfile
     private let reviewedTasks: HostReviewedToolTasks?
 
@@ -845,6 +855,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The App in front")
         },
         keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
+        reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
         pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile = HomebrewReadProfile(), reviewedTasks: HostReviewedToolTasks? = nil
     ) {
         self.grantStore = grantStore
@@ -879,6 +890,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         self.pluginRegistry = pluginRegistry
         self.reviewedTools = reviewedTools
         self.reviewedTasks = reviewedTasks
+        self.reviewedAppPerformer = reviewedAppPerformer
     }
 
     /// Checks what a request for `service` needs before anything is touched:
@@ -967,6 +979,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         // Request scope is independent of a grant. Check it first so denial of
         // an optional grant cannot turn an invalid request into a catchable one.
         switch service {
+        case .systemMetrics:
+            _ = try SystemMetricsInput(request.input)
         case .reviewedToolRead:
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         case .httpsRequest:
@@ -980,6 +994,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         try authorize(service, for: package, action: action)
 
         switch service {
+        case .systemMetrics:
+            return try systemMetrics.read(request.input, owner: package.manifest.id)
         case .reviewedToolRead:
             return try readReviewedTool(request.input, for: package, action: action)
         case .keepAwakeEffect:
@@ -1157,7 +1173,12 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
         case .performAppOperation:
-            try appleEventSender(appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
+            let event = try appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+            if event.bundleID == SpotifyPlayback.bundleID {
+                guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
+                return try performReviewedApp(event, package: package, action: action, allowsPrompt: true)
+            }
+            try appleEventSender(event)
             return .null
         case .openDeepLink:
             try deepLinkOpener(deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
@@ -1222,6 +1243,49 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     func validateHTTPSource(_ input: JSONValue, for package: PluginPackage) throws {
         try httpsPerformer(for: package).validate(input)
+    }
+
+    public func reviewedAppSourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
+        HostSourceAdapter(minimumInterval: 1, deadline: 3,
+            ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
+            authorize: { [self] action, source in
+                try SpotifyPlayback.validateSource(source.input)
+                guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+                }
+                _ = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                try self.authorize(.performAppOperation, for: package, action: action)
+            }, sample: { [self] action, source, cancellation in
+                guard !cancellation.isCancelled, let package = registry.package(for: action.pluginID) else {
+                    throw PluginHostServiceError.unavailable("The playback read was cancelled")
+                }
+                let request = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                let result = try self.performReviewedApp(request, package: package, action: action, allowsPrompt: false, registry: registry)
+                guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The playback read was cancelled") }
+                return result
+            })
+    }
+
+    private func performReviewedApp(_ request: AppleEventRequest, package: PluginPackage, action: ActionConfiguration,
+                                    allowsPrompt: Bool, registry: PluginRegistry? = nil) throws -> JSONValue {
+        let registry = registry ?? pluginRegistry
+        let admission = registry?.ownerAdmission(for: package.manifest.id)
+        let validity = ReviewedToolReadValidity()
+        let observer = grantStore.observeRevocation { owner in if owner == package.manifest.id { validity.revoke() } }
+        defer { grantStore.removeRevocationObserver(observer) }
+        func check() throws {
+            guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.controlExternalApp) }
+            try authorize(.performAppOperation, for: package, action: action)
+            if let registry {
+                guard let admission, registry.isCurrent(admission, for: package), registry.isEnabled(for: package.manifest.id) else {
+                    throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
+                }
+            }
+        }
+        try check()
+        let result = try reviewedAppPerformer(request, allowsPrompt)
+        try check()
+        return result
     }
 
     /// A visible-page read has no helper and the source's fifteen-second

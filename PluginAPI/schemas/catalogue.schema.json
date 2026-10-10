@@ -56,11 +56,11 @@
     },
     "namespace_name": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
     "capability": {
-      "enum": ["read_selected_text", "write_clipboard", "read_current_clipboard", "read_clipboard_history", "monitor_clipboard", "contact_https", "control_external_app", "position_focused_window", "open_url", "open_local_path", "capture_screen", "insert_into_focused_app", "read_frontmost_app", "quit_frontmost_app", "keep_awake", "read_reviewed_tools", "run_reviewed_tool_tasks"]
+      "enum": ["read_selected_text", "write_clipboard", "read_current_clipboard", "read_clipboard_history", "monitor_clipboard", "contact_https", "control_external_app", "position_focused_window", "open_url", "open_local_path", "capture_screen", "insert_into_focused_app", "read_frontmost_app", "quit_frontmost_app", "keep_awake", "read_reviewed_tools", "run_reviewed_tool_tasks", "read_system_status"]
     },
     "failure": {
       "description": "Level 1's Host Service failure categories, plus Level 2's insertion_target_changed. An operation fails with the same category at every entry point.",
-      "enum": ["capability_denied", "system_permission_denied", "automation_permission_denied", "external_app_missing", "external_app_operation_unsupported", "host_service_failed", "storage_limit_exceeded", "insertion_target_changed", "tool_missing", "tool_busy", "package_not_found", "source_not_allowed", "already_installed", "not_outdated", "task_not_found", "task_finished", "plan_changed", "tool_timed_out", "tool_failed", "output_too_large"]
+      "enum": ["capability_denied", "system_permission_denied", "automation_permission_denied", "external_app_missing", "external_app_operation_unsupported", "host_service_failed", "storage_limit_exceeded", "insertion_target_changed", "tool_missing", "tool_busy", "package_not_found", "source_not_allowed", "already_installed", "not_outdated", "task_not_found", "task_finished", "plan_changed", "tool_timed_out", "tool_failed", "output_too_large", "external_app_not_running", "automation_permission_needed"]
     },
     "level1_name": {
       "type": "object",

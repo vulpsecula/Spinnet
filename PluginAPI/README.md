@@ -232,7 +232,7 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `activities.stop` | page action, request, own activities only | none | none |
 | `tools` | `tools.read` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind | none |
 
-The IDs `catalogue.json` reserves, such as `system.metrics`, are refused until a later Level adds them, and
+The IDs `catalogue.json` reserves, such as `system.runShortcut`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
 and `system.runService` are offered only as Commands, whose input the user
 configures.
@@ -377,6 +377,14 @@ sources sample once within 15 seconds, use the call's scope and result, and stop
 their process group when hidden or closed. HTTPS `http.request`
 samples once, within 15 seconds, bypasses the section cache and adds parsed `json`.
 Local adapters have a one-second minimum; each source ID's deliveries are at least
-15 seconds apart, coalesced to the latest changed result. No metrics or Spotify
-source is offered yet. See [sources](reference/sources.md),
+15 seconds apart, coalesced to the latest changed result. Metrics and reviewed Spotify playback
+sources are offered at Level 2. See [sources](reference/sources.md),
 [schemas](schemas/host-run-sources.schema.json), and [recordings](fixtures/sources/index.json).
+
+`system.metrics` (#86) is a stable Level 2 call and visible source for aggregate
+CPU, memory, startup disk capacity and battery. It requires `read_system_status`,
+no System Permission, and samples at most once per second. See the metric units
+and unavailable-value rules in [the namespace reference](reference/namespaces.md#systemmetrics-level-2-86)
+and [schema](schemas/system-metrics.schema.json).
+Local Spotify's Level 2 Reviewed App Interface and playback source are documented
+in [spotify.md](reference/spotify.md), with [typed schema](schemas/spotify.schema.json).
