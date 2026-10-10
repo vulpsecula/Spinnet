@@ -197,9 +197,9 @@ public final class HomebrewManagementReads {
                         value = HomebrewReadInput.validToken(name) ? .init(operation: "link", kind: "formula", name: name,
                             arguments: ["link", "--formula", "--", name], needsPrivileges: false, summary: "Link " + name,
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
-                    } else { value = nil }
+                    } else { value = HomebrewOwnershipRepair.resolve(command: command, prefix: executable.deletingLastPathComponent().deletingLastPathComponent()) }
                     if let value {
-                        repairs.append(.object(["target": .string(targets.issue(value, owner: owner, domain: "doctor")), "title": .string(value.summary)]))
+                        repairs.append(.object(["target": .string(targets.issue(value, owner: owner, domain: "doctor", current: { value.metadata.value(atPointer: "/privileged_repair") != .bool(true) || HomebrewOwnershipRepair.isCurrent(value.metadata) })), "title": .string(value.summary)]))
                     }
                 }
                 var value: [String: JSONValue] = ["id": .string("finding-" + String(index)),

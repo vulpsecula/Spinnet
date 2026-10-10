@@ -36,7 +36,7 @@ public struct HomebrewTaskInput: Equatable {
         }
         self.operation = operation; self.fields = fields
         func text(_ key: String) -> String? { if case .string(let value)? = fields[key] { return value }; return nil }
-        kind = text("kind") ?? (operation == "upgradeAll" ? "both" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
+        kind = text("kind") ?? (operation == "upgradeAll" ? "both" : operation == "adopt" ? "cask" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
         var allowed: Set<String> = ["tool", "operation"]
         if ["tap", "untap", "trust", "untrust"].contains(operation) {
             allowed.insert("tap")
@@ -93,8 +93,12 @@ public struct HomebrewTaskInput: Equatable {
         }
     }
     public var json: JSONValue { .object(fields) }
+    public func authorizeResolvedKind(_ resolvedKind: String, in scope: PluginCapabilityScope?) throws {
+        let kinds = resolvedKind == "both" ? ["formula", "cask"] : [resolvedKind]
+        guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }), tool.operations.contains(operation), kinds.allSatisfy(tool.kinds.contains) else { throw PluginHostServiceError.capabilityScopeDenied(.runReviewedToolTasks) }
+    }
     public func authorize(in scope: PluginCapabilityScope?) throws {
         let kinds = kind == "both" ? ["formula", "cask"] : [kind]
-        guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }), tool.operations.contains(operation), kinds.allSatisfy(tool.kinds.contains) else { throw PluginHostServiceError.capabilityScopeDenied(.runReviewedToolTasks) }
+        guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }), tool.operations.contains(operation), operation == "doctorFix" || kinds.allSatisfy(tool.kinds.contains) else { throw PluginHostServiceError.capabilityScopeDenied(.runReviewedToolTasks) }
     }
 }

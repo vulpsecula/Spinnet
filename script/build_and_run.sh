@@ -43,6 +43,8 @@ cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
 swift build --product SpinnetPluginHelper
 swift build --product SpinnetToolTaskRunner
+swift build --product SpinnetToolAuthorizationClient
+swift build --product SpinnetPrivilegedToolHelper
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
@@ -57,6 +59,16 @@ cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 cp "$BUILD_TASK_RUNNER" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+cp "$BUILD_DIR/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
+cp "$BUILD_DIR/SpinnetPrivilegedToolHelper" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+chmod +x "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+mkdir -p "$APP_CONTENTS/Library/LaunchDaemons"
+cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tools.plist" "$APP_CONTENTS/Library/LaunchDaemons/"
+# SwiftPM native resource bundles contain only sealed Host-owned Ruby adapters.
+for bundle in "$BUILD_DIR"/Spinnet_SpinnetToolTaskRunner.bundle "$BUILD_DIR"/Spinnet_SpinnetCore.bundle; do
+    [[ -d "$bundle" ]] || continue
+    ditto "$bundle" "$APP_RESOURCES/$(basename "$bundle")"
+done
 
 # Bundled Plugins ship as Plugin packages so the Host reads them the same way
 # it reads an installed Plugin. They live under Resources rather than PlugIns
@@ -103,12 +115,16 @@ PLIST
 
 if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
     codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --sign - "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --sign - "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
     codesign --force --entitlements "$HOST_ENTITLEMENTS" --sign - "$APP_BUNDLE"
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
     codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
     codesign --force --options runtime --entitlements "$HOST_ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi

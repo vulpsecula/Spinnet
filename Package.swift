@@ -13,11 +13,15 @@ let package = Package(
         .library(name: "SpinnetPluginTestKit", targets: ["SpinnetPluginTestKit"]),
         .executable(name: "SpinnetHost", targets: ["SpinnetHost"]),
         .executable(name: "SpinnetPluginHelper", targets: ["SpinnetPluginHelper"]),
-        .executable(name: "SpinnetToolTaskRunner", targets: ["SpinnetToolTaskRunner"])
+        .executable(name: "SpinnetToolTaskRunner", targets: ["SpinnetToolTaskRunner"]),
+        .executable(name: "SpinnetToolAuthorizationClient", targets: ["SpinnetToolAuthorizationClient"]),
+        .executable(name: "SpinnetPrivilegedToolHelper", targets: ["SpinnetPrivilegedToolHelper"])
     ],
     targets: [
         .target(name: "SpinnetCore"),
-        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], resources: [.copy("Resources/HomebrewPrivilegeBridge.rb")], linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetCore"]),
+        .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetCore"]),
         .executableTarget(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore"],
