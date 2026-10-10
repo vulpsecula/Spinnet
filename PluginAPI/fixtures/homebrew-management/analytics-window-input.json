@@ -1,0 +1,9 @@
+{
+  "tool": "homebrew",
+  "operation": "packageAnalytics",
+  "kind": "formula",
+  "names": [
+    "wget",
+    "curl"
+  ]
+}

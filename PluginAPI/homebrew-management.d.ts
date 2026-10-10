@@ -29,5 +29,6 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
     installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean; languages?: string[]; selected_language?: string }[];
   checked?: number; total?: number; offset?: number; next_offset?: number;
   skipped?: { name: string; reason: string }[]; advisory?: Advisory;
+  rankings?: {name: string; analytics: {install?: {"30d"?: number; "90d"?: number; "365d"?: number}}}[];
   analytics?: { install: { "30d"?: number; "90d"?: number; "365d"?: number } };
 };

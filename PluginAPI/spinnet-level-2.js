@@ -84,9 +84,8 @@
       if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid();
     } else if (["previewInstall", "previewUpgrade", "packageAnalytics"].includes(v.operation)) {
       allowed.push("kind", "names");
-      if (!["formula", "cask"].includes(v.kind) || !Array.isArray(v.names) || !v.names.length || v.names.length > (v.operation === "packageAnalytics" ? 1 : 50) || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n))) invalid();
+      if (!["formula", "cask"].includes(v.kind) || !Array.isArray(v.names) || !v.names.length || v.names.length > (v.operation === "packageAnalytics" ? 20 : 50) || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n))) invalid();
       if (v.operation === "previewUpgrade") { allowed.push("greedy"); if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid(); }
-      if (v.operation === "packageAnalytics" && v.names.length !== 1) invalid();
     } else if (v.operation === "adoptionPreview") {
       allowed.push("target", "name");
       if (typeof v.target !== "string" || !v.target.startsWith("app_") || v.target.length > 80 || !name(v.name)) invalid();

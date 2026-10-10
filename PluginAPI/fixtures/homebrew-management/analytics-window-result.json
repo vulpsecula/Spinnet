@@ -1,0 +1,31 @@
+{
+  "tool": "homebrew",
+  "operation": "packageAnalytics",
+  "version": "7.0.0",
+  "available": true,
+  "kind": "formula",
+  "name": "wget",
+  "analytics": {
+    "install": {
+      "30d": 12
+    }
+  },
+  "rankings": [
+    {
+      "name": "wget",
+      "analytics": {
+        "install": {
+          "30d": 12
+        }
+      }
+    },
+    {
+      "name": "curl",
+      "analytics": {
+        "install": {
+          "30d": 500
+        }
+      }
+    }
+  ]
+}

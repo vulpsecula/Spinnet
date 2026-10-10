@@ -55,7 +55,7 @@ public final class HomebrewManagementReads {
         if ["previewInstall", "previewUpgrade", "packageAnalytics"].contains(operation) {
             let allowed: Set<String> = ["tool", "operation", "kind", "names", "greedy"]
             guard Set(fields.keys).isSubset(of: allowed), case .string(let kind)? = fields["kind"], ["formula", "cask"].contains(kind),
-                  case .array(let names)? = fields["names"], (1...(operation == "packageAnalytics" ? 1 : 50)).contains(names.count), Set(names).count == names.count,
+                  case .array(let names)? = fields["names"], (1...(operation == "packageAnalytics" ? 20 : 50)).contains(names.count), Set(names).count == names.count,
                   names.allSatisfy({ if case .string(let name) = $0 { return HomebrewReadInput.validPackageName(name) }; return false }) else { throw invalid() }
             if operation != "previewUpgrade", fields["greedy"] != nil { throw invalid() }
             if let greedy = fields["greedy"], case .bool = greedy {} else if fields["greedy"] != nil { throw invalid() }
@@ -304,6 +304,7 @@ public final class HomebrewManagementReads {
             result["available"] = .bool(true)
             result["tier"] = .string(Self.clean(String(describing: report["tier"] ?? 1), maximum: 20))
             var reviewedSet: [(key: String, value: HomebrewManagementTarget)] = []
+            var issuedRepairs: [(key: String, value: HomebrewManagementTarget)] = []
             result["findings"] = .array(findings.prefix(100).enumerated().map { index, finding in
                 let remediation = finding["remediation"] as? [String: Any]
                 let commands = (remediation?["commands"] as? [String] ?? []).prefix(8)
@@ -318,9 +319,16 @@ public final class HomebrewManagementReads {
                         value = HomebrewReadInput.validToken(name) ? .init(operation: "link", kind: "formula", name: name,
                             arguments: ["link", "--formula", "--", name], needsPrivileges: false, summary: "Link " + name,
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
-                    } else { value = HomebrewOwnershipRepair.resolve(command: command, prefix: executable.deletingLastPathComponent().deletingLastPathComponent()) }
+                    } else { value = HomebrewOwnershipRepair.resolve(command: command, prefix: Self.prefix(of: executable)) }
                     if let value {
-                        let key = targets.issue(value, owner: owner, domain: "doctor", current: { value.metadata.value(atPointer: "/privileged_repair") != .bool(true) || HomebrewOwnershipRepair.isCurrent(value.metadata) })
+                        let key: String
+                        if let existing = issuedRepairs.first(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { key = existing.key }
+                        else {
+                            guard issuedRepairs.count < 128 else { result["truncated"] = .bool(true); continue }
+                            key = targets.issue(value, owner: owner, domain: "doctor", current: { value.metadata.value(atPointer: "/privileged_repair") != .bool(true) || HomebrewOwnershipRepair.isCurrent(value.metadata) })
+                            issuedRepairs.append((key, value))
+                        }
+
                         repairs.append(.object(["target": .string(key), "title": .string(value.summary)]))
                         if reviewedSet.count < 8, !reviewedSet.contains(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { reviewedSet.append((key, value)) }
                     }

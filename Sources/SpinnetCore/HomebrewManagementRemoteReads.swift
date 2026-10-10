@@ -35,20 +35,25 @@ public final class HomebrewManagementRemoteReads {
             return try JSONDecoder().decode(JSONValue.self, from: response.body)
         }
         if operation == "packageAnalytics" {
-            guard case .string(let kind)? = input.value(atPointer: "/kind"), case .string(let name)? = input.value(atPointer: "/names/0"),
-                  HomebrewReadInput.validToken(name) else { throw PluginHostServiceError.invalidInput("Official package analytics need one bare package name") }
-            let value = try request(URL(string: "https://formulae.brew.sh/api/" + kind + "/" + name + ".json")!)
-            var counts: [String: JSONValue] = [:]
-            for days in ["30d", "90d", "365d"] {
-                if case .object(let entries)? = value.value(atPointer: "/analytics/install/" + days) {
-                    let total = entries.values.reduce(0.0) { result, item in
-                        if case .number(let count) = item, count.isFinite, count >= 0, count <= 1_000_000_000 { return result + count }
-                        return result
+            guard case .string(let kind)? = input.value(atPointer: "/kind"), case .array(let values)? = input.value(atPointer: "/names"), (1...20).contains(values.count) else { throw PluginHostServiceError.invalidInput("Official analytics need a bounded selected package window") }
+            var rankings: [JSONValue] = []
+            for item in values {
+                guard case .string(let name) = item, HomebrewReadInput.validToken(name) else { throw PluginHostServiceError.invalidInput("Official package analytics need bare package names") }
+                let value = try request(URL(string: "https://formulae.brew.sh/api/" + kind + "/" + name + ".json")!)
+                var counts: [String: JSONValue] = [:]
+                for days in ["30d", "90d", "365d"] {
+                    if case .object(let entries)? = value.value(atPointer: "/analytics/install/" + days) {
+                        let total = entries.values.reduce(0.0) { result, item in
+                            if case .number(let count) = item, count.isFinite, count >= 0, count <= 1_000_000_000 { return result + count }
+                            return result
+                        }
+                        counts[days] = .number(min(total, 1_000_000_000))
                     }
-                    counts[days] = .number(min(total, 1_000_000_000))
                 }
+                rankings.append(.object(["name": .string(name), "analytics": .object(["install": .object(counts)])]))
             }
-            return ["name": .string(name), "kind": .string(kind), "analytics": .object(["install": .object(counts)])]
+            guard let first = rankings.first else { throw PluginHostServiceError.invalidInput("Select at least one package") }
+            return ["name": first.value(atPointer: "/name") ?? .null, "kind": .string(kind), "analytics": first.value(atPointer: "/analytics") ?? .null, "rankings": .array(rankings)]
         }
         if operation == "vulnerabilityDetail" {
             guard case .string(let id)? = input.value(atPointer: "/id"), Self.validID(id) else { throw PluginHostServiceError.invalidInput("Invalid advisory identifier") }
