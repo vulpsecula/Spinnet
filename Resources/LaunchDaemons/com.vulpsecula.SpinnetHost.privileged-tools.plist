@@ -4,6 +4,7 @@
 <key>Label</key><string>com.vulpsecula.SpinnetHost.privileged-tools</string>
 <key>BundleProgram</key><string>Contents/Helpers/SpinnetPrivilegedToolHelper</string>
 <key>MachServices</key><dict>
+<key>com.vulpsecula.SpinnetHost.reviewed-tools.host</key><true/>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.runner</key><true/>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.client</key><true/>
 </dict>

@@ -13,6 +13,13 @@ struct Approval {
     let right: String
     let expires: TimeInterval
 }
+struct HostAdmission {
+    let plan: HomebrewPrivilegePlan
+    let pid: pid_t
+    let identity: UInt64
+    let uid: uid_t
+    let expires: TimeInterval
+}
 final class Task {
     let plan: HomebrewPrivilegePlan
     let pid: pid_t
@@ -29,9 +36,30 @@ final class Task {
 final class State {
     let lock = NSLock()
     var tasks: [String: Task] = [:]
+    var admissions: [String: HostAdmission] = [:]
     func stop(_ id: String) { lock.lock(); let task = tasks[id]; task?.stopped = true; task?.process?.stop(); lock.unlock() }
 }
 let state = State()
+final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
+    let pid: pid_t; let uid: uid_t
+    init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
+    func admit(_ data: Data, reply: @escaping (String) -> Void) {
+        do {
+            guard data.count <= 64 * 1024, uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
+            let decoded = try JSONDecoder().decode(HomebrewPrivilegePlan.self, from: data)
+            let plan = try HomebrewPrivilegePlan(taskID: decoded.taskID, prefix: decoded.prefix, casks: decoded.casks, repairDirectories: decoded.repairDirectories, operation: decoded.operation)
+            state.lock.lock(); defer { state.lock.unlock() }
+            guard state.tasks.isEmpty, state.admissions.isEmpty else { throw PluginHostServiceError.tool(.busy) }
+            state.admissions[plan.taskID] = HostAdmission(plan: plan, pid: pid, identity: identity, uid: uid, expires: ProcessInfo.processInfo.systemUptime + 60)
+            reply("")
+        } catch { reply("Authenticated Host admission was refused") }
+    }
+    func cancel(_ taskID: String, reply: @escaping () -> Void) {
+        state.lock.lock()
+        if let admission = state.admissions[taskID], admission.pid == pid, admission.uid == uid, HomebrewTaskProcess.startIdentity(pid) == admission.identity { state.admissions.removeValue(forKey: taskID) }
+        state.lock.unlock(); reply()
+    }
+}
 final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
     let pid: pid_t; let uid: uid_t
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
@@ -41,7 +69,10 @@ final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
             let decoded = try JSONDecoder().decode(HomebrewPrivilegePlan.self, from: data)
             let plan = try HomebrewPrivilegePlan(taskID: decoded.taskID, prefix: decoded.prefix, casks: decoded.casks, repairDirectories: decoded.repairDirectories, operation: decoded.operation)
             state.lock.lock(); defer { state.lock.unlock() }
-            guard state.tasks.isEmpty else { throw PluginHostServiceError.tool(.busy) }
+            guard state.tasks.isEmpty, let admission = state.admissions[plan.taskID], admission.plan == plan, admission.uid == uid,
+                  admission.expires > ProcessInfo.processInfo.systemUptime, HomebrewTaskProcess.startIdentity(admission.pid) == admission.identity,
+                  HomebrewSystemAuthorization.processParent(pid) == admission.pid else { throw PluginHostServiceError.tool(.planChanged) }
+            state.admissions.removeValue(forKey: plan.taskID)
             state.tasks[plan.taskID] = Task(plan: plan, pid: pid, identity: identity, uid: uid)
             reply("")
         } catch { reply("The privileged Task plan was refused") }
@@ -227,27 +258,35 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
     }
 }
 final class Listener: NSObject, NSXPCListenerDelegate {
-    let runner: Bool
-    init(runner: Bool) { self.runner = runner }
+    enum Endpoint { case host, runner, client }
+    let endpoint: Endpoint
+    init(_ endpoint: Endpoint) { self.endpoint = endpoint }
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         guard connection.effectiveUserIdentifier != 0 else { return false }
-        if runner { connection.exportedInterface = NSXPCInterface(with: HomebrewPrivilegeRunnerProtocol.self); connection.exportedObject = RunnerEndpoint(connection) }
-        else { connection.exportedInterface = NSXPCInterface(with: HomebrewPrivilegeClientProtocol.self); connection.exportedObject = ClientEndpoint(connection) }
+        switch endpoint {
+        case .host: connection.exportedInterface = NSXPCInterface(with: HomebrewPrivilegeHostProtocol.self); connection.exportedObject = HostEndpoint(connection)
+        case .runner: connection.exportedInterface = NSXPCInterface(with: HomebrewPrivilegeRunnerProtocol.self); connection.exportedObject = RunnerEndpoint(connection)
+        case .client: connection.exportedInterface = NSXPCInterface(with: HomebrewPrivilegeClientProtocol.self); connection.exportedObject = ClientEndpoint(connection)
+        }
         connection.resume(); return true
     }
 }
 do {
     guard getuid() == 0 else { exit(77) }
-    let runnerDelegate = Listener(runner: true), clientDelegate = Listener(runner: false)
+    let hostDelegate = Listener(.host), runnerDelegate = Listener(.runner), clientDelegate = Listener(.client)
+    let host = NSXPCListener(machServiceName: HomebrewSystemAuthorization.service + ".host")
     let runner = NSXPCListener(machServiceName: HomebrewSystemAuthorization.service + ".runner")
     let client = NSXPCListener(machServiceName: HomebrewSystemAuthorization.service + ".client")
+    host.setConnectionCodeSigningRequirement(try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.hostIdentifier))
     runner.setConnectionCodeSigningRequirement(try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.runnerIdentifier))
     client.setConnectionCodeSigningRequirement(try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.clientIdentifier))
-    runner.delegate = runnerDelegate; client.delegate = clientDelegate; runner.resume(); client.resume()
+    host.delegate = hostDelegate; runner.delegate = runnerDelegate; client.delegate = clientDelegate; host.resume(); runner.resume(); client.resume()
     let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
     timer.schedule(deadline: .now(), repeating: .milliseconds(100))
     timer.setEventHandler {
-        state.lock.lock(); let tasks = Array(state.tasks.values); state.lock.unlock()
+        state.lock.lock()
+        state.admissions = state.admissions.filter { $0.value.expires > ProcessInfo.processInfo.systemUptime && HomebrewTaskProcess.startIdentity($0.value.pid) == $0.value.identity }
+        let tasks = Array(state.tasks.values); state.lock.unlock()
         for task in tasks {
             state.lock.lock()
             let expired = task.approvals.filter { $0.value.expires < ProcessInfo.processInfo.systemUptime || task.stopped || HomebrewTaskProcess.startIdentity($0.value.pid) != $0.value.identity }

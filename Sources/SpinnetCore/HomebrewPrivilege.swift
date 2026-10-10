@@ -76,6 +76,10 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
     func end(_ taskID: String, reply: @escaping () -> Void)
     func stop(_ taskID: String, reply: @escaping () -> Void)
 }
+@objc public protocol HomebrewPrivilegeHostProtocol {
+    func admit(_ plan: Data, reply: @escaping (String) -> Void)
+    func cancel(_ taskID: String, reply: @escaping () -> Void)
+}
 @objc public protocol HomebrewPrivilegeClientProtocol {
     func prepare(_ request: Data, reply: @escaping (String) -> Void)
     func perform(_ request: Data, authorization: Data, reply: @escaping (Int32, String) -> Void)
@@ -87,6 +91,7 @@ public enum HomebrewSystemAuthorization {
     public static let runnerIdentifier = "com.vulpsecula.SpinnetHost.task-runner"
     public static let clientIdentifier = "com.vulpsecula.SpinnetHost.authorization-client"
     public static let helperIdentifier = "com.vulpsecula.SpinnetHost.privileged-tools"
+    public static let hostIdentifier = "com.vulpsecula.SpinnetHost.preview"
 
     /// Requires the stable signing team. Ad-hoc builds cannot elevate.
     public static func requirement(identifier: String) throws -> String {
@@ -175,6 +180,29 @@ public enum HomebrewSystemAuthorization {
         connection.setCodeSigningRequirement(try requirement(identifier: helperIdentifier))
         connection.remoteObjectInterface = NSXPCInterface(with: HomebrewPrivilegeRunnerProtocol.self)
         connection.resume(); return connection
+    }
+    public static func hostConnection() throws -> NSXPCConnection {
+        let connection = NSXPCConnection(machServiceName: service + ".host", options: .privileged)
+        connection.setCodeSigningRequirement(try requirement(identifier: helperIdentifier))
+        connection.remoteObjectInterface = NSXPCInterface(with: HomebrewPrivilegeHostProtocol.self)
+        connection.resume(); return connection
+    }
+    public static func admit(_ plan: HomebrewPrivilegePlan) throws {
+        let connection = try hostConnection()
+        defer { connection.invalidate() }
+        let done = DispatchSemaphore(value: 0)
+        var failure = "Authenticated Host admission is unavailable"
+        guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in done.signal() }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
+        proxy.admit(try JSONEncoder().encode(plan)) { failure = $0; done.signal() }
+        guard done.wait(timeout: .now() + 15) == .success, failure.isEmpty else { throw PluginHostServiceError.unavailable(failure) }
+    }
+    public static func cancelAdmission(_ taskID: String) {
+        guard let connection = try? hostConnection() else { return }
+        let done = DispatchSemaphore(value: 0)
+        if let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in done.signal() }) as? HomebrewPrivilegeHostProtocol {
+            proxy.cancel(taskID) { done.signal() }; _ = done.wait(timeout: .now() + 5)
+        }
+        connection.invalidate()
     }
     public static func clientConnection() throws -> NSXPCConnection {
         let connection = NSXPCConnection(machServiceName: service + ".client", options: .privileged)

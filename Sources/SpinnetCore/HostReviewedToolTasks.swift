@@ -35,6 +35,8 @@ public final class HostReviewedToolTasks {
     private let targetResolver: TargetResolver
     private let privilegeReview: (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask]
     private let prepareSystemAuthorization: () throws -> Void
+    private let admitSystemAuthorization: (HomebrewPrivilegePlan) throws -> Void
+    private let cancelSystemAuthorization: (String) -> Void
     private let lock = NSRecursiveLock()
     private var pending: HomebrewTaskPlan?
     private var generations: [PluginID: Int] = [:]
@@ -48,11 +50,14 @@ public final class HostReviewedToolTasks {
                 preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil,
                 targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) },
                 privilegeReview: @escaping (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask] = HomebrewPrivilegeReview.casks,
-                prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService) {
+                prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
+                admitSystemAuthorization: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.admit,
+                cancelSystemAuthorization: @escaping (String) -> Void = HomebrewSystemAuthorization.cancelAdmission) {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = preflight ?? { input in try Self.preflight(input, executable: executable()) }
         self.trustedTaps = trustedTaps ?? { try Self.readTrustedTaps(executable: executable()) }
         self.targetResolver = targetResolver; self.privilegeReview = privilegeReview; self.prepareSystemAuthorization = prepareSystemAuthorization
+        self.admitSystemAuthorization = admitSystemAuthorization; self.cancelSystemAuthorization = cancelSystemAuthorization
         recover()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
@@ -132,6 +137,7 @@ public final class HostReviewedToolTasks {
     public func decline(_ plan: HomebrewTaskPlan) { lock.lock(); if pending?.id == plan.id { pending = nil }; lock.unlock() }
     @discardableResult
     public func launch(_ plan: HomebrewTaskPlan, authorize: () throws -> Void = {}) throws -> String {
+        var admitted: String?
         do {
             try authorize()
             guard try executable() == plan.executable else { throw PluginHostServiceError.tool(.missing) }
@@ -162,7 +168,10 @@ public final class HostReviewedToolTasks {
             if plan.needsPrivileges {
                 let prefix = plan.executable.deletingLastPathComponent().deletingLastPathComponent().path
                 let directories: [String] = { if case .array(let values)? = plan.package.value(atPointer: "/repair_directories") { return values.compactMap { if case .string(let path) = $0 { return path }; return nil } }; return [] }()
-                record.privilegePlan = try HomebrewPrivilegePlan(taskID: id, prefix: prefix, casks: plan.privilegedCasks, repairDirectories: directories, operation: plan.input.operation)
+                let privilegePlan = try HomebrewPrivilegePlan(taskID: id, prefix: prefix, casks: plan.privilegedCasks, repairDirectories: directories, operation: plan.input.operation)
+                record.privilegePlan = privilegePlan
+                do { try admitSystemAuthorization(privilegePlan); admitted = id; try authorize() }
+                catch { try? FileManager.default.removeItem(at: directory); throw error }
             }
             record.scope = plan.scope
             record.steps = plan.steps.isEmpty ? nil : plan.steps.map(\.json)
@@ -191,7 +200,7 @@ public final class HostReviewedToolTasks {
             try? JSONEncoder().encode(JSONValue.object(["pid": .number(Double(process.processIdentifier)), "identity": record.runnerIdentity.map { .number(Double($0)) } ?? .null])).write(to: directory.appendingPathComponent("runner.json"), options: .atomic)
             pending = nil; records[id] = record
             return id
-        } catch { decline(plan); throw error }
+        } catch { if let admitted { cancelSystemAuthorization(admitted) }; decline(plan); throw error }
     }
     public func stop(_ id: String, for owner: PluginID? = nil) throws {
         lock.lock(); defer { lock.unlock() }

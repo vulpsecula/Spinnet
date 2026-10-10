@@ -7,10 +7,19 @@ require the user to enable that helper in Login Items; an unavailable or
 unapproved helper refuses the Task before mutation starts. An ad-hoc build
 cannot use this route.
 
-The independent signed Task runner binds the helper to its concrete Task,
-selected cask checksum/artifacts or reviewed Doctor directories. Both XPC
-endpoints enforce the signing team and designated executable identifier on
-messages. The native authorization client must descend from that runner.
+After confirmation and revalidation, a Host-only XPC endpoint admits the
+concrete privileged plan into root-helper memory. This endpoint enforces the
+stable signing team and Host executable identifier. The admission expires
+after 60 seconds and is consumed once: a signed runner must be a direct child
+of that admitting Host process, with matching kernel start identity and an
+exactly equal plan. A same-user process cannot obtain privileged admission by
+launching the signed runner with a fabricated journal. The private user-owned
+journal supplies recovery state and is never privileged authority.
+
+Once admitted, the independent signed Task runner owns its concrete Task,
+selected cask checksum/artifacts or reviewed Doctor directories even after
+Host exit. All three XPC endpoints enforce the signing team and designated
+executable identifier on messages. The native authorization client must descend from that runner.
 Each concrete privileged operation creates a fresh request-bound administrator
 right; it expires and is consumed once. Authorization forms remain only in
 native memory and XPC, never Plugin responses, argv, environment, journals or

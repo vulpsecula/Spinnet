@@ -168,6 +168,19 @@ final class ReviewedToolTaskTests: XCTestCase {
 }
 
 extension ReviewedToolTaskTests {
+    func testPrivilegedTaskRequiresAuthenticatedHostAdmissionBeforeRunnerStarts() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let binding = HomebrewPrivilegePlan.Cask(name: "example", version: "1", sha256: String(repeating: "a", count: 64), packages: ["Example.pkg"])
+        var reviewed: HomebrewPrivilegePlan?
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["name": .string("example"), "needs_privileges": .bool(true)]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [binding] }, prepareSystemAuthorization: {}, admitSystemAuthorization: { plan in reviewed = plan; throw PluginHostServiceError.unavailable("Host admission refused") }, cancelSystemAuthorization: { _ in })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("cask"), "name": .string("example")]))
+        let plan = try host.prepare(input, owner: PluginID("installer"), pluginName: "Homebrew")
+        XCTAssertThrowsError(try host.launch(plan)) { XCTAssertEqual($0 as? PluginHostServiceError, .unavailable("Host admission refused")) }
+        XCTAssertEqual(reviewed?.casks, [binding])
+        XCTAssertEqual(reviewed?.operation, "install")
+        XCTAssertFalse(host.hasRunningTasks)
+    }
     func testDoctorFixAllFreezesConcreteRepairsAndChecksEachOriginalScope() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
