@@ -102,4 +102,20 @@ final class ReviewedToolTaskTests: XCTestCase {
             executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["tap": .string("other/tap")]) }, trustedTaps: { [] })
         XCTAssertThrowsError(try untrusted.prepare(input, owner: owner, pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed)) }
     }
+    func testAllUpgradesResolveBothKindsRespectPinsAndKeepExplicitTypedBatches() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+            .object(["packages": .array([
+                .object(["kind": .string("formula"), "name": .string("wget"), "tap": .string("homebrew/core")]),
+                .object(["kind": .string("formula"), "name": .string("git"), "tap": .string("homebrew/core"), "pinned": .bool(true)]),
+                .object(["kind": .string("cask"), "name": .string("firefox"), "tap": .string("homebrew/cask")])])])
+        }, trustedTaps: { [] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll")]))
+        let plan = try host.prepare(input, owner: PluginID("brew"), pluginName: "Homebrew")
+        XCTAssertEqual(plan.steps.map(\.arguments), [["upgrade", "--formula", "--", "wget"], ["upgrade", "--cask", "--", "firefox"]])
+        XCTAssertTrue(plan.confirmation.message.contains("wget"))
+        XCTAssertTrue(plan.confirmation.message.contains("firefox"))
+        XCTAssertFalse(plan.confirmation.message.contains(" git"))
+    }
 }

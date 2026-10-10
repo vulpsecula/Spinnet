@@ -15,7 +15,10 @@ public struct HostActivity: Equatable {
     public var detail: JSONValue? = nil
     public var canStop: Bool { kind != "task" || detail?.value(atPointer: "/status") == .string("running") }
 
-    public var name: String { "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : kind == "task" ? "Homebrew" : "Activity")" }
+    public var name: String {
+        if kind == "task", case .string(let task)? = detail?.value(atPointer: "/name") { return "\(pluginName.prefix(128)) — \(task.prefix(128))" }
+        return "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : "Activity")"
+    }
     public var json: JSONValue {
         if let detail { return detail }
         return .object(["id": .string(id), "kind": .string(kind), "name": .string(name),
@@ -69,7 +72,12 @@ public final class HostActivities {
                                 expiresAt: held.expiresAt, remainingSeconds: remaining)
             snapshot.detail = held.detail
             return snapshot
-        }.sorted { $0.id < $1.id }
+        }.sorted {
+            let leftEnded = $0.detail?.value(atPointer: "/status") == .string("ended")
+            let rightEnded = $1.detail?.value(atPointer: "/status") == .string("ended")
+            if leftEnded != rightEnded { return !leftEnded }
+            return $0.id < $1.id
+        }
     }
 
     private static func remainingStatus(_ seconds: Int) -> String {

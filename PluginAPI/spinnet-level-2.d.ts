@@ -209,7 +209,9 @@ export type OperationReason =
   | "no_target"
   | "secure_input"
   | "target_unresponsive"
-  | "target_protected";
+  | "target_protected" | "tool_missing" | "tool_failed" | "tool_timed_out" | "output_too_large"
+  | "tool_busy" | "package_not_found" | "source_not_allowed" | "already_installed" | "not_outdated"
+  | "task_not_found" | "task_finished" | "plan_changed";
 
 /**
  * The event a script receives for an operation that asked to `notify`: a
@@ -861,6 +863,7 @@ export interface ReviewedPackage {
   title?: string; description?: string; version?: string; installed_version?: string;
   outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
   needs_privileges?: true; quits_app?: true;
+  dependencies?: string[]; homepage?: string; download_url?: string; installed_on_request?: true; installed_as_dependency?: true;
 }
 export interface ReviewedToolReadResult {
   tool: "homebrew"; operation: ReviewedToolReadInput["operation"];

@@ -230,6 +230,27 @@
         "quits_app": {
           "description": "info only: upgrading this cask quits its running application first, which the Host Confirmation states.",
           "const": true
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/qualified_name"
+          }
+        },
+        "homepage": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "download_url": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "installed_on_request": {
+          "const": true
+        },
+        "installed_as_dependency": {
+          "const": true
         }
       }
     },

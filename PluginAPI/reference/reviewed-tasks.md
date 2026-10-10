@@ -21,8 +21,12 @@ user-owned formula. Cleanup has a reviewed day threshold or explicit
 scope is disclosed. Adoption and reviewed Doctor repairs name opaque
 Host-produced targets; a Plugin never supplies a command, executable,
 path, shell source, environment or elevated instruction. Selected upgrades
-hold 1–50 names of one kind; the Host resolves all-upgrade targets and
-respects package pins before confirmation.
+hold 1–50 names of one kind; the Host resolves up to 2,000 all-upgrade
+targets, of both kinds when no kind is given, and respects package pins
+before confirmation. It freezes typed batches of at most 50 names and
+executes them sequentially under the same Task. Stop prevents later
+batches from starting; earlier changes remain. Neither recovery nor an
+intermediate result restarts a batch.
 
 The start outcome reports only whether the Task started. Reopening calls
 `activities.list` or declares `spinnet.activities.list.source(id,

@@ -299,6 +299,7 @@ public struct RequestedHostOperation: Equatable, Hashable {
 /// Why a Requested Host Operation was refused or failed. No reason names
 /// the App, its bundle ID, process or window.
 public enum HostOperationReason: String, CaseIterable, Hashable {
+    case toolMissing = "tool_missing", toolFailed = "tool_failed", toolTimedOut = "tool_timed_out", outputTooLarge = "output_too_large"
     case toolBusy = "tool_busy", packageNotFound = "package_not_found", sourceNotAllowed = "source_not_allowed", alreadyInstalled = "already_installed", notOutdated = "not_outdated", taskNotFound = "task_not_found", taskFinished = "task_finished", planChanged = "plan_changed"
     case capabilityDenied = "capability_denied"
     case systemPermissionDenied = "system_permission_denied"

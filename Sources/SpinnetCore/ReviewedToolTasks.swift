@@ -11,6 +11,22 @@ public struct HomebrewTaskInput: Equatable {
     public let kind: String
     public let name: String
     public let fields: [String: JSONValue]
+    public var displayOperation: String {
+        switch operation {
+        case "upgradeSelected": return "Upgrade Selected Packages"
+        case "upgradeAll": return "Upgrade All Eligible Packages"
+        case "serviceStart": return "Start Service"
+        case "serviceStop": return "Stop Service"
+        case "serviceRestart": return "Restart Service"
+        case "doctorFix": return "Repair Homebrew"
+        case "adopt": return "Adopt App"
+        case "cleanup": return "Clean Up"
+        case "untrust": return "Stop Trusting Tap"
+        case "untap": return "Remove Tap"
+        case "tap": return "Add Tap"
+        default: return operation.capitalized
+        }
+    }
     public init(_ input: JSONValue) throws {
         guard case .object(let fields) = input,
               fields["tool"] == .string("homebrew"), case .string(let operation)? = fields["operation"],
@@ -19,7 +35,7 @@ public struct HomebrewTaskInput: Equatable {
         }
         self.operation = operation; self.fields = fields
         func text(_ key: String) -> String? { if case .string(let value)? = fields[key] { return value }; return nil }
-        kind = text("kind") ?? "formula"; name = text("name") ?? text("tap") ?? text("target") ?? ""
+        kind = text("kind") ?? (operation == "upgradeAll" ? "both" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
         var allowed: Set<String> = ["tool", "operation"]
         if ["tap", "untap", "trust", "untrust"].contains(operation) {
             allowed.insert("tap")
@@ -45,7 +61,7 @@ public struct HomebrewTaskInput: Equatable {
             if !operation.hasPrefix("service") { allowed.insert("kind"); guard text("kind") != nil else { throw Self.invalid() } }
             if operation == "uninstall" { allowed.insert("zap"); if let zap = fields["zap"] { guard case .bool = zap, kind == "cask" else { throw Self.invalid() } } }
         }
-        guard ["formula", "cask"].contains(kind), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
+        guard (["formula", "cask"].contains(kind) || (operation == "upgradeAll" && kind == "both")), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
     }
     public static func validPackageName(_ name: String) -> Bool {
         name.count <= 160 && name.range(of: "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil
@@ -61,6 +77,7 @@ public struct HomebrewTaskInput: Equatable {
             let days: Int = { if case .number(let n)? = fields["days"] { return Int(n) }; return 120 }()
             return ["cleanup", "--prune=\(days)"]
         case "upgradeAll", "upgradeSelected":
+            if kind == "both" { return [] }
             let names: [String] = { if case .array(let values)? = fields["names"] { return values.compactMap { if case .string(let n) = $0 { return n }; return nil } }; return [] }()
             return ["upgrade", "--" + kind] + (fields["greedy"] == .bool(true) ? ["--greedy"] : []) + ["--"] + names
         case "doctorFix", "adopt": return [] // Resolved only from a Host-issued plan target.
@@ -69,6 +86,7 @@ public struct HomebrewTaskInput: Equatable {
     }
     public var json: JSONValue { .object(fields) }
     public func authorize(in scope: PluginCapabilityScope?) throws {
-        guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }), tool.operations.contains(operation), tool.kinds.contains(kind) else { throw PluginHostServiceError.capabilityScopeDenied(.runReviewedToolTasks) }
+        let kinds = kind == "both" ? ["formula", "cask"] : [kind]
+        guard let tool = scope?.reviewedTools.first(where: { $0.tool == "homebrew" }), tool.operations.contains(operation), kinds.allSatisfy(tool.kinds.contains) else { throw PluginHostServiceError.capabilityScopeDenied(.runReviewedToolTasks) }
     }
 }

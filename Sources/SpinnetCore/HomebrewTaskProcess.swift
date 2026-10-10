@@ -9,6 +9,7 @@ public final class HomebrewTaskProcess {
         public let outcome: String
         public let exitStatus: Int32
         public let stop: String?
+        public init(outcome: String, exitStatus: Int32, stop: String?) { self.outcome = outcome; self.exitStatus = exitStatus; self.stop = stop }
     }
     private let executable: URL
     private let arguments: [String]

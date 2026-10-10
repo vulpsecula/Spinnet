@@ -11,7 +11,12 @@ public struct HomebrewTaskPlan {
     public let executable: URL
     public let confirmation: HostConfirmation
     public var scope: PluginCapabilityScope? = nil
-    public var needsPrivileges: Bool { package.value(atPointer: "/needs_privileges") == .bool(true) }
+    public var steps: [HomebrewTaskInput] = []
+    public var needsPrivileges: Bool {
+        if package.value(atPointer: "/needs_privileges") == .bool(true) { return true }
+        if case .array(let records)? = package.value(atPointer: "/packages") { return records.contains { $0.value(atPointer: "/needs_privileges") == .bool(true) } }
+        return false
+    }
     let generation: Int
 }
 
@@ -19,12 +24,14 @@ public struct HomebrewTaskPlan {
 /// or hiding a Plugin View never calls this owner's invalidation methods.
 public final class HostReviewedToolTasks {
     public typealias Preflight = (HomebrewTaskInput) throws -> JSONValue
+    public typealias TargetResolver = (String, PluginID) throws -> (HomebrewTaskInput, JSONValue)
     private let activities: HostActivities
     private let root: URL
     private let runnerURL: URL
     private let executable: () throws -> URL
     private let preflight: Preflight
     private let trustedTaps: () throws -> [String]
+    private let targetResolver: TargetResolver
     private let lock = NSRecursiveLock()
     private var pending: HomebrewTaskPlan?
     private var generations: [PluginID: Int] = [:]
@@ -35,10 +42,12 @@ public final class HostReviewedToolTasks {
 
     public init(activities: HostActivities, journal: URL, runnerURL: URL,
                 executable: @escaping () throws -> URL = HomebrewReadProfile.discover,
-                preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil) {
+                preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil,
+                targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) }) {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = preflight ?? { input in try Self.preflight(input, executable: executable()) }
         self.trustedTaps = trustedTaps ?? { try Self.readTrustedTaps(executable: executable()) }
+        self.targetResolver = targetResolver
         recover()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
@@ -66,13 +75,13 @@ public final class HostReviewedToolTasks {
         pending = reservation; lock.unlock()
         do {
             let executable = try self.executable()
-            let package = try preflight(input)
+            let (resolvedTarget, package) = try review(input, owner: owner)
             try checkSource(package)
-            let resolved = try resolvedInput(input, package: package)
+            let resolved = try resolvedInput(resolvedTarget, package: package)
             try authorize()
-            let target = input.name.isEmpty ? "eligible \(input.kind) packages" : input.name
+            let target = resolved.name.isEmpty ? "eligible \(resolved.kind) packages" : resolved.name
             let from = Self.text(package, "installed_version"), to = Self.text(package, "version"), tap = Self.text(package, "tap")
-            var disclosure = "Homebrew will \(input.operation) \(target)."
+            var disclosure = "Homebrew will \(input.displayOperation.lowercased()) \(target)."
             if !from.isEmpty || !to.isEmpty { disclosure += " Version: \(from.isEmpty ? "not installed" : from) → \(to.isEmpty ? "current" : to)." }
             if !tap.isEmpty { disclosure += " Source: \(tap)." }
             if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
@@ -85,8 +94,20 @@ public final class HostReviewedToolTasks {
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,
                 resolvedInput: resolved, package: package, executable: executable,
-                confirmation: .init(title: "Confirm Homebrew \(input.operation)", message: disclosure, confirmTitle: "Continue", isDestructive: true), generation: generation)
+                confirmation: .init(title: "Confirm Homebrew: \(input.displayOperation)", message: disclosure, confirmTitle: "Continue", isDestructive: true), generation: generation)
             plan.scope = scope
+            plan.steps = try steps(resolved, package: package)
+            if !plan.steps.isEmpty {
+                let targets = plan.steps.flatMap { step -> [String] in
+                    guard case .array(let names)? = step.fields["names"] else { return [] }
+                    return names.compactMap { if case .string(let name) = $0 { return name }; return nil }
+                }
+                let concrete = targets.prefix(100).joined(separator: ", ") + (targets.count > 100 ? " (\(targets.count) total)" : "")
+                plan = HomebrewTaskPlan(id: plan.id, owner: plan.owner, pluginName: plan.pluginName, input: plan.input,
+                    resolvedInput: plan.resolvedInput, package: plan.package, executable: plan.executable,
+                    confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
+                        confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
+            }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
             pending = plan; return plan
@@ -98,9 +119,10 @@ public final class HostReviewedToolTasks {
         do {
             try authorize()
             guard try executable() == plan.executable else { throw PluginHostServiceError.tool(.missing) }
-            let currentPackage = try preflight(plan.input)
+            let (resolved, currentPackage) = try review(plan.input, owner: plan.owner)
             try checkSource(currentPackage)
-            guard currentPackage == plan.package else { throw PluginHostServiceError.tool(.planChanged) }
+            guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
+            guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
             try authorize()
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == plan.id, generations[plan.owner, default: 0] == plan.generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
@@ -113,6 +135,7 @@ public final class HostReviewedToolTasks {
                 detached: false, runnerPID: nil, runnerIdentity: nil, processGroup: nil, processIdentity: nil,
                 stage: "starting", log: [], result: nil, ended: nil)
             record.scope = plan.scope
+            record.steps = plan.steps.isEmpty ? nil : plan.steps.map(\.json)
             try record.save(to: directory)
             // Reserve a visible bounded Host control before spawning. A
             // resource-limit error must never leave a mutating orphan.
@@ -201,7 +224,7 @@ public final class HostReviewedToolTasks {
         let state = record.result == nil ? stopping ? "stopping" : "running" : "ended"
         let input = try? HomebrewTaskInput(record.input)
         var detail: [String: JSONValue] = ["id": .string(record.id), "kind": .string("task"), "tool": .string("homebrew"),
-            "name": .string("\(input?.operation ?? "Task") \(input?.name ?? "")"), "status": .string(state),
+            "name": .string(String("\(input?.displayOperation ?? "Task") \(input?.name ?? "")".prefix(256))), "status": .string(state),
             "operation": .string(input?.operation ?? "unknown"), "stage": .string(stopping && record.result == nil ? "stopping" : record.stage),
             "elapsed_seconds": .number(max(0, (record.ended ?? Date()).timeIntervalSince(record.started)).rounded(.down)),
             "log": .array(record.log.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(record.result == nil)]
@@ -231,16 +254,42 @@ public final class HostReviewedToolTasks {
         let tap = Self.text(package, "tap")
         if !tap.isEmpty, !["homebrew/core", "homebrew/cask"].contains(tap), !(try trustedTaps()).contains(tap) { throw PluginHostServiceError.tool(.sourceNotAllowed) }
     }
+    private func review(_ input: HomebrewTaskInput, owner: PluginID) throws -> (HomebrewTaskInput, JSONValue) {
+        if ["adopt", "doctorFix"].contains(input.operation) {
+            let (resolved, metadata) = try targetResolver(input.name, owner)
+            guard ["install", "link", "cleanup"].contains(resolved.operation),
+                  input.operation != "adopt" || (resolved.operation == "install" && resolved.kind == "cask" && metadata.value(atPointer: "/adopt") == .bool(true)) else {
+                throw PluginHostServiceError.tool(.planChanged)
+            }
+            let package = try preflight(resolved)
+            guard case .object(var fields) = package, case .object(let reviewed) = metadata else { throw PluginHostServiceError.tool(.planChanged) }
+            for (key, value) in reviewed { fields[key] = value }
+            return (resolved, .object(fields))
+        }
+        return (input, try preflight(input))
+    }
     private func resolvedInput(_ input: HomebrewTaskInput, package: JSONValue) throws -> HomebrewTaskInput {
         if input.operation == "upgradeAll" {
-            guard case .array(let packages)? = package.value(atPointer: "/packages"), packages.count <= 50 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            guard case .array(let packages)? = package.value(atPointer: "/packages"), packages.count <= 2000 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             let names = packages.compactMap { record -> JSONValue? in
                 guard record.value(atPointer: "/pinned") != .bool(true), case .string(let name)? = record.value(atPointer: "/name") else { return nil }; return .string(name)
             }
             guard !names.isEmpty else { throw PluginHostServiceError.tool(.notOutdated) }
-            return try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string(input.kind), "names": .array(names)]))
+            return input
         }
         return input
+    }
+    private func steps(_ input: HomebrewTaskInput, package: JSONValue) throws -> [HomebrewTaskInput] {
+        guard input.operation == "upgradeAll", case .array(let packages)? = package.value(atPointer: "/packages") else { return [] }
+        var result: [HomebrewTaskInput] = []
+        for kind in input.kind == "both" ? ["formula", "cask"] : [input.kind] {
+            let names = packages.filter { $0.value(atPointer: "/kind") == .string(kind) && $0.value(atPointer: "/pinned") != .bool(true) }.compactMap { $0.value(atPointer: "/name") }
+            for offset in stride(from: 0, to: names.count, by: 50) {
+                result.append(try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string(kind), "names": .array(Array(names.dropFirst(offset).prefix(50))), "greedy": input.fields["greedy"] ?? .bool(false)])))
+            }
+        }
+        guard !result.isEmpty else { throw PluginHostServiceError.tool(.notOutdated) }
+        return result
     }
     private static func text(_ value: JSONValue, _ key: String) -> String { if case .string(let text)? = value.value(atPointer: "/" + key) { return text }; return "" }
     public static func preflight(_ input: HomebrewTaskInput, executable: URL) throws -> JSONValue {
@@ -248,7 +297,20 @@ public final class HostReviewedToolTasks {
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
         let profile = HomebrewReadProfile(executable: { executable })
         if input.operation == "upgradeAll" {
-            return try profile.read(.object(["tool": .string("homebrew"), "operation": .string("outdated"), "kind": .string(input.kind), "greedy": input.fields["greedy"] ?? .bool(false)]), owner: PluginID("host-task-preflight"), timeout: 15)
+            var request: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string("outdated"), "greedy": input.fields["greedy"] ?? .bool(false)]
+            if input.kind != "both" { request["kind"] = .string(input.kind) }
+            let outdated = try profile.read(.object(request), owner: PluginID("host-task-preflight"), timeout: 15)
+            guard outdated.value(atPointer: "/truncated") != .bool(true), case .array(let packages)? = outdated.value(atPointer: "/packages") else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            var details: [JSONValue] = []
+            for kind in ["formula", "cask"] {
+                let names = packages.filter { $0.value(atPointer: "/kind") == .string(kind) && $0.value(atPointer: "/pinned") != .bool(true) }.compactMap { $0.value(atPointer: "/name") }
+                for offset in stride(from: 0, to: names.count, by: 50) {
+                    let info = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string(kind), "names": .array(Array(names.dropFirst(offset).prefix(50)))]), owner: PluginID("host-task-preflight"), timeout: 15)
+                    guard info.value(atPointer: "/not_found") == nil, case .array(let records)? = info.value(atPointer: "/packages") else { throw PluginHostServiceError.tool(.planChanged) }
+                    details += records
+                }
+            }
+            return .object(["packages": .array(details)])
         }
         let names = input.fields["names"] ?? .array([.string(input.name)])
         let data = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string(input.kind), "names": names]), owner: PluginID("host-task-preflight"), timeout: 15)
@@ -291,10 +353,11 @@ public struct HomebrewTaskJournal: Codable {
     public var result: JSONValue?
     public var ended: Date?
     public var scope: PluginCapabilityScope? = nil
+    public var steps: [JSONValue]? = nil
     public func save(to directory: URL) throws { try JSONEncoder().encode(self).write(to: directory.appendingPathComponent("task.json"), options: .atomic) }
     public static func load(from directory: URL) throws -> Self {
         let data = try Data(contentsOf: directory.appendingPathComponent("task.json"), options: .mappedIfSafe)
-        guard data.count <= 512 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+        guard data.count <= 2 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
         return try JSONDecoder().decode(Self.self, from: data)
     }
 }
