@@ -143,6 +143,38 @@
         },
         "installed_as_dependency": {
           "type": "boolean"
+        },
+        "installed_path": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^/",
+          "description": "Existing package directory derived below the Host-discovered Cellar or Caskroom; absent when unavailable or escaping the reviewed prefix."
+        },
+        "linked": {
+          "type": "boolean",
+          "description": "Known existing link state; omitted when cask artifact sources/destinations cannot be safely resolved."
+        },
+        "linkable": {
+          "type": "boolean",
+          "description": "Installed package supports non-forced link/unlink: formula keg policy or cask symlink artifacts."
+        },
+        "keg_only": {
+          "type": "boolean"
+        },
+        "languages": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9-]+$"
+          }
+        },
+        "selected_language": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9-]+$",
+          "description": "Declared cask language matched by the saved local configuration. Absent if no selected default can be established."
         }
       }
     },

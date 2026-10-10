@@ -52,7 +52,7 @@ truncated identifies an API/record bound, never a clean bill of health. This is
 not a claim of exhaustive vulnerability coverage.
 
 Previews are explicitly estimated local metadata plans, not brew dry-run output.
-They neither download manifests nor mutate/install/trust anything. Dependencies,
+They neither download manifests nor mutate/install/trust anything. Preview package records use the same bounded metadata projection as [package detail reads](tools.md), including discovered installed directories and declared languages when known. Dependencies,
 source trust and package pins are rechecked by the actual confirmed task.
 
 Doctor text and printed commands are untrusted data. Only exact reviewed cleanup

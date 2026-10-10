@@ -199,14 +199,22 @@ public final class HomebrewReadProfile {
                 for (key, packageKind) in [("formulae", "formula"), ("casks", "cask")] {
                     guard let records = raw[key] as? [[String: Any]] else { continue }
                     if let chosen = request.kind, chosen != packageKind { continue }
-                    for record in records { if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated") { packages.append(projected) } }
+                    for record in records { if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: HomebrewManagementReads.prefix(of: executable), includeConfiguration: request.operation == "info") { packages.append(projected) } }
                 }
                 if request.operation == "info" {
                     let found = packages.compactMap { value -> String? in
                         guard case .object(let record) = value, case .string(let name)? = record["name"] else { return nil }
-                        return name.split(separator: "/").last.map(String.init)
+                        return name
                     }
-                    notFound += names.filter { !found.contains($0) }
+                    notFound += names.filter { requested in
+                        !found.contains(requested) && !found.contains(where: { returned in
+                            // A bare alias or an official tap-qualified name may
+                            // be canonicalized by Homebrew; a third-party tap's
+                            // qualified identity must match in full.
+                            let official = requested.hasPrefix("homebrew/core/") || requested.hasPrefix("homebrew/cask/")
+                            return (!requested.contains("/") || official) && returned.split(separator: "/").last == requested.split(separator: "/").last
+                        })
+                    }
                 }
             }
         }
@@ -233,7 +241,7 @@ public final class HomebrewReadProfile {
     private static func clean(_ text: String) -> String { String(String.UnicodeScalarView(text.replacingOccurrences(of: NSHomeDirectory(), with: "~")
         .replacingOccurrences(of: "(?i)(bearer\\s+|(?:token|password|secret|api[_-]?key)[=:]\\s*)[^\\s,;]+", with: "$1[redacted]", options: .regularExpression)
         .unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }).prefix(200)) }
-    static func project(_ raw: [String: Any], kind: String, outdated: Bool) -> JSONValue? {
+    static func project(_ raw: [String: Any], kind: String, outdated: Bool, prefix: URL? = nil, includeConfiguration: Bool = false) -> JSONValue? {
         guard let name = (raw[kind == "formula" ? "full_name" : "full_token"] ?? (raw[kind == "formula" ? "name" : "token"] ?? raw["name"])) as? String, validReturnedName(name) else { return nil }
         var result: [String: JSONValue] = ["kind": .string(kind), "name": .string(name)]
         if outdated { result["outdated"] = .bool(true) }
@@ -254,12 +262,13 @@ public final class HomebrewReadProfile {
             result["dependencies"] = .array(dependencies.prefix(128).filter(HomebrewReadInput.validPackageName).map(JSONValue.string))
         }
         for key in ["homepage"] { if let value = raw[key] as? String, let safe = HomebrewManagementReads.safeURL(value) { result[key] = .string(safe) } }
-        if let source = ((raw["urls"] as? [String: Any])?["stable"] as? [String: Any])?["url"] as? String,
+        if let source = (kind == "cask" ? raw["url"] : ((raw["urls"] as? [String: Any])?["stable"] as? [String: Any])?["url"]) as? String,
            let safe = HomebrewManagementReads.safeURL(source) { result["download_url"] = .string(safe) }
         if let installed = raw["installed"] as? [[String: Any]], let first = installed.first {
             if let flag = first["installed_on_request"] as? Bool { result["installed_on_request"] = .bool(flag) }
             if let flag = first["installed_as_dependency"] as? Bool { result["installed_as_dependency"] = .bool(flag) }
         }
+        result.merge(HomebrewPackageMetadata.project(raw, kind: kind, name: name, prefix: prefix, includeConfiguration: includeConfiguration)) { _, new in new }
         return .object(result)
     }
     /// A separate process group, bounded pipes and no stdin. Stop attempts never undo work.

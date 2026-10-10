@@ -3,6 +3,25 @@ import SpinnetCore
 @testable import SpinnetHost
 
 final class HomebrewManagementNativeTests: XCTestCase {
+    func testActualInstalledPackageMetadataWithoutNetworkOrMutation() throws {
+        guard ProcessInfo.processInfo.environment["SPINNET_PACKAGE_METADATA_NATIVE"] == "1" else { throw XCTSkip("Opt-in local package metadata check") }
+        let profile = HomebrewReadProfile()
+        for (kind, name) in [("formula", "libtommath"), ("cask", "spotify")] {
+            let start = Date()
+            let value = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string(kind), "names": .array([.string(name)])]), owner: PluginID("native.metadata"), timeout: 15)
+            guard value.value(atPointer: "/packages/0/installed_version") != nil else { throw XCTSkip("Fixed example package is not installed on this Mac") }
+            guard case .string(let path)? = value.value(atPointer: "/packages/0/installed_path") else { XCTFail("An installed reviewed package should expose its existing bounded directory"); continue }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+            XCTAssertNotNil(value.value(atPointer: "/packages/0/linkable"))
+            if kind == "formula" { XCTAssertNotNil(value.value(atPointer: "/packages/0/linked")) }
+            else {
+                XCTAssertEqual(value.value(atPointer: "/packages/0/linkable"), .bool(false))
+                XCTAssertNotNil(value.value(atPointer: "/packages/0/languages"))
+                XCTAssertNotNil(value.value(atPointer: "/packages/0/download_url"))
+            }
+            print("HOMEBREW_PACKAGE_METADATA_NATIVE kind=\(kind) seconds=\(Date().timeIntervalSince(start)) result_bytes=\(try JSONEncoder().encode(value).count)")
+        }
+    }
     func testSafeActualLocalManagementReads() throws {
         guard ProcessInfo.processInfo.environment["SPINNET_HOMEBREW_MANAGEMENT_NATIVE"] == "1" else { throw XCTSkip("Opt-in read-only native Homebrew checks") }
         let profile = HomebrewReadProfile(management: HomebrewManagementReads(transport: URLSessionHTTPSTransport()))

@@ -77,7 +77,7 @@
       "file": "calls/info-tap-qualified.json",
       "definition": "tools.read.input",
       "valid": true,
-      "note": "Input never names a tap while P1 stands"
+      "note": "Controlled exact tap-qualified package identity is accepted without changing source trust."
     },
     {
       "file": "calls/info-option-name.json",
@@ -168,6 +168,30 @@
       "definition": "tools.read.result",
       "valid": false,
       "note": "Descriptions are cut to 200 characters"
+    },
+    {
+      "file": "results/info-formula-metadata.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Bounded Host-derived package metadata."
+    },
+    {
+      "file": "results/info-cask-metadata.json",
+      "definition": "tools.read.result",
+      "valid": true,
+      "note": "Bounded Host-derived package metadata."
+    },
+    {
+      "file": "results/info-relative-directory.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Bounded Host-derived package metadata."
+    },
+    {
+      "file": "results/info-too-many-languages.json",
+      "definition": "tools.read.result",
+      "valid": false,
+      "note": "Bounded Host-derived package metadata."
     }
   ]
 }

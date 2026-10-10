@@ -59,7 +59,7 @@ public final class HomebrewManagementReads {
         }
         throw invalid()
     }
-    private static func prefix(of executable: URL) -> URL {
+    static func prefix(of executable: URL) -> URL {
         let path = executable.resolvingSymlinksInPath().path
         if path.hasPrefix("/opt/homebrew/") { return URL(fileURLWithPath: "/opt/homebrew") }
         if path.hasPrefix("/usr/local/") { return URL(fileURLWithPath: "/usr/local") }
@@ -136,7 +136,7 @@ public final class HomebrewManagementReads {
             let answer = try run(["info", "--json=v2", "--" + kind, "--"] + selected)
             guard answer.status == 0, let raw = try JSONSerialization.jsonObject(with: answer.stdout) as? [String: Any],
                   let packages = raw[kind == "formula" ? "formulae" : "casks"] as? [[String: Any]] else { throw PluginHostServiceError.tool(.failed) }
-            result["packages"] = .array(packages.prefix(20).compactMap { HomebrewReadProfile.project($0, kind: kind, outdated: false) })
+            result["packages"] = .array(packages.prefix(20).compactMap { HomebrewReadProfile.project($0, kind: kind, outdated: false, prefix: Self.prefix(of: executable)) })
             result["estimated"] = .bool(true)
             result["summary"] = .string("Estimated plan from local metadata. Homebrew rechecks dependencies, pins and source trust before a confirmed task; this is not a brew dry-run.")
             return .object(result)
