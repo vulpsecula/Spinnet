@@ -1,9 +1,9 @@
 # Host-run sources (Plugin API Level 2)
 
-Implemented by #82, #85 and #87. A visible page may name up to eight `http.request`, `tools.read` or reviewed `apps.perform` sources.
+Implemented by #82, #85, #86 and #87. A visible page may name up to eight `http.request`, `tools.read`, reviewed `apps.perform` or `system.metrics` sources.
 The Host performs them without keeping the helper alive and renders each result
 as plain text through bindings. HTTPS samples once and has a 15-second deadline;
-`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). The local Spotify playback adapter samples at a minimum of one second with a three-second deadline, without launching Spotify or prompting for Automation; see [Local Spotify](spotify.md). Metrics are reserved for their own adapter.
+`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). The local Spotify playback adapter samples at a minimum of one second with a three-second deadline, without launching Spotify or prompting for Automation; see [Local Spotify](spotify.md). `system.metrics` reads aggregate CPU, memory, startup disk capacity and internal battery under `read_system_status`, with a one-second minimum and deadline; see [metric meanings, units and unavailable values](namespaces.md#systemmetrics-level-2-86). Its snapshots are bound without invoking a helper and its CPU baseline is discarded on hide, close or source replacement.
 
 ```js
 const c = spinnet.ui.components;
@@ -22,7 +22,8 @@ A source is `{id, perform, input, every?, deliver?, error_pointer?, status_messa
 unique within a page. `deliver: {}` also hands a changed result to the script;
 `deliver: {pointer: "/json/version"}` watches only that RFC 6901 pointer. The
 SDK's `deliver: true` builds `{}`. `ui.source(id, perform, input, options)` is the
-generic builder; `http.request.source(id, input, options)` selects HTTPS.
+generic builder; `http.request.source(id, input, options)` selects HTTPS and
+`system.metrics.source(id, input, {every: 1})` selects basic system metrics.
 `errorPointer` and `statusMessages` SDK options map to their snake-case members.
 
 The HTTPS result is `{status, headers, body, json?}`: existing `http.request`
