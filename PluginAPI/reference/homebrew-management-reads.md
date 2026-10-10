@@ -44,9 +44,7 @@ SBOM files below the discovered Homebrew Cellar. They never substitute today's
 recipe version for the installed version. Each read checks at most twenty
 installed formulae; next_offset pages the inventory. Missing/unsupported installed
 source records appear in skipped. A record without a supported upstream Git
-repository is not counted as checked. Results are advisory matches for installed
-source tags, with no inference that the installed build contains a recipe's
-security patch. The initial scan includes up to forty advisory IDs per package,
+repository is not counted as checked. Results classify source-tag matches as `open`, `patched` or `unknown`. The fixed local formula metadata is bound to the installed keg by exact stable version plus Homebrew revision, following Homebrew's current-recipe applicability rule. Only that matching recipe's security patch resolutions can suppress an advisory; an older keg never inherits today's patches. Advisory aliases participate in matching. Missing recipe metadata, or an unfetched alias set needed to decide a patch match, remains `unknown`. `upgrade_available` requires an outdated unpinned package in current local metadata. The initial scan includes up to forty advisory IDs per package,
 six immediate details; vulnerabilityDetail fetches further selected details.
 truncated identifies an API/record bound, never a clean bill of health. This is
 not a claim of exhaustive vulnerability coverage.
@@ -72,3 +70,8 @@ permission to install or trust a source.
 
 Native API sources: [Homebrew manual](https://docs.brew.sh/Manpage), the deployed
 Homebrew 7 command implementations, and the [OSV API](https://google.github.io/osv.dev/api/).
+
+
+Adoption Candidates automatically search a Host-generated, bounded expression of native App names, then inspect at most 50 casks with the fixed offline read profile. Each App has at most four candidate casks and a `ready`, `likely`, `unlikely` or `cannot` confidence with its reason. Names, artifact filenames, compatible versions and declared uninstall bundle identifiers inform confidence; a match never grants mutation authority. No native path reaches the Plugin. An application-only self-updating cask can be previewed when its published version differs because Homebrew's adoption comparison explicitly exempts `auto_updates`; the confirmed runner still performs Homebrew's actual checks. Search/catalogue truncation is explicit.
+
+Doctor may return `fix_all: {target,title,count}` for the first at most eight unique reviewed repairs in the latest report. The opaque set freezes its constituent targets and expires when any constituent expires or the report refreshes. `doctorFix` consumes it under the original Doctor repair scope, confirms concrete steps once, and executes fixed reviewed inputs. Unsupported printed guidance stays manual. Plugins never provide the set's inputs, arguments or metadata.

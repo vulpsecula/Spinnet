@@ -75,6 +75,32 @@ public final class HomebrewManagementReads {
             .replacingOccurrences(of: "(?i)(bearer\\s+|(?:token|password|secret|api[_-]?key)[=:]\\s*)[^\\s,;]+", with: "$1[redacted]", options: .regularExpression)
         return String(String(String.UnicodeScalarView(scrubbed.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) || $0 == "\n" })).prefix(maximum))
     }
+    private static func appToken(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+    private static func adoptionMatch(app: HomebrewAdoptionApplication, cask: [String: Any]) -> JSONValue? {
+        guard let token = cask["token"] as? String, HomebrewReadInput.validToken(token) else { return nil }
+        let artifacts = cask["artifacts"] as? [[String: Any]] ?? []
+        let appNames = artifacts.flatMap { $0["app"] as? [String] ?? [] }.map { URL(fileURLWithPath: $0).lastPathComponent }
+        let names = [token] + (cask["name"] as? [String] ?? []) + appNames.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
+        guard names.contains(where: { appToken($0) == appToken(app.name) }) else { return nil }
+        let exactArtifact = appNames.contains(app.url.lastPathComponent)
+        let quits = artifacts.flatMap { $0["uninstall"] as? [[String: Any]] ?? [] }.flatMap { record -> [String] in
+            if let value = record["quit"] as? String { return [value] }; return record["quit"] as? [String] ?? []
+        }
+        let sameVersion = (cask["version"] as? String)?.split(separator: ",").first.map(String.init) == app.version
+        let managed = cask["installed"] != nil && !(cask["installed"] is NSNull) && (cask["installed"] as? [Any])?.isEmpty != true
+        let installer = artifacts.contains { $0["pkg"] != nil || $0["installer"] != nil }
+        let confidence: String, reason: String
+        if managed { confidence = "cannot"; reason = "Already managed by Homebrew" }
+        else if installer { confidence = "cannot"; reason = "Installer artifacts cannot adopt an existing App" }
+        else if !sameVersion && cask["auto_updates"] as? Bool != true { confidence = "cannot"; reason = "Installed App version differs from the current cask; Homebrew would refuse adoption" }
+        else if !exactArtifact { confidence = "unlikely"; reason = "Name matches but the cask App filename differs" }
+        else if quits.contains(app.bundleID) { confidence = "ready"; reason = "Cask bundle identifier and App artifact match; Host review is still required" }
+        else { confidence = "likely"; reason = "App filename and compatible version match; bundle identity is unverified" }
+        return .object(["name": .string(token), "confidence": .string(confidence), "reason": .string(reason)])
+    }
     private static func invalid() -> PluginHostServiceError { .invalidInput("Unsupported reviewed Homebrew management read") }
     public func read(_ input: JSONValue, owner: PluginID, executable: URL, deadline: Date, cancellation: HostFetchedSections.Cancellation,
                      execute: HomebrewReadProfile.CancellableExecutor, stillAuthorized: () throws -> Void) throws -> JSONValue {
@@ -124,7 +150,17 @@ public final class HomebrewManagementReads {
                 let names = values.compactMap { if case .string(let name) = $0 { return name.split(separator: "/").last.map(String.init) }; return nil }
                 selected = inventory.filter { names.contains($0.name) }
             } else { selected = Array(inventory.dropFirst(offset).prefix(20)) }
-            result.merge(try remote.read(operation: operation, input: input, inventory: selected, prefix: Self.prefix(of: executable), deadline: deadline,
+            var recipes: [String: JSONValue] = [:]
+            if !selected.isEmpty {
+                let metadata = try run(["info", "--json=v2", "--formula", "--"] + selected.map(\.name))
+                if metadata.status == 0, let document = try? JSONDecoder().decode(JSONValue.self, from: metadata.stdout),
+                   case .array(let records)? = document.value(atPointer: "/formulae") {
+                    for record in records.prefix(20) {
+                        if case .string(let name)? = record.value(atPointer: "/name"), selected.contains(where: { $0.name == name }) { recipes[name] = record }
+                    }
+                }
+            }
+            result.merge(try remote.read(operation: operation, input: input, inventory: selected, recipes: recipes, prefix: Self.prefix(of: executable), deadline: deadline,
                 cancellation: cancellation, stillAuthorized: stillAuthorized), uniquingKeysWith: { _, new in new })
             result["available"] = .bool(true); result["offset"] = .number(Double(offset)); result["total"] = .number(Double(inventory.count))
             if input.value(atPointer: "/names") == nil, offset + 20 < inventory.count { result["next_offset"] = .number(Double(offset + 20)) }
@@ -143,13 +179,32 @@ public final class HomebrewManagementReads {
         }
         if operation == "adoptionCandidates" {
             targets.invalidate(owner: owner, domain: "adoptionCandidate")
-            let snapshots = applications().prefix(128)
+            let snapshots = Array(applications().prefix(128))
+            var casks: [[String: Any]] = []
+            let tokens = Array(Set(snapshots.map { Self.appToken($0.name) }.filter { !$0.isEmpty })).sorted().prefix(128)
+            if !tokens.isEmpty {
+                let search = try run(["search", "--cask", "--", "/(" + tokens.joined(separator: "|") + ")/"])
+                if search.status == 0, let text = String(data: search.stdout, encoding: .utf8) {
+                    let names = Array(Set(text.split(whereSeparator: \.isWhitespace).map(String.init).filter { HomebrewReadInput.validToken($0) })).sorted()
+                    let selected = Array(names.prefix(50))
+                    if !selected.isEmpty {
+                        let answer = try run(["info", "--json=v2", "--cask", "--"] + selected)
+                        if answer.status == 0, let raw = try? JSONSerialization.jsonObject(with: answer.stdout) as? [String: Any] { casks = Array((raw["casks"] as? [[String: Any]] ?? []).prefix(50)) }
+                    }
+                    if names.count > 50 { result["truncated"] = .bool(true) }
+                }
+            }
             result["applications"] = .array(snapshots.map { app in
                 let target = HomebrewManagementTarget(operation: "adoptionCandidate", kind: "cask", name: app.name, arguments: [], needsPrivileges: false,
                     summary: "Review adoption of " + app.name, metadata: .object(["bundle_id": .string(app.bundleID), "version": .string(app.version)]))
                 let key = targets.issue(target, owner: owner, domain: "adoptionCandidate", current: { [applications] in applications().contains(app) })
                 lock.withLock { if appSnapshots.count >= 256 { appSnapshots.removeAll() }; appSnapshots[key] = app }
-                return .object(["target": .string(key), "name": .string(app.name), "bundle_id": .string(app.bundleID), "version": .string(app.version)])
+                let matches: [JSONValue] = casks.compactMap { Self.adoptionMatch(app: app, cask: $0) }.sorted { left, right in
+                    let ranks = ["ready": 0, "likely": 1, "unlikely": 2, "cannot": 3]
+                    func rank(_ value: JSONValue) -> Int { if case .string(let text)? = value.value(atPointer: "/confidence") { return ranks[text] ?? 3 }; return 3 }
+                    return rank(left) < rank(right)
+                }
+                return .object(["target": .string(key), "name": .string(app.name), "bundle_id": .string(app.bundleID), "version": .string(app.version), "candidates": .array(Array(matches.prefix(4)))])
             })
             return .object(result)
         }
@@ -163,7 +218,7 @@ public final class HomebrewManagementReads {
                   let artifacts = cask["artifacts"] as? [[String: Any]],
                   artifacts.contains(where: { ($0["app"] as? [Any])?.contains(where: { ($0 as? String)?.split(separator: "/").last.map(String.init) == app.url.lastPathComponent }) == true }),
                   !artifacts.contains(where: { $0["pkg"] != nil || $0["installer"] != nil }),
-                  caskVersion.split(separator: ",").first.map(String.init) == app.version,
+                  (caskVersion.split(separator: ",").first.map(String.init) == app.version || cask["auto_updates"] as? Bool == true),
                   cask["installed"] == nil || cask["installed"] is NSNull || (cask["installed"] as? [Any])?.isEmpty == true else {
                 throw PluginHostServiceError.invalidInput("This cask does not match the installed App and version, is already managed, or needs an installer; choose a matching application-only cask")
             }
@@ -183,6 +238,7 @@ public final class HomebrewManagementReads {
             targets.invalidate(owner: owner, domain: "doctor")
             result["available"] = .bool(true)
             result["tier"] = .string(Self.clean(String(describing: report["tier"] ?? 1), maximum: 20))
+            var reviewedSet: [(key: String, value: HomebrewManagementTarget)] = []
             result["findings"] = .array(findings.prefix(100).enumerated().map { index, finding in
                 let remediation = finding["remediation"] as? [String: Any]
                 let commands = (remediation?["commands"] as? [String] ?? []).prefix(8)
@@ -199,7 +255,9 @@ public final class HomebrewManagementReads {
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
                     } else { value = nil }
                     if let value {
-                        repairs.append(.object(["target": .string(targets.issue(value, owner: owner, domain: "doctor")), "title": .string(value.summary)]))
+                        let key = targets.issue(value, owner: owner, domain: "doctor")
+                        repairs.append(.object(["target": .string(key), "title": .string(value.summary)]))
+                        if reviewedSet.count < 8, !reviewedSet.contains(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { reviewedSet.append((key, value)) }
                     }
                 }
                 var value: [String: JSONValue] = ["id": .string("finding-" + String(index)),
@@ -209,6 +267,23 @@ public final class HomebrewManagementReads {
                 if let text = remediation?["text"] as? String { value["guidance"] = .string(Self.clean(text)) }
                 return .object(value)
             })
+            if !reviewedSet.isEmpty {
+                let frozen = reviewedSet
+                let steps: [JSONValue] = frozen.map { entry in
+                    let value = entry.value
+                    var input: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string(value.operation)]
+                    if value.operation != "cleanup" { input["kind"] = .string(value.kind) }
+                    if !value.name.isEmpty { input["name"] = .string(value.name) }
+                    if value.operation == "cleanup" { input["days"] = .number(120) }
+                    return .object(["input": .object(input), "metadata": value.metadata, "repair_summary": .string(value.summary)])
+                }
+                let title = "Run " + String(frozen.count) + " Host-reviewed Doctor repairs: " + frozen.map { $0.value.summary }.joined(separator: "; ")
+                let batch = HomebrewManagementTarget(operation: "doctorBatch", kind: "formula", name: "", arguments: [],
+                    needsPrivileges: frozen.contains { $0.value.needsPrivileges }, summary: title,
+                    metadata: .object(["doctor_steps": .array(steps)]))
+                let key = targets.issue(batch, owner: owner, domain: "doctor", current: { [targets] in frozen.allSatisfy { targets.isCurrent(target: $0.key, owner: owner) } })
+                result["fix_all"] = .object(["target": .string(key), "title": .string(title), "count": .number(Double(frozen.count))])
+            }
             if findings.count > 100 { result["truncated"] = .bool(true) }
             return .object(result)
         }
