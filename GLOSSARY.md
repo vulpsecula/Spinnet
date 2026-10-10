@@ -269,7 +269,7 @@ The Host's reviewed description of the operations one command-line tool, such as
 _Avoid_: Shell access, command runner, tool integration
 
 **Task**:
-Proposed for a later Level 2 addition (#72): a Host-owned run of one mutating operation of a Reviewed Tool Profile on one package the user chose and confirmed, which outlives the Plugin View that started it, is listed in the Status Item, and can be stopped there. Stopping it is an attempt that never rolls back, and a task interrupted by a crash or logout is reported, never resumed.
+A Host-owned run of a mutating operation of a Reviewed Tool Profile on concrete targets the user chose and confirmed, which outlives the Plugin View that started it, is listed in the Status Item, and can be stopped there. Stopping it is an attempt that never rolls back. A confirmed Task may continue after the Host or its Plugin becomes unavailable; recovery restores its status and never repeats the work.
 _Avoid_: Job, background process, effect (an effect, such as keep-awake, has its own lifetime)
 
 ### Plugin interface
