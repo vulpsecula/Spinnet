@@ -50,7 +50,8 @@ system service, verifies absence, and removes only that same plist; it never
 accepts a path or wildcard from a Plugin. LaunchAgents, Apple service labels,
 scripts, kexts and Zap remain outside this class.
 
-The receipt removal class accepts exact non-Apple package identifiers from
+The receipt removal class resolves recorded receipt expressions through the
+bounded native read interface and admits only exact non-Apple identifiers from
 data-only recorded installed cask history. The Host binds its exact token,
 recorded tap and version to the selected package, checks that recorded tap's
 current trust before confirmation and launch, and discloses it as locally
@@ -60,21 +61,32 @@ uses no-follow ancestor descriptors, bounded reads and bounded timestamp
 enumeration. The sealed Ruby adapter delegates revalidation to the signed
 native client. It never evaluates an installed
 Ruby recipe or substitutes the current catalog for missing history. The Host
-freezes the native exported receipt and a manifest of existing file identities,
+freezes the canonical native exported receipt and a manifest of existing file identities and content hashes,
 with at most 10,000 entries and a 30-second aggregate read deadline. Each file
-must belong exclusively to that receipt, be root-owned and non-writable, and
-have protected root-owned ancestors. Only paths within Applications, Library
-Application Support, PrivilegedHelperTools and Frameworks are reviewed.
-Symlinks, multiple hard links, special files, unknown ownership, writable
-parents and ambiguous/wildcard receipt IDs refuse before confirmation.
+must belong only to receipts selected in the confirmed batch, be root-owned
+and non-writable (including extended ACL authority). Reviewed locations are
+Applications, Library Application Support, PrivilegedHelperTools, Frameworks,
+Fonts, exact LaunchDaemons, and receipt-derived usr/local bin, lib and share
+entries. Frozen symbolic links can be removed without following their targets.
+Multiple hard links, special files and unselected or unknown ownership refuse
+before confirmation. Ordinary writable containers such as Applications are
+supported through descriptor-based private quarantine rather than trusted for
+direct deletion. No expression reaches privileged execution.
 The manifest establishes current receipt ownership and file identity; pkgutil
 file names do not establish original installer payload checksums.
 
 After native authorization, the helper rebuilds and matches the full manifest,
-then rechecks each identity with its protected parent descriptor open. It
+before the first mutation, then rechecks each identity, content and ACL with
+its parent descriptor open. It atomically moves each exact entry into private
+quarantine and rechecks it before deletion. It
 removes receipt-owned files and empty directories before forgetting the exact
 receipt. Nonempty directories remain. Any failure or Stop leaves the receipt
 intact unless all required removals already succeeded; prior changes remain.
+Daemon-only receipts account for verified daemon removals in the same plan.
+Directory size and modification times changed by admitted child removals do
+not invalidate a later receipt; owner, ACL and inode identity still must match.
+A restore collision preserves original bytes at a concrete recovery location
+reported to the Host; automatic cleanup never deletes retained files.
 Receipt forgetting alone is never reported as an uninstall. The Host
 Confirmation names each receipt and its reviewed entry count. Concrete removal
 details exceeding 8 KiB refuse the Task before confirmation rather than being
