@@ -65,42 +65,28 @@ public enum HomebrewReceiptOwnership {
         }
         // Filesystem identity catches receipt spellings that differ only in
         // case on a case-insensitive volume. Never follow the final link.
-        func identity(_ path: String) -> String? {
+        func identity(_ path: String) throws -> String? {
             var status = stat()
-            guard lstat(path, &status) == 0 else { return nil }
+            guard lstat(path, &status) == 0 else {
+                guard errno == ENOENT || errno == ENOTDIR else { throw PluginHostServiceError.unavailable("Native receipt file identity is unavailable") }
+                return nil
+            }
             return String(status.st_dev) + ":" + String(status.st_ino)
         }
         var targetsByIdentity: [String: Set<String>] = [:]
-        var ancestorPaths = Set<String>(), ancestorsByIdentity = Set<String>()
         for target in targets {
             guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
-            if let key = identity(target) { targetsByIdentity[key, default: []].insert(target) }
-            var ancestor = URL(fileURLWithPath: target).deletingLastPathComponent().path
-            while ancestorPaths.insert(ancestor).inserted {
-                guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
-                var status = stat()
-                if stat(ancestor, &status) == 0 { ancestorsByIdentity.insert(String(status.st_dev) + ":" + String(status.st_ino)) }
-                else if errno != ENOENT { throw PluginHostServiceError.unavailable("Native receipt ancestor identity is unavailable") }
-                if ancestor == "/" { break }
-                ancestor = URL(fileURLWithPath: ancestor).deletingLastPathComponent().path
-            }
+            if let key = try identity(target) { targetsByIdentity[key, default: []].insert(target) }
         }
         var owners: [String: Set<String>] = [:], identities: [String: [String]] = [:]
         for id in identifiers.sorted() {
             let infoBytes = try query(["--pkg-info-plist", id]), info = try record(infoBytes, id: id)
             guard let volume = info["volume"] as? String, let raw = info["install-location"] as? String else { throw PluginHostServiceError.unavailable("Native receipt location is missing") }
             identities[id] = [try HomebrewReceiptRemoval.manifestDigest(exported: infoBytes, entries: [])]
-            if volume != "/" { continue }
+            // A disjoint install root can contain descendant directory links
+            // into a selected package. Only its complete native file list can
+            // establish ownership, including physical aliases and hard links.
             let location = try HomebrewReceiptRemoval.installLocation(volume: volume, location: raw)
-            let candidateLocation = location.lowercased()
-            let textualOverlap = targets.contains(where: { $0.lowercased() == candidateLocation || $0.lowercased().hasPrefix(candidateLocation == "/" ? "/" : candidateLocation + "/") })
-            var locationStatus = stat()
-            let locationExists = stat(location, &locationStatus) == 0
-            let physicalOverlap = locationExists && ancestorsByIdentity.contains(String(locationStatus.st_dev) + ":" + String(locationStatus.st_ino))
-            if !textualOverlap && !physicalOverlap {
-                guard locationExists || errno == ENOENT else { throw PluginHostServiceError.unavailable("Native receipt location identity is unavailable") }
-                continue
-            }
             let bytes: Data, receiptPaths: [String]
             if let existing = exports[id] {
                 bytes = existing
@@ -123,7 +109,7 @@ public enum HomebrewReceiptOwnership {
             for path in receiptPaths {
                 guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
                 if targets.contains(path) { owners[path, default: []].insert(id) }
-                if let key = identity(path), let aliases = targetsByIdentity[key] { for target in aliases { owners[target, default: []].insert(id) } }
+                if let key = try identity(path), let aliases = targetsByIdentity[key] { for target in aliases { owners[target, default: []].insert(id) } }
             }
         }
         // Reject an inventory changed while its bounded exports were read.
