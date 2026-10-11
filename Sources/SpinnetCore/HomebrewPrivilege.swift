@@ -12,8 +12,10 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
         public let sha256: String
         public let device: UInt64
         public let inode: UInt64
-        public init(label: String, sha256: String, device: UInt64, inode: UInt64) {
+        public let frozen: NativeFileQuarantine.Snapshot?
+        public init(label: String, sha256: String, device: UInt64, inode: UInt64, frozen: NativeFileQuarantine.Snapshot? = nil) {
             self.label = label; self.sha256 = sha256; self.device = device; self.inode = inode
+            self.frozen = frozen
         }
         public var path: String { "/Library/LaunchDaemons/" + label + ".plist" }
     }
@@ -35,8 +37,10 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
         public let installedFingerprint: String?
         public let uninstallVersion: String?
         public let installedTap: String?
-        public init(name: String, version: String, sha256: String, packages: [String], launchDaemons: [LaunchDaemon]? = nil, receipts: [Receipt]? = nil, installedFingerprint: String? = nil, uninstallVersion: String? = nil, installedTap: String? = nil) {
+        public let receiptPatterns: [String: [String]]?
+        public init(name: String, version: String, sha256: String, packages: [String], launchDaemons: [LaunchDaemon]? = nil, receipts: [Receipt]? = nil, installedFingerprint: String? = nil, uninstallVersion: String? = nil, installedTap: String? = nil, receiptPatterns: [String: [String]]? = nil) {
             self.name = name; self.version = version; self.sha256 = sha256; self.packages = packages; self.launchDaemons = launchDaemons; self.receipts = receipts; self.installedFingerprint = installedFingerprint; self.uninstallVersion = uninstallVersion; self.installedTap = installedTap
+            self.receiptPatterns = receiptPatterns
         }
     }
     public let taskID: String
@@ -63,6 +67,9 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
               (cask.launchDaemons ?? []).allSatisfy({ validLaunchDaemonLabel($0.label) && validDigest($0.sha256) && $0.inode > 0 }),
               (cask.receipts ?? []).allSatisfy({ validReceiptID($0.identifier) && validDigest($0.manifestSHA256) && (1...10_000).contains($0.fileCount) }) else { return false }
         guard cask.installedTap == nil || (cask.installedTap!.count <= 96 && cask.installedTap!.range(of: "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$", options: .regularExpression) != nil) else { return false }
+        guard (cask.receiptPatterns ?? [:]).count <= 16,
+              (cask.receiptPatterns ?? [:]).allSatisfy({ !$0.key.isEmpty && $0.key.utf8.count <= 200 && !$0.key.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+                  && !$0.value.isEmpty && $0.value.count <= 16 && $0.value.allSatisfy({ identifier in (cask.receipts ?? []).contains { $0.identifier == identifier } }) }) else { return false }
         let removals = (cask.launchDaemons ?? []).count + (cask.receipts ?? []).count
         if operation == "uninstall" { return cask.sha256.isEmpty && cask.packages.isEmpty && removals > 0 && cask.uninstallVersion == nil }
         guard validDigest(cask.sha256), cask.packages.count <= 16, cask.packages.allSatisfy(validPackagePath) else { return false }
@@ -122,10 +129,10 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
     public static func captureLaunchDaemon(_ label: String) throws -> LaunchDaemon {
         guard validLaunchDaemonLabel(label) else { throw PluginHostServiceError.tool(.planChanged) }
         let path = "/Library/LaunchDaemons/" + label + ".plist"
-        var parent = stat()
-        guard lstat("/Library/LaunchDaemons", &parent) == 0, parent.st_mode & S_IFMT == S_IFDIR,
-              parent.st_uid == 0, parent.st_mode & 0o022 == 0 else { throw PluginHostServiceError.tool(.planChanged) }
-        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        let frozen = try NativeFileQuarantine.capture(URL(fileURLWithPath: path))
+        guard frozen.owner == 0, !frozen.directory, frozen.mode & 0o022 == 0, !frozen.writableACL else { throw PluginHostServiceError.tool(.planChanged) }
+        let (parent, name) = try NativeFileQuarantine.openParent(URL(fileURLWithPath: path)); defer { close(parent) }
+        let descriptor = openat(parent, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
         guard descriptor >= 0 else { throw PluginHostServiceError.tool(.planChanged) }
         let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? file.close() }
@@ -136,7 +143,9 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
               let plist = try PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any], plist["Label"] as? String == label else {
             throw PluginHostServiceError.tool(.planChanged)
         }
-        return LaunchDaemon(label: label, sha256: HomebrewSystemAuthorization.digest(bytes), device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
+        guard HomebrewSystemAuthorization.digest(bytes) == frozen.sha256,
+              try NativeFileQuarantine.capture(URL(fileURLWithPath: path)) == frozen else { throw PluginHostServiceError.tool(.planChanged) }
+        return LaunchDaemon(label: label, sha256: frozen.sha256, device: frozen.device, inode: frozen.inode, frozen: frozen)
     }
     public static func validPackagePath(_ path: String) -> Bool {
         path.hasSuffix(".pkg") && path.count <= 512 && !path.hasPrefix("/") && !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) && !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." || $0.isEmpty })
@@ -353,10 +362,25 @@ public enum HomebrewPrivilegeReview {
         try checkCompatibility(executable: executable)
         let answer = try HomebrewReadProfile.execute(executable, ["info", "--json=v2", "--cask", "--"] + names, HomebrewReadProfile.environment, Date().addingTimeInterval(15))
         guard answer.status == 0, let root = try JSONSerialization.jsonObject(with: answer.stdout) as? [String: Any], let records = root["casks"] as? [[String: Any]], records.count == names.count else { throw PluginHostServiceError.tool(.planChanged) }
+        let prefix = executable.deletingLastPathComponent().deletingLastPathComponent().path
+        let deadline = Date().addingTimeInterval(30)
+        var admittedOwners = Set<String>()
+        if ["uninstall", "upgrade", "upgradeAll", "upgradeSelected", "changeLanguage"].contains(input.operation) {
+            for name in names {
+                let metadata = packagesForReview(package).first { $0.value(atPointer: "/name") == .string(name) }
+                if input.operation != "uninstall" && metadata?.value(atPointer: "/uninstall_needs_privileges") != .bool(true) { continue }
+                let installed = try HomebrewInstalledUninstall.read(name: name, prefix: prefix)
+                let directives = installed.artifacts.flatMap { artifact -> [[String: Any]] in
+                    artifact["uninstall"] as? [[String: Any]] ?? (artifact["uninstall"] as? [String: Any]).map { [$0] } ?? []
+                }
+                let patterns = directives.flatMap { ($0["pkgutil"] as? String).map { [$0] } ?? $0["pkgutil"] as? [String] ?? [] }
+                admittedOwners.formUnion(try HomebrewReceiptRemoval.resolvePatterns(patterns, deadline: deadline))
+            }
+        }
         return try zip(names, records).map { name, raw in
             if input.operation == "uninstall" {
                 guard input.fields["zap"] != .bool(true), raw["full_token"] as? String == name || raw["token"] as? String == name else { throw PluginHostServiceError.tool(.planChanged) }
-                guard let removal = try uninstallCask(name: name, prefix: executable.deletingLastPathComponent().deletingLastPathComponent().path) else { throw PluginHostServiceError.tool(.planChanged) }
+                guard let removal = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, deadline: deadline) else { throw PluginHostServiceError.tool(.planChanged) }
                 return removal
             }
             guard raw["full_token"] as? String == name || raw["token"] as? String == name,
@@ -367,17 +391,17 @@ public enum HomebrewPrivilegeReview {
             let metadata = packagesForReview(package).first { $0.value(atPointer: "/name") == .string(name) }
             let predecessor: HomebrewPrivilegePlan.Cask?
             if ["upgrade", "upgradeAll", "upgradeSelected", "changeLanguage"].contains(input.operation), metadata?.value(atPointer: "/uninstall_needs_privileges") == .bool(true) {
-                predecessor = try uninstallCask(name: name, prefix: executable.deletingLastPathComponent().deletingLastPathComponent().path)
+                predecessor = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, deadline: deadline)
             } else { predecessor = nil }
             guard (!packages.isEmpty || predecessor != nil), packages.allSatisfy(HomebrewPrivilegePlan.validPackagePath) else { throw PluginHostServiceError.unavailable("This cask uses a custom installer that has no reviewed native elevation operation") }
             return .init(name: name, version: version, sha256: checksum, packages: packages, launchDaemons: predecessor?.launchDaemons,
-                receipts: predecessor?.receipts, installedFingerprint: predecessor?.installedFingerprint, uninstallVersion: predecessor?.version, installedTap: predecessor?.installedTap)
+                receipts: predecessor?.receipts, installedFingerprint: predecessor?.installedFingerprint, uninstallVersion: predecessor?.version, installedTap: predecessor?.installedTap, receiptPatterns: predecessor?.receiptPatterns)
         }
     }
     private static func packagesForReview(_ value: JSONValue) -> [JSONValue] {
         if case .array(let values)? = value.value(atPointer: "/packages") { return values }; return [value]
     }
-    private static func uninstallCask(name: String, prefix: String) throws -> HomebrewPrivilegePlan.Cask? {
+    private static func uninstallCask(name: String, prefix: String, admittedOwners: Set<String>, deadline: Date) throws -> HomebrewPrivilegePlan.Cask? {
         let installed = try HomebrewInstalledUninstall.read(name: name, prefix: prefix)
         if !HomebrewInstalledUninstall.requiresPrivileges(installed.artifacts) { return nil }
         let directives = installed.artifacts.flatMap { artifact -> [[String: Any]] in
@@ -388,16 +412,19 @@ public enum HomebrewPrivilegeReview {
             throw PluginHostServiceError.unavailable("Only exact launch daemons and receipt-owned files are reviewed for privileged uninstall; scripts, wildcards, kexts and other directives need separate native review")
         }
         func strings(_ key: String) -> [String] { directives.flatMap { value in (value[key] as? String).map { [$0] } ?? value[key] as? [String] ?? [] } }
-        let labels = strings("launchctl"), receiptIDs = strings("pkgutil")
+        let labels = strings("launchctl"), patterns = strings("pkgutil")
+        guard patterns.count <= 16, Set(patterns).count == patterns.count else { throw PluginHostServiceError.tool(.outputTooLarge) }
+        var resolutions: [String: [String]] = [:]
+        for pattern in patterns { resolutions[pattern] = try HomebrewReceiptRemoval.resolvePatterns([pattern], deadline: deadline) }
+        let receiptIDs = Array(Set(resolutions.values.flatMap { $0 })).sorted()
         guard labels.count <= 16, Set(labels).count == labels.count, labels.allSatisfy(HomebrewPrivilegePlan.validLaunchDaemonLabel),
               labels.allSatisfy({ !FileManager.default.fileExists(atPath: "/Library/LaunchAgents/" + $0 + ".plist") }),
               receiptIDs.count <= 16, Set(receiptIDs).count == receiptIDs.count, receiptIDs.allSatisfy(HomebrewPrivilegePlan.validReceiptID), !labels.isEmpty || !receiptIDs.isEmpty else {
             throw PluginHostServiceError.unavailable("Privileged uninstall requires exact non-Apple receipt IDs or system-daemon labels; wildcards and LaunchAgents need separate review")
         }
         let daemons = try labels.map(HomebrewPrivilegePlan.captureLaunchDaemon)
-        let deadline = Date().addingTimeInterval(30)
-        let receipts = try receiptIDs.map { try HomebrewReceiptRemoval.capture($0, excluding: Set(daemons.map(\.path)), deadline: deadline).receipt }
-        return .init(name: name, version: installed.version, sha256: "", packages: [], launchDaemons: daemons, receipts: receipts, installedFingerprint: installed.fingerprint, installedTap: installed.tap)
+        let receipts = try receiptIDs.map { try HomebrewReceiptRemoval.capture($0, excluding: Set(daemons.map(\.path)), admittedOwners: admittedOwners, deadline: deadline).receipt }
+        return .init(name: name, version: installed.version, sha256: "", packages: [], launchDaemons: daemons, receipts: receipts, installedFingerprint: installed.fingerprint, installedTap: installed.tap, receiptPatterns: resolutions)
     }
 
 }

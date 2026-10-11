@@ -29,6 +29,9 @@ final class Task {
     var approvals: [String: Approval] = [:]
     var process: HomebrewTaskProcess?
     var stopped = false
+    var receipts: [String: HomebrewReceiptRemoval.Snapshot] = [:]
+    var removedPaths = Set<String>()
+    let quarantine = URL(fileURLWithPath: "/private/var/tmp/spinnet-native-" + UUID().uuidString.lowercased())
     init(plan: HomebrewPrivilegePlan, pid: pid_t, identity: UInt64, uid: uid_t) {
         self.plan = plan; self.pid = pid; self.identity = identity; self.uid = uid
     }
@@ -66,12 +69,26 @@ final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
         do {
             guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
             let plan = try HomebrewPrivilegePlan.decodeValidated(data)
+            // Freeze every manifest before the first mutation. Directory
+            // timestamps changed by another admitted receipt are not authority.
+            var snapshots: [String: HomebrewReceiptRemoval.Snapshot] = [:]
+            let deadline = Date().addingTimeInterval(30)
+            for cask in plan.casks {
+                for receipt in cask.receipts ?? [] {
+                    let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)), admittedOwners: Set(plan.casks.flatMap { ($0.receipts ?? []).map(\.identifier) }), deadline: deadline)
+                    guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
+                    snapshots[cask.name + ":" + receipt.identifier] = snapshot
+                }
+            }
             state.lock.lock(); defer { state.lock.unlock() }
             guard state.tasks.isEmpty, let admission = state.admissions[plan.taskID], admission.plan == plan, admission.uid == uid,
                   admission.expires > ProcessInfo.processInfo.systemUptime, HomebrewTaskProcess.startIdentity(admission.pid) == admission.identity,
                   HomebrewSystemAuthorization.processParent(pid) == admission.pid else { throw PluginHostServiceError.tool(.planChanged) }
             state.admissions.removeValue(forKey: plan.taskID)
-            state.tasks[plan.taskID] = Task(plan: plan, pid: pid, identity: identity, uid: uid)
+            let task = Task(plan: plan, pid: pid, identity: identity, uid: uid)
+            try NativeFileQuarantine.makePrivateDirectory(task.quarantine)
+            task.receipts = snapshots
+            state.tasks[plan.taskID] = task
             reply("")
         } catch { reply("The privileged Task plan was refused") }
     }
@@ -135,6 +152,10 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
                     try repair(request.source, task: task)
                     reply(0, "Reviewed ownership repair completed")
                 }
+            } catch NativeFileQuarantine.Failure.retained(let retained) {
+                // This concrete root-owned recovery location stays on disk.
+                // Never run an automatic recursive cleanup after a collision.
+                reply(77, "Operation stopped; original files retained for recovery at " + retained.path)
             } catch { reply(77, "Reviewed privileged operation refused or cancelled; no unreviewed command was executed") }
         }
     }
@@ -225,32 +246,36 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
         } else if existing.exitStatus != 113 { throw PluginHostServiceError.tool(.failed) }
         let absent = try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15)
         guard absent.exitStatus == 113, try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
-        state.lock.lock(); defer { state.lock.unlock() }
-        guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity,
-              unlink(daemon.path) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        guard let frozen = daemon.frozen else { throw PluginHostServiceError.tool(.planChanged) }
+        guard try NativeFileQuarantine.remove(URL(fileURLWithPath: daemon.path), expected: frozen, staging: task.quarantine, isCancelled: { self.cancelled(task) }) == .removed else { throw PluginHostServiceError.tool(.planChanged) }
+        task.removedPaths.insert(daemon.path)
     }
     private func removeReceipt(_ request: HomebrewPrivilegeRequest, task: Task) throws {
         guard let cask = task.plan.casks.first(where: { $0.name == request.package }),
               let receipt = cask.receipts?.first(where: { $0.identifier == request.source }) else { throw PluginHostServiceError.tool(.planChanged) }
-        let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)))
+        guard let snapshot = task.receipts[cask.name + ":" + receipt.identifier] else { throw PluginHostServiceError.tool(.planChanged) }
         guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
+        try HomebrewReceiptRemoval.validateReceipt(snapshot)
+        guard snapshot.accountedEntries.allSatisfy({ task.removedPaths.contains($0.path) && !FileManager.default.fileExists(atPath: $0.path) }) else { throw PluginHostServiceError.tool(.planChanged) }
         // Every file was checked before mutation. Each protected parent stays
         // open through the final identity check and descriptor-relative unlink.
         let files = snapshot.entries.filter { !$0.directory }
         let directories = snapshot.entries.filter(\.directory).sorted { $0.path.split(separator: "/").count > $1.path.split(separator: "/").count }
         for entry in files + directories {
-            let (parent, name) = try HomebrewReceiptRemoval.protectedParent(entry.path); defer { close(parent) }
+            if task.removedPaths.contains(entry.path) {
+                guard !FileManager.default.fileExists(atPath: entry.path) else { throw PluginHostServiceError.tool(.planChanged) }; continue
+            }
             let current = try HomebrewReceiptRemoval.captureEntry(entry.path)
-            guard current.device == entry.device, current.inode == entry.inode, current.directory == entry.directory,
-                  entry.directory || current == entry else { throw PluginHostServiceError.tool(.planChanged) }
-            state.lock.lock()
-            guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity else { state.lock.unlock(); throw PluginHostServiceError.tool(.planChanged) }
-            let status = unlinkat(parent, name, entry.directory ? AT_REMOVEDIR : 0), failure = errno
-            state.lock.unlock()
-            guard status == 0 || (entry.directory && failure == ENOTEMPTY) else { throw PluginHostServiceError.tool(.planChanged) }
+            guard current == entry else { throw PluginHostServiceError.tool(.planChanged) }
+            let outcome = try NativeFileQuarantine.remove(URL(fileURLWithPath: entry.path), expected: entry.frozen, staging: task.quarantine, isCancelled: { self.cancelled(task) })
+            if outcome == .removed { task.removedPaths.insert(entry.path) }
         }
         let forgotten = try runNative("/usr/sbin/pkgutil", ["--forget", receipt.identifier], task: task, timeout: 30)
         guard forgotten.exitStatus == 0 else { throw PluginHostServiceError.tool(.failed) }
+    }
+    private func cancelled(_ task: Task) -> Bool {
+        state.lock.lock(); defer { state.lock.unlock() }
+        return task.stopped || HomebrewTaskProcess.startIdentity(task.pid) != task.identity
     }
     private func repair(_ path: String, task: Task) throws {
         // Descriptor-relative traversal refuses symlinks and multiple hard

@@ -76,7 +76,12 @@ module SpinnetReviewedUninstall
   def uninstall_pkgutil(*identifiers, command:, **_kwargs)
     binding = SPINNET_PRIVILEGE_CONTEXT.fetch("casks").find { |item| item["name"] == cask.full_name || item["name"] == cask.token }
     raise "No confirmed receipt removal" unless binding
-    identifiers.each do |identifier|
+    exact = identifiers.flat_map do |pattern|
+      bound = (binding["receiptPatterns"] || {})[pattern]
+      raise "The confirmed receipt expression changed" unless bound && bound.is_a?(Array) && !bound.empty?
+      bound
+    end.uniq
+    exact.each do |identifier|
       receipt = (binding["receipts"] || []).find { |item| item["identifier"] == identifier }
       raise "The confirmed receipt changed" unless receipt
       result = command.run(SPINNET_PRIVILEGE_CONTEXT.fetch("client"), args: ["--remove-receipt", binding.fetch("name"), identifier, receipt.fetch("manifestSHA256")], print_stdout: true)

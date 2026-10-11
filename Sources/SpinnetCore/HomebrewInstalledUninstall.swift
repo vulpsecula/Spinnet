@@ -30,7 +30,7 @@ public enum HomebrewInstalledUninstall {
             guard current >= 0 else { throw PluginHostServiceError.unavailable("Installed history root descriptor is unavailable") }
             do {
                 for (index, part) in parts.enumerated() {
-                    let flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC | ((index < parts.count - 1 || directory) ? O_DIRECTORY : 0)
+                    let flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | ((index < parts.count - 1 || directory) ? O_DIRECTORY : 0)
                     let next = openat(current, part, flags)
                     guard next >= 0 else { throw PluginHostServiceError.unavailable("Installed history contains an unavailable or linked ancestor") }; close(current); current = next
                 }

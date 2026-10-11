@@ -2,6 +2,25 @@ import XCTest
 @testable import SpinnetCore
 
 final class ReviewedToolReadTests: XCTestCase {
+    func testInstalledHistorySpecialFileRefusesWithoutWaitingForAPipeWriter() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let metadata = prefix.appendingPathComponent("Caskroom/example/.metadata")
+        try FileManager.default.createDirectory(at: metadata, withIntermediateDirectories: true)
+        let pipe = metadata.appendingPathComponent("INSTALL_RECEIPT.json")
+        XCTAssertEqual(mkfifo(pipe.path, 0o600), 0)
+        let finished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            _ = try? HomebrewInstalledUninstall.read(name: "example", prefix: prefix.path)
+            finished.signal()
+        }
+        let refusedPromptly = finished.wait(timeout: .now() + 0.3) == .success
+        if !refusedPromptly {
+            let writer = open(pipe.path, O_WRONLY | O_NONBLOCK); if writer >= 0 { close(writer) }
+            _ = finished.wait(timeout: .now() + 1)
+        }
+        XCTAssertTrue(refusedPromptly)
+    }
     func testQualifiedInstalledCaskSelectionCannotBorrowAnotherTapsSameTokenHistory() throws {
         let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: prefix) }

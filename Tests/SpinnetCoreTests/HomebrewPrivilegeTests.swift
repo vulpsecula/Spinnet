@@ -74,4 +74,19 @@ final class HomebrewPrivilegeTests: XCTestCase {
         var previous = install; previous.source = "/opt/homebrew/Caskroom/example/1/New.pkg"; XCTAssertThrowsError(try plan.validate(previous))
         XCTAssertThrowsError(try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "install"))
     }
+    func testReceiptManifestIgnoresNativePlistKeyOrderWithoutLosingTypedValues() throws {
+        let first = Data("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>pkgid</key><string>org.example.pkg</string><key>install-time</key><integer>12</integer></dict></plist>".utf8)
+        let second = Data("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>install-time</key><integer>12</integer><key>pkgid</key><string>org.example.pkg</string></dict></plist>".utf8)
+        XCTAssertEqual(try HomebrewReceiptRemoval.manifestDigest(exported: first, entries: []), try HomebrewReceiptRemoval.manifestDigest(exported: second, entries: []))
+        let changed = Data("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>install-time</key><string>12</string><key>pkgid</key><string>org.example.pkg</string></dict></plist>".utf8)
+        XCTAssertNotEqual(try HomebrewReceiptRemoval.manifestDigest(exported: first, entries: []), try HomebrewReceiptRemoval.manifestDigest(exported: changed, entries: []))
+    }
+    func testRecordedReceiptPatternsResolveToBoundedExactNonAppleTargets() throws {
+        let ids = try HomebrewReceiptRemoval.resolvePatterns(["org.virtualbox.pkg.*"], deadline: Date().addingTimeInterval(1)) { arguments, _ in
+            XCTAssertEqual(arguments, ["--pkgs=org.virtualbox.pkg.*"])
+            return Data("org.virtualbox.pkg.core\norg.virtualbox.pkg.cli\n".utf8)
+        }
+        XCTAssertEqual(ids, ["org.virtualbox.pkg.cli", "org.virtualbox.pkg.core"])
+        XCTAssertThrowsError(try HomebrewReceiptRemoval.resolvePatterns([".*"], deadline: Date().addingTimeInterval(1)) { _, _ in Data("com.apple.pkg.system\n".utf8) })
+    }
 }
