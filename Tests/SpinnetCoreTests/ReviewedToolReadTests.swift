@@ -2,6 +2,21 @@ import XCTest
 @testable import SpinnetCore
 
 final class ReviewedToolReadTests: XCTestCase {
+    func testCaskInfoDetectsPrivilegedInstalledPredecessorEvenWhenCurrentCatalogDropsItsUninstall() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let metadata = prefix.appendingPathComponent("Caskroom/example/.metadata")
+        let definition = metadata.appendingPathComponent("1/20261011000000/Casks/example.json")
+        try FileManager.default.createDirectory(at: definition.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: definition)
+        let tab = "{\"source\":{\"version\":\"1\"},\"uninstall_flight_blocks\":false,\"uninstall_artifacts\":[{\"uninstall\":[{\"pkgutil\":\"org.example.pkg\"}]}]}"
+        try Data(tab.utf8).write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
+        let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }) { _, _, _, _ in
+            HomebrewReadOutput(status: 0, stdout: Data("{\"casks\":[{\"token\":\"example\",\"version\":\"2\",\"installed\":[\"1\"],\"artifacts\":[{\"app\":[\"Example.app\"]}]}]}".utf8))
+        }
+        let value = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string("example")])]), owner: PluginID("reader"))
+        XCTAssertEqual(value.value(atPointer: "/packages/0/uninstall_needs_privileges"), .bool(true))
+    }
     func testInstalledProjectionKeepsTrustedTapAndRemovesPrivateFields() throws {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }) { _, arguments, environment, _ in
             XCTAssertEqual(arguments, ["info", "--json=v2", "--installed"])

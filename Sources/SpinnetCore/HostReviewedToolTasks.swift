@@ -133,7 +133,22 @@ public final class HostReviewedToolTasks {
                     confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
-            if plan.needsPrivileges { plan.privilegedCasks = try privilegeReview(resolved, package, executable) }
+            if plan.needsPrivileges {
+                let bindings = try privilegeReview(resolved, package, executable)
+                let nativeDetails = bindings.flatMap { cask -> [String] in
+                    (cask.launchDaemons ?? []).map { "Remove system launch daemon \($0.label)." }
+                        + (cask.receipts ?? []).map { "Remove \($0.fileCount) reviewed receipt-owned entries for \($0.identifier), then forget that receipt; nonempty directories remain." }
+                }.joined(separator: " ")
+                guard nativeDetails.utf8.count <= 8 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+                if !nativeDetails.isEmpty {
+                    let previous = plan
+                    plan = HomebrewTaskPlan(id: previous.id, owner: previous.owner, pluginName: previous.pluginName, input: previous.input,
+                        resolvedInput: previous.resolvedInput, package: previous.package, executable: previous.executable,
+                        confirmation: .init(title: previous.confirmation.title, message: previous.confirmation.message + " " + nativeDetails,
+                            confirmTitle: previous.confirmation.confirmTitle, isDestructive: true), scope: previous.scope, steps: previous.steps, generation: previous.generation)
+                }
+                plan.privilegedCasks = bindings
+            }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
             pending = plan; return plan

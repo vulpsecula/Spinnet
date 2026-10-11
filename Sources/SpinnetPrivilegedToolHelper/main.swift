@@ -125,6 +125,9 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
                 guard fresh, approval.pid == pid, HomebrewTaskProcess.startIdentity(pid) == approval.identity, approval.expires > ProcessInfo.processInfo.systemUptime, HomebrewSystemAuthorization.check(authorization, rightName: approval.right) else { throw PluginHostServiceError.unavailable("System authorization refused or already consumed") }
                 switch request.operation {
                 case .installPackage: try install(request, task: task, reply: reply)
+                case .removeReceipt:
+                    try removeReceipt(request, task: task)
+                    reply(0, "Reviewed receipt-owned files removed and receipt forgotten; nonempty directories retained. Changes are not rolled back")
                 case .removeLaunchDaemon:
                     try removeLaunchDaemon(request, task: task)
                     reply(0, "Reviewed system launch daemon removed; changes are not rolled back")
@@ -225,6 +228,29 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
         state.lock.lock(); defer { state.lock.unlock() }
         guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity,
               unlink(daemon.path) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+    }
+    private func removeReceipt(_ request: HomebrewPrivilegeRequest, task: Task) throws {
+        guard let cask = task.plan.casks.first(where: { $0.name == request.package }),
+              let receipt = cask.receipts?.first(where: { $0.identifier == request.source }) else { throw PluginHostServiceError.tool(.planChanged) }
+        let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)))
+        guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
+        // Every file was checked before mutation. Each protected parent stays
+        // open through the final identity check and descriptor-relative unlink.
+        let files = snapshot.entries.filter { !$0.directory }
+        let directories = snapshot.entries.filter(\.directory).sorted { $0.path.split(separator: "/").count > $1.path.split(separator: "/").count }
+        for entry in files + directories {
+            let (parent, name) = try HomebrewReceiptRemoval.protectedParent(entry.path); defer { close(parent) }
+            let current = try HomebrewReceiptRemoval.captureEntry(entry.path)
+            guard current.device == entry.device, current.inode == entry.inode, current.directory == entry.directory,
+                  entry.directory || current == entry else { throw PluginHostServiceError.tool(.planChanged) }
+            state.lock.lock()
+            guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity else { state.lock.unlock(); throw PluginHostServiceError.tool(.planChanged) }
+            let status = unlinkat(parent, name, entry.directory ? AT_REMOVEDIR : 0), failure = errno
+            state.lock.unlock()
+            guard status == 0 || (entry.directory && failure == ENOTEMPTY) else { throw PluginHostServiceError.tool(.planChanged) }
+        }
+        let forgotten = try runNative("/usr/sbin/pkgutil", ["--forget", receipt.identifier], task: task, timeout: 30)
+        guard forgotten.exitStatus == 0 else { throw PluginHostServiceError.tool(.failed) }
     }
     private func repair(_ path: String, task: Task) throws {
         // Descriptor-relative traversal refuses symlinks and multiple hard

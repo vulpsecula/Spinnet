@@ -14,6 +14,9 @@ do {
         request = HomebrewPrivilegeRequest(taskID: task, package: arguments[2], operation: .installPackage,
             source: arguments[3], sha256: arguments[4], archive: arguments[5], relativePackage: arguments[6])
         prompt = "Install the reviewed Homebrew package \(request.relativePackage) for \(request.package). Stopping does not undo installation."
+    } else if arguments.count == 5, arguments[1] == "--remove-receipt", HomebrewPrivilegePlan.validReceiptID(arguments[3]), HomebrewPrivilegePlan.validDigest(arguments[4]) {
+        request = HomebrewPrivilegeRequest(taskID: task, package: arguments[2], operation: .removeReceipt, source: arguments[3], sha256: arguments[4])
+        prompt = "Remove the confirmed receipt-owned files for \(request.source) (\(request.package)) and then forget its receipt. Shared, writable or changed entries are refused. Changes are not rolled back."
     } else if arguments.count == 5, arguments[1] == "--remove-launch-daemon", HomebrewPrivilegePlan.validLaunchDaemonLabel(arguments[3]), HomebrewPrivilegePlan.validDigest(arguments[4]) {
         request = HomebrewPrivilegeRequest(taskID: task, package: arguments[2], operation: .removeLaunchDaemon, source: arguments[3], sha256: arguments[4])
         prompt = "Remove the confirmed system launch daemon \(request.source) for \(request.package). Stops its service and removes only its verified plist. Changes are not rolled back."

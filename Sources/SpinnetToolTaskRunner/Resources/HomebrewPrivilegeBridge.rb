@@ -24,7 +24,7 @@ REVIEWED_SOURCE_DIGESTS.each do |path, expected|
   abort "This Homebrew source revision needs privileged adapter review" unless Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/path).hexdigest == expected
 end
 abort "Spinnet privileged bridge accepts no source arguments" unless ARGV.length == 1
-context = JSON.parse(File.read(ARGV.fetch(0), 65_537))
+context = JSON.parse(File.read(ARGV.fetch(0), 131_073))
 abort "Invalid Spinnet privilege context" unless context.is_a?(Hash) && context["arguments"].is_a?(Array)
 SPINNET_PRIVILEGE_CONTEXT = context.freeze
 
@@ -73,6 +73,17 @@ Cask::Artifact::Pkg.prepend(SpinnetReviewedPkgInstaller)
 # Exact system-daemon removals are bound by the authenticated Host plan.
 # Do not route Homebrew's general launchctl/rm sudo operations through the client.
 module SpinnetReviewedUninstall
+  def uninstall_pkgutil(*identifiers, command:, **_kwargs)
+    binding = SPINNET_PRIVILEGE_CONTEXT.fetch("casks").find { |item| item["name"] == cask.full_name || item["name"] == cask.token }
+    raise "No confirmed receipt removal" unless binding
+    identifiers.each do |identifier|
+      receipt = (binding["receipts"] || []).find { |item| item["identifier"] == identifier }
+      raise "The confirmed receipt changed" unless receipt
+      result = command.run(SPINNET_PRIVILEGE_CONTEXT.fetch("client"), args: ["--remove-receipt", binding.fetch("name"), identifier, receipt.fetch("manifestSHA256")], print_stdout: true)
+      exit 70 if result.exit_status == 70
+      raise "Reviewed receipt removal was refused, cancelled or failed" unless result.success?
+    end
+  end
   def uninstall_launchctl(*services, command:, **_kwargs)
     binding = SPINNET_PRIVILEGE_CONTEXT.fetch("casks").find { |item| item["name"] == cask.full_name || item["name"] == cask.token }
     raise "No confirmed system-daemon removal" unless binding
@@ -89,6 +100,23 @@ Cask::Artifact::AbstractUninstall.prepend(SpinnetReviewedUninstall)
 if context["mode"] == "verify"
   puts JSON.generate({ native_elevation: SystemCommand.sudo_available?, pkg_adapter: Cask::Artifact::Pkg.ancestors.include?(SpinnetReviewedPkgInstaller), task_bound: ENV["HOMEBREW_SPINNET_TASK_ID"] == "activity_verify", uid: Process.uid })
   exit 0
+end
+context.fetch("casks").each do |binding|
+  next unless binding["installedFingerprint"]
+  token = binding.fetch("name").split("/").last
+  version = binding["uninstallVersion"] || binding.fetch("version")
+  root = HOMEBREW_PREFIX/"Caskroom"/token/".metadata"
+  tab = root/"INSTALL_RECEIPT.json"
+  raise "Installed cask metadata escaped its record" unless tab.realpath == tab && tab.size <= 524_288
+  bytes = tab.binread
+  timestamp = (root/version).children.select { |item| item.basename.to_s.match?(/\A[0-9.]+\z/) }.max_by { |item| item.basename.to_s }
+  raise "Installed cask history changed" unless timestamp
+  definition = timestamp/"Casks"/"#{token}.json"
+  if definition.exist?
+    raise "Installed cask metadata escaped its record" unless definition.realpath == definition && definition.size <= 524_288
+    bytes += definition.binread
+  end
+  raise "Installed cask history changed after Host Confirmation" unless Digest::SHA256.hexdigest(bytes) == binding.fetch("installedFingerprint")
 end
 arguments = context.fetch("arguments")
 raise "Unsupported privileged Homebrew operation" unless %w[install upgrade reinstall uninstall].include?(arguments.first)

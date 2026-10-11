@@ -267,6 +267,17 @@ public final class HomebrewReadProfile {
                     || ["script", "early_script"].contains { (directive[$0] as? [String: Any])?["sudo"] as? Bool == true }
             }) { result["uninstall_needs_privileges"] = .bool(true) }
         }
+        if kind == "cask", includeConfiguration, result["installed_version"] != nil, let prefix {
+            if let installed = try? HomebrewInstalledUninstall.read(name: name, prefix: prefix.path) {
+                if HomebrewInstalledUninstall.requiresPrivileges(installed.artifacts) { result["uninstall_needs_privileges"] = .bool(true) }
+                else { result.removeValue(forKey: "uninstall_needs_privileges") }
+            } else if let token = name.split(separator: "/").last,
+                      FileManager.default.fileExists(atPath: prefix.appendingPathComponent("Caskroom/" + token).path) {
+                // Native review will refuse missing/executable/corrupt history
+                // before confirmation, rather than allowing an unreviewed sudo.
+                result["uninstall_needs_privileges"] = .bool(true)
+            }
+        }
         if let dependencies = raw["dependencies"] as? [String] {
             result["dependencies"] = .array(dependencies.prefix(128).filter(HomebrewReadInput.validPackageName).map(JSONValue.string))
         }
