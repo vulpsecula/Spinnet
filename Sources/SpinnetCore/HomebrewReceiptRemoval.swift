@@ -6,6 +6,15 @@ import Darwin
 /// A root-owned receipt's bounded native file manifest. No Plugin supplies a
 /// receipt path or file list; the authenticated Host plan freezes this digest.
 public enum HomebrewReceiptRemoval {
+    public static func installLocation(volume: String, location: String) throws -> String {
+        guard volume == "/", location.utf8.count <= 2048, !location.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { throw PluginHostServiceError.tool(.planChanged) }
+        if location.isEmpty || location == "." || location == "/" { return "/" }
+        var relative = location.hasPrefix("/") ? String(location.dropFirst()) : location
+        while relative.hasSuffix("/") { relative.removeLast() }
+        if relative.isEmpty { return "/" }
+        guard !relative.split(separator: "/", omittingEmptySubsequences: false).contains(where: { ["", ".", ".."].contains(String($0)) }) else { throw PluginHostServiceError.tool(.planChanged) }
+        return "/" + relative
+    }
     /// The recorded expression is evaluated only by pkgutil's bounded read
     /// interface. The privileged plan receives exact identifiers, never regex.
     public static func resolvePatterns(_ patterns: [String], deadline: Date,
@@ -35,29 +44,24 @@ public enum HomebrewReceiptRemoval {
         public let entries: [Entry]
         public let accountedEntries: [Entry]
         public let exportSHA256: String
+        public let ownershipSHA256: String
     }
-    public static func capture(_ identifier: String, excluding: Set<String> = [], admittedOwners: Set<String>? = nil, deadline: Date = Date().addingTimeInterval(30)) throws -> Snapshot {
+    public static func capture(_ identifier: String, excluding: Set<String> = [], admittedOwners: Set<String>? = nil, ownership: HomebrewReceiptOwnership.Index? = nil, deadline: Date = Date().addingTimeInterval(30)) throws -> Snapshot {
         guard HomebrewPrivilegePlan.validReceiptID(identifier) else { throw PluginHostServiceError.tool(.planChanged) }
         let admittedOwners = admittedOwners ?? [identifier]
         guard admittedOwners.contains(identifier), admittedOwners.count <= 1600, admittedOwners.allSatisfy(HomebrewPrivilegePlan.validReceiptID) else { throw PluginHostServiceError.tool(.planChanged) }
-        let infoBytes = try query(["--pkg-info-plist", identifier], deadline: deadline)
-        guard let info = try PropertyListSerialization.propertyList(from: infoBytes, format: nil) as? [String: Any],
-              info["pkgid"] as? String == identifier, info["volume"] as? String == "/", let location = info["install-location"] as? String,
-              location.hasPrefix("/"), location == URL(fileURLWithPath: location).standardizedFileURL.path else { throw PluginHostServiceError.tool(.planChanged) }
+        let ownership = try ownership ?? HomebrewReceiptOwnership.capture(selected: admittedOwners, deadline: deadline)
+        guard let location = ownership.locations[identifier], let exported = ownership.exports[identifier], let paths = ownership.relativePaths[identifier] else { throw PluginHostServiceError.tool(.planChanged) }
         // The exact native interface supplies provenance, rather than a guessed
         // on-disk receipt database path. Original file hashes are not invented.
-        let exported = try query(["--export-plist", identifier], deadline: deadline)
         guard !exported.isEmpty, exported.count <= 4 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
-        let files = try query(["--files", identifier], deadline: deadline)
-        guard let text = String(data: files, encoding: .utf8) else { throw PluginHostServiceError.tool(.failed) }
-        let paths = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
         guard !paths.isEmpty, paths.count <= 10_000, Set(paths).count == paths.count else { throw PluginHostServiceError.tool(.outputTooLarge) }
         var entries: [Entry] = [], accounted: [Entry] = []
         for relative in paths.sorted() {
             guard Date() < deadline, !relative.hasPrefix("/"), relative.count <= 2048,
-                  !relative.split(separator: "/", omittingEmptySubsequences: false).contains(where: { ["", ".", ".."].contains(String($0)) }),
+                  (relative == "." || !relative.split(separator: "/", omittingEmptySubsequences: false).contains(where: { ["", ".", ".."].contains(String($0)) })),
                   !relative.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { throw PluginHostServiceError.tool(.planChanged) }
-            let path = URL(fileURLWithPath: location).appendingPathComponent(relative).path
+            let path = relative == "." ? location : URL(fileURLWithPath: location).appendingPathComponent(relative.hasPrefix("./") ? String(relative.dropFirst(2)) : relative).path
             let accountedDaemon = excluding.contains(path)
             if accountedDaemon { guard path.hasPrefix("/Library/LaunchDaemons/") else { throw PluginHostServiceError.tool(.planChanged) } }
             // Receipt roots/structural parents are retained. No application-
@@ -69,15 +73,13 @@ public enum HomebrewReceiptRemoval {
                 guard errno == ENOENT else { throw PluginHostServiceError.tool(.planChanged) }
                 continue
             }
-            let entry = try captureEntry(path)
-            let owned = try query(["--file-info-plist", path], deadline: deadline)
-            guard let ownership = try PropertyListSerialization.propertyList(from: owned, format: nil) as? [String: Any],
-                  ownership["path"] as? String == path, let owners = ownership["path-info"] as? [[String: Any]], !owners.isEmpty,
-                  owners.count <= 1600, owners.allSatisfy({ ($0["pkgid"] as? String).map(admittedOwners.contains) == true }) else { throw PluginHostServiceError.unavailable("Shared or unknown receipt ownership requires manual review") }
+            let entry = try captureEntry(path, deadline: deadline)
+            guard let owners = ownership.owners[path], !owners.isEmpty, owners.count <= 1600, owners.isSubset(of: admittedOwners) else { throw PluginHostServiceError.unavailable("Shared or unknown receipt ownership requires manual review") }
             if accountedDaemon { accounted.append(entry) } else { entries.append(entry) }
         }
         guard (1...10_000).contains(entries.count + accounted.count) else { throw PluginHostServiceError.unavailable("No reviewed receipt files remain; receipt forgetting alone is not an uninstall") }
-        return Snapshot(receipt: .init(identifier: identifier, manifestSHA256: try manifestDigest(exported: exported, entries: entries + accounted), fileCount: entries.count + accounted.count), entries: entries, accountedEntries: accounted, exportSHA256: try manifestDigest(exported: exported, entries: []))
+        let bound = try manifestDigest(exported: exported, entries: entries + accounted) + ownership.fingerprint
+        return Snapshot(receipt: .init(identifier: identifier, manifestSHA256: HomebrewSystemAuthorization.digest(Data(bound.utf8)), fileCount: entries.count + accounted.count), entries: entries, accountedEntries: accounted, exportSHA256: try manifestDigest(exported: exported, entries: []), ownershipSHA256: ownership.fingerprint)
     }
     public static func validateReceipt(_ snapshot: Snapshot, deadline: Date = Date().addingTimeInterval(30)) throws {
         let exported = try query(["--export-plist", snapshot.receipt.identifier], deadline: deadline)
@@ -104,10 +106,10 @@ public enum HomebrewReceiptRemoval {
             && !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
             && ["/Applications/", "/Library/Application Support/", "/Library/PrivilegedHelperTools/", "/Library/Frameworks/", "/Library/Fonts/", "/Library/LaunchDaemons/", "/usr/local/bin/", "/usr/local/lib/", "/usr/local/share/"].contains(where: { path.hasPrefix($0) && path.count > $0.count })
     }
-    public static func captureEntry(_ path: String) throws -> Entry {
+    public static func captureEntry(_ path: String, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }) throws -> Entry {
         guard validPath(path) else { throw PluginHostServiceError.tool(.planChanged) }
-        let frozen = try NativeFileQuarantine.capture(URL(fileURLWithPath: path))
-        guard frozen.owner == 0, frozen.symbolicLink || frozen.mode & 0o022 == 0, !frozen.writableACL else {
+        let frozen = try NativeFileQuarantine.capture(URL(fileURLWithPath: path), deadline: deadline, isCancelled: isCancelled)
+        guard frozen.owner == 0, frozen.directory || frozen.symbolicLink || (frozen.mode & 0o022 == 0 && !frozen.writableACL) else {
             throw PluginHostServiceError.unavailable("Receipt deletion refuses modified ownership, writable entries, symlinks, hard links and special files")
         }
         return .init(path: path, frozen: frozen)

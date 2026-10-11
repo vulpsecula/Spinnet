@@ -61,11 +61,9 @@ final class NativeFileQuarantineTests: XCTestCase {
         try Data("confirmed bytes".utf8).write(to: file)
         let frozen = try NativeFileQuarantine.capture(file)
         try NativeFileQuarantine.makePrivateDirectory(stage)
-        var checks = 0
         do {
             _ = try NativeFileQuarantine.remove(file, expected: frozen, staging: stage, isCancelled: {
-                checks += 1
-                if checks == 2 { try? Data("replacement bytes".utf8).write(to: file); return true }
+                if !FileManager.default.fileExists(atPath: file.path) { try? Data("replacement bytes".utf8).write(to: file); return true }
                 return false
             })
             XCTFail("Cancellation with a replacement must retain the original")
@@ -73,6 +71,31 @@ final class NativeFileQuarantineTests: XCTestCase {
             XCTAssertEqual(try String(contentsOf: retained, encoding: .utf8), "confirmed bytes")
             XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "replacement bytes")
         }
+    }
+    func testAcknowledgedStopAtMutationBoundaryRestoresOriginalWithoutDeletingIt() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("target"), stage = root.appendingPathComponent("stage")
+        try Data("confirmed bytes".utf8).write(to: file)
+        let frozen = try NativeFileQuarantine.capture(file)
+        try NativeFileQuarantine.makePrivateDirectory(stage)
+        var mayMutate = true
+        XCTAssertThrowsError(try NativeFileQuarantine.remove(file, expected: frozen, staging: stage, mutation: { action in
+            guard mayMutate else { throw PluginHostServiceError.tool(.planChanged) }
+            try action()
+            mayMutate = false // The platform coordinator acknowledged Stop.
+        }))
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "confirmed bytes")
+    }
+    func testNoFollowPresenceDetectsDanglingReplacementLinks() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let link = root.appendingPathComponent("replacement")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: root.appendingPathComponent("missing"))
+        XCTAssertTrue(try NativeFileQuarantine.existsWithoutFollowing(link))
+        XCTAssertFalse(try NativeFileQuarantine.existsWithoutFollowing(root.appendingPathComponent("not-there")))
     }
     func testRemovingAnAccountedChildDoesNotInvalidateItsFrozenEmptyParentIdentity() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
