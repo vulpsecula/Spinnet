@@ -135,8 +135,10 @@ public final class HostReviewedToolTasks {
             }
             if plan.needsPrivileges {
                 let bindings = try privilegeReview(resolved, package, executable)
+                try checkInstalledSources(bindings, package: package)
                 let nativeDetails = bindings.flatMap { cask -> [String] in
-                    (cask.launchDaemons ?? []).map { "Remove system launch daemon \($0.label)." }
+                    (cask.installedTap.map { ["Installed source recorded locally for \(cask.name): \($0), version \(cask.uninstallVersion ?? cask.version). This records local history; native receipt/file ownership is checked independently."] } ?? [])
+                        + (cask.launchDaemons ?? []).map { "Remove system launch daemon \($0.label)." }
                         + (cask.receipts ?? []).map { "Remove \($0.fileCount) reviewed receipt-owned entries for \($0.identifier), then forget that receipt; nonempty directories remain." }
                 }.joined(separator: " ")
                 guard nativeDetails.utf8.count <= 8 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
@@ -172,6 +174,7 @@ public final class HostReviewedToolTasks {
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
             if plan.needsPrivileges {
                 guard try privilegeReview(plan.resolvedInput, currentPackage, plan.executable) == plan.privilegedCasks else { throw PluginHostServiceError.tool(.planChanged) }
+                try checkInstalledSources(plan.privilegedCasks, package: currentPackage)
                 try prepareSystemAuthorization()
             }
             try authorize()
@@ -305,6 +308,17 @@ public final class HostReviewedToolTasks {
                 record.result = .object(["outcome": .string("interrupted")]); record.ended = Date()
             }
             records[record.id] = record; try? register(record)
+        }
+    }
+    private func checkInstalledSources(_ bindings: [HomebrewPrivilegePlan.Cask], package: JSONValue) throws {
+        let packages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
+        for binding in bindings {
+            guard let tap = binding.installedTap else { continue }
+            try checkSource(.object(["tap": .string(tap)]))
+            if let selected = packages.first(where: { $0.value(atPointer: "/name") == .string(binding.name) }),
+               case .string(let selectedTap)? = selected.value(atPointer: "/tap"), selectedTap != tap {
+                throw PluginHostServiceError.tool(.sourceNotAllowed)
+            }
         }
     }
     private func checkSource(_ package: JSONValue) throws {

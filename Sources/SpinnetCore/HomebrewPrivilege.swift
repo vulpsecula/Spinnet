@@ -34,8 +34,9 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
         public let receipts: [Receipt]?
         public let installedFingerprint: String?
         public let uninstallVersion: String?
-        public init(name: String, version: String, sha256: String, packages: [String], launchDaemons: [LaunchDaemon]? = nil, receipts: [Receipt]? = nil, installedFingerprint: String? = nil, uninstallVersion: String? = nil) {
-            self.name = name; self.version = version; self.sha256 = sha256; self.packages = packages; self.launchDaemons = launchDaemons; self.receipts = receipts; self.installedFingerprint = installedFingerprint; self.uninstallVersion = uninstallVersion
+        public let installedTap: String?
+        public init(name: String, version: String, sha256: String, packages: [String], launchDaemons: [LaunchDaemon]? = nil, receipts: [Receipt]? = nil, installedFingerprint: String? = nil, uninstallVersion: String? = nil, installedTap: String? = nil) {
+            self.name = name; self.version = version; self.sha256 = sha256; self.packages = packages; self.launchDaemons = launchDaemons; self.receipts = receipts; self.installedFingerprint = installedFingerprint; self.uninstallVersion = uninstallVersion; self.installedTap = installedTap
         }
     }
     public let taskID: String
@@ -61,6 +62,7 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
               Set((cask.receipts ?? []).map(\.identifier)).count == (cask.receipts ?? []).count,
               (cask.launchDaemons ?? []).allSatisfy({ validLaunchDaemonLabel($0.label) && validDigest($0.sha256) && $0.inode > 0 }),
               (cask.receipts ?? []).allSatisfy({ validReceiptID($0.identifier) && validDigest($0.manifestSHA256) && (1...10_000).contains($0.fileCount) }) else { return false }
+        guard cask.installedTap == nil || (cask.installedTap!.count <= 96 && cask.installedTap!.range(of: "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$", options: .regularExpression) != nil) else { return false }
         let removals = (cask.launchDaemons ?? []).count + (cask.receipts ?? []).count
         if operation == "uninstall" { return cask.sha256.isEmpty && cask.packages.isEmpty && removals > 0 && cask.uninstallVersion == nil }
         guard validDigest(cask.sha256), cask.packages.count <= 16, cask.packages.allSatisfy(validPackagePath) else { return false }
@@ -369,7 +371,7 @@ public enum HomebrewPrivilegeReview {
             } else { predecessor = nil }
             guard (!packages.isEmpty || predecessor != nil), packages.allSatisfy(HomebrewPrivilegePlan.validPackagePath) else { throw PluginHostServiceError.unavailable("This cask uses a custom installer that has no reviewed native elevation operation") }
             return .init(name: name, version: version, sha256: checksum, packages: packages, launchDaemons: predecessor?.launchDaemons,
-                receipts: predecessor?.receipts, installedFingerprint: predecessor?.installedFingerprint, uninstallVersion: predecessor?.version)
+                receipts: predecessor?.receipts, installedFingerprint: predecessor?.installedFingerprint, uninstallVersion: predecessor?.version, installedTap: predecessor?.installedTap)
         }
     }
     private static func packagesForReview(_ value: JSONValue) -> [JSONValue] {
@@ -395,7 +397,7 @@ public enum HomebrewPrivilegeReview {
         let daemons = try labels.map(HomebrewPrivilegePlan.captureLaunchDaemon)
         let deadline = Date().addingTimeInterval(30)
         let receipts = try receiptIDs.map { try HomebrewReceiptRemoval.capture($0, excluding: Set(daemons.map(\.path)), deadline: deadline).receipt }
-        return .init(name: name, version: installed.version, sha256: "", packages: [], launchDaemons: daemons, receipts: receipts, installedFingerprint: installed.fingerprint)
+        return .init(name: name, version: installed.version, sha256: "", packages: [], launchDaemons: daemons, receipts: receipts, installedFingerprint: installed.fingerprint, installedTap: installed.tap)
     }
 
 }

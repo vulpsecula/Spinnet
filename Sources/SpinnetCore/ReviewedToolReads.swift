@@ -269,6 +269,10 @@ public final class HomebrewReadProfile {
         }
         if kind == "cask", includeConfiguration, result["installed_version"] != nil, let prefix {
             if let installed = try? HomebrewInstalledUninstall.read(name: name, prefix: prefix.path) {
+                let installedDirectives = installed.artifacts.flatMap { artifact -> [[String: Any]] in
+                    artifact["uninstall"] as? [[String: Any]] ?? (artifact["uninstall"] as? [String: Any]).map { [$0] } ?? []
+                }
+                if installedDirectives.contains(where: { $0["quit"] != nil }) { result["quits_app"] = .bool(true) }
                 if HomebrewInstalledUninstall.requiresPrivileges(installed.artifacts) { result["uninstall_needs_privileges"] = .bool(true) }
                 else { result.removeValue(forKey: "uninstall_needs_privileges") }
             } else if let token = name.split(separator: "/").last,

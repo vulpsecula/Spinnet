@@ -103,20 +103,8 @@ if context["mode"] == "verify"
 end
 context.fetch("casks").each do |binding|
   next unless binding["installedFingerprint"]
-  token = binding.fetch("name").split("/").last
-  version = binding["uninstallVersion"] || binding.fetch("version")
-  root = HOMEBREW_PREFIX/"Caskroom"/token/".metadata"
-  tab = root/"INSTALL_RECEIPT.json"
-  raise "Installed cask metadata escaped its record" unless tab.realpath == tab && tab.size <= 524_288
-  bytes = tab.binread
-  timestamp = (root/version).children.select { |item| item.basename.to_s.match?(/\A[0-9.]+\z/) }.max_by { |item| item.basename.to_s }
-  raise "Installed cask history changed" unless timestamp
-  definition = timestamp/"Casks"/"#{token}.json"
-  if definition.exist?
-    raise "Installed cask metadata escaped its record" unless definition.realpath == definition && definition.size <= 524_288
-    bytes += definition.binread
-  end
-  raise "Installed cask history changed after Host Confirmation" unless Digest::SHA256.hexdigest(bytes) == binding.fetch("installedFingerprint")
+  result = SystemCommand.run(SPINNET_PRIVILEGE_CONTEXT.fetch("client"), args: ["--installed-history-digest", binding.fetch("name"), HOMEBREW_PREFIX.to_s])
+  raise "Installed cask history changed after Host Confirmation" unless result.success? && result.stdout.strip == binding.fetch("installedFingerprint")
 end
 arguments = context.fetch("arguments")
 raise "Unsupported privileged Homebrew operation" unless %w[install upgrade reinstall uninstall].include?(arguments.first)
