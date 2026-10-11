@@ -38,9 +38,17 @@ reviewed adapter supports immutable-checksum flat `.pkg` downloads and flat
 approved download in root-owned private staging; DMGs mount read-only and the
 selected package is verified again before `/usr/sbin/installer` runs. Missing
 checksums, custom installers, non-flat packages, other archive containers,
-installer choices and privileged uninstall directives are unavailable with
+installer choices and unreviewed privileged uninstall directives are unavailable with
 manual Homebrew guidance. The Plugin must present these concrete refusals,
 and must not imply universal privileged cask support.
+
+The reviewed privileged uninstall class supports exact system launch-daemon
+labels for installed application casks. The Host freezes each root-owned,
+non-writable, single-link plist's label, checksum, device and inode before
+confirmation and rechecks it before removal. The helper stops the exact
+system service, verifies absence, and removes only that same plist; it never
+accepts a path or wildcard from a Plugin. LaunchAgents, Apple service labels,
+pkg receipts, scripts, kexts and Zap remain outside this class.
 
 Doctor recognizes only the exact reviewed ownership recommendation for fixed
 Homebrew prefix subdirectories, alongside other reviewed cleanup/link fixes.

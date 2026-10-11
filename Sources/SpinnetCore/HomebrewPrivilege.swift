@@ -7,12 +7,25 @@ import Darwin
 /// Internal Host/helper wire boundary, separate from Plugin input. A root
 /// helper remembers this concrete plan before any client requests elevation.
 public struct HomebrewPrivilegePlan: Codable, Equatable {
+    public struct LaunchDaemon: Codable, Equatable {
+        public let label: String
+        public let sha256: String
+        public let device: UInt64
+        public let inode: UInt64
+        public init(label: String, sha256: String, device: UInt64, inode: UInt64) {
+            self.label = label; self.sha256 = sha256; self.device = device; self.inode = inode
+        }
+        public var path: String { "/Library/LaunchDaemons/" + label + ".plist" }
+    }
     public struct Cask: Codable, Equatable {
         public let name: String
         public let version: String
         public let sha256: String
         public let packages: [String]
-        public init(name: String, version: String, sha256: String, packages: [String]) { self.name = name; self.version = version; self.sha256 = sha256; self.packages = packages }
+        public let launchDaemons: [LaunchDaemon]?
+        public init(name: String, version: String, sha256: String, packages: [String], launchDaemons: [LaunchDaemon]? = nil) {
+            self.name = name; self.version = version; self.sha256 = sha256; self.packages = packages; self.launchDaemons = launchDaemons
+        }
     }
     public let taskID: String
     public let prefix: String
@@ -23,7 +36,10 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
         guard taskID.hasPrefix("activity_"), taskID.count <= 64, ["/opt/homebrew", "/usr/local"].contains(prefix),
               casks.count <= 100, repairDirectories.count <= 16,
               ["install", "upgrade", "upgradeAll", "upgradeSelected", "changeLanguage", "uninstall", "doctorFix"].contains(operation),
-              casks.allSatisfy({ HomebrewTaskInput.validPackageName($0.name) && !$0.version.isEmpty && $0.version.count <= 80 && !$0.version.contains("/") && Self.validDigest($0.sha256) && (1...16).contains($0.packages.count) && $0.packages.allSatisfy(Self.validPackagePath) }),
+              casks.allSatisfy({ HomebrewTaskInput.validPackageName($0.name) && !$0.version.isEmpty && $0.version.count <= 80 && !$0.version.contains("/") && (operation == "uninstall"
+                    ? $0.sha256.isEmpty && $0.packages.isEmpty && (1...16).contains(($0.launchDaemons ?? []).count)
+                        && ($0.launchDaemons ?? []).allSatisfy { Self.validLaunchDaemonLabel($0.label) && Self.validDigest($0.sha256) && $0.inode > 0 }
+                    : Self.validDigest($0.sha256) && (1...16).contains($0.packages.count) && $0.packages.allSatisfy(Self.validPackagePath) && ($0.launchDaemons ?? []).isEmpty) }),
               repairDirectories.allSatisfy({ Self.reviewedRepairDirectory($0, prefix: prefix) }) else {
             throw PluginHostServiceError.unavailable("This privileged Homebrew plan has no reviewed native operation")
         }
@@ -53,9 +69,37 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
                   request.source.hasPrefix(prefix + "/Caskroom/" + String(cask.name.split(separator: "/").last!) + "/" + cask.version + "/") else {
                 throw PluginHostServiceError.tool(.planChanged)
             }
+        case .removeLaunchDaemon:
+            guard operation == "uninstall", let cask = casks.first(where: { $0.name == request.package }),
+                  let daemon = (cask.launchDaemons ?? []).first(where: { $0.label == request.source }),
+                  request.sha256 == daemon.sha256, request.archive.isEmpty, request.relativePackage.isEmpty else { throw PluginHostServiceError.tool(.planChanged) }
         case .repairOwnership:
             guard operation == "doctorFix", repairDirectories.contains(request.source), request.package.isEmpty, request.sha256.isEmpty, request.archive.isEmpty, request.relativePackage.isEmpty else { throw PluginHostServiceError.tool(.planChanged) }
         }
+    }
+    public static func validLaunchDaemonLabel(_ label: String) -> Bool {
+        label.count <= 200 && !label.hasPrefix("com.apple.")
+            && label.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]+$", options: .regularExpression) != nil
+    }
+    /// Reads only a fixed system-daemon plist. No Plugin supplies this path.
+    public static func captureLaunchDaemon(_ label: String) throws -> LaunchDaemon {
+        guard validLaunchDaemonLabel(label) else { throw PluginHostServiceError.tool(.planChanged) }
+        let path = "/Library/LaunchDaemons/" + label + ".plist"
+        var parent = stat()
+        guard lstat("/Library/LaunchDaemons", &parent) == 0, parent.st_mode & S_IFMT == S_IFDIR,
+              parent.st_uid == 0, parent.st_mode & 0o022 == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? file.close() }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == 0,
+              info.st_nlink == 1, info.st_mode & 0o022 == 0, info.st_size > 0, info.st_size <= 1024 * 1024,
+              let bytes = try file.read(upToCount: 1024 * 1024 + 1), bytes.count == Int(info.st_size),
+              let plist = try PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any], plist["Label"] as? String == label else {
+            throw PluginHostServiceError.tool(.planChanged)
+        }
+        return LaunchDaemon(label: label, sha256: HomebrewSystemAuthorization.digest(bytes), device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
     }
     public static func validPackagePath(_ path: String) -> Bool {
         path.hasSuffix(".pkg") && path.count <= 512 && !path.hasPrefix("/") && !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) && !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." || $0.isEmpty })
@@ -67,7 +111,7 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
 }
 
 public struct HomebrewPrivilegeRequest: Codable, Equatable {
-    public enum Operation: String, Codable { case installPackage, repairOwnership }
+    public enum Operation: String, Codable { case installPackage, repairOwnership, removeLaunchDaemon }
     public var taskID: String
     public var package: String
     public var operation: Operation
@@ -239,6 +283,8 @@ public enum HomebrewSystemAuthorization {
 public enum HomebrewPrivilegeReview {
     public static let reviewedSourceDigests: [String: String] = [
         "system_command.rb": "d93225d58e4e8f58644a3025aee1e67bc7c1de93cc812dc40ca8c5db1285f305",
+        "cask/artifact/abstract_uninstall.rb": "3152d4adf64750268a60b5ed2ff314528f852f19ba8dc3ee83a6855fb71f2eef",
+        "cask/artifact/uninstall.rb": "aef1b0af20468642a6f701055822690af04b3ed1bb995d39891c4d17e9d1001d",
         "cask/artifact/pkg.rb": "35580f7ba61ac3b5bd3ad833519808dd23f368b436d2779c4c288c712775e3b2",
         "cask/installer.rb": "7043f72f6cea608eb1d12e1bcb545576657975fe822605dcdc45d15738a3c21d",
         "cask/download.rb": "ec2a119267476575af84f43ffca2043daaba7ee1709b68f2961c88276f9709e1",
@@ -262,16 +308,40 @@ public enum HomebrewPrivilegeReview {
     public static func casks(input: HomebrewTaskInput, package: JSONValue, executable: URL) throws -> [HomebrewPrivilegePlan.Cask] {
         guard package.value(atPointer: "/privileged_repair") != .bool(true) else { return [] }
         let packages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
-        let names = packages.filter { $0.value(atPointer: "/needs_privileges") == .bool(true) }.compactMap { value -> String? in
+        let names = packages.filter { HomebrewTaskPlan.packageNeedsPrivileges($0, operation: input.operation) }.compactMap { value -> String? in
             if case .string(let name)? = value.value(atPointer: "/name") { return name }; return input.name.isEmpty ? nil : input.name
         }
-        if input.operation == "uninstall" { throw PluginHostServiceError.unavailable("This privileged cask's uninstall directives need a separate native review; use the displayed Homebrew guidance") }
         guard !names.isEmpty, names.count <= 100, names.allSatisfy(HomebrewTaskInput.validPackageName),
               ["install", "upgrade", "upgradeAll", "upgradeSelected", "changeLanguage", "uninstall"].contains(input.operation) else { throw PluginHostServiceError.unavailable("This privileged Homebrew operation has no reviewed native adapter") }
         try checkCompatibility(executable: executable)
         let answer = try HomebrewReadProfile.execute(executable, ["info", "--json=v2", "--cask", "--"] + names, HomebrewReadProfile.environment, Date().addingTimeInterval(15))
         guard answer.status == 0, let root = try JSONSerialization.jsonObject(with: answer.stdout) as? [String: Any], let records = root["casks"] as? [[String: Any]], records.count == names.count else { throw PluginHostServiceError.tool(.planChanged) }
         return try zip(names, records).map { name, raw in
+            if input.operation == "uninstall" {
+                guard input.fields["zap"] != .bool(true), raw["full_token"] as? String == name || raw["token"] as? String == name,
+                      let artifacts = raw["artifacts"] as? [[String: Any]], !artifacts.contains(where: { $0["pkg"] != nil || $0["installer"] != nil }) else {
+                    throw PluginHostServiceError.unavailable("Privileged pkg, custom-installer and Zap uninstall directives need separate native review")
+                }
+                let directives = artifacts.flatMap { artifact -> [[String: Any]] in
+                    if let values = artifact["uninstall"] as? [[String: Any]] { return values }
+                    return (artifact["uninstall"] as? [String: Any]).map { [$0] } ?? []
+                }
+                guard !directives.isEmpty, directives.allSatisfy({ Set($0.keys).isSubset(of: ["launchctl", "quit", "on_upgrade"]) }) else {
+                    throw PluginHostServiceError.unavailable("Only exact launch-daemon labels and App quit are reviewed for privileged uninstall; receipt deletion, scripts, kexts and other directives need separate native review")
+                }
+                let labels = directives.flatMap { value -> [String] in
+                    if let label = value["launchctl"] as? String { return [label] }
+                    return value["launchctl"] as? [String] ?? []
+                }
+                guard (1...16).contains(labels.count), Set(labels).count == labels.count,
+                      labels.allSatisfy(HomebrewPrivilegePlan.validLaunchDaemonLabel),
+                      labels.allSatisfy({ !FileManager.default.fileExists(atPath: "/Library/LaunchAgents/" + $0 + ".plist") }),
+                      let version = (raw["installed"] as? [String])?.first ?? raw["installed"] as? String else {
+                    throw PluginHostServiceError.unavailable("Privileged uninstall requires an installed application-only cask with exact system-daemon plists; wildcard labels and LaunchAgents need separate review")
+                }
+                let daemons = try labels.map(HomebrewPrivilegePlan.captureLaunchDaemon)
+                return .init(name: name, version: version, sha256: "", packages: [], launchDaemons: daemons)
+            }
             guard raw["full_token"] as? String == name || raw["token"] as? String == name,
                   let version = raw["version"] as? String, let checksum = raw["sha256"] as? String, HomebrewPrivilegePlan.validDigest(checksum) else {
                 throw PluginHostServiceError.unavailable("Privileged installation requires the selected cask's immutable SHA-256 checksum")
