@@ -6,13 +6,14 @@ public enum ReviewedToolTasksAddition {
 }
 
 public struct HomebrewTaskInput: Equatable {
-    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "doctorFix", "changeLanguage"]
+    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "doctorFix", "changeLanguage", "update"]
     public let operation: String
     public let kind: String
     public let name: String
     public let fields: [String: JSONValue]
     public var displayOperation: String {
         switch operation {
+        case "update": return "Update Homebrew and Catalogs"
         case "upgradeSelected": return "Upgrade Selected Packages"
         case "upgradeAll": return "Upgrade All Eligible Packages"
         case "serviceStart": return "Start Service"
@@ -36,9 +37,11 @@ public struct HomebrewTaskInput: Equatable {
         }
         self.operation = operation; self.fields = fields
         func text(_ key: String) -> String? { if case .string(let value)? = fields[key] { return value }; return nil }
-        kind = text("kind") ?? (operation == "upgradeAll" ? "both" : operation == "adopt" ? "cask" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
+        kind = text("kind") ?? (["upgradeAll", "update"].contains(operation) ? "both" : operation == "adopt" ? "cask" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
         var allowed: Set<String> = ["tool", "operation"]
-        if ["tap", "untap", "trust", "untrust"].contains(operation) {
+        if operation == "update" {
+            // Global metadata and Homebrew-self update has no package selector.
+        } else if ["tap", "untap", "trust", "untrust"].contains(operation) {
             allowed.insert("tap")
             guard text("tap")?.range(of: "^[a-z0-9][a-z0-9_.-]{0,63}/[a-z0-9][a-z0-9_.-]{0,63}$", options: .regularExpression) != nil else { throw Self.invalid() }
         } else if operation == "cleanup" {
@@ -67,7 +70,7 @@ public struct HomebrewTaskInput: Equatable {
             }
             if operation == "uninstall" { allowed.insert("zap"); if let zap = fields["zap"] { guard case .bool = zap, kind == "cask" else { throw Self.invalid() } } }
         }
-        guard (["formula", "cask"].contains(kind) || (operation == "upgradeAll" && kind == "both" && fields["kind"] == nil)), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
+        guard (["formula", "cask"].contains(kind) || (["upgradeAll", "update"].contains(operation) && kind == "both" && fields["kind"] == nil)), Set(fields.keys).isSubset(of: allowed) else { throw Self.invalid() }
     }
     public static func validPackageName(_ name: String) -> Bool {
         name.count <= 160 && name.range(of: "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil
@@ -75,6 +78,7 @@ public struct HomebrewTaskInput: Equatable {
     private static func invalid() -> PluginHostServiceError { .invalidInput("The reviewed Homebrew operation has an unsupported target or option") }
     public var arguments: [String] {
         switch operation {
+        case "update": return ["update"]
         case "trust", "untrust": return [operation, "--tap", "--", name]
         case "tap", "untap": return [operation, "--", name]
         case "serviceStart", "serviceStop", "serviceRestart": return ["services", String(operation.dropFirst(7)).lowercased(), "--", name]

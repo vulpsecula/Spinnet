@@ -24,6 +24,16 @@
       "valid": true,
       "file": "cask-language.json",
       "definition": "tools.startTask.input"
+    },
+    {
+      "valid": true,
+      "file": "catalog-update.json",
+      "definition": "tools.startTask.input"
+    },
+    {
+      "valid": false,
+      "file": "catalog-update-selector-refused.json",
+      "definition": "tools.startTask.input"
     }
   ],
   "description": "Published reviewed Task input and activity boundary fixtures."
