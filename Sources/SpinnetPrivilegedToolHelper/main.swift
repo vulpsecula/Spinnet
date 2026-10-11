@@ -29,8 +29,12 @@ final class Task {
     var approvals: [String: Approval] = [:]
     var process: HomebrewTaskProcess?
     var stopped = false
+    var executing = false
+    var ended = false
     var receipts: [String: HomebrewReceiptRemoval.Snapshot] = [:]
     var removedPaths = Set<String>()
+    var completedReceipts: [String: HomebrewPrivilegePlan.Receipt] = [:]
+    var completedDaemons: [String: HomebrewPrivilegePlan.LaunchDaemon] = [:]
     let quarantine = URL(fileURLWithPath: "/private/var/tmp/spinnet-native-" + UUID().uuidString.lowercased())
     init(plan: HomebrewPrivilegePlan, pid: pid_t, identity: UInt64, uid: uid_t) {
         self.plan = plan; self.pid = pid; self.identity = identity; self.uid = uid
@@ -69,26 +73,40 @@ final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
         do {
             guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
             let plan = try HomebrewPrivilegePlan.decodeValidated(data)
+            state.lock.lock()
+            guard state.tasks.isEmpty, let admission = state.admissions[plan.taskID], admission.plan == plan, admission.uid == uid,
+                  admission.expires > ProcessInfo.processInfo.systemUptime, HomebrewTaskProcess.startIdentity(admission.pid) == admission.identity,
+                  HomebrewSystemAuthorization.processParent(pid) == admission.pid else { state.lock.unlock(); throw PluginHostServiceError.tool(.planChanged) }
+            // Bind the authenticated runner before lengthy read-only work. A
+            // later Host crash must not revoke this confirmed independent Task.
+            let task = Task(plan: plan, pid: pid, identity: identity, uid: uid)
+            task.executing = true
+            state.admissions.removeValue(forKey: plan.taskID); state.tasks[plan.taskID] = task
+            state.lock.unlock()
+            var began = false
+            defer {
+                state.lock.lock(); task.executing = false
+                if !began { state.tasks.removeValue(forKey: plan.taskID) }
+                state.lock.unlock()
+            }
             // Freeze every manifest before the first mutation. Directory
             // timestamps changed by another admitted receipt are not authority.
             var snapshots: [String: HomebrewReceiptRemoval.Snapshot] = [:]
             let deadline = Date().addingTimeInterval(30)
+            let identifiers = Set(plan.casks.flatMap { ($0.receipts ?? []).map(\.identifier) })
+            let ownership = try identifiers.isEmpty ? nil : HomebrewReceiptOwnership.capture(selected: identifiers, deadline: deadline)
             for cask in plan.casks {
                 for receipt in cask.receipts ?? [] {
-                    let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)), admittedOwners: Set(plan.casks.flatMap { ($0.receipts ?? []).map(\.identifier) }), deadline: deadline)
+                    let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)), admittedOwners: identifiers, ownership: ownership, deadline: deadline)
                     guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
                     snapshots[cask.name + ":" + receipt.identifier] = snapshot
                 }
             }
             state.lock.lock(); defer { state.lock.unlock() }
-            guard state.tasks.isEmpty, let admission = state.admissions[plan.taskID], admission.plan == plan, admission.uid == uid,
-                  admission.expires > ProcessInfo.processInfo.systemUptime, HomebrewTaskProcess.startIdentity(admission.pid) == admission.identity,
-                  HomebrewSystemAuthorization.processParent(pid) == admission.pid else { throw PluginHostServiceError.tool(.planChanged) }
-            state.admissions.removeValue(forKey: plan.taskID)
-            let task = Task(plan: plan, pid: pid, identity: identity, uid: uid)
+            guard !task.stopped, HomebrewTaskProcess.startIdentity(pid) == identity else { throw PluginHostServiceError.tool(.planChanged) }
             try NativeFileQuarantine.makePrivateDirectory(task.quarantine)
             task.receipts = snapshots
-            state.tasks[plan.taskID] = task
+            began = true
             reply("")
         } catch { reply("The privileged Task plan was refused") }
     }
@@ -96,7 +114,8 @@ final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
     func end(_ taskID: String, reply: @escaping () -> Void) {
         owned(taskID) {
             state.stop(taskID)
-            state.lock.lock(); if state.tasks[taskID]?.process == nil { state.tasks.removeValue(forKey: taskID) }; state.lock.unlock()
+            state.lock.lock(); state.tasks[taskID]?.ended = true
+            if state.tasks[taskID]?.process == nil && state.tasks[taskID]?.executing == false { state.tasks.removeValue(forKey: taskID) }; state.lock.unlock()
         }; reply()
     }
     private func owned(_ id: String, operation: () -> Void) {
@@ -117,7 +136,7 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
             let right = HomebrewSystemAuthorization.right + "." + UUID().uuidString.lowercased()
             try HomebrewSystemAuthorization.configureRight(right)
             state.lock.lock()
-            guard !task.stopped, task.approvals.isEmpty else { state.lock.unlock(); HomebrewSystemAuthorization.removeRight(right); throw PluginHostServiceError.tool(.busy) }
+            guard !task.stopped, !task.executing, task.approvals.isEmpty else { state.lock.unlock(); HomebrewSystemAuthorization.removeRight(right); throw PluginHostServiceError.tool(.busy) }
             task.approvals[HomebrewSystemAuthorization.digest(data)] = Approval(pid: pid, identity: identity, right: right, expires: ProcessInfo.processInfo.systemUptime + 120)
             state.lock.unlock()
             reply(right)
@@ -135,8 +154,16 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
                 let key = HomebrewSystemAuthorization.digest(authorization)
                 state.lock.lock()
                 let approval = task.approvals.removeValue(forKey: HomebrewSystemAuthorization.digest(data))
-                let fresh = task.usedAuthorizations.insert(key).inserted && task.usedAuthorizations.count <= 100 && task.process == nil && !task.stopped
+                let fresh = task.usedAuthorizations.insert(key).inserted && task.usedAuthorizations.count <= 100 && task.process == nil && !task.executing && !task.stopped
+                if fresh { task.executing = true }
                 state.lock.unlock()
+                defer {
+                    if fresh {
+                        state.lock.lock(); task.executing = false
+                        if task.ended || HomebrewTaskProcess.startIdentity(task.pid) != task.identity { state.tasks.removeValue(forKey: task.plan.taskID) }
+                        state.lock.unlock()
+                    }
+                }
                 guard let approval else { throw PluginHostServiceError.tool(.planChanged) }
                 defer { HomebrewSystemAuthorization.removeRight(approval.right) }
                 guard fresh, approval.pid == pid, HomebrewTaskProcess.startIdentity(pid) == approval.identity, approval.expires > ProcessInfo.processInfo.systemUptime, HomebrewSystemAuthorization.check(authorization, rightName: approval.right) else { throw PluginHostServiceError.unavailable("System authorization refused or already consumed") }
@@ -234,9 +261,14 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
         if done.wait(timeout: .now() + 10) != .success { process.stop(); _ = done.wait(timeout: .now() + 5) }
     }
     private func removeLaunchDaemon(_ request: HomebrewPrivilegeRequest, task: Task) throws {
-        guard let daemon = task.plan.casks.first(where: { $0.name == request.package })?.launchDaemons?.first(where: { $0.label == request.source }),
-              try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
+        guard let daemon = task.plan.casks.first(where: { $0.name == request.package })?.launchDaemons?.first(where: { $0.label == request.source }) else { throw PluginHostServiceError.tool(.planChanged) }
         let target = "system/" + daemon.label
+        if let completed = task.completedDaemons[daemon.label] {
+            guard completed == daemon, !cancelled(task), try !NativeFileQuarantine.existsWithoutFollowing(URL(fileURLWithPath: daemon.path)),
+                  try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15).exitStatus == 113 else { throw PluginHostServiceError.tool(.planChanged) }
+            return
+        }
+        guard try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
         let existing = try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15)
         // launchctl's fixed missing-service outcome is ESRCH-domain 113;
         // permission and other failures never become successful removals.
@@ -247,35 +279,62 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
         let absent = try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15)
         guard absent.exitStatus == 113, try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
         guard let frozen = daemon.frozen else { throw PluginHostServiceError.tool(.planChanged) }
-        guard try NativeFileQuarantine.remove(URL(fileURLWithPath: daemon.path), expected: frozen, staging: task.quarantine, isCancelled: { self.cancelled(task) }) == .removed else { throw PluginHostServiceError.tool(.planChanged) }
+        guard try NativeFileQuarantine.remove(URL(fileURLWithPath: daemon.path), expected: frozen, staging: task.quarantine, isCancelled: { self.cancelled(task) }, mutation: { try self.mutate(task, action: $0) }) == .removed else { throw PluginHostServiceError.tool(.planChanged) }
         task.removedPaths.insert(daemon.path)
+        task.completedDaemons[daemon.label] = daemon
     }
     private func removeReceipt(_ request: HomebrewPrivilegeRequest, task: Task) throws {
         guard let cask = task.plan.casks.first(where: { $0.name == request.package }),
               let receipt = cask.receipts?.first(where: { $0.identifier == request.source }) else { throw PluginHostServiceError.tool(.planChanged) }
+        if let completed = task.completedReceipts[receipt.identifier] {
+            guard completed == receipt, !cancelled(task) else { throw PluginHostServiceError.tool(.planChanged) }
+            guard let snapshot = task.receipts[cask.name + ":" + receipt.identifier] else { throw PluginHostServiceError.tool(.planChanged) }
+            try verifyRemovals(snapshot, task: task, deadline: Date().addingTimeInterval(30))
+            return
+        }
         guard let snapshot = task.receipts[cask.name + ":" + receipt.identifier] else { throw PluginHostServiceError.tool(.planChanged) }
         guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
         try HomebrewReceiptRemoval.validateReceipt(snapshot)
-        guard snapshot.accountedEntries.allSatisfy({ task.removedPaths.contains($0.path) && !FileManager.default.fileExists(atPath: $0.path) }) else { throw PluginHostServiceError.tool(.planChanged) }
+        for entry in snapshot.accountedEntries {
+            guard task.removedPaths.contains(entry.path), try !NativeFileQuarantine.existsWithoutFollowing(URL(fileURLWithPath: entry.path)) else { throw PluginHostServiceError.tool(.planChanged) }
+        }
+        let deadline = Date().addingTimeInterval(30)
         // Every file was checked before mutation. Each protected parent stays
         // open through the final identity check and descriptor-relative unlink.
         let files = snapshot.entries.filter { !$0.directory }
         let directories = snapshot.entries.filter(\.directory).sorted { $0.path.split(separator: "/").count > $1.path.split(separator: "/").count }
         for entry in files + directories {
             if task.removedPaths.contains(entry.path) {
-                guard !FileManager.default.fileExists(atPath: entry.path) else { throw PluginHostServiceError.tool(.planChanged) }; continue
+                guard try !NativeFileQuarantine.existsWithoutFollowing(URL(fileURLWithPath: entry.path)) else { throw PluginHostServiceError.tool(.planChanged) }; continue
             }
-            let current = try HomebrewReceiptRemoval.captureEntry(entry.path)
+            let current = try HomebrewReceiptRemoval.captureEntry(entry.path, deadline: deadline, isCancelled: { self.cancelled(task) })
             guard current == entry else { throw PluginHostServiceError.tool(.planChanged) }
-            let outcome = try NativeFileQuarantine.remove(URL(fileURLWithPath: entry.path), expected: entry.frozen, staging: task.quarantine, isCancelled: { self.cancelled(task) })
+            let outcome = try NativeFileQuarantine.remove(URL(fileURLWithPath: entry.path), expected: entry.frozen, staging: task.quarantine, deadline: deadline, isCancelled: { self.cancelled(task) }, mutation: { try self.mutate(task, action: $0) })
             if outcome == .removed { task.removedPaths.insert(entry.path) }
         }
+        try verifyRemovals(snapshot, task: task, deadline: deadline)
         let forgotten = try runNative("/usr/sbin/pkgutil", ["--forget", receipt.identifier], task: task, timeout: 30)
         guard forgotten.exitStatus == 0 else { throw PluginHostServiceError.tool(.failed) }
+        task.completedReceipts[receipt.identifier] = receipt
+    }
+    private func verifyRemovals(_ snapshot: HomebrewReceiptRemoval.Snapshot, task: Task, deadline: Date) throws {
+        for entry in snapshot.entries + snapshot.accountedEntries {
+            guard !cancelled(task), Date() < deadline else { throw PluginHostServiceError.tool(.planChanged) }
+            if try NativeFileQuarantine.existsWithoutFollowing(URL(fileURLWithPath: entry.path)) {
+                guard entry.directory, try HomebrewReceiptRemoval.captureEntry(entry.path, deadline: deadline, isCancelled: { self.cancelled(task) }) == entry else { throw PluginHostServiceError.tool(.planChanged) }
+            }
+        }
     }
     private func cancelled(_ task: Task) -> Bool {
         state.lock.lock(); defer { state.lock.unlock() }
         return task.stopped || HomebrewTaskProcess.startIdentity(task.pid) != task.identity
+    }
+    private func mutate(_ task: Task, action: () throws -> Void) throws {
+        // Hold Stop's lock only for the concrete filesystem operation. Hashing
+        // remains cancellable outside this lock and cannot delay Stop.
+        state.lock.lock(); defer { state.lock.unlock() }
+        guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity else { throw PluginHostServiceError.tool(.planChanged) }
+        try action()
     }
     private func repair(_ path: String, task: Task) throws {
         // Descriptor-relative traversal refuses symlinks and multiple hard

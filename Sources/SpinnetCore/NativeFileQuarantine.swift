@@ -51,11 +51,33 @@ public enum NativeFileQuarantine {
             return (descriptor, components.last!)
         } catch { close(descriptor); throw error }
     }
-    public static func capture(_ url: URL, deadline: Date = Date().addingTimeInterval(30)) throws -> Snapshot {
-        let (parent, name) = try openParent(url); defer { close(parent) }
-        return try capture(parent: parent, name: name, deadline: deadline)
+    public static func existsWithoutFollowing(_ url: URL) throws -> Bool {
+        var path = url.standardizedFileURL.path
+        if path.hasPrefix("/var/") || path.hasPrefix("/tmp/") { path = "/private" + path }
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count <= 64, !components.isEmpty else { throw PluginHostServiceError.tool(.planChanged) }
+        var descriptor = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw PluginHostServiceError.tool(.planChanged) }; defer { close(descriptor) }
+        for part in components.dropLast() {
+            let next = openat(descriptor, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            if next < 0 { if errno == ENOENT { return false }; throw PluginHostServiceError.tool(.planChanged) }
+            close(descriptor); descriptor = next
+        }
+        var status = stat()
+        if fstatat(descriptor, components.last!, &status, AT_SYMLINK_NOFOLLOW) == 0 { return true }
+        guard errno == ENOENT else { throw PluginHostServiceError.tool(.planChanged) }; return false
     }
-    private static func capture(parent: Int32, name: String, deadline: Date) throws -> Snapshot {
+    public static func capture(_ url: URL, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }) throws -> Snapshot {
+        let (parent, name) = try openParent(url); defer { close(parent) }
+        return try capture(parent: parent, name: name, deadline: deadline, isCancelled: isCancelled)
+    }
+    private static func capture(parent: Int32, name: String, deadline: Date, isCancelled: () -> Bool = { false }) throws -> Snapshot {
+        let expires = ProcessInfo.processInfo.systemUptime + max(0, deadline.timeIntervalSinceNow)
+        func check() throws {
+            guard !isCancelled() else { throw PluginHostServiceError.tool(.planChanged) }
+            guard ProcessInfo.processInfo.systemUptime < expires else { throw PluginHostServiceError.tool(.timedOut) }
+        }
+        try check()
         var before = stat()
         guard fstatat(parent, name, &before, AT_SYMLINK_NOFOLLOW) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
         if before.st_mode & S_IFMT == S_IFLNK {
@@ -99,7 +121,7 @@ public enum NativeFileQuarantine {
             guard opened.st_size >= 0, opened.st_size <= 8 * 1024 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             var hasher = SHA256(), buffer = [UInt8](repeating: 0, count: 128 * 1024)
             while true {
-                guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
+                try check()
                 let count = Darwin.read(file, &buffer, buffer.count)
                 guard count >= 0 else { throw PluginHostServiceError.tool(.failed) }; if count == 0 { break }
                 size += Int64(count); guard size <= opened.st_size else { throw PluginHostServiceError.tool(.planChanged) }
@@ -108,22 +130,23 @@ public enum NativeFileQuarantine {
             guard size == opened.st_size else { throw PluginHostServiceError.tool(.planChanged) }
             digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
         }
+        try check()
         guard fstat(file, &after) == 0, opened.st_dev == after.st_dev, opened.st_ino == after.st_ino,
               directory || (opened.st_size == after.st_size && opened.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec && opened.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec) else { throw PluginHostServiceError.tool(.planChanged) }
         return Snapshot(device: UInt64(opened.st_dev), inode: UInt64(opened.st_ino), owner: opened.st_uid, group: opened.st_gid, mode: UInt32(opened.st_mode), links: directory ? 0 : UInt64(opened.st_nlink), directory: directory, size: size,
             modifiedSeconds: directory ? 0 : Int64(opened.st_mtimespec.tv_sec), modifiedNanoseconds: directory ? 0 : Int64(opened.st_mtimespec.tv_nsec), sha256: digest, aclSHA256: aclDigest, writableACL: writableACL)
     }
-    public static func remove(_ url: URL, expected: Snapshot, staging: URL, isCancelled: () -> Bool = { false }) throws -> Removal {
+    public static func remove(_ url: URL, expected: Snapshot, staging: URL, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }, mutation: (_ action: () throws -> Void) throws -> Void = { try $0() }) throws -> Removal {
         let (parent, name) = try openParent(url); defer { close(parent) }
         let (stageParent, stageName) = try openParent(staging); defer { close(stageParent) }
         let stage = openat(stageParent, stageName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard stage >= 0 else { throw PluginHostServiceError.tool(.planChanged) }; defer { close(stage) }
         var status = stat()
-        let frozenStage = try capture(parent: stageParent, name: stageName, deadline: Date().addingTimeInterval(30))
+        let frozenStage = try capture(parent: stageParent, name: stageName, deadline: deadline, isCancelled: isCancelled)
         guard fstat(stage, &status) == 0, status.st_uid == getuid(), status.st_mode & 0o077 == 0,
               UInt64(status.st_dev) == frozenStage.device, UInt64(status.st_ino) == frozenStage.inode,
               !frozenStage.writableACL,
-              !isCancelled(), try capture(parent: parent, name: name, deadline: Date().addingTimeInterval(30)) == expected else { throw PluginHostServiceError.tool(.planChanged) }
+              !isCancelled(), try capture(parent: parent, name: name, deadline: deadline, isCancelled: isCancelled) == expected else { throw PluginHostServiceError.tool(.planChanged) }
         // Retain unrelated contents in place whenever possible. A final empty
         // check still happens after quarantine, where a race cannot redirect it.
         if expected.directory {
@@ -136,11 +159,17 @@ public enum NativeFileQuarantine {
             }
         }
         let quarantineName = UUID().uuidString.lowercased()
-        guard renameatx_np(parent, name, stage, quarantineName, UInt32(RENAME_EXCL)) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        guard !isCancelled(), Date() < deadline else { throw PluginHostServiceError.tool(.planChanged) }
+        try mutation {
+            guard renameatx_np(parent, name, stage, quarantineName, UInt32(RENAME_EXCL)) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        }
         do {
-            guard !isCancelled(), try capture(parent: stage, name: quarantineName, deadline: Date().addingTimeInterval(30)) == expected else { throw PluginHostServiceError.tool(.planChanged) }
-            if unlinkat(stage, quarantineName, expected.directory ? AT_REMOVEDIR : 0) == 0 { return .removed }
-            if expected.directory && errno == ENOTEMPTY {
+            guard !isCancelled(), try capture(parent: stage, name: quarantineName, deadline: deadline, isCancelled: isCancelled) == expected,
+                  !isCancelled(), Date() < deadline else { throw PluginHostServiceError.tool(.planChanged) }
+            var removed = false, failure: Int32 = 0
+            try mutation { removed = unlinkat(stage, quarantineName, expected.directory ? AT_REMOVEDIR : 0) == 0; failure = errno }
+            if removed { return .removed }
+            if expected.directory && failure == ENOTEMPTY {
                 guard renameatx_np(stage, quarantineName, parent, name, UInt32(RENAME_EXCL)) == 0 else { throw Failure.retained(staging.appendingPathComponent(quarantineName)) }
                 return .keptNonemptyDirectory
             }

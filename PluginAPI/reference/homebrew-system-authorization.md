@@ -61,7 +61,17 @@ uses no-follow ancestor descriptors, bounded reads and bounded timestamp
 enumeration. The sealed Ruby adapter delegates revalidation to the signed
 native client. It never evaluates an installed
 Ruby recipe or substitutes the current catalog for missing history. The Host
-freezes the canonical native exported receipt and a manifest of existing file identities and content hashes,
+resolves relative and trailing-slash native install locations against the
+declared volume. It intersects the complete native receipt inventory using
+package information, selected receipt exports and compact unselected file
+lists; missing `file-info` indexing never establishes exclusivity. Physical
+ancestor and file identities account for location and case aliases. The
+inventory admits at most 2,000 receipts, 50,000 candidate paths, 4 MiB per
+selected export and 16 MiB/250,000 names per unselected file list, with 64 MiB
+of aggregate read metadata; incomplete or
+over-budget ownership is an explicit refusal. The Host builds one index for
+the batch, and the native helper reconstructs it before mutation.
+It then freezes the canonical native exported receipt and a manifest of existing file identities and content hashes,
 with at most 10,000 entries and a 30-second aggregate read deadline. Each file
 must belong only to receipts selected in the confirmed batch, be root-owned
 and non-writable (including extended ACL authority). Reviewed locations are
@@ -87,6 +97,12 @@ Directory size and modification times changed by admitted child removals do
 not invalidate a later receipt; owner, ACL and inode identity still must match.
 A restore collision preserves original bytes at a concrete recovery location
 reported to the Host; automatic cleanup never deletes retained files.
+Hashing observes cancellation and the shared read deadline. Each native
+rename/delete step shares the Task's Stop lock, so an acknowledged Stop
+prevents the next step without waiting for hashing. Repeated exact receipts
+or daemon labels across selected casks reuse only matching completed authority
+in that same running Task. A final no-follow presence check detects recreated
+files and dangling links before receipt forgetting.
 Receipt forgetting alone is never reported as an uninstall. The Host
 Confirmation names each receipt and its reviewed entry count. Concrete removal
 details exceeding 8 KiB refuse the Task before confirmation rather than being

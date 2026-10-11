@@ -89,4 +89,11 @@ final class HomebrewPrivilegeTests: XCTestCase {
         XCTAssertEqual(ids, ["org.virtualbox.pkg.cli", "org.virtualbox.pkg.core"])
         XCTAssertThrowsError(try HomebrewReceiptRemoval.resolvePatterns([".*"], deadline: Date().addingTimeInterval(1)) { _, _ in Data("com.apple.pkg.system\n".utf8) })
     }
+    func testNativeRelativeReceiptInstallLocationIsAnchoredToItsVolume() throws {
+        XCTAssertEqual(try HomebrewReceiptRemoval.installLocation(volume: "/", location: "Applications"), "/Applications")
+        XCTAssertEqual(try HomebrewReceiptRemoval.installLocation(volume: "/", location: "Applications/GarageBand.app/Contents/"), "/Applications/GarageBand.app/Contents")
+        XCTAssertEqual(try HomebrewReceiptRemoval.installLocation(volume: "/", location: ""), "/")
+        XCTAssertThrowsError(try HomebrewReceiptRemoval.installLocation(volume: "/", location: "../Applications"))
+        XCTAssertThrowsError(try HomebrewReceiptRemoval.installLocation(volume: "/Volumes/Other", location: "Applications"))
+    }
 }

@@ -301,10 +301,24 @@ public final class HomebrewReadProfile {
     }
     public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
                                           _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
+        try executeBounded(executable, arguments, environment, deadline, cancellation, stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: false)
+    }
+    /// Internal native metadata lane. The Plugin contract cannot select these
+    /// argv or increase tools.read's cap; mutation commands are never admitted.
+    public static func executeNativeReceipt(_ arguments: [String], deadline: Date) throws -> HomebrewReadOutput {
+        guard arguments == ["--pkgs"] || (arguments.count == 2 && ["--pkg-info-plist", "--export-plist", "--files"].contains(arguments[0])
+            && arguments[1].utf8.count <= 200 && arguments[1].range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]+$", options: .regularExpression) != nil) else {
+            throw PluginHostServiceError.invalidInput("Native receipt inspection accepts only exact read commands")
+        }
+        let cap = arguments.first == "--files" ? 16 * 1024 * 1024 : 4 * 1024 * 1024
+        return try executeBounded(URL(fileURLWithPath: "/usr/sbin/pkgutil"), arguments, ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"], deadline, .init(), stdoutLimit: cap, readOnly: true)
+    }
+    private static func executeBounded(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
+        _ cancellation: HostFetchedSections.Cancellation, stdoutLimit: Int, readOnly: Bool) throws -> HomebrewReadOutput {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
-        let sandbox = arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))" : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
+        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))" : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
         let launcher = "/usr/bin/sandbox-exec"
         let sandboxArguments = ["-p", sandbox, executable.path] + arguments
         var out: [Int32] = [0, 0], err: [Int32] = [0, 0]
@@ -344,7 +358,7 @@ public final class HomebrewReadProfile {
                 else if count == 0 { open[index] = false }
                 else if errno != EAGAIN && errno != EINTR { throw PluginHostServiceError.tool(.failed) }
             }
-            guard stdout.count <= ReviewedToolReads.stdoutBytes, stderr.count <= ReviewedToolReads.stderrBytes else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.outputTooLarge) }
+            guard stdout.count <= stdoutLimit, stderr.count <= ReviewedToolReads.stderrBytes else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.outputTooLarge) }
             if !ended { ended = waitpid(pid, &status, WNOHANG) == pid }
             if !ended || open.contains(true) { usleep(2000) }
         }

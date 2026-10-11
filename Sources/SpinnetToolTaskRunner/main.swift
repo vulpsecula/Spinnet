@@ -49,7 +49,9 @@ do {
         var failure = "The signed privileged helper is unavailable"
         guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in ready.signal() }) as? HomebrewPrivilegeRunnerProtocol else { exit(77) }
         proxy.begin(try JSONEncoder().encode(privilegePlan)) { failure = $0; ready.signal() }
-        guard ready.wait(timeout: .now() + 15) == .success, failure.isEmpty else {
+        // The native helper has a 30-second aggregate inventory/hash budget.
+        // A shorter caller wait could abandon a valid read-only admission.
+        guard ready.wait(timeout: .now() + 45) == .success, failure.isEmpty else {
             record.result = .object(["outcome": .string("failed"), "reason": .string("system_authorization_unavailable")]); record.ended = Date(); try record.save(to: directory); exit(77)
         }
         privilegeConnection = connection; privilegeProxy = proxy

@@ -377,10 +377,11 @@ public enum HomebrewPrivilegeReview {
                 admittedOwners.formUnion(try HomebrewReceiptRemoval.resolvePatterns(patterns, deadline: deadline))
             }
         }
+        let ownership = try admittedOwners.isEmpty ? nil : HomebrewReceiptOwnership.capture(selected: admittedOwners, deadline: deadline)
         return try zip(names, records).map { name, raw in
             if input.operation == "uninstall" {
                 guard input.fields["zap"] != .bool(true), raw["full_token"] as? String == name || raw["token"] as? String == name else { throw PluginHostServiceError.tool(.planChanged) }
-                guard let removal = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, deadline: deadline) else { throw PluginHostServiceError.tool(.planChanged) }
+                guard let removal = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, ownership: ownership, deadline: deadline) else { throw PluginHostServiceError.tool(.planChanged) }
                 return removal
             }
             guard raw["full_token"] as? String == name || raw["token"] as? String == name,
@@ -391,7 +392,7 @@ public enum HomebrewPrivilegeReview {
             let metadata = packagesForReview(package).first { $0.value(atPointer: "/name") == .string(name) }
             let predecessor: HomebrewPrivilegePlan.Cask?
             if ["upgrade", "upgradeAll", "upgradeSelected", "changeLanguage"].contains(input.operation), metadata?.value(atPointer: "/uninstall_needs_privileges") == .bool(true) {
-                predecessor = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, deadline: deadline)
+                predecessor = try uninstallCask(name: name, prefix: prefix, admittedOwners: admittedOwners, ownership: ownership, deadline: deadline)
             } else { predecessor = nil }
             guard (!packages.isEmpty || predecessor != nil), packages.allSatisfy(HomebrewPrivilegePlan.validPackagePath) else { throw PluginHostServiceError.unavailable("This cask uses a custom installer that has no reviewed native elevation operation") }
             return .init(name: name, version: version, sha256: checksum, packages: packages, launchDaemons: predecessor?.launchDaemons,
@@ -401,7 +402,7 @@ public enum HomebrewPrivilegeReview {
     private static func packagesForReview(_ value: JSONValue) -> [JSONValue] {
         if case .array(let values)? = value.value(atPointer: "/packages") { return values }; return [value]
     }
-    private static func uninstallCask(name: String, prefix: String, admittedOwners: Set<String>, deadline: Date) throws -> HomebrewPrivilegePlan.Cask? {
+    private static func uninstallCask(name: String, prefix: String, admittedOwners: Set<String>, ownership: HomebrewReceiptOwnership.Index?, deadline: Date) throws -> HomebrewPrivilegePlan.Cask? {
         let installed = try HomebrewInstalledUninstall.read(name: name, prefix: prefix)
         if !HomebrewInstalledUninstall.requiresPrivileges(installed.artifacts) { return nil }
         let directives = installed.artifacts.flatMap { artifact -> [[String: Any]] in
@@ -423,7 +424,7 @@ public enum HomebrewPrivilegeReview {
             throw PluginHostServiceError.unavailable("Privileged uninstall requires exact non-Apple receipt IDs or system-daemon labels; wildcards and LaunchAgents need separate review")
         }
         let daemons = try labels.map(HomebrewPrivilegePlan.captureLaunchDaemon)
-        let receipts = try receiptIDs.map { try HomebrewReceiptRemoval.capture($0, excluding: Set(daemons.map(\.path)), admittedOwners: admittedOwners, deadline: deadline).receipt }
+        let receipts = try receiptIDs.map { try HomebrewReceiptRemoval.capture($0, excluding: Set(daemons.map(\.path)), admittedOwners: admittedOwners, ownership: ownership, deadline: deadline).receipt }
         return .init(name: name, version: installed.version, sha256: "", packages: [], launchDaemons: daemons, receipts: receipts, installedFingerprint: installed.fingerprint, installedTap: installed.tap, receiptPatterns: resolutions)
     }
 
