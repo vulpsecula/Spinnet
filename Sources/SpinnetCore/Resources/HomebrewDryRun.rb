@@ -1,6 +1,6 @@
 # Host-owned reviewed adapter. Only Homebrew 7.0.x is reviewed here.
 # Input is constructed by HomebrewDryRunReads, never accepted from a Plugin.
-require 'trust'
+require_relative 'HomebrewSourceGuard'
 require 'tap'
 require 'bottle'
 require 'diagnostic'
@@ -22,6 +22,7 @@ module SpinnetPreviewWriteDiagnostics
 end
 Homebrew::Diagnostic::Checks.prepend(SpinnetPreviewWriteDiagnostics)
 warn 'Warning: installation write permissions are checked only when the confirmed Task runs; this preview cannot write to the Homebrew prefix'
+# The shared loader boundary disables qualified-argument temporary trust.
 # Homebrew's normal fully qualified install/upgrade implicitly trusts items.
 # A preview must preserve trust; its loader still enforces existing trust.
 module SpinnetPreviewTrust
@@ -73,6 +74,7 @@ module SpinnetPreviewBottle
   end
 end
 Bottle.prepend(SpinnetPreviewBottle)
+begin
 if ARGV[0] == 'install'
   require 'cmd/install'
   Homebrew::Cmd::InstallCmd.new(ARGV[1..]).run
@@ -80,9 +82,18 @@ else
   require 'cmd/upgrade'
   Homebrew::Cmd::UpgradeCmd.new(ARGV[1..]).run
 end
+if $spinnet_unavailable_history
+  warn '__SPINNET_INSTALLED_HISTORY_UNAVAILABLE__'
+  exit 78
+end
 unless $spinnet_preview_sizes.empty?
   puts '==> Official bottle download metadata (checksum-matched):'
   $spinnet_preview_sizes.sort.each { |name, bytes| puts "#{name}: #{bytes} bytes download; not the installed footprint" }
 end
 puts '__SPINNET_MANIFEST_REQUESTS__' + $spinnet_preview_requests.to_json unless $spinnet_preview_requests.empty?
 exit(Homebrew.failed? ? 1 : 0)
+
+rescue Homebrew::UntrustedTapError
+  warn '__SPINNET_SOURCE_NOT_ALLOWED__'
+  exit 77
+end
