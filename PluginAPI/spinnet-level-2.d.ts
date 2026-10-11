@@ -936,6 +936,7 @@ export interface LegacyReviewedToolReadResult {
   packages: ReviewedPackage[]; not_found?: string[]; truncated?: true;
 }
 export type ReviewedToolTaskInput =
+  | {tool: "homebrew"; operation: "update"}
   | {tool: "homebrew"; operation: "install" | "upgrade" | "uninstall" | "pin" | "unpin" | "link" | "unlink"; kind: ReviewedPackageKind; name: string; zap?: boolean}
   | {tool: "homebrew"; operation: "upgradeAll" | "upgradeSelected"; kind?: ReviewedPackageKind; names?: string[]; greedy?: boolean}
   | {tool: "homebrew"; operation: "tap" | "untap" | "trust" | "untrust"; tap: string}

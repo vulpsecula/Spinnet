@@ -18,6 +18,24 @@ final class ReviewedToolTaskTests: XCTestCase {
             }
         }
     }
+    func testCatalogRefreshIsOneGlobalConfirmedTaskWithNoPackageOrOptionsAuthority() throws {
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("update")]))
+        XCTAssertEqual(input.arguments, ["update"])
+        XCTAssertEqual(input.kind, "both")
+        let formulaOnly = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [CommandID("updates")], reviewedTools: [.init(tool: "homebrew", operations: ["update"], kinds: ["formula"])])
+        XCTAssertThrowsError(try input.authorize(in: formulaOnly)) { XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.runReviewedToolTasks)) }
+        let both = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [CommandID("updates")], reviewedTools: [.init(tool: "homebrew", operations: ["update"], kinds: ["formula", "cask"])])
+        XCTAssertNoThrow(try input.authorize(in: both))
+        XCTAssertThrowsError(try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("update"), "name": .string("wget")])))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object([:]) }, trustedTaps: { [] })
+        let plan = try host.prepare(input, owner: PluginID("updates"), pluginName: "Homebrew")
+        XCTAssertTrue(plan.confirmation.message.contains("Homebrew itself"))
+        XCTAssertTrue(plan.confirmation.message.contains("all configured taps"))
+        XCTAssertTrue(plan.confirmation.message.contains("package catalogs"))
+        host.decline(plan)
+    }
     func testTaskInputNamesExactlyOnePackageAndRejectsOptionsOrUnreviewedWork() throws {
         let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("wget")])
         XCTAssertEqual(try HomebrewTaskInput(input).arguments, ["install", "--formula", "--", "wget"])

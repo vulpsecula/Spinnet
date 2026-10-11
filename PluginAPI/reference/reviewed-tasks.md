@@ -79,3 +79,14 @@ Typed refusals include `tool_busy`, `package_not_found`,
 semantics remain an idempotent no-op for absent effect handles.
 
 `changeLanguage` takes `kind: "cask"`, an installed package name and one language from the Host-projected `languages` list. The Host revalidates that choice before confirmation and execution, discloses App reinstallation, and constructs fixed `reinstall --cask --language=<choice>` arguments. It accepts no extra flags.
+
+## Explicit global catalog update
+
+`{tool: "homebrew", operation: "update"}` starts the fixed `brew update` Task.
+It accepts no package name, kind, path or flags. Its Task grant requires both
+formula and cask kinds because it updates Homebrew itself and all configured
+tap/package catalogs. The Host confirmation discloses that global scope even
+when the gesture came from one package. Reads never trigger this mutation;
+follow the recorded Task through `activities.list`, then invalidate local
+catalog/detail caches and perform fresh reads. Package operations independently
+revalidate current metadata and source trust after the update.

@@ -245,7 +245,8 @@
               "adoptionCandidates",
               "adoptionPreview",
               "packageAnalytics",
-              "changeLanguage"
+              "changeLanguage",
+              "update"
             ]
           }
         },
@@ -574,6 +575,22 @@
               "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "update"
+            }
+          },
+          "required": [
+            "tool",
+            "operation"
+          ]
         }
       ]
     },
@@ -635,7 +652,8 @@
             "serviceRestart",
             "cleanup",
             "doctorFix",
-            "changeLanguage"
+            "changeLanguage",
+            "update"
           ]
         },
         "stage": {
