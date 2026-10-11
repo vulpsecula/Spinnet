@@ -51,7 +51,14 @@ accepts a path or wildcard from a Plugin. LaunchAgents, Apple service labels,
 scripts, kexts and Zap remain outside this class.
 
 The receipt removal class accepts exact non-Apple package identifiers from
-data-only recorded installed cask history; it never evaluates an installed
+data-only recorded installed cask history. The Host binds its exact token,
+recorded tap and version to the selected package, checks that recorded tap's
+current trust before confirmation and launch, and discloses it as locally
+recorded history. It does not claim immutable upstream ownership from editable
+local metadata. A mismatched current catalog source is refused. The reader
+uses no-follow ancestor descriptors, bounded reads and bounded timestamp
+enumeration. The sealed Ruby adapter delegates revalidation to the signed
+native client. It never evaluates an installed
 Ruby recipe or substitutes the current catalog for missing history. The Host
 freezes the native exported receipt and a manifest of existing file identities,
 with at most 10,000 entries and a 30-second aggregate read deadline. Each file

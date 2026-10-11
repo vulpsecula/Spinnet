@@ -7,6 +7,10 @@ do {
     // Only fixed bridge arguments are accepted. The root helper independently
     // checks the Task, signed client, runner ancestry, authorization and target.
     let arguments = CommandLine.arguments
+    if arguments.count == 4, arguments[1] == "--installed-history-digest", ["/opt/homebrew", "/usr/local"].contains(arguments[3]) {
+        let recorded = try HomebrewInstalledUninstall.read(name: arguments[2], prefix: arguments[3])
+        print(recorded.fingerprint); exit(0)
+    }
     guard let task = ProcessInfo.processInfo.environment["HOMEBREW_SPINNET_TASK_ID"] else { exit(64) }
     let request: HomebrewPrivilegeRequest
     let prompt: String

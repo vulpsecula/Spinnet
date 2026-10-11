@@ -2,6 +2,19 @@ import XCTest
 @testable import SpinnetCore
 
 final class ReviewedToolReadTests: XCTestCase {
+    func testQualifiedInstalledCaskSelectionCannotBorrowAnotherTapsSameTokenHistory() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let metadata = prefix.appendingPathComponent("Caskroom/example/.metadata")
+        let definition = metadata.appendingPathComponent("1/20261011000000/Casks/example.json")
+        try FileManager.default.createDirectory(at: definition.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: definition)
+        try Data("{\"source\":{\"version\":\"1\",\"tap\":\"other/tap\"},\"uninstall_artifacts\":[{\"uninstall\":[{\"pkgutil\":\"org.example.pkg\"}]}]}".utf8).write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
+        XCTAssertNoThrow(try HomebrewInstalledUninstall.read(name: "other/tap/example", prefix: prefix.path))
+        XCTAssertThrowsError(try HomebrewInstalledUninstall.read(name: "official/tap/example", prefix: prefix.path)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed))
+        }
+    }
     func testCaskInfoDetectsPrivilegedInstalledPredecessorEvenWhenCurrentCatalogDropsItsUninstall() throws {
         let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: prefix) }
@@ -9,13 +22,14 @@ final class ReviewedToolReadTests: XCTestCase {
         let definition = metadata.appendingPathComponent("1/20261011000000/Casks/example.json")
         try FileManager.default.createDirectory(at: definition.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: definition)
-        let tab = "{\"source\":{\"version\":\"1\"},\"uninstall_flight_blocks\":false,\"uninstall_artifacts\":[{\"uninstall\":[{\"pkgutil\":\"org.example.pkg\"}]}]}"
+        let tab = "{\"source\":{\"version\":\"1\",\"tap\":\"homebrew/cask\"},\"uninstall_flight_blocks\":false,\"uninstall_artifacts\":[{\"uninstall\":[{\"pkgutil\":\"org.example.pkg\",\"quit\":\"org.example.app\"}]}]}"
         try Data(tab.utf8).write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
         let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }) { _, _, _, _ in
             HomebrewReadOutput(status: 0, stdout: Data("{\"casks\":[{\"token\":\"example\",\"version\":\"2\",\"installed\":[\"1\"],\"artifacts\":[{\"app\":[\"Example.app\"]}]}]}".utf8))
         }
         let value = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string("example")])]), owner: PluginID("reader"))
         XCTAssertEqual(value.value(atPointer: "/packages/0/uninstall_needs_privileges"), .bool(true))
+        XCTAssertEqual(value.value(atPointer: "/packages/0/quits_app"), .bool(true))
     }
     func testInstalledProjectionKeepsTrustedTapAndRemovesPrivateFields() throws {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }) { _, arguments, environment, _ in
