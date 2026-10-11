@@ -271,3 +271,20 @@ extension ReviewedToolTaskTests {
         host.decline(plan)
     }
 }
+
+
+extension ReviewedToolTaskTests {
+    func testUninstallOnlyPrivilegesReachNativeReviewBeforeHostConfirmation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var reviews = 0
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+            .object(["name": .string("example"), "kind": .string("cask"), "uninstall_needs_privileges": .bool(true)])
+        }, trustedTaps: { [] }, privilegeReview: { _, _, _ in reviews += 1; throw PluginHostServiceError.unavailable("Unsupported native uninstall directive") })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: PluginID("uninstaller"), pluginName: "Homebrew"))
+        XCTAssertEqual(reviews, 1)
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    }
+}

@@ -14,9 +14,14 @@ public struct HomebrewTaskPlan {
     public var steps: [HomebrewTaskInput] = []
     public var privilegedCasks: [HomebrewPrivilegePlan.Cask] = []
     public var needsPrivileges: Bool {
-        if package.value(atPointer: "/needs_privileges") == .bool(true) { return true }
-        if case .array(let records)? = package.value(atPointer: "/packages") { return records.contains { $0.value(atPointer: "/needs_privileges") == .bool(true) } }
+        if Self.packageNeedsPrivileges(package, operation: input.operation) { return true }
+        if case .array(let records)? = package.value(atPointer: "/packages") { return records.contains { Self.packageNeedsPrivileges($0, operation: input.operation) } }
         return false
+    }
+    static func packageNeedsPrivileges(_ package: JSONValue, operation: String) -> Bool {
+        package.value(atPointer: "/needs_privileges") == .bool(true)
+            || (["uninstall", "upgrade", "upgradeAll", "upgradeSelected", "changeLanguage"].contains(operation)
+                && package.value(atPointer: "/uninstall_needs_privileges") == .bool(true))
     }
     let generation: Int
 }
@@ -109,7 +114,7 @@ public final class HostReviewedToolTasks {
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
             if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
-            if reviewedPackages.contains(where: { $0.value(atPointer: "/needs_privileges") == .bool(true) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
+            if reviewedPackages.contains(where: { HomebrewTaskPlan.packageNeedsPrivileges($0, operation: input.operation) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
             if reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,

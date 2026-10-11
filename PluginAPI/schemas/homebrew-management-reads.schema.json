@@ -725,6 +725,12 @@
                     }
                   }
                 }
+              },
+              "identity": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^app_[a-f0-9]{48}$",
+                "description": "Opaque owner-bound stable Collection identity for this concrete App fingerprint; contains no path and grants no operation authority."
               }
             }
           }

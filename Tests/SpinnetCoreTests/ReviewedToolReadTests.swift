@@ -111,3 +111,16 @@ final class ReviewedToolReadTests: XCTestCase {
         }
     }
 }
+
+
+extension ReviewedToolReadTests {
+    func testCaskArrayUninstallDirectivesDiscloseAppQuitAndPrivilegedUninstall() throws {
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }) { _, _, _, _ in
+            HomebrewReadOutput(status: 0, stdout: Data(#"{"casks":[{"token":"example","version":"2","artifacts":[{"app":["Example.app"]},{"uninstall":[{"quit":"org.example.app","launchctl":"org.example.daemon"}]}]}]}"#.utf8))
+        }
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string("example")])]), owner: PluginID("read"))
+        XCTAssertEqual(result.value(atPointer: "/packages/0/quits_app"), .bool(true))
+        XCTAssertEqual(result.value(atPointer: "/packages/0/uninstall_needs_privileges"), .bool(true))
+        XCTAssertNil(result.value(atPointer: "/packages/0/needs_privileges"), "Installing an App artifact need not elevate its future uninstall")
+    }
+}

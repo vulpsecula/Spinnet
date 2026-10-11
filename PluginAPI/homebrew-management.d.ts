@@ -21,7 +21,7 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
   services?: { name: string; status: "started" | "scheduled" | "stopped" | "none" | "error" | "unknown" | "other"; user_owned: true }[];
   findings?: ({ id: string; text: string; guidance?: string; links: string[]; commands: string[]; repairs: { target: string; title: string }[] }
     | { name: string; installed_version: string; advisories: Advisory[]; open_count?: number; patched_count?: number; unknown_count?: number; upgrade_available?: boolean })[];
-  applications?: { target: string; name: string; bundle_id: string; version: string; candidates?: {name: string; confidence: "ready" | "likely" | "unlikely" | "cannot"; reason: string}[] }[];
+  applications?: { identity?: string; target: string; name: string; bundle_id: string; version: string; candidates?: {name: string; confidence: "ready" | "likely" | "unlikely" | "cannot"; reason: string}[] }[];
   fix_all?: {target: string; title: string; count: number};
   target?: string; name?: string; kind?: PackageKind; summary?: string; estimated?: false; dry_run?: true; succeeded?: boolean; exit_status?: number; stdout?: string; stderr?: string;
   stages?: {title: string; lines: string[]}[]; warnings?: string[];
