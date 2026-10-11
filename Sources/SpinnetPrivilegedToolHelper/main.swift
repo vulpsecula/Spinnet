@@ -125,6 +125,12 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
                 guard fresh, approval.pid == pid, HomebrewTaskProcess.startIdentity(pid) == approval.identity, approval.expires > ProcessInfo.processInfo.systemUptime, HomebrewSystemAuthorization.check(authorization, rightName: approval.right) else { throw PluginHostServiceError.unavailable("System authorization refused or already consumed") }
                 switch request.operation {
                 case .installPackage: try install(request, task: task, reply: reply)
+                case .removeReceipt:
+                    try removeReceipt(request, task: task)
+                    reply(0, "Reviewed receipt-owned files removed and receipt forgotten; nonempty directories retained. Changes are not rolled back")
+                case .removeLaunchDaemon:
+                    try removeLaunchDaemon(request, task: task)
+                    reply(0, "Reviewed system launch daemon removed; changes are not rolled back")
                 case .repairOwnership:
                     try repair(request.source, task: task)
                     reply(0, "Reviewed ownership repair completed")
@@ -205,6 +211,46 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
         let process = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/usr/bin/hdiutil"), arguments: ["detach", "-force", mount.path], environment: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"], interruptGrace: 1, terminateGrace: 1)
         do { try process.start(output: { _ in }, finished: { _ in done.signal() }) } catch { return }
         if done.wait(timeout: .now() + 10) != .success { process.stop(); _ = done.wait(timeout: .now() + 5) }
+    }
+    private func removeLaunchDaemon(_ request: HomebrewPrivilegeRequest, task: Task) throws {
+        guard let daemon = task.plan.casks.first(where: { $0.name == request.package })?.launchDaemons?.first(where: { $0.label == request.source }),
+              try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
+        let target = "system/" + daemon.label
+        let existing = try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15)
+        // launchctl's fixed missing-service outcome is ESRCH-domain 113;
+        // permission and other failures never become successful removals.
+        if existing.exitStatus == 0 {
+            let stopped = try runNative("/bin/launchctl", ["bootout", target], task: task, timeout: 30)
+            guard stopped.exitStatus == 0 else { throw PluginHostServiceError.tool(.failed) }
+        } else if existing.exitStatus != 113 { throw PluginHostServiceError.tool(.failed) }
+        let absent = try runNative("/bin/launchctl", ["print", target], task: task, timeout: 15)
+        guard absent.exitStatus == 113, try HomebrewPrivilegePlan.captureLaunchDaemon(daemon.label) == daemon else { throw PluginHostServiceError.tool(.planChanged) }
+        state.lock.lock(); defer { state.lock.unlock() }
+        guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity,
+              unlink(daemon.path) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+    }
+    private func removeReceipt(_ request: HomebrewPrivilegeRequest, task: Task) throws {
+        guard let cask = task.plan.casks.first(where: { $0.name == request.package }),
+              let receipt = cask.receipts?.first(where: { $0.identifier == request.source }) else { throw PluginHostServiceError.tool(.planChanged) }
+        let snapshot = try HomebrewReceiptRemoval.capture(receipt.identifier, excluding: Set((cask.launchDaemons ?? []).map(\.path)))
+        guard snapshot.receipt == receipt else { throw PluginHostServiceError.tool(.planChanged) }
+        // Every file was checked before mutation. Each protected parent stays
+        // open through the final identity check and descriptor-relative unlink.
+        let files = snapshot.entries.filter { !$0.directory }
+        let directories = snapshot.entries.filter(\.directory).sorted { $0.path.split(separator: "/").count > $1.path.split(separator: "/").count }
+        for entry in files + directories {
+            let (parent, name) = try HomebrewReceiptRemoval.protectedParent(entry.path); defer { close(parent) }
+            let current = try HomebrewReceiptRemoval.captureEntry(entry.path)
+            guard current.device == entry.device, current.inode == entry.inode, current.directory == entry.directory,
+                  entry.directory || current == entry else { throw PluginHostServiceError.tool(.planChanged) }
+            state.lock.lock()
+            guard !task.stopped, HomebrewTaskProcess.startIdentity(task.pid) == task.identity else { state.lock.unlock(); throw PluginHostServiceError.tool(.planChanged) }
+            let status = unlinkat(parent, name, entry.directory ? AT_REMOVEDIR : 0), failure = errno
+            state.lock.unlock()
+            guard status == 0 || (entry.directory && failure == ENOTEMPTY) else { throw PluginHostServiceError.tool(.planChanged) }
+        }
+        let forgotten = try runNative("/usr/sbin/pkgutil", ["--forget", receipt.identifier], task: task, timeout: 30)
+        guard forgotten.exitStatus == 0 else { throw PluginHostServiceError.tool(.failed) }
     }
     private func repair(_ path: String, task: Task) throws {
         // Descriptor-relative traversal refuses symlinks and multiple hard

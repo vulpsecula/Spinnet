@@ -418,3 +418,24 @@ extension HomebrewManagementReadTests {
         XCTAssertEqual(result.value(atPointer: "/truncated"), .bool(true))
     }
 }
+
+
+extension HomebrewManagementReadTests {
+    func testCopiedAppsHaveStableDistinctOpaqueIdentitiesAcrossCandidateRefreshes() throws {
+        let apps = ["/Applications/Example.app", "/Users/example/Applications/Example.app"].map {
+            HomebrewAdoptionApplication(url: URL(fileURLWithPath: $0), name: "Example", bundleID: "org.example.app", version: "2.0", fingerprint: "current")
+        }
+        let management = HomebrewManagementReads(targets: HomebrewManagementTargets(), applications: { apps })
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            HomebrewReadOutput(status: 0, stdout: Data(args == ["--version"] ? "Homebrew 7.0.0\n".utf8 : "".utf8))
+        }, management: management)
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("adoptionCandidates")])
+        let first = try profile.read(input, owner: PluginID("adoption")), next = try profile.read(input, owner: PluginID("adoption"))
+        let identity = try XCTUnwrap(first.value(atPointer: "/applications/0/identity"))
+        XCTAssertNotEqual(identity, first.value(atPointer: "/applications/1/identity"))
+        XCTAssertEqual(identity, next.value(atPointer: "/applications/0/identity"))
+        XCTAssertNotEqual(identity, try profile.read(input, owner: PluginID("other")).value(atPointer: "/applications/0/identity"))
+        let wire = String(decoding: try JSONEncoder().encode(first), as: UTF8.self)
+        XCTAssertFalse(wire.contains("/Applications")); XCTAssertFalse(wire.contains("/Users/"))
+    }
+}

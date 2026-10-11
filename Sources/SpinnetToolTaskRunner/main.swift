@@ -86,7 +86,7 @@ do {
             guard let bridge = Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") else { throw PluginHostServiceError.tool(.failed) }
             let client = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("SpinnetToolAuthorizationClient")
             let context: [String: JSONValue] = ["arguments": .array(arguments.map(JSONValue.string)), "client": .string(client.path),
-                "casks": .array(privilegePlan.casks.map { .object(["name": .string($0.name), "version": .string($0.version), "sha256": .string($0.sha256), "packages": .array($0.packages.map(JSONValue.string))]) })]
+                "casks": .array(try privilegePlan.casks.map { try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode($0)) })]
             let contextURL = directory.appendingPathComponent("privilege-context.json")
             try JSONEncoder().encode(JSONValue.object(context)).write(to: contextURL, options: .atomic)
             arguments = ["ruby", bridge.path, contextURL.path]

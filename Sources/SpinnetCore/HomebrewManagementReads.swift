@@ -260,7 +260,8 @@ public final class HomebrewManagementReads {
                     func rank(_ value: JSONValue) -> Int { if case .string(let text)? = value.value(atPointer: "/confidence") { return ranks[text] ?? 3 }; return 3 }
                     return rank(left) < rank(right)
                 }
-                return .object(["target": .string(key), "name": .string(app.name), "bundle_id": .string(app.bundleID), "version": .string(app.version), "candidates": .array(Array(matches.prefix(4)))])
+                let identity = "app_" + HomebrewSystemAuthorization.digest(Data((owner.rawValue + "\0" + app.url.path + "\0" + app.fingerprint).utf8)).prefix(48)
+                return .object(["identity": .string(identity), "target": .string(key), "name": .string(app.name), "bundle_id": .string(app.bundleID), "version": .string(app.version), "candidates": .array(Array(matches.prefix(4)))])
             })
             return .object(result)
         }

@@ -26,8 +26,7 @@ final class HomebrewPrivilegeTests: XCTestCase {
         XCTAssertThrowsError(try plan.validate(request))
         request.relativePackage = "Example.pkg"
         XCTAssertNoThrow(try plan.validate(request))
-        let uninstall = try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "uninstall")
-        XCTAssertThrowsError(try uninstall.validate(request))
+        XCTAssertThrowsError(try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "uninstall"), "A pkg-only plan grants no uninstall authority")
     }
 
     func testInstallerCannotChooseAnotherPackageInsideTheApprovedDownload() throws {
@@ -38,4 +37,41 @@ final class HomebrewPrivilegeTests: XCTestCase {
         XCTAssertThrowsError(try plan.validate(other))
     }
 
+    func testPrivilegedUninstallBindsOnlyItsFrozenLaunchDaemonAndRefusesOtherRootTargets() throws {
+        let daemon = HomebrewPrivilegePlan.LaunchDaemon(label: "org.example.helper", sha256: String(repeating: "a", count: 64), device: 1, inode: 42)
+        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "1", sha256: "", packages: [], launchDaemons: [daemon])
+        let plan = try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "uninstall")
+        var request = HomebrewPrivilegeRequest(taskID: "activity_123", package: "example", operation: .removeLaunchDaemon, source: "org.example.helper", sha256: daemon.sha256)
+        XCTAssertNoThrow(try plan.validate(request))
+        request.source = "org.other.helper"; XCTAssertThrowsError(try plan.validate(request))
+        request.source = daemon.label; request.sha256 = String(repeating: "b", count: 64); XCTAssertThrowsError(try plan.validate(request))
+        request.sha256 = daemon.sha256; request.package = "other"; XCTAssertThrowsError(try plan.validate(request))
+        XCTAssertThrowsError(try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "install"))
+        XCTAssertFalse(HomebrewPrivilegePlan.validLaunchDaemonLabel("../other")); XCTAssertFalse(HomebrewPrivilegePlan.validLaunchDaemonLabel("org.example.*")); XCTAssertFalse(HomebrewPrivilegePlan.validLaunchDaemonLabel("com.apple.system"))
+    }
+
+    func testReceiptUninstallRequiresFrozenManifestAndNeverGrantsForgetOnlyOrOtherReceiptAuthority() throws {
+        let receipt = HomebrewPrivilegePlan.Receipt(identifier: "org.example.pkg", manifestSHA256: String(repeating: "a", count: 64), fileCount: 12)
+        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "1", sha256: "", packages: [], receipts: [receipt])
+        let plan = try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "uninstall")
+        var request = HomebrewPrivilegeRequest(taskID: "activity_123", package: "example", operation: .removeReceipt, source: receipt.identifier, sha256: receipt.manifestSHA256)
+        XCTAssertNoThrow(try plan.validate(request))
+        request.source = "org.other.pkg"; XCTAssertThrowsError(try plan.validate(request))
+        request.source = receipt.identifier; request.sha256 = String(repeating: "b", count: 64); XCTAssertThrowsError(try plan.validate(request))
+        let empty = HomebrewPrivilegePlan.Receipt(identifier: receipt.identifier, manifestSHA256: receipt.manifestSHA256, fileCount: 0)
+        XCTAssertThrowsError(try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [.init(name: "example", version: "1", sha256: "", packages: [], receipts: [empty])], operation: "uninstall"))
+        XCTAssertFalse(HomebrewPrivilegePlan.validReceiptID("org.example.*")); XCTAssertFalse(HomebrewPrivilegePlan.validReceiptID("com.apple.system"))
+    }
+
+    func testUpgradeMayRemoveOnlyItsFrozenInstalledPredecessorBeforeInstallingSuccessor() throws {
+        let receipt = HomebrewPrivilegePlan.Receipt(identifier: "org.example.pkg", manifestSHA256: String(repeating: "a", count: 64), fileCount: 12)
+        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: String(repeating: "b", count: 64), packages: ["New.pkg"], receipts: [receipt], uninstallVersion: "1")
+        let plan = try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "upgrade")
+        let removal = HomebrewPrivilegeRequest(taskID: "activity_123", package: "example", operation: .removeReceipt, source: receipt.identifier, sha256: receipt.manifestSHA256)
+        XCTAssertNoThrow(try plan.validate(removal))
+        let install = HomebrewPrivilegeRequest(taskID: "activity_123", package: "example", operation: .installPackage, source: "/opt/homebrew/Caskroom/example/2/New.pkg", sha256: String(repeating: "c", count: 64), relativePackage: "New.pkg")
+        XCTAssertNoThrow(try plan.validate(install))
+        var previous = install; previous.source = "/opt/homebrew/Caskroom/example/1/New.pkg"; XCTAssertThrowsError(try plan.validate(previous))
+        XCTAssertThrowsError(try HomebrewPrivilegePlan(taskID: "activity_123", prefix: "/opt/homebrew", casks: [cask], operation: "install"))
+    }
 }

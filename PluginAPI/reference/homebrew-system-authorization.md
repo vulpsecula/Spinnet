@@ -38,9 +38,53 @@ reviewed adapter supports immutable-checksum flat `.pkg` downloads and flat
 approved download in root-owned private staging; DMGs mount read-only and the
 selected package is verified again before `/usr/sbin/installer` runs. Missing
 checksums, custom installers, non-flat packages, other archive containers,
-installer choices and privileged uninstall directives are unavailable with
+installer choices and unreviewed privileged uninstall directives are unavailable with
 manual Homebrew guidance. The Plugin must present these concrete refusals,
 and must not imply universal privileged cask support.
+
+The reviewed privileged uninstall class supports exact system launch-daemon
+labels for installed application casks. The Host freezes each root-owned,
+non-writable, single-link plist's label, checksum, device and inode before
+confirmation and rechecks it before removal. The helper stops the exact
+system service, verifies absence, and removes only that same plist; it never
+accepts a path or wildcard from a Plugin. LaunchAgents, Apple service labels,
+scripts, kexts and Zap remain outside this class.
+
+The receipt removal class accepts exact non-Apple package identifiers from
+data-only recorded installed cask history; it never evaluates an installed
+Ruby recipe or substitutes the current catalog for missing history. The Host
+freezes the native exported receipt and a manifest of existing file identities,
+with at most 10,000 entries and a 30-second aggregate read deadline. Each file
+must belong exclusively to that receipt, be root-owned and non-writable, and
+have protected root-owned ancestors. Only paths within Applications, Library
+Application Support, PrivilegedHelperTools and Frameworks are reviewed.
+Symlinks, multiple hard links, special files, unknown ownership, writable
+parents and ambiguous/wildcard receipt IDs refuse before confirmation.
+The manifest establishes current receipt ownership and file identity; pkgutil
+file names do not establish original installer payload checksums.
+
+After native authorization, the helper rebuilds and matches the full manifest,
+then rechecks each identity with its protected parent descriptor open. It
+removes receipt-owned files and empty directories before forgetting the exact
+receipt. Nonempty directories remain. Any failure or Stop leaves the receipt
+intact unless all required removals already succeeded; prior changes remain.
+Receipt forgetting alone is never reported as an uninstall. The Host
+Confirmation names each receipt and its reviewed entry count. Concrete removal
+details exceeding 8 KiB refuse the Task before confirmation rather than being
+silently truncated.
+
+For upgrades and language reinstalls, the Host freezes the installed
+predecessor version/history independently of the successor checksum and
+artifacts. The same receipt and daemon classes can remove only that frozen
+predecessor; installation remains bound to the successor's Caskroom version.
+Before Homebrew dispatch, the sealed Ruby adapter rechecks the installed
+history fingerprint. A current application-only catalog entry does not hide
+an installed predecessor's privileged uninstall requirements.
+
+Vendor scripts, non-flat/other archive containers, installer choices,
+LaunchAgents, Zap and mutable-checksum download
+staging remain explicit implementation requirements; these reviewed classes
+do not establish complete elevated cask compatibility.
 
 Doctor recognizes only the exact reviewed ownership recommendation for fixed
 Homebrew prefix subdirectories, alongside other reviewed cleanup/link fixes.

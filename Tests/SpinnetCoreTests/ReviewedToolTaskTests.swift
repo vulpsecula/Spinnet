@@ -168,6 +168,26 @@ final class ReviewedToolTaskTests: XCTestCase {
 }
 
 extension ReviewedToolTaskTests {
+    func testPrivilegedUninstallConfirmationDisclosesExactReceiptAndFileCount() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let receipt = HomebrewPrivilegePlan.Receipt(identifier: "org.example.pkg", manifestSHA256: String(repeating: "a", count: 64), fileCount: 12)
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["name": .string("example"), "kind": .string("cask"), "uninstall_needs_privileges": .bool(true)]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [.init(name: "example", version: "1", sha256: "", packages: [], receipts: [receipt])] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        let plan = try host.prepare(input, owner: .init("test"), pluginName: "Homebrew")
+        XCTAssertTrue(plan.confirmation.message.contains("org.example.pkg"))
+        XCTAssertTrue(plan.confirmation.message.contains("12"))
+        XCTAssertTrue(plan.confirmation.message.contains("receipt-owned"))
+    }
+    func testNativeRemovalDetailsRefuseBeforeConfirmationWhenConcreteDisclosureExceedsItsBound() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let receipts = (0..<16).map { HomebrewPrivilegePlan.Receipt(identifier: "org.example." + String(repeating: "x", count: 170) + String($0), manifestSHA256: String(repeating: "a", count: 64), fileCount: 1) }
+        let bindings = (0..<4).map { HomebrewPrivilegePlan.Cask(name: "example\($0)", version: "2", sha256: String(repeating: "b", count: 64), packages: ["New.pkg"], receipts: receipts, uninstallVersion: "1") }
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(bindings.map { .object(["name": .string($0.name), "kind": .string("cask"), "needs_privileges": .bool(true)]) })]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in bindings })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll"), "kind": .string("cask")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("test"), pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.outputTooLarge)) }
+    }
     func testIssuedDoctorBatchTargetReachesHostConfirmationThroughRealResolver() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -269,5 +289,22 @@ extension ReviewedToolTaskTests {
         let plan = try host.prepare(input, owner: PluginID("upgrader"), pluginName: "Homebrew")
         XCTAssertEqual(plan.steps.map(\.arguments), [["upgrade", "--formula", "--", "wget"], ["upgrade", "--cask", "--greedy", "--", "firefox"]])
         host.decline(plan)
+    }
+}
+
+
+extension ReviewedToolTaskTests {
+    func testUninstallOnlyPrivilegesReachNativeReviewBeforeHostConfirmation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var reviews = 0
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+            .object(["name": .string("example"), "kind": .string("cask"), "uninstall_needs_privileges": .bool(true)])
+        }, trustedTaps: { [] }, privilegeReview: { _, _, _ in reviews += 1; throw PluginHostServiceError.unavailable("Unsupported native uninstall directive") })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: PluginID("uninstaller"), pluginName: "Homebrew"))
+        XCTAssertEqual(reviews, 1)
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
     }
 }

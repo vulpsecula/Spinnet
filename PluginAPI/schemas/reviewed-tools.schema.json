@@ -114,7 +114,7 @@
           "const": true
         },
         "needs_privileges": {
-          "description": "info only: a cask whose installation runs a pkg or installer artifact, which needs an administrator; a task refuses it (P3).",
+          "description": "Cask installation uses a pkg or installer artifact and needs reviewed system authorization.",
           "const": true
         },
         "quits_app": {
@@ -175,6 +175,10 @@
           "maxLength": 64,
           "pattern": "^[A-Za-z0-9-]+$",
           "description": "Declared cask language matched by the saved local configuration. Absent if no selected default can be established."
+        },
+        "uninstall_needs_privileges": {
+          "const": true,
+          "description": "This cask has uninstall directives that may need system authorization. Upgrade and language reinstall may execute those directives too. Unsupported native directive classes are refused before mutation."
         }
       }
     },
