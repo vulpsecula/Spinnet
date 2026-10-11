@@ -4,7 +4,7 @@ import XCTest
 
 /// `PluginAPI/schemas/external-apps.schema.json` publishes the inputs of
 /// `perform_app_operation` and `open_deep_link` (ADR 0012), and every
-/// Reviewed App Interface the Host ships. A Reviewed App Interface must accept
+/// Reviewed App Interface available to a Level 1 Plugin. A Reviewed App Interface must accept
 /// exactly the operations the schema publishes for it.
 final class ExternalAppSchemaTests: XCTestCase {
     private static let schemaURL = URL(fileURLWithPath: #filePath)
@@ -26,12 +26,12 @@ final class ExternalAppSchemaTests: XCTestCase {
               case .object(let interfaces)? = listing["$defs"] else {
             return XCTFail("The schema lists no Reviewed App Interfaces")
         }
-        XCTAssertEqual(Set(interfaces.keys), Set(ReviewedAppInterface.reviewed.map(\.bundleID)))
+        XCTAssertEqual(Set(interfaces.keys), Set(ReviewedAppInterface.reviewed(atAPILevel: 1).map(\.bundleID)))
     }
 
     func testEachReviewedAppInterfaceAcceptsExactlyThePublishedOperations() throws {
         let schema = try JSONSchemaSubsetValidator(definition: "perform_app_operation.input", inSchemaAt: Self.schemaURL)
-        for interface in ReviewedAppInterface.reviewed {
+        for interface in ReviewedAppInterface.reviewed(atAPILevel: 1) {
             var candidates: [(String, [String: JSONValue]?)] = [("reviewCode", nil), ("", nil)]
             for operation in interface.operations {
                 let arguments = Dictionary(uniqueKeysWithValues: operation.parameters.map {

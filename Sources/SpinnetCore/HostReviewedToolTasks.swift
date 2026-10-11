@@ -352,7 +352,7 @@ public final class HostReviewedToolTasks {
         for kind in input.kind == "both" ? ["formula", "cask"] : [input.kind] {
             let names = packages.filter { $0.value(atPointer: "/kind") == .string(kind) && $0.value(atPointer: "/pinned") != .bool(true) }.compactMap { $0.value(atPointer: "/name") }
             for offset in stride(from: 0, to: names.count, by: 50) {
-                result.append(try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string(kind), "names": .array(Array(names.dropFirst(offset).prefix(50))), "greedy": input.fields["greedy"] ?? .bool(false)])))
+                result.append(try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string(kind), "names": .array(Array(names.dropFirst(offset).prefix(50))), "greedy": kind == "cask" ? input.fields["greedy"] ?? .bool(false) : .bool(false)])))
             }
         }
         guard !result.isEmpty else { throw PluginHostServiceError.tool(.notOutdated) }

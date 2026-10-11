@@ -869,6 +869,10 @@
           "const": true
         }
       }
+    },
+    "tools.startTask.result": {
+      "type": "null",
+      "description": "Starting a Task returns success after the independently running Task has been recorded; follow its state through activities.list."
     }
   }
 }

@@ -103,12 +103,34 @@ export type ResultOf<K extends OperationID> = Operations[K]["result"];
 
 /** IDs a script may call. */
 export type CallID =
-  | "selection.readText" | "selection.replace" | "clipboard.read" | "clipboard.write"
-  | "clipboardHistory.read" | "clipboardHistory.readContent" | "clipboardHistory.show"
-  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink" | "apps.frontmost"
-  | "window.read" | "window.setFrame" | "window.toggleFullScreen" | "window.restore"
-  | "screen.capture" | "http.request" | "text.detectLanguage"
-  | "storage.get" | "storage.set" | "storage.remove" | "storage.keys" | "storage.clear" | "activities.list" | "tools.read" | "system.metrics" | "apps.perform";
+  | "selection.readText"
+  | "selection.replace"
+  | "clipboard.read"
+  | "clipboard.write"
+  | "clipboardHistory.read"
+  | "clipboardHistory.readContent"
+  | "clipboardHistory.show"
+  | "open.url"
+  | "open.path"
+  | "open.application"
+  | "apps.perform"
+  | "apps.openDeepLink"
+  | "apps.frontmost"
+  | "system.metrics"
+  | "window.read"
+  | "window.setFrame"
+  | "window.toggleFullScreen"
+  | "window.restore"
+  | "screen.capture"
+  | "http.request"
+  | "text.detectLanguage"
+  | "storage.get"
+  | "storage.set"
+  | "storage.remove"
+  | "storage.keys"
+  | "storage.clear"
+  | "activities.list"
+  | "tools.read";
 
 /** IDs a manifest Command with `execution: "host"` may name in `host_command`. */
 export type HostCommandID =
@@ -120,9 +142,21 @@ export type HostCommandID =
 
 /** IDs an answer to a gesture may request. */
 export type RequestID =
-  | "host.showPluginSettings" | "selection.replace" | "clipboard.write" | "clipboardHistory.show"
-  | "open.url" | "open.path" | "open.application" | "apps.perform" | "apps.openDeepLink"
-  | "apps.quit" | "apps.close" | "system.keepAwake" | "activities.stop" | "tools.showServices" | "tools.startTask";
+  | "host.showPluginSettings"
+  | "selection.replace"
+  | "clipboard.write"
+  | "clipboardHistory.show"
+  | "open.url"
+  | "open.path"
+  | "open.application"
+  | "apps.perform"
+  | "apps.openDeepLink"
+  | "apps.quit"
+  | "apps.close"
+  | "system.keepAwake"
+  | "activities.stop"
+  | "tools.showServices"
+  | "tools.startTask";
 
 /** IDs a page action may perform: the same as a request's. */
 export type ViewActionID = RequestID;
@@ -201,9 +235,23 @@ export type OperationOutcome = "succeeded" | "refused" | "declined" | "expired" 
 
 /** Why an operation was refused or failed. None names the App. */
 export type OperationReason =
+  | "tool_missing"
+  | "tool_failed"
+  | "tool_timed_out"
+  | "output_too_large"
+  | "tool_busy"
+  | "package_not_found"
+  | "source_not_allowed"
+  | "already_installed"
+  | "not_outdated"
+  | "task_not_found"
+  | "task_finished"
+  | "plan_changed"
   | "capability_denied"
   | "system_permission_denied"
   | "automation_permission_denied"
+  | "external_app_not_running"
+  | "automation_permission_needed"
   | "external_app_missing"
   | "external_app_operation_unsupported"
   | "host_service_failed"
@@ -213,9 +261,7 @@ export type OperationReason =
   | "no_target"
   | "secure_input"
   | "target_unresponsive"
-  | "target_protected" | "tool_missing" | "tool_failed" | "tool_timed_out" | "output_too_large"
-  | "tool_busy" | "package_not_found" | "source_not_allowed" | "already_installed" | "not_outdated"
-  | "task_not_found" | "task_finished" | "plan_changed";
+  | "target_protected";
 
 /**
  * The event a script receives for an operation that asked to `notify`: a
@@ -757,6 +803,13 @@ export interface FrontmostApp {
 }
 
 /** The focused window. */
+export interface SystemNamespace {
+  /** Aggregate system snapshots, read_system_status, no System Permission. @id system.metrics @entry call */
+  readonly metrics: Callable<"system.metrics"> & {source(id: ID, input: SystemMetricsInput, options?: {every?: number; deliver?: {pointer?: string} | true}): MetricsSource};
+  /** Prevents idle system AND display sleep; requires keep_awake. @id system.keepAwake @entry command request view_action */
+  readonly keepAwake: Performable<"system.keepAwake">;
+}
+
 export interface WindowNamespace {
   /** @id window.read @entry call */
   readonly read: Callable<"window.read">;
@@ -852,12 +905,7 @@ export interface SystemMetricsResult {
   disk?: {total_bytes: number; available_bytes: number} | null;
   battery?: {present: boolean; charge: number | null; charging: boolean | null; power_source: string | null} | null;
 }
-export interface SystemNamespace {
-  /** Aggregate system snapshots, read_system_status, no System Permission. @id system.metrics @entry call */
-  readonly metrics: Callable<"system.metrics"> & {source(id: ID, input: SystemMetricsInput, options?: {every?: number; deliver?: {pointer?: string} | true}): MetricsSource};
-  /** Prevents idle system AND display sleep; requires keep_awake. @id system.keepAwake @entry command request view_action */
-  readonly keepAwake: Performable<"system.keepAwake">;
-}
+
 export interface ActivitiesNamespace {
   /** Lists this Plugin's active effects. @id activities.list @entry call */
   readonly list: Callable<"activities.list"> & {source(id: ID, options?: {every?: number; deliver?: true | {pointer?: string}}): ActivitySource};
@@ -898,6 +946,7 @@ export type ReviewedToolTaskInput =
 export interface ToolsNamespace {
   /** Controlled native user-owned services Surface or Status Item menu. Read grant opens it; controls require a separate current Task grant and confirmation. @id tools.showServices @entry command request view_action */
   readonly showServices: Performable<"tools.showServices">;
+  /** Starts a confirmed Task of the Reviewed Tool Profile. @id tools.startTask @entry request view_action */
   readonly startTask: Performable<"tools.startTask">;
   /** A 3 second local call or once-only 15 second visible-page source. No refresh, install or upgrade. @id tools.read @entry call */
   readonly read: Callable<"tools.read"> & { source(id: ID, input: ReviewedToolReadInput, options?: Pick<SourceOptions, "deliver">): ToolSource };

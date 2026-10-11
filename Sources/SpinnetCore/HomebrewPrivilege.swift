@@ -29,6 +29,15 @@ public struct HomebrewPrivilegePlan: Codable, Equatable {
         }
         self.taskID = taskID; self.prefix = prefix; self.casks = casks; self.repairDirectories = repairDirectories; self.operation = operation
     }
+    /// Rechecks the bounded Host/helper wire input, because Codable does not
+    /// invoke the validating initializer.
+    public static func decodeValidated(_ data: Data) throws -> HomebrewPrivilegePlan {
+        guard data.count <= 64 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+        let decoded = try JSONDecoder().decode(Self.self, from: data)
+        return try Self(taskID: decoded.taskID, prefix: decoded.prefix, casks: decoded.casks,
+                        repairDirectories: decoded.repairDirectories, operation: decoded.operation)
+    }
+
     public func validate(_ request: HomebrewPrivilegeRequest) throws {
         guard request.taskID == taskID else { throw PluginHostServiceError.tool(.planChanged) }
         switch request.operation {

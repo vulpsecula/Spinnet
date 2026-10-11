@@ -369,3 +369,5 @@ Reads never launch a helper; bindings update without script deliveries. Adding
 `deliver` uses #82's 15-second latest-result delivery floor. Hide/close, inactive
 session, sleeping display, owner replacement and revocation cancel or discard
 reads through the shared source engine. No background collection is retained.
+
+`tools.showServices` presents the controlled native Homebrew Services Surface or menu. It requires the scoped `read_reviewed_tools` grant; each mutation separately requires `run_reviewed_tool_tasks` and Host Confirmation. See [Reviewed Tasks](reviewed-tasks.md).

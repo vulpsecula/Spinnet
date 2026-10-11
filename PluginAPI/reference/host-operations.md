@@ -327,3 +327,9 @@ rule, and gives the `operation_finished` event to run next.
 | Host Confirmation unanswered before `expired` | 60 s |
 | Script invocation, gesture or `operation_finished` | 4 s from when the script starts |
 | `operation_finished` after the view closed starting | within 4 s of the outcome |
+
+## Reviewed Tool operations
+
+`tools.showServices` opens the native Services Surface or menu under the Homebrew services read grant. Its typed controls separately require the mutation grant and Host Confirmation. `tools.startTask` starts the confirmed Task defined in [Reviewed Tasks](reviewed-tasks.md); success means the runner started and its state was recorded, not that package work completed.
+
+Task and preflight failures are `tool_missing`, `tool_failed`, `tool_timed_out`, `output_too_large`, `tool_busy`, `package_not_found`, `source_not_allowed`, `already_installed`, `not_outdated`, `task_not_found`, `task_finished`, `plan_changed`. Spotify source-only status failures are `external_app_not_running` and `automation_permission_needed`; see [Spotify](spotify.md).

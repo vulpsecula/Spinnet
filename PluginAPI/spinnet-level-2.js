@@ -31,14 +31,14 @@
     clipboardHistory: ["read", "readContent", "show"],
     open: ["url", "path", "application"],
     apps: ["perform", "openDeepLink", "frontmost"],
+    system: ["metrics"],
     window: ["read", "setFrame", "toggleFullScreen", "restore"],
     screen: ["capture"],
     http: ["request"],
     text: ["detectLanguage"],
     storage: ["get", "set", "remove", "keys", "clear"],
     activities: ["list"],
-    tools: ["read"],
-    system: ["metrics"]
+    tools: ["read"]
   };
 
   // The catalogue IDs an answer may request and a page action may perform,
