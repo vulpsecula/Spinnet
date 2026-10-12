@@ -67,11 +67,12 @@ public enum NativeFileQuarantine {
         if fstatat(descriptor, components.last!, &status, AT_SYMLINK_NOFOLLOW) == 0 { return true }
         guard errno == ENOENT else { throw PluginHostServiceError.tool(.planChanged) }; return false
     }
-    public static func capture(_ url: URL, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }) throws -> Snapshot {
+    public static func capture(_ url: URL, maximumBytes: Int64 = 8 * 1024 * 1024 * 1024, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }) throws -> Snapshot {
         let (parent, name) = try openParent(url); defer { close(parent) }
-        return try capture(parent: parent, name: name, deadline: deadline, isCancelled: isCancelled)
+        return try capture(parent: parent, name: name, maximumBytes: maximumBytes, deadline: deadline, isCancelled: isCancelled)
     }
-    private static func capture(parent: Int32, name: String, deadline: Date, isCancelled: () -> Bool = { false }) throws -> Snapshot {
+    private static func capture(parent: Int32, name: String, maximumBytes: Int64 = 8 * 1024 * 1024 * 1024, deadline: Date, isCancelled: () -> Bool = { false }) throws -> Snapshot {
+        guard (0...8 * 1024 * 1024 * 1024).contains(maximumBytes) else { throw PluginHostServiceError.tool(.planChanged) }
         let expires = ProcessInfo.processInfo.systemUptime + max(0, deadline.timeIntervalSinceNow)
         func check() throws {
             guard !isCancelled() else { throw PluginHostServiceError.tool(.planChanged) }
@@ -82,6 +83,7 @@ public enum NativeFileQuarantine {
         guard fstatat(parent, name, &before, AT_SYMLINK_NOFOLLOW) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
         if before.st_mode & S_IFMT == S_IFLNK {
             guard before.st_nlink == 1, before.st_size > 0, before.st_size <= 2048, Date() < deadline else { throw PluginHostServiceError.tool(.planChanged) }
+            guard before.st_size <= maximumBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
             var bytes = [UInt8](repeating: 0, count: 2049), after = stat()
             let count = readlinkat(parent, name, &bytes, bytes.count)
             guard count > 0, count <= 2048, fstatat(parent, name, &after, AT_SYMLINK_NOFOLLOW) == 0,
@@ -118,7 +120,7 @@ public enum NativeFileQuarantine {
         }
         var digest = "", size: Int64 = 0
         if !directory {
-            guard opened.st_size >= 0, opened.st_size <= 8 * 1024 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            guard opened.st_size >= 0, opened.st_size <= maximumBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
             var hasher = SHA256(), buffer = [UInt8](repeating: 0, count: 128 * 1024)
             while true {
                 try check()
@@ -136,8 +138,9 @@ public enum NativeFileQuarantine {
         return Snapshot(device: UInt64(opened.st_dev), inode: UInt64(opened.st_ino), owner: opened.st_uid, group: opened.st_gid, mode: UInt32(opened.st_mode), links: directory ? 0 : UInt64(opened.st_nlink), directory: directory, size: size,
             modifiedSeconds: directory ? 0 : Int64(opened.st_mtimespec.tv_sec), modifiedNanoseconds: directory ? 0 : Int64(opened.st_mtimespec.tv_nsec), sha256: digest, aclSHA256: aclDigest, writableACL: writableACL)
     }
-    public static func remove(_ url: URL, expected: Snapshot, staging: URL, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }, mutation: (_ action: () throws -> Void) throws -> Void = { try $0() }) throws -> Removal {
+    public static func remove(_ url: URL, expected: Snapshot, staging: URL, expectedParent: Snapshot? = nil, deadline: Date = Date().addingTimeInterval(30), isCancelled: () -> Bool = { false }, mutation: (_ action: () throws -> Void) throws -> Void = { try $0() }) throws -> Removal {
         let (parent, name) = try openParent(url); defer { close(parent) }
+        if let expectedParent { guard try NativePathParentSnapshot.captureDirectoryDescriptor(parent, deadline: deadline) == expectedParent else { throw PluginHostServiceError.tool(.planChanged) } }
         let (stageParent, stageName) = try openParent(staging); defer { close(stageParent) }
         let stage = openat(stageParent, stageName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard stage >= 0 else { throw PluginHostServiceError.tool(.planChanged) }; defer { close(stage) }
@@ -161,6 +164,7 @@ public enum NativeFileQuarantine {
         let quarantineName = UUID().uuidString.lowercased()
         guard !isCancelled(), Date() < deadline else { throw PluginHostServiceError.tool(.planChanged) }
         try mutation {
+            if let expectedParent { guard try NativePathParentSnapshot.captureDirectoryDescriptor(parent, deadline: deadline) == expectedParent else { throw PluginHostServiceError.tool(.planChanged) } }
             guard renameatx_np(parent, name, stage, quarantineName, UInt32(RENAME_EXCL)) == 0 else { throw PluginHostServiceError.tool(.planChanged) }
         }
         do {

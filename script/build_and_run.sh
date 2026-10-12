@@ -45,6 +45,13 @@ swift build --product SpinnetPluginHelper
 swift build --product SpinnetToolTaskRunner
 swift build --product SpinnetToolAuthorizationClient
 swift build --product SpinnetPrivilegedToolHelper
+swift build --product SpinnetReceiptInventory
+swift build --product SpinnetArchiveBootstrap
+swift build --product SpinnetArchiveDecoder
+swift build --product SpinnetPathInventory
+swift build --product SpinnetVendorOrigin
+swift build --product SpinnetPathRemoval
+swift build --product SpinnetLaunchServiceInventory
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
@@ -62,6 +69,12 @@ chmod +x "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
 cp "$BUILD_DIR/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
 cp "$BUILD_DIR/SpinnetPrivilegedToolHelper" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+cp "$BUILD_DIR/SpinnetReceiptInventory" "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
+chmod +x "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
+for tool in SpinnetArchiveBootstrap SpinnetArchiveDecoder SpinnetPathInventory SpinnetPathRemoval SpinnetVendorOrigin SpinnetLaunchServiceInventory; do
+    cp "$BUILD_DIR/$tool" "$APP_CONTENTS/Helpers/$tool"
+    chmod +x "$APP_CONTENTS/Helpers/$tool"
+done
 mkdir -p "$APP_CONTENTS/Library/LaunchDaemons"
 cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tools.plist" "$APP_CONTENTS/Library/LaunchDaemons/"
 # SwiftPM native resource bundles contain only sealed Host-owned Ruby adapters.
@@ -118,6 +131,13 @@ if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDE
     codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --sign - "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
     codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --sign - "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.receipt-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-bootstrap --sign - "$APP_CONTENTS/Helpers/SpinnetArchiveBootstrap"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-decoder --sign - "$APP_CONTENTS/Helpers/SpinnetArchiveDecoder"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.path-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetPathInventory"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.vendor-origin --sign - "$APP_CONTENTS/Helpers/SpinnetVendorOrigin"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.path-removal --sign - "$APP_CONTENTS/Helpers/SpinnetPathRemoval"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.launch-service-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetLaunchServiceInventory"
     codesign --force --entitlements "$HOST_ENTITLEMENTS" --sign - "$APP_BUNDLE"
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
@@ -125,6 +145,13 @@ else
     codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
     codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.receipt-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-bootstrap --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetArchiveBootstrap"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-decoder --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetArchiveDecoder"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.path-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPathInventory"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.vendor-origin --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetVendorOrigin"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.path-removal --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPathRemoval"
+    codesign --force --identifier com.vulpsecula.SpinnetHost.launch-service-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetLaunchServiceInventory"
     codesign --force --options runtime --entitlements "$HOST_ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi

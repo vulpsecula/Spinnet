@@ -1,0 +1,4 @@
+module SpinnetPathCancellation {
+    header "SpinnetPathCancellation.h"
+    export *
+}
