@@ -1,0 +1,34 @@
+{
+  "tool": "homebrew",
+  "operation": "previewUnlink",
+  "version": "7.0.8",
+  "available": true,
+  "kind": "formula",
+  "name": "example",
+  "package": {
+    "name": "example",
+    "kind": "formula",
+    "version": "1"
+  },
+  "estimated": false,
+  "dry_run": true,
+  "succeeded": true,
+  "complete": true,
+  "no_op": false,
+  "truncated": false,
+  "exit_status": 0,
+  "paths": [
+    "/opt/homebrew/bin/example"
+  ],
+  "changes": [
+    {
+      "action": "unlink",
+      "path": "/opt/homebrew/bin/example"
+    }
+  ],
+  "paths_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "stdout": "",
+  "stderr": "",
+  "warnings": [],
+  "summary": "One link would be removed."
+}

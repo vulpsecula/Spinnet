@@ -1,4 +1,5 @@
 // MIT. Typed tools.read additions; every URL and executable route is Host-owned.
+import type { ReviewedPackage } from "./spinnet-level-2";
 export type PackageKind = "formula" | "cask";
 export type HomebrewManagementReadInput =
   | { tool: "homebrew"; operation: "version" | "doctor" | "adoptionCandidates" }
@@ -6,6 +7,7 @@ export type HomebrewManagementReadInput =
   | { tool: "homebrew"; operation: "taps"; tap?: string }
   | { tool: "homebrew"; operation: "previewInstall" | "packageAnalytics"; kind: PackageKind; names: string[] }
   | { tool: "homebrew"; operation: "previewUpgrade"; kind: PackageKind; names: string[]; greedy?: boolean }
+  | { tool: "homebrew"; operation: "previewLink" | "previewUnlink"; kind: PackageKind; names: [string] }
   | { tool: "homebrew"; operation: "previewUpgradeAll"; kind?: PackageKind; greedy?: boolean }
   | { tool: "homebrew"; operation: "adoptionPreview"; target: string; name: string }
   | { tool: "homebrew"; operation: "vulnerabilityDetail"; id: string }
@@ -15,6 +17,10 @@ export interface Advisory {
   url: string; aliases?: string[]; status?: "open" | "patched" | "unknown"; fixed_versions?: string[]; references?: string[]; detail_available?: boolean;
 }
 export interface ManagementReadBase { tool: "homebrew"; operation: HomebrewManagementReadInput["operation"]; version: string; available?: boolean; reason?: "requires_homebrew_7" | "requires_reviewed_homebrew_version"; truncated?: boolean; }
+/** Host-generated paths are disclosure, never executable Plugin input. */
+export type HomebrewLinkChange =
+  | { action: "link"; path: string; source: string }
+  | { action: "unlink" | "mkdir" | "rmdir" | "update_info_index"; path: string };
 export type HomebrewManagementReadResult = ManagementReadBase & {
   features?: { vulnerabilities: boolean; doctorJSON: boolean; trust: boolean };
   taps?: { name: string; official: boolean; trusted: boolean; remote?: string; formula_count: number; cask_count: number; packages?: {kind: PackageKind; name: string}[]; truncated?: boolean }[];
@@ -25,6 +31,8 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
   fix_all?: {target: string; title: string; count: number};
   target?: string; name?: string; kind?: PackageKind; summary?: string; estimated?: false; dry_run?: true; succeeded?: boolean; exit_status?: number; stdout?: string; stderr?: string;
   stages?: {title: string; lines: string[]}[]; warnings?: string[];
+  package?: ReviewedPackage; complete?: boolean; no_op?: boolean;
+  paths?: string[]; changes?: HomebrewLinkChange[]; paths_fingerprint?: string;
   packages?: { name: string; kind: PackageKind; version?: string; installed_version?: string; dependencies?: string[]; homepage?: string; download_url?: string;
     installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean; languages?: string[]; selected_language?: string }[];
   checked?: number; total?: number; offset?: number; next_offset?: number;

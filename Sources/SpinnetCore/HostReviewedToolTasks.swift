@@ -19,7 +19,8 @@ public struct HomebrewTaskPlan {
         return false
     }
     static func packageNeedsPrivileges(_ package: JSONValue, operation: String) -> Bool {
-        package.value(atPointer: "/needs_privileges") == .bool(true)
+        if ["link", "unlink", "pin", "unpin"].contains(operation) { return false }
+        return package.value(atPointer: "/needs_privileges") == .bool(true)
             || (["uninstall", "upgrade", "upgradeAll", "upgradeSelected", "changeLanguage"].contains(operation)
                 && package.value(atPointer: "/uninstall_needs_privileges") == .bool(true))
     }
@@ -100,14 +101,30 @@ public final class HostReviewedToolTasks {
             }
             guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             try checkSource(package)
-            try Self.checkOptions(input, package: package)
+            try Self.checkOptions(input, package: package, prefix: HomebrewManagementReads.prefix(of: executable))
             let resolved = try resolvedInput(resolvedTarget, package: package)
             try authorize()
             let target = resolved.name.isEmpty ? "eligible \(resolved.kind) packages" : resolved.name
             let from = Self.text(package, "installed_version"), to = Self.text(package, "version"), tap = Self.text(package, "tap")
             var disclosure = "Homebrew will \(input.displayOperation.lowercased()) \(target)."
-            if !from.isEmpty || !to.isEmpty { disclosure += " Version: \(from.isEmpty ? "not installed" : from) → \(to.isEmpty ? "current" : to)." }
+            if ["link", "unlink"].contains(input.operation) {
+                if !from.isEmpty { disclosure += " Installed version: \(from)." }
+            } else if !from.isEmpty || !to.isEmpty { disclosure += " Version: \(from.isEmpty ? "not installed" : from) → \(to.isEmpty ? "current" : to)." }
             if !tap.isEmpty { disclosure += " Source: \(tap)." }
+            if ["link", "unlink"].contains(input.operation), case .array(let changes)? = package.value(atPointer: "/link_preview/changes") {
+                disclosure += " Concrete changes (no force or overwrite flag):\n" + changes.map { change in
+                    let action = Self.text(change, "action"), path = Self.text(change, "path"), source = Self.text(change, "source")
+                    switch action {
+                    case "link": return "Link \(path) → \(source)"
+                    case "unlink": return "Remove \(path)"
+                    case "mkdir": return "Create directory \(path)"
+                    case "rmdir": return "Remove empty directory \(path)"
+                    default: return "Update info index \(path)"
+                    }
+                }.joined(separator: "\n")
+                if case .array(let warnings)? = package.value(atPointer: "/link_preview/warnings") { disclosure += "\nHomebrew diagnostics:\n" + warnings.compactMap { if case .string(let warning) = $0 { return warning }; return nil }.joined(separator: "\n") }
+                disclosure += " Changed links, sources or diagnostics require a new confirmation."
+            }
             if input.operation == "update" { disclosure = "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied." }
             if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
             if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
@@ -118,7 +135,7 @@ public final class HostReviewedToolTasks {
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
             if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
             if reviewedPackages.contains(where: { HomebrewTaskPlan.packageNeedsPrivileges($0, operation: input.operation) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
-            if reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
+            if ["upgrade", "upgradeAll", "upgradeSelected", "uninstall", "changeLanguage"].contains(input.operation), reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,
                 resolvedInput: resolved, package: package, executable: executable,
@@ -172,7 +189,7 @@ public final class HostReviewedToolTasks {
                 for kind in concreteSteps.isEmpty ? [resolved.kind] : concreteSteps.map(\.kind) { try plan.input.authorizeResolvedKind(kind, in: scope) }
             }
             try checkSource(currentPackage)
-            try Self.checkOptions(plan.input, package: currentPackage)
+            try Self.checkOptions(plan.input, package: currentPackage, prefix: HomebrewManagementReads.prefix(of: plan.executable))
             guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
             if plan.needsPrivileges {
@@ -414,7 +431,30 @@ public final class HostReviewedToolTasks {
         return result
     }
     private static func text(_ value: JSONValue, _ key: String) -> String { if case .string(let text)? = value.value(atPointer: "/" + key) { return text }; return "" }
-    private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue) throws {
+    private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue, prefix: URL) throws {
+        if ["link", "unlink"].contains(input.operation) {
+            guard package.value(atPointer: "/link_preview/succeeded") == .bool(true),
+                  package.value(atPointer: "/link_preview/complete") == .bool(true),
+                  package.value(atPointer: "/link_preview/no_op") == .bool(false),
+                  package.value(atPointer: "/link_preview/truncated") == .bool(false),
+                  case .string(let fingerprint)? = package.value(atPointer: "/link_preview/paths_fingerprint"), fingerprint.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
+                  case .array(let values)? = package.value(atPointer: "/link_preview/paths"), (1...2000).contains(values.count), Set(values).count == values.count,
+                  values.allSatisfy({ value in
+                      guard case .string(let path) = value else { return false }
+                      return path.utf8.count <= 2048 && path.hasPrefix(prefix.path + "/") && !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) && URL(fileURLWithPath: path).standardizedFileURL.path == path
+                  }), case .array(let changes)? = package.value(atPointer: "/link_preview/changes"), changes.count == values.count else { throw PluginHostServiceError.tool(.planChanged) }
+            var destinations = Set<JSONValue>()
+            for change in changes {
+                guard case .object(let fields) = change, case .string(let action)? = fields["action"],
+                      ["link", "unlink", "mkdir", "rmdir", "update_info_index"].contains(action),
+                      let path = fields["path"], values.contains(path), destinations.insert(path).inserted,
+                      Set(fields.keys) == (action == "link" ? Set(["action", "path", "source"]) : Set(["action", "path"])) else { throw PluginHostServiceError.tool(.planChanged) }
+                if action == "link" {
+                    guard case .string(let source)? = fields["source"], source.utf8.count <= 2048, source.hasPrefix("/"),
+                          !source.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains), URL(fileURLWithPath: source).standardizedFileURL.path == source else { throw PluginHostServiceError.tool(.planChanged) }
+                }
+            }
+        }
         if input.operation == "changeLanguage" {
             guard package.value(atPointer: "/installed_version") != nil,
                   case .array(let languages)? = package.value(atPointer: "/languages"),
@@ -459,6 +499,14 @@ public final class HostReviewedToolTasks {
             guard packages.count == { if case .array(let requested) = names { return requested.count }; return 0 }(),
                   packages.allSatisfy({ $0.value(atPointer: "/outdated") == .bool(true) && $0.value(atPointer: "/pinned") != .bool(true) }) else { throw PluginHostServiceError.tool(.notOutdated) }
             return .object(["packages": .array(packages)])
+        }
+        if ["link", "unlink"].contains(input.operation) {
+            let preview = try profile.read(.object(["tool": .string("homebrew"), "operation": .string(input.operation == "link" ? "previewLink" : "previewUnlink"), "kind": .string(input.kind), "names": names]), owner: PluginID("host-task-preflight"), timeout: 15)
+            guard case .object(var fields) = package else { throw PluginHostServiceError.tool(.planChanged) }
+            fields["link_preview"] = preview
+            let planned = JSONValue.object(fields)
+            try checkOptions(input, package: planned, prefix: HomebrewManagementReads.prefix(of: executable))
+            return planned
         }
         return package
     }

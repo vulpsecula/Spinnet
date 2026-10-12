@@ -894,8 +894,9 @@ export interface HostActivity {
   readonly status: string;
   /** Unix seconds, or null for manual and App-alive modes. */
   readonly expires_at?: number | null;
+  /** Host continuation stages include awaiting manual installation, awaiting restart, awaiting logout and awaiting shutdown; they require user action. */
   readonly stage?: string; readonly log?: string[]; readonly elapsed_seconds?: number; readonly prevents_idle_sleep?: boolean;
-  readonly result?: {outcome: "completed" | "failed" | "stopped" | "interrupted" | "unknown"; reason?: string; stop?: "interrupted" | "terminated" | "killed"};
+  readonly result?: {outcome: "completed" | "failed" | "stopped" | "interrupted" | "unknown"; reason?: "tool_failed" | "runner_refused" | "system_authorization_unavailable" | "privileged_result_lost" | "manual_installation_required" | "restart_required" | "logout_required" | "shutdown_required"; stop?: "interrupted" | "terminated" | "killed"};
 }
 export type SystemMetric = "cpu" | "memory" | "disk" | "battery";
 export interface SystemMetricsInput { metrics: SystemMetric[]; }

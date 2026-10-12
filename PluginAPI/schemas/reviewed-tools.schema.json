@@ -246,7 +246,9 @@
               "adoptionPreview",
               "packageAnalytics",
               "changeLanguage",
-              "update"
+              "update",
+              "previewLink",
+              "previewUnlink"
             ]
           }
         },
@@ -663,7 +665,11 @@
             "installing",
             "linking",
             "finishing",
-            "stopping"
+            "stopping",
+            "awaiting manual installation",
+            "awaiting restart",
+            "awaiting logout",
+            "awaiting shutdown"
           ]
         },
         "elapsed_seconds": {
@@ -718,7 +724,16 @@
               ]
             },
             "reason": {
-              "const": "tool_failed"
+              "enum": [
+                "tool_failed",
+                "runner_refused",
+                "system_authorization_unavailable",
+                "privileged_result_lost",
+                "manual_installation_required",
+                "restart_required",
+                "logout_required",
+                "shutdown_required"
+              ]
             },
             "stop": {
               "enum": [

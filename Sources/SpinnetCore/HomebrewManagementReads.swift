@@ -3,7 +3,7 @@ import Foundation
 /// Reviewed Homebrew management reads. Plugin input never supplies argv, a path,
 /// a script, an environment or a URL. Old #87 reads keep their offline executor.
 public final class HomebrewManagementReads {
-    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "previewUpgradeAll", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
+    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewLink", "previewUnlink", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
     private let remote: HomebrewManagementRemoteReads
     private let previewTransport: HTTPSTransport?
     private let applications: () -> [HomebrewAdoptionApplication]
@@ -52,10 +52,10 @@ public final class HomebrewManagementReads {
             if let greedy = fields["greedy"], case .bool = greedy {} else if fields["greedy"] != nil { throw invalid() }
             return
         }
-        if ["previewInstall", "previewUpgrade", "packageAnalytics"].contains(operation) {
+        if ["previewInstall", "previewUpgrade", "previewLink", "previewUnlink", "packageAnalytics"].contains(operation) {
             let allowed: Set<String> = ["tool", "operation", "kind", "names", "greedy"]
             guard Set(fields.keys).isSubset(of: allowed), case .string(let kind)? = fields["kind"], ["formula", "cask"].contains(kind),
-                  case .array(let names)? = fields["names"], (1...(operation == "packageAnalytics" ? 20 : 50)).contains(names.count), Set(names).count == names.count,
+                  case .array(let names)? = fields["names"], (1...(operation == "packageAnalytics" ? 20 : ["previewLink", "previewUnlink"].contains(operation) ? 1 : 50)).contains(names.count), Set(names).count == names.count,
                   names.allSatisfy({ if case .string(let name) = $0 { return HomebrewReadInput.validPackageName(name) }; return false }) else { throw invalid() }
             if operation != "previewUpgrade", fields["greedy"] != nil { throw invalid() }
             if let greedy = fields["greedy"], case .bool = greedy {} else if fields["greedy"] != nil { throw invalid() }
@@ -174,6 +174,9 @@ public final class HomebrewManagementReads {
             result["available"] = .bool(true); result["offset"] = .number(Double(offset)); result["total"] = .number(Double(inventory.count))
             if input.value(atPointer: "/names") == nil, offset + 20 < inventory.count { result["next_offset"] = .number(Double(offset + 20)) }
             return .object(result)
+        }
+        if ["previewLink", "previewUnlink"].contains(operation) {
+            return .object(try HomebrewLinkPreview.read(operation: operation, input: input, version: String(version), executable: executable, deadline: deadline, cancellation: cancellation, execute: execute, stillAuthorized: stillAuthorized))
         }
         if ["previewInstall", "previewUpgrade", "previewUpgradeAll"].contains(operation) {
             guard String(version).hasPrefix("7.0.") else {

@@ -82,9 +82,9 @@
       allowed.push("kind", "greedy");
       if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();
       if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid();
-    } else if (["previewInstall", "previewUpgrade", "packageAnalytics"].includes(v.operation)) {
+    } else if (["previewInstall", "previewUpgrade", "previewLink", "previewUnlink", "packageAnalytics"].includes(v.operation)) {
       allowed.push("kind", "names");
-      if (!["formula", "cask"].includes(v.kind) || !Array.isArray(v.names) || !v.names.length || v.names.length > (v.operation === "packageAnalytics" ? 20 : 50) || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n))) invalid();
+      if (!["formula", "cask"].includes(v.kind) || !Array.isArray(v.names) || !v.names.length || v.names.length > (v.operation === "packageAnalytics" ? 20 : ["previewLink", "previewUnlink"].includes(v.operation) ? 1 : 50) || new Set(v.names).size !== v.names.length || v.names.some(n => !name(n))) invalid();
       if (v.operation === "previewUpgrade") { allowed.push("greedy"); if (v.greedy !== undefined && typeof v.greedy !== "boolean") invalid(); }
     } else if (v.operation === "adoptionPreview") {
       allowed.push("target", "name");
@@ -102,7 +102,7 @@
   function validateToolRead(v) {
     function invalid() { throw new TypeError("tools.read contains unsupported members, names or kinds"); }
     if (!v || typeof v !== "object" || Array.isArray(v) || v.tool !== "homebrew") invalid();
-    if (["version", "taps", "services", "doctor", "adoptionCandidates", "adoptionPreview", "previewInstall", "previewUpgrade", "previewUpgradeAll", "packageAnalytics", "vulnerabilities", "vulnerabilityDetail"].includes(v.operation)) return validateManagementRead(v);
+    if (["version", "taps", "services", "doctor", "adoptionCandidates", "adoptionPreview", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewLink", "previewUnlink", "packageAnalytics", "vulnerabilities", "vulnerabilityDetail"].includes(v.operation)) return validateManagementRead(v);
     const keys = {installed: ["tool", "operation", "kind"], outdated: ["tool", "operation", "kind", "greedy"], search: ["tool", "operation", "kind", "query"], info: ["tool", "operation", "kind", "names"]}[v.operation];
     if (!keys || Object.keys(v).some(k => !keys.includes(k))) invalid();
     if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();

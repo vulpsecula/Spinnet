@@ -86,6 +86,10 @@ final class ReviewedToolReadTests: XCTestCase {
     func testExactInfoReportsMissingNamesWithoutLeakingStderr() throws {
         var call = 0
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }) { _, arguments, _, _ in
+            if arguments.first == "tap-info" {
+                XCTAssertEqual(arguments, ["tap-info", "--json=v1", "homebrew/core"])
+                return HomebrewReadOutput(status: 0, stdout: Data(#"[{"name":"homebrew/core","installed":true,"remote":"https://github.com/Homebrew/homebrew-core"}]"#.utf8))
+            }
             call += 1
             if call == 1 {
                 XCTAssertEqual(arguments, ["info", "--json=v2", "--formula", "--", "wget", "unknown"])
@@ -170,5 +174,35 @@ extension ReviewedToolReadTests {
         XCTAssertEqual(result.value(atPointer: "/packages/0/quits_app"), .bool(true))
         XCTAssertEqual(result.value(atPointer: "/packages/0/uninstall_needs_privileges"), .bool(true))
         XCTAssertNil(result.value(atPointer: "/packages/0/needs_privileges"), "Installing an App artifact need not elevate its future uninstall")
+    }
+}
+
+
+extension ReviewedToolReadTests {
+    func testOfficialPackageFlagRequiresCanonicalOriginAndNotJustOfficialLookingTapName() throws {
+        for (remote, installed, expected) in [("https://github.com/Homebrew/homebrew-core.git", true, true), ("https://github.com/other/custom-core", true, false), ("https://github.com/Homebrew/homebrew-core", false, false)] {
+            let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, arguments, _, _ in
+                if arguments.first == "tap-info" {
+                    return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: [["name": "homebrew/core", "installed": installed, "official": true, "remote": remote]]))
+                }
+                return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1"}}],"casks":[]}"#.utf8))
+            })
+            let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("source-proof"))
+            XCTAssertEqual(result.value(atPointer: "/packages/0/official") == .bool(true), expected)
+        }
+    }
+}
+
+
+extension ReviewedToolReadTests {
+    func testQualifiedAliasAndRenameAreNotReportedMissingWhenCanonicalMetadataNamesThem() throws {
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, _, _, _ in
+            .init(status: 0, stdout: Data(#"{"formulae":[{"name":"canonical","full_name":"acme/tools/canonical","tap":"acme/tools","aliases":["alias"],"oldnames":["old"],"versions":{"stable":"1"}}],"casks":[]}"#.utf8))
+        })
+        for name in ["acme/tools/alias", "acme/tools/old"] {
+            let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("canonical-selector"))
+            XCTAssertNil(result.value(atPointer: "/not_found"))
+            XCTAssertEqual(result.value(atPointer: "/packages/0/name"), .string("acme/tools/canonical"))
+        }
     }
 }

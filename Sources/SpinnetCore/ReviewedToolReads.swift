@@ -143,7 +143,7 @@ public final class HomebrewReadProfile {
     }
     public static var environment: [String: String] {
         var result = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": NSHomeDirectory(), "USER": NSUserName(), "LOGNAME": NSUserName(), "TMPDIR": NSTemporaryDirectory(), "LANG": "en_US.UTF-8", "NONINTERACTIVE": "1"]
-        for key in ["NO_AUTO_UPDATE", "NO_ANALYTICS", "NO_ENV_HINTS", "NO_COLOR", "NO_EMOJI", "NO_GITHUB_API", "NO_SUDO", "NO_INSECURE_REDIRECT"] { result["HOMEBREW_" + key] = "1" }
+        for key in ["NO_AUTO_UPDATE", "NO_BOOTSNAP", "NO_ANALYTICS", "NO_ENV_HINTS", "NO_COLOR", "NO_EMOJI", "NO_GITHUB_API", "NO_SUDO", "NO_INSECURE_REDIRECT"] { result["HOMEBREW_" + key] = "1" }
         return result
     }
     public func read(_ input: JSONValue, owner: PluginID, timeout: TimeInterval = ReviewedToolReads.callDeadline,
@@ -160,6 +160,7 @@ public final class HomebrewReadProfile {
             try stillAuthorized(); return result
         }
         var packages: [JSONValue] = [], notFound: [String] = []
+        var officialOrigins: [String: Bool] = [:]
         var runs: [(String?, [String])] = request.operation == "search" ? request.kinds.map { ($0, []) } : [(request.kind, request.names)]
         while !runs.isEmpty {
             let (kind, names) = runs.removeFirst()
@@ -196,10 +197,42 @@ public final class HomebrewReadProfile {
                     }
                     throw PluginHostServiceError.tool(.failed)
                 }
+                var canonicalSelectors = Set<String>()
                 for (key, packageKind) in [("formulae", "formula"), ("casks", "cask")] {
                     guard let records = raw[key] as? [[String: Any]] else { continue }
                     if let chosen = request.kind, chosen != packageKind { continue }
-                    for record in records { if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: HomebrewManagementReads.prefix(of: executable), includeConfiguration: request.operation == "info") { packages.append(projected) } }
+                    for var record in records {
+                        // Metadata from an official-looking namespace does not
+                        // establish where that checkout actually comes from.
+                        record.removeValue(forKey: "_spinnet_official_source")
+                        if request.operation == "info", let tap = record["tap"] as? String, ["homebrew/core", "homebrew/cask"].contains(tap) {
+                            if officialOrigins[tap] == nil {
+                                try stillAuthorized()
+                                let proof = try execute(executable, ["tap-info", "--json=v1", tap], Self.environment, deadline, cancellation)
+                                guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
+                                try stillAuthorized()
+                                guard proof.stdout.count <= ReviewedToolReads.stdoutBytes, proof.stderr.count <= ReviewedToolReads.stderrBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
+                                let rows = try? JSONSerialization.jsonObject(with: proof.stdout) as? [[String: Any]]
+                                let expected = "https://github.com/homebrew/homebrew-" + (tap == "homebrew/core" ? "core" : "cask")
+                                let allowed = [expected, expected + ".git", expected.replacingOccurrences(of: "https://github.com/", with: "git@github.com:") + ".git", expected.replacingOccurrences(of: "https://", with: "ssh://git@") + ".git"]
+                                officialOrigins[tap] = proof.status == 0 && rows?.contains(where: { row in
+                                    row["name"] as? String == tap && row["installed"] as? Bool == true && allowed.contains((row["remote"] as? String ?? "").lowercased())
+                                }) == true
+                            }
+                            record["_spinnet_official_source"] = officialOrigins[tap] == true
+                        }
+                        if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: HomebrewManagementReads.prefix(of: executable), includeConfiguration: request.operation == "info") {
+                            packages.append(projected)
+                            if let tap = record["tap"] as? String {
+                                for key in packageKind == "formula" ? ["aliases", "oldnames"] : ["old_tokens"] {
+                                    for alias in (record[key] as? [String] ?? []).prefix(2000) where HomebrewReadInput.validPackageName(alias) {
+                                        if alias.contains("/") { canonicalSelectors.insert(alias) }
+                                        else { canonicalSelectors.insert(alias); canonicalSelectors.insert(tap + "/" + alias) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 if request.operation == "info" {
                     let found = packages.compactMap { value -> String? in
@@ -207,7 +240,7 @@ public final class HomebrewReadProfile {
                         return name
                     }
                     notFound += names.filter { requested in
-                        !found.contains(requested) && !found.contains(where: { returned in
+                        !canonicalSelectors.contains(requested) && !found.contains(requested) && !found.contains(where: { returned in
                             // A bare alias or an official tap-qualified name may
                             // be canonicalized by Homebrew; a third-party tap's
                             // qualified identity must match in full.
@@ -247,7 +280,7 @@ public final class HomebrewReadProfile {
         if outdated { result["outdated"] = .bool(true) }
         func string(_ key: String, _ value: Any?) { if let text = value as? String, !text.isEmpty { result[key] = .string(String(clean(text).prefix(key.contains("version") ? 80 : 200))) } }
         if let tap = raw["tap"] as? String, tap.count <= 96, tap.range(of: "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$", options: .regularExpression) != nil { string("tap", tap) }
-        if let tap = raw["tap"] as? String, tap == (kind == "formula" ? "homebrew/core" : "homebrew/cask") { result["official"] = .bool(true) }
+        if raw["_spinnet_official_source"] as? Bool == true { result["official"] = .bool(true) }
         string("title", (raw["name"] as? [String])?.first); string("description", raw["desc"])
         string("version", kind == "formula" ? (raw["versions"] as? [String: Any])?["stable"] : raw["version"])
         if kind == "formula" { string("installed_version", (raw["installed"] as? [[String: Any]])?.first?["version"]) }
@@ -306,6 +339,7 @@ public final class HomebrewReadProfile {
         // again; neither check claims to freeze the user-owned live tree.
         if executable.lastPathComponent == "brew" {
             try HomebrewReadSource.validate(executable: executable, deadline: deadline, cancellation: cancellation)
+            try HomebrewBootstrapOptions.validate(executable: executable, environment: environment, deadline: deadline, cancellation: cancellation)
         }
         let commands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust"]
         let isReviewedCommand = commands.contains(arguments.first ?? "")
