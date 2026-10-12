@@ -1,0 +1,22 @@
+{
+  "id": "activity_00000000000000000000000000000001",
+  "kind": "task",
+  "tool": "homebrew",
+  "name": "install verified-installer",
+  "status": "ended",
+  "operation": "install",
+  "stage": "awaiting logout",
+  "elapsed_seconds": 2,
+  "log": [
+    "Confirmed package installer requires user continuation"
+  ],
+  "prevents_idle_sleep": false,
+  "package": {
+    "name": "verified-installer",
+    "kind": "cask"
+  },
+  "result": {
+    "outcome": "failed",
+    "reason": "logout_required"
+  }
+}

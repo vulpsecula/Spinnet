@@ -20,6 +20,20 @@ require 'formulary'
 require 'cask/cask_loader'
 module SpinnetReadTrust
   def explicitly_allowed?(*args, **kwargs); false; end
+  # AbstractCoreTap's API-mode implicit trust must not authorize executable
+  # files from an installed checkout with a noncanonical actual Git origin.
+  def trusted_tap?(tap)
+    return true if explicitly_trusted_tap?(tap)
+    if tap.installed? && tap.official?
+      # CoreTap calls a configured HOMEBREW_CORE_GIT_REMOTE canonical, too.
+      # A preference for a mirror/fork is not persistent source-code trust.
+      return false unless tap.name.match?(/\Ahomebrew\/[a-z0-9][a-z0-9_.-]*\z/)
+      origin = tap.git_repository.origin_url
+      expected = "https://github.com/Homebrew/homebrew-#{tap.name.split('/').last}"
+      return origin && !origin.empty? && Tap.same_remote?(origin, expected)
+    end
+    super
+  end
   def trust_fully_qualified_items!(*args, **kwargs); nil; end
   def trust!(*args, **kwargs); raise('A reviewed read cannot change source trust'); end
   private :explicitly_allowed?

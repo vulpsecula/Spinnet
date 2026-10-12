@@ -1,0 +1,22 @@
+{
+  "id": "activity_00000000000000000000000000000001",
+  "kind": "task",
+  "tool": "homebrew",
+  "name": "install wget",
+  "status": "ended",
+  "operation": "install",
+  "stage": "finishing",
+  "elapsed_seconds": 2,
+  "log": [
+    "==> Downloading wget"
+  ],
+  "prevents_idle_sleep": false,
+  "package": {
+    "name": "wget",
+    "kind": "formula"
+  },
+  "result": {
+    "outcome": "failed",
+    "reason": "system_authorization_unavailable"
+  }
+}

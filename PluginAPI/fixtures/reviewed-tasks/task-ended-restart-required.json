@@ -1,0 +1,22 @@
+{
+  "id": "activity_00000000000000000000000000000001",
+  "kind": "task",
+  "tool": "homebrew",
+  "name": "uninstall verified-driver",
+  "status": "ended",
+  "operation": "uninstall",
+  "stage": "awaiting restart",
+  "elapsed_seconds": 2,
+  "log": [
+    "Confirmed kernel extension removal requires restart"
+  ],
+  "prevents_idle_sleep": false,
+  "package": {
+    "name": "verified-driver",
+    "kind": "cask"
+  },
+  "result": {
+    "outcome": "failed",
+    "reason": "restart_required"
+  }
+}

@@ -3,6 +3,64 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
+    func testPrefixLinkAndPinActionsDoNotBorrowCaskInstallerSystemAuthorization() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for operation in ["link", "unlink", "pin", "unpin"] {
+            var reviews = 0
+            let change: JSONValue = operation == "unlink" ? .object(["action": .string("unlink"), "path": .string("/opt/homebrew/bin/example")]) : .object(["action": .string("link"), "path": .string("/opt/homebrew/bin/example"), "source": .string("/opt/homebrew/Caskroom/example/1/example")])
+            let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["kind": .string("cask"), "name": .string("example"), "tap": .string("homebrew/cask"), "installed_version": .string("1"),
+                    "needs_privileges": .bool(true), "uninstall_needs_privileges": .bool(true), "quits_app": .bool(true), "link_preview": .object([
+                        "succeeded": .bool(true), "complete": .bool(true), "truncated": .bool(false), "no_op": .bool(false), "paths": .array([.string("/opt/homebrew/bin/example")]),
+                        "paths_fingerprint": .string(String(repeating: "a", count: 64)), "changes": .array([change])])])
+            }, trustedTaps: { [] }, privilegeReview: { _, _, _ in reviews += 1; throw PluginHostServiceError.unavailable("Installer authorization must not apply to a prefix/metadata operation") })
+            let plan = try host.prepare(HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string(operation), "kind": .string("cask"), "name": .string("example")])), owner: PluginID("cask-metadata"), pluginName: "Homebrew")
+            XCTAssertFalse(plan.needsPrivileges)
+            XCTAssertEqual(reviews, 0)
+            XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization"))
+            XCTAssertFalse(plan.confirmation.message.contains("quit the affected App"))
+            host.decline(plan)
+        }
+    }
+
+    func testLinkConfirmationBindsConcreteFilesAndChangedTargetsRefuseLaunch() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var fingerprint = String(repeating: "a", count: 64)
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("wget"), "kind": .string("formula"), "tap": .string("homebrew/core"), "link_preview": .object([
+                    "succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(false), "truncated": .bool(false),
+                    "paths": .array([.string("/opt/homebrew/bin/wget")]), "paths_fingerprint": .string(fingerprint),
+                    "changes": .array([.object(["action": .string("link"), "path": .string("/opt/homebrew/bin/wget"), "source": .string("/opt/homebrew/Cellar/wget/1/bin/wget")])]),
+                    "warnings": .array([.string("Parent directories may be created")])])])
+            }, trustedTaps: { [] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("link"), "kind": .string("formula"), "name": .string("wget")]))
+        let plan = try host.prepare(input, owner: PluginID("concrete-links"), pluginName: "Homebrew")
+        XCTAssertTrue(plan.confirmation.message.contains("/opt/homebrew/bin/wget"))
+        XCTAssertTrue(plan.confirmation.message.contains("/opt/homebrew/Cellar/wget/1/bin/wget"))
+        XCTAssertTrue(plan.confirmation.message.contains("Parent directories may be created"))
+        fingerprint = String(repeating: "b", count: 64)
+        XCTAssertThrowsError(try host.launch(plan)) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged)) }
+    }
+    func testNoopIncompleteOrAmbiguousLinkPlansCannotReachConfirmation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("link"), "kind": .string("formula"), "name": .string("wget")]))
+        let good: [String: JSONValue] = ["succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(false), "truncated": .bool(false),
+            "paths_fingerprint": .string(String(repeating: "a", count: 64)), "paths": .array([.string("/opt/homebrew/bin/wget")]),
+            "changes": .array([.object(["action": .string("link"), "path": .string("/opt/homebrew/bin/wget"), "source": .string("/opt/homebrew/Cellar/wget/1/bin/wget")])])]
+        let invalid: [[String: JSONValue]] = [ ["no_op": .bool(true)], ["complete": .bool(false)], ["truncated": .bool(true)],
+            ["changes": .array([])], ["changes": .array([.object(["action": .string("link"), "path": .string("/opt/homebrew/bin/wget")])])],
+            ["changes": .array([.object(["action": .string("shell"), "path": .string("/opt/homebrew/bin/wget")])])] ]
+        for bad in invalid {
+            let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("wget"), "tap": .string("homebrew/core"), "link_preview": .object(good.merging(bad) { _, new in new })])
+            }, trustedTaps: { [] })
+            XCTAssertThrowsError(try host.prepare(input, owner: PluginID("bad-link"), pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged)) }
+        }
+    }
     func testPublishedTaskFixturesMatchPublicSchemaAndHostAdmission() throws {
         struct Entry: Decodable { let valid: Bool; let file: String; let definition: String }
         struct Index: Decodable { let fixtures: [Entry] }

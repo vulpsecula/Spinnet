@@ -16,6 +16,32 @@ from aliases or renames are frozen in the confirmed Task, and existing canonical
 item trust can authorize a package without granting its entire tap. A qualified
 selector does not itself grant source trust.
 
+Link/unlink binds a complete bounded change ledger with planned sources,
+metadata and directory effects. No-op or incomplete link plans cannot proceed
+to confirmation; launch repeats the read-only preview and refuses changed
+paths, sources, current link targets or diagnostics.
+
+Pin/unpin and prefix-only link/unlink do not run a cask installer, request its
+system authorization, or quit its App. Installer metadata is not authority for
+those operations. Their ordinary permission failures remain failures.
+
+Ended Task results carry a bounded outcome and, when relevant, one fixed reason:
+`tool_failed`, `runner_refused`, `system_authorization_unavailable`,
+`privileged_result_lost`, `manual_installation_required`, `restart_required`,
+`logout_required` or `shutdown_required`.
+`manual_installation_required` with stage `awaiting manual installation` means
+a manual installer needs the user's continuation; it is a failed/incomplete
+Task, never a claim that the App was installed. `restart_required` with stage
+`awaiting restart` means a Host-confirmed kernel-extension removal requires
+the user to restart macOS. This is also a failed/incomplete outcome; a generic
+tool exit status does not create this reason. Confirmed native package installers
+may likewise require restart, logout (`logout_required`, `awaiting logout`) or
+shutdown (`shutdown_required`, `awaiting shutdown`). These failed/incomplete
+outcomes come from authenticated Host continuation evidence; the Task never
+logs out, restarts or shuts down the Mac automatically. The result does not request or
+authorize automatic retry. Stopped/interrupted/unknown outcomes likewise never
+replay a Task.
+
 Inputs are defined in [reviewed-tools.schema.json](../schemas/reviewed-tools.schema.json).
 Package operations name one `kind` and bounded package `name`. Tap
 operations name a bounded `owner/repository`; service operations name one

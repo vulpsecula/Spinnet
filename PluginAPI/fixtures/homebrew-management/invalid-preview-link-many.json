@@ -1,0 +1,9 @@
+{
+  "tool": "homebrew",
+  "operation": "previewLink",
+  "kind": "formula",
+  "names": [
+    "one",
+    "two"
+  ]
+}

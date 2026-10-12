@@ -49,6 +49,21 @@
       "file": "analytics-window-result.json",
       "definition": "result",
       "valid": true
+    },
+    {
+      "file": "preview-link.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "invalid-preview-link-many.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "preview-unlink-result.json",
+      "definition": "result",
+      "valid": true
     }
   ]
 }

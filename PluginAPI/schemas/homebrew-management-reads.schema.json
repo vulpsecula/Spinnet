@@ -310,6 +310,70 @@
               "type": "boolean"
             }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "names"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "previewLink"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation",
+            "kind",
+            "names"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "previewUnlink"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "names": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "reviewed-tools.schema.json#/$defs/qualified_name"
+              }
+            }
+          }
         }
       ]
     },
@@ -338,7 +402,9 @@
             "adoptionCandidates",
             "adoptionPreview",
             "packageAnalytics",
-            "previewUpgradeAll"
+            "previewUpgradeAll",
+            "previewLink",
+            "previewUnlink"
           ]
         },
         "version": {
@@ -1007,6 +1073,84 @@
               }
             }
           }
+        },
+        "package": {
+          "$ref": "reviewed-tools.schema.json#/$defs/package"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "no_op": {
+          "type": "boolean"
+        },
+        "paths": {
+          "type": "array",
+          "maxItems": 2000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/"
+          }
+        },
+        "paths_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action",
+                  "path",
+                  "source"
+                ],
+                "properties": {
+                  "action": {
+                    "const": "link"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^/"
+                  },
+                  "source": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^/"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action",
+                  "path"
+                ],
+                "properties": {
+                  "action": {
+                    "enum": [
+                      "unlink",
+                      "mkdir",
+                      "rmdir",
+                      "update_info_index"
+                    ]
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^/"
+                  }
+                }
+              }
+            ]
+          }
         }
       },
       "allOf": [
@@ -1295,6 +1439,46 @@
           "then": {
             "required": [
               "target"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "enum": [
+                  "previewLink",
+                  "previewUnlink"
+                ]
+              },
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "required": [
+              "available",
+              "kind",
+              "name",
+              "package",
+              "estimated",
+              "dry_run",
+              "succeeded",
+              "complete",
+              "no_op",
+              "truncated",
+              "exit_status",
+              "paths",
+              "changes",
+              "paths_fingerprint",
+              "stdout",
+              "stderr",
+              "warnings",
+              "summary"
             ]
           }
         }

@@ -456,4 +456,81 @@ extension HomebrewManagementReadTests {
         XCTAssertEqual(result.value(atPointer: "/succeeded"), .bool(true))
         XCTAssertEqual(dryRuns, 1)
     }
+
+    func testNativeReadOnlyLinkPreviewIncludesRealKegMetadataWithoutChangingLinks() throws {
+        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
+        let linked = "/opt/homebrew/var/homebrew/linked/libtommath"
+        guard FileManager.default.isExecutableFile(atPath: brew.path),
+              let original = try? FileManager.default.destinationOfSymbolicLink(atPath: linked) else {
+            throw XCTSkip("Native read-only tracer requires the reviewed installed libtommath keg")
+        }
+        let profile = HomebrewReadProfile(executable: { brew })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUnlink"), "kind": .string("formula"), "names": .array([.string("libtommath")])]), owner: PluginID("native-link-preview"), timeout: 15)
+        XCTAssertEqual(result.value(atPointer: "/complete"), .bool(true), String(describing: result))
+        XCTAssertEqual(result.value(atPointer: "/succeeded"), .bool(true), String(describing: result))
+        guard case .array(let changes)? = result.value(atPointer: "/changes") else { return XCTFail("Missing native plan") }
+        XCTAssertTrue(changes.contains { $0.value(atPointer: "/action") == .string("unlink") && $0.value(atPointer: "/path") == .string(linked) })
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: linked), original)
+    }
+
+    func testLinkPreviewBindsPlannedSourcesAndRejectsIncompleteLedgers() throws {
+        var source = "/opt/homebrew/Cellar/example/1/bin/example"
+        var complete = true
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
+            return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": complete, "changes": [["action": "link", "path": "/opt/homebrew/bin/example", "source": source]], "warnings": []]))
+        })
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewLink"), "kind": .string("formula"), "names": .array([.string("example")])])
+        let first = try profile.read(input, owner: PluginID("link-plan"))
+        XCTAssertEqual(first.value(atPointer: "/changes/0/source"), .string(source))
+        XCTAssertEqual(first.value(atPointer: "/complete"), .bool(true))
+        source = "/opt/homebrew/Cellar/example/2/bin/example"
+        XCTAssertNotEqual(first.value(atPointer: "/paths_fingerprint"), try profile.read(input, owner: PluginID("link-plan")).value(atPointer: "/paths_fingerprint"))
+        complete = false
+        XCTAssertThrowsError(try profile.read(input, owner: PluginID("link-plan")))
+    }
+
+    func testLinkPreviewFingerprintChangesWhenAnExistingLinkTargetChanges() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let path = prefix.appendingPathComponent("bin/example")
+        try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: path.path, withDestinationPath: "../Cellar/example/1/bin/example")
+        let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
+            return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": true, "changes": [["action": "unlink", "path": path.path]], "warnings": []]))
+        })
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewUnlink"), "kind": .string("formula"), "names": .array([.string("example")])])
+        let before = try profile.read(input, owner: PluginID("link-identity"))
+        try FileManager.default.removeItem(at: path)
+        try FileManager.default.createSymbolicLink(atPath: path.path, withDestinationPath: "../Cellar/example/2/bin/example")
+        let after = try profile.read(input, owner: PluginID("link-identity"))
+        XCTAssertNotNil(before.value(atPointer: "/paths_fingerprint"))
+        XCTAssertNotEqual(before.value(atPointer: "/paths_fingerprint"), after.value(atPointer: "/paths_fingerprint"))
+        XCTAssertEqual(before.value(atPointer: "/paths"), after.value(atPointer: "/paths"))
+    }
+
+    func testLinkPreviewReportsConcretePathsWarningsAndNoopWithoutMutationFlags() throws {
+        for operation in ["previewLink", "previewUnlink"] {
+            var calls: [[String]] = []
+            let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+                calls.append(args)
+                if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+                if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
+                let paths = ["/opt/homebrew/bin/wget", "/opt/homebrew/share/man/man1/wget.1"]
+                let changes = paths.map { path -> [String: String] in
+                    operation == "previewLink" ? ["action": "link", "path": path, "source": "/opt/homebrew/Cellar/wget/1" + String(path.dropFirst("/opt/homebrew".count))] : ["action": "unlink", "path": path]
+                }
+                return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": true, "changes": changes, "warnings": []]), stderr: Data("Warning: example diagnostic\n".utf8))
+            })
+            let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string(operation), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("link-preview"))
+            XCTAssertEqual(result.value(atPointer: "/paths/0"), .string("/opt/homebrew/bin/wget"))
+            XCTAssertEqual(result.value(atPointer: "/no_op"), .bool(false))
+            XCTAssertEqual(result.value(atPointer: "/warnings/0"), .string("Warning: example diagnostic"))
+            XCTAssertTrue(calls.contains { $0.first == "ruby" && Array($0.suffix(3)) == [operation == "previewLink" ? "link" : "unlink", "formula", "wget"] })
+            XCTAssertFalse(calls.contains { $0.contains("--force") || $0.contains("--overwrite") })
+        }
+    }
 }

@@ -34,6 +34,51 @@
       "valid": false,
       "file": "catalog-update-selector-refused.json",
       "definition": "tools.startTask.input"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-tool-failed.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-runner-refused.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-system-authorization-unavailable.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-privileged-result-lost.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-manual-installation-required.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": false,
+      "file": "task-ended-unreviewed-command.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-restart-required.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-logout-required.json",
+      "definition": "taskActivity"
+    },
+    {
+      "valid": true,
+      "file": "task-ended-shutdown-required.json",
+      "definition": "taskActivity"
     }
   ],
   "description": "Published reviewed Task input and activity boundary fixtures."

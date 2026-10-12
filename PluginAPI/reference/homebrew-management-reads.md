@@ -1,11 +1,16 @@
 # Reviewed Homebrew management reads (Plugin API Level 2)
 
 The `tools.read` Homebrew profile now supports version, taps, services, doctor,
-previewInstall, previewUpgrade, previewUpgradeAll, adoptionCandidates, adoptionPreview,
+previewInstall, previewUpgrade, previewUpgradeAll, previewLink, previewUnlink, adoptionCandidates, adoptionPreview,
 vulnerabilities, vulnerabilityDetail and packageAnalytics, beside its existing
 installed/outdated/search/info reads. The Plugin declares each operation and
 package kind in read_reviewed_tools. Reading is separate from mutation.
 Inputs are typed; no Plugin argv, URL, shell, path or environment is accepted.
+Before launching brew, the Host also checks bounded owned regular bootstrap
+configuration files. Developer Ruby warning options are restricted to reviewed
+`-W0`, `-W1` or `-W2`; `-r`/`-e` preload options and protected Library/repository
+`NAME+=` redirects are refused before Ruby starts. Compiled Bootsnap caches are
+disabled. These are checks on live files, not an immutable Homebrew distribution.
 See [schema](../schemas/homebrew-management-reads.schema.json) and
 [types](../homebrew-management.d.ts).
 
@@ -17,6 +22,7 @@ See [schema](../schemas/homebrew-management-reads.schema.json) and
 | doctor | none | tier, findings with text/links/copyable commands and recognized repair targets |
 | previewInstall / previewUpgrade | kind, names (1–50); upgrade also accepts greedy | packages, estimated:false, dry_run:true, succeeded, exit_status, stages, warnings, bounded stdout/stderr, summary |
 | previewUpgradeAll | optional kind and greedy | same actual output for current eligible unpinned formulae and casks, grouped into explicit bounded selections |
+| previewLink / previewUnlink | kind, names (exactly one) | package, complete, changes, paths, paths_fingerprint, no_op, dry_run, succeeded, diagnostics |
 | adoptionCandidates | none | applications with opaque app_ selection target, name, bundle_id, version |
 | adoptionPreview | target from candidates, selected cask name | opaque adoption_ review target, kind, name, summary |
 | vulnerabilities | names (1–20) OR offset (0–1999), optional | checked, findings/advisories, skipped, total, offset and next_offset |
@@ -50,7 +56,7 @@ six immediate details; vulnerabilityDetail fetches further selected details.
 truncated identifies an API/record bound, never a clean bill of health. This is
 not a claim of exhaustive vulnerability coverage.
 
-Previews execute the installed Homebrew 7.0.x command's actual `--dry-run
+Install and upgrade previews execute the installed Homebrew 7.0.x command's actual `--dry-run
 --no-ask` through a Host-owned version-gated Ruby adapter. Their stages retain
 Homebrew's version transitions, dependency and dependent changes and download
 sizes when known; diagnostics retain warnings and refusals. `estimated:false`
@@ -59,6 +65,27 @@ preserves a refusal, including pinned packages. A refusal is never an empty
 successful upgrade. Unsupported Homebrew versions return available:false and
 requires_reviewed_homebrew_version. A preview is current advice; confirmed Tasks
 still recheck current package metadata, source trust and pins.
+
+Link previews use the reviewed Homebrew 7.0.x Keg and cask artifact traversal
+without taking locks or writing files. Plain `brew link --dry-run` omits opt,
+alias and linked-keg metadata, related formula unlinks, directory changes and
+info index updates. The Host adds those concrete effects to at most 2,000
+`changes`: `link` includes its new `source`; the other actions are `unlink`,
+`mkdir`, `rmdir` and `update_info_index`. `paths` lists the distinct destinations.
+The fingerprint binds the planned actions and source identities together with
+current destination, parent and symlink states. The Host repeats the complete
+preview at Task preparation and launch; changed metadata, sources, paths or
+diagnostics require a new confirmation. No Plugin path or fingerprint is
+accepted as Task input.
+
+`complete:false` or `succeeded:false` describes a refused plan and must not
+offer a Task. `no_op:true` is a successful empty plan and also needs no Task.
+Unsupported shared-directory conversions, recursive legacy alias cleanup,
+unbounded or contradictory changes and force-required kegs are refused with
+diagnostics. Ordinary missing parents and empty-directory cleanup are listed
+explicitly. No force or overwrite flag is enabled; Homebrew's normal replacement
+of an existing cask link is disclosed when applicable. These previews share the
+network-denied, write-denied subprocess and the existing call/Source deadlines.
 
 The subprocess has all network access and persistent file writes denied. Its
 adapter prevents Homebrew's implicit qualified-package trust and missing-tap
