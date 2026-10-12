@@ -19,6 +19,15 @@ public enum HomebrewInstalledUninstall {
             }
         }
     }
+    public static func requiresZapPrivileges(_ artifacts: [[String: Any]]) -> Bool {
+        artifacts.contains { artifact in
+            let directives = artifact["zap"] as? [[String: Any]] ?? (artifact["zap"] as? [String: Any]).map { [$0] } ?? []
+            return directives.contains { directive in
+                !Set(directive.keys).isDisjoint(with: ["launchctl", "pkgutil", "kext", "delete", "rmdir"])
+                    || ["early_script", "script"].contains { (directive[$0] as? [String: Any])?["sudo"] as? Bool == true }
+            }
+        }
+    }
     public static func read(name: String, prefix: String) throws -> Record {
         guard HomebrewTaskInput.validPackageName(name), prefix.hasPrefix("/"), prefix == URL(fileURLWithPath: prefix).standardizedFileURL.path, let token = name.split(separator: "/").last else { throw PluginHostServiceError.tool(.planChanged) }
         guard let canonicalPrefix = realpath(prefix, nil) else { throw PluginHostServiceError.tool(.planChanged) }

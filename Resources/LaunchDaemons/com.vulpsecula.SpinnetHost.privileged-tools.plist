@@ -7,5 +7,7 @@
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.host</key><true/>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.runner</key><true/>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.client</key><true/>
+<key>com.vulpsecula.SpinnetHost.reviewed-tools.inspection.host</key><true/>
+<key>com.vulpsecula.SpinnetHost.reviewed-tools.inspection.client</key><true/>
 </dict>
 </dict></plist>

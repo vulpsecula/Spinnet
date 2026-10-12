@@ -39,20 +39,36 @@ do {
     ProcessInfo.processInfo.disableSuddenTermination(); ProcessInfo.processInfo.disableAutomaticTermination("Reviewed Homebrew Task")
     defer { ProcessInfo.processInfo.enableSuddenTermination(); ProcessInfo.processInfo.enableAutomaticTermination("Reviewed Homebrew Task") }
     var environment = HomebrewReadProfile.environment
+    environment["HOMEBREW_NO_BOOTSNAP"] = "1"
     environment["HOMEBREW_NO_INSTALL_UPGRADE"] = "1"; environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
     record.runnerPID = getpid(); record.runnerIdentity = HomebrewTaskProcess.startIdentity(getpid())
     var privilegeConnection: NSXPCConnection?
     var privilegeProxy: HomebrewPrivilegeRunnerProtocol?
-    if let privilegePlan = record.privilegePlan {
+    if let privilegePlan = record.privilegePlan, privilegePlan.requiresSystemAuthorization {
         let connection = try HomebrewSystemAuthorization.runnerConnection()
         let ready = DispatchSemaphore(value: 0)
         var failure = "The signed privileged helper is unavailable"
         guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in ready.signal() }) as? HomebrewPrivilegeRunnerProtocol else { exit(77) }
         proxy.begin(try JSONEncoder().encode(privilegePlan)) { failure = $0; ready.signal() }
-        // The native helper has a 30-second aggregate inventory/hash budget.
-        // A shorter caller wait could abandon a valid read-only admission.
-        guard ready.wait(timeout: .now() + 45) == .success, failure.isEmpty else {
-            record.result = .object(["outcome": .string("failed"), "reason": .string("system_authorization_unavailable")]); record.ended = Date(); try record.save(to: directory); exit(77)
+        // Receipt inventory is bounded30s; immutable source origin admission
+        // has one aggregate180s worker budget, followed by30s receipt
+        // manifest and60s typed-path admission budgets. Stop remains responsive while
+        // read-only admission runs; it never starts a brew/install replay.
+        let admissionDeadline = ProcessInfo.processInfo.systemUptime + 330
+        var admissionReady = false
+        var cancelledAdmission = false
+        while true {
+            if ready.wait(timeout: .now() + 0.1) == .success { admissionReady = failure.isEmpty; break }
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) || ProcessInfo.processInfo.systemUptime >= admissionDeadline {
+                cancelledAdmission = FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path)
+                proxy.stop(record.id) {}; break
+            }
+        }
+        cancelledAdmission = cancelledAdmission || FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path)
+        guard admissionReady, !cancelledAdmission else {
+            proxy.stop(record.id) {}
+            record.result = cancelledAdmission ? .object(["outcome": .string("stopped"), "stop": .string("interrupted")]) : .object(["outcome": .string("failed"), "reason": .string("system_authorization_unavailable")]); record.ended = Date(); try record.save(to: directory)
+            connection.invalidate(); exit(cancelledAdmission ? 130 : 77)
         }
         privilegeConnection = connection; privilegeProxy = proxy
         environment["HOMEBREW_SPINNET_TASK_ID"] = record.id
@@ -88,6 +104,7 @@ do {
             guard let bridge = Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") else { throw PluginHostServiceError.tool(.failed) }
             let client = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("SpinnetToolAuthorizationClient")
             let context: [String: JSONValue] = ["arguments": .array(arguments.map(JSONValue.string)), "client": .string(client.path),
+                "manualOutcome": .string(directory.appendingPathComponent("manual-outcome.json").path), "taskID": .string(record.id),
                 "casks": .array(try privilegePlan.casks.map { try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode($0)) })]
             let contextURL = directory.appendingPathComponent("privilege-context.json")
             try JSONEncoder().encode(JSONValue.object(context)).write(to: contextURL, options: .atomic)
@@ -110,6 +127,12 @@ do {
         }
         if lastResult?.outcome != "completed" { break }
     }
+    var nativeContinuation: HomebrewNativeInstallerContinuation?
+    if let privilegeProxy, [78, 79].contains(lastResult?.exitStatus ?? 0) {
+        let queried = DispatchSemaphore(value: 0)
+        privilegeProxy.continuation(record.id) { nativeContinuation = HomebrewNativeInstallerContinuation(rawValue: $0); queried.signal() }
+        if queried.wait(timeout: .now() + 30) != .success { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: nil) }
+    }
     if let privilegeProxy {
         let ended = DispatchSemaphore(value: 0)
         privilegeProxy.end(record.id) { ended.signal() }
@@ -117,10 +140,12 @@ do {
     }
     lock.lock()
     log.finish(); record.log = log.lines; record.stage = log.stage
-    let lostPrivilegedResult = record.privilegePlan != nil && lastResult?.exitStatus == 70
+    let lostPrivilegedResult = record.privilegePlan?.requiresSystemAuthorization == true && lastResult?.exitStatus == 70
     var outcome: [String: JSONValue] = ["outcome": .string(lostPrivilegedResult ? "unknown" : lastResult?.outcome ?? "unknown")]
     if let stop = lastResult?.stop { outcome["stop"] = .string(stop) }
     if lostPrivilegedResult { outcome["reason"] = .string("privileged_result_lost") }
+    else if lastResult?.exitStatus == 79, let continuation = nativeContinuation, let reason = continuation.reason, let stage = continuation.stage { outcome["reason"] = .string(reason); record.stage = stage }
+    else if lastResult?.exitStatus == 78 && (nativeContinuation == .manualInstallation || record.privilegePlan.map { HomebrewNativeManualOutcome.confirmed(in: directory, plan: $0) } == true) { outcome["reason"] = .string("manual_installation_required"); record.stage = "awaiting manual installation" }
     else if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
     record.result = .object(outcome); record.ended = Date()
     try record.save(to: directory); lock.unlock()
