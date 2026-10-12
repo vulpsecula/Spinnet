@@ -200,13 +200,24 @@ public final class HomebrewManagementReads {
             }
             var projected: [JSONValue] = [], stages: [JSONValue] = [], warnings: [JSONValue] = [], stdout = "", stderr = "", succeeded = true, exitStatus: JSONValue = .number(0)
             func trusted(_ packages: [[String: Any]], kind: String) throws {
-                let thirdParty = packages.compactMap { $0["tap"] as? String }.filter { !["homebrew/core", "homebrew/cask"].contains($0) }
+                let thirdParty = packages.filter { !["homebrew/core", "homebrew/cask"].contains($0["tap"] as? String ?? "") }
                 guard packages.allSatisfy({ ($0["tap"] as? String)?.isEmpty == false }) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
                 if !thirdParty.isEmpty {
                     let out = try run(["trust", "--tap", "--json=v1"])
-                    guard out.status == 0, let allowed = try? JSONDecoder().decode([String].self, from: out.stdout), thirdParty.allSatisfy(allowed.contains) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                    guard out.status == 0, let allowed = try? JSONDecoder().decode([String].self, from: out.stdout), allowed.count <= 2000 else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                    let remaining = thirdParty.filter { !allowed.contains($0["tap"] as? String ?? "") }
+                    if !remaining.isEmpty {
+                        let items = try run(["trust", "--" + kind, "--json=v1"])
+                        guard items.status == 0, let allowedItems = try? JSONDecoder().decode([String].self, from: items.stdout), allowedItems.count <= 2000,
+                              remaining.allSatisfy({ package in
+                                  let name = package[kind == "formula" ? "full_name" : "full_token"] as? String ?? package[kind == "formula" ? "name" : "token"] as? String ?? ""
+                                  let canonical = name.contains("/") ? name : (package["tap"] as? String ?? "") + "/" + name
+                                  return allowedItems.contains(canonical)
+                              }) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                    }
                 }
             }
+
             var networkBytes = 0, metadataRequests = 0
             for (kind, names) in selections {
                 let args = ["info", "--json=v2", "--" + kind, "--"] + names

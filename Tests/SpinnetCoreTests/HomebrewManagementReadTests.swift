@@ -439,3 +439,21 @@ extension HomebrewManagementReadTests {
         XCTAssertFalse(wire.contains("/Applications")); XCTAssertFalse(wire.contains("/Users/"))
     }
 }
+
+
+extension HomebrewManagementReadTests {
+    func testPreviewHonorsCanonicalItemTrustWithoutRequiringWholeTapTrust() throws {
+        var dryRuns = 0
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
+            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"canonical","full_name":"acme/tools/canonical","tap":"acme/tools","versions":{"stable":"1.25"},"installed":[]}],"casks":[]}"#.utf8)) }
+            if args.first == "trust" { return .init(status: 0, stdout: Data((args.contains("--formula") ? #"["acme/tools/canonical"]"# : "[]").utf8)) }
+            dryRuns += 1
+            return .init(status: 0, stdout: Data("==> Would install 1 formula:\ncanonical 1.25\n".utf8))
+        })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewInstall"), "kind": .string("formula"), "names": .array([.string("acme/tools/alias")])]), owner: PluginID("management"))
+        XCTAssertEqual(result.value(atPointer: "/packages/0/name"), .string("acme/tools/canonical"))
+        XCTAssertEqual(result.value(atPointer: "/succeeded"), .bool(true))
+        XCTAssertEqual(dryRuns, 1)
+    }
+}

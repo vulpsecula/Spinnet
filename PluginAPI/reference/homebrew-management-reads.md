@@ -62,8 +62,11 @@ still recheck current package metadata, source trust and pins.
 
 The subprocess has all network access and persistent file writes denied. Its
 adapter prevents Homebrew's implicit qualified-package trust and missing-tap
-installation. Metadata and declared third-party tap trust are checked before and
-after the dry-run; changed data is refused. Explicit all previews read current
+installation. Homebrew's guarded loader checks persistent source trust before
+package Ruby evaluation and after canonical alias/rename resolution; a qualified
+selector never grants temporary trust. Existing canonical item trust is enough
+without granting the entire tap. Metadata and persistent source trust are checked
+before and after the dry-run; changed data is refused. Explicit all previews read current
 outdated inventory and exclude pins, resolving at most 2,000 records and running
 fixed selections of at most 50 packages each. The existing fifteen-second source
 deadline covers the whole preview, so a large inventory can time out explicitly.
@@ -121,3 +124,17 @@ Doctor may return `fix_all: {target,title,count}` for the first at most eight un
 `packageAnalytics` accepts one to twenty user-selected bare official package names of one kind. `rankings` returns each selected package's bounded install counts; `name` and `analytics` retain the first package for compatibility with the one-package detail workflow. Every selected endpoint shares a total one-MiB read budget, 128-KiB response limit and the existing 15-second Source deadline (three seconds for a synchronous call). Missing counts remain unknown. No global catalogue or automatic sweep is fetched. A Plugin must disclose the known portion when sorting partially ranked results and request another window only after an explicit user gesture.
 
 A Doctor report issues at most 128 unique individual repair targets, reuses repeated targets, and marks `truncated` when more supported repairs are withheld. This protects the first repair set from eviction by its own report. Refresh after a repair to review the next remaining set.
+
+
+Read and preview subprocesses validate the reviewed entry, selected bootstrap,
+and loader source hashes before starting Homebrew, then recheck loader hashes in
+the Ruby adapter. Missing, changed or oversized reviewed files return unavailable
+and require a Host review of that source revision. These checks detect drift in
+live user-owned files; they do not freeze the whole Homebrew installation.
+
+Installed cask history is accepted only as a bounded regular JSON file, parsed
+once as an object and passed as an immutable snapshot to Homebrew's data loader.
+Null, scalar, array, malformed or changing history is explicitly unavailable;
+it never falls through to Ruby evaluation or a current-catalog fallback. Legacy
+installed Ruby history requires immutable source provenance and stays unavailable
+in this read profile.

@@ -301,6 +301,12 @@ public final class HomebrewReadProfile {
     }
     public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
                                           _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
+        // Validate the reviewed bootstrap/loader files before brew can preload
+        // global and IRB helpers. The guard inside Ruby checks its loader files
+        // again; neither check claims to freeze the user-owned live tree.
+        if executable.lastPathComponent == "brew" {
+            try HomebrewReadSource.validate(executable: executable, deadline: deadline, cancellation: cancellation)
+        }
         let commands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust"]
         let isReviewedCommand = commands.contains(arguments.first ?? "")
         let guarded = isReviewedCommand

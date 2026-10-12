@@ -1,0 +1,16 @@
+{
+  "bin/brew": "c9a27029eb72dab04f4595041f7670bb03b4cb467297abba817883afb23e0bf3",
+  "Library/Homebrew/brew.sh": "fa2efe2c76b9305609a030e119db63b0da36380ed0ca60afa5c9e2b7b1ebb537",
+  "Library/Homebrew/brew.rb": "7159c01d874378a80585e42f339f90080ba018ce70007ebb75115d867fa11449",
+  "Library/Homebrew/global.rb": "2d59129602d1fa2df68432446edcb1de13aa4f663192a2b3c830b8de8b8943bb",
+  "Library/Homebrew/startup.rb": "15a6746e3113c46dcabf82a87c884b8635fa747774e53d9bb885bf171293aa7a",
+  "Library/Homebrew/brew_irb_helpers.rb": "45ac5be9e703484f54ce8c5f13ac511100600b43b753d2691586a2c325ac1160",
+  "Library/Homebrew/dev-cmd/ruby.rb": "e503619f96f6c86318a328d9f713c95cc09e119b92456ffafe66340e49ed419f",
+  "Library/Homebrew/trust.rb": "0c40d55f481127ee83318439a46a1204c9ffe6691cc0a7143e89819baf794e3a",
+  "Library/Homebrew/formulary.rb": "739950efcc367eeb8a5b97830cb40d0137570d7cc0a881e4f9ed159c21a5d161",
+  "Library/Homebrew/cask/cask_loader.rb": "b013adf5701f86159eca5bc2ebfa4957ef71971d5e1c0e804cf820f5f39636ff",
+  "Library/Homebrew/utils/ruby.sh": "d1225c57c5ca31d8b4eba364399aed6f9b1cd60cc6bc8a1412cee0c815409a92",
+  "Library/Homebrew/utils/ruby.rb": "c4837988956ba6e8f4f75a536de327fd7fad26bb922631cf1073d97de9de100b",
+  "Library/Homebrew/utils/os.sh": "c83eacf7b72cfffac02b87973622bb5b66f6d6ca6e9d80d27b922e5dc0318fa6",
+  "Library/Homebrew/utils.sh": "02e1f44a2ba4f140f4bb563a8c334a7b713563fd75f4d726b389101b450f54db"
+}

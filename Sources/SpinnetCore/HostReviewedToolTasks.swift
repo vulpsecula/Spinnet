@@ -37,6 +37,7 @@ public final class HostReviewedToolTasks {
     private let executable: () throws -> URL
     private let preflight: Preflight
     private let trustedTaps: () throws -> [String]
+    private let trustedItems: (String) throws -> [String]
     private let targetResolver: TargetResolver
     private let privilegeReview: (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask]
     private let prepareSystemAuthorization: () throws -> Void
@@ -52,7 +53,7 @@ public final class HostReviewedToolTasks {
 
     public init(activities: HostActivities, journal: URL, runnerURL: URL,
                 executable: @escaping () throws -> URL = HomebrewReadProfile.discover,
-                preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil,
+                preflight: Preflight? = nil, trustedTaps: (() throws -> [String])? = nil, trustedItems: ((String) throws -> [String])? = nil,
                 targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) },
                 privilegeReview: @escaping (HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask] = HomebrewPrivilegeReview.casks,
                 prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
@@ -61,6 +62,7 @@ public final class HostReviewedToolTasks {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = preflight ?? { input in try Self.preflight(input, executable: executable()) }
         self.trustedTaps = trustedTaps ?? { try Self.readTrustedTaps(executable: executable()) }
+        self.trustedItems = trustedItems ?? { kind in try Self.readTrustedEntries(kind: kind, executable: executable()) }
         self.targetResolver = targetResolver; self.privilegeReview = privilegeReview; self.prepareSystemAuthorization = prepareSystemAuthorization
         self.admitSystemAuthorization = admitSystemAuthorization; self.cancelSystemAuthorization = cancelSystemAuthorization
         recover()
@@ -327,7 +329,11 @@ public final class HostReviewedToolTasks {
             for package in packages { try checkSource(package) }
         }
         let tap = Self.text(package, "tap")
-        if !tap.isEmpty, !["homebrew/core", "homebrew/cask"].contains(tap), !(try trustedTaps()).contains(tap) { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        if !tap.isEmpty, !["homebrew/core", "homebrew/cask"].contains(tap), !(try trustedTaps()).contains(tap) {
+            let kind = Self.text(package, "kind"), name = Self.text(package, "name")
+            guard ["formula", "cask"].contains(kind), HomebrewTaskInput.validPackageName(name),
+                  try trustedItems(kind).contains(name.contains("/") ? name : tap + "/" + name) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        }
     }
     private func review(_ input: HomebrewTaskInput, owner: PluginID) throws -> (HomebrewTaskInput, JSONValue) {
         if ["adopt", "doctorFix"].contains(input.operation) {
@@ -371,6 +377,20 @@ public final class HostReviewedToolTasks {
             }
             guard !names.isEmpty else { throw PluginHostServiceError.tool(.notOutdated) }
             return input
+        }
+        if ["formula", "cask"].contains(input.kind) {
+            var fields = input.fields
+            if input.operation == "upgradeSelected", case .array(let records)? = package.value(atPointer: "/packages") {
+                let names = records.compactMap { record -> JSONValue? in
+                    guard record.value(atPointer: "/kind") == .string(input.kind), case .string(let name)? = record.value(atPointer: "/name"), HomebrewTaskInput.validPackageName(name) else { return nil }
+                    return .string(name)
+                }
+                guard names.count == records.count else { throw PluginHostServiceError.tool(.planChanged) }
+                fields["names"] = .array(names)
+            } else if package.value(atPointer: "/kind") == .string(input.kind), case .string(let name)? = package.value(atPointer: "/name"), HomebrewTaskInput.validPackageName(name), !input.name.isEmpty {
+                fields["name"] = .string(name)
+            }
+            return try HomebrewTaskInput(.object(fields))
         }
         return input
     }
@@ -443,10 +463,15 @@ public final class HostReviewedToolTasks {
         return package
     }
     public static func readTrustedTaps(executable: URL) throws -> [String] {
-        let result = try HomebrewReadProfile.execute(executable, ["trust", "--tap", "--json=v1"], HomebrewReadProfile.environment, Date().addingTimeInterval(15))
-        guard result.status == 0, let taps = try? JSONDecoder().decode([String].self, from: result.stdout) else { throw PluginHostServiceError.tool(.failed) }
-        return Array(taps.prefix(2000))
+        try readTrustedEntries(kind: "tap", executable: executable)
     }
+    private static func readTrustedEntries(kind: String, executable: URL) throws -> [String] {
+        guard ["tap", "formula", "cask"].contains(kind) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        let result = try HomebrewReadProfile.execute(executable, ["trust", "--" + kind, "--json=v1"], HomebrewReadProfile.environment, Date().addingTimeInterval(15))
+        guard result.status == 0, let entries = try? JSONDecoder().decode([String].self, from: result.stdout), entries.count <= 2000 else { throw PluginHostServiceError.tool(.failed) }
+        return entries
+    }
+
 }
 
 /// The runner alone owns the journal after launch. It records outcomes, not

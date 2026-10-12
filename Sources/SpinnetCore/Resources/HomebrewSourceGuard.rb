@@ -39,6 +39,39 @@ module SpinnetInstalledCaskData
         $spinnet_unavailable_history = true
         raise Cask::CaskUnavailableError.new(token, 'Installed Ruby history requires immutable source provenance; this read only loads installed JSON')
       end
+      # Parse one bounded immutable snapshot. FromPathLoader's JSON branch
+      # falls through to instance_eval for valid JSON scalars/arrays/null.
+      # Never call that loader again after deciding installed history is data.
+      begin
+        bytes = File.open(path, File::RDONLY | File::NOFOLLOW | File::NONBLOCK) do |file|
+          before = file.stat
+          raise IOError, 'Installed JSON is not a bounded regular file' unless before.file? && before.size <= 4 * 1024 * 1024
+          snapshot = file.read(4 * 1024 * 1024 + 1)
+          after = file.stat
+          raise IOError, 'Installed JSON changed while reading' unless snapshot.bytesize == before.size &&
+            before.size == after.size && before.mtime == after.mtime && before.ctime == after.ctime
+          snapshot.freeze
+        end
+        raise JSON::ParserError, 'Installed JSON exceeds its bound' if bytes.bytesize > 4 * 1024 * 1024
+        record = JSON.parse(bytes)
+        raise JSON::ParserError, 'Installed JSON must be an object' unless record.is_a?(Hash)
+        freeze_json = lambda do |value|
+          case value
+          when Hash; value.each { |key, child| key.freeze; freeze_json.call(child) }
+          when Array; value.each { |child| freeze_json.call(child) }
+          end
+          value.freeze
+        end
+        freeze_json.call(record)
+        return Cask::CaskLoader::FromAPILoader.new(
+          token, from_json: record, path: path,
+          from_installed_caskfile: true, from_internal_json: path.to_s.end_with?('.internal.json'),
+          api_fallback: false,
+        ).load(config: config)
+      rescue JSON::ParserError, Cask::CaskInvalidError, Cask::CaskUnreadableError, SystemCallError, IOError, TypeError, KeyError, ArgumentError, NoMethodError => error
+        $spinnet_unavailable_history = true
+        raise Cask::CaskUnavailableError.new(token, 'Installed JSON is malformed or unavailable; Ruby fallback is forbidden')
+      end
     elsif path.extname == '.rb' && !@tap
       $spinnet_unavailable_history = true
       raise Cask::CaskUnavailableError.new(token, 'Ruby outside a trusted tap is unavailable to this read')
