@@ -8,6 +8,7 @@ public enum NativeSignedToolStaging {
     private final class Marker: NSObject {}
     private static let identifiers = [
         "SpinnetReceiptInventory": "com.vulpsecula.SpinnetHost.receipt-inventory",
+        "SpinnetToolAuthorizationClient": "com.vulpsecula.SpinnetHost.authorization-client",
         "SpinnetArchiveBootstrap": "com.vulpsecula.SpinnetHost.archive-bootstrap",
         "SpinnetArchiveDecoder": "com.vulpsecula.SpinnetHost.archive-decoder",
         "SpinnetPathInventory": "com.vulpsecula.SpinnetHost.path-inventory",
