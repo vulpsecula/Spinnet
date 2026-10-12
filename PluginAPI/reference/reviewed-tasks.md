@@ -11,7 +11,10 @@ Host-wide slot, reads the concrete package plan and current Homebrew trust,
 then draws a Host Confirmation. Cancel is the default. No task queues,
 automatic update/cleanup, mutation retries or replay exist. After
 confirmation the Host checks identity, scope, source trust and the exact
-plan again; a changed plan is refused for review.
+plan again; a changed plan is refused for review. Canonical package names resolved
+from aliases or renames are frozen in the confirmed Task, and existing canonical
+item trust can authorize a package without granting its entire tap. A qualified
+selector does not itself grant source trust.
 
 Inputs are defined in [reviewed-tools.schema.json](../schemas/reviewed-tools.schema.json).
 Package operations name one `kind` and bounded package `name`. Tap

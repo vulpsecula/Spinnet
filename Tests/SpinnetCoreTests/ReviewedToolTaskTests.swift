@@ -335,3 +335,29 @@ extension ReviewedToolTaskTests {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
     }
 }
+
+
+extension ReviewedToolTaskTests {
+    func testTaskPreparationHonorsCanonicalItemTrustWithoutGrantingWholeTapTrust() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let executable = root.appendingPathComponent("fixture-cli")
+        try Data("""
+        #!/bin/sh
+        if [ "$4" = trust ] && [ "$5" = --formula ]; then
+          printf '%s\\n' '["acme/tools/canonical"]'
+        else
+          printf '%s\\n' '[]'
+        fi
+        """.utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root.appendingPathComponent("journal"), runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { executable }, preflight: { _ in .object(["name": .string("acme/tools/canonical"), "kind": .string("formula"), "tap": .string("acme/tools"), "version": .string("1")]) }, trustedTaps: { [] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("acme/tools/alias")]))
+        let plan = try host.prepare(input, owner: PluginID("item-trust"), pluginName: "Homebrew")
+        XCTAssertEqual(plan.resolvedInput.name, "acme/tools/canonical")
+        XCTAssertTrue(plan.confirmation.message.contains("acme/tools/canonical"))
+        host.decline(plan)
+    }
+}
