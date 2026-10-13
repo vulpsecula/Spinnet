@@ -477,3 +477,15 @@ final class HostConfirmationDisclosureBudgetsTests: XCTestCase {
         XCTAssertEqual(HostConfirmationDetails.pageSize, 100)
     }
 }
+
+/// Host-private recovery; docs/adr/0017-manage-ongoing-plugin-effects-and-tasks-in-the-host.md.
+final class ReviewedTaskRecoveryBudgetsTests: XCTestCase {
+    func testDurableRecoveryBudgetsMatchADR0017() {
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumBytes, 196_608)
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumMembers, 4096)
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumProcessInventory, 65_536)
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumDiscoveryDepth, 64)
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumRecoveryEntries, 128)
+        XCTAssertEqual(HostActivities.maximumTotal, 64)
+    }
+}

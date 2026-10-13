@@ -26,6 +26,10 @@ do {
             record.ended = Date(); try? record.save(to: directory)
         }
     }
+    guard let runnerBirth = HomebrewTaskProcess.startIdentity(getpid()) else { throw PluginHostServiceError.tool(.failed) }
+    var lease = HomebrewTaskProcessLease(taskID: record.id, runnerPID: getpid(), runnerIdentity: runnerBirth)
+    try lease.save(to: directory)
+    record.runnerPID = getpid(); record.runnerIdentity = runnerBirth; try record.save(to: directory)
     let input = try HomebrewTaskInput(record.input)
     let steps = try record.steps?.map(HomebrewTaskInput.init) ?? [input]
     guard !steps.isEmpty, steps.count <= 80, steps.allSatisfy({ !$0.arguments.isEmpty }),
@@ -75,6 +79,35 @@ do {
     }
     defer { privilegeConnection?.invalidate() }
     var lastResult: HomebrewTaskProcess.Result?
+    func reserveProcess() throws {
+        lock.lock(); defer { lock.unlock() }
+        lease.reservation = UUID().uuidString.lowercased(); lease.leaderPID = nil; lease.leaderIdentity = nil; lease.members = [:]; lease.observedAt = Date()
+        try lease.save(to: directory)
+    }
+    func observeProcess(_ process: HomebrewTaskProcess) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard lease.reservation != nil else { return }
+        let identities = process.ownedProcessIdentities
+        if identities.count > HomebrewTaskProcessLease.maximumMembers { lease.ownershipUncertain = true; try lease.save(to: directory); throw PluginHostServiceError.tool(.outputTooLarge) }
+        if let birth = identities[process.processIdentifier] { lease.leaderPID = process.processIdentifier; lease.leaderIdentity = birth }
+        lease.members = Dictionary(uniqueKeysWithValues: identities.map { (String($0.key), $0.value) })
+        lease.observedAt = Date(); try lease.save(to: directory)
+    }
+    func noSpawn(_ process: HomebrewTaskProcess) {
+        guard process.processIdentifier == 0 else { return }
+        lock.lock(); defer { lock.unlock() }
+        lease.reservation = nil; lease.leaderPID = nil; lease.leaderIdentity = nil; lease.members = [:]; lease.observedAt = Date()
+        try? lease.save(to: directory)
+    }
+    func reapedProcess(_ result: HomebrewTaskProcess.Result) {
+        lock.lock(); defer { lock.unlock() }
+        if !lease.ownershipUncertain { lease.reservation = nil; lease.leaderPID = nil; lease.leaderIdentity = nil; lease.members = [:] }
+        lease.observedAt = Date()
+        do { try lease.save(to: directory); lastResult = lease.ownershipUncertain ? .init(outcome: "unknown", exitStatus: 70, stop: result.stop) : result }
+        catch { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: result.stop) }
+        finished.signal()
+    }
+
     for (index, step) in steps.enumerated() {
         if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) {
             lastResult = .init(outcome: "stopped", exitStatus: 130, stop: "interrupted"); break
@@ -91,8 +124,12 @@ do {
             for value in values {
                 guard case .string(let path) = value else { throw PluginHostServiceError.tool(.planChanged) }
                 let process = HomebrewTaskProcess(executable: executable, arguments: ["--repair-directory", path], environment: environment)
-                try process.start(output: { data in lock.lock(); log.append(data); record.log = log.lines; try? record.save(to: directory); lock.unlock() }, finished: { result in lastResult = result; finished.signal() })
+                try reserveProcess()
+                do { try process.start(output: { data in lock.lock(); log.append(data); record.log = log.lines; try? record.save(to: directory); lock.unlock() }, finished: { result in reapedProcess(result) }) }
+                catch { noSpawn(process); throw error }
+                do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
                 while finished.wait(timeout: .now() + 0.1) == .timedOut {
+                    do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
                     if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) { process.stop(); privilegeProxy?.stop(record.id) {} }
                 }
                 if lastResult?.outcome != "completed" { break }
@@ -111,16 +148,19 @@ do {
             arguments = ["ruby", bridge.path, contextURL.path]
         }
         let process = HomebrewTaskProcess(executable: executable, arguments: arguments, environment: environment)
-        try process.start(output: { data in
+        try reserveProcess()
+        do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
             log.append(data); record.log = log.lines; record.stage = log.stage
             try? record.save(to: directory)
         }, finished: { result in
-            lock.lock(); lastResult = result; lock.unlock(); finished.signal()
-        })
+            reapedProcess(result)
+        }) } catch { noSpawn(process); throw error }
+        do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
         lock.lock(); record.processGroup = process.processIdentifier; record.processIdentity = HomebrewTaskProcess.startIdentity(process.processIdentifier)
-        try record.save(to: directory); lock.unlock()
+        do { try record.save(to: directory) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }; lock.unlock()
         while finished.wait(timeout: .now() + 0.1) == .timedOut {
+            do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
             if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) {
                 process.stop(); privilegeProxy?.stop(record.id) {}
             }

@@ -76,7 +76,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
         journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
         runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"),
-        targetResolver: HomebrewManagementTargets.shared.resolveTask)
+        targetResolver: HomebrewManagementTargets.shared.resolveTask, recoveryPower: DesktopPowerAssertions())
     private let reviewedServicesWindow = ReviewedServicesWindowController()
     private var reviewedServicesAction: ActionConfiguration?
     private lazy var reviewedTaskOperations = ReviewedTaskOperationPerformer(tasks: reviewedTasks, confirmations: HostConfirmationPanel(), registry: registry)

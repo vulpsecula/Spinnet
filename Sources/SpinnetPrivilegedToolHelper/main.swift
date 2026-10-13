@@ -112,8 +112,8 @@ private func nativeCancelled(_ task: Task) -> Bool {
 }
 
 final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
-    let pid: pid_t; let uid: uid_t
-    init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
+    let pid: pid_t; let uid: uid_t; let identity: UInt64?
+    init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier; identity = HomebrewTaskProcess.startIdentity(connection.processIdentifier) }
     func admit(_ data: Data, reply: @escaping (String) -> Void) {
         do {
             guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
@@ -129,6 +129,28 @@ final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
         state.lock.lock()
         if let admission = state.admissions[taskID], admission.pid == pid, admission.uid == uid, HomebrewTaskProcess.startIdentity(pid) == admission.identity { state.admissions.removeValue(forKey: taskID) }
         state.lock.unlock(); reply()
+    }
+    func control(_ data: Data, stop: Bool, reply: @escaping (Bool, String) -> Void) {
+        do {
+            guard uid != 0, identity != nil, HomebrewTaskProcess.startIdentity(pid) == identity else { throw PluginHostServiceError.tool(.failed) }
+            let plan = try HomebrewPrivilegePlan.decodeValidated(data)
+            state.lock.lock(); defer { state.lock.unlock() }
+            if let task = state.tasks[plan.taskID] {
+                guard task.uid == uid, task.plan == plan else { throw PluginHostServiceError.tool(.planChanged) }
+                if stop { task.stopped = true; task.process?.stop() }
+                // The Root Task exists until its owned worker is actually
+                // reaped. A new signed same-account Host may stop it without
+                // receiving credentials, a PID, or execution admission.
+                reply(true, "")
+            } else if let admission = state.admissions[plan.taskID] {
+                guard admission.uid == uid, admission.plan == plan else { throw PluginHostServiceError.tool(.planChanged) }
+                if stop { state.admissions.removeValue(forKey: plan.taskID); reply(false, "") }
+                else { reply(true, "") }
+            } else {
+                guard !state.inspectionRecoveryUnavailable else { throw HomebrewNativeInspection.Failure.workerUnreaped }
+                reply(false, "")
+            }
+        } catch { reply(true, "Authenticated Root Task control is unavailable or the same-account admitted plan changed; no execution authority was granted") }
     }
 }
 final class RunnerEndpoint: NSObject, HomebrewPrivilegeRunnerProtocol {
