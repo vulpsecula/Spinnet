@@ -154,6 +154,31 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertTrue(activities.list(for: .init("new-host")).isEmpty, "Recovery liveness must never restore a Plugin's authority")
     }
 
+    func testAllUpgradeTargetsIncludingOrdinaryPackagesRemainVisibleInNativeFinalReview() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packages: [JSONValue] = (0..<150).map { index in
+            let kind = index < 100 ? "formula" : "cask", name = "package\(index)"
+            return .object(["kind": .string(kind), "name": .string(name), "tap": .string(kind == "formula" ? "homebrew/core" : "homebrew/cask"),
+                "installed_version": .string("1"), "version": .string("2"), "needs_privileges": .bool(index == 149)])
+        }
+        let native = HomebrewPrivilegePlan.Cask(name: "package149", version: "2", sha256: RecordedNativeTaskInspection.digest, packages: ["New.pkg"])
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(packages)]) },
+            trustedTaps: { [] }, privilegeReview: { _, _, _ in [native] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll")]))
+        let plan = try host.prepare(input, owner: .init("all-upgrades"), pluginName: "Homebrew")
+        let details = try XCTUnwrap(plan.confirmation.details)
+        let targetRows = details.rows.filter { $0.id.hasPrefix("package-target/") }
+        XCTAssertEqual(targetRows.count, 150)
+        for index in 0..<150 {
+            XCTAssertTrue(targetRows.contains { $0.title == "Upgrade package\(index)" && $0.detail.contains("1 → 2") })
+        }
+        XCTAssertTrue(details.rows.contains { $0.detail.contains("New.pkg") })
+        XCTAssertFalse(plan.confirmation.message.contains("(150 total)"), "A count cannot replace undisclosed executable package targets")
+        host.decline(plan)
+    }
+
     func testUninstallDoesNotBorrowTheCurrentCatalogInstallerAuthorization() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
