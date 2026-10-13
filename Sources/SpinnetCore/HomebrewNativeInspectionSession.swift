@@ -22,6 +22,13 @@ public struct HomebrewNativeInspectionRecord: Codable, Equatable {
 }
 public protocol HomebrewNativeInspectionStore: AnyObject {
     func save(_ record: HomebrewNativeInspectionRecord) throws
+    /// Persist only mutable workflow state while retaining the previously
+    /// committed immutable capture. Only the session's frozen transitions use
+    /// this path; introducing/replacing evidence always requires full save.
+    func saveTransition(_ record: HomebrewNativeInspectionRecord) throws
+}
+extension HomebrewNativeInspectionStore {
+    public func saveTransition(_ record: HomebrewNativeInspectionRecord) throws { try save(record) }
 }
 /// In-memory implementation for the public workflow seam; production helper
 /// uses HomebrewNativeInspectionFileStore and its descriptor-based fsync.
@@ -40,6 +47,7 @@ public final class HomebrewNativeInspectionSession {
     private let mutex = NSRecursiveLock()
     private var poisoned = false
     private var current: HomebrewNativeInspectionRecord
+    private var frozenReview: (summary: Model.Summary, bytes: Data)?
     public var record: HomebrewNativeInspectionRecord { mutex.lock(); defer { mutex.unlock() }; return current }
     public var state: Model.State { mutex.lock(); defer { mutex.unlock() }; return current.state }
     public var isLaneHeld: Bool { mutex.lock(); defer { mutex.unlock() }; return poisoned || current.workerReservation != nil || !current.workers.isEmpty || ![.cancelled, .expired, .incomplete, .unsupported].contains(state) }
@@ -92,7 +100,10 @@ public final class HomebrewNativeInspectionSession {
     private func transition(_ change: (inout HomebrewNativeInspectionRecord) throws -> Void) throws {
         guard !poisoned else { throw Model.Failure.storeUnavailable }
         var next = current; try change(&next)
-        do { try store.save(next); current = next }
+        do {
+            if current.capture != nil { try store.saveTransition(next) } else { try store.save(next) }
+            current = next
+        }
         catch { poisoned = true; current.state = .incomplete; throw error }
     }
     public func confirmInspection(peer: Model.Peer, now: TimeInterval) throws {
@@ -151,6 +162,7 @@ public final class HomebrewNativeInspectionSession {
         return try summary(peer: peer, now: now)
     }
     private func sealedSummary() throws -> Model.Summary {
+        if let frozenReview { return frozenReview.summary }
         guard let capture = current.capture else { throw Model.Failure.wrongState }
         let bytes = try Model.encode(capture.disclosure)
         // Seal includes the private complete source index, exact typed graph,
@@ -161,6 +173,7 @@ public final class HomebrewNativeInspectionSession {
             targetCount: capture.disclosure.targets.count, targetBytes: capture.disclosure.targetBytes, receiptCount: capture.disclosure.receipts.count,
             metadataOnlyReceiptCount: capture.disclosure.receipts.filter { $0.fileCount == 0 }.count)
         guard try Model.encode(result).count <= Model.maximumSummaryBytes else { throw Model.Failure.outputTooLarge }
+        frozenReview = (result, bytes)
         return result
     }
     public func summary(peer: Model.Peer, now: TimeInterval) throws -> Model.Summary {
@@ -170,7 +183,8 @@ public final class HomebrewNativeInspectionSession {
     public func page(peer: Model.Peer, now: TimeInterval, seal: String, offset: Int) throws -> Model.Page {
         mutex.lock(); defer { mutex.unlock() }
         try check(peer, now: now); guard state == .awaitingFinalConfirmation, let capture = current.capture else { throw Model.Failure.wrongState }
-        let summary = try sealedSummary(), bytes = try Model.encode(capture.disclosure)
+        let summary = try sealedSummary()
+        guard let bytes = frozenReview?.bytes else { throw Model.Failure.incompleteReview }
         guard seal == summary.seal, offset == current.nextDisclosureOffset, offset >= 0, offset < bytes.count else { throw Model.Failure.incompleteReview }
         let end = min(bytes.count, offset + Model.maximumPagePayloadBytes)
         let page = Model.Page(inspectionID: current.inspectionID, seal: seal, offset: offset, totalBytes: bytes.count,

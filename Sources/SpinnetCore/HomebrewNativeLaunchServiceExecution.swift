@@ -47,7 +47,7 @@ public enum HomebrewNativeLaunchServiceExecution {
             })
         } catch { didReap(process); throw error }
         let deadline = ProcessInfo.processInfo.systemUptime + remaining
-        var stopDeadline: TimeInterval?
+        var stopGraceState = NativeStopGrace()
         while completion.done.wait(timeout: .now() + 0.01) == .timedOut {
             var resident: UInt64 = 0, unknown = false
             for (pid, identity) in process.ownedProcessIdentities where HomebrewTaskProcess.startIdentity(pid) == identity {
@@ -64,8 +64,8 @@ public enum HomebrewNativeLaunchServiceExecution {
             if completion.failure == nil, isCancelled() { completion.failure = .planChanged }
             if completion.failure == nil, ProcessInfo.processInfo.systemUptime >= deadline { completion.failure = .timedOut }
             let failure = completion.failure; completion.lock.unlock()
-            if stopDeadline == nil, failure != nil { process.stop(); stopDeadline = ProcessInfo.processInfo.systemUptime + stopGrace }
-            if let stopDeadline, ProcessInfo.processInfo.systemUptime >= stopDeadline { return .init(state: .unknown, response: nil, process: process) }
+            stopGraceState.observe(triggered: failure != nil, now: ProcessInfo.processInfo.systemUptime, grace: stopGrace) { process.stop() }
+            if stopGraceState.hasExpired(at: ProcessInfo.processInfo.systemUptime) { return .init(state: .unknown, response: nil, process: process) }
         }
         completion.lock.lock(); let result = completion.result, failure = completion.failure, bytes = completion.bytes; completion.lock.unlock()
         if let failure { return .init(state: .completed, response: .init(failure: failure), process: process) }

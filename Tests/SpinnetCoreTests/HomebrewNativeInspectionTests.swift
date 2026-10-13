@@ -20,6 +20,42 @@ final class HomebrewNativeInspectionTests: XCTestCase {
     private var peer: HomebrewNativeInspection.Peer {
         .init(uid: 501, pid: 42, startIdentity: 123, auditSession: 7, designatedRequirementSHA256: digestValue)
     }
+    func testLargePagedReviewPersistsOnlyBoundedCursorAndCancellationNeverReplaysCapture() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try HomebrewNativeInspectionFileStore(directory: directory, owner: UInt32(getuid()))
+        let session = try HomebrewNativeInspectionSession(draft: draft(), peer: peer, store: store, now: 10)
+        try session.confirmInspection(peer: peer, now: 11)
+        try session.beginInspection(peer: peer, now: 12, checkAuthorization: { _ in true })
+        let targets = (0..<10_000).map { HomebrewNativeInspection.Target(receiptIDs: ["org.example.pkg"],
+            path: "/Library/Application Support/Example/" + String($0), action: .removeFile, size: 1, frozenSHA256: digestValue) }
+        let disclosure = HomebrewNativeInspection.Disclosure(receipts: [.init(identifier: "org.example.pkg", manifestSHA256: digestValue, fileCount: targets.count)], targets: targets)
+        let privateBytes = Data(repeating: 65, count: 8 * 1024 * 1024)
+        let summary = try session.completeInspection(.init(draftSHA256: try draft().sha256, ownershipSHA256: digestValue,
+            filesystemSHA256: digestValue, disclosure: disclosure, privateInventory: privateBytes), peer: peer, now: 13)
+        let collector = try HomebrewNativeInspectionReview(summary: summary, draft: draft())
+        var pages = 0
+        while collector.nextOffset < summary.disclosureBytes {
+            try collector.append(session.page(peer: peer, now: 14, seal: summary.seal, offset: collector.nextOffset))
+            pages += 1
+            let mutableBytes = try Data(contentsOf: directory.appendingPathComponent("state.json"))
+            XCTAssertLessThan(mutableBytes.count, 128 * 1024, "Per-page durable cursor cannot rewrite the complete multi-megabyte evidence")
+        }
+        XCTAssertGreaterThan(pages, 2)
+        XCTAssertEqual(try collector.finish(), disclosure)
+        let durable = try store.load()
+        XCTAssertEqual(durable.nextDisclosureOffset, summary.disclosureBytes)
+        XCTAssertEqual(durable.capture?.privateInventory, privateBytes)
+        let started = Date(); try session.cancel(peer: peer)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.5)
+        let restoredStore = try HomebrewNativeInspectionFileStore(directory: directory, owner: UInt32(getuid()))
+        let restored = try HomebrewNativeInspectionSession(recovering: restoredStore.load(), store: restoredStore)
+        XCTAssertEqual(restored.state, .cancelled)
+        XCTAssertFalse(restored.isLaneHeld)
+        XCTAssertThrowsError(try restored.prepareMutation(peer: peer, now: 15, finalPlan: finalPlanData(count: targets.count)))
+    }
+
     func testInspectionAuthorizationCannotAdmitMutationBeforeCompleteFinalHostReview() throws {
         let store = HomebrewNativeInspectionMemoryStore()
         let session = try HomebrewNativeInspectionSession(draft: draft(), peer: peer, store: store, now: 10)

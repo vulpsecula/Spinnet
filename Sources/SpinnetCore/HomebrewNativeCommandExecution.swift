@@ -36,13 +36,12 @@ public enum HomebrewNativeCommandExecution {
             })
         } catch { didReap(process); throw error }
         let deadline = ProcessInfo.processInfo.systemUptime + timeout
-        var stopDeadline: TimeInterval?
+        var stopGraceState = NativeStopGrace()
         while completion.done.wait(timeout: .now() + 0.05) == .timedOut {
             let now = ProcessInfo.processInfo.systemUptime
-            if stopDeadline == nil && (isCancelled() || now >= deadline) {
-                process.stop(); stopDeadline = now + stopGrace
-            }
-            if let stopDeadline, now >= stopDeadline {
+            completion.lock.lock(); let overflow = completion.outputTooLarge; completion.lock.unlock()
+            stopGraceState.observe(triggered: overflow || isCancelled() || now >= deadline, now: now, grace: stopGrace) { process.stop() }
+            if stopGraceState.hasExpired(at: now) {
                 // Completion may arrive immediately after this reply. Its
                 // callback alone releases the Root process/lane, never this path.
                 return Outcome(state: .unknown, result: nil, output: Data())
