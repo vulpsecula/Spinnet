@@ -154,6 +154,46 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertTrue(activities.list(for: .init("new-host")).isEmpty, "Recovery liveness must never restore a Plugin's authority")
     }
 
+    func testSelectedUpgradeReviewListsEveryResolvedPackageForSmallAndMaximumSelection() throws {
+        for count in [3, 50] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let packages: [JSONValue] = (0..<count).map { .object(["kind": .string("formula"), "name": .string("package\($0)"),
+                "tap": .string("homebrew/core"), "installed_version": .string("1"), "version": .string("2")]) }
+            let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+                executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(packages)]) }, trustedTaps: { [] })
+            let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string("formula"),
+                "names": .array((0..<count).map { .string("alias\($0)") })]))
+            let plan = try host.prepare(input, owner: .init("selected-upgrades"), pluginName: "Homebrew")
+            let details = try XCTUnwrap(plan.confirmation.details)
+            let rows = details.rows.filter { $0.id.hasPrefix("package-target/") }
+            XCTAssertEqual(rows.count, count)
+            for index in 0..<count { XCTAssertTrue(rows.contains { $0.id == "package-target/formula/package\(index)" && $0.title == "Upgrade package\(index)" && $0.detail.contains("1 → 2") }) }
+            XCTAssertFalse(details.rows.contains { $0.title.contains("alias") }, "Confirmation must use the same canonical names as execution")
+            host.decline(plan)
+        }
+    }
+
+    func testSelectedNativeUpgradeReviewKeepsOrdinaryPackagesAlongsideNativeActions() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packages: [JSONValue] = (0..<3).map { .object(["kind": .string("cask"), "name": .string("package\($0)"),
+            "tap": .string("homebrew/cask"), "installed_version": .string("1"), "version": .string("2"), "needs_privileges": .bool($0 == 2)]) }
+        let native = HomebrewPrivilegePlan.Cask(name: "package2", version: "2", sha256: RecordedNativeTaskInspection.digest, packages: ["New.pkg"])
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(packages)]) },
+            trustedTaps: { [] }, privilegeReview: { _, _, _ in [native] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string("cask"),
+            "names": .array((0..<3).map { .string("alias\($0)") })]))
+        let plan = try host.prepare(input, owner: .init("selected-native"), pluginName: "Homebrew")
+        let details = try XCTUnwrap(plan.confirmation.details)
+        let rows = details.rows.filter { $0.id.hasPrefix("package-target/") }
+        XCTAssertEqual(rows.count, 3)
+        for index in 0..<3 { XCTAssertTrue(rows.contains { $0.id == "package-target/cask/package\(index)" && $0.detail.contains("1 → 2") }) }
+        XCTAssertTrue(details.rows.contains { $0.detail.contains("New.pkg") })
+        host.decline(plan)
+    }
+
     func testAllUpgradeTargetsIncludingOrdinaryPackagesRemainVisibleInNativeFinalReview() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

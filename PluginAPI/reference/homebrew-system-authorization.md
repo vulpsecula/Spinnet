@@ -27,7 +27,9 @@ and target counts, and refuses changed, missing, repeated or oversized pages.
 The complete unselected ownership index stays private to the helper and is
 never returned to the Plugin or included in a Plugin response.
 
-The second Host Confirmation presents the complete selected file targets,
+The second Host Confirmation presents every resolved package target, including
+explicitly selected upgrades and ordinary packages in mixed native batches,
+and the complete selected file targets,
 retained directories, exact receipts to forget, and every other frozen native
 installer, executable, path, service and continuation declaration. Its
 Host-owned presentation retains at most 60,000 rows and 96 MiB of aggregate
@@ -89,7 +91,10 @@ process group, reports completion, or replays a command to resolve uncertainty.
 
 The surviving runner prevents idle system sleep. For orphaned work the Host
 acquires its own idle-system-sleep assertion until independently proven
-terminal execution; failure to acquire it is shown explicitly. Recovery
+terminal execution; failure to acquire it is shown explicitly. Recorded
+successful and failed results are preserved while unresolved execution keeps
+the lane and Stop control; checking Root liveness never changes them to
+`unknown`. Recovery
 inventory is complete within its bounds or explicitly unavailable and busy,
 never an idle result inferred from a truncated list. An incomplete inventory
 also retains Host sleep prevention and reports unavailable Stop ownership.
