@@ -266,6 +266,25 @@ final class PluginViewPanelTests: XCTestCase {
 /// without closing the view: the view's own operation is waiting on it.
 /// When the confirmation goes, the view has the keyboard again.
 final class HostConfirmationFocusTests: XCTestCase {
+    func testCompletePagedDisclosureFitsVisibleScreenAndKeepsCancelFocusBehavior() throws {
+        _ = NSApplication.shared
+        let rows = (0..<50_000).map { HostConfirmationDetails.Row(id: "target_\($0)", title: "Retain shared directory", detail: "/Library/Verified/\($0)") }
+        let details = try HostConfirmationDetails(title: "Concrete actions", summary: "50,000 entries; all targets are available across pages", rows: rows)
+        let panelOwner = HostConfirmationPanel()
+        let harness = try PluginViewHarness()
+        let dismiss = panelOwner.confirm(.init(title: "Confirm concrete removal", message: "Complete authenticated plan", confirmTitle: "Continue", isDestructive: true, details: details), for: try harness.action()) { _ in }
+        defer { dismiss() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let panel = try XCTUnwrap(NSApp.windows.first { $0 is ConfirmationNSPanel && $0.isVisible })
+        let screen = try XCTUnwrap(panel.screen)
+        XCTAssertLessThanOrEqual(panel.frame.height, screen.visibleFrame.height)
+        XCTAssertLessThanOrEqual(panel.frame.width, screen.visibleFrame.width)
+        XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
+        XCTAssertTrue(panel.isKeyWindow)
+        panel.cancelOperation(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertFalse(panel.isVisible)
+    }
     func testAConfirmationDoesNotCloseAnUnpinnedViewAndHandsTheKeyboardBack() throws {
         _ = NSApplication.shared
         let harness = try PluginViewHarness()

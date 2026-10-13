@@ -179,6 +179,10 @@
         "uninstall_needs_privileges": {
           "const": true,
           "description": "This cask has uninstall directives that may need system authorization. Upgrade and language reinstall may execute those directives too. Unsupported native directive classes are refused before mutation."
+        },
+        "zap_needs_privileges": {
+          "const": true,
+          "description": "Installed Zap directives may require system authorization only for explicitly requested uninstall with zap:true. This flag does not authorize plain uninstall or any Task itself."
         }
       }
     },

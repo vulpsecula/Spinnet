@@ -2,6 +2,22 @@ import XCTest
 @testable import SpinnetCore
 
 final class ReviewedToolReadTests: XCTestCase {
+    func testInstalledZapReviewAdviceDoesNotGrantOrdinaryUninstallAuthority() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let cask = prefix.appendingPathComponent("Caskroom/example/.metadata/1/20261012120000/Casks/example.json")
+        try FileManager.default.createDirectory(at: cask.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"token":"example","version":"1","tap":"homebrew/cask","artifacts":[{"app":["Example.app"]},{"zap":[{"delete":"~/Library/Application Support/Example"}]}]}"#.utf8).write(to: cask)
+        try Data(#"{"source":{"version":"1","tap":"homebrew/cask"},"uninstall_artifacts":[{"zap":[{"delete":"~/Library/Application Support/Example"}]}]}"#.utf8)
+            .write(to: prefix.appendingPathComponent("Caskroom/example/.metadata/INSTALL_RECEIPT.json"))
+        let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }, execute: { _, _, _, _ in
+            .init(status: 0, stdout: Data(#"{"formulae":[],"casks":[{"token":"example","version":"2","tap":"homebrew/cask","installed":["1"],"artifacts":[{"app":["Example.app"]}]}]}"#.utf8))
+        })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string("example")])]), owner: .init("zap-advice"))
+        XCTAssertEqual(result.value(atPointer: "/packages/0/zap_needs_privileges"), .bool(true))
+        XCTAssertNil(result.value(atPointer: "/packages/0/uninstall_needs_privileges"))
+    }
+
     func testInstalledHistorySpecialFileRefusesWithoutWaitingForAPipeWriter() throws {
         let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: prefix) }

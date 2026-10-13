@@ -369,8 +369,12 @@ final class HostConfirmationPanel: HostConfirming {
             guard self?.close(token) == true else { return }
             answer(response)
         }
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+        let visible = screen?.visibleFrame.size ?? NSSize(width: 800, height: 600)
+        let width = min(confirmation.details == nil ? 340 : 620, max(240, visible.width - 32))
+        let height = min(640, max(240, visible.height - 32))
         let hosting = NSHostingController(rootView: HostConfirmationContent(confirmation: confirmation,
-                                                                            respond: respond))
+            contentWidth: width, maximumHeight: height, respond: respond))
         hosting.sizingOptions = [.preferredContentSize]
         panel.contentViewController = hosting
         panel.titleVisibility = .hidden
@@ -430,12 +434,22 @@ final class ConfirmationNSPanel: NSPanel {
 
 private struct HostConfirmationContent: View {
     let confirmation: HostConfirmation
+    let contentWidth: CGFloat
+    let maximumHeight: CGFloat
     let respond: (HostConfirmationAnswer) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(confirmation.title).font(.headline)
-            Text(confirmation.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                Text(confirmation.message).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            }
+            .frame(height: min(confirmation.details == nil ? maximumHeight - 140 : 100,
+                               max(44, CGFloat(confirmation.message.count / 40 + 1) * 18)))
+            if let details = confirmation.details {
+                HostConfirmationDetailsContent(details: details, height: max(100, maximumHeight - 270))
+            }
             HStack {
                 Spacer()
                 // The default button, so Return declines too.
@@ -447,6 +461,54 @@ private struct HostConfirmationContent: View {
             }
         }
         .padding(16)
-        .frame(width: 340)
+        .frame(width: contentWidth - 32)
+    }
+}
+
+
+/// The whole validated disclosure stays in the Host; only one bounded page
+/// becomes SwiftUI rows. Selection cannot change the mutation plan.
+private struct HostConfirmationDetailsContent: View {
+    let details: HostConfirmationDetails
+    let height: CGFloat
+    @State private var page = 0
+    private var visibleRows: ArraySlice<HostConfirmationDetails.Row> {
+        let offset = page * HostConfirmationDetails.pageSize
+        return details.rows[offset..<min(details.rows.count, offset + HostConfirmationDetails.pageSize)]
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(details.title).font(.headline)
+            ScrollView { Text(details.summary).font(.callout).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
+                .frame(maxHeight: 70)
+            List(visibleRows) { row in
+                HostConfirmationDetailRow(row: row)
+            }
+            .frame(height: max(60, height - 100))
+            HStack {
+                Button("Previous") { page -= 1 }.disabled(page == 0)
+                Picker("Page", selection: $page) {
+                    ForEach(0..<details.pageCount, id: \.self) { number in
+                        Text("\(number + 1) of \(details.pageCount)").tag(number)
+                    }
+                }.frame(maxWidth: 170)
+                Button("Next") { page += 1 }.disabled(page + 1 == details.pageCount)
+                Spacer()
+                Text("\(details.rows.count) entries").font(.caption)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(details.title)
+    }
+}
+private struct HostConfirmationDetailRow: View {
+    let row: HostConfirmationDetails.Row
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(row.title).font(.callout).fontWeight(.medium)
+            Text(row.detail).font(.caption).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

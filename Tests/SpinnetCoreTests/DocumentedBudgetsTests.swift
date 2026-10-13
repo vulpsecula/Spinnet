@@ -468,3 +468,12 @@ final class ActivityPresentationBudgetsTests: XCTestCase {
         XCTAssertTrue(reference.contains("at most 8"))
     }
 }
+
+/// Host-only confirmation presentation; docs/adr/0017-manage-ongoing-plugin-effects-and-tasks-in-the-host.md.
+final class HostConfirmationDisclosureBudgetsTests: XCTestCase {
+    func testCompleteDisclosurePresentationBudgetsMatchADR0017() {
+        XCTAssertEqual(HostConfirmationDetails.maximumRows, 60_000)
+        XCTAssertEqual(HostConfirmationDetails.maximumBytes, 100_663_296)
+        XCTAssertEqual(HostConfirmationDetails.pageSize, 100)
+    }
+}

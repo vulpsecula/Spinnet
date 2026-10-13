@@ -5,6 +5,23 @@ import SpinnetPluginTestKit
 /// Tests the approved resource/OS boundary: callers observe Host activities
 /// and the resource they own, without reaching into registry storage.
 final class HostActivitiesTests: XCTestCase {
+    func testReadOnlyInspectionHasAHostStopControlWithoutPluginVisibility() throws {
+        let activities = HostActivities(), owner = PluginID("com.example.brew")
+        var stopped = false
+        let inspection = try activities.register(owner: owner, pluginName: "Homebrew", kind: "inspection",
+            status: "Awaiting read-only receipt inspection", visibleToOwner: false, removesOnStop: false, stop: { stopped = true })
+        XCTAssertTrue(activities.list(for: owner).isEmpty)
+        XCTAssertEqual(activities.list().map(\.id), [inspection.id])
+        XCTAssertFalse(activities.stop(inspection.id, for: owner))
+        activities.updateStatus(inspection.id, status: "Stopping inspection; waiting for owned worker")
+        XCTAssertEqual(activities.list().first?.status, "Stopping inspection; waiting for owned worker")
+        XCTAssertTrue(activities.stop(inspection.id))
+        XCTAssertTrue(stopped)
+        XCTAssertEqual(activities.list().count, 1, "Stop is not proof a worker was reaped")
+        activities.removeEndedTask(inspection.id)
+        XCTAssertTrue(activities.list().isEmpty)
+    }
+
     func testOnlyTheOwnerOrHostCanStopAResourceAndItIsReleasedOnce() throws {
         let activities = HostActivities()
         let owner = PluginID(rawValue: "com.example.coffee")

@@ -16,6 +16,16 @@ from aliases or renames are frozen in the confirmed Task, and existing canonical
 item trust can authorize a package without granting its entire tap. A qualified
 selector does not itself grant source trust.
 
+Receipt-owned native removal first asks a separate Host Confirmation for
+read-only inspection of all installed receipt ownership metadata and any
+needed signed helper setup. After inspection, the Host validates the complete
+selected disclosure and shows every concrete action in its own paged final
+confirmation. Only an affirmative final confirmation requests fresh mutation
+authorization. Cancelling before admission retains a private Host Stop/liveness
+entry until owned workers are reaped; restarting restores status without
+replaying work or restoring authority. No inspection draft, native seal,
+unselected owner index or administrator credential is a Plugin API value.
+
 Link/unlink binds a complete bounded change ledger with planned sources,
 metadata and directory effects. No-op or incomplete link plans cannot proceed
 to confirmation; launch repeats the read-only preview and refuses changed
@@ -119,3 +129,8 @@ when the gesture came from one package. Reads never trigger this mutation;
 follow the recorded Task through `activities.list`, then invalidate local
 catalog/detail caches and perform fresh reads. Package operations independently
 revalidate current metadata and source trust after the update.
+
+Installed package metadata may include `zap_needs_privileges:true`. It is
+read-only advice, used for native review only when the actual requested Task
+is `uninstall` with `zap:true`; ordinary uninstall does not inherit Zap
+authority. The Host separately confirms exact native declarations and grants.

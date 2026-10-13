@@ -261,6 +261,7 @@ extension HomebrewManagementReadTests {
             if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
             if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","full_name":"acme/tools/wget","tap":"acme/tools","versions":{"stable":"1.25"},"installed":[]}],"casks":[]}"#.utf8)) }
             if args.first == "trust" { return .init(status: 0, stdout: Data("[]".utf8)) }
+            if args.first == "host-trust" { return .init(status: 0, stdout: Data("[]".utf8)) }
             dryRuns += 1
             return .init(status: 0, stdout: Data())
         })

@@ -1,138 +1,177 @@
 # Homebrew system authorization
 
-System administrator authorization follows the concrete Host Confirmation.
-It grants no new Plugin entry point, shell access or administrator credentials.
-The signed Host registers its bundled `SMAppService` launch daemon. macOS may
-require the user to enable that helper in Login Items; an unavailable or
-unapproved helper refuses the Task before mutation starts. An ad-hoc build
-cannot use this route.
+Privileged work follows Host-generated confirmations and macOS system
+administrator authorization. It grants no new Plugin entry point, arbitrary
+shell access, path, installer choice or administrator credential. An ad-hoc
+Host build cannot use the signed native route. Homebrew itself remains the
+current user; ordinary sudo and automatic mutation retry remain refused.
 
-After confirmation and revalidation, a Host-only XPC endpoint admits the
-concrete privileged plan into root-helper memory. This endpoint enforces the
-stable signing team and Host executable identifier. The admission expires
-after 60 seconds and is consumed once: a signed runner must be a direct child
-of that admitting Host process, with matching kernel start identity and an
-exactly equal plan. A same-user process cannot obtain privileged admission by
-launching the signed runner with a fabricated journal. The private user-owned
-journal supplies recovery state and is never privileged authority.
+## Receipt inspection and concrete confirmation
 
-Once admitted, the independent signed Task runner owns its concrete Task,
-selected cask checksum/artifacts or reviewed Doctor directories even after
-Host exit. All three XPC endpoints enforce the signing team and designated
-executable identifier on messages. The native authorization client must descend from that runner.
-Each concrete privileged operation creates a fresh request-bound administrator
-right; it expires and is consumed once. Authorization forms remain only in
-native memory and XPC, never Plugin responses, argv, environment, journals or
-logs. Stop reaches supervised privileged subprocesses and prevents subsequent
-operations; earlier changes remain.
-If communication with the privileged helper is lost after authorization, the
-Task reports `unknown` and never retries. Installer work may already have
-changed the system; that refusal is not evidence of rollback or a clean state.
+Removing receipt-owned files needs two Host Confirmations. The first names
+the selected packages and discloses a read-only inspection of **all installed
+receipt ownership metadata**, including unselected owners needed to prove
+exclusivity. It also discloses registration of Spinnet's bundled signed
+reviewed-tool helper when needed. Helper setup runs only after this trusted
+confirmation; macOS may require the user to enable it in Login Items. The
+Host opens the relevant System Settings page and reports unavailability
+until approval is complete. Ordinary metadata reads never register a helper.
+An unavailable or unapproved helper changes no installed package.
 
-Homebrew itself remains the current user with ordinary sudo refused. A sealed
-Host Ruby adapter checks reviewed Homebrew source SHA-256 digests before
-dispatch. A different source revision requires review and is unavailable.
-For privileged cask installation, upgrade or language reinstallation, the
-reviewed adapter supports immutable-checksum flat `.pkg` downloads and flat
-`.pkg` artifacts inside `.dmg` downloads. The helper copies and verifies the
-approved download in root-owned private staging; DMGs mount read-only and the
-selected package is verified again before `/usr/sbin/installer` runs. Missing
-checksums, custom installers, non-flat packages, other archive containers,
-installer choices and unreviewed privileged uninstall directives are unavailable with
-manual Homebrew guidance. The Plugin must present these concrete refusals,
-and must not imply universal privileged cask support.
+After setup, the authenticated helper reserves the exact draft. A separate
+inspection-only administrator right allows its fixed read-only inventory
+worker to inspect receipt metadata. That right cannot authorize a mutation.
+The Host receives a bounded summary and **every page** of the selected
+concrete disclosure, verifies the complete byte count, digest, receipt counts
+and target counts, and refuses changed, missing, repeated or oversized pages.
+The complete unselected ownership index stays private to the helper and is
+never returned to the Plugin or included in a Plugin response.
 
-The reviewed privileged uninstall class supports exact system launch-daemon
-labels for installed application casks. The Host freezes each root-owned,
-non-writable, single-link plist's label, checksum, device and inode before
-confirmation and rechecks it before removal. The helper stops the exact
-system service, verifies absence, and removes only that same plist; it never
-accepts a path or wildcard from a Plugin. LaunchAgents, Apple service labels,
-scripts, kexts and Zap remain outside this class.
+The second Host Confirmation presents the complete selected file targets,
+retained directories, exact receipts to forget, and every other frozen native
+installer, executable, path, service and continuation declaration. Its
+Host-owned presentation retains at most 60,000 rows and 96 MiB of aggregate
+UTF-8 text across all categories, with 100 rows per page. Paging never drops
+rows or grants authority to a preview. Cancel is the default; presenting the
+panel does not activate Spinnet. Declared installer or vendor-code actions
+can have further effects; their immutable source and exact options are
+shown, rather than claiming to predict every action of that code.
 
-The receipt removal class resolves recorded receipt expressions through the
-bounded native read interface and admits only exact non-Apple identifiers from
-data-only recorded installed cask history. The Host binds its exact token,
-recorded tap and version to the selected package, checks that recorded tap's
-current trust before confirmation and launch, and discloses it as locally
-recorded history. It does not claim immutable upstream ownership from editable
-local metadata. A mismatched current catalog source is refused. The reader
-uses no-follow ancestor descriptors, bounded reads and bounded timestamp
-enumeration. The sealed Ruby adapter delegates revalidation to the signed
-native client. It never evaluates an installed
-Ruby recipe or substitutes the current catalog for missing history. The Host
-resolves relative and trailing-slash native install locations against the
-declared volume. It intersects the complete native receipt inventory using
-package information, selected receipt exports and compact unselected file
-lists; missing `file-info` indexing never establishes exclusivity. Physical
-ancestor and file identities account for location and case aliases. The
-inventory admits at most 2,000 receipts, 50,000 candidate paths, 4 MiB per
-selected export and 16 MiB/250,000 names per unselected file list, with 64 MiB
-of aggregate read metadata; incomplete or
-over-budget ownership is an explicit refusal. The Host builds one index for
-the batch, and the native helper reconstructs it before mutation.
-It then freezes the canonical native exported receipt and a manifest of existing file identities and content hashes,
-with at most 10,000 entries and a 30-second aggregate read deadline. Each file
-must belong only to receipts selected in the confirmed batch, be root-owned
-and non-writable (including extended ACL authority). Reviewed locations are
-Applications, Library Application Support, PrivilegedHelperTools, Frameworks,
-Fonts, exact LaunchDaemons, and receipt-derived usr/local bin, lib and share
-entries. Frozen symbolic links can be removed without following their targets.
-Multiple hard links, special files and unselected or unknown ownership refuse
-before confirmation. Ordinary writable containers such as Applications are
-supported through descriptor-based private quarantine rather than trusted for
-direct deletion. No expression reaches privileged execution.
-The manifest establishes current receipt ownership and file identity; pkgutil
-file names do not establish original installer payload checksums.
+Only an affirmative final confirmation can request a **fresh, separate
+mutation right**. The helper reconstructs the installed history, source
+provenance, declarations, complete ownership and filesystem evidence again
+before admission. A changed plan requires a new review. Receipt inspection
+has a 30-second aggregate inventory deadline; the helper's inspection/review
+reservation lasts at most 120 seconds. Selected disclosure has at most
+50,000 targets, 8 GiB of existing file bytes and 96 MiB of wire data; each page
+has at most 720 KiB of payload and a 1 MiB encoded message. A summary alone
+never authorizes removal.
 
-After native authorization, the helper rebuilds and matches the full manifest,
-before the first mutation, then rechecks each identity, content and ACL with
-its parent descriptor open. It atomically moves each exact entry into private
-quarantine and rechecks it before deletion. It
-removes receipt-owned files and empty directories before forgetting the exact
-receipt. Nonempty directories remain. Any failure or Stop leaves the receipt
-intact unless all required removals already succeeded; prior changes remain.
-Daemon-only receipts account for verified daemon removals in the same plan.
-Directory size and modification times changed by admitted child removals do
-not invalidate a later receipt; owner, ACL and inode identity still must match.
-A restore collision preserves original bytes at a concrete recovery location
-reported to the Host; automatic cleanup never deletes retained files.
-Hashing observes cancellation and the shared read deadline. Each native
-rename/delete step shares the Task's Stop lock, so an acknowledged Stop
-prevents the next step without waiting for hashing. Repeated exact receipts
-or daemon labels across selected casks reuse only matching completed authority
-in that same running Task. A final no-follow presence check detects recreated
-files and dangling links before receipt forgetting.
-Receipt forgetting alone is never reported as an uninstall. The Host
-Confirmation names each receipt and its reviewed entry count. Concrete removal
-details exceeding 8 KiB refuse the Task before confirmation rather than being
-silently truncated.
+Closing the initiating view, owner invalidation, Cancel, expiry or Host exit
+cancels pre-admission work. The Host retains a private Stop/status entry and
+the shared lane while an owned worker remains unreaped. A request to stop is
+not proof of reaping. On restart the Host restores only authenticated
+liveness, never an old credential, seal, final confirmation or mutation.
+Unknown recovery evidence keeps the lane busy. Another account's native
+operation exposes liveness only, with no recovered right to stop or mutate it.
 
-For upgrades and language reinstalls, the Host freezes the installed
-predecessor version/history independently of the successor checksum and
-artifacts. The same receipt and daemon classes can remove only that frozen
-predecessor; installation remains bound to the successor's Caskroom version.
-Before Homebrew dispatch, the sealed Ruby adapter rechecks the installed
-history fingerprint. A current application-only catalog entry does not hide
-an installed predecessor's privileged uninstall requirements.
+## Native admission and execution
 
-Vendor scripts, non-flat/other archive containers, installer choices,
-LaunchAgents, Zap and mutable-checksum download
-staging remain explicit implementation requirements; these reviewed classes
-do not establish complete elevated cask compatibility.
+The Host-only XPC admission endpoint enforces the stable signing team and
+Host executable identifier. Admission expires after 60 seconds and is
+consumed once: the signed runner must be a direct child of the admitting
+Host, with matching kernel start identity and an exactly equal plan. A
+same-user process cannot obtain admission by launching the runner with a
+fabricated journal. A user-owned journal supplies status recovery and is
+never privileged authority.
 
-Doctor recognizes only the exact reviewed ownership recommendation for fixed
-Homebrew prefix subdirectories, alongside other reviewed cleanup/link fixes.
-Its opaque target expires, is bound to the report and freezes current directory
-identity/ownership before confirmation. The helper changes only root-owned
-entries to the requesting user, through descriptor-relative traversal on the
-same filesystem. Symbolic links, files with multiple hard links, special files,
-more than 100,000 entries, depth above 64 or work exceeding two minutes refuse
-the repair. It executes no printed command text, recursive shell expression or
-permission-mode change. A refusal or Stop can follow partial changes and never
-promises rollback. Unknown Doctor recommendations stay visible and copyable
-for manual review.
+After admission, the independent signed Task runner continues confirmed work
+if the Host crashes. Each concrete elevated operation receives a fresh,
+request-bound administrator right. Native endpoints independently enforce
+their designated executable identifiers. Authorization external forms remain
+only in the signed native client and XPC; no credential enters Plugin data,
+argv, environment, journal or logs. Stop reaches supervised native children
+and prevents later steps; earlier changes remain. Lost authenticated results
+are `unknown`, with no retry, replay or claim of rollback.
 
-These boundaries are implementation coverage, not proof of real installer,
-administrator-prompt or repair acceptance. Native mutating acceptance requires
-a suitable disposable environment and the user's system approval.
+The fixed Ruby adapter and native source readers check reviewed Homebrew
+bootstrap/loader/artifact source digests. Drift checks do not claim to seal an
+entire mutable Homebrew installation. A changed or unsupported source
+revision requires review and produces explicit unavailability.
+
+## Reviewed native artifact classes
+
+The native implementation supports flat and directory `.pkg`/`.mpkg`
+artifacts, read-only DMG payloads, and reviewed archive decoding, including
+ZIP, tar and native XAR/PBZX package members. Root does not load archive
+parsers: a signed bootstrap irreversibly drops identity/groups, applies fixed
+resource limits and a deny-by-default sandbox, and runs a fixed unprivileged
+decoder. Root independently validates bounded frames and builds private
+staging with exclusive, no-follow creation. Unsafe traversal, links,
+collisions, unsupported formats, expansion beyond bounds, incomplete output
+or cancellation refuse staging. Native tools and payloads use separate
+immutable/private staging authorities.
+
+Installer options are derived only from reviewed source metadata. Native
+choices, choice toggles, permitted custom locations and `allowUntrusted` are
+bound to the concrete plan and disclosed; a Plugin supplies none of them.
+Verified native continuation evidence may report `restart_required`,
+`logout_required` or `shutdown_required`. These are incomplete outcomes;
+Spinnet never performs those system actions automatically.
+
+Vendor installers, uninstall/Zap scripts and generated scripts/resources
+require immutable source and executable-origin evidence. Editable installed
+history is data for target selection, not executable provenance. Published
+source, effective language/configuration, exact archive member, executable
+bytes, arguments and generated content remain bound together. Missing or
+unreviewed provenance refuses the operation. A generated script cannot be
+substituted by a same-named file in a user-owned extraction directory.
+
+For `no_check` downloads, the Host freezes an exact bounded snapshot before
+confirmation, including its URL, byte count, SHA-256, source and effective
+configuration. Confirmation clearly identifies the absence of a publisher
+checksum. Launch revalidates and uses that snapshot; it never silently
+fetches a newer download. Snapshot/download and payload limits remain 8 GiB;
+archive and native payload staging admit at most 50,000 entries. The exact
+selected language is frozen for language reinstallation and metadata reads.
+
+Manual GUI installers are opened through a reviewed continuation. Opening
+one is not verified installation: the Task reports
+`manual_installation_required` and remains failed/incomplete. Manual-only
+plans do not borrow administrator authorization for work they cannot perform.
+
+## Installed removal and ownership
+
+Receipt expressions are resolved into exact non-Apple receipt identifiers
+from bounded, data-only installed history. The Host binds the installed
+version, tap, fingerprint and selected declarations independently of a
+successor's current metadata. It checks the recorded source's current trust
+and refuses source mismatches. It never evaluates installed Ruby history or
+uses the current catalog as a substitute for missing history.
+
+The complete owner index includes selected exports and compact unselected
+file lists. Missing native `file-info` indexes never establish exclusivity.
+Physical ancestor/leaf identities account for location, case aliases,
+firmlinks and known mount topology. Unknown filesystem/driver identity,
+protected unreadable metadata, incomplete enumeration, multiple hard links,
+special files or unselected ownership refuse proof. The bounded index admits
+at most 2,000 receipts, 50,000 candidates, 4 MiB per selected export,
+16 MiB/250,000 names per unselected file list, and 64 MiB aggregate read
+metadata. Separate supervised workers retain the lane until actual reaping;
+blocking native calls do not become permission to skip an owner.
+
+Reviewed receipt locations include Applications, selected Library locations
+and receipt-derived usr/local bin, lib and share entries. Exact frozen links
+can be removed without following targets. Descriptor-relative private
+quarantine supports ordinary writable containers without trusting them for
+direct deletion. Root rebuilds and compares full evidence before mutation,
+then rechecks each file's identity, content and ACL with its parent open.
+Only successfully removed exclusive files and empty directories permit
+forgetting an exact receipt. Nonempty directories remain. A restore collision
+retains bytes at a concrete recovery location; automatic cleanup never deletes
+retained files. Receipt metadata alone is never reported as an uninstall.
+
+Reviewed `delete`/`rmdir` and explicit Zap paths use separate bounded frozen
+manifests and display concrete matches, retained directories and unmatched
+expressions. Their related-data scope does not imply receipt exclusivity;
+shared settings may be deleted. `zap_needs_privileges` is advice only and
+applies solely to an actual `uninstall` request with `zap:true`.
+
+Launch services bind exact domains, labels, jobs, plist identities and
+selected file removals, including reviewed LaunchAgents and LaunchDaemons.
+Kernel-extension removal binds exact identifiers and concrete paths. Required
+restart, SIP/TCC/FDA, system approval or missing provenance remains an
+explicit incomplete/manual boundary; no permission is bypassed and generic
+exit codes never fabricate verified continuation evidence.
+
+Doctor executes only reviewed typed repairs, including fixed Homebrew
+ownership subdirectories. It never executes printed commands or arbitrary
+shell repair text. Ownership repair remains bounded to 100,000 entries,
+depth 64 and two minutes; symlinks, multiple hard links, special files or
+changed evidence refuse. Stop can follow partial changes and never promises
+rollback. Unsupported recommendations remain manual guidance.
+
+These descriptions identify implemented code paths and refusal boundaries.
+They do not establish real administrator-prompt, Root identity-drop, installer,
+repair or native UX acceptance. Final acceptance requires the signed Host,
+the user's system approval and a suitable disposable mutation environment.

@@ -13,9 +13,10 @@ public struct HostActivity: Equatable {
     /// Whole seconds left from the resource's monotonic clock, not wall time.
     public let remainingSeconds: Int?
     public var detail: JSONValue? = nil
-    public var canStop: Bool { kind != "task" || detail?.value(atPointer: "/status") == .string("running") }
+    public var canStop: Bool { kind != "native_lane" && (kind != "task" || detail?.value(atPointer: "/status") == .string("running")) }
 
     public var name: String {
+        if kind == "inspection" { return "\(pluginName.prefix(128)) — Native Inspection" }
         if kind == "task", case .string(let task)? = detail?.value(atPointer: "/name") { return "\(pluginName.prefix(128)) — \(task.prefix(128))" }
         return "\(pluginName) — \(kind == "keep_awake" ? "Keep Awake" : "Activity")"
     }
@@ -43,7 +44,7 @@ public final class HostActivities {
     @discardableResult
     public func register(owner: PluginID, pluginName: String, kind: String, status: String,
                          expiresAt: Date? = nil, remainingSeconds: (() -> Int)? = nil,
-                         id: String? = nil, removesOnStop: Bool = true, stop: @escaping () -> Void) throws -> HostActivity {
+                         id: String? = nil, visibleToOwner: Bool = true, removesOnStop: Bool = true, stop: @escaping () -> Void) throws -> HostActivity {
         lock.lock()
         guard entries.count < Self.maximumTotal,
               entries.values.filter({ $0.activity.owner == owner }).count < Self.maximumPerPlugin else {
@@ -53,7 +54,7 @@ public final class HostActivities {
         let activity = HostActivity(id: id ?? "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
                                     owner: owner, pluginName: String(pluginName.prefix(256)), kind: kind,
                                     status: status, expiresAt: expiresAt, remainingSeconds: remainingSeconds?())
-        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop, removesOnStop: removesOnStop)
+        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop, visibleToOwner: visibleToOwner, removesOnStop: removesOnStop)
         let changed = Array(observers.values)
         lock.unlock()
         changed.forEach { $0() }
@@ -120,6 +121,19 @@ public final class HostActivities {
         entry.activity = HostActivity(id: id, owner: held.owner, pluginName: held.pluginName, kind: "task", status: status, expiresAt: nil, remainingSeconds: nil)
         entry.activity.detail = detail
         entry.visibleToOwner = !detached
+        entries[id] = entry
+        let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
+    }
+
+    /// Private Host resources retain their Stop entry until their adapter
+    /// proves completion. Updating text never changes Plugin visibility.
+    public func updateStatus(_ id: String, status: String) {
+        lock.lock()
+        guard var entry = entries[id] else { lock.unlock(); return }
+        let held = entry.activity
+        entry.activity = HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
+            status: String(status.prefix(512)), expiresAt: held.expiresAt, remainingSeconds: held.remainingSeconds,
+            detail: held.detail)
         entries[id] = entry
         let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
     }

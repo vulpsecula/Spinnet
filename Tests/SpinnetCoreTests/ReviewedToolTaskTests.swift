@@ -3,6 +3,192 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
+    func testCancellingPreparationSignalsWorkerAndHoldsLaneUntilActualCompletion() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let started = DispatchSemaphore(value: 0), stopped = DispatchSemaphore(value: 0), reap = DispatchSemaphore(value: 0)
+        let done = expectation(description: "cancelled preflight actually ended")
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, cancellablePreflight: { _, cancellation in
+            let remove = cancellation.onCancel { stopped.signal() }; defer { remove() }
+            started.signal()
+            guard stopped.wait(timeout: .now() + 2) == .success else { throw PluginHostServiceError.tool(.timedOut) }
+            guard reap.wait(timeout: .now() + 2) == .success else { throw PluginHostServiceError.tool(.timedOut) }
+            throw PluginHostServiceError.unavailable("The preflight was cancelled")
+        })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("example")]))
+        let owner = PluginID("source-review")
+        DispatchQueue.global().async {
+            do { _ = try host.prepare(input, owner: owner, pluginName: "Homebrew"); XCTFail("Cancelled preparation succeeded") }
+            catch { XCTAssertEqual(error as? PluginHostServiceError, .unavailable("The preflight was cancelled")) }
+            done.fulfill()
+        }
+        XCTAssertEqual(started.wait(timeout: .now() + 2), .success)
+        host.cancelPending(for: owner)
+        XCTAssertTrue(host.hasRunningTasks, "Cancellation is not a proof the owned worker reaped")
+        XCTAssertThrowsError(try host.prepare(input, owner: PluginID("other"), pluginName: "Other")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+        reap.signal(); wait(for: [done], timeout: 3)
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path), "No mutation journal or replay authority is created by cancelled preparation")
+    }
+    private final class WaitingNativeConfirmation: HostConfirming {
+        var shown: [HostConfirmation] = []
+        var answers: [(HostConfirmationAnswer) -> Void] = []
+        func confirm(_ confirmation: HostConfirmation, for action: ActionConfiguration, answer: @escaping (HostConfirmationAnswer) -> Void) -> () -> Void {
+            shown.append(confirmation); answers.append(answer); return {}
+        }
+    }
+    func testRequestedTaskOperationRoutesBothConfirmationsAndViewClosureCancelsBeforeAdmission() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let activities = HostActivities(), transport = RecordedNativeTaskInspection()
+        transport.heldAfterCancel = true
+        let owner = PluginID("com.example.native-receipts")
+        let command = CommandDeclaration(id: .init("uninstall"), title: "Uninstall", execution: .javascript, script: "uninstall.js")
+        let scope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["uninstall"], kinds: ["cask"])])
+        let manifest = try PluginManifest(apiLevel: 2, id: owner, name: "Homebrew", version: "1.0", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
+        let package = PluginPackage(rootURL: root, manifest: manifest, origin: .installed)
+        let registry = PluginRegistry(); try registry.register(package)
+        let action = try ActionConfiguration(id: .init("uninstall"), pluginID: owner, command: command, input: .null)
+        let host = HostReviewedToolTasks(activities: activities, journal: root.appendingPathComponent("journal"), runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in RecordedNativeTaskInspection.metadata },
+            trustedTaps: { [] }, privilegeReview: { _, _, _ in [RecordedNativeTaskInspection.cask] },
+            nativeInspection: transport, inspectionDraft: { plan in try transport.draft(taskID: plan.activityID) }, prepareSystemAuthorization: {})
+        let confirmation = WaitingNativeConfirmation()
+        let performer = ReviewedTaskOperationPerformer(tasks: host, confirmations: confirmation, registry: registry, background: { $0() }, executor: { $0() }, schedule: { _, _ in })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        var outcomes: [HostOperationOutcome] = []
+        performer.perform(input, for: action, accepted: performer.accept(owner: owner), authorize: {}, completion: { outcomes.append($0.outcome) })
+        XCTAssertEqual(confirmation.shown.count, 1)
+        XCTAssertEqual(transport.inspections, 0)
+        confirmation.answers[0](.confirmed)
+        XCTAssertEqual(confirmation.shown.count, 2)
+        XCTAssertNotNil(confirmation.shown[1].details)
+        XCTAssertEqual(transport.inspections, 1)
+        XCTAssertTrue(outcomes.isEmpty)
+        performer.abandon(owner, because: .viewClosed)
+        confirmation.answers[1](.confirmed)
+        XCTAssertEqual(outcomes, [.cancelled])
+        XCTAssertEqual(transport.admissions, 0)
+        XCTAssertTrue(host.hasRunningTasks, "A cancelled read-only worker still owns its lane until Root confirms reaping")
+        XCTAssertTrue(activities.list(for: owner).isEmpty)
+        XCTAssertEqual(activities.list().filter { $0.kind == "inspection" }.count, 1)
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("other"), pluginName: "Other")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+        transport.heldAfterCancel = false; host.refresh()
+        let reaped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !host.hasRunningTasks }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reaped], timeout: 2), .completed)
+        XCTAssertTrue(activities.list().isEmpty)
+    }
+
+    func testReceiptInspectionRequiresTwoHostConfirmationsAndTheWholeConcreteReview() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = RecordedNativeTaskInspection()
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/usr/bin/true"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in RecordedNativeTaskInspection.metadata },
+            trustedTaps: { [] }, privilegeReview: { _, _, _ in [RecordedNativeTaskInspection.cask] },
+            nativeInspection: transport, inspectionDraft: { plan in try transport.draft(taskID: plan.activityID) }, prepareSystemAuthorization: {})
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        let first = try host.prepare(input, owner: .init("receipt-browser"), pluginName: "Homebrew")
+        XCTAssertTrue(first.requiresNativeInspection)
+        XCTAssertTrue(first.confirmation.message.contains("all installed receipts"))
+        XCTAssertNil(first.confirmation.details)
+        XCTAssertEqual(transport.inspections, 0, "Read-only system authorization follows the first Host confirmation")
+        XCTAssertThrowsError(try host.launch(first), "A summary cannot be admitted as the concrete mutation")
+        let reaped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !host.hasRunningTasks }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reaped], timeout: 2), .completed)
+        let initial = try host.prepare(input, owner: .init("receipt-browser"), pluginName: "Homebrew")
+        let final = try host.completeInspection(initial)
+        XCTAssertFalse(final.requiresNativeInspection)
+        XCTAssertEqual(transport.inspections, 1)
+        let details = try XCTUnwrap(final.confirmation.details)
+        XCTAssertTrue(details.rows.contains { $0.detail.contains("/Library/Example/file") })
+        XCTAssertTrue(details.rows.contains { $0.detail.contains("/Library/Example/keep") && $0.title.contains("Retain") })
+        XCTAssertTrue(details.rows.contains { $0.detail.contains("org.example.receipt") && $0.title.contains("Forget") })
+        XCTAssertEqual(transport.admissions, 0, "The second Host confirmation has not answered")
+        _ = try host.launch(final)
+        XCTAssertEqual(transport.admissions, 1)
+    }
+
+    func testNativeInstallerConfirmationShowsChoicesAndVendorCodeAndManualPlansDoNotClaimRootWork() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let choices = [HomebrewPrivilegePlan.PackageInstaller.Choice(identifier: "component", customLocation: "/Applications")]
+        let native = HomebrewPrivilegePlan.Cask(name: "example", version: "1", sha256: RecordedNativeTaskInspection.digest, packages: ["Example.pkg"],
+            packageInstallers: [.init(path: "Example.pkg", choices: choices, allowUntrusted: true)],
+            nativeScripts: [.init(phase: .install, executable: "install.sh", arguments: ["--quiet", "component"])])
+        let manual = HomebrewPrivilegePlan.Cask(name: "example", version: "1", sha256: RecordedNativeTaskInspection.digest, packages: [], manualInstallers: ["Installer.app"])
+        for binding in [native, manual] {
+            let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+                executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "needs_privileges": .bool(true)]) },
+                trustedTaps: { [] }, privilegeReview: { _, _, _ in [binding] })
+            let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("cask"), "name": .string("example")]))
+            let plan = try host.prepare(input, owner: .init("installer-review"), pluginName: "Homebrew")
+            let details = try XCTUnwrap(plan.confirmation.details)
+            if binding == native {
+                XCTAssertTrue(details.rows.contains { $0.detail.contains("Example.pkg") && $0.detail.contains("component") && $0.detail.contains("/Applications") && $0.detail.contains("allowUntrusted") })
+                XCTAssertTrue(details.rows.contains { $0.detail.contains("install.sh") && $0.detail.contains("--quiet") })
+            } else {
+                XCTAssertTrue(details.rows.contains { $0.detail.contains("Installer.app") && $0.detail.contains("not verified installation") })
+                XCTAssertFalse(plan.needsSystemAuthorization)
+                XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization is required"))
+            }
+            host.decline(plan)
+        }
+    }
+
+    func testRootRecoveryLaneBlocksNewOrdinaryTaskWithoutRestoringOldAuthority() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = RecordedNativeTaskInspection(); transport.laneBusy = true
+        var metadataReads = 0
+        let activities = HostActivities()
+        let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in metadataReads += 1; return .object([:]) },
+            nativeInspection: transport)
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("wget")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("new-host"), pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+        XCTAssertEqual(metadataReads, 0)
+        XCTAssertEqual(transport.admissions, 0)
+        XCTAssertTrue(host.hasRunningTasks)
+        XCTAssertTrue(activities.list(for: .init("new-host")).isEmpty, "Recovery liveness must never restore a Plugin's authority")
+    }
+
+    func testUninstallDoesNotBorrowTheCurrentCatalogInstallerAuthorization() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var nativeReviews = 0
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "installed_version": .string("1"), "needs_privileges": .bool(true)])
+            }, trustedTaps: { [] }, privilegeReview: { _, _, _ in nativeReviews += 1; throw PluginHostServiceError.tool(.planChanged) })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
+        let plan = try host.prepare(input, owner: .init("ordinary-removal"), pluginName: "Homebrew")
+        XCTAssertFalse(plan.needsPrivileges)
+        XCTAssertEqual(nativeReviews, 0)
+        XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization"))
+        host.decline(plan)
+    }
+
+    func testNativeZapAdmissionFlagAppliesOnlyToExplicitUninstallZap() throws {
+        for zap in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            var nativeReviews = 0
+            let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "installed_version": .string("1"), "zap_needs_privileges": .bool(true)])
+            }, privilegeReview: { _, _, _ in
+                nativeReviews += 1
+                return [.init(name: "example", version: "1", sha256: "", packages: [], nativeScripts: [.init(phase: .zap, executable: "zap.sh", arguments: [])])]
+            })
+            let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example"), "zap": .bool(zap)]))
+            let plan = try host.prepare(input, owner: PluginID("zap-review"), pluginName: "Homebrew")
+            XCTAssertEqual(plan.needsPrivileges, zap)
+            XCTAssertEqual(nativeReviews, zap ? 1 : 0)
+            XCTAssertEqual(plan.confirmation.message.contains("macOS system authorization"), zap)
+            host.decline(plan)
+        }
+    }
     func testPrefixLinkAndPinActionsDoNotBorrowCaskInstallerSystemAuthorization() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -231,7 +417,7 @@ final class ReviewedToolTaskTests: XCTestCase {
                 .object(["kind": .string("formula"), "name": .string("wget"), "tap": .string("homebrew/core")]),
                 .object(["kind": .string("formula"), "name": .string("git"), "tap": .string("homebrew/core"), "pinned": .bool(true)]),
                 .object(["kind": .string("cask"), "name": .string("firefox"), "tap": .string("homebrew/cask"), "needs_privileges": .bool(true), "quits_app": .bool(true)])])])
-        }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [] })
+        }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [.init(name: "firefox", version: "1", sha256: RecordedNativeTaskInspection.digest, packages: ["New.pkg"])] })
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll")]))
         let plan = try host.prepare(input, owner: PluginID("brew"), pluginName: "Homebrew")
         XCTAssertEqual(plan.steps.map(\.arguments), [["upgrade", "--formula", "--", "wget"], ["upgrade", "--cask", "--", "firefox"]])
@@ -257,7 +443,7 @@ extension ReviewedToolTaskTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let receipt = HomebrewPrivilegePlan.Receipt(identifier: "org.example.pkg", manifestSHA256: String(repeating: "a", count: 64), fileCount: 12)
-        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["name": .string("example"), "kind": .string("cask"), "uninstall_needs_privileges": .bool(true)]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [.init(name: "example", version: "1", sha256: "", packages: [], receipts: [receipt])] })
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["name": .string("example"), "kind": .string("cask"), "uninstall_needs_privileges": .bool(true)]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [.init(name: "example", version: "1", sha256: "", packages: [], receipts: [receipt])] }, nativeInspection: nil)
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
         let plan = try host.prepare(input, owner: .init("test"), pluginName: "Homebrew")
         XCTAssertTrue(plan.confirmation.message.contains("org.example.pkg"))
@@ -269,7 +455,7 @@ extension ReviewedToolTaskTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let receipts = (0..<16).map { HomebrewPrivilegePlan.Receipt(identifier: "org.example." + String(repeating: "x", count: 170) + String($0), manifestSHA256: String(repeating: "a", count: 64), fileCount: 1) }
         let bindings = (0..<4).map { HomebrewPrivilegePlan.Cask(name: "example\($0)", version: "2", sha256: String(repeating: "b", count: 64), packages: ["New.pkg"], receipts: receipts, uninstallVersion: "1") }
-        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(bindings.map { .object(["name": .string($0.name), "kind": .string("cask"), "needs_privileges": .bool(true)]) })]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in bindings })
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in .object(["packages": .array(bindings.map { .object(["name": .string($0.name), "kind": .string("cask"), "needs_privileges": .bool(true)]) })]) }, trustedTaps: { [] }, privilegeReview: { _, _, _ in bindings }, nativeInspection: nil)
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll"), "kind": .string("cask")]))
         XCTAssertThrowsError(try host.prepare(input, owner: .init("test"), pluginName: "Homebrew")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.outputTooLarge)) }
     }

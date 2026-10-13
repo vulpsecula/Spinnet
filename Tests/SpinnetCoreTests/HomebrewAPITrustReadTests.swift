@@ -1,7 +1,33 @@
 import XCTest
-import SpinnetCore
+@testable import SpinnetCore
 
 final class HomebrewAPITrustReadTests: XCTestCase {
+    func testActualPersistentCustomRemoteTrustAuthorizesCanonicalItemWithoutGrantingItsTap() throws {
+        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
+        guard FileManager.default.isExecutableFile(atPath: brew.path) else { throw XCTSkip("Native Homebrew unavailable") }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fixture = root.appendingPathComponent("remote-trust.rb")
+        try Data("""
+        require File.join(File.dirname(ARGV.fetch(0)), 'HomebrewSourceGuard.rb')
+        tap = Tap.fetch('acme/tools')
+        tap.define_singleton_method(:installed?) { true }
+        tap.define_singleton_method(:remote) { 'https://example.invalid/custom-tools.git' }
+        Homebrew::Trust.define_singleton_method(:trusted_entries) do |kind|
+          kind == :formula ? ['https://example.invalid/custom-tools.git/canonical'] : []
+        end
+        adapter = ARGV.fetch(0)
+        ARGV.replace(['host-trust', 'formula', 'acme/tools/canonical', 'acme/tools/other'])
+        load adapter
+        """.utf8).write(to: fixture)
+        // The fixture binds current tap identity and persisted entry data.
+        // Actual Homebrew Trust performs remote/item matching.
+        let result = try HomebrewReadProfile.execute(brew, ["ruby", "--", fixture.path, HomebrewReadProfile.trustAdapter.path], HomebrewReadProfile.environment, Date().addingTimeInterval(15))
+        XCTAssertEqual(result.status, 0)
+        XCTAssertEqual(try JSONDecoder().decode([String].self, from: result.stdout), ["acme/tools/canonical"])
+    }
+
     func testActualCoreTapConfiguredRemoteShortcutDoesNotAuthorizeCustomCheckoutCode() throws {
         let nativeBrew = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
         guard FileManager.default.isExecutableFile(atPath: nativeBrew.path) else { throw XCTSkip("Native Homebrew is unavailable") }

@@ -7,6 +7,8 @@ public final class ReviewedTaskOperationPerformer {
     private struct Waiting {
         let serial: UUID
         let plan: HomebrewTaskPlan
+        let action: ActionConfiguration
+        let generation: Int
         let completion: (HostOperationResult) -> Void
         let cancel: () -> Void
     }
@@ -51,22 +53,24 @@ public final class ReviewedTaskOperationPerformer {
                         self.tasks.decline(plan); completion(.init(.cancelled)); return
                     }
                     do { try currentAuthority() } catch { self.tasks.decline(plan); completion(.refusal(error)); return }
-                    let serial = UUID()
-                    // Reserve before presenting because a recorded/system
-                    // confirmation may answer synchronously.
-                    self.waiting[action.pluginID] = Waiting(serial: serial, plan: plan, completion: completion, cancel: {})
-                    let cancel = self.confirmations.confirm(plan.confirmation, for: action) { [weak self] answer in
-                        self?.answered(action.pluginID, serial: serial, answer: answer, authorize: currentAuthority)
-                    }
-                    if let held = self.waiting[action.pluginID], held.serial == serial {
-                        self.waiting[action.pluginID] = Waiting(serial: serial, plan: plan, completion: completion, cancel: cancel)
-                    } else { cancel() }
-                    self.schedule(HostConfirmation.expiry) { [weak self] in
-                        guard let self, let held = self.waiting[action.pluginID], held.serial == serial else { return }
-                        self.waiting[action.pluginID] = nil; held.cancel(); self.tasks.decline(held.plan); held.completion(.init(.expired))
-                    }
+                    self.present(plan, for: action, generation: operationGeneration, authorize: currentAuthority, completion: completion)
                 }
             } catch { self.executor { completion(.refusal(error)) } }
+        }
+    }
+    private func present(_ plan: HomebrewTaskPlan, for action: ActionConfiguration, generation: Int,
+                         authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
+        let serial = UUID()
+        waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, cancel: {})
+        let cancel = confirmations.confirm(plan.confirmation, for: action) { [weak self] answer in
+            self?.answered(action.pluginID, serial: serial, answer: answer, authorize: authorize)
+        }
+        if let held = waiting[action.pluginID], held.serial == serial {
+            waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, cancel: cancel)
+        } else { cancel() }
+        schedule(HostConfirmation.expiry) { [weak self] in
+            guard let self, let held = self.waiting[action.pluginID], held.serial == serial else { return }
+            self.waiting[action.pluginID] = nil; held.cancel(); self.tasks.decline(held.plan); held.completion(.init(.expired))
         }
     }
     private func answered(_ owner: PluginID, serial: UUID, answer: HostConfirmationAnswer, authorize: @escaping () throws -> Void) {
@@ -76,16 +80,32 @@ public final class ReviewedTaskOperationPerformer {
         case .confirmed:
             background { [weak self] in
                 guard let self else { return }
-                let result: HostOperationResult
-                do { _ = try self.tasks.launch(pending.plan, authorize: authorize); result = .init(.succeeded) }
-                catch { result = .refusal(error) }
-                self.executor { pending.completion(result) }
+                do {
+                    if pending.plan.requiresNativeInspection {
+                        let final = try self.tasks.completeInspection(pending.plan, authorize: authorize)
+                        self.executor {
+                            guard self.generations[owner, default: 0] == pending.generation else {
+                                self.tasks.decline(final); pending.completion(.init(.cancelled)); return
+                            }
+                            do { try authorize() } catch { self.tasks.decline(final); pending.completion(.refusal(error)); return }
+                            self.present(final, for: pending.action, generation: pending.generation, authorize: authorize, completion: pending.completion)
+                        }
+                    } else {
+                        _ = try self.tasks.launch(pending.plan, authorize: authorize)
+                        self.executor { pending.completion(.init(.succeeded)) }
+                    }
+                } catch {
+                    self.executor {
+                        pending.completion(self.generations[owner, default: 0] == pending.generation ? .refusal(error) : .init(.cancelled))
+                    }
+                }
             }
         case .declined: tasks.decline(pending.plan); pending.completion(.init(.declined))
         }
     }
     public func abandon(_ owner: PluginID, because reason: PluginViewSessionEnd) {
         generations[owner, default: 0] += 1
+        tasks.cancelPending(for: owner)
         if let pending = waiting.removeValue(forKey: owner) {
             pending.cancel(); tasks.decline(pending.plan); pending.completion(.init(.cancelled))
         }

@@ -308,11 +308,14 @@ public final class HomebrewReadProfile {
                 if installedDirectives.contains(where: { $0["quit"] != nil }) { result["quits_app"] = .bool(true) }
                 if HomebrewInstalledUninstall.requiresPrivileges(installed.artifacts) { result["uninstall_needs_privileges"] = .bool(true) }
                 else { result.removeValue(forKey: "uninstall_needs_privileges") }
+                if HomebrewInstalledUninstall.requiresZapPrivileges(installed.artifacts) { result["zap_needs_privileges"] = .bool(true) }
+                else { result.removeValue(forKey: "zap_needs_privileges") }
             } else if let token = name.split(separator: "/").last,
                       FileManager.default.fileExists(atPath: prefix.appendingPathComponent("Caskroom/" + token).path) {
                 // Native review will refuse missing/executable/corrupt history
                 // before confirmation, rather than allowing an unreviewed sudo.
                 result["uninstall_needs_privileges"] = .bool(true)
+                result["zap_needs_privileges"] = .bool(true)
             }
         }
         if let dependencies = raw["dependencies"] as? [String] {
@@ -332,6 +335,15 @@ public final class HomebrewReadProfile {
     public static func execute(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date) throws -> HomebrewReadOutput {
         try executeCancellable(executable, arguments, environment, deadline, .init())
     }
+    static var trustAdapter: URL { Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")! }
+    public static func explicitlyTrusted(_ name: String, kind: String, executable: URL,
+        deadline: Date, cancellation: HostFetchedSections.Cancellation = .init()) throws -> Bool {
+        guard ["tap", "formula", "cask"].contains(kind), HomebrewTaskInput.validPackageName(name) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        let output = try executeCancellable(executable, ["host-trust", kind, name], environment, deadline, cancellation)
+        guard output.status == 0, let entries = try? JSONDecoder().decode([String].self, from: output.stdout),
+              entries.count <= 50, entries.allSatisfy(HomebrewTaskInput.validPackageName) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        return entries.contains(name)
+    }
     public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
                                           _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
         // Validate the reviewed bootstrap/loader files before brew can preload
@@ -341,7 +353,7 @@ public final class HomebrewReadProfile {
             try HomebrewReadSource.validate(executable: executable, deadline: deadline, cancellation: cancellation)
             try HomebrewBootstrapOptions.validate(executable: executable, environment: environment, deadline: deadline, cancellation: cancellation)
         }
-        let commands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust"]
+        let commands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust", "host-trust"]
         let isReviewedCommand = commands.contains(arguments.first ?? "")
         let guarded = isReviewedCommand
             ? ["ruby", "--", Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")!.path] + arguments : arguments

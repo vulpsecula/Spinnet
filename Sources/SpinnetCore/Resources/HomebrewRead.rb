@@ -1,6 +1,16 @@
 # Fixed read-only command dispatcher; no Plugin chooses Ruby, paths or code.
 require_relative 'HomebrewSourceGuard'
 command = ARGV.shift
+if command == 'host-trust'
+  kind = ARGV.shift
+  abort 'Unsupported Host trust query' unless %w[tap formula cask].include?(kind) && ARGV.size.between?(1, 50) &&
+    ARGV.all? { |name| name.bytesize <= 200 && name.match?(/\A[a-z0-9][a-z0-9+_.@-]*(?:\/[a-z0-9][a-z0-9+_.@-]*){1,2}\z/) }
+  # Match current Homebrew's persisted remote/reference semantics. The guard
+  # disables qualified-argv temporary grants and implicit custom CoreTap trust.
+  accepted = ARGV.select { |name| Homebrew::Trust.trusted?(kind.to_sym, name) }
+  puts accepted.to_json
+  exit 0
+end
 allowed = %w[info outdated search list tap-info services doctor trust]
 abort 'Unsupported reviewed read command' unless allowed.include?(command)
 # Homebrew resolves aliases/renames before the guarded loader checks existing
