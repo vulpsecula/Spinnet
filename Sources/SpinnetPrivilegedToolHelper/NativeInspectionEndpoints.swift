@@ -64,7 +64,15 @@ final class NativeInspectionOperation {
         guard fd >= 0 else { return errno == ENOENT }; defer { close(fd) }
         var info = stat(); guard fstat(fd, &info) == 0, info.st_uid == 0, info.st_mode & 0o777 == 0o700 else { return false }
         var names = ["state.json"]
-        if let capture = session.record.capture { names.append("inventory-" + HomebrewSystemAuthorization.digest(capture.privateInventory) + ".bin") }
+        if let capture = session.record.capture {
+            names.append("inventory-" + HomebrewSystemAuthorization.digest(capture.privateInventory) + ".bin")
+            let metadata = HomebrewNativeInspection.Capture(draftSHA256: capture.draftSHA256,
+                ownershipSHA256: capture.ownershipSHA256, filesystemSHA256: capture.filesystemSHA256,
+                disclosure: capture.disclosure, privateInventory: Data())
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            guard let body = try? encoder.encode(metadata) else { return false }
+            names.append("capture-" + HomebrewSystemAuthorization.digest(body) + ".json")
+        }
         for name in names {
             var item = stat()
             if fstatat(fd, name, &item, AT_SYMLINK_NOFOLLOW) == 0, item.st_uid == 0, item.st_nlink == 1, item.st_mode & S_IFMT == S_IFREG { _ = unlinkat(fd, name, 0) }

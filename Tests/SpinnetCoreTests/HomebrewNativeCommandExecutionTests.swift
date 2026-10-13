@@ -3,6 +3,22 @@ import SpinnetCore
 import Darwin
 
 final class HomebrewNativeCommandExecutionTests: XCTestCase {
+    func testOutputOverflowStartsStopGraceBeforeOriginalTimeoutAndRetainsActualReaper() throws {
+        let reaped = DispatchSemaphore(value: 0)
+        let process = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", "trap '' INT TERM; printf 'overflow'; while :; do /bin/sleep 1; done"],
+            environment: ["PATH": "/usr/bin:/bin"], interruptGrace: 0.5, terminateGrace: 0.5)
+        let started = Date()
+        let outcome = try HomebrewNativeCommandExecution.execute(process, timeout: 5, stopGrace: 0.01,
+            maximumOutputBytes: 1, didReap: { _ in reaped.signal() })
+        XCTAssertEqual(outcome.state, .unknown)
+        XCTAssertNil(outcome.result)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.6, "Output Stop begins its own grace without waiting for the original five-second deadline")
+        XCTAssertEqual(reaped.wait(timeout: .now()), .timedOut)
+        XCTAssertEqual(reaped.wait(timeout: .now() + 4), .success)
+        XCTAssertTrue(process.ownedProcessIdentities.isEmpty)
+    }
+
     func testFixedReadOutputIsExactAndOversizeIsRefusedAfterReaping() throws {
         let exact = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/usr/bin/printf"), arguments: ["status\\n"], environment: ["PATH": "/usr/bin:/bin"])
         let reply = try HomebrewNativeCommandExecution.execute(exact, timeout: 2, maximumOutputBytes: 64)
