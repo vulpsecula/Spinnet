@@ -300,6 +300,8 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
 @objc public protocol HomebrewPrivilegeHostProtocol {
     func admit(_ plan: Data, reply: @escaping (String) -> Void)
     func cancel(_ taskID: String, reply: @escaping () -> Void)
+    /// Stop/status only: these cannot admit a mutation or restore old rights.
+    func control(_ plan: Data, stop: Bool, reply: @escaping (Bool, String) -> Void)
 }
 @objc public protocol HomebrewPrivilegeClientProtocol {
     func prepare(_ request: Data, reply: @escaping (String) -> Void)
@@ -424,6 +426,23 @@ public enum HomebrewSystemAuthorization {
             proxy.cancel(taskID) { done.signal() }; _ = done.wait(timeout: .now() + 5)
         }
         connection.invalidate()
+    }
+    public static func taskIsRunning(_ plan: HomebrewPrivilegePlan) throws -> Bool { try controlTask(plan, stop: false) }
+    public static func stopTask(_ plan: HomebrewPrivilegePlan) throws { _ = try controlTask(plan, stop: true) }
+    private static func controlTask(_ plan: HomebrewPrivilegePlan, stop: Bool) throws -> Bool {
+        let connection = try hostConnection(); defer { connection.invalidate() }
+        let done = DispatchSemaphore(value: 0), lock = NSLock()
+        var response: (Bool, String)?
+        func finish(_ busy: Bool, _ message: String) {
+            lock.lock(); defer { lock.unlock() }
+            guard response == nil else { return }; response = (busy, message); done.signal()
+        }
+        guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in finish(true, "Authenticated Root Task control unavailable") }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
+        proxy.control(try JSONEncoder().encode(plan), stop: stop, reply: finish)
+        guard done.wait(timeout: .now() + 5) == .success else { throw PluginHostServiceError.unavailable("Root Task liveness is unknown; no execution was replayed") }
+        lock.lock(); defer { lock.unlock() }
+        guard let response, response.1.isEmpty else { throw PluginHostServiceError.unavailable(response?.1 ?? "Root Task status unknown") }
+        return response.0
     }
     public static func clientConnection() throws -> NSXPCConnection {
         let connection = NSXPCConnection(machServiceName: service + ".client", options: .privileged)

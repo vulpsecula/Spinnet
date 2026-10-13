@@ -74,6 +74,15 @@ public final class HostReviewedToolTasks {
     private var pendingActivity: String?
     private var globalNativeLaneHeld = false
     private var globalNativeActivity: String?
+    private let recoveryPower: PowerAssertions?
+    private var recoveryPowerReleases: [String: () -> Void] = [:]
+    private var orphanStopTimes: [String: TimeInterval] = [:]
+    private var orphanedTasks = Set<String>()
+    private let privilegedTaskIsRunning: (HomebrewPrivilegePlan) throws -> Bool
+    private let stopPrivilegedTask: (HomebrewPrivilegePlan) throws -> Void
+    private var rootTaskLiveness: [String: Bool] = [:]
+    private var rootPollInFlight = Set<String>()
+    private var taskRecoveryUnavailable = false
     private var generations: [PluginID: Int] = [:]
     private var records: [String: HomebrewTaskJournal] = [:]
     private var timer: DispatchSourceTimer?
@@ -89,7 +98,10 @@ public final class HostReviewedToolTasks {
                 inspectionDraft: ((HomebrewTaskPlan) throws -> HomebrewNativeInspection.Draft)? = nil,
                 prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
                 admitSystemAuthorization: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.admit,
-                cancelSystemAuthorization: @escaping (String) -> Void = HomebrewSystemAuthorization.cancelAdmission) {
+                cancelSystemAuthorization: @escaping (String) -> Void = HomebrewSystemAuthorization.cancelAdmission,
+                recoveryPower: PowerAssertions? = nil,
+                privilegedTaskIsRunning: @escaping (HomebrewPrivilegePlan) throws -> Bool = HomebrewSystemAuthorization.taskIsRunning,
+                stopPrivilegedTask: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.stopTask) {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = cancellablePreflight ?? preflight.map { work in { input, _ in try work(input) } }
             ?? { input, cancellation in try Self.preflight(input, executable: executable(), cancellation: cancellation) }
@@ -109,6 +121,8 @@ public final class HostReviewedToolTasks {
         }
         self.prepareSystemAuthorization = prepareSystemAuthorization
         self.admitSystemAuthorization = admitSystemAuthorization; self.cancelSystemAuthorization = cancelSystemAuthorization
+        self.recoveryPower = recoveryPower
+        self.privilegedTaskIsRunning = privilegedTaskIsRunning; self.stopPrivilegedTask = stopPrivilegedTask
         recover()
         recoverInspection()
         if nativeInspection is HomebrewNativeInspectionTransport, HomebrewNativeInspectionAuthorization.isServiceEnabled {
@@ -118,10 +132,10 @@ public final class HostReviewedToolTasks {
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
         timer.setEventHandler { [weak self] in self?.refresh() }; self.timer = timer; timer.resume()
     }
-    deinit { timer?.cancel(); suddenTerminationAssertions.forEach { _ in ProcessInfo.processInfo.enableSuddenTermination() } }
+    deinit { timer?.cancel(); suddenTerminationAssertions.forEach { _ in ProcessInfo.processInfo.enableSuddenTermination() }; recoveryPowerReleases.values.forEach { $0() } }
     public var hasRunningTasks: Bool {
         lock.lock(); defer { lock.unlock() }
-        return pending != nil || recoveredInspection != nil || globalNativeLaneHeld || records.values.contains { $0.result == nil }
+        return pending != nil || recoveredInspection != nil || globalNativeLaneHeld || taskRecoveryUnavailable || records.values.contains { $0.result == nil }
     }
     public func ownerGeneration(_ owner: PluginID) -> Int { lock.lock(); defer { lock.unlock() }; return generations[owner, default: 0] }
     public func prepare(_ input: HomebrewTaskInput, owner: PluginID, pluginName: String,
@@ -130,7 +144,7 @@ public final class HostReviewedToolTasks {
         if let scope { try input.authorize(in: scope) }
         try authorize()
         lock.lock()
-        let locallyBusy = exiting || pending != nil || recoveredInspection != nil || records.values.contains { $0.result == nil }
+        let locallyBusy = exiting || pending != nil || recoveredInspection != nil || taskRecoveryUnavailable || records.values.contains { $0.result == nil }
         lock.unlock()
         guard !locallyBusy else { throw PluginHostServiceError.tool(.busy) }
         if let nativeInspection,
@@ -148,7 +162,7 @@ public final class HostReviewedToolTasks {
             }
         }
         lock.lock()
-        guard !exiting, pending == nil, recoveredInspection == nil, !records.values.contains(where: { $0.result == nil }) else {
+        guard !exiting, pending == nil, recoveredInspection == nil, !taskRecoveryUnavailable, !records.values.contains(where: { $0.result == nil }) else {
             lock.unlock(); throw PluginHostServiceError.tool(.busy)
         }
         let generation = generations[owner, default: 0]
@@ -373,6 +387,11 @@ public final class HostReviewedToolTasks {
             try authorize()
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
             let id = plan.activityID
+            if records.count >= HostActivities.maximumTotal,
+               let oldest = records.values.filter({ $0.result != nil }).min(by: { ($0.ended ?? $0.started) < ($1.ended ?? $1.started) }) {
+                activities.removeEndedTask(oldest.id); records[oldest.id] = nil
+                try FileManager.default.removeItem(at: root.appendingPathComponent(oldest.id))
+            }
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let directory = root.appendingPathComponent(id, isDirectory: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -403,6 +422,11 @@ public final class HostReviewedToolTasks {
             record.steps = plan.steps.isEmpty ? nil : plan.steps.map(\.json)
             if case .array(let values)? = plan.package.value(atPointer: "/doctor_steps") { record.stepMetadata = values.compactMap { $0.value(atPointer: "/metadata") } }
             try record.save(to: directory)
+            // The independent runner replaces this with its own birth-bound
+            // identity before reserving any command spawn. A Host crash in the
+            // launch gap therefore cannot fabricate an empty execution lane.
+            try HomebrewTaskProcessLease(taskID: id, runnerPID: getpid(),
+                runnerIdentity: HomebrewTaskProcess.startIdentity(getpid()) ?? 1, runnerLaunchPending: true).save(to: directory)
             // Reserve a visible bounded Host control before spawning. A
             // resource-limit error must never leave a mutating orphan.
             let ended = records.values.filter { $0.owner == record.owner && $0.result != nil }.sorted { ($0.ended ?? $0.started) < ($1.ended ?? $1.started) }
@@ -439,6 +463,23 @@ public final class HostReviewedToolTasks {
         guard let record = records[id], owner == nil || (!record.detached && record.owner == owner?.rawValue) else { throw PluginHostServiceError.tool(.taskNotFound) }
         guard record.result == nil else { throw PluginHostServiceError.tool(.taskFinished) }
         try Data("stop\n".utf8).write(to: root.appendingPathComponent(id).appendingPathComponent("stop"), options: .atomic)
+        if orphanedTasks.contains(id) {
+            orphanStopTimes[id] = orphanStopTimes[id] ?? ProcessInfo.processInfo.systemUptime
+            stopOrphan(record)
+        }
+        if let plan = record.privilegePlan, plan.requiresSystemAuthorization {
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                guard let self else { return }
+                do { try self.stopPrivilegedTask(plan) }
+                catch {
+                    self.lock.lock(); defer { self.lock.unlock() }
+                    if var current = self.records[id], current.result == nil {
+                        current.stage = "Stop attempted; authenticated Root control unavailable; waiting for actual reaping"
+                        self.records[id] = current; self.publish(current)
+                    }
+                }
+            }
+        }
     }
     /// A revoked/disabled/removed owner is detached, never stopped or revived
     /// by a regrant. Its confirmed Task remains controllable by the Host.
@@ -471,18 +512,19 @@ public final class HostReviewedToolTasks {
             let directory = root.appendingPathComponent(id)
             guard var current = try? HomebrewTaskJournal.load(from: directory) else { continue }
             current.detached = held.detached || FileManager.default.fileExists(atPath: directory.appendingPathComponent("detached").path)
-            if current.result == nil {
+            let activeLease = (try? HomebrewTaskProcessLease.load(from: directory)).map { !$0.provesNoOwnedExecution } ?? false
+            let rootPending = current.privilegePlan?.requiresSystemAuthorization == true && rootTaskLiveness[id] != false
+            if current.result == nil || orphanedTasks.contains(id) || activeLease || rootPending {
                 let runnerPID = held.runnerPID ?? current.runnerPID
                 let identity = held.runnerIdentity ?? current.runnerIdentity
                 if let runnerPID, let identity, HomebrewTaskProcess.startIdentity(runnerPID) != identity {
-                    // Lost runner result: never rerun. A process still alive
-                    // with the recorded start identity is shown as unknown.
-                    current.result = .object(["outcome": .string("unknown")]); current.ended = Date()
-                    try? current.save(to: directory)
+                    reconcileLostRunner(&current, directory: directory)
                 }
             }
+            if orphanedTasks.contains(id) { reconcileLostRunner(&current, directory: directory) }
             records[id] = current; publish(current)
             if current.result != nil, suddenTerminationAssertions.remove(id) != nil { ProcessInfo.processInfo.enableSuddenTermination() }
+            if current.result != nil { recoveryPowerReleases.removeValue(forKey: id)?(); orphanedTasks.remove(id); orphanStopTimes[id] = nil }
             if let ended = current.ended, Date().timeIntervalSince(ended) > 3600 {
                 activities.removeEndedTask(id); records[id] = nil; try? FileManager.default.removeItem(at: directory)
             }
@@ -498,29 +540,117 @@ public final class HostReviewedToolTasks {
         let stopping = FileManager.default.fileExists(atPath: root.appendingPathComponent(record.id).appendingPathComponent("stop").path)
         let state = record.result == nil ? stopping ? "stopping" : "running" : "ended"
         let input = try? HomebrewTaskInput(record.input)
+        let preventsSleep = record.result == nil && (!orphanedTasks.contains(record.id) || recoveryPowerReleases[record.id] != nil)
         var detail: [String: JSONValue] = ["id": .string(record.id), "kind": .string("task"), "tool": .string("homebrew"),
             "name": .string(String("\(input?.displayOperation ?? "Task") \(input?.name ?? "")".prefix(256))), "status": .string(state),
             "operation": .string(input?.operation ?? "unknown"), "stage": .string(stopping && record.result == nil ? "stopping" : record.stage),
             "elapsed_seconds": .number(max(0, (record.ended ?? Date()).timeIntervalSince(record.started)).rounded(.down)),
-            "log": .array(record.log.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(record.result == nil)]
+            "log": .array(record.log.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(preventsSleep)]
         if let input, !input.name.isEmpty { detail["package"] = .object(["name": .string(input.name), "kind": .string(input.kind)]) }
         if let result = record.result { detail["result"] = result }
-        activities.updateTask(record.id, status: record.result == nil ? "\(state.capitalized): \(record.stage) — prevents idle system sleep" : "Ended: \(Self.text(record.result ?? .null, "outcome"))", detail: .object(detail), detached: record.detached)
+        activities.updateTask(record.id, status: record.result == nil ? "\(state.capitalized): \(record.stage)" + (preventsSleep ? " — prevents idle system sleep" : " — idle sleep prevention unavailable") : "Ended: \(Self.text(record.result ?? .null, "outcome"))", detail: .object(detail), detached: record.detached)
     }
     private func recover() {
-        guard let directories = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
-        for directory in directories.prefix(64) {
-            guard directory.lastPathComponent.hasPrefix("activity_"), var record = try? HomebrewTaskJournal.load(from: directory) else { continue }
+        var info = stat()
+        if lstat(root.path, &info) != 0, errno == ENOENT { return }
+        let fd = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { incompleteRecovery(); return }
+        guard let inventory = fdopendir(fd) else { close(fd); incompleteRecovery(); return }
+        defer { closedir(inventory) }
+        var candidates: [URL] = [], inspected = 0
+        while true {
+            errno = 0
+            guard let entry = readdir(inventory) else {
+                if errno != 0 { incompleteRecovery(); return }; break
+            }
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
+            }
+            if name == "." || name == ".." { continue }
+            inspected += 1
+            guard inspected <= HomebrewTaskProcessLease.maximumRecoveryEntries else { incompleteRecovery(); return }
+            if name.hasPrefix("activity_") {
+                var child = stat()
+                guard fstatat(fd, name, &child, AT_SYMLINK_NOFOLLOW) == 0, child.st_mode & S_IFMT == S_IFDIR,
+                      candidates.count < HostActivities.maximumTotal else { incompleteRecovery(); return }
+                candidates.append(root.appendingPathComponent(name))
+            }
+        }
+        for directory in candidates {
+            guard var record = try? HomebrewTaskJournal.load(from: directory), record.id == directory.lastPathComponent else { incompleteRecovery(); continue }
             if let data = try? Data(contentsOf: directory.appendingPathComponent("runner.json")), let json = try? JSONDecoder().decode(JSONValue.self, from: data),
                case .number(let pid)? = json.value(atPointer: "/pid"), case .number(let identity)? = json.value(atPointer: "/identity") {
                 record.runnerPID = Int32(pid); record.runnerIdentity = UInt64(identity)
             }
             record.detached = FileManager.default.fileExists(atPath: directory.appendingPathComponent("detached").path)
-            if record.result == nil, record.runnerPID == nil || record.runnerIdentity == nil || HomebrewTaskProcess.startIdentity(record.runnerPID!) != record.runnerIdentity {
-                record.result = .object(["outcome": .string("interrupted")]); record.ended = Date()
+            let activeLease = (try? HomebrewTaskProcessLease.load(from: directory)).map { !$0.provesNoOwnedExecution } ?? false
+            let rootPending = record.privilegePlan?.requiresSystemAuthorization == true
+            if record.result == nil || activeLease || rootPending,
+               record.runnerPID == nil || record.runnerIdentity == nil || HomebrewTaskProcess.startIdentity(record.runnerPID!) != record.runnerIdentity {
+                reconcileLostRunner(&record, directory: directory)
             }
-            records[record.id] = record; try? register(record)
+            records[record.id] = record
         }
+        // Active Stop controls have priority over history within the same
+        // bounded Host Activity inventory. No active record is silently idle.
+        for record in records.values.sorted(by: { ($0.result == nil ? 0 : 1, $0.started) < ($1.result == nil ? 0 : 1, $1.started) }) {
+            do { try register(record) }
+            catch { if record.result == nil { incompleteRecovery() } }
+        }
+    }
+    private func incompleteRecovery() {
+        guard !taskRecoveryUnavailable else { return }
+        taskRecoveryUnavailable = true
+        if let recoveryPower {
+            recoveryPowerReleases["incomplete-inventory"] = try? recoveryPower.acquire(.idleSystem, reason: "Spinnet incomplete Task recovery")
+        }
+        let sleep = recoveryPowerReleases["incomplete-inventory"] != nil ? "prevents idle system sleep" : "idle sleep prevention unavailable"
+        _ = try? activities.register(owner: .init("host-task-recovery"), pluginName: "Homebrew", kind: "native_lane",
+            status: "Task recovery inventory incomplete; new work blocked; Stop ownership unavailable; no replay; " + sleep,
+            visibleToOwner: false, removesOnStop: false, stop: {})
+    }
+    private func reconcileLostRunner(_ record: inout HomebrewTaskJournal, directory: URL) {
+        let lease = try? HomebrewTaskProcessLease.load(from: directory)
+        let sameRunner = lease?.runnerPID == record.runnerPID && lease?.runnerIdentity == record.runnerIdentity
+        var rootBusy = false
+        if let plan = record.privilegePlan, plan.requiresSystemAuthorization {
+            rootBusy = rootTaskLiveness[record.id] ?? true
+            if !rootPollInFlight.contains(record.id) {
+                rootPollInFlight.insert(record.id)
+                DispatchQueue.global(qos: .utility).async { [weak self] in
+                    guard let self else { return }
+                    let busy = (try? self.privilegedTaskIsRunning(plan)) ?? true
+                    self.lock.lock(); self.rootTaskLiveness[plan.taskID] = busy; self.rootPollInFlight.remove(plan.taskID); self.lock.unlock()
+                }
+            }
+        }
+        if sameRunner, lease?.provesNoOwnedExecution == true, !rootBusy {
+            record.result = .object(["outcome": .string("unknown")]); record.ended = Date()
+            orphanedTasks.remove(record.id); recoveryPowerReleases.removeValue(forKey: record.id)?()
+        } else {
+            orphanedTasks.insert(record.id)
+            record.result = nil; record.ended = nil
+            record.stage = "unknown: runner lost; waiting for independently proven process reaping; no replay"
+            if recoveryPowerReleases[record.id] == nil, let recoveryPower {
+                do { recoveryPowerReleases[record.id] = try recoveryPower.acquire(.idleSystem, reason: "Spinnet Homebrew Task recovery") }
+                catch { record.stage += "; idle sleep prevention unavailable" }
+            }
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) {
+                orphanStopTimes[record.id] = orphanStopTimes[record.id] ?? ProcessInfo.processInfo.systemUptime
+                stopOrphan(record)
+            }
+        }
+        try? record.save(to: directory)
+    }
+    private func stopOrphan(_ record: HomebrewTaskJournal) {
+        guard let lease = try? HomebrewTaskProcessLease.load(from: root.appendingPathComponent(record.id)),
+              lease.runnerPID == record.runnerPID, lease.runnerIdentity == record.runnerIdentity else { return }
+        let elapsed = ProcessInfo.processInfo.systemUptime - (orphanStopTimes[record.id] ?? ProcessInfo.processInfo.systemUptime)
+        let signal = elapsed < 10 ? SIGINT : elapsed < 15 ? SIGTERM : SIGKILL
+        // The user-owned recovery file carries no Root admission. These are
+        // exact same-account PID births; an absent/unknown PID never grants
+        // authority over a numeric process group or an unrelated process.
+        lease.stopVerifiedMembers(signal: signal)
     }
     private var inspectionRecoveryURL: URL { root.appendingPathComponent("pending-inspection.json") }
     private func persistInspection(_ plan: HomebrewTaskPlan) throws {

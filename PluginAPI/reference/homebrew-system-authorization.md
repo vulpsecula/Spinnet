@@ -74,6 +74,28 @@ argv, environment, journal or logs. Stop reaches supervised native children
 and prevents later steps; earlier changes remain. Lost authenticated results
 are `unknown`, with no retry, replay or claim of rollback.
 
+The Host durably records a pending runner launch before starting it. The
+runner durably reserves each ordinary Homebrew, batch or Doctor client step
+before process creation, records bounded kernel birth identities, and clears
+that reservation only after its supervisor actually reaps the owned execution.
+If the runner dies, the Host retains the Task, Stop control and shared lane.
+It requests Stop only for verified same-account process identities, and uses
+an authenticated signed Host endpoint bound to the same account and exact
+Root-stored admitted plan for native Stop and liveness. This endpoint cannot
+admit work or recover credentials. Missing process ownership or reap evidence
+remains `unknown` even if previously recorded PIDs have disappeared. Stop may
+be unavailable for an unrecorded process; the Host never guesses a PID or
+process group, reports completion, or replays a command to resolve uncertainty.
+
+The surviving runner prevents idle system sleep. For orphaned work the Host
+acquires its own idle-system-sleep assertion until independently proven
+terminal execution; failure to acquire it is shown explicitly. Recovery
+inventory is complete within its bounds or explicitly unavailable and busy,
+never an idle result inferred from a truncated list. An incomplete inventory
+also retains Host sleep prevention and reports unavailable Stop ownership.
+Privileged helper restart with durable unreaped work likewise retains its
+private lane; recovery is status evidence rather than execution authority.
+
 The fixed Ruby adapter and native source readers check reviewed Homebrew
 bootstrap/loader/artifact source digests. Drift checks do not claim to seal an
 entire mutable Homebrew installation. A changed or unsupported source
