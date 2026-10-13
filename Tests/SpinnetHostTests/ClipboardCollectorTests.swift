@@ -140,22 +140,47 @@ final class ClipboardCollectorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"), now: { Date().addingTimeInterval(-86_398.5) })
         try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
-        try store.observe(changeCount: 1, content: .init(text: "expires soon", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         let window = ClipboardHistoryWindow(pluginID: PluginID("com.example.history"), grants: PluginCapabilityGrantStore(), query: { try store.query(dataTypes: ["text"], offset: $0) }, restoration: { try store.restoration(copyID: $0, dataTypes: ["text"]) }, openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {}, clearHistory: { $0(nil) }, deleteCopies: { $1(nil) }, notify: { _ in })
+        // Finish the actual window's first SwiftUI draw before starting the
+        // short visible lifetime; cold framework startup is not expiration.
+        window.present()
+        try XCTUnwrap(window.window).displayIfNeeded()
+        XCTAssertTrue(window.window?.isVisible == true)
+        try store.observe(changeCount: 1, content: .init(text: "expires soon", type: .text), sourceName: "Notes", sourceBundleID: "notes")
         let loaded = expectation(description: "history snapshot loaded")
         var delivered = false
         let subscription = window.model.$snapshot.sink { snapshot in
             if snapshot?.entries.count == 1, !delivered { delivered = true; loaded.fulfill() }
         }
         defer { subscription.cancel() }
-        window.present()
+        window.model.refresh()
         wait(for: [loaded], timeout: 2)
         XCTAssertEqual(window.model.snapshot?.entries.count, 1)
+        let expiry = try XCTUnwrap(window.model.snapshot?.expiresAt)
+        XCTAssertGreaterThan(expiry, Date(), "The test observes live data before its visible deadline")
         let expired = expectation(description: "Visible clipboard data expires without a Plugin query")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) { expired.fulfill() }
+        var expiryDelivered = false
+        let expiration = window.model.$error.sink { error in
+            if error == "Entries expired. Refresh to see retained history.", !expiryDelivered { expiryDelivered = true; expired.fulfill() }
+        }
+        defer { expiration.cancel() }
         wait(for: [expired], timeout: 3)
+        XCTAssertGreaterThanOrEqual(Date(), expiry)
+        XCTAssertTrue(window.window?.isVisible == true, "Expiry is observed in the visible window")
         XCTAssertNil(window.model.snapshot)
+
+        // A fresh recopy makes close test a live snapshot too, rather than
+        // merely checking the already-empty expired snapshot a second time.
+        try store.observe(changeCount: 2, content: .init(text: "expires soon", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+        let reloaded = expectation(description: "fresh snapshot before close")
+        var closingDelivered = false
+        let closing = window.model.$snapshot.sink { snapshot in
+            if snapshot?.entries.count == 1, !closingDelivered { closingDelivered = true; reloaded.fulfill() }
+        }
+        defer { closing.cancel() }
         window.present()
+        wait(for: [reloaded], timeout: 2)
+        XCTAssertEqual(window.model.snapshot?.entries.count, 1)
         window.close()
         XCTAssertNil(window.model.snapshot)
     }
