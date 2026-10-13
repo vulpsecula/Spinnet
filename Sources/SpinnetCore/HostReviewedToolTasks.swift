@@ -214,7 +214,7 @@ public final class HostReviewedToolTasks {
                     guard case .array(let names)? = step.fields["names"] else { return [] }
                     return names.compactMap { if case .string(let name) = $0 { return name }; return nil }
                 }
-                let concrete = targets.prefix(100).joined(separator: ", ") + (targets.count > 100 ? " (\(targets.count) total)" : "")
+                let concrete = targets.count <= 100 ? targets.joined(separator: ", ") : "Every selected package is listed in the complete review below."
                 plan = HomebrewTaskPlan(id: plan.id, owner: plan.owner, pluginName: plan.pluginName, input: plan.input,
                     resolvedInput: plan.resolvedInput, package: plan.package, executable: plan.executable,
                     confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
@@ -251,6 +251,11 @@ public final class HostReviewedToolTasks {
                     plan.confirmation = .init(title: plan.confirmation.title, message: message,
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
                 }
+            }
+            if !plan.steps.isEmpty, plan.confirmation.details == nil {
+                let details = try HomebrewTaskNativeConfirmation.details(plan, disclosure: .init(receipts: [], targets: []), cancellation: cancellation)
+                plan.confirmation = .init(title: plan.confirmation.title, message: plan.confirmation.message,
+                    confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
             }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }

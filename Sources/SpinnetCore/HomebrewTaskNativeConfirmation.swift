@@ -28,6 +28,33 @@ enum HomebrewTaskNativeConfirmation {
                 let toggles = (package.choiceToggles ?? []).joined(separator: ", ")
                 return "Package member: \(package.path)\nChoices:\n" + choices + "\nChoice toggles: " + (toggles.isEmpty ? "none" : toggles) + "\n" + (package.allowUntrusted ? "allowUntrusted: Homebrew explicitly allows an untrusted package signature." : "Package signature remains required.")
         }
+        let metadata: [JSONValue] = { if case .array(let values)? = plan.package.value(atPointer: "/packages") { return values }; return [plan.package] }()
+        var selectedPackages: [(kind: String, name: String)] = []
+        for step in plan.steps {
+            guard case .array(let names)? = step.fields["names"] else { continue }
+            for name in names {
+                guard case .string(let value) = name else { throw PluginHostServiceError.tool(.planChanged) }
+                selectedPackages.append((step.kind, value))
+            }
+        }
+        if selectedPackages.isEmpty, ["formula", "cask"].contains(plan.resolvedInput.kind),
+           HomebrewTaskInput.validPackageName(plan.resolvedInput.name) {
+            selectedPackages = [(plan.resolvedInput.kind, plan.resolvedInput.name)]
+        }
+        let operation = ["upgrade", "upgradeAll", "upgradeSelected"].contains(plan.input.operation) ? "Upgrade" : plan.input.displayOperation
+        for target in selectedPackages {
+            let record = metadata.first { $0.value(atPointer: "/name") == .string(target.name) && $0.value(atPointer: "/kind") == .string(target.kind) }
+            func value(_ field: String) -> String? { if case .string(let text)? = record?.value(atPointer: "/" + field) { return text }; return nil }
+            let from = value("installed_version") ?? "not installed", to = value("version") ?? "unknown"
+            var description = "Kind: \(target.kind)\nVersion: \(from) → \(to)\nSource: \(value("tap") ?? "unknown")."
+            if case .array(let dependencies)? = record?.value(atPointer: "/dependencies") {
+                description += "\nDeclared dependencies: " + dependencies.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: ", ")
+            }
+            if case .array(let warnings)? = record?.value(atPointer: "/warnings") {
+                description += "\nWarnings:\n" + warnings.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: "\n")
+            }
+            try add("package-target/" + target.kind + "/" + target.name, operation + " " + target.name, description)
+        }
         for receipt in disclosure.receipts {
             try add("receipt/" + receipt.identifier, "Forget exact receipt after successful removal",
                 "\(receipt.identifier)\n\(receipt.fileCount) existing entries." +
