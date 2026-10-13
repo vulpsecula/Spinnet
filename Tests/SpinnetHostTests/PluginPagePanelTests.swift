@@ -39,6 +39,18 @@ final class PluginPagePanelTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
+    /// The real collection's first layout may request a different window
+    /// than the opening page carries. Answer it before testing user input.
+    private func settleInitialRanges(marked: Set<Int> = []) throws {
+        let deadline = Date().addingTimeInterval(2)
+        repeat {
+            try harness.answerRanges(marked: marked)
+            settle(0.02)
+            if !model.session.isPending(where: { if case .loadRange = $0 { return true }; return false }) { return }
+        } while Date() < deadline
+        XCTFail("Initial collection range did not settle")
+    }
+
     private var panel: NSWindow { window.contentView!.window! }
 
     private func key(_ code: UInt16, _ characters: String, modifiers: NSEvent.ModifierFlags = []) throws {
@@ -239,6 +251,7 @@ final class PluginPagePanelTests: XCTestCase {
     /// asks for comes; then they show their items, the last one selected.
     func testEndInAWindowedGridScrollsAsksAndFillsTheCells() throws {
         try show(PageHarness.windowed())
+        try settleInitialRanges()
         XCTAssertEqual(try cell(at: 0)?.accessibilityLabel(), "item 0")
         try key(48, "\t")
         try key(48, "\t")
@@ -264,6 +277,7 @@ final class PluginPagePanelTests: XCTestCase {
     /// item carrying its mark, and nothing else.
     func testMouseAndContextMenuOnTheCells() throws {
         try show(PageHarness.windowed(marked: [3]))
+        try settleInitialRanges(marked: [3])
         let view = try collectionView
         // To the view the pointer hits, as the window sends a click: the
         // cell under it leaves the click to the collection.
