@@ -4,6 +4,22 @@ import Darwin
 /// Converts the complete authenticated disclosure and fixed native graph into
 /// Host-owned rows. Every concrete category shares one aggregate bound.
 enum HomebrewTaskNativeConfirmation {
+    /// The same frozen inputs drive execution, summary and paged target rows.
+    /// Batch steps take precedence; a selected batch uses resolvedInput.names.
+    static func selectedPackages(_ plan: HomebrewTaskPlan) throws -> [(kind: String, name: String)] {
+        var targets: [(kind: String, name: String)] = []
+        for input in plan.steps.isEmpty ? [plan.resolvedInput] : plan.steps {
+            guard ["formula", "cask"].contains(input.kind) else { continue }
+            if case .array(let names)? = input.fields["names"] {
+                for name in names {
+                    guard case .string(let value) = name, HomebrewTaskInput.validPackageName(value) else { throw PluginHostServiceError.tool(.planChanged) }
+                    targets.append((input.kind, value))
+                }
+            } else if HomebrewTaskInput.validPackageName(input.name) { targets.append((input.kind, input.name)) }
+        }
+        return targets
+    }
+
     static func details(_ plan: HomebrewTaskPlan, disclosure: HomebrewNativeInspection.Disclosure,
                         cancellation: HostFetchedSections.Cancellation) throws -> HostConfirmationDetails {
         var rows: [HostConfirmationDetails.Row] = []
@@ -29,18 +45,7 @@ enum HomebrewTaskNativeConfirmation {
                 return "Package member: \(package.path)\nChoices:\n" + choices + "\nChoice toggles: " + (toggles.isEmpty ? "none" : toggles) + "\n" + (package.allowUntrusted ? "allowUntrusted: Homebrew explicitly allows an untrusted package signature." : "Package signature remains required.")
         }
         let metadata: [JSONValue] = { if case .array(let values)? = plan.package.value(atPointer: "/packages") { return values }; return [plan.package] }()
-        var selectedPackages: [(kind: String, name: String)] = []
-        for step in plan.steps {
-            guard case .array(let names)? = step.fields["names"] else { continue }
-            for name in names {
-                guard case .string(let value) = name else { throw PluginHostServiceError.tool(.planChanged) }
-                selectedPackages.append((step.kind, value))
-            }
-        }
-        if selectedPackages.isEmpty, ["formula", "cask"].contains(plan.resolvedInput.kind),
-           HomebrewTaskInput.validPackageName(plan.resolvedInput.name) {
-            selectedPackages = [(plan.resolvedInput.kind, plan.resolvedInput.name)]
-        }
+        let selectedPackages = try selectedPackages(plan)
         let operation = ["upgrade", "upgradeAll", "upgradeSelected"].contains(plan.input.operation) ? "Upgrade" : plan.input.displayOperation
         for target in selectedPackages {
             let record = metadata.first { $0.value(atPointer: "/name") == .string(target.name) && $0.value(atPointer: "/kind") == .string(target.kind) }

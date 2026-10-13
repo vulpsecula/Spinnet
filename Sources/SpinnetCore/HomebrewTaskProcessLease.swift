@@ -16,6 +16,7 @@ public struct HomebrewTaskProcessLease: Codable {
     public var leaderIdentity: UInt64?
     public var members: [String: UInt64]
     public var observedAt: Date
+    public static let maximumRunnerMetadataBytes = 4096
     public static let maximumBytes = 192 * 1024
     public static let maximumMembers = 4096
     public static let maximumProcessInventory = 65_536
@@ -59,11 +60,31 @@ public struct HomebrewTaskProcessLease: Codable {
         guard fsync(file) == 0, renameat(fd, temporary, fd, "process-state.json") == 0, fsync(fd) == 0 else { throw PluginHostServiceError.tool(.failed) }
     }
     public static func load(from directory: URL) throws -> Self {
-        let fd = open(directory.appendingPathComponent("process-state.json").path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard let bytes = try readEvidenceFile("process-state.json", directory: directory, maximumBytes: maximumBytes, privateFile: true) else { throw PluginHostServiceError.tool(.failed) }
+        let value = try JSONDecoder().decode(Self.self, from: bytes); try value.validate()
+        guard value.taskID == directory.lastPathComponent else { throw PluginHostServiceError.tool(.planChanged) }; return value
+    }
+    public struct RunnerIdentity: Decodable { public let pid: Int32; public let identity: UInt64 }
+    /// Optional when the Host has not committed launch metadata yet. Corrupt
+    /// metadata is not absence: typed integer decoding refuses nonfinite,
+    /// fractional, negative and out-of-range values without numeric casts.
+    public static func loadRunnerIdentity(from directory: URL) throws -> RunnerIdentity? {
+        guard let bytes = try readEvidenceFile("runner.json", directory: directory, maximumBytes: maximumRunnerMetadataBytes, privateFile: false) else { return nil }
+        let value = try JSONDecoder().decode(RunnerIdentity.self, from: bytes)
+        guard value.pid > 1, value.identity > 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        return value
+    }
+    private static func readEvidenceFile(_ name: String, directory: URL, maximumBytes: Int, privateFile: Bool) throws -> Data? {
+        let parent = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parent >= 0 else { throw PluginHostServiceError.tool(.failed) }; defer { close(parent) }
+        var info = stat()
+        guard fstat(parent, &info) == 0, info.st_uid == getuid(), info.st_mode & 0o077 == 0 else { throw PluginHostServiceError.tool(.planChanged) }
+        let fd = openat(parent, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        if fd < 0, errno == ENOENT { return nil }
         guard fd >= 0 else { throw PluginHostServiceError.tool(.failed) }; defer { close(fd) }
         var before = stat(), after = stat()
         guard fstat(fd, &before) == 0, before.st_mode & S_IFMT == S_IFREG, before.st_uid == getuid(), before.st_nlink == 1,
-              before.st_mode & 0o077 == 0, before.st_size > 0, before.st_size <= Self.maximumBytes else { throw PluginHostServiceError.tool(.planChanged) }
+              before.st_mode & (privateFile ? 0o077 : 0o022) == 0, before.st_size > 0, before.st_size <= maximumBytes else { throw PluginHostServiceError.tool(.planChanged) }
         var bytes = Data(count: Int(before.st_size))
         try bytes.withUnsafeMutableBytes { raw in
             var offset = 0
@@ -76,8 +97,7 @@ public struct HomebrewTaskProcessLease: Codable {
         guard fstat(fd, &after) == 0, before.st_dev == after.st_dev, before.st_ino == after.st_ino,
               before.st_size == after.st_size, before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
               before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec else { throw PluginHostServiceError.tool(.planChanged) }
-        let value = try JSONDecoder().decode(Self.self, from: bytes); try value.validate()
-        guard value.taskID == directory.lastPathComponent else { throw PluginHostServiceError.tool(.planChanged) }; return value
+        return bytes
     }
     /// Signal only exact same-account PID births, never an unowned/reused PGID.
     /// A bounded live census may add children of still-validated owned parents.

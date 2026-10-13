@@ -481,6 +481,7 @@ final class HostConfirmationDisclosureBudgetsTests: XCTestCase {
 /// Host-private recovery; docs/adr/0017-manage-ongoing-plugin-effects-and-tasks-in-the-host.md.
 final class ReviewedTaskRecoveryBudgetsTests: XCTestCase {
     func testDurableRecoveryBudgetsMatchADR0017() {
+        XCTAssertEqual(HomebrewTaskProcessLease.maximumRunnerMetadataBytes, 4096)
         XCTAssertEqual(HomebrewTaskProcessLease.maximumBytes, 196_608)
         XCTAssertEqual(HomebrewTaskProcessLease.maximumMembers, 4096)
         XCTAssertEqual(HomebrewTaskProcessLease.maximumProcessInventory, 65_536)

@@ -54,6 +54,84 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
         XCTAssertThrowsError(try host.prepare(input, owner: .init("next"), pluginName: "Next")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
     }
 
+    func testMalformedRunnerMetadataRefusesRecoveryWithoutTrapOrNewWork() throws {
+        for text in ["broken JSON", "{\"pid\":1e100,\"identity\":-1}", "{\"pid\":-1,\"identity\":123}",
+                     "{\"pid\":42.5,\"identity\":123}", "{\"pid\":42,\"identity\":1e100}", "{\"pid\":\(getpid()),\"identity\":\(HomebrewTaskProcess.startIdentity(getpid())!),\"padding\":\"" + String(repeating: "x", count: 4096) + "\"}"] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let id = "activity_bad_metadata", directory = root.appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? FileManager.default.removeItem(at: root) }
+            let record: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew", "input": ["tool": "homebrew", "operation": "cleanup"],
+                "package": [:], "executable": "/opt/homebrew/bin/brew", "started": 0, "detached": false, "stage": "running", "log": []]
+            try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
+            let metadata = directory.appendingPathComponent("runner.json")
+            try Data(text.utf8).write(to: metadata); try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: metadata.path)
+            let activities = HostActivities(), power = Power()
+            let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil, recoveryPower: power)
+            XCTAssertTrue(host.hasRunningTasks)
+            XCTAssertTrue(activities.list().contains { $0.kind == "native_lane" && $0.status.contains("inventory") }, "Bad runner metadata must be an explicit recovery refusal")
+            let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("cleanup")]))
+            XCTAssertThrowsError(try host.prepare(input, owner: .init("next"), pluginName: "Next")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+        }
+    }
+
+    func testRunnerMetadataRequiresAnOwnedRegularFileAndAcceptsValidBoundedIntegers() throws {
+        for symlink in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let id = "activity_runner_metadata", directory = root.appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? FileManager.default.removeItem(at: root) }
+            let record: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew", "input": ["tool": "homebrew", "operation": "cleanup"],
+                "package": [:], "executable": "/opt/homebrew/bin/brew", "started": 0, "detached": false, "stage": "running", "log": []]
+            try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
+            let metadata = directory.appendingPathComponent("runner.json")
+            let target = symlink ? root.appendingPathComponent("unowned.json") : metadata
+            try Data("{\"pid\":\(getpid()),\"identity\":\(HomebrewTaskProcess.startIdentity(getpid())!)}".utf8).write(to: target)
+            if symlink { try FileManager.default.createSymbolicLink(at: metadata, withDestinationURL: target) }
+            let activities = HostActivities()
+            let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+            XCTAssertTrue(host.hasRunningTasks)
+            XCTAssertEqual(activities.list().contains { $0.kind == "native_lane" }, symlink)
+            if !symlink { XCTAssertEqual(activities.list().first?.kind, "task") }
+        }
+    }
+
+    func testKnownPrivilegedTerminalResultsSurviveUnresolvedRootLiveness() throws {
+        for outcome in ["completed", "failed"] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let id = "activity_terminal_root", directory = root.appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? FileManager.default.removeItem(at: root) }
+            let plan = try HomebrewPrivilegePlan(taskID: id, prefix: "/opt/homebrew", casks: [.init(name: "example", version: "1", sha256: String(repeating: "a", count: 64), packages: ["Example.pkg"])])
+            let expected: JSONValue = .object(["outcome": .string(outcome), "exit_status": .number(outcome == "completed" ? 0 : 2)])
+            let record: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew", "input": ["tool": "homebrew", "operation": "install", "kind": "cask", "name": "example"],
+                "package": [:], "executable": "/opt/homebrew/bin/brew", "started": 0, "ended": Date().timeIntervalSinceReferenceDate, "detached": false,
+                "runnerPID": 999999, "runnerIdentity": 123, "stage": "finished", "log": [], "privilegePlan": try JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)),
+                "result": try JSONSerialization.jsonObject(with: JSONEncoder().encode(expected))]
+            try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
+            try HomebrewTaskProcessLease(taskID: id, runnerPID: 999999, runnerIdentity: 123).save(to: directory)
+            let activities = HostActivities(), power = Power(), stateLock = NSLock()
+            var running = true, stops = 0
+            let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil, recoveryPower: power,
+                privilegedTaskIsRunning: { _ in stateLock.lock(); defer { stateLock.unlock() }; return running },
+                stopPrivilegedTask: { _ in stateLock.lock(); stops += 1; stateLock.unlock() })
+            XCTAssertTrue(host.hasRunningTasks)
+            XCTAssertEqual(power.held, 1)
+            XCTAssertTrue(activities.list().first?.canStop == true)
+            try host.stop(id)
+            let stopReached = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in stateLock.lock(); defer { stateLock.unlock() }; return stops == 1 }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [stopReached], timeout: 2), .completed)
+            XCTAssertTrue(host.hasRunningTasks)
+            let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("cleanup")]))
+            XCTAssertThrowsError(try host.prepare(input, owner: .init("next"), pluginName: "Next")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+            stateLock.lock(); running = false; stateLock.unlock(); host.refresh()
+            let reaped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !host.hasRunningTasks }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [reaped], timeout: 3), .completed)
+            XCTAssertEqual(activities.list().first?.json.value(atPointer: "/result"), expected, "Recovery must preserve the actual recorded outcome")
+            XCTAssertEqual(power.held, 0); XCTAssertEqual(power.released, 1)
+        }
+    }
+
     func testPrivilegedOrphanStopReachesRootAndLaneWaitsForAuthenticatedActualReap() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let id = "activity_root_orphan", directory = root.appendingPathComponent(id)
