@@ -442,8 +442,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if reviewedTasks.hasRunningTasks {
             reviewedTasks.beginExit()
             let alert = NSAlert()
-            alert.messageText = "Homebrew Tasks Are Still Running"
-            alert.informativeText = "Wait for confirmed work to finish, or attempt to stop it before quitting. Stopping does not undo package changes."
+            alert.messageText = "Homebrew Work Is Still Running"
+            alert.informativeText = "Read-only inspections are cancelled before mutation admission. Wait for Tasks and owned workers to finish, or attempt to stop them before quitting. Stopping does not undo package changes."
             alert.addButton(withTitle: "Wait and Quit")
             alert.addButton(withTitle: "Stop and Quit")
             alert.addButton(withTitle: "Don't Quit")

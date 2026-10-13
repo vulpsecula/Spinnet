@@ -211,12 +211,22 @@ public final class HomebrewManagementReads {
                     let remaining = thirdParty.filter { !allowed.contains($0["tap"] as? String ?? "") }
                     if !remaining.isEmpty {
                         let items = try run(["trust", "--" + kind, "--json=v1"])
-                        guard items.status == 0, let allowedItems = try? JSONDecoder().decode([String].self, from: items.stdout), allowedItems.count <= 2000,
-                              remaining.allSatisfy({ package in
-                                  let name = package[kind == "formula" ? "full_name" : "full_token"] as? String ?? package[kind == "formula" ? "name" : "token"] as? String ?? ""
-                                  let canonical = name.contains("/") ? name : (package["tap"] as? String ?? "") + "/" + name
-                                  return allowedItems.contains(canonical)
-                              }) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                        guard items.status == 0, let allowedItems = try? JSONDecoder().decode([String].self, from: items.stdout), allowedItems.count <= 2000 else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                        let canonical = remaining.map { package -> String in
+                            let name = package[kind == "formula" ? "full_name" : "full_token"] as? String ?? package[kind == "formula" ? "name" : "token"] as? String ?? ""
+                            return name.contains("/") ? name : (package["tap"] as? String ?? "") + "/" + name
+                        }
+                        let unresolved = canonical.filter { !allowedItems.contains($0) }
+                        var resolved = Set(allowedItems)
+                        for offset in stride(from: 0, to: unresolved.count, by: 50) {
+                            let batch = Array(unresolved.dropFirst(offset).prefix(50))
+                            let answer = try run(["host-trust", kind] + batch)
+                            guard answer.status == 0, let matched = try? JSONDecoder().decode([String].self, from: answer.stdout), matched.count <= 50,
+                                  Set(matched).isSubset(of: Set(batch)) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                            resolved.formUnion(matched)
+                        }
+                        guard canonical.allSatisfy(resolved.contains) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+
                     }
                 }
             }

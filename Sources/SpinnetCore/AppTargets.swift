@@ -383,12 +383,14 @@ public struct HostConfirmation: Equatable {
     /// never confirms a destructive operation.
     public let confirmTitle: String
     public let isDestructive: Bool
+    public let details: HostConfirmationDetails?
 
-    public init(title: String, message: String, confirmTitle: String, isDestructive: Bool) {
+    public init(title: String, message: String, confirmTitle: String, isDestructive: Bool, details: HostConfirmationDetails? = nil) {
         self.title = title
         self.message = message
         self.confirmTitle = confirmTitle
         self.isDestructive = isDestructive
+        self.details = details
     }
 
     /// How long a confirmation waits on screen for an answer before the

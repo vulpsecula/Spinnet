@@ -25,6 +25,9 @@ import Darwin
 public enum HomebrewNativeInspectionAuthorization {
     public static let hostService = HomebrewSystemAuthorization.service + ".inspection.host"
     public static let clientService = HomebrewSystemAuthorization.service + ".inspection.client"
+    public static var isServiceEnabled: Bool {
+        SMAppService.daemon(plistName: HomebrewSystemAuthorization.helperIdentifier + ".plist").status == .enabled
+    }
     /// Status check only. This path neither registers a daemon nor opens
     /// Settings. A missing helper is explicit unavailability before inspection.
     public static func requireExistingService() throws {

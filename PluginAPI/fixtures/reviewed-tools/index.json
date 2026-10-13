@@ -192,6 +192,16 @@
       "definition": "tools.read.result",
       "valid": false,
       "note": "Bounded Host-derived package metadata."
+    },
+    {
+      "file": "results/info-cask-zap-privileges.json",
+      "definition": "tools.read.result",
+      "valid": true
+    },
+    {
+      "file": "results/info-cask-zap-false-refused.json",
+      "definition": "tools.read.result",
+      "valid": false
     }
   ]
 }

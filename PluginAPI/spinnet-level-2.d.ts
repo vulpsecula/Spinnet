@@ -926,7 +926,7 @@ export interface ReviewedPackage {
   kind: ReviewedPackageKind; name: string; tap?: string; official?: true;
   title?: string; description?: string; version?: string; installed_version?: string;
   outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
-  needs_privileges?: true; uninstall_needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
+  needs_privileges?: true; uninstall_needs_privileges?: true; zap_needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
   installed_on_request?: boolean; installed_as_dependency?: boolean;
   installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean;
   languages?: string[]; selected_language?: string;
