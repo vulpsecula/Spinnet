@@ -447,7 +447,8 @@ final class PageHarness {
     private(set) var windows: PluginViewWindows!
     private(set) var sessions: PluginViewSessions!
 
-    init(images: PluginPageImageProvider? = nil, activities: HostActivities? = nil,
+    init(images: PluginPageImageProvider? = nil, activities: HostActivities? = nil, sources: HostRunSources? = nil,
+         permits declaredMembers: ((PluginInterfaceMember) -> Bool)? = nil,
          makePageWindow: ((PluginPageModel) -> PluginViewWindow)? = nil) throws {
         let desktop = FakeDesktop()
         desktop.frontmost = 42
@@ -461,7 +462,7 @@ final class PageHarness {
         let environment = PluginViewEnvironment(
             hostActions: hostActions, sections: RecordingSectionProvider(), settingsFields: { _ in [] },
             pluginName: { _ in "Emoji Pages" }, repair: { _, _ in }, copy: { _ in },
-            schedule: { _, _ in }, report: { _ in }, insertionTargets: tracker, images: images, activities: activities
+            schedule: { _, _ in }, report: { _ in }, insertionTargets: tracker, images: images, sources: sources, activities: activities
         )
         windows = PluginViewWindows(
             environment: environment,
@@ -478,7 +479,7 @@ final class PageHarness {
             },
             pointer: { NSPoint(x: 200, y: 200) }, frontmostApplication: { nil }, report: { _ in }
         )
-        let permits: (PluginInterfaceMember) -> Bool = { PluginInterfaceContracts.levelTwoMembers.contains($0) }
+        let permits: (PluginInterfaceMember) -> Bool = declaredMembers ?? { PluginInterfaceContracts.levelTwoMembers.contains($0) }
         sessions = PluginViewSessions(
             renderer: windows,
             runEvent: { [unowned self] action, delivery, _, started, finish in
@@ -487,7 +488,7 @@ final class PageHarness {
             },
             schedule: { [unowned self] delay, operation in clock.schedule(delay, operation) },
             showFeedback: { _ in },
-            permitting: { _ in permits },
+            sources: sources, permitting: { _ in permits },
             operations: performer
         )
     }

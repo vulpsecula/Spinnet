@@ -490,3 +490,22 @@ final class ReviewedTaskRecoveryBudgetsTests: XCTestCase {
         XCTAssertEqual(HostActivities.maximumTotal, 64)
     }
 }
+
+/// Exact provisional adaptive_layout r1 bounds, separate from stable Level2.
+final class AdaptivePageBudgetsTests: XCTestCase {
+    func testCandidateBudgetsMatchItsPublishedReference() {
+        let reference = "candidates/adaptive_layout/r1/README.md"
+        XCTAssertPublished("There are 1–8 children", in: reference)
+        XCTAssertEqual(AdaptivePageLayout.maximumChildren, 8)
+        XCTAssertPublished("is 160–600 points (default 200)", in: reference)
+        XCTAssertEqual(AdaptivePageLayout.minimumCardWidths, 160...600)
+        XCTAssertEqual(AdaptivePageLayout.defaultMinimumCardWidth, 200)
+        XCTAssertPublished("`spacing` is 0–24 points (default 12)", in: reference)
+        XCTAssertEqual(AdaptivePageLayout.spacings, 0...24)
+        XCTAssertEqual(AdaptivePageLayout.defaultSpacing, 12)
+        XCTAssertPublished("`max_columns` is 1–4 (default 4)", in: reference)
+        XCTAssertEqual(AdaptivePageLayout.columns, 1...4)
+        XCTAssertEqual(AdaptivePageLayout.defaultMaximumColumns, 4)
+        XCTAssertEqual(PagePresentation.maximumContainerDepth, 3)
+    }
+}

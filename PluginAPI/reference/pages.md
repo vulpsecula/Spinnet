@@ -626,6 +626,10 @@ columns. Resizing the largest such grid, 24 columns of 2,000 items, was
 measured to re-lay it out in about 7 ms per step of a drag (p95 26 ms) on an
 Apple M1 Pro; the cells are re-laid out, not reloaded.
 
+A generic responsive card layout is separately offered only by the exact opt-in
+[adaptive_layout r1 Candidate Contract](../candidates/adaptive_layout/r1/README.md).
+It is not a stable Level 2 component or a Collection Grid and adds no resize event.
+
 ## Not in Level 2
 
 Host-run sources (#71), multiline, URL and

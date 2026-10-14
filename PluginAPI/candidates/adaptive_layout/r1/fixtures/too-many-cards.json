@@ -1,0 +1,63 @@
+{
+  "page": {
+    "id": "metrics",
+    "title": "Metrics",
+    "resizable": true,
+    "content": [
+      {
+        "kind": "adaptive",
+        "id": "cards",
+        "min_card_width": 280,
+        "max_columns": 2,
+        "spacing": 12,
+        "content": [
+          {
+            "kind": "text",
+            "id": "card0",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card1",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card2",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card3",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card4",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card5",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card6",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card7",
+            "text": "Value"
+          },
+          {
+            "kind": "text",
+            "id": "card8",
+            "text": "Value"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "page": {
+    "id": "metrics",
+    "title": "Metrics",
+    "resizable": true,
+    "content": [
+      {
+        "kind": "adaptive",
+        "id": "cards",
+        "min_card_width": 280,
+        "max_columns": 5,
+        "spacing": 12,
+        "content": [
+          {
+            "kind": "column",
+            "id": "cpu",
+            "content": [
+              {
+                "kind": "text",
+                "id": "cpu-value",
+                "text": "12%"
+              }
+            ]
+          },
+          {
+            "kind": "column",
+            "id": "memory",
+            "content": [
+              {
+                "kind": "text",
+                "id": "memory-value",
+                "text": "Memory pressure and available physical memory"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

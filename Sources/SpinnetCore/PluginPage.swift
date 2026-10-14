@@ -339,10 +339,13 @@ public enum PluginPageComponent: Equatable {
         case image
         case progress
         case activityList = "activity_list"
+        // Exact opt-in adaptive_layout r1; not stable Level 2.
+        case adaptive
     }
 
     case row(PluginPageStack)
     case column(PluginPageStack)
+    case adaptive(PluginPageAdaptive)
     case textField(PluginPageTextField)
     case choiceField(PluginPageChoiceField)
     case text(PluginPageText)
@@ -356,6 +359,7 @@ public enum PluginPageComponent: Equatable {
     public var id: String {
         switch self {
         case .row(let stack), .column(let stack): return stack.id
+        case .adaptive(let layout): return layout.id
         case .actions(let id, _): return id
         case .text(let text): return text.id
         case .textField(let field): return field.id
@@ -372,6 +376,7 @@ public enum PluginPageComponent: Equatable {
         switch self {
         case .row: return .row
         case .column: return .column
+        case .adaptive: return .adaptive
         case .textField: return .textField
         case .choiceField: return .choiceField
         case .text: return .text
@@ -389,10 +394,11 @@ public enum PluginPageComponent: Equatable {
         return nil
     }
 
-    /// The components a row or column holds.
+    /// The identified components a layout container holds.
     public var children: [PluginPageComponent] {
         switch self {
         case .row(let stack), .column(let stack): return stack.content
+        case .adaptive(let layout): return layout.content
         default: return []
         }
     }
@@ -426,7 +432,7 @@ public enum PluginPageComponent: Equatable {
         }
         if let container {
             let holdsContainers = permits(.viewComponent(Kind.column.rawValue))
-            let refused = kind == container || kind == .list || kind == .grid || kind == .activityList
+            let refused = kind == container || kind == .adaptive || kind == .list || kind == .grid || kind == .activityList
                 || (!holdsContainers && (kind == .row || kind == .column))
             if refused {
                 throw PluginPage.violation(holdsContainers
@@ -434,7 +440,7 @@ public enum PluginPageComponent: Equatable {
                     : "A row holds no \(kind.rawValue): only text_field, choice_field, text and actions")
             }
         }
-        if kind == .row || kind == .column, depth >= PagePresentation.maximumContainerDepth {
+        if kind == .row || kind == .column || kind == .adaptive, depth >= PagePresentation.maximumContainerDepth {
             throw PluginPage.violation("Rows and columns nest at most \(PagePresentation.maximumContainerDepth) deep")
         }
         switch kind {
@@ -448,6 +454,15 @@ public enum PluginPageComponent: Equatable {
             let stack = PluginPageStack(id: id, axis: kind == .row ? .horizontal : .vertical, content: content,
                                         style: try PluginPageStyle.parse(fields, kind: kind.rawValue, id: id, permits: permits))
             self = kind == .row ? .row(stack) : .column(stack)
+        case .adaptive:
+            let fields = try PluginPage.object(value, "An adaptive layout", allowed: ["kind", "id", "content", "min_card_width", "spacing", "max_columns"])
+            let id = try PluginPage.identifier(fields["id"], "An adaptive layout's id")
+            let content = try PluginPage.array(fields["content"] ?? .null, "The adaptive \(id)'s content", minimum: 1, maximum: AdaptivePageLayout.maximumChildren)
+                .map { try PluginPageComponent(parsing: $0, in: kind, depth: depth + 1, permits: permits) }
+            self = .adaptive(PluginPageAdaptive(id: id, content: content,
+                minimumCardWidth: try PluginPage.number(fields["min_card_width"], "The adaptive \(id)'s min_card_width", in: AdaptivePageLayout.minimumCardWidths) ?? AdaptivePageLayout.defaultMinimumCardWidth,
+                spacing: try PluginPage.number(fields["spacing"], "The adaptive \(id)'s spacing", in: AdaptivePageLayout.spacings) ?? AdaptivePageLayout.defaultSpacing,
+                maximumColumns: try PluginPage.integer(fields["max_columns"], "The adaptive \(id)'s max_columns", in: AdaptivePageLayout.columns, default: AdaptivePageLayout.defaultMaximumColumns)))
         case .textField:
             self = .textField(try PluginPageTextField(parsing: value))
         case .choiceField:

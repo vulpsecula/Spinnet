@@ -21,8 +21,8 @@ public final class PluginTestHelper {
     /// `defaultEnvironment` reporting the highest stable Level of `contracts`.
     ///
     /// `contracts` is what the Host under test offers: by default this kit's
-    /// own Host, Plugin API Levels 1 and 2, with the Candidate Contract
-    /// revisions Level 2 retired. A run of a Plugin that Host would refuse,
+    /// own Host, Plugin API Levels 1 and 2 with adaptive_layout r1 and the
+    /// Candidate Contract revisions Level 2 retired. A run of a Plugin that Host would refuse,
     /// such as one declaring a retired candidate or a Level it lacks, fails
     /// as the Host would fail it, and a Host Service request outside the
     /// Levels and candidates the Plugin declares is refused.

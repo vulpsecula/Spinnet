@@ -1,0 +1,44 @@
+{
+  "fixtures": [
+    {
+      "file": "cards.json",
+      "valid": true
+    },
+    {
+      "file": "too-narrow.json",
+      "valid": false
+    },
+    {
+      "file": "too-wide.json",
+      "valid": false
+    },
+    {
+      "file": "too-many-columns.json",
+      "valid": false
+    },
+    {
+      "file": "fractional-columns.json",
+      "valid": false
+    },
+    {
+      "file": "negative-spacing.json",
+      "valid": false
+    },
+    {
+      "file": "absolute-layout.json",
+      "valid": false
+    },
+    {
+      "file": "too-many-cards.json",
+      "valid": false
+    },
+    {
+      "file": "nested-adaptive.json",
+      "valid": false
+    },
+    {
+      "file": "collection-card.json",
+      "valid": false
+    }
+  ]
+}

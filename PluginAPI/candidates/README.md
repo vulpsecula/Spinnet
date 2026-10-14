@@ -7,10 +7,14 @@ a stable Level, and nothing here changes what [Level 1](../README.md#what-level-
 or [Level 2](../README.md#what-level-2-offers) promises. A Plugin that
 declares no candidate is unaffected by any of it.
 
-Every revision below is **retired**: `namespaces` r1, `host_operations` r2
+The new [adaptive_layout r1](adaptive_layout/r1/README.md) is **supported** over
+Level 2, for explicit independent Plugin evaluation. It adds an identified
+adaptive card container; stable Level 2 alone does not offer it.
+
+The earlier revisions below are **retired**: `namespaces` r1, `host_operations` r2
 and `collections` r3 were promoted together to Plugin API Level 2 on
 2026-10-06 (#79), and the earlier revisions of the same candidates were
-retired with them. This Host provides no candidate. The directories stay as
+retired with them. This Host refuses those retired declarations. Their directories stay as
 the record of what Level 2 was proved as; only each `candidate.json`'s
 `status` changed, to `retired` with `promoted_to_level: 2`.
 
@@ -111,10 +115,15 @@ answer requests (`request`), view components, standard actions, View Events
 and behaviours. The Host's own record of the revisions it
 provides equals these files, which its tests check.
 
-A published revision never changes. An attempt evaluates one revision on one
-frozen Host build through two external Plugin rounds; changing either the
-revision or the Host starts a fresh two-round attempt, under a new revision
-if the contract changed. Candidate SDK wrappers and type definitions, when a
+A published revision never changes; a changed contract gets a new revision.
+The original Emoji attempt evaluated one revision on one frozen Host build
+through two external Plugin rounds. That workflow is historical. Subsequent
+probes use the complete final independent Plugin, exact public revisions,
+focused automated checks and native acceptance of changed behaviour. Their
+package, test-kit and helper pins make the checks reproducible; an installed
+Host need only provide the exact declared candidate revision, rather than
+remain frozen at that build. A Host change does not require restarting two
+rounds. Candidate SDK wrappers and type definitions, when a
 candidate adds them, live with its revision and never in the stable
 `spinnet.js` or `spinnet.d.ts`: the helper injects a candidate's SDK, such as
 `namespaces/r1/namespaces.js`, only into a Plugin that declares it,
@@ -176,9 +185,9 @@ as the external Emoji Plugin pins `0717f16`.
 
 ## Candidate Contracts this Host provides
 
-| Candidate | Revision | Builds on | Tag |
+| Candidate | Revision | Base Level | Reference |
 | --- | --- | --- | --- |
-| None | | | |
+| `adaptive_layout` | 1 | 2 | [Adaptive card layout](adaptive_layout/r1/README.md) |
 
 ## Retired candidate declarations
 

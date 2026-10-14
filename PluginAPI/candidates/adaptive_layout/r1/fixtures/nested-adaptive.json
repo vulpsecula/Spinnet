@@ -1,0 +1,29 @@
+{
+  "page": {
+    "id": "metrics",
+    "title": "Metrics",
+    "resizable": true,
+    "content": [
+      {
+        "kind": "adaptive",
+        "id": "cards",
+        "min_card_width": 280,
+        "max_columns": 2,
+        "spacing": 12,
+        "content": [
+          {
+            "kind": "adaptive",
+            "id": "nested",
+            "content": [
+              {
+                "kind": "text",
+                "id": "value",
+                "text": "Value"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
