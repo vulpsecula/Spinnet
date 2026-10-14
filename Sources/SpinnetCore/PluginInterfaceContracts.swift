@@ -264,13 +264,13 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host: Plugin API Levels 1 and 2, and no Candidate Contract. A
+    /// This Host: Plugin API Levels 1 and 2, and adaptive_layout r1. A
     /// Plugin still declaring a revision Level 2 retired is refused with the
     /// Level to declare instead. A Level added later is keyed at its own
     /// number.
     public static let host = PluginInterfaceContracts(
         levels: [1: levelOneMembers, 2: levelTwoMembers],
-        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
+        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) } + [AdaptivePageLayout.contract]
     )
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {

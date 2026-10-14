@@ -227,6 +227,14 @@ private struct PageComponentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .modifier(PageBoxStyle(style: stack.style))
+        case .adaptive(let layout):
+            PageAdaptiveLayout(minimumCardWidth: layout.minimumCardWidth, spacing: layout.spacing,
+                               maximumColumns: layout.maximumColumns) {
+                ForEach(layout.content, id: \.id) { child in
+                    PageComponentView(model: model, component: child)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .icon(let icon):
             PageIconView(icon: icon)
         case .image(let image):

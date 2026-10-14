@@ -1,0 +1,15 @@
+{
+  "name": "adaptive_layout",
+  "revision": 1,
+  "base_level": 2,
+  "requires": [],
+  "conflicts": [],
+  "members": [
+    {
+      "kind": "view_component",
+      "name": "adaptive"
+    }
+  ],
+  "tag": "plugin-api-candidate/adaptive_layout/r1",
+  "status": "supported"
+}

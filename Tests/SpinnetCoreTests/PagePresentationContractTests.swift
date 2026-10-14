@@ -26,7 +26,7 @@ final class PagePresentationContractTests: XCTestCase {
             XCTAssertFalse(levelOne(member), "\(member)")
         }
         XCTAssertEqual(Set(PagePresentation.componentKinds + CollectionsContract.componentKinds + ["activity_list"]),
-                       Set(PluginPageComponent.Kind.allCases.map(\.rawValue)))
+                       Set(PluginPageComponent.Kind.allCases.filter { PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent($0.rawValue)) }.map(\.rawValue)))
     }
 
     /// A Plugin the addition is not offered to, such as one pinned to the

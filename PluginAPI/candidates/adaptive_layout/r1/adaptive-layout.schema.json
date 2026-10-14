@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "adaptive_layout r1 (base Level 2)",
+  "description": "Exact opt-in candidate. Only top-level adaptive component is added; no size events or Collection item semantics. Existing Level 2 schema remains unchanged.",
+  "$defs": {
+    "answer": {
+      "description": "A Level 2 script's answer: Level 1's answer with view or, instead, page, plus a Requested Host Operation (host-operations.schema.json). An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "view": {
+          "description": "A Level 1 view, checked against plugin-view.schema.json with host_operations' view_additions. It keeps Level 1's view rules.",
+          "type": "object"
+        },
+        "page": {
+          "$ref": "#/$defs/page"
+        },
+        "state": {
+          "description": "Any JSON, at most 64 KiB; null when absent."
+        },
+        "close": {
+          "const": true
+        },
+        "toast": {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/text"
+        },
+        "operation": {
+          "$ref": "../../../schemas/host-operations.schema.json#/$defs/operation"
+        }
+      },
+      "allOf": [
+        {
+          "description": "An answer that closes the view describes nothing and requests nothing.",
+          "if": {
+            "required": [
+              "close"
+            ]
+          },
+          "then": {
+            "properties": {
+              "view": false,
+              "page": false,
+              "state": false,
+              "operation": false
+            }
+          }
+        },
+        {
+          "description": "An answer describes a view or a page, not both.",
+          "if": {
+            "required": [
+              "page"
+            ]
+          },
+          "then": {
+            "properties": {
+              "view": false
+            }
+          }
+        },
+        {
+          "description": "Only an answer with a view or a page keeps a state.",
+          "if": {
+            "properties": {
+              "view": false,
+              "page": false
+            }
+          },
+          "then": {
+            "properties": {
+              "state": false
+            }
+          }
+        }
+      ]
+    },
+    "page": {
+      "description": "A View Page: an ID and a tree of identified components. Besides this shape the Host checks that component IDs are unique in the page (row children included), that there is at most one collection, that a text_field's collection names it, that focus and reset name components of the page, that item IDs are unique in the collection and its items number at most 2,000, that at most one item action is the default, that an item's actions name the collection's, and that the description is at most 256 KiB. A page that breaks any of these ends the View Session as a protocol violation.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/identifier",
+          "description": "The View Page. The same ID refreshes the page on screen and keeps its immediate state; another ID changes page, remembering the last 4 pages' immediate state by ID."
+        },
+        "title": {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/text"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "shows_insertion_target": {
+          "description": "host_operations: the Host draws a non-interactive line at the foot of the page naming the App insertion would go to now. It is drawn as well when the collection has an selection.replace item action. Captured with each gesture.",
+          "type": "boolean"
+        },
+        "focus": {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/identifier",
+          "description": "The component focused when the page is new or reset; else the first text_field, else the collection."
+        },
+        "reset": {
+          "description": "One-shot: \"page\" starts every component and the page's memory again from this description; a list starts those components again. A reset of a text_field with an open input-method composition is dropped for that field.",
+          "oneOf": [
+            {
+              "const": "page"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 40,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "../../../schemas/pages.schema.json#/$defs/identifier"
+              }
+            }
+          ]
+        },
+        "content": {
+          "description": "Laid out top to bottom. At most 40 components counting row children, and at most one list or grid.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "resizable": {
+          "description": "Plugin API Level 2 addition (#80): the user may resize the page's panel, pinned or not, down to its minimum size. The Host lays the page out in the size there is (the collection, or a page without one, takes the room left; a grid with columns \"auto\" takes the columns its width holds) without running the script, and nothing tells the Plugin the size. Absent or false, the panel keeps the Host's default layout: fixed width, height following its content.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "min_width": {
+                  "description": "Points, 440 by default.",
+                  "type": "number",
+                  "minimum": 440,
+                  "maximum": 1200
+                },
+                "min_height": {
+                  "description": "Points, 160 by default.",
+                  "type": "number",
+                  "minimum": 120,
+                  "maximum": 900
+                }
+              }
+            }
+          ]
+        },
+        "sources": {
+          "$ref": "../../../schemas/host-run-sources.schema.json#/$defs/sources"
+        }
+      }
+    },
+    "adaptive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "content"
+      ],
+      "properties": {
+        "kind": {
+          "const": "adaptive"
+        },
+        "id": {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/identifier"
+        },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "../../../schemas/pages.schema.json#/$defs/leaf"
+              },
+              {
+                "$ref": "../../../schemas/pages.schema.json#/$defs/row"
+              },
+              {
+                "$ref": "../../../schemas/pages.schema.json#/$defs/column"
+              }
+            ]
+          }
+        },
+        "min_card_width": {
+          "type": "number",
+          "minimum": 160,
+          "maximum": 600
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "max_columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
+    },
+    "component": {
+      "oneOf": [
+        {
+          "$ref": "../../../schemas/pages.schema.json#/$defs/component"
+        },
+        {
+          "$ref": "#/$defs/adaptive"
+        }
+      ]
+    }
+  }
+}

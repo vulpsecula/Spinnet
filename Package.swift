@@ -47,15 +47,18 @@ let package = Package(
             ]
         ),
         // The published contract (ADR 0013). Only the SDKs' sources are
-        // built, Level 1's and Level 2's, embedded in the helper so it never
+        // built, stable and exact opt-in candidates, embedded so the helper never
         // reads a file at run time.
         .target(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
             exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
-                      "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates"],
+                      "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates/README.md", "candidates/collections", "candidates/host_operations",
+                      "candidates/namespaces", "candidates/schemas", "candidates/adaptive_layout/r1/candidate.json",
+                      "candidates/adaptive_layout/r1/README.md", "candidates/adaptive_layout/r1/adaptive-layout.d.ts",
+                      "candidates/adaptive_layout/r1/adaptive-layout.schema.json", "candidates/adaptive_layout/r1/fixtures"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

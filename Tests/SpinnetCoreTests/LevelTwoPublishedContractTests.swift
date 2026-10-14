@@ -136,7 +136,7 @@ final class LevelTwoPublishedContractTests: XCTestCase {
             XCTAssertTrue(reference.contains("`\(operation.id)`"), "reference/namespaces.md does not name \(operation.id)")
         }
         let pages = try PublishedTable.column(0, under: "### Pages, in `spinnet.ui.components`", in: "README.md")
-        XCTAssertEqual(Set(pages), Set(PluginPageComponent.Kind.allCases.map(\.rawValue)))
+        XCTAssertEqual(Set(pages), Set(PluginPageComponent.Kind.allCases.filter { PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent($0.rawValue)) }.map(\.rawValue)))
     }
 
     /// The Level 2 pages link what exists, and every Level 2 file is linked

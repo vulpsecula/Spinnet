@@ -1,0 +1,28 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "candidate_contracts": [
+    {
+      "name": "adaptive_layout",
+      "revision": 1
+    }
+  ],
+  "id": "com.example.adaptive-cards",
+  "name": "Adaptive Cards",
+  "version": "1.0.0",
+  "capabilities": [],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "cards"
+  },
+  "commands": [
+    {
+      "id": "cards",
+      "title": "Cards",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "cards.js"
+    }
+  ]
+}

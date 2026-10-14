@@ -25,6 +25,22 @@ next to the test bundle, where the kit looks for it.
 
 If the helper is somewhere else, set `SPINNET_PLUGIN_HELPER_URL` to its path.
 
+## Adaptive card candidate
+
+An independent Plugin may declare `api_level: 2` and exactly
+`candidate_contracts: [{"name":"adaptive_layout","revision":1}]` to use the
+[adaptive card component](../../PluginAPI/candidates/adaptive_layout/r1/README.md).
+The helper injects its candidate builder only for that declaration. Stable-only
+Plugins do not receive it; old or mismatched Hosts refuse the Plugin before its
+script runs, and Bundled Plugins cannot declare candidates.
+
+Pin the public package/test kit and matching helper to the same source revision
+for reproducible tests. This does not freeze the installed Host to that commit:
+a later Host may provide the same exact candidate revision. `PluginTestPage`
+checks the same component identities and preserves field state across same-page
+answers; its collection `resize` helper models Collection windows, not native
+card placement. Card reflow needs the real Host panel's native resize check.
+
 ## Writing a test
 
 ```swift
