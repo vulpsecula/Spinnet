@@ -115,10 +115,15 @@ answer requests (`request`), view components, standard actions, View Events
 and behaviours. The Host's own record of the revisions it
 provides equals these files, which its tests check.
 
-A published revision never changes. An attempt evaluates one revision on one
-frozen Host build through two external Plugin rounds; changing either the
-revision or the Host starts a fresh two-round attempt, under a new revision
-if the contract changed. Candidate SDK wrappers and type definitions, when a
+A published revision never changes; a changed contract gets a new revision.
+The original Emoji attempt evaluated one revision on one frozen Host build
+through two external Plugin rounds. That workflow is historical. Subsequent
+probes use the complete final independent Plugin, exact public revisions,
+focused automated checks and native acceptance of changed behaviour. Their
+package, test-kit and helper pins make the checks reproducible; an installed
+Host need only provide the exact declared candidate revision, rather than
+remain frozen at that build. A Host change does not require restarting two
+rounds. Candidate SDK wrappers and type definitions, when a
 candidate adds them, live with its revision and never in the stable
 `spinnet.js` or `spinnet.d.ts`: the helper injects a candidate's SDK, such as
 `namespaces/r1/namespaces.js`, only into a Plugin that declares it,
