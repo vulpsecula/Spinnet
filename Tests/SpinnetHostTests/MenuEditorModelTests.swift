@@ -41,6 +41,52 @@ final class MenuEditorModelTests: XCTestCase {
         MenuEditorModel(editor: try makeEditor(slots: slots))
     }
 
+    func testConnectionSetupDefersPlacementAndContinuesOnlyOnce() throws {
+        let model = try makeModel()
+        var finish: ((Bool) -> Void)?
+        model.preparePluginConnections = { id, completion in
+            XCTAssertEqual(id, PluginID("com.spinnet.fixture"))
+            finish = completion
+            return true
+        }
+        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        XCTAssertTrue(model.editor.configuration.menu.slots[1].item == nil)
+        XCTAssertNotNil(finish)
+        finish?(true)
+        XCTAssertNotNil(model.editor.configuration.menu.slots[1].item)
+        let placed = model.editor.configuration
+        finish?(true)
+        XCTAssertEqual(model.editor.configuration, placed)
+    }
+
+    func testCancellingOrEditingDuringConnectionSetupPreservesTheMenu() throws {
+        let model = try makeModel()
+        var finish: ((Bool) -> Void)?
+        model.preparePluginConnections = { _, completion in finish = completion; return true }
+        let original = model.editor.configuration
+        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        finish?(false)
+        XCTAssertEqual(model.editor.configuration, original)
+        XCTAssertFalse(model.insertPreset(pluginID: "com.spinnet.fixture", at: 0))
+        XCTAssertEqual(model.editor.configuration, original, "Connection setup must precede insertion of even an empty Slot")
+        model.addEmptySlot()
+        let edited = model.editor.configuration
+        finish?(true)
+        XCTAssertEqual(model.editor.configuration, edited)
+    }
+
+    func testANewerPlacementIntentSupersedesThePendingConnectionAnswer() throws {
+        let model = try makeModel()
+        var finish: ((Bool) -> Void)?
+        model.preparePluginConnections = { _, completion in finish = completion; return true }
+        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 1))
+        let before = model.editor.configuration
+        // Selecting an occupied Slot starts a different replacement decision.
+        XCTAssertFalse(model.placePreset(pluginID: "com.spinnet.fixture", at: 0))
+        finish?(true)
+        XCTAssertEqual(model.editor.configuration, before)
+    }
+
     func testSlotsArePresentedForTheWholeMenu() throws {
         let model = try makeModel(slots: 3)
         XCTAssertEqual(model.menuSlots.count, 3)

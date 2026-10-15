@@ -39,6 +39,11 @@ final class SettingsWindowController: NSWindowController {
         set { model.menuEditor.removePlugin = newValue }
     }
 
+    var connectionSettings: ((PluginID) -> ExternalAppConnectionsModel)? {
+        get { model.privacy.connectionSettings }
+        set { model.privacy.connectionSettings = newValue }
+    }
+
     var onPluginSettingsChanged: (() -> Void)? {
         get { model.onPluginSettingsChanged }
         set { model.onPluginSettingsChanged = newValue }
@@ -210,6 +215,8 @@ final class SettingsWindowController: NSWindowController {
         }
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    func refreshMenuSlots() { model.menuEditor.refreshMenuSlots() }
 
     func refreshSystemPermissionStatus() {
         model.privacy.refreshSystemPermissionStatus()

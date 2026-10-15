@@ -218,6 +218,10 @@ final class SettingsWindowModel: ObservableObject {
     /// The settings section of the open Plugin Settings sheet, kept while it
     /// is open so edits survive a redraw.
     private var openPluginSettings: PluginSettingsModel?
+    private var openConnections: ExternalAppConnectionsModel?
+    private var pendingConnectionPlacement: (id: UUID, pluginID: PluginID, completion: (Bool) -> Void)?
+    private var completedConnectionPlacement: (() -> Void)?
+    var connectionSetupRequired: Bool { pendingConnectionPlacement != nil }
     /// Where Plugins keep their Plugin Storage, shown and cleared per Plugin.
     var pluginStorage: PluginStorage?
     private var openPluginStorage: PluginStorageModel?
@@ -259,6 +263,9 @@ final class SettingsWindowModel: ObservableObject {
             self?.menuEditor.refreshMenuSlots()
             self?.onScreenshotSettingsChanged?()
         }
+        menuEditor.preparePluginConnections = { [weak self] pluginID, completion in
+            self?.prepareConnections(for: pluginID, completion: completion) ?? false
+        }
         // Allowing an install is the user's decision on the access it asked for.
         menuEditor.grantRequestedAccess = { [weak privacy] manifest, requested in
             privacy?.grantRequestedAccess(manifest, requested)
@@ -282,6 +289,65 @@ final class SettingsWindowModel: ObservableObject {
         return model
     }
 
+    func connectionSettingsModel(for manifest: PluginManifest) -> ExternalAppConnectionsModel? {
+        guard !manifest.externalAppConnections.isEmpty else { return nil }
+        if let openConnections, openConnections.pluginID == manifest.id { return openConnections }
+        if let pending = pendingConnectionPlacement, pending.pluginID != manifest.id {
+            pending.completion(false)
+            pendingConnectionPlacement = nil
+        }
+        openConnections?.close()
+        let model = privacy.connectionSettings?(manifest.id)
+        openConnections = model
+        return model
+    }
+
+    private func prepareConnections(for pluginID: PluginID, completion: @escaping (Bool) -> Void) -> Bool {
+        guard let manifest = editor.pluginManifests.first(where: { $0.id == pluginID }),
+              !manifest.externalAppConnections.isEmpty,
+              let model = privacy.connectionSettings?(pluginID) else { return false }
+        let presetCommands = Set([manifest.preset.defaultPrimaryCommandID ?? manifest.commands[0].id] + manifest.preset.defaultAlternateCommandIDs)
+        guard manifest.externalAppConnections.contains(where: {
+            !Set($0.commandIDs).isDisjoint(with: presetCommands)
+        }) else { return false }
+        model.placementCommandIDs = presetCommands
+        pendingConnectionPlacement?.completion(false)
+        openConnections?.close()
+        let intent = UUID()
+        pendingConnectionPlacement = (intent, pluginID, completion)
+        openConnections = model
+        model.refresh { [weak self, weak model] connected in
+            guard let self, let model, self.pendingConnectionPlacement?.id == intent else { return }
+            if connected {
+                self.pendingConnectionPlacement = nil
+                self.openConnections = nil
+                model.close()
+                completion(true)
+            } else {
+                model.onConnected = { [weak self] in self?.finishPluginSettings() }
+                self.privacy.showPluginSettings(pluginID)
+            }
+        }
+        return true
+    }
+
+    /// The placement continues from the sheet's dismissal, so a configurable
+    /// Preset can safely open its own Configuration Sheet afterwards.
+    func finishPluginSettings() {
+        if let pending = pendingConnectionPlacement {
+            guard openConnections?.isConnected == true else { return }
+            completedConnectionPlacement = { pending.completion(true) }
+            pendingConnectionPlacement = nil
+        }
+        closePluginSettings()
+    }
+
+    func pluginSettingsDidDismiss() {
+        let completion = completedConnectionPlacement
+        completedConnectionPlacement = nil
+        completion?()
+    }
+
     /// The Stored Data section, which every Plugin has.
     func pluginStorageModel(for manifest: PluginManifest) -> PluginStorageModel? {
         guard let pluginStorage else { return nil }
@@ -292,6 +358,10 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func closePluginSettings() {
+        pendingConnectionPlacement?.completion(false)
+        pendingConnectionPlacement = nil
+        openConnections?.close()
+        openConnections = nil
         privacy.pluginSettingsManifest = nil
         openPluginSettings = nil
         openPluginStorage = nil
@@ -401,10 +471,13 @@ struct SettingsRootView: View {
         .sheet(isPresented: Binding(
             get: { privacy.pluginSettingsManifest != nil },
             set: { if !$0 { model.closePluginSettings() } }
-        )) {
+        ), onDismiss: model.pluginSettingsDidDismiss) {
             if let manifest = privacy.pluginSettingsManifest {
                 PluginConsentSheet(privacy: privacy, manifest: manifest,
-                                   onDone: model.closePluginSettings,
+                                   onDone: model.finishPluginSettings,
+                                   onCancel: model.closePluginSettings,
+                                   connections: model.connectionSettingsModel(for: manifest),
+                                   requiresConnection: model.connectionSetupRequired,
                                    screenshotSettings: manifest.commands.contains { $0.hostCommand?.captureSource != nil } ? screenshots : nil,
                                    pluginSettings: model.pluginSettingsModel(for: manifest),
                                    pluginStorage: model.pluginStorageModel(for: manifest))

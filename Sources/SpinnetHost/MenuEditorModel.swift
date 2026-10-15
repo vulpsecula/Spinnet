@@ -67,6 +67,9 @@ final class MenuEditorModel: ObservableObject {
     /// inherited decisions for the newly installed version without granting access.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
     var removePlugin: ((PluginID) throws -> Void)?
+    /// Returns true when connection setup takes ownership of this placement.
+    var preparePluginConnections: ((PluginID, @escaping (Bool) -> Void) -> Bool)?
+    private var connectionPlacementIntent: UUID?
     @Published private(set) var pluginPendingRemoval: PendingPluginRemoval?
     @Published private(set) var canUndoSlotEdit = false
     @Published private(set) var canRedoSlotEdit = false
@@ -520,6 +523,11 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func placePreset(pluginID: String, at index: Int) -> Bool {
+        connectionPlacementIntent = nil
+        return placePreset(pluginID: pluginID, at: index, connectionsPrepared: false)
+    }
+
+    private func placePreset(pluginID: String, at index: Int, connectionsPrepared: Bool) -> Bool {
         guard editor.configuration.menu.slots.indices.contains(index) else { return false }
         selectedMenuIndex = index
         guard editor.configuration.menu.slots[index].item == nil else {
@@ -538,6 +546,9 @@ final class MenuEditorModel: ObservableObject {
             placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
             return false
         }
+        if !connectionsPrepared, deferForConnections(pluginID: pluginID, resume: { [weak self] in
+            _ = self?.placePreset(pluginID: pluginID, at: index, connectionsPrepared: true)
+        }) { return false }
         if preset.readiness == .setupRequired {
             pendingPresetSetup = PendingPresetSetup(
                 pluginID: pluginID,
@@ -555,6 +566,11 @@ final class MenuEditorModel: ObservableObject {
     /// from the Library onto an occupied Slot does. One undo takes it back.
     @discardableResult
     func insertPreset(pluginID: String, at index: Int) -> Bool {
+        connectionPlacementIntent = nil
+        return insertPreset(pluginID: pluginID, at: index, connectionsPrepared: false)
+    }
+
+    private func insertPreset(pluginID: String, at index: Int, connectionsPrepared: Bool) -> Bool {
         guard (0...editor.configuration.menu.slots.count).contains(index) else { return false }
         guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
             placementMessage = "The selected Preset is unavailable."
@@ -564,6 +580,9 @@ final class MenuEditorModel: ObservableObject {
             placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
             return false
         }
+        if !connectionsPrepared, deferForConnections(pluginID: pluginID, resume: { [weak self] in
+            _ = self?.insertPreset(pluginID: pluginID, at: index, connectionsPrepared: true)
+        }) { return false }
         let insertion = PendingSlotInsertion(
             configurationBefore: editor.configuration,
             slotIDsBefore: slotIDs,
@@ -607,6 +626,13 @@ final class MenuEditorModel: ObservableObject {
     func confirmPresetReplacement() {
         guard let pending = presetPendingReplacement else { return }
         presetPendingReplacement = nil
+        if deferForConnections(pluginID: pending.pluginID, resume: { [weak self] in
+            self?.applyConfirmedPresetReplacement(pending)
+        }) { return }
+        applyConfirmedPresetReplacement(pending)
+    }
+
+    private func applyConfirmedPresetReplacement(_ pending: PendingPresetReplacement) {
         guard let preset = editor.menuItemPresets.first(where: { $0.id == pending.pluginID }) else {
             placementMessage = "The selected Preset is unavailable."
             return
@@ -621,6 +647,28 @@ final class MenuEditorModel: ObservableObject {
             return
         }
         _ = applyPreset(pluginID: pending.pluginID, at: pending.slotIndex, replacing: true)
+    }
+
+    /// A setup answer may arrive after an edit, reorder, removal, or a newer
+    /// placement request. Retain the original composition and package definition;
+    /// accepting the answer never retargets a different Slot or replaces edits.
+    private func deferForConnections(pluginID: String, resume: @escaping () -> Void) -> Bool {
+        guard let preparePluginConnections else { return false }
+        let intent = UUID()
+        connectionPlacementIntent = intent
+        let configuration = editor.configuration
+        let identities = slotIDs
+        let manifest = editor.pluginManifests.first { $0.id.rawValue == pluginID }
+        let deferred = preparePluginConnections(PluginID(pluginID)) { [weak self] ready in
+            guard let self, self.connectionPlacementIntent == intent else { return }
+            self.connectionPlacementIntent = nil
+            guard ready, self.editor.configuration == configuration,
+                  self.slotIDs == identities,
+                  self.editor.pluginManifests.first(where: { $0.id.rawValue == pluginID }) == manifest else { return }
+            resume()
+        }
+        if !deferred { connectionPlacementIntent = nil }
+        return deferred
     }
 
     func cancelPresetReplacement() {
