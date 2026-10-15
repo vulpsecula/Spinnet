@@ -7,13 +7,13 @@ import SpinnetCore
 struct SpotifyAppleEvents {
     func perform(_ request: AppleEventRequest, allowsPrompt: Bool) throws -> JSONValue {
         guard request.bundleID == SpotifyPlayback.bundleID, request.argument.isEmpty,
-              ["playback", "play", "pause", "previous", "next"].contains(request.handler) else {
+              (["playback", "play", "pause", "previous", "next"].contains(request.handler) || SpotifyControls.operationNames.contains(request.handler)) else {
             throw PluginHostServiceError.externalAppOperationUnsupported("Unsupported Spotify operation")
         }
         guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: SpotifyPlayback.bundleID) != nil else {
             throw PluginHostServiceError.externalAppMissing("Install Spotify to use this panel")
         }
-        guard !NSRunningApplication.runningApplications(withBundleIdentifier: SpotifyPlayback.bundleID).isEmpty else {
+        guard let application = NSRunningApplication.runningApplications(withBundleIdentifier: SpotifyPlayback.bundleID).first else {
             throw PluginHostServiceError.appRead(.notRunning)
         }
         let target = NSAppleEventDescriptor(bundleIdentifier: SpotifyPlayback.bundleID)
@@ -25,6 +25,20 @@ struct SpotifyAppleEvents {
         case OSStatus(-600): throw PluginHostServiceError.appRead(.notRunning)
         default: throw PluginHostServiceError.failed("Spotify Automation could not be checked (\(permission))")
         }
+        if SpotifyControls.operationNames.contains(request.handler) {
+            do {
+                return try SpotifyControlAppleEvents(target: NSAppleEventDescriptor(processIdentifier: application.processIdentifier),
+                    send: { event, timeout in
+                        guard !application.isTerminated else { throw PluginHostServiceError.appRead(.notRunning) }
+                        return try event.sendEvent(options: [.waitForReply, .neverInteract, .init(rawValue: UInt(kAEDontReconnect))], timeout: timeout)
+                    }).perform(request)
+            } catch let error as PluginHostServiceError { throw error }
+            catch let error as NSError {
+                if error.code == -600 { throw PluginHostServiceError.appRead(.notRunning) }
+                throw AppleEventSender.error(number: error.code, message: error.localizedDescription, for: request)
+            }
+        }
+        guard request.integerArgument == nil else { throw PluginHostServiceError.invalidInput("Stable Spotify operations take no arguments") }
         guard let script = NSAppleScript(source: Self.source(request.handler)) else {
             throw PluginHostServiceError.externalAppOperationUnsupported("Spotify's scripting interface is unavailable")
         }

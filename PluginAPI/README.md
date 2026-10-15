@@ -400,3 +400,7 @@ controls separately enter Host-confirmed reviewed Task admission.
 The expanded Homebrew `tools.read` profile is documented in
 [management reads](reference/homebrew-management-reads.md), with
 [typed operations/results](schemas/homebrew-management-reads.schema.json).
+
+Spotify volume, play/pause toggle and observed Next outcomes are opt-in additions
+under [`spotify_controls` r1](candidates/spotify_controls/r1/README.md), separate
+from the stable Reviewed App Interface.

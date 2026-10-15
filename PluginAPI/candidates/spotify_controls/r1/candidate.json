@@ -1,0 +1,10 @@
+{
+  "name": "spotify_controls",
+  "revision": 1,
+  "base_level": 2,
+  "requires": [],
+  "conflicts": [],
+  "members": [{"kind":"behaviour","name":"spotify_controls"}],
+  "tag": "plugin-api-candidate/spotify_controls/r1",
+  "status": "supported"
+}

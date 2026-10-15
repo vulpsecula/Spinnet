@@ -63,14 +63,30 @@ public final class RecordedHostServices: PluginHostServiceBroker {
             throw PluginHostServiceError.capabilityDenied(capability)
         }
         if request.service == .performAppOperation, request.input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID) {
-            let operation = request.input.value(atPointer: "/operation")
-            let family = operation == .string("playback") ? "playback_read" : "playback_control"
-            guard package.manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == SpotifyPlayback.bundleID && $0.operationFamilies.contains(family) }) == true else {
-                throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
+            guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
+            guard case .object(let fields) = request.input, case .string(let operation)? = fields["operation"],
+                  Set(fields.keys).isSubset(of: ["bundle_id", "operation", "arguments"]) else {
+                throw PluginHostServiceError.invalidInput("apps.perform expects bundle_id, operation and optional arguments")
             }
-            guard let name = operation, ["playback", "play", "pause", "previous", "next"].map(JSONValue.string).contains(name) else {
-                throw PluginHostServiceError.externalAppOperationUnsupported("Spotify does not support this operation")
+            var arguments: [String: JSONValue] = [:]
+            if let supplied = fields["arguments"] {
+                guard case .object(let values) = supplied else { throw PluginHostServiceError.invalidInput("Spotify arguments must be an object") }
+                arguments = values
             }
+            if SpotifyControls.operationNames.contains(operation) {
+                do { try PluginInterfaceContracts.host.check(package.manifest, origin: package.origin) }
+                catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
+                guard PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest) else {
+                    throw PluginHostServiceError.unavailable("Spotify \(operation) requires spotify_controls r1")
+                }
+            }
+            let interface = ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)!
+            let family = interface.operations.first(where: { $0.name == operation })?.family ?? SpotifyControls.family(for: operation)
+            guard let family, package.manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: {
+                $0.bundleID == SpotifyPlayback.bundleID && $0.operationFamilies.contains(family)
+            }) == true else { throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp) }
+            _ = try interface.request(operation: operation, arguments: arguments,
+                candidateContracts: package.manifest.candidateContracts)
         }
         if request.service == .showReviewedServices {
             try ReviewedServicesAddition.validate(request.input)

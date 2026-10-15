@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spotify controls r1",
+  "$defs": {
+    "input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "bundle_id",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "const": "com.spotify.client"
+            },
+            "operation": {
+              "const": "play_pause"
+            },
+            "arguments": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "bundle_id",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "const": "com.spotify.client"
+            },
+            "operation": {
+              "const": "volume"
+            },
+            "arguments": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "bundle_id",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "const": "com.spotify.client"
+            },
+            "operation": {
+              "const": "next_checked"
+            },
+            "arguments": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "bundle_id",
+            "operation",
+            "arguments"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "const": "com.spotify.client"
+            },
+            "operation": {
+              "const": "set_volume"
+            },
+            "arguments": {
+              "type": "object",
+              "required": [
+                "volume"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "volume": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "bundle_id",
+            "operation",
+            "arguments"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "const": "com.spotify.client"
+            },
+            "operation": {
+              "const": "adjust_volume"
+            },
+            "arguments": {
+              "type": "object",
+              "required": [
+                "delta"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "delta": {
+                  "type": "integer",
+                  "minimum": -100,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "volume": {
+      "type": "object",
+      "required": [
+        "volume"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "volume": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "next_outcome": {
+      "type": "object",
+      "required": [
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "enum": [
+            "changed",
+            "unconfirmed",
+            "no_current_track",
+            "stopped"
+          ]
+        }
+      }
+    },
+    "play_pause_result": {
+      "type": "null"
+    }
+  }
+}

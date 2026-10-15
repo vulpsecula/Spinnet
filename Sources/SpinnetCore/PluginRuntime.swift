@@ -487,6 +487,10 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
     /// compared with. Host data, never part of a message; nil for any other
     /// request, which inserts as Level 1 does.
     public var insertionTarget: InsertionTargetCapture?
+    /// Trusted Host provenance only. A Requested Host Operation may permit
+    /// a reviewed read to ask for Automation consent outside a helper deadline.
+    /// Never encoded or decoded from helper messages.
+    public var allowsAutomationPrompt = false
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,

@@ -87,7 +87,14 @@ public struct ReviewedAppInterface: Equatable {
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.
-    public func request(operation name: String, arguments: [String: JSONValue]) throws -> AppleEventRequest {
+    public func request(operation name: String, arguments: [String: JSONValue], candidateContracts: [CandidateContractRevision] = []) throws -> AppleEventRequest {
+        if format == .spotify, SpotifyControls.operationNames.contains(name) {
+            guard candidateContracts.contains(SpotifyControls.declaration) else {
+                throw PluginHostServiceError.unavailable("Spotify \(name) requires spotify_controls r1")
+            }
+            return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "",
+                integerArgument: try SpotifyControls.integerArgument(operation: name, arguments: arguments))
+        }
         guard let operation = operations.first(where: { $0.name == name }) else {
             throw PluginHostServiceError.externalAppOperationUnsupported("\(self.name) does not support \(name)")
         }
@@ -135,11 +142,13 @@ public struct AppleEventRequest: Equatable, Hashable {
     public let applicationName: String
     public let handler: String
     public let argument: String
+    public let integerArgument: Int?
 
-    public init(bundleID: String, applicationName: String, handler: String, argument: String) {
+    public init(bundleID: String, applicationName: String, handler: String, argument: String, integerArgument: Int? = nil) {
         self.bundleID = bundleID
         self.applicationName = applicationName
         self.handler = handler
         self.argument = argument
+        self.integerArgument = integerArgument
     }
 }
