@@ -1,0 +1,10 @@
+{
+  "name": "external_app_connections",
+  "revision": 1,
+  "base_level": 2,
+  "requires": [],
+  "conflicts": [],
+  "members": [{"kind":"behaviour","name":"external_app_connections"}],
+  "tag": "plugin-api-candidate/external_app_connections/r1",
+  "status": "supported"
+}

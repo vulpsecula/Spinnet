@@ -15,6 +15,8 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
     /// gives it.
     case externalAppMissing(String)
     case externalAppOperationUnsupported
+    case externalAppConnectionRequired(String)
+    case externalAppNotRunning(String)
     case capabilityDenied
     case systemPermissionDenied
     case hostServiceUnavailable
@@ -36,6 +38,8 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
         case .commandChanged: return "Command definition changed"
         case .resourceMissing: return "Referenced resource is missing"
         case .externalAppMissing(let application): return "Install \(application) to use \(application) Commands"
+        case .externalAppConnectionRequired(let app): return "Connect \(app) in Plugin Settings"
+        case .externalAppNotRunning(let app): return "Start \(app) to use its Commands"
         case .externalAppOperationUnsupported: return "This External App operation is not supported by Spinnet"
         case .capabilityDenied: return "Grant Access in Plugin Settings"
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
@@ -269,19 +273,22 @@ public final class PluginRegistry {
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let externalAppExists: (String) -> Bool
     private let pluginSettingsComplete: (PluginManifest) -> Bool
+    private let connectionStatusProvider: (ExternalAppConnectionCheck) -> ExternalAppConnectionStatus
 
     public init(
         contracts: PluginInterfaceContracts = .host,
         grantStore: PluginCapabilityGrantStore? = nil,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { _ in true },
         externalAppExists: @escaping (String) -> Bool = { _ in false },
-        pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
+        pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true },
+        externalAppConnectionStatus: @escaping (ExternalAppConnectionCheck) -> ExternalAppConnectionStatus = { _ in .permissionNeeded }
     ) {
         self.contracts = contracts
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.externalAppExists = externalAppExists
         self.pluginSettingsComplete = pluginSettingsComplete
+        self.connectionStatusProvider = externalAppConnectionStatus
     }
 
     @discardableResult
@@ -438,7 +445,19 @@ public final class PluginRegistry {
 
     public func availability(for action: ActionConfiguration) -> ActionAvailability {
         let identity = identityAvailability(for: action)
-        guard identity.isAvailable, let grantStore, let package = package(for: action.pluginID) else { return identity }
+        guard identity.isAvailable else { return identity }
+        for check in externalAppConnectionChecks(for: action.pluginID) where check.declaration.commandIDs.contains(action.commandID) {
+            let status = externalAppConnectionStatus(for: check)
+            switch status {
+            case .ready: break
+            case .notRunning, .notRunningUnchecked: return .unavailable(.externalAppNotRunning(check.interface.name))
+            case .notInstalled: return .unavailable(.externalAppMissing(check.interface.name))
+            case .capabilityDenied: return .unavailable(.capabilityDenied)
+            case .ownerInvalid: return .unavailable(.pluginDisabled)
+            default: return .unavailable(.externalAppConnectionRequired(check.interface.name))
+            }
+        }
+        guard let grantStore, let package = package(for: action.pluginID) else { return identity }
         // Resolve every new required scope before activating this revision. Explicit
         // denial completes review while keeping only affected Commands off.
         if package.manifest.capabilities.contains(where: {
@@ -525,5 +544,67 @@ public final class PluginRegistry {
         return packages.values
             .map(\.manifest)
             .sorted { $0.id.rawValue < $1.id.rawValue }
+    }
+}
+
+
+extension PluginRegistry {
+    /// Capture metadata and registration identity together. Native providers are
+    /// deliberately called after releasing the registry lock.
+    public func externalAppConnectionChecks(for pluginID: PluginID) -> [ExternalAppConnectionCheck] {
+        lock.lock(); defer { lock.unlock() }
+        guard let package = packages[pluginID], !disabledPluginIDs.contains(pluginID),
+              let owner = ownerAdmissions[pluginID] else { return [] }
+        return package.manifest.externalAppConnections.compactMap { declaration in
+            guard let interface = ReviewedAppInterface.interface(for: declaration.bundleID),
+                  let name = interface.connectionCheckOperation,
+                  let operation = interface.operations.first(where: { $0.name == name && $0.parameters.isEmpty }) else { return nil }
+            return ExternalAppConnectionCheck(package: package,
+                admission: PluginOwnerAdmission(pluginID: pluginID, identity: owner),
+                declaration: declaration, interface: interface, operation: operation)
+        }
+    }
+
+    /// Authority only, with no native I/O and no System Permission prompt.
+    public func externalAppConnectionAuthorization(for check: ExternalAppConnectionCheck) -> ActionAvailability {
+        guard isCurrent(check.admission, for: check.package),
+              check.package.manifest.externalAppConnections.contains(check.declaration),
+              (try? contracts.check(check.package.manifest, origin: check.package.origin)) != nil else {
+            return .unavailable(.pluginDisabled)
+        }
+        let manifest = check.package.manifest
+        guard let grantStore, check.declaration.commandIDs.allSatisfy({
+            grantStore.isGranted(.controlExternalApp, for: $0, in: manifest)
+        }) else { return .unavailable(.capabilityDenied) }
+        return .available
+    }
+
+    public func externalAppConnectionStatus(for check: ExternalAppConnectionCheck) -> ExternalAppConnectionStatus {
+        func refusal() -> ExternalAppConnectionStatus? {
+            let authorization = externalAppConnectionAuthorization(for: check)
+            guard !authorization.isAvailable else { return nil }
+            return authorization.reason == .capabilityDenied ? .capabilityDenied : .ownerInvalid
+        }
+        if let failure = refusal() { return failure }
+        let status = connectionStatusProvider(check)
+        return refusal() ?? status
+    }
+
+    /// Configuration checks accept an authorized but stopped App; runtime
+    /// availability additionally requires it to be running. Existing Menu Items
+    /// may still be edited when a connection is revoked.
+    public func externalAppConnectionPlacementAvailability(for pluginID: PluginID,
+                                                            commandIDs: [CommandID]) -> ActionAvailability {
+        guard isEnabled(for: pluginID) else { return .unavailable(.pluginDisabled) }
+        for check in externalAppConnectionChecks(for: pluginID)
+            where !Set(check.declaration.commandIDs).isDisjoint(with: commandIDs) {
+            let status = externalAppConnectionStatus(for: check)
+            guard !status.isConnected else { continue }
+            if status == .capabilityDenied { return .unavailable(.capabilityDenied) }
+            if status == .ownerInvalid { return .unavailable(.pluginDisabled) }
+            if status == .notInstalled { return .unavailable(.externalAppMissing(check.interface.name)) }
+            return .unavailable(.externalAppConnectionRequired(check.interface.name))
+        }
+        return .available
     }
 }

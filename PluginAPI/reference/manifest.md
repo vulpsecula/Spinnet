@@ -355,3 +355,7 @@ A few older spellings the Host still reads are not part of the interface and
 the schema rejects them: `script_path` and `javascript` for `script`,
 `configuration` for `configuration_field`, and the `common_javascript` and
 `script` executions.
+
+External App connection prerequisites are provisional: see
+[`external_app_connections` r1](../candidates/external_app_connections/r1/README.md).
+They are not part of stable Level 2.

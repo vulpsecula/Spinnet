@@ -927,6 +927,14 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     private func authorize(_ capabilities: [PluginCapability], permission: PluginSystemPermission?,
                            for package: PluginPackage, action: ActionConfiguration) throws {
+        if package.manifest.externalAppConnections.contains(where: { $0.commandIDs.contains(action.commandID) }) {
+            guard let pluginRegistry,
+                  let owner = pluginRegistry.ownerAdmission(for: package.manifest.id),
+                  pluginRegistry.isCurrent(owner, for: package),
+                  pluginRegistry.availability(for: action).isAvailable else {
+                throw PluginHostServiceError.unavailable("Connect the External App in Plugin Settings before using this Command")
+            }
+        }
         grantStore.register(
             pluginID: package.manifest.id,
             pluginVersion: package.manifest.version,
@@ -1196,7 +1204,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             if event.bundleID == SpotifyPlayback.bundleID {
                 guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
                 return try performReviewedApp(event, package: package, action: action,
-                    allowsPrompt: !SpotifyControls.operationNames.contains(event.handler)
+                    allowsPrompt: package.manifest.externalAppConnections.isEmpty
+                        && !SpotifyControls.operationNames.contains(event.handler)
                         && (!PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest)
                             || (event.handler == "playback" && request.allowsAutomationPrompt)))
             }

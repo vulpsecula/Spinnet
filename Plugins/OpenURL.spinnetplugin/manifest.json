@@ -3,14 +3,11 @@
   "api_level": 1,
   "id": "com.spinnet.builtin.open-url",
   "name": "Open URL",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "preset": {
-    "readiness": "ready_to_use",
+    "readiness": "setup_required",
     "is_configurable": true,
-    "default_primary_command_id": "builtin.open_url",
-    "default_inputs": {
-      "builtin.open_url": "https://github.com/vulpsecula/Spinnet"
-    }
+    "default_primary_command_id": "builtin.open_url"
   },
   "commands": [
     {

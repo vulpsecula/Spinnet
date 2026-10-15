@@ -520,6 +520,7 @@ public struct PluginManifest: Codable, Equatable {
     /// written as `candidate_contracts`; empty for a Plugin using only stable
     /// Levels.
     public let candidateContracts: [CandidateContractRevision]
+    public let externalAppConnections: [ExternalAppConnectionDeclaration]
     public let id: PluginID
     public let name: String
     public let version: String
@@ -542,6 +543,7 @@ public struct PluginManifest: Codable, Equatable {
         protocolVersion: String = Self.supportedProtocolVersion,
         apiLevel: Int = PluginAPILevel.undeclared,
         candidateContracts: [CandidateContractRevision] = [],
+        externalAppConnections: [ExternalAppConnectionDeclaration] = [],
         id: PluginID,
         name: String,
         version: String,
@@ -557,6 +559,7 @@ public struct PluginManifest: Codable, Equatable {
         self.protocolVersion = protocolVersion
         self.apiLevel = apiLevel
         self.candidateContracts = candidateContracts
+        self.externalAppConnections = externalAppConnections
         self.id = id
         self.name = name
         self.version = version
@@ -575,6 +578,7 @@ public struct PluginManifest: Codable, Equatable {
         case protocolVersion = "protocol_version"
         case apiLevel = "api_level"
         case candidateContracts = "candidate_contracts"
+        case externalAppConnections = "external_app_connections"
         case id
         case name
         case version
@@ -593,6 +597,7 @@ public struct PluginManifest: Codable, Equatable {
         try container.encode(protocolVersion, forKey: .protocolVersion)
         try container.encode(apiLevel, forKey: .apiLevel)
         if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
+        if !externalAppConnections.isEmpty { try container.encode(externalAppConnections, forKey: .externalAppConnections) }
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
@@ -619,6 +624,10 @@ public struct PluginManifest: Codable, Equatable {
             }
         } else {
             self.candidateContracts = []
+        }
+        self.externalAppConnections = try container.decodeIfPresent([ExternalAppConnectionDeclaration].self, forKey: .externalAppConnections) ?? []
+        if container.contains(.externalAppConnections), externalAppConnections.isEmpty {
+            throw ConfigurationError.invalidManifest("external_app_connections names no External App")
         }
         self.id = try container.decode(PluginID.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
@@ -777,6 +786,7 @@ public struct PluginManifest: Codable, Equatable {
             try validate(command)
             try validateConfigurationField(command)
         }
+        try ExternalAppConnections.validate(self)
         try validateSettings()
         try migrations.validate(commands: commands, settingsKeys: Set(settingsFields.compactMap(\.key)))
 
