@@ -221,6 +221,7 @@ extension DesktopRunningApps {
         static let messagingTimeout: Float = 0.25
         /// The longest whole reading of one App's menus.
         static let readingBound: TimeInterval = 1
+        private static let accessibility = HostAccessibility()
 
         static func items(of processIdentifier: pid_t) -> [MenuItem]? {
             let deadline = Date().addingTimeInterval(readingBound)
@@ -261,9 +262,9 @@ extension DesktopRunningApps {
         }
 
         private static func copy(_ element: AXUIElement, _ attribute: String) -> Reading<CFTypeRef> {
-            AXUIElementSetMessagingTimeout(element, messagingTimeout)
-            var value: CFTypeRef?
-            switch AXUIElementCopyAttributeValue(element, attribute as CFString, &value) {
+            _ = accessibility.timeout(element, messagingTimeout)
+            let (status, value) = accessibility.copy(element, attribute as CFString)
+            switch status {
             case .success: return value.map { .value($0) } ?? .missing
             case .noValue, .attributeUnsupported, .invalidUIElement: return .missing
             default: return .unanswered
@@ -293,10 +294,10 @@ extension DesktopRunningApps {
         /// One menu item's shortcut and whether it is enabled, in one
         /// message; nil when the App does not answer.
         private static func item(_ entry: AXUIElement) -> MenuItem? {
-            AXUIElementSetMessagingTimeout(entry, messagingTimeout)
+            _ = accessibility.timeout(entry, messagingTimeout)
             let attributes = [kAXMenuItemCmdCharAttribute, kAXMenuItemCmdModifiersAttribute, kAXEnabledAttribute]
-            var values: CFArray?
-            switch AXUIElementCopyMultipleAttributeValues(entry, attributes as CFArray, AXCopyMultipleAttributeOptions(), &values) {
+            let (status, values) = accessibility.multiple(entry, attributes as CFArray)
+            switch status {
             case .success: break
             case .noValue, .attributeUnsupported, .invalidUIElement:
                 return MenuItem(commandCharacter: nil, commandModifiers: nil, isEnabled: false, press: { .failed })
@@ -311,8 +312,8 @@ extension DesktopRunningApps {
             }
             return MenuItem(commandCharacter: value(0) as? String, commandModifiers: (value(1) as? NSNumber)?.intValue,
                             isEnabled: (value(2) as? NSNumber)?.boolValue ?? false) {
-                AXUIElementSetMessagingTimeout(entry, messagingTimeout)
-                switch AXUIElementPerformAction(entry, kAXPressAction as CFString) {
+                _ = accessibility.timeout(entry, messagingTimeout)
+                switch accessibility.action(entry, kAXPressAction as CFString) {
                 case .success: return .pressed
                 case .cannotComplete: return .noReply
                 default: return .failed
