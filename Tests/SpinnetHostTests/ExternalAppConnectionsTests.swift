@@ -164,4 +164,12 @@ final class ExternalAppConnectionsTests: XCTestCase {
         }
     }
 
+    func testQuittingAfterAConnectionReadRetainsTheObservedAuthorization() throws {
+        var running = true
+        let native = ExternalAppConnectionAdapter.Native(installed: { _ in true }, running: { _ in running },
+            permission: { _, _ in noErr }, read: { _ in running = false })
+        let f = try fixture(native: native)
+        XCTAssertEqual(ExternalAppConnectionAdapter(native: native).connect(f.check, authorized: { true }), .notRunning)
+    }
+
 }
