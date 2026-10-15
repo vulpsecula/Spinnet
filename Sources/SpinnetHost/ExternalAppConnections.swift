@@ -194,12 +194,14 @@ final class ExternalAppConnectionsModel: ObservableObject {
 
     func refresh(completion: ((Bool) -> Void)? = nil) {
         guard !closed else { completion?(false); return }
+        guard validateAuthority() else { completion?(false); return }
         guard !connecting else { return }
         generation &+= 1
         let revision = generation
         let checks = rows.map(\.check)
         service.refresh(registry: registry, checks: checks) { [weak self] statuses in
             guard let self, !self.closed, self.generation == revision else { return }
+            guard self.validateAuthority() else { completion?(false); return }
             self.rows = zip(checks, statuses).map { check, status in
                 let authorization = self.registry.externalAppConnectionAuthorization(for: check)
                 return Row(check: check, status: authorization.isAvailable ? status
@@ -210,7 +212,8 @@ final class ExternalAppConnectionsModel: ObservableObject {
     }
 
     func connect(_ bundleID: String) {
-        guard !closed, !connecting, let index = rows.firstIndex(where: { $0.id == bundleID }), rows[index].status != .busy else { return }
+        guard !closed, validateAuthority(), !connecting,
+              let index = rows.firstIndex(where: { $0.id == bundleID }), rows[index].status != .busy else { return }
         generation &+= 1
         let revision = generation
         let check = rows[index].check
@@ -219,10 +222,21 @@ final class ExternalAppConnectionsModel: ObservableObject {
         service.connect(registry: registry, grants: grants, check: check) { [weak self] status in
             guard let self, !self.closed, self.generation == revision,
                   let index = self.rows.firstIndex(where: { $0.id == bundleID }) else { return }
+            guard self.validateAuthority() else { return }
             self.connecting = false
             self.rows[index].status = status
             if self.isConnected { self.onConnected?() }
         }
+    }
+
+    /// Retired setup cannot recover in place. Keep the original lifetime and
+    /// show the existing close/reopen guidance instead of a misleading success.
+    private func validateAuthority() -> Bool {
+        guard !authorityIsCurrent() else { return true }
+        generation &+= 1
+        connecting = false
+        rows = rows.map { Row(check: $0.check, status: .ownerInvalid) }
+        return false
     }
 
     func close() { closed = true; generation &+= 1; onConnected = nil }
