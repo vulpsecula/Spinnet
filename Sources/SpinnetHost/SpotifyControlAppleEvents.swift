@@ -9,7 +9,7 @@ struct SpotifyControlAppleEvents {
     private let target: NSAppleEventDescriptor
     private let send: Send
     private let now: () -> TimeInterval
-    private enum ObservationUnavailable: Error { case deadline, malformed }
+    private enum ObservationUnavailable: Error { case deadlineBeforeSend, deadlineAfterSend, malformed }
 
     init(target: NSAppleEventDescriptor,
          send: @escaping Send = { event, timeout in
@@ -68,7 +68,7 @@ struct SpotifyControlAppleEvents {
         guard let before = try trackID(deadline: deadline) else { return result("no_current_track") }
         do {
             _ = try event(eventClass: 0x73706679, eventID: 0x4e657874, deadline: deadline)
-        } catch is ObservationUnavailable { return result("unconfirmed") }
+        } catch ObservationUnavailable.deadlineAfterSend { return result("unconfirmed") }
         catch let error as NSError where error.code == -1712 { return result("unconfirmed") }
         // Spotify can publish its new track after acknowledging Next. Observe
         // once after a short fixed grace period, only inside the same budget.
@@ -96,17 +96,17 @@ struct SpotifyControlAppleEvents {
 
     private func event(eventClass: AEEventClass, eventID: AEEventID, property: NSAppleEventDescriptor? = nil,
                        value: NSAppleEventDescriptor? = nil, deadline: TimeInterval) throws -> NSAppleEventDescriptor {
-        let remaining = deadline - now()
-        guard remaining > 0 else { throw ObservationUnavailable.deadline }
         let request = NSAppleEventDescriptor(eventClass: eventClass, eventID: eventID, targetDescriptor: target,
             returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
         if let property { request.setParam(property, forKeyword: AEKeyword(keyDirectObject)) }
         if let value { request.setParam(value, forKeyword: AEKeyword(keyAEData)) }
+        let remaining = deadline - now()
+        guard remaining > 0 else { throw ObservationUnavailable.deadlineBeforeSend }
         let reply = try send(request, remaining)
         if let error = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber)), error.int32Value != 0 {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(error.int32Value))
         }
-        guard now() <= deadline else { throw ObservationUnavailable.deadline }
+        guard now() <= deadline else { throw ObservationUnavailable.deadlineAfterSend }
         return reply.paramDescriptor(forKeyword: AEKeyword(keyDirectObject)) ?? reply
     }
 

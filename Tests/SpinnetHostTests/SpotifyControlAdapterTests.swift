@@ -96,3 +96,22 @@ extension SpotifyControlAdapterTests {
         XCTAssertEqual(budgets[1], 1.4, accuracy: 0.001)
     }
 }
+
+extension SpotifyControlAdapterTests {
+    func testBudgetExpiryBeforeNextDispatchFailsWithoutClaimingAnAttemptedEffect() throws {
+        var nextCount = 0
+        // Start, state before/after, ID before/after, then Next admission.
+        var clockReads = [0.0, 0.0, 0.0, 0.0, 2.9, 3.1]
+        let adapter = SpotifyControlAppleEvents(target: NSAppleEventDescriptor(processIdentifier: 123), send: { event, _ in
+            if event.attributeDescriptor(forKeyword: AEKeyword(keyEventIDAttr))?.typeCodeValue == 0x4e657874 {
+                nextCount += 1; return .null()
+            }
+            let property = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.paramDescriptor(forKeyword: AEKeyword(keyAEKeyData))?.typeCodeValue
+            return property == 0x70506c53 ? .init(enumCode: 0x6b505350) : .init(string: "spotify:track:before")
+        }, now: { clockReads.isEmpty ? 3.1 : clockReads.removeFirst() })
+        XCTAssertThrowsError(try adapter.perform(request("next_checked"))) { error in
+            guard case PluginHostServiceError.failed = error else { return XCTFail("Expected typed deadline failure, got \(error)") }
+        }
+        XCTAssertEqual(nextCount, 0)
+    }
+}

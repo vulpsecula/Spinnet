@@ -32,7 +32,8 @@ or `no_current_track` on known absent current track. For playing or paused state
 with a valid ID it sends at most one Next, waits 150 ms inside the shared execution
 budget, and observes the track ID once. `changed` means the observed ID differs;
 it does not establish causation. `unconfirmed` means unchanged, absent or invalid
-post-command ID, or expired post-command observation. It never retries Next.
+post-command ID, or expired post-command observation. Expiry before the Next send is a typed Host failure and sends no
+Next; it cannot report an attempted effect. It never retries Next.
 Permission, app termination and other known native errors remain typed failures;
 a timeout after the Next effect may already have occurred is not a safe retry.
 Identical IDs, repeat, ads and delayed state cannot establish an empty queue.
