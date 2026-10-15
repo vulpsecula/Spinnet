@@ -256,6 +256,10 @@ _Avoid_: Plugin, dependency
 A Plugin that maps its Commands to a specific External App's Reviewed App Interface or Deep Link Templates, without gaining general control over installed applications.
 _Avoid_: External App, universal app integration
 
+**External App Connection**:
+A Plugin-declared prerequisite that certain Commands need an External App, checked and repaired through Host-owned Plugin Settings and shared by their Menu Items. It is separate from the authority granted by a Capability or System Permission and from each Action's configured input.
+_Avoid_: Initializer, setup Action
+
 **Reviewed App Interface**:
 The Host's reviewed description of the Apple Events operations one External App accepts, from which an External App Adapter may choose. Adding one is a Host release.
 _Avoid_: Host adapter, AppleScript bridge
