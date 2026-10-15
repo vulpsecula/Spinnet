@@ -245,10 +245,11 @@ extension HostTextInserter {
     /// candidate path can tell whether focus moved inside the App between
     /// the user's gesture and the insertion.
     static func focusedElement(of processIdentifier: pid_t) -> AnyHashable? {
+        let accessibility = HostAccessibility()
         let app = AXUIElementCreateApplication(processIdentifier)
-        AXUIElementSetMessagingTimeout(app, 0.25)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+        _ = accessibility.timeout(app, 0.25)
+        let (status, focused) = accessibility.copy(app, kAXFocusedUIElementAttribute as CFString)
+        guard status == .success,
               let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
         return AnyHashable(focused as! AXUIElement)
     }
@@ -285,15 +286,15 @@ extension HostTextInserter.Environment {
             },
             holdsKeyboard: { NSApp.keyWindow != nil },
             focusedFieldIsSecure: { processIdentifier in
+                let accessibility = HostAccessibility()
                 let app = AXUIElementCreateApplication(processIdentifier)
-                AXUIElementSetMessagingTimeout(app, 0.25)
-                var focused: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+                _ = accessibility.timeout(app, 0.25)
+                let (status, focused) = accessibility.copy(app, kAXFocusedUIElementAttribute as CFString)
+                guard status == .success,
                       let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
                 let element = focused as! AXUIElement
-                AXUIElementSetMessagingTimeout(element, 0.25)
-                var subrole: CFTypeRef?
-                AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+                _ = accessibility.timeout(element, 0.25)
+                let (_, subrole) = accessibility.copy(element, kAXSubroleAttribute as CFString)
                 return subrole as? String == kAXSecureTextFieldSubrole
             },
             post: { stroke, processIdentifier in KeyboardEvents.post(stroke, to: processIdentifier) },

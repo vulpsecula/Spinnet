@@ -177,8 +177,14 @@ struct SelectedTextLookup {
 }
 
 struct AppKitSelectedTextAXClient: SelectedTextAXClient {
+    private let accessibility: HostAccessibility
+
+    init(accessibility: HostAccessibility.Native = .init()) {
+        self.accessibility = HostAccessibility(native: accessibility)
+    }
+
     func systemWideElement() -> AXUIElement {
-        AXUIElementCreateSystemWide()
+        accessibility.native.systemWide
     }
 
     func focusedUIElement(in element: AXUIElement) -> SelectedTextAXResult<AXUIElement> {
@@ -206,8 +212,7 @@ struct AppKitSelectedTextAXClient: SelectedTextAXClient {
 
     func selectedText(in element: AXUIElement, messagingTimeout: Float?) -> SelectedTextAXResult<String> {
         apply(messagingTimeout, to: element)
-        var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &value)
+        let (status, value) = accessibility.copy(element, kAXSelectedTextAttribute as CFString)
         guard status == .success else { return result(for: status) }
         guard let value, let text = value as? String else {
             return .failure(.failure)
@@ -223,23 +228,12 @@ struct AppKitSelectedTextAXClient: SelectedTextAXClient {
         guard maximumCount > 0 else { return .value([]) }
         apply(messagingTimeout, to: element)
 
-        var count: CFIndex = 0
-        let countStatus = AXUIElementGetAttributeValueCount(
-            element,
-            kAXChildrenAttribute as CFString,
-            &count
-        )
+        let (countStatus, count) = accessibility.count(element, kAXChildrenAttribute as CFString)
         guard countStatus == .success else { return result(for: countStatus) }
         guard count > 0 else { return .value([]) }
 
-        var values: CFArray?
-        let status = AXUIElementCopyAttributeValues(
-            element,
-            kAXChildrenAttribute as CFString,
-            0,
-            CFIndex(min(maximumCount, Int(count))),
-            &values
-        )
+        let (status, values) = accessibility.values(
+            element, kAXChildrenAttribute as CFString, CFIndex(min(maximumCount, Int(count))))
         guard status == .success else { return result(for: status) }
         guard let values, let children = values as? [AXUIElement] else {
             return .failure(.failure)
@@ -248,8 +242,7 @@ struct AppKitSelectedTextAXClient: SelectedTextAXClient {
     }
 
     private func copyElement(_ attribute: String, from owner: AXUIElement) -> SelectedTextAXResult<AXUIElement> {
-        var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(owner, attribute as CFString, &value)
+        let (status, value) = accessibility.copy(owner, attribute as CFString)
         guard status == .success else { return result(for: status) }
         guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return .failure(.failure)
@@ -270,7 +263,7 @@ struct AppKitSelectedTextAXClient: SelectedTextAXClient {
 
     private func apply(_ timeout: Float?, to element: AXUIElement) {
         guard let timeout else { return }
-        _ = AXUIElementSetMessagingTimeout(element, timeout)
+        _ = accessibility.timeout(element, timeout)
     }
 
     private func onMain<Value>(_ work: () -> Value) -> Value {
