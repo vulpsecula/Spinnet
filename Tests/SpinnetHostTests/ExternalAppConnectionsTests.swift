@@ -65,6 +65,7 @@ final class ExternalAppConnectionsTests: XCTestCase {
                 XCTAssertEqual(request.argument, "")
                 reads += 1
             }))
+        f.grants.removeGrants(for: f.manifest.id)
         let empty = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
         let editor = HostConfigurationEditor(registry: f.registry, configuration: empty)
         let settings = SettingsWindowModel(editor: editor, metadata: .current,
@@ -83,6 +84,12 @@ final class ExternalAppConnectionsTests: XCTestCase {
         XCTAssertEqual(reads, 0)
         XCTAssertTrue(prompts.allSatisfy { !$0 })
         let model = try XCTUnwrap(settings.connectionSettingsModel(for: f.manifest))
+        XCTAssertEqual(model.rows.map(\.status), [.capabilityDenied])
+        settings.privacy.grantRequestedAccess(f.manifest, [.controlExternalApp])
+        let granted = expectation(description: "First grant keeps the open setup usable")
+        DispatchQueue.main.async { model.refresh { _ in granted.fulfill() } }
+        wait(for: [granted], timeout: 2)
+        XCTAssertEqual(model.rows.map(\.status), [.permissionNeeded])
         let dismissed = expectation(description: "Successful explicit connection closes settings")
         var didDismiss = false
         let closing = settings.privacy.$pluginSettingsManifest.sink { manifest in
@@ -170,6 +177,58 @@ final class ExternalAppConnectionsTests: XCTestCase {
             permission: { _, _ in noErr }, read: { _ in running = false })
         let f = try fixture(native: native)
         XCTAssertEqual(ExternalAppConnectionAdapter(native: native).connect(f.check, authorized: { true }), .notRunning)
+    }
+
+    func testRetiredOpenConnectionSettingsRequireReopeningAndCannotConnect() throws {
+        var allowed = false
+        var reads = 0
+        let f = try fixture(native: .init(installed: { _ in true }, running: { _ in true },
+            permission: { _, _ in allowed ? noErr : OSStatus(-1744) }, read: { _ in reads += 1 }))
+        let empty = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
+        let editor = HostConfigurationEditor(registry: f.registry, configuration: empty)
+        let settings = SettingsWindowModel(editor: editor, metadata: .current,
+            capabilityGrantStore: f.grants, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
+        settings.privacy.connectionSettings = { id in
+            ExternalAppConnectionsModel(pluginID: id, registry: f.registry, grants: f.grants, service: f.service)
+        }
+        let shown = expectation(description: "Connection settings shown")
+        var observed = false
+        let subscription = settings.privacy.$pluginSettingsManifest.sink { manifest in
+            if manifest != nil && !observed { observed = true; shown.fulfill() }
+        }
+        XCTAssertFalse(settings.menuEditor.placePreset(pluginID: f.manifest.id.rawValue, at: 0))
+        wait(for: [shown], timeout: 2)
+        let model = try XCTUnwrap(settings.connectionSettingsModel(for: f.manifest))
+        f.grants.setDecision(.denied, for: f.manifest.id, pluginVersion: f.manifest.version,
+            capability: .controlExternalApp, scope: f.manifest.scope(for: .controlExternalApp))
+        f.grants.setDecision(.granted, for: f.manifest.id, pluginVersion: f.manifest.version,
+            capability: .controlExternalApp, scope: f.manifest.scope(for: .controlExternalApp))
+        allowed = true
+        let refreshed = expectation(description: "Retired settings refreshed")
+        // Let the grant notifications start their refreshes before this final
+        // observation; their superseded callbacks are intentionally retired.
+        DispatchQueue.main.async {
+            model.refresh { connected in XCTAssertFalse(connected); refreshed.fulfill() }
+        }
+        wait(for: [refreshed], timeout: 2)
+        XCTAssertEqual(model.rows.map(\.status), [.ownerInvalid], "Show the existing close-and-reopen guidance")
+        model.connect("com.spotify.client")
+        let flushed = expectation(description: "Connection worker flushed")
+        f.service.refresh(registry: f.registry, checks: [f.check]) { _ in flushed.fulfill() }
+        wait(for: [flushed], timeout: 2)
+        XCTAssertEqual(reads, 0, "A retired setup cannot start a new connection read")
+        XCTAssertEqual(model.rows.map(\.status), [.ownerInvalid])
+        settings.finishPluginSettings()
+        settings.pluginSettingsDidDismiss()
+        XCTAssertEqual(editor.configuration, empty)
+        settings.closePluginSettings()
+        let reopened = try XCTUnwrap(settings.connectionSettingsModel(for: f.manifest))
+        let reopenedReady = expectation(description: "Reopened settings use fresh lifetime")
+        reopened.refresh { connected in XCTAssertTrue(connected); reopenedReady.fulfill() }
+        wait(for: [reopenedReady], timeout: 2)
+        XCTAssertEqual(reopened.rows.map(\.status), [.ready])
+        XCTAssertEqual(editor.configuration, empty, "Reopening must not revive the cancelled placement")
+        withExtendedLifetime(subscription) {}
     }
 
     func testAConnectionPlacementCannotOutliveItsOwnerOrGrantDuringDismissal() throws {
