@@ -168,8 +168,16 @@ final class AppKitPluginHostServiceProvider {
         guard isGranted(.accessibility) else {
             throw PluginHostServiceError.systemPermissionDenied(.accessibility)
         }
-        guard let application = elementAttribute(kAXFocusedApplicationAttribute, of: AXUIElementCreateSystemWide()),
-              let window = elementAttribute(kAXFocusedWindowAttribute, of: application) else {
+        guard let window = FocusedWindowLookup.read(
+            systemFocusedApplication: {
+                self.elementAttribute(kAXFocusedApplicationAttribute, of: AXUIElementCreateSystemWide())
+            },
+            frontmostProcessIdentifier: {
+                self.onMain { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+            },
+            applicationForProcessIdentifier: AXUIElementCreateApplication,
+            focusedWindow: { self.elementAttribute(kAXFocusedWindowAttribute, of: $0) }
+        ) else {
             throw PluginHostServiceError.unavailable("No focused window")
         }
         return window
