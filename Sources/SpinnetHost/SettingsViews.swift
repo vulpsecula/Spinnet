@@ -322,7 +322,7 @@ final class SettingsWindowModel: ObservableObject {
                 self.pendingConnectionPlacement = nil
                 self.openConnections = nil
                 model.close()
-                completion(true)
+                completion(model.isConnected)
             } else {
                 model.onConnected = { [weak self] in self?.finishPluginSettings() }
                 self.privacy.showPluginSettings(pluginID)
@@ -335,8 +335,8 @@ final class SettingsWindowModel: ObservableObject {
     /// Preset can safely open its own Configuration Sheet afterwards.
     func finishPluginSettings() {
         if let pending = pendingConnectionPlacement {
-            guard openConnections?.isConnected == true else { return }
-            completedConnectionPlacement = { pending.completion(true) }
+            guard let model = openConnections, model.isConnected else { return }
+            completedConnectionPlacement = { pending.completion(model.isConnected) }
             pendingConnectionPlacement = nil
         }
         closePluginSettings()

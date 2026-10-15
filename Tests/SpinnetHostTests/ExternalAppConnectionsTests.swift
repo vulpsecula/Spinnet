@@ -172,4 +172,60 @@ final class ExternalAppConnectionsTests: XCTestCase {
         XCTAssertEqual(ExternalAppConnectionAdapter(native: native).connect(f.check, authorized: { true }), .notRunning)
     }
 
+    func testAConnectionPlacementCannotOutliveItsOwnerOrGrantDuringDismissal() throws {
+        for change in ["replacement", "disable", "regrant"] {
+            var allowed = false
+            let f = try fixture(native: .init(installed: { _ in true }, running: { _ in true },
+                permission: { _, prompt in
+                    if prompt { allowed = true }
+                    return allowed ? noErr : OSStatus(-1744)
+                }, read: { _ in }))
+            let empty = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
+            let editor = HostConfigurationEditor(registry: f.registry, configuration: empty)
+            let settings = SettingsWindowModel(editor: editor, metadata: .current,
+                capabilityGrantStore: f.grants, accessibilityPermissionCheck: { true }, mouseInputConflictCheck: { _ in [] })
+            settings.privacy.connectionSettings = { id in
+                ExternalAppConnectionsModel(pluginID: id, registry: f.registry, grants: f.grants, service: f.service)
+            }
+            let shown = expectation(description: "Settings shown: \(change)")
+            var observed = false
+            let opening = settings.privacy.$pluginSettingsManifest.sink { manifest in
+                if manifest != nil && !observed { observed = true; shown.fulfill() }
+            }
+            XCTAssertFalse(settings.menuEditor.placePreset(pluginID: f.manifest.id.rawValue, at: 0))
+            wait(for: [shown], timeout: 2)
+            let closed = expectation(description: "Settings closed: \(change)")
+            var didClose = false
+            let closing = settings.privacy.$pluginSettingsManifest.sink { manifest in
+                if manifest == nil && !didClose { didClose = true; closed.fulfill() }
+            }
+            try XCTUnwrap(settings.connectionSettingsModel(for: f.manifest)).connect("com.spotify.client")
+            wait(for: [closed], timeout: 2)
+            XCTAssertEqual(editor.configuration, empty)
+            switch change {
+            case "replacement": try f.registry.replace(f.package)
+            case "disable":
+                try f.registry.setEnabled(false, for: f.manifest.id)
+                try f.registry.setEnabled(true, for: f.manifest.id)
+            default:
+                f.grants.setDecision(.denied, for: f.manifest.id, pluginVersion: f.manifest.version,
+                    capability: .controlExternalApp, scope: f.manifest.scope(for: .controlExternalApp))
+                f.grants.setDecision(.granted, for: f.manifest.id, pluginVersion: f.manifest.version,
+                    capability: .controlExternalApp, scope: f.manifest.scope(for: .controlExternalApp))
+            }
+            // Make the current registration fully ready again. Fresh readiness
+            // cannot authorize an intent accepted under the retired lifetime.
+            let refreshed = expectation(description: "New lifetime ready: \(change)")
+            f.service.refresh(registry: f.registry, checks: [f.check]) { statuses in
+                XCTAssertEqual(statuses, [.ready]); refreshed.fulfill()
+            }
+            wait(for: [refreshed], timeout: 2)
+            settings.pluginSettingsDidDismiss()
+            XCTAssertEqual(editor.configuration, empty, change)
+            settings.pluginSettingsDidDismiss()
+            XCTAssertEqual(editor.configuration, empty, change)
+            withExtendedLifetime((opening, closing)) {}
+        }
+    }
+
 }

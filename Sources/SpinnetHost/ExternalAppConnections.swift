@@ -52,6 +52,18 @@ final class HostExternalAppConnections {
         lock.unlock()
     }
 
+    /// A pending setup belongs to the authority lifetime in which it began.
+    /// A later grant or identical package replacement cannot revive it, even
+    /// after the sheet closes and its native connection attempt has finished.
+    func authorityLifetime(for pluginID: PluginID) -> () -> Bool {
+        lock.lock(); let epoch = epochs[pluginID, default: 0]; lock.unlock()
+        return { [weak self] in
+            guard let self else { return false }
+            self.lock.lock(); defer { self.lock.unlock() }
+            return self.epochs[pluginID, default: 0] == epoch
+        }
+    }
+
     func status(_ check: ExternalAppConnectionCheck) -> ExternalAppConnectionStatus {
         let key = Key(owner: check.admission, pluginID: check.package.manifest.id, bundleID: check.declaration.bundleID)
         guard Thread.isMainThread else { return inspect(check, key: key) }
@@ -155,6 +167,7 @@ final class ExternalAppConnectionsModel: ObservableObject {
     private let registry: PluginRegistry
     private let grants: PluginCapabilityGrantStore
     private let service: HostExternalAppConnections
+    private let authorityIsCurrent: () -> Bool
     private var generation: UInt64 = 0
     private var closed = false
     private var connecting = false
@@ -163,6 +176,7 @@ final class ExternalAppConnectionsModel: ObservableObject {
     init(pluginID: PluginID, registry: PluginRegistry, grants: PluginCapabilityGrantStore, service: HostExternalAppConnections) {
         self.pluginID = pluginID
         self.registry = registry; self.grants = grants; self.service = service
+        authorityIsCurrent = service.authorityLifetime(for: pluginID)
         rows = registry.externalAppConnectionChecks(for: pluginID).map { Row(check: $0, status: .busy) }
         grantObserver = grants.observeChanges { [weak self] in
             DispatchQueue.main.async { [weak self] in self?.refresh() }
@@ -173,7 +187,7 @@ final class ExternalAppConnectionsModel: ObservableObject {
         let required = rows.filter { row in
             placementCommandIDs.map { !Set(row.check.declaration.commandIDs).isDisjoint(with: $0) } ?? true
         }
-        return !required.isEmpty && required.allSatisfy {
+        return authorityIsCurrent() && !required.isEmpty && required.allSatisfy {
             $0.status.isConnected && registry.externalAppConnectionAuthorization(for: $0.check).isAvailable
         }
     }
