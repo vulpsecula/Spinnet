@@ -2,6 +2,7 @@ import AppKit
 import SpinnetCore
 import SpinnetPluginTestKit
 import XCTest
+import Vision
 @testable import SpinnetHost
 
 final class AdaptiveViewportPanelTests: XCTestCase {
@@ -9,6 +10,36 @@ final class AdaptiveViewportPanelTests: XCTestCase {
     private func settle() { RunLoop.main.run(until: Date().addingTimeInterval(0.2)) }
 
     private func nativeViews(_ root: NSView) -> [NSView] { [root] + root.subviews.flatMap(nativeViews) }
+
+    /// Read the actual pixels, including the text's location inside its card.
+    /// This catches hidden primary Text while its binding and card survive.
+    private func assertPrimaryTextVisible(_ bitmap: NSBitmapImageRep, points: NSSize,
+                                          cards: [NSRect], viewport: NSRect, file: StaticString = #filePath, line: UInt = #line) throws {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["en-US"]
+        request.usesLanguageCorrection = false
+        try VNImageRequestHandler(cgImage: XCTUnwrap(bitmap.cgImage), options: [:]).perform([request])
+        let rendered = (request.results ?? []).compactMap { observation -> (String, NSRect)? in
+            guard let text = observation.topCandidates(1).first?.string else { return nil }
+            // Vision uses a lower-left normalized origin; the captured pixels
+            // and measured background rectangles use an upper-left origin.
+            let box = observation.boundingBox
+            let rect = NSRect(x: box.minX * points.width, y: (1 - box.maxY) * points.height,
+                              width: box.width * points.width, height: box.height * points.height)
+            let normalized = text.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "." || $0 == "%" }
+            return (normalized, rect)
+        }
+        print("Rendered metric text: \(rendered)")
+        for (label, value) in [("cpu", "25%"), ("memory", "8.59gb"), ("disk", "128.85gb"), ("battery", "72%")] {
+            let matchingCard = cards.first { card in
+                let bounds = card.insetBy(dx: -2, dy: -2)
+                return rendered.contains { $0.0.contains(label) && bounds.contains($0.1) && viewport.contains($0.1) }
+                    && rendered.contains { $0.0 == value && bounds.contains($0.1) && viewport.contains($0.1) }
+            }
+            XCTAssertNotNil(matchingCard, "Rendered \(label) label and literal \(value) must both be visible in the same card", file: file, line: line)
+        }
+    }
 
     /// Measure the drawn opaque backgrounds, rather than a layout wrapper.
     private func cardRectangles(_ bitmap: NSBitmapImageRep, points: NSSize) -> [NSRect] {
@@ -85,6 +116,7 @@ final class AdaptiveViewportPanelTests: XCTestCase {
             XCTAssertEqual(try XCTUnwrap(cards.map(\.minX).min()),drawnViewport.minX,accuracy:2)
             XCTAssertEqual(try XCTUnwrap(cards.map(\.maxX).max()),drawnViewport.maxX,accuracy:2)
             for card in cards { XCTAssertTrue(drawnViewport.insetBy(dx:-2,dy:-2).contains(card)) }
+            try assertPrimaryTextVisible(bitmap, points: view.bounds.size, cards: cards, viewport: drawnViewport)
             for metric in ["cpu","memory","disk","battery"] {
                 XCTAssertNotNil(model.sourceText(metric + "-value"),"Required primary value remains source-bound")
             }
