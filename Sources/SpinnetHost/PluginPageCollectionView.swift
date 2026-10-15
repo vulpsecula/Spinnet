@@ -98,13 +98,10 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
                                                name: NSView.boundsDidChangeNotification, object: contentView)
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.alignment = .center
+        emptyLabel.lineBreakMode = .byWordWrapping
+        emptyLabel.maximumNumberOfLines = 0
         emptyLabel.isHidden = true
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(emptyLabel)
-        NSLayoutConstraint.activate([
-            emptyLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: centerYAnchor)
-        ])
         model.collectionDisplay = self
     }
 
@@ -191,6 +188,7 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     private func updateEmpty() {
         let empty = (model?.window?.total ?? 0) == 0
         emptyLabel.isHidden = !empty
+        needsLayout = true
     }
 
     // MARK: PageCollectionDisplay
@@ -247,6 +245,11 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     override func layout() {
         super.layout()
         relayOut()
+        let region = contentView.frame.insetBy(dx: 16, dy: 8)
+        let width = max(0, region.width)
+        emptyLabel.preferredMaxLayoutWidth = width
+        let height = min(max(0, region.height), emptyLabel.intrinsicContentSize.height)
+        emptyLabel.frame = NSRect(x: region.minX, y: region.midY - height / 2, width: width, height: height)
         reportViewport()
     }
 
