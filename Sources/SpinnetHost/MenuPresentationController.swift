@@ -113,6 +113,19 @@ final class MenuPresentationController {
         configureMenuView()
     }
 
+    /// Passive availability updates must not end the user's Menu interaction.
+    func refreshAvailability() {
+        guard let onRefresh else { return }
+        let refreshedSlots = onRefresh()
+        guard slots.map({ $0.item?.configuration }) == refreshedSlots.map({ $0.item?.configuration }) else {
+            // A changed composition must not retarget a gesture already in progress.
+            reload(items: refreshedSlots)
+            return
+        }
+        slots = refreshedSlots
+        menuView.refreshAvailability(slots: refreshedSlots)
+    }
+
     func applyAppearance(_ appearance: MenuAppearanceConfiguration) {
         guard appearanceConfiguration != appearance else { return }
         if isOpen { dismiss() }

@@ -385,6 +385,15 @@ final class RadialMenuView: NSView {
         needsDisplay = true
     }
 
+    /// Updates the same Menu Items while retaining hover and gesture selection.
+    /// The controller routes composition changes through the normal reload.
+    func refreshAvailability(slots: [MenuSlotPresentation]) {
+        guard self.slots != slots else { return }
+        self.slots = slots
+        updateAccessibilityValue()
+        needsDisplay = true
+    }
+
     func reload(slots: [MenuSlotPresentation]) {
         self.slots = slots
         invalidateSlotPaths()

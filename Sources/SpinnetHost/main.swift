@@ -347,9 +347,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     grants: capabilityGrants, service: externalAppConnections)
             }
             externalAppConnections.onChange = { [weak self] in
-                guard let self, let configuration = self.currentConfiguration else { return }
+                guard let self else { return }
                 self.settings.refreshMenuSlots()
-                self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                self.menu.refreshAvailability()
             }
             let collector = ClipboardCollector(
                 store: clipboardStore,
