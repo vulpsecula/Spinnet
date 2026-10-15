@@ -35,7 +35,7 @@ struct ExternalAppConnectionAdapter {
                 candidateContracts: check.package.manifest.candidateContracts)
             try native.read(request)
             guard authorized() else { return .ownerInvalid }
-            return inspect(check, prompt: false)
+            return inspect(check, prompt: false, previouslyAuthorized: true)
         } catch let error as PluginHostServiceError {
             switch error {
             case .automationPermissionDenied: return .permissionDenied
