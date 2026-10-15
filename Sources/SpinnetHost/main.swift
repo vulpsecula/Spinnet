@@ -13,7 +13,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             manifest.missingSettings(in: self.resolvedPluginSettings(manifest), hasSecret: { reference in
                 self.pluginCredentials.hasSecret(for: manifest.id, reference: reference)
             }).isEmpty
-        }
+        },
+        externalAppConnectionStatus: { [externalAppConnections] in externalAppConnections.status($0) }
     )
     /// Each Plugin's Plugin Settings, read when an Action runs or availability
     /// is computed. Set first thing at launch.
@@ -55,6 +56,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var actions: [ActionID: ActionConfiguration] = [:]
     private var currentConfiguration: HostConfiguration?
     private let capabilityGrants = PluginCapabilityGrantStore()
+    private let externalAppConnections = HostExternalAppConnections()
     private let clipboardObservationGate = ClipboardObservationGate()
     private let pluginHostServiceProvider = AppKitPluginHostServiceProvider()
     private let textInserter = HostTextInserter()
@@ -165,6 +167,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 discardingOthers: bundledPlugins.accountsForBundledPlugins
             )
             try saveCapabilityGrants()
+            externalAppConnections.observeAuthority(registry: registry, grants: capabilityGrants)
             let scriptedExecutor = pluginHelperURL().map {
                 PluginRuntimeSupervisor(helperURL: $0, registry: registry, grantStore: capabilityGrants,
                                         contracts: registry.contracts)
@@ -339,6 +342,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 pluginSettingsStore: pluginSettings,
                 pluginStorage: pluginStorage
             )
+            settings.connectionSettings = { [registry, capabilityGrants, externalAppConnections] pluginID in
+                ExternalAppConnectionsModel(pluginID: pluginID, registry: registry,
+                    grants: capabilityGrants, service: externalAppConnections)
+            }
+            externalAppConnections.onChange = { [weak self] in
+                guard let self, let configuration = self.currentConfiguration else { return }
+                self.settings.refreshMenuSlots()
+                self.menu.reload(items: self.makeMenuSlots(from: configuration))
+            }
             let collector = ClipboardCollector(
                 store: clipboardStore,
                 observationGate: clipboardObservationGate

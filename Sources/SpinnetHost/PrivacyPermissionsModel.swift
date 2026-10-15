@@ -34,6 +34,8 @@ final class PrivacyPermissionsModel: ObservableObject {
     /// Fires whenever authority changes in a way that can alter Menu Item
     /// availability.
     var onAuthorityChanged: (() -> Void)?
+    /// Host-rendered connection setup, shared by Library and Menu Item sheets.
+    var connectionSettings: ((PluginID) -> ExternalAppConnectionsModel)?
     /// Fires with the full grant set so the Host can re-authorize running work.
     var onGrantsChanged: (([PluginCapabilityGrant]) -> Void)?
 

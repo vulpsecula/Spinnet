@@ -104,6 +104,9 @@ struct PluginConsentSheet: View {
     @ObservedObject var privacy: PrivacyPermissionsModel
     let manifest: PluginManifest
     var onDone: (() -> Void)? = nil
+    var onCancel: (() -> Void)? = nil
+    var connections: ExternalAppConnectionsModel? = nil
+    var requiresConnection = false
     /// The Screenshot entry's own options, shown above its access.
     var screenshotSettings: ScreenshotSettingsModel? = nil
     /// The Plugin's declared settings, saved by Done.
@@ -123,6 +126,7 @@ struct PluginConsentSheet: View {
                     if let pluginSettings {
                         PluginSettingsForm(model: pluginSettings)
                     }
+                    if let connections { ExternalAppConnectionSettings(model: connections) }
                     PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
                                      setDecision: privacy.setCapabilityDecision,
                                      consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
@@ -132,8 +136,8 @@ struct PluginConsentSheet: View {
                 }
             }
             HStack {
-                if pluginSettings != nil {
-                    Button("Cancel", action: close)
+                if pluginSettings != nil || requiresConnection {
+                    Button("Cancel", action: { if let onCancel { onCancel() } else { close() } })
                         .keyboardShortcut(.cancelAction)
                 }
                 Spacer()
@@ -160,6 +164,7 @@ struct MenuItemAccessSummary: View {
     let commandIDs: Set<CommandID>
     let inputs: [CommandID: JSONValue]
     @State private var showingPluginSettings = false
+    @State private var connections: ExternalAppConnectionsModel?
 
     private var capabilities: [PluginCapability] {
         manifest.capabilities.filter { capability in
@@ -229,14 +234,17 @@ struct MenuItemAccessSummary: View {
                 }
                 Text("Manage Plugin-wide access in Library’s Plugin Settings. Your Slot edits will be kept while you open settings.")
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Open Plugin Settings") { showingPluginSettings = true }
+                Button("Open Plugin Settings") {
+                    connections = privacy.connectionSettings?(manifest.id)
+                    showingPluginSettings = true
+                }
                     .accessibilityLabel("Open Plugin Settings for \(manifest.name)")
             }
             .padding(.top, 8)
         }
         .sheet(isPresented: $showingPluginSettings) {
             PluginConsentSheet(privacy: privacy, manifest: manifest,
-                               onDone: { showingPluginSettings = false })
+                               onDone: { showingPluginSettings = false }, connections: connections)
         }
     }
 }
