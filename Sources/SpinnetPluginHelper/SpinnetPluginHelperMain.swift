@@ -233,6 +233,11 @@ struct SpinnetPluginHelperMain {
                   let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
             sdk = adaptive
         }
+        if invocation.candidateContracts.contains(AdaptiveViewportLayout.declaration) {
+            guard let makeAdaptive = context.evaluateScript(SpinnetSDK.adaptiveViewportSource), makeAdaptive.isObject,
+                  let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
+            sdk = adaptive
+        }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
     }
