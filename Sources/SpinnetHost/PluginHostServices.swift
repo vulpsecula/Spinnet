@@ -4,6 +4,33 @@ import SpinnetCore
 /// AppKit adapters for the narrow Host Services exposed to the fixture
 /// Plugin. The Plugin helper never receives these objects or framework access.
 final class AppKitPluginHostServiceProvider {
+    /// Native Accessibility boundary; tests can replay local callbacks without
+    /// provoking an AppKit deadlock in the entire test process.
+    struct Accessibility {
+        var trusted: () -> Bool = AXIsProcessTrusted
+        var systemWide = AXUIElementCreateSystemWide()
+        var frontmost: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+        var processIdentifier: (AXUIElement) -> pid_t? = { element in
+            var pid: pid_t = 0
+            return AXUIElementGetPid(element, &pid) == .success ? pid : nil
+        }
+        var copy: (AXUIElement, CFString) -> (AXError, CFTypeRef?) = { element, attribute in
+            var value: CFTypeRef?
+            let error = AXUIElementCopyAttributeValue(element, attribute, &value)
+            return (error, value)
+        }
+        var settable: (AXUIElement, CFString) -> (AXError, Bool) = { element, attribute in
+            var value = DarwinBoolean(false)
+            let error = AXUIElementIsAttributeSettable(element, attribute, &value)
+            return (error, value.boolValue)
+        }
+        var set: (AXUIElement, CFString, CFTypeRef) -> AXError = AXUIElementSetAttributeValue
+        var timeout: (AXUIElement, Float) -> AXError = AXUIElementSetMessagingTimeout
+    }
+    private let accessibility: Accessibility
+
+    init(accessibility: Accessibility = .init()) { self.accessibility = accessibility }
+
     private let windowLock = NSLock()
     private let closedWindowSweep = DispatchQueue(label: "com.vulpsecula.Spinnet.closed-window-sweep", qos: .utility)
     /// The window a Plugin last read. Setting a frame applies only to it, and
@@ -17,7 +44,7 @@ final class AppKitPluginHostServiceProvider {
     func isGranted(_ permission: PluginSystemPermission) -> Bool {
         switch permission {
         case .accessibility:
-            return AXIsProcessTrusted()
+            return accessibility.trusted()
         case .screenRecording:
             // Preflight only: this never shows the system prompt. The prompt
             // comes from an explicit Enable Screen Recording action.
@@ -84,9 +111,8 @@ final class AppKitPluginHostServiceProvider {
     /// `original` back if the window rejects the change part-way.
     private func replaceFrame(of window: AXUIElement, from original: WindowRect, with frame: WindowRect) throws {
         for attribute in [kAXPositionAttribute, kAXSizeAttribute] {
-            var settable = DarwinBoolean(false)
-            guard AXUIElementIsAttributeSettable(window, attribute as CFString, &settable) == .success,
-                  settable.boolValue else {
+            let (error, settable) = axSettable(window, attribute as CFString)
+            guard error == .success, settable else {
                 throw PluginHostServiceError.unavailable("The focused window cannot be moved or resized")
             }
         }
@@ -103,9 +129,8 @@ final class AppKitPluginHostServiceProvider {
     private func forgetClosedWindows() {
         let windows = windowLock.withLock { rememberedFrames.windows }
         let closed = Set(windows.filter { key in
-            AXUIElementSetMessagingTimeout(key.element, 0.25)
-            var role: CFTypeRef?
-            return AXUIElementCopyAttributeValue(key.element, kAXRoleAttribute as CFString, &role) == .invalidUIElement
+            _ = axTimeout(key.element, 0.25)
+            return axCopy(key.element, kAXRoleAttribute as CFString).0 == .invalidUIElement
         })
         guard !closed.isEmpty else { return }
         windowLock.withLock { rememberedFrames.forget { closed.contains($0) } }
@@ -122,14 +147,12 @@ final class AppKitPluginHostServiceProvider {
     /// anything changes.
     func toggleFocusedWindowFullScreen() throws {
         let window = try focusedWindow()
-        var settable = DarwinBoolean(false)
-        guard let isFullScreen = fullScreenState(of: window),
-              AXUIElementIsAttributeSettable(window, Self.fullScreenAttribute, &settable) == .success,
-              settable.boolValue else {
+        let (error, settable) = axSettable(window, Self.fullScreenAttribute)
+        guard let isFullScreen = fullScreenState(of: window), error == .success, settable else {
             throw PluginHostServiceError.unavailable("The focused window cannot enter or leave full screen")
         }
         let target = (isFullScreen ? kCFBooleanFalse : kCFBooleanTrue) as CFTypeRef
-        guard AXUIElementSetAttributeValue(window, Self.fullScreenAttribute, target) == .success else {
+        guard axSet(window, Self.fullScreenAttribute, target) == .success else {
             throw PluginHostServiceError.failed("The focused window did not change its full screen state")
         }
     }
@@ -143,9 +166,8 @@ final class AppKitPluginHostServiceProvider {
     }
 
     private func fullScreenState(of window: AXUIElement) -> Bool? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, Self.fullScreenAttribute, &value) == .success,
-              let value, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
+        let (error, value) = axCopy(window, Self.fullScreenAttribute)
+        guard error == .success, let value, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
         return CFBooleanGetValue((value as! CFBoolean))
     }
 
@@ -158,9 +180,9 @@ final class AppKitPluginHostServiceProvider {
         // Size, then position, then size again: a window moving to a smaller
         // display may clamp its size against the display it is leaving.
         return [
-            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, extent),
-            AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, position),
-            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, extent)
+            axSet(window, kAXSizeAttribute as CFString, extent),
+            axSet(window, kAXPositionAttribute as CFString, position),
+            axSet(window, kAXSizeAttribute as CFString, extent)
         ].allSatisfy { $0 == .success }
     }
 
@@ -170,10 +192,10 @@ final class AppKitPluginHostServiceProvider {
         }
         guard let window = FocusedWindowLookup.read(
             systemFocusedApplication: {
-                self.elementAttribute(kAXFocusedApplicationAttribute, of: AXUIElementCreateSystemWide())
+                self.elementAttribute(kAXFocusedApplicationAttribute, of: self.accessibility.systemWide)
             },
             frontmostProcessIdentifier: {
-                self.onMain { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+                self.onMain { self.accessibility.frontmost() }
             },
             applicationForProcessIdentifier: AXUIElementCreateApplication,
             focusedWindow: { self.elementAttribute(kAXFocusedWindowAttribute, of: $0) }
@@ -197,17 +219,44 @@ final class AppKitPluginHostServiceProvider {
     }
 
     private func elementAttribute(_ attribute: String, of element: AXUIElement) -> AXUIElement? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let (error, value) = axCopy(element, attribute as CFString)
+        guard error == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
         return (value as! AXUIElement)
     }
 
     private func valueAttribute(_ attribute: String, of element: AXUIElement) -> AXValue? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        let (error, value) = axCopy(element, attribute as CFString)
+        guard error == .success, let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
         return (value as! AXValue)
+    }
+
+    /// Local AX calls synchronously enter AppKit in this process. AppKit must
+    /// own them on main; remote processes retain the caller's worker queue.
+    /// PID lookup reads the element's address metadata, not its AX attributes.
+    /// Do not hold windowLock across this hop. Unknown owners fail closed.
+    private func withAXElement<T>(_ element: AXUIElement, unavailable: T, _ work: () -> T) -> T {
+        // The global focus lookup queries the accessibility server; it is not
+        // a window callback. Keeping it on the caller avoids blocking main on
+        // an external application's global focus response.
+        if CFEqual(element, accessibility.systemWide) { return work() }
+        guard let pid = accessibility.processIdentifier(element), pid > 0 else { return unavailable }
+        return pid == ProcessInfo.processInfo.processIdentifier ? onMain(work) : work()
+    }
+
+    private func axCopy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?) {
+        withAXElement(element, unavailable: (.invalidUIElement, nil)) { accessibility.copy(element, attribute) }
+    }
+
+    private func axSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) {
+        withAXElement(element, unavailable: (.invalidUIElement, false)) { accessibility.settable(element, attribute) }
+    }
+
+    private func axSet(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError {
+        withAXElement(element, unavailable: .invalidUIElement) { accessibility.set(element, attribute, value) }
+    }
+
+    private func axTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError {
+        withAXElement(element, unavailable: .invalidUIElement) { accessibility.timeout(element, timeout) }
     }
 
     private func onMain<T>(_ work: () -> T) -> T {
