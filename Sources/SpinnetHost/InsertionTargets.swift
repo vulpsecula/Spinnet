@@ -337,9 +337,10 @@ final class HostOperationsPerformer: HostOperationPerformer {
         guard let package = registry.package(for: action.pluginID), let broker = broker() else {
             return completion(HostOperationResult(.refused(.commandUnavailable), message: "Host Services are unavailable"))
         }
-        let request = PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString, actionID: action.id,
+        var request = PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString, actionID: action.id,
                                                       service: implementation.service, input: implementation.input,
                                                       operation: operation.perform)
+        request.allowsAutomationPrompt = true
         queue.async {
             let result: HostOperationResult
             do {

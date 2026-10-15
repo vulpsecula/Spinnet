@@ -1003,7 +1003,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .httpsRequest:
             try httpsPerformer(for: package).validate(request.input)
         case .performAppOperation:
-            _ = try appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+            _ = try appleEventRequest(from: request.input, package: package)
         case .openDeepLink:
             _ = try deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
         default: break
@@ -1192,10 +1192,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
         case .performAppOperation:
-            let event = try appleEventRequest(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+            let event = try appleEventRequest(from: request.input, package: package)
             if event.bundleID == SpotifyPlayback.bundleID {
                 guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
-                return try performReviewedApp(event, package: package, action: action, allowsPrompt: true)
+                return try performReviewedApp(event, package: package, action: action,
+                    allowsPrompt: !SpotifyControls.operationNames.contains(event.handler)
+                        && (!PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest)
+                            || (event.handler == "playback" && request.allowsAutomationPrompt)))
             }
             try appleEventSender(event)
             return .null
@@ -1272,13 +1275,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
                     throw PluginHostServiceError.unavailable("The Plugin is no longer active")
                 }
-                _ = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                _ = try self.appleEventRequest(from: source.input, package: package)
                 try self.authorize(.performAppOperation, for: package, action: action)
             }, sample: { [self] action, source, cancellation in
                 guard !cancellation.isCancelled, let package = registry.package(for: action.pluginID) else {
                     throw PluginHostServiceError.unavailable("The playback read was cancelled")
                 }
-                let request = try self.appleEventRequest(from: source.input, scope: package.manifest.scope(for: .controlExternalApp))
+                let request = try self.appleEventRequest(from: source.input, package: package)
                 let result = try self.performReviewedApp(request, package: package, action: action, allowsPrompt: false, registry: registry)
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The playback read was cancelled") }
                 return result
@@ -1425,7 +1428,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     /// The Apple Event for a `perform_app_operation` input: an application
     /// in the scope, one of its Reviewed App Interface's operations from a
     /// family the scope names, and arguments that interface accepts.
-    private func appleEventRequest(from input: JSONValue, scope: PluginCapabilityScope?) throws -> AppleEventRequest {
+    private func appleEventRequest(from input: JSONValue, package: PluginPackage) throws -> AppleEventRequest {
+        let manifest = package.manifest
+        let scope = manifest.scope(for: .controlExternalApp)
         guard case .object(let fields) = input, case .string(let bundleID)? = fields["bundle_id"],
               case .string(let operation)? = fields["operation"],
               Set(fields.keys).isSubset(of: ["bundle_id", "operation", "arguments"]) else {
@@ -1448,11 +1453,20 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 "\(bundleID) has no Apple Events interface Spinnet has reviewed"
             )
         }
-        if let family = interface.operations.first(where: { $0.name == operation })?.family,
+        if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation) {
+            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
+            catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
+        }
+        if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation),
+           !PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: manifest) {
+            throw PluginHostServiceError.unavailable("Spotify \(operation) requires spotify_controls r1")
+        }
+        if let family = interface.operations.first(where: { $0.name == operation })?.family
+            ?? (bundleID == SpotifyPlayback.bundleID ? SpotifyControls.family(for: operation) : nil),
            !target.operationFamilies.contains(family) {
             throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
-        return try interface.request(operation: operation, arguments: arguments)
+        return try interface.request(operation: operation, arguments: arguments, candidateContracts: manifest.candidateContracts)
     }
 
     private func deepLink(from input: JSONValue, scope: PluginCapabilityScope?) throws -> DeepLink {

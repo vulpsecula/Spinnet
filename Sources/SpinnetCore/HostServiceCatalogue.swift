@@ -433,6 +433,11 @@ public extension HostServiceCatalogue {
             guard let operation = operation(id), operation.isOffered(at: .command) else {
                 throw HostServiceRefusal.notCatalogued(id, use: use)
             }
+            if id == "apps.perform", command.fixedInput?.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
+               case .string(let name)? = command.fixedInput?.value(atPointer: "/operation"),
+               SpotifyControls.operationNames.contains(name), !contracts.permits(SpotifyControls.member, declaredBy: manifest) {
+                throw HostServiceRefusal.invalidCommand(command.id, plugin: manifest.name, reason: "Spotify \(name) requires spotify_controls r1")
+            }
             try operation.check(command, of: manifest)
         }
     }
@@ -541,6 +546,11 @@ public extension PluginInterfaceContracts {
         }
         do {
             let (service, input) = try operation.callImplementation(of: call.input)
+            if service == .performAppOperation, input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
+               case .string(let name)? = input.value(atPointer: "/operation"),
+               SpotifyControls.operationNames.contains(name), !permits(SpotifyControls.member, declaredBy: manifest) {
+                return .failure(.unavailable("Spotify \(name) requires spotify_controls r1"))
+            }
             return .success(PluginRuntimeHostServiceRequest(invocationID: call.invocationID, actionID: call.actionID,
                                                             requestID: call.requestID, service: service, input: input,
                                                             operation: operation.id))

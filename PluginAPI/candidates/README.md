@@ -189,6 +189,7 @@ as the external Emoji Plugin pins `0717f16`.
 | --- | --- | --- | --- |
 | `adaptive_layout` | 1 | 2 | [Adaptive card layout](adaptive_layout/r1/README.md) |
 | `adaptive_layout` | 2 | 2 | [Viewport fit and density](adaptive_layout/r2/README.md) |
+| `spotify_controls` | 1 | 2 | [Spotify Action controls](spotify_controls/r1/README.md) |
 
 ## Retired candidate declarations
 
