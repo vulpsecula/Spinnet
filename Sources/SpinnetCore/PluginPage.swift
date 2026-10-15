@@ -188,6 +188,9 @@ public struct PluginPage: Equatable {
         content = try Self.array(members["content"] ?? .null, "The page \(id)'s content", minimum: 1,
                                  maximum: CollectionsContract.maximumComponents)
             .map { try PluginPageComponent(parsing: $0, in: nil, depth: 0, permits: permits) }
+        if content.contains(where: { if case .adaptive(let layout) = $0 { return layout.fit != nil }; return false }), content.count != 1 {
+            throw Self.violation("A viewport-fitting adaptive layout is the page's sole top-level component")
+        }
         components = content.flatMap(\.flattened)
         guard components.count <= CollectionsContract.maximumComponents else {
             throw Self.violation("The page \(id) has more than \(CollectionsContract.maximumComponents) components")
@@ -455,14 +458,15 @@ public enum PluginPageComponent: Equatable {
                                         style: try PluginPageStyle.parse(fields, kind: kind.rawValue, id: id, permits: permits))
             self = kind == .row ? .row(stack) : .column(stack)
         case .adaptive:
-            let fields = try PluginPage.object(value, "An adaptive layout", allowed: ["kind", "id", "content", "min_card_width", "spacing", "max_columns"])
+            let fields = try PluginPage.object(value, "An adaptive layout", allowed: Set(["kind", "id", "content", "min_card_width", "spacing", "max_columns"] + (permits(AdaptiveViewportLayout.viewportFit) ? ["fit"] : [])))
             let id = try PluginPage.identifier(fields["id"], "An adaptive layout's id")
             let content = try PluginPage.array(fields["content"] ?? .null, "The adaptive \(id)'s content", minimum: 1, maximum: AdaptivePageLayout.maximumChildren)
                 .map { try PluginPageComponent(parsing: $0, in: kind, depth: depth + 1, permits: permits) }
             self = .adaptive(PluginPageAdaptive(id: id, content: content,
                 minimumCardWidth: try PluginPage.number(fields["min_card_width"], "The adaptive \(id)'s min_card_width", in: AdaptivePageLayout.minimumCardWidths) ?? AdaptivePageLayout.defaultMinimumCardWidth,
                 spacing: try PluginPage.number(fields["spacing"], "The adaptive \(id)'s spacing", in: AdaptivePageLayout.spacings) ?? AdaptivePageLayout.defaultSpacing,
-                maximumColumns: try PluginPage.integer(fields["max_columns"], "The adaptive \(id)'s max_columns", in: AdaptivePageLayout.columns, default: AdaptivePageLayout.defaultMaximumColumns)))
+                maximumColumns: try PluginPage.integer(fields["max_columns"], "The adaptive \(id)'s max_columns", in: AdaptivePageLayout.columns, default: AdaptivePageLayout.defaultMaximumColumns),
+                fit: try fields["fit"].map { try PluginPageViewportFit(parsing: $0, content: content, permits: permits) }))
         case .textField:
             self = .textField(try PluginPageTextField(parsing: value))
         case .choiceField:

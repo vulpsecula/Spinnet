@@ -1,0 +1,44 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.example.adaptive-viewport",
+  "name": "Adaptive Viewport",
+  "version": "1.2.0",
+  "capabilities": [
+    "read_system_status"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "read_system_status",
+      "command_ids": [
+        "cards"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "cards",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "cards",
+      "title": "System Monitor",
+      "description": "Current CPU, memory, disk capacity and battery. Refreshes only while visible; pin the panel to keep it nearby.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "cards.js"
+    }
+  ],
+  "candidate_contracts": [
+    {
+      "name": "adaptive_layout",
+      "revision": 2
+    }
+  ]
+}

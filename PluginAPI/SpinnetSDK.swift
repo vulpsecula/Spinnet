@@ -17,4 +17,7 @@ public enum SpinnetSDK {
     /// Exact opt-in adaptive_layout r1 candidate; its separate public source
     /// is evaluated over Level 2 only for a declaring Plugin.
     public static let adaptiveLayoutSource = String(decoding: PackageResources.adaptive_layout_js, as: UTF8.self)
+
+    /// Exact opt-in adaptive_layout r2, including viewport fit and density.
+    public static let adaptiveViewportSource = String(decoding: PackageResources.adaptive_layout_r2_js, as: UTF8.self)
 }

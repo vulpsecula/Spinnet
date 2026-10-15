@@ -509,3 +509,17 @@ final class AdaptivePageBudgetsTests: XCTestCase {
         XCTAssertEqual(PagePresentation.maximumContainerDepth, 3)
     }
 }
+
+final class AdaptiveViewportBudgetsTests: XCTestCase {
+    func testViewportMetadataHasSeparatePublishedBounds() {
+        let reference = "candidates/adaptive_layout/r2/README.md"
+        XCTAssertPublished("1–3 profiles",in:reference)
+        XCTAssertEqual(AdaptiveViewportLayout.maximumProfiles,3)
+        XCTAssertPublished("0–40 overrides",in:reference)
+        XCTAssertEqual(AdaptiveViewportLayout.maximumOverrides,40)
+        XCTAssertPublished("48–600 points",in:reference)
+        XCTAssertEqual(AdaptiveViewportLayout.minimumCardHeights,48...600)
+        XCTAssertEqual(CollectionsContract.maximumComponents,40)
+        XCTAssertEqual(PagePresentation.maximumContainerDepth,3)
+    }
+}

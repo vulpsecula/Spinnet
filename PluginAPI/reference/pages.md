@@ -666,3 +666,5 @@ A Level 2 page may append `sources` and a text component may append `bind`.
 See [sources](sources.md) for visibility, authority, retention, formatting,
 change-gated `source_delivered` events and bounds. Sources do not alter a page's
 Immediate State and offer no background schedule. HTTPS is once-only in this addition.
+
+`adaptive_layout` [revision 2](../candidates/adaptive_layout/r2/README.md) adds an optional viewport-fitting region with Plugin-declared passive text densities. Revision 1 remains provided unchanged; this is not a stable Level 2 addition.

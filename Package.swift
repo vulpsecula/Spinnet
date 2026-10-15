@@ -56,9 +56,11 @@ let package = Package(
                       "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates/README.md", "candidates/collections", "candidates/host_operations",
                       "candidates/namespaces", "candidates/schemas", "candidates/adaptive_layout/r1/candidate.json",
                       "candidates/adaptive_layout/r1/README.md", "candidates/adaptive_layout/r1/adaptive-layout.d.ts",
-                      "candidates/adaptive_layout/r1/adaptive-layout.schema.json", "candidates/adaptive_layout/r1/fixtures"],
+                      "candidates/adaptive_layout/r1/adaptive-layout.schema.json", "candidates/adaptive_layout/r1/fixtures", "candidates/adaptive_layout/r2/candidate.json",
+                      "candidates/adaptive_layout/r2/README.md", "candidates/adaptive_layout/r2/adaptive-layout.d.ts",
+                      "candidates/adaptive_layout/r2/adaptive-layout.schema.json", "candidates/adaptive_layout/r2/fixtures"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js"), .embedInCode("candidates/adaptive_layout/r2/adaptive-layout-r2.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

@@ -188,6 +188,7 @@ as the external Emoji Plugin pins `0717f16`.
 | Candidate | Revision | Base Level | Reference |
 | --- | --- | --- | --- |
 | `adaptive_layout` | 1 | 2 | [Adaptive card layout](adaptive_layout/r1/README.md) |
+| `adaptive_layout` | 2 | 2 | [Viewport fit and density](adaptive_layout/r2/README.md) |
 
 ## Retired candidate declarations
 

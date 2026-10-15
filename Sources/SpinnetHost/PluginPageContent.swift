@@ -38,6 +38,11 @@ struct PluginPageContent: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(model.collectionLabel)
                 components(model.page.content[(index + 1)...])
+            } else if case .adaptive(let adaptive)? = model.page.content.first, let fit = adaptive.fit {
+                PageViewportRegion(model: model, adaptive: adaptive, fit: fit)
+                    .frame(height: fills ? nil : Self.maximumScrollingHeight)
+                    .frame(minHeight: 40, maxHeight: fills ? .infinity : nil)
+                    .background(Self.measuring { scrollingHeight = $0 })
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) { components(model.page.content[...]) }
@@ -206,9 +211,11 @@ private struct PageHeader: View {
 }
 
 /// One component that is not the collection.
-private struct PageComponentView: View {
+struct PageComponentView: View {
     @ObservedObject var model: PluginPageModel
     let component: PluginPageComponent
+    @Environment(\.pageDensityOverrides) private var densityOverrides
+    @Environment(\.pageCardFills) private var cardFills
 
     var body: some View {
         switch component {
@@ -216,16 +223,19 @@ private struct PageComponentView: View {
             HStack(alignment: .center, spacing: 8) {
                 ForEach(stack.content, id: \.id) { child in
                     PageComponentView(model: model, component: child)
+                        .environment(\.pageCardFills, false)
                 }
             }
+            .frame(maxWidth: cardFills ? .infinity : nil, maxHeight: cardFills ? .infinity : nil, alignment: .topLeading)
             .modifier(PageBoxStyle(style: stack.style))
         case .column(let stack):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(stack.content, id: \.id) { child in
                     PageComponentView(model: model, component: child)
+                        .environment(\.pageCardFills, false)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: cardFills ? .infinity : nil, alignment: .topLeading)
             .modifier(PageBoxStyle(style: stack.style))
         case .adaptive(let layout):
             PageAdaptiveLayout(minimumCardWidth: layout.minimumCardWidth, spacing: layout.spacing,
@@ -246,7 +256,10 @@ private struct PageComponentView: View {
         case .choiceField(let field):
             PageChoiceField(model: model, field: field, value: model.choice(of: field.id))
                 .fixedSize()
-        case .text(let text):
+        case .text(let original):
+            let override = densityOverrides.first { $0.id == original.id }
+            let text = PluginPageText(id: original.id, title: original.title, text: override?.text ?? original.text,
+                style: override?.style ?? original.style, binding: original.binding)
             VStack(alignment: .leading, spacing: 4) {
                 if let title = text.title {
                     Text(title)
@@ -264,9 +277,13 @@ private struct PageComponentView: View {
                         .modifier(PageTextStyle(style: text.style))
                 }
             }
+            .frame(maxWidth: cardFills ? .infinity : nil, maxHeight: cardFills ? .infinity : nil, alignment: .topLeading)
             .modifier(PageBoxStyle(style: text.style))
             .accessibilityElement(children: .contain)
             .accessibilityLabel(text.title ?? "")
+            .frame(height: override?.hidden == true ? 0 : nil)
+            .opacity(override?.hidden == true ? 0 : 1)
+            .accessibilityHidden(override?.hidden == true)
         case .actions(_, let actions):
             PluginViewFlowLayout(spacing: 6) {
                 ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
