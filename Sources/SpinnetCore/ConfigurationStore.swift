@@ -341,6 +341,11 @@ public final class HostConfigurationEditor {
 
         let oldActionIDs = Set(existingItem.boundActionIDs)
         let oldActions = configuration.actions.filter { oldActionIDs.contains($0.id) }
+        let existingCommandIDs = Set(oldActions.filter { $0.pluginID == pluginID }.map(\.commandID))
+        let addedCommandIDs = selectedCommandIDs.filter { !existingCommandIDs.contains($0) }
+        if let reason = registry.externalAppConnectionPlacementAvailability(for: pluginID, commandIDs: addedCommandIDs).reason {
+            throw ConfigurationError.invalidAction(reason.description)
+        }
         let presetInputs = registry.menuItemPreset(for: pluginID)?.declaration.defaultInputs ?? [:]
         var existingActionsByCommandID: [CommandID: ActionConfiguration] = [:]
         for action in oldActions where action.pluginID == pluginID {
@@ -424,6 +429,9 @@ public final class HostConfigurationEditor {
         let selectedAlternateIDs = Set(alternateCommandIDs)
         let orderedSelectedAlternateIDs = alternateCommandOrder.filter(selectedAlternateIDs.contains)
         let selectedCommandIDs = [primaryCommandID] + orderedSelectedAlternateIDs
+        if let reason = registry.externalAppConnectionPlacementAvailability(for: pluginID, commandIDs: selectedCommandIDs).reason {
+            throw ConfigurationError.invalidAction(reason.description)
+        }
         guard Set(selectedCommandIDs).count == selectedCommandIDs.count else {
             throw ConfigurationError.invalidMenu("A Command is selected more than once")
         }
@@ -604,6 +612,9 @@ public final class HostConfigurationEditor {
         let declaration = preset.declaration
         let primaryCommandID = declaration.defaultPrimaryCommandID ?? preset.commands[0].id
         let commandIDs = [primaryCommandID] + declaration.defaultAlternateCommandIDs
+        if let reason = registry.externalAppConnectionPlacementAvailability(for: pluginID, commandIDs: commandIDs).reason {
+            throw ConfigurationError.invalidAction(reason.description)
+        }
         let newActions = try commandIDs.map { commandID -> ActionConfiguration in
             guard let command = preset.commands.first(where: { $0.id == commandID }) else {
                 throw ConfigurationError.invalidAction("Preset defaults are incomplete")

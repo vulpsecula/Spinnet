@@ -19,6 +19,19 @@ public struct ReviewedAppInterface: Equatable {
     public let handler: String
     public let format: RequestFormat
     public let operations: [Operation]
+    /// A Host-reviewed, non-mutating operation with no arguments. Never chosen by a Plugin.
+    public let connectionCheckOperation: String?
+
+    public init(minimumAPILevel: Int, bundleID: String, name: String, handler: String,
+                format: RequestFormat, operations: [Operation], connectionCheckOperation: String? = nil) {
+        self.minimumAPILevel = minimumAPILevel
+        self.bundleID = bundleID
+        self.name = name
+        self.handler = handler
+        self.format = format
+        self.operations = operations
+        self.connectionCheckOperation = connectionCheckOperation
+    }
 
     /// How an operation and its arguments become the handler's one argument.
     public enum RequestFormat: Equatable {
@@ -83,7 +96,7 @@ public struct ReviewedAppInterface: Equatable {
         ]
     )
 
-    static let spotify = ReviewedAppInterface(minimumAPILevel: 2, bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") })
+    static let spotify = ReviewedAppInterface(minimumAPILevel: 2, bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") }, connectionCheckOperation: "playback")
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.

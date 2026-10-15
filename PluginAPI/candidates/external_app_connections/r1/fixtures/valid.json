@@ -1,0 +1,16 @@
+{
+  "candidate_contracts": [
+    {
+      "name": "external_app_connections",
+      "revision": 1
+    }
+  ],
+  "external_app_connections": [
+    {
+      "bundle_id": "com.spotify.client",
+      "command_ids": [
+        "spotify.play"
+      ]
+    }
+  ]
+}

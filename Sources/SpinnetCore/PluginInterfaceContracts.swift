@@ -271,7 +271,7 @@ public struct PluginInterfaceContracts: Equatable {
     /// number.
     public static let host = PluginInterfaceContracts(
         levels: [1: levelOneMembers, 2: levelTwoMembers],
-        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) } + [AdaptivePageLayout.contract, AdaptiveViewportLayout.contract, SpotifyControls.contract]
+        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) } + [AdaptivePageLayout.contract, AdaptiveViewportLayout.contract, SpotifyControls.contract, ExternalAppConnections.contract]
     )
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
@@ -316,6 +316,9 @@ public struct PluginInterfaceContracts: Equatable {
                 throw CandidateContractRefusal.conflict(plugin: plugin, candidate: declaration.name,
                                                         conflictingCandidate: other.name)
             }
+        }
+        if !manifest.externalAppConnections.isEmpty, !permits(ExternalAppConnections.member, declaredBy: manifest) {
+            throw ConfigurationError.invalidManifest("external_app_connections requires its exact Candidate Contract")
         }
         try HostServiceCatalogue.checkCommands(of: manifest, under: self)
     }

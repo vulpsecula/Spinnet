@@ -14,7 +14,7 @@ struct JSONSchemaSubsetValidator {
     ]
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
-        "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
+        "items", "contains", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
         "allOf", "oneOf", "if", "then", "propertyNames", "maxProperties"
     ]
 
@@ -118,6 +118,10 @@ struct JSONSchemaSubsetValidator {
             return elements.enumerated().flatMap { index, element in
                 errors(for: element, against: value, at: path + "/\(index)")
             }
+        case ("contains", _):
+            guard case .array(let elements) = instance else { return [] }
+            return elements.contains { errors(for: $0, against: value, at: path).isEmpty }
+                ? [] : fail("contains no item matching the required schema")
         case ("minItems", .number(let minimum)):
             guard case .array(let elements) = instance else { return [] }
             return Double(elements.count) >= minimum ? [] : fail("has fewer than \(Int(minimum)) items")
