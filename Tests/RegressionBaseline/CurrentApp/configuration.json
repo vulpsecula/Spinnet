@@ -1,0 +1,51 @@
+{
+  "actions": [
+    {
+      "commandID": "current.close",
+      "execution": "javascript",
+      "id": "94000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.probe.current-app",
+      "script": "current.js",
+      "title": "Close Current Window"
+    },
+    {
+      "commandID": "current.quit",
+      "execution": "javascript",
+      "id": "94000000-0000-4000-8000-000000000002",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.probe.current-app",
+      "script": "current.js",
+      "title": "Quit Current App"
+    },
+    {
+      "commandID": "current.inspect",
+      "execution": "javascript",
+      "id": "94000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.probe.current-app",
+      "script": "current.js",
+      "title": "Current App"
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "Working App",
+          "primary_action_id": "94000000-0000-4000-8000-000000000001",
+          "alternate_action_ids": ["94000000-0000-4000-8000-000000000002"],
+          "disabled_alternate_action_ids": ["94000000-0000-4000-8000-000000000003"],
+          "alternate_action_order": [
+            "94000000-0000-4000-8000-000000000003",
+            "94000000-0000-4000-8000-000000000002"
+          ]
+        }
+      },
+      { "item": null }
+    ]
+  }
+}
