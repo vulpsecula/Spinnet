@@ -3,16 +3,17 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// `PluginAPI/schemas/manifest.schema.json` is the published shape of a
-/// manifest (ADR 0013). Every Bundled Plugin must satisfy it, and it must turn
-/// away the mistakes a Plugin author is likely to make.
+/// Each Bundled Plugin satisfies the published manifest schema for its
+/// declared Plugin API Level (ADR 0013). The Level 1/2 schema also turns away
+/// the mistakes a Plugin author is likely to make.
 final class ManifestSchemaTests: XCTestCase {
     private static let repositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-    private func validator() throws -> JSONSchemaSubsetValidator {
-        try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot
-            .appendingPathComponent("PluginAPI/schemas/manifest.schema.json"))
+    private func validator(level: Int = 1) throws -> JSONSchemaSubsetValidator {
+        let schema = level == 3 ? "manifest-level-3.schema.json" : "manifest.schema.json"
+        return try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot
+            .appendingPathComponent("PluginAPI/schemas/\(schema)"))
     }
 
     private func bundledManifestURLs() throws -> [URL] {
@@ -21,16 +22,23 @@ final class ManifestSchemaTests: XCTestCase {
     }
 
     func testEveryBundledManifestValidatesAndDeclaresItsLevel() throws {
-        let validator = try validator()
         let urls = try bundledManifestURLs()
-        XCTAssertEqual(urls.count, 17, "Seventeen Bundled Plugins ship with Spinnet")
+        XCTAssertEqual(urls.count, 22, "Twenty-two Bundled Plugins ship with Spinnet")
+        let promotedLevels = ["CurrentApp.spinnetplugin": 2, "KeepAwake.spinnetplugin": 2,
+                              "Homebrew.spinnetplugin": 3, "Spotify.spinnetplugin": 3,
+                              "SystemMonitor.spinnetplugin": 3]
 
         for url in urls {
             let name = url.deletingLastPathComponent().lastPathComponent
             let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
-            XCTAssertEqual(validator.errors(for: manifest), [], name)
-            guard case .object(let members) = manifest else { continue }
-            XCTAssertEqual(members["api_level"], .number(1), "\(name) declares Plugin API Level 1")
+            guard case .object(let members) = manifest,
+                  case .number(let level)? = members["api_level"] else {
+                XCTFail("\(name) must declare its Plugin API Level")
+                continue
+            }
+            XCTAssertEqual(try validator(level: Int(level)).errors(for: manifest), [], name)
+            let expectedLevel = promotedLevels[name, default: 1]
+            XCTAssertEqual(level, Double(expectedLevel), "\(name) declares Plugin API Level \(expectedLevel)")
         }
     }
 
