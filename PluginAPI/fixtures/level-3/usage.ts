@@ -31,3 +31,22 @@ spinnet.ui.showPage(spinnet.ui.page({id:"collection-actions",title:"Unused packa
 // @ts-expect-error autoremove was introduced at Level 3
 const levelTwoRemove: import("../../spinnet-level-2").PerformAction<"tools.startTask"> = removeUnused;
 void levelTwoRemove;
+
+// The generic catalogue paths carry the same promoted inputs as the namespaces.
+declare const globals: Globals;
+const genericPreviewInput: import("../../spinnet-level-3").InputOf<"tools.read"> = {tool:"homebrew",operation:"previewAutoremove"};
+const genericPreview: import("../../spinnet-level-3").ResultOf<"tools.read"> = globals.requestHostService("tools.read",genericPreviewInput);
+const typedPreviewResult: import("../../spinnet-level-3").ResultOf<"tools.read"> = preview;
+const genericPreviewSource = spinnet.ui.source("generic-preview","tools.read",genericPreviewInput);
+const typedPreviewSource: import("../../spinnet-level-3").Source = genericPreviewSource;
+const genericRemove: import("../../spinnet-level-3").RequestedOperation<"tools.startTask"> = {
+  perform:"tools.startTask",input:{tool:"homebrew",operation:"autoremove"}
+};
+spinnet.ui.showPage(spinnet.ui.page({id:"generic-preview-page",title:"Unused dependencies",sources:[genericPreviewSource],content:[removeActions]}),{operation:genericRemove});
+// @ts-expect-error earlier Levels do not declare the promoted preview
+const levelTwoPreview: import("../../spinnet-level-2").InputOf<"tools.read"> = genericPreviewInput;
+// @ts-expect-error mutating Tasks cannot be Host-run sources
+spinnet.ui.source("invalid-task","tools.read",{tool:"homebrew",operation:"autoremove"});
+// @ts-expect-error App sources read playback; they never execute controls
+spinnet.ui.source("invalid-control","apps.perform",{bundle_id:"com.spotify.client",operation:"set_volume",arguments:{volume:50}});
+void [genericPreview,typedPreviewResult,typedPreviewSource,levelTwoPreview];
