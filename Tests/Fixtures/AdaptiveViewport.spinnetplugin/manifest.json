@@ -1,6 +1,6 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
+  "api_level": 3,
   "id": "com.example.adaptive-viewport",
   "name": "Adaptive Viewport",
   "version": "1.2.0",
@@ -33,12 +33,6 @@
       "execution": "javascript",
       "is_configurable": false,
       "script": "cards.js"
-    }
-  ],
-  "candidate_contracts": [
-    {
-      "name": "adaptive_layout",
-      "revision": 2
     }
   ]
 }

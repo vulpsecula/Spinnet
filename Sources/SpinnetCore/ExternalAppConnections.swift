@@ -34,8 +34,8 @@ public enum ExternalAppConnections {
 
     static func validate(_ manifest: PluginManifest) throws {
         guard !manifest.externalAppConnections.isEmpty else { return }
-        guard manifest.apiLevel >= 2, manifest.candidateContracts.contains(where: { $0.name == declaration.name }) else {
-            throw ConfigurationError.invalidManifest("external_app_connections requires external_app_connections r1 at Plugin API Level 2")
+        guard manifest.apiLevel >= 3 || (manifest.apiLevel >= 2 && manifest.candidateContracts.contains(where: { $0.name == declaration.name })) else {
+            throw ConfigurationError.invalidManifest("external_app_connections requires Plugin API Level 3")
         }
         let connections = manifest.externalAppConnections
         guard connections.count <= 8, Set(connections.map(\.bundleID)).count == connections.count else {

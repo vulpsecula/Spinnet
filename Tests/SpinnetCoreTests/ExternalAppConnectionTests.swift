@@ -5,8 +5,7 @@ import SpinnetPluginTestKit
 final class ExternalAppConnectionTests: XCTestCase {
     private func data(candidate: Bool = true, connections: String = "[{\"bundle_id\":\"com.spotify.client\",\"command_ids\":[\"control\"]}]", families: String = "\"playback_read\",\"playback_control\"", scopeCommands: String = "\"control\"") -> Data {
         Data("""
-        {"api_level":2,"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
-        \(candidate ? "\"candidate_contracts\":[{\"name\":\"external_app_connections\",\"revision\":1}]," : "")
+        {"api_level":\(candidate ? 3 : 2),"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
         "external_app_connections":\(connections),
         "capabilities":["control_external_app"],"optional_capabilities":["control_external_app"],
         "capability_scopes":[{"capability":"control_external_app","command_ids":[\(scopeCommands)],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":[\(families)]}]}],
@@ -127,16 +126,15 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertEqual(sends, 1)
     }
 
-    func testCandidateSchemaRejectsMetadataAndMissingExactOptIn() throws {
+    func testHistoricalCandidateSchemaStillDescribesItsExactOptIn() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/candidates/external_app_connections/r1/external-app-connections.schema.json"))
-        let valid = try JSONDecoder().decode(JSONValue.self, from: data())
-        XCTAssertEqual(schema.errors(for: valid), [])
-        for changed in [data(candidate: false), data(connections: "[]"),
-            Data(String(decoding: data(), as: UTF8.self).replacingOccurrences(of: "\"revision\":1", with: "\"revision\":2").utf8),
-            data(connections: "[{\"bundle_id\":\"com.spotify.client\",\"command_ids\":[\"control\"],\"script\":\"control.js\"}]")] {
-            XCTAssertFalse(schema.errors(for: try JSONDecoder().decode(JSONValue.self, from: changed)).isEmpty)
-        }
+        var historical = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
+        historical["api_level"] = 2
+        historical["candidate_contracts"] = [["name": "external_app_connections", "revision": 1]]
+        XCTAssertEqual(schema.errors(for: try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: historical))), [])
+        historical["candidate_contracts"] = nil
+        XCTAssertFalse(schema.errors(for: try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: historical))).isEmpty)
     }
 
     func testExactCandidateIsEnforcedAtInstallRegistrationAndScriptRuntime() throws {
@@ -154,8 +152,7 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertNoThrow(try installation.review(source))
         try installation.install(from: source)
         XCTAssertNotNil(registry.package(for: PluginID("test.connection")))
-        let withoutCandidate = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels,
-            candidates: PluginInterfaceContracts.host.candidates.filter { $0.name != "external_app_connections" })
+        let withoutCandidate = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
         let refusedRegistry = PluginRegistry(contracts: withoutCandidate)
         let plugin = try PluginUnderTest(packageAt: source)
         XCTAssertThrowsError(try refusedRegistry.register(plugin.package))

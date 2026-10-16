@@ -264,15 +264,23 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host: Plugin API Levels 1 and 2, adaptive_layout r1/r2 and
-    /// spotify_controls r1, external_app_connections r1 and homebrew_autoremove r1. A
-    /// Plugin still declaring a revision Level 2 retired is refused with the
-    /// Level to declare instead. A Level added later is keyed at its own
-    /// number.
+    /// This Host provides stable Levels 1–3. Proved candidate revisions
+    /// retired into Level 3 are refused with the stable migration message.
     public static let host = PluginInterfaceContracts(
-        levels: [1: levelOneMembers, 2: levelTwoMembers],
-        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) } + [AdaptivePageLayout.contract, AdaptiveViewportLayout.contract, SpotifyControls.contract, ExternalAppConnections.contract, HomebrewAutoremove.contract]
+        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers],
+        candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
+            + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
     )
+
+    /// Proved additions required by the Bundled Plugins (#96–98). Earlier
+    /// stable Levels retain their vocabulary and authority requirements.
+    public static let levelThreeMembers = Set(AdaptiveViewportLayout.contract.members
+        + SpotifyControls.contract.members + ExternalAppConnections.contract.members
+        + HomebrewAutoremove.contract.members)
+
+    public static let retiredIntoLevelThree = [AdaptivePageLayout.declaration,
+        AdaptiveViewportLayout.declaration, SpotifyControls.declaration,
+        ExternalAppConnections.declaration, HomebrewAutoremove.declaration]
 
     private func supported(_ declaration: CandidateContractRevision) -> CandidateContract? {
         candidates.first { $0.declaration == declaration && $0.status == .supported }
@@ -318,13 +326,13 @@ public struct PluginInterfaceContracts: Equatable {
             }
         }
         if !manifest.externalAppConnections.isEmpty, !permits(ExternalAppConnections.member, declaredBy: manifest) {
-            throw ConfigurationError.invalidManifest("external_app_connections requires its exact Candidate Contract")
+            throw ConfigurationError.invalidManifest("external_app_connections requires Plugin API Level 3")
         }
         for scope in manifest.capabilityScopes {
             let operation = scope.capability == .readReviewedTools ? "previewAutoremove" : scope.capability == .runReviewedToolTasks ? "autoremove" : ""
             if !operation.isEmpty, scope.reviewedTools.contains(where: { $0.tool == "homebrew" && $0.operations.contains(operation) }),
                !permits(HomebrewAutoremove.member, declaredBy: manifest) {
-                throw ConfigurationError.invalidManifest("Homebrew autoremove scope requires homebrew_autoremove r1")
+                throw ConfigurationError.invalidManifest("Homebrew autoremove scope requires Plugin API Level 3")
             }
         }
         try HostServiceCatalogue.checkCommands(of: manifest, under: self)

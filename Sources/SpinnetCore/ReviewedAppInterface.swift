@@ -100,10 +100,10 @@ public struct ReviewedAppInterface: Equatable {
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.
-    public func request(operation name: String, arguments: [String: JSONValue], candidateContracts: [CandidateContractRevision] = []) throws -> AppleEventRequest {
+    public func request(operation name: String, arguments: [String: JSONValue], apiLevel: Int = 1, candidateContracts: [CandidateContractRevision] = []) throws -> AppleEventRequest {
         if format == .spotify, SpotifyControls.operationNames.contains(name) {
-            guard candidateContracts.contains(SpotifyControls.declaration) else {
-                throw PluginHostServiceError.unavailable("Spotify \(name) requires spotify_controls r1")
+            guard apiLevel >= 3 || candidateContracts.contains(SpotifyControls.declaration) else {
+                throw PluginHostServiceError.unavailable("Spotify \(name) requires Plugin API Level 3")
             }
             return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "",
                 integerArgument: try SpotifyControls.integerArgument(operation: name, arguments: arguments))

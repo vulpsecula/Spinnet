@@ -1,6 +1,6 @@
 import Foundation
 
-/// Exact opt-in operations; stable tools.read and tools.startTask stay available.
+/// Level 3 operations; earlier Levels retain tools.read and tools.startTask.
 public enum HomebrewAutoremove {
     public static let declaration = CandidateContractRevision(name: "homebrew_autoremove", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("homebrew_autoremove")
@@ -13,7 +13,7 @@ public enum HomebrewAutoremove {
             ((service == ReviewedToolReads.id && operation == .string("previewAutoremove")) ||
              (service == ReviewedToolTasksAddition.id && operation == .string("autoremove")))
         guard !needsCandidate || permits(member) else {
-            throw PluginHostServiceError.unavailable("Homebrew autoremove requires homebrew_autoremove r1")
+            throw PluginHostServiceError.unavailable("Homebrew autoremove requires Plugin API Level 3")
         }
     }
 

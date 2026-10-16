@@ -1,6 +1,6 @@
 import Foundation
 
-/// Exact opt-in additions to Spotify's Reviewed App Interface. Stable Level 2
+/// Level 3 additions to Spotify's Reviewed App Interface. Stable Level 2
 /// retains its original operations and result shapes.
 public enum SpotifyControls {
     public static let declaration = CandidateContractRevision(name: "spotify_controls", revision: 1)

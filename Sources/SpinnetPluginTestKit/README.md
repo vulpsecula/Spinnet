@@ -25,21 +25,19 @@ next to the test bundle, where the kit looks for it.
 
 If the helper is somewhere else, set `SPINNET_PLUGIN_HELPER_URL` to its path.
 
-## Adaptive card candidate
+## Stable Level 3 additions
 
-An independent Plugin may declare `api_level: 2` and exactly
-`candidate_contracts: [{"name":"adaptive_layout","revision":1}]` to use the
-[adaptive card component](../../PluginAPI/candidates/adaptive_layout/r1/README.md).
-The helper injects its candidate builder only for that declaration. Stable-only
-Plugins do not receive it; old or mismatched Hosts refuse the Plugin before its
-script runs, and Bundled Plugins cannot declare candidates.
+Declare `api_level: 3` without `candidate_contracts` to use the proved adaptive
+card and viewport-fit components, Spotify controls, External App connections and
+Homebrew autoremove operations. The [Level 3 reference](../../PluginAPI/reference/level-3.md)
+lists their stable schemas and SDK types. Bundled Plugins use the same contracts
+and normal Capability grants as user-added Plugins. Earlier candidate revisions
+are retired and refused with the Level 3 migration message.
 
 Pin the public package/test kit and matching helper to the same source revision
-for reproducible tests. This does not freeze the installed Host to that commit:
-a later Host may provide the same exact candidate revision. `PluginTestPage`
-checks the same component identities and preserves field state across same-page
-answers; its collection `resize` helper models Collection windows, not native
-card placement. Card reflow needs the real Host panel's native resize check.
+for reproducible tests. `PluginTestPage` checks component identities and retains
+field state across same-page answers. Its collection `resize` helper models
+Collection windows; card reflow still needs the real Host panel's native check.
 
 ## Writing a test
 
@@ -173,9 +171,8 @@ lists what reached the network, as it left.
 
 ## Plugin API Levels and Candidate Contracts
 
-A run is held to what the Host offers: Plugin API Levels 1 and 2, and no
-Candidate Contract, since Level 2 retired every revision this kit's Host
-provided (see `PluginAPI/candidates/README.md`). A Plugin that Host would
+A run is held to what the Host offers: Plugin API Levels 1–3. The candidates
+promoted into Levels 2 and 3 are retired (see `PluginAPI/candidates/README.md`). A Plugin that Host would
 refuse, such as one needing a higher Level or declaring a retired
 candidate, fails with the refusal as an `invalidAction`, and a Host Service
 request outside the Levels and candidates the Plugin declares fails with

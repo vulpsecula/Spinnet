@@ -6,9 +6,9 @@ final class HomebrewAutoremoveCandidateTests: XCTestCase {
     private let preview: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")])
     private let task: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("autoremove")])
     private func manifest(_ revision: Int? = nil) throws -> PluginManifest {
-        let candidate = revision.map { ",\"candidate_contracts\":[{\"name\":\"homebrew_autoremove\",\"revision\":\($0)}]" } ?? ""
+        let candidate = revision == 2 ? ",\"candidate_contracts\":[{\"name\":\"homebrew_autoremove\",\"revision\":2}]" : ""
         return try PluginManifestLoader.decode(Data("""
-        {"api_level":2,"protocol_version":"1.0","id":"test.autoremove","name":"Autoremove","version":"1.0"\(candidate),"capabilities":[],"commands":[{"id":"open","title":"Open","execution":"javascript","script":"open.js"}]}
+        {"api_level":\(revision == 1 ? 3 : 2),"protocol_version":"1.0","id":"test.autoremove","name":"Autoremove","version":"1.0"\(candidate),"capabilities":[],"commands":[{"id":"open","title":"Open","execution":"javascript","script":"open.js"}]}
         """.utf8))
     }
     func testStablePluginCannotCreateAutoremoveCallsSourcesRequestsOrStandardActions() throws {
@@ -27,9 +27,9 @@ extension HomebrewAutoremoveCandidateTests {
         let exact = try manifest(1), contracts = PluginInterfaceContracts.host, permits = contracts.permitting(exact)
         try contracts.check(exact, origin: .installed)
         let registry = PluginRegistry(); try registry.register(.init(rootURL: URL(fileURLWithPath: "/tmp/autoremove"), manifest: exact))
-        XCTAssertThrowsError(try PluginInterfaceContracts(levels: contracts.levels).check(exact, origin: .installed))
+        XCTAssertThrowsError(try PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers]).check(exact, origin: .installed))
         XCTAssertThrowsError(try contracts.check(manifest(2), origin: .installed))
-        XCTAssertThrowsError(try contracts.check(exact, origin: .bundled))
+        XCTAssertNoThrow(try contracts.check(exact, origin: .bundled))
         _ = try PluginPageSource(parsing: .object(["id": .string("preview"), "perform": .string("tools.read"), "input": preview]), permits: permits)
         _ = try RequestedHostOperation(parsing: .object(["perform": .string("tools.startTask"), "input": task]), permits: permits)
         let call = PluginRuntimeHostServiceCall(invocationID: "run", actionID: try ActionID("open"), name: "tools.read", input: preview)
@@ -41,7 +41,7 @@ extension HomebrewAutoremoveCandidateTests {
     func testCandidatePublicFixturesAreSeparateFromStableSchemas() throws {
         let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
         let folder = api.appendingPathComponent("candidates/homebrew_autoremove/r1")
-        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))), HomebrewAutoremove.contract)
+        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
         for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/index.json"))).fixtures {
@@ -63,7 +63,7 @@ extension HomebrewAutoremoveCandidateTests {
         let profile = HomebrewReadProfile(executable: { reads += 1; return URL(fileURLWithPath: "/missing") })
         let broker = CapabilityCheckedHostServiceBroker(grantStore: .init(), systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedTools: profile)
         let request = PluginRuntimeHostServiceRequest(invocationID: "run", actionID: action.id, service: .reviewedToolRead, input: preview)
-        func candidateRefusal(_ error: Error) { XCTAssertEqual(error as? PluginHostServiceError, .unavailable("Homebrew autoremove requires homebrew_autoremove r1")) }
+        func candidateRefusal(_ error: Error) { XCTAssertEqual(error as? PluginHostServiceError, .unavailable("Homebrew autoremove requires Plugin API Level 3")) }
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) { candidateRefusal($0) }
         // Parse against a permissive presentation context, then recheck the current owner at execution.
         let source = try PluginPageSource(parsing: .object(["id": .string("preview"), "perform": .string("tools.read"), "input": preview]), permits: { _ in true })
@@ -77,7 +77,7 @@ extension HomebrewAutoremoveCandidateTests {
         var result: HostOperationResult?
         performer.perform(try HomebrewTaskInput(task), for: action, accepted: performer.accept(owner: manifest.id), authorize: { authorizations += 1 }) { result = $0 }
         XCTAssertNotNil(result)
-        XCTAssertTrue(result?.message?.contains("homebrew_autoremove r1") == true)
+        XCTAssertTrue(result?.message?.contains("Plugin API Level 3") == true)
         XCTAssertEqual(reads, 0); XCTAssertEqual(preparations, 0); XCTAssertEqual(authorizations, 0)
     }
     private final class NeverConfirm: HostConfirming {
@@ -120,7 +120,7 @@ extension HomebrewAutoremoveCandidateTests {
         for (capability, operation) in [(PluginCapability.readReviewedTools, "previewAutoremove"), (.runReviewedToolTasks, "autoremove")] {
             let scope = PluginCapabilityScope(capability: capability, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: [operation], kinds: ["formula"])])
             for revision: Int? in [nil, 1, 2] {
-                let manifest = try PluginManifest(apiLevel: 2, candidateContracts: revision.map { [.init(name: "homebrew_autoremove", revision: $0)] } ?? [], id: .init("test.scoped.autoremove"), name: "Scoped Autoremove", version: "1.0", capabilities: [capability], capabilityScopes: [scope], commands: [command])
+                let manifest = try PluginManifest(apiLevel: revision == 1 ? 3 : 2, candidateContracts: revision == 2 ? [.init(name: "homebrew_autoremove", revision: 2)] : [], id: .init("test.scoped.autoremove"), name: "Scoped Autoremove", version: "1.0", capabilities: [capability], capabilityScopes: [scope], commands: [command])
                 let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/scoped-autoremove"), manifest: manifest)
                 let registry = PluginRegistry()
                 if revision == 1 { try registry.register(package) }

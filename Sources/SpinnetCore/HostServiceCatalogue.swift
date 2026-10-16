@@ -436,7 +436,7 @@ public extension HostServiceCatalogue {
             if id == "apps.perform", command.fixedInput?.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
                case .string(let name)? = command.fixedInput?.value(atPointer: "/operation"),
                SpotifyControls.operationNames.contains(name), !contracts.permits(SpotifyControls.member, declaredBy: manifest) {
-                throw HostServiceRefusal.invalidCommand(command.id, plugin: manifest.name, reason: "Spotify \(name) requires spotify_controls r1")
+                throw HostServiceRefusal.invalidCommand(command.id, plugin: manifest.name, reason: "Spotify \(name) requires Plugin API Level 3")
             }
             try operation.check(command, of: manifest)
         }
@@ -550,7 +550,7 @@ public extension PluginInterfaceContracts {
             if service == .performAppOperation, input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
                case .string(let name)? = input.value(atPointer: "/operation"),
                SpotifyControls.operationNames.contains(name), !permits(SpotifyControls.member, declaredBy: manifest) {
-                return .failure(.unavailable("Spotify \(name) requires spotify_controls r1"))
+                return .failure(.unavailable("Spotify \(name) requires Plugin API Level 3"))
             }
             return .success(PluginRuntimeHostServiceRequest(invocationID: call.invocationID, actionID: call.actionID,
                                                             requestID: call.requestID, service: service, input: input,

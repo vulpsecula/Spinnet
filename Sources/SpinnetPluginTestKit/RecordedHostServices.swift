@@ -77,7 +77,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
                 do { try PluginInterfaceContracts.host.check(package.manifest, origin: package.origin) }
                 catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
                 guard PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest) else {
-                    throw PluginHostServiceError.unavailable("Spotify \(operation) requires spotify_controls r1")
+                    throw PluginHostServiceError.unavailable("Spotify \(operation) requires Plugin API Level 3")
                 }
             }
             let interface = ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)!
@@ -86,7 +86,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
                 $0.bundleID == SpotifyPlayback.bundleID && $0.operationFamilies.contains(family)
             }) == true else { throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp) }
             _ = try interface.request(operation: operation, arguments: arguments,
-                candidateContracts: package.manifest.candidateContracts)
+                apiLevel: package.manifest.apiLevel, candidateContracts: package.manifest.candidateContracts)
         }
         if request.service == .showReviewedServices {
             try ReviewedServicesAddition.validate(request.input)

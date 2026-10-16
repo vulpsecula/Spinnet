@@ -22,7 +22,7 @@ final class AdaptivePageRuntimeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: stable) }
         let manifestURL = stable.appendingPathComponent("manifest.json")
         var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
-        manifest.removeValue(forKey: "candidate_contracts")
+        manifest["api_level"] = 2
         try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
         let probe = PluginTestPage("cards", of: try PluginUnderTest(packageAt: stable), helper: helper, input: .object(["sdkProbe": .bool(true)]))
         try probe.open()

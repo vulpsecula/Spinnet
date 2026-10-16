@@ -5,7 +5,7 @@ import SpinnetCore
 final class SpotifyConsentTests: XCTestCase {
     func testTrustedRequestedPlaybackReadCanPromptWhileCandidateDirectActionsCannot() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
-        {"api_level":2,"protocol_version":"1.0","id":"test.spotify.consent","name":"Spotify","version":"1.0","candidate_contracts":[{"name":"spotify_controls","revision":1}],
+        {"api_level":3,"protocol_version":"1.0","id":"test.spotify.consent","name":"Spotify","version":"1.0",
         "capabilities":["control_external_app"],"capability_scopes":[{"capability":"control_external_app","command_ids":["show"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":["playback_read","playback_control"]}]}],
         "commands":[{"id":"show","title":"Playback","execution":"javascript","script":"show.js"}]}
         """.utf8))

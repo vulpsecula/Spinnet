@@ -4,9 +4,9 @@ import SpinnetPluginTestKit
 
 final class SpotifyControlsTests: XCTestCase {
     private func package(candidate: Bool = true) throws -> PluginPackage {
-        let declaration = candidate ? ",\"candidate_contracts\":[{\"name\":\"spotify_controls\",\"revision\":1}]" : ""
+        let declaration = ""
         let manifest = try PluginManifestLoader.decode(Data("""
-        {"api_level":2,"protocol_version":"1.0","id":"test.spotify.controls","name":"Spotify","version":"1.0"\(declaration),
+        {"api_level":\(candidate ? 3 : 2),"protocol_version":"1.0","id":"test.spotify.controls","name":"Spotify","version":"1.0"\(declaration),
         "capabilities":["control_external_app"],"capability_scopes":[{"capability":"control_external_app","command_ids":["control"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":["playback_read","playback_control"]}]}],
         "commands":[{"id":"control","title":"Control","execution":"javascript","script":"control.js"}]}
         """.utf8))
@@ -30,7 +30,7 @@ final class SpotifyControlsTests: XCTestCase {
             let request = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id, service: .performAppOperation,
                 input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("set_volume"),
                     "arguments": .object(["volume": .number(35)])]))
-            if package.manifest.candidateContracts.isEmpty {
+            if package.manifest.apiLevel < 3 {
                 XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
                 XCTAssertFalse(dispatched)
             } else {
@@ -106,7 +106,7 @@ extension SpotifyControlsTests {
     func testPublicCandidateMetadataFixturesAndStableSchemaRemainSeparate() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
         let folder = root.appendingPathComponent("candidates/spotify_controls/r1")
-        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))), SpotifyControls.contract)
+        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
         for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/index.json"))).fixtures {
@@ -122,13 +122,14 @@ extension SpotifyControlsTests {
     func testCandidateMismatchAndBundledOriginAreRefusedBeforeRegistrationOrBrokerDispatch() throws {
         let package = try package()
         let data = try JSONEncoder().encode(package.manifest)
-        let wrong = try PluginManifestLoader.decode(Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: "\"revision\":1", with: "\"revision\":2").utf8))
+        var retired = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        retired["candidate_contracts"] = [["name": "spotify_controls", "revision": 1]]
+        let wrong = try PluginManifestLoader.decode(JSONSerialization.data(withJSONObject: retired))
         let registry = PluginRegistry()
         XCTAssertThrowsError(try registry.register(.init(rootURL: package.rootURL, manifest: wrong)))
-        XCTAssertThrowsError(try registry.register(.init(rootURL: package.rootURL, manifest: package.manifest, origin: .bundled)))
-        let oldContracts = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels)
+        XCTAssertNoThrow(try registry.register(.init(rootURL: package.rootURL, manifest: package.manifest, origin: .bundled)))
+        let oldContracts = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
         XCTAssertThrowsError(try oldContracts.check(package.manifest, origin: .installed))
-        try registry.register(package)
         XCTAssertNotNil(registry.package(for: package.manifest.id))
     }
 }
