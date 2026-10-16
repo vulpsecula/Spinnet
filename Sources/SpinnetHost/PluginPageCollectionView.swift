@@ -54,12 +54,30 @@ struct PageCollectionView: NSViewRepresentable {
     }
 }
 
+/// Returning pages can first mount at the default width. A bounds-width
+/// change must discard cached item metrics as well as their positions.
+private final class PageCollectionFlowLayout: NSCollectionViewFlowLayout {
+    override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
+        collectionView?.bounds.width != newBounds.width || super.shouldInvalidateLayout(forBoundsChange: newBounds)
+    }
+
+    override func invalidationContext(forBoundsChange newBounds: NSRect) -> NSCollectionViewLayoutInvalidationContext {
+        let context = super.invalidationContext(forBoundsChange: newBounds)
+        if collectionView?.bounds.width != newBounds.width,
+           let flow = context as? NSCollectionViewFlowLayoutInvalidationContext {
+            flow.invalidateFlowLayoutDelegateMetrics = true
+            flow.invalidateFlowLayoutAttributes = true
+        }
+        return context
+    }
+}
+
 /// The scroll view holding the collection view, which it lays out in the
 /// width items take and keeps in step with the page model.
 final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
     let collectionView: PageNSCollectionView
     private weak var model: PluginPageModel?
-    private let flowLayout = NSCollectionViewFlowLayout()
+    private let flowLayout = PageCollectionFlowLayout()
     private let emptyLabel = NSTextField(labelWithString: "")
     /// What the cells are laid out for, so a new answer or size re-lays
     /// them out only when it changes.
@@ -490,6 +508,18 @@ final class PageCollectionSource: NSObject, NSCollectionViewDataSource, NSCollec
     }
 
     // MARK: NSCollectionViewDelegateFlowLayout
+
+    func collectionView(_ collectionView: NSCollectionView, layout collectionViewLayout: NSCollectionViewLayout,
+                        sizeForItemAt indexPath: IndexPath) -> NSSize {
+        guard let flow = collectionViewLayout as? NSCollectionViewFlowLayout else { return .zero }
+        // Native layout may query sizes before the parent finishes relayout;
+        // a List always fills its actual clip viewport, including on return.
+        if let view = collectionView as? PageNSCollectionView, view.style == .list,
+           let width = view.enclosingScrollView?.contentView.bounds.width, width > 0 {
+            return NSSize(width: width, height: flow.itemSize.height)
+        }
+        return flow.itemSize
+    }
 
     func collectionView(_ collectionView: NSCollectionView, layout collectionViewLayout: NSCollectionViewLayout,
                         referenceSizeForHeaderInSection section: Int) -> NSSize {
