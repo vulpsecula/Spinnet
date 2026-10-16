@@ -73,6 +73,11 @@ The start outcome reports only whether the Task started. Reopening calls
 state at least one second apart, without a resident Plugin helper.
 The latest result may show stages, elapsed seconds and at most 20 redacted
 lines of 200 characters. Task stages are hints, progress is indeterminate.
+When Homebrew emits a download progress bar, its latest completed
+carriage-return frame replaces the current log line. Printable characters
+are retained and terminal control sequences are removed before publication.
+Any displayed download percentage describes that transfer, not the overall
+Task; tools and operations may emit no numeric progress.
 Closing or hiding a view never stops a Task. A Task's eventual end does
 not invoke a viewless Plugin script.
 

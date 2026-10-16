@@ -7,6 +7,8 @@ import Darwin
 public final class HomebrewTaskProcess {
     public enum InputPolicy { case vendor, nativeManifest }
     public enum GroupPolicy { case independentGroup, inheritWorkerGroup }
+    /// Output only; a terminal never becomes an input or authorization channel.
+    public enum OutputPolicy { case pipe, terminal }
     public struct Result: Equatable {
         public let outcome: String
         public let exitStatus: Int32
@@ -19,6 +21,7 @@ public final class HomebrewTaskProcess {
     private let standardInput: Data?
     private let inputPolicy: InputPolicy
     private let groupPolicy: GroupPolicy
+    private let outputPolicy: OutputPolicy
     private let interruptGrace: TimeInterval
     private let terminateGrace: TimeInterval
     private let lock = NSLock()
@@ -28,11 +31,12 @@ public final class HomebrewTaskProcess {
     private var observedIdentities: [pid_t: UInt64] = [:]
     public init(executable: URL, arguments: [String], environment: [String: String],
                 interruptGrace: TimeInterval = 10, terminateGrace: TimeInterval = 5, standardInput: Data? = nil, inputPolicy: InputPolicy = .vendor,
-                groupPolicy: GroupPolicy = .independentGroup) {
+                groupPolicy: GroupPolicy = .independentGroup, outputPolicy: OutputPolicy = .pipe) {
         self.executable = executable; self.arguments = arguments; self.environment = environment
         self.interruptGrace = interruptGrace; self.terminateGrace = terminateGrace
         self.standardInput = standardInput; self.inputPolicy = inputPolicy
         self.groupPolicy = groupPolicy
+        self.outputPolicy = outputPolicy
     }
     public var processIdentifier: Int32 { lock.lock(); defer { lock.unlock() }; return pid }
     /// Resource supervision sees only identities captured for this Task. PID
@@ -75,9 +79,20 @@ public final class HomebrewTaskProcess {
         }
         defer { if input >= 0 { close(input) } }
         var descriptors: [Int32] = [0, 0]
-        guard pipe(&descriptors) == 0 else { throw PluginHostServiceError.tool(.failed) }
+        if outputPolicy == .terminal {
+            // A fixed width keeps vendor progress within the published line
+            // bound. Only stdout/stderr use the slave; stdin remains EOF or
+            // the separately bounded native input, never a terminal session.
+            var size = winsize(ws_row: 24, ws_col: 100, ws_xpixel: 0, ws_ypixel: 0)
+            var master: Int32 = -1, slave: Int32 = -1
+            guard openpty(&master, &slave, nil, nil, &size) == 0 else { throw PluginHostServiceError.tool(.failed) }
+            descriptors = [master, slave]
+        } else {
+            guard pipe(&descriptors) == 0 else { throw PluginHostServiceError.tool(.failed) }
+        }
         var outputWrite = descriptors[1], transferredReader = false
         defer { if outputWrite >= 0 { close(outputWrite) }; if !transferredReader { close(descriptors[0]) } }
+        guard descriptors.allSatisfy({ fcntl($0, F_SETFD, FD_CLOEXEC) == 0 }) else { throw PluginHostServiceError.tool(.failed) }
         var actions: posix_spawn_file_actions_t?, attributes: posix_spawnattr_t?
         guard posix_spawn_file_actions_init(&actions) == 0 else { throw PluginHostServiceError.tool(.failed) }
         defer { posix_spawn_file_actions_destroy(&actions) }
@@ -157,7 +172,9 @@ public final class HomebrewTaskProcess {
                 var buffer = [UInt8](repeating: 0, count: 8192)
                 let bytes = Darwin.read(reader, &buffer, buffer.count)
                 if bytes > 0 { output(Data(buffer.prefix(bytes))) }
-                else if bytes == 0 { pipeOpen = false }
+                // A PTY reports EIO once its final slave is closed on some
+                // systems, rather than the zero-byte EOF used by a pipe.
+                else if bytes == 0 || (bytes < 0 && errno == EIO && outputPolicy == .terminal) { pipeOpen = false }
                 if !reaped, exitedBeforeCensus || leaderIdentity == nil { reaped = waitpid(leader, &exitStatus, WNOHANG) == leader }
                 lock.lock(); let stopping = stopAt; lock.unlock()
                 let liveDescendants = descendants.filter { key, identity in Self.startIdentity(key) == identity }

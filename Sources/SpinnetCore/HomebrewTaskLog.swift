@@ -1,6 +1,6 @@
 import Foundation
 
-/// Complete lines are sanitized before journal storage or publication;
+/// Complete lines and carriage-return frames are sanitized before publication;
 /// fragments cannot leak a credential split between OS reads.
 public final class HomebrewTaskLog {
     public static let maximumBytes = 256 * 1024
@@ -8,13 +8,17 @@ public final class HomebrewTaskLog {
     private var discardingLongLine = false
     private var kept: [String] = []
     private var bytes = 0
+    private var progressLine: String?
+    private var rewritingLine = false
     public private(set) var stage = "starting"
-    public var lines: [String] { kept.suffix(20).map { String($0.prefix(200)) } }
+    public var lines: [String] { (kept + (progressLine.map { [$0] } ?? [])).suffix(20).map { String($0.prefix(200)) } }
     public init() {}
     public func append(_ data: Data, home: String = NSHomeDirectory()) {
         for byte in data {
-            if byte == 10 {
-                if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home) }
+            if byte == 10 || byte == 13 {
+                if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home, progress: byte == 13 || rewritingLine) }
+                if byte == 10 { commitProgress() }
+                rewritingLine = byte == 13
                 pending.removeAll(keepingCapacity: true); discardingLongLine = false
             } else if !discardingLongLine {
                 if pending.count < 16_384 { pending.append(byte) }
@@ -23,9 +27,10 @@ public final class HomebrewTaskLog {
         }
     }
     public func finish(home: String = NSHomeDirectory()) {
-        if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home); pending.removeAll() }
+        if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home, progress: rewritingLine); pending.removeAll() }
+        commitProgress(); rewritingLine = false; discardingLongLine = false
     }
-    private func accept(_ text: String, home: String) {
+    private func accept(_ text: String, home: String, progress: Bool) {
         let text = Self.redact(text, home: home)
         guard !text.isEmpty else { return }
         if text.hasPrefix("==>") {
@@ -34,8 +39,18 @@ public final class HomebrewTaskLog {
             else if text.range(of: "(?i)linking|caveats", options: .regularExpression) != nil { stage = "linking" }
             else if text.range(of: "(?i)finishing|summary|checking for dependents", options: .regularExpression) != nil { stage = "finishing" }
         }
-        kept.append(text); bytes += text.utf8.count + 1
-        while bytes > Self.maximumBytes, !kept.isEmpty { bytes -= kept.removeFirst().utf8.count + 1 }
+        if progress { progressLine = text }
+        else { kept.append(text); bytes += text.utf8.count + 1 }
+        trim()
+    }
+    private func commitProgress() {
+        if let progressLine { kept.append(progressLine); bytes += progressLine.utf8.count + 1 }
+        progressLine = nil; trim()
+    }
+    private func trim() {
+        while bytes + (progressLine.map { $0.utf8.count + 1 } ?? 0) > Self.maximumBytes, !kept.isEmpty {
+            bytes -= kept.removeFirst().utf8.count + 1
+        }
     }
     public static func redact(_ input: String, home: String = NSHomeDirectory()) -> String {
         var text = input.replacingOccurrences(of: "\\x1b\\[[0-?]*[ -/]*[@-~]|\\x1b\\][^\\x07]*(?:\\x07|\\x1b\\\\)", with: "", options: .regularExpression)

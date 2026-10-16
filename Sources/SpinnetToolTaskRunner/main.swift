@@ -45,6 +45,7 @@ do {
     var environment = HomebrewReadProfile.environment
     environment["HOMEBREW_NO_BOOTSNAP"] = "1"
     environment["HOMEBREW_NO_INSTALL_UPGRADE"] = "1"; environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
+    environment["TERM"] = "dumb"
     record.runnerPID = getpid(); record.runnerIdentity = HomebrewTaskProcess.startIdentity(getpid())
     var privilegeConnection: NSXPCConnection?
     var privilegeProxy: HomebrewPrivilegeRunnerProtocol?
@@ -159,7 +160,7 @@ do {
             try JSONEncoder().encode(JSONValue.object(context)).write(to: contextURL, options: .atomic)
             arguments = ["ruby", bridge.path, contextURL.path]
         }
-        let process = HomebrewTaskProcess(executable: executable, arguments: arguments, environment: environment)
+        let process = HomebrewTaskProcess(executable: executable, arguments: arguments, environment: environment, outputPolicy: .terminal)
         try reserveProcess()
         do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
