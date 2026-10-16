@@ -203,8 +203,8 @@ struct SpinnetPluginHelperMain {
     /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
     /// `requestHostService` already in `context`; for a Plugin declaring
     /// Plugin API Level 2 the object `spinnet-level-2.js` builds over Level
-    /// 1's. Exact declared candidate SDKs are added over that object; a
-    /// stable-only Plugin never receives their builders.
+    /// 1's. Level 3 adds the proved adaptive viewport and autoremove
+    /// builders without exposing them to Plugins declaring earlier Levels.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
             "apiLevel": invocation.environment.apiLevel,

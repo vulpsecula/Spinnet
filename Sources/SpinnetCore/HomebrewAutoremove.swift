@@ -1,6 +1,6 @@
 import Foundation
 
-/// Exact opt-in operations; stable tools.read and tools.startTask stay available.
+/// Level 3 operations; earlier Levels retain tools.read and tools.startTask.
 public enum HomebrewAutoremove {
     public static let declaration = CandidateContractRevision(name: "homebrew_autoremove", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("homebrew_autoremove")

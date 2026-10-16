@@ -342,7 +342,7 @@ public enum PluginPageComponent: Equatable {
         case image
         case progress
         case activityList = "activity_list"
-        // Exact opt-in adaptive_layout r1; not stable Level 2.
+        // Adaptive card container, promoted into stable Level 3.
         case adaptive
     }
 
