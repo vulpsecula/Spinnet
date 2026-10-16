@@ -1,0 +1,10 @@
+{
+  "external_app_connections": [
+    {
+      "bundle_id": "com.spotify.client",
+      "command_ids": [
+        "spotify.play"
+      ]
+    }
+  ]
+}

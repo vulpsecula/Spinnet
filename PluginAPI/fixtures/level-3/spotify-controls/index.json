@@ -1,0 +1,64 @@
+{
+  "fixtures": [
+    {
+      "file": "set-volume-zero.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "set-volume-max.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "volume-string.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "volume-fraction.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "volume-over.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "delta-min.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "delta-over.json",
+      "definition": "input",
+      "valid": false
+    },
+    {
+      "file": "next.json",
+      "definition": "input",
+      "valid": true
+    },
+    {
+      "file": "no-queue-invention.json",
+      "definition": "next_outcome",
+      "valid": false
+    },
+    {
+      "file": "no-current-track.json",
+      "definition": "next_outcome",
+      "valid": true
+    },
+    {
+      "file": "volume-result.json",
+      "definition": "volume",
+      "valid": true
+    },
+    {
+      "file": "volume-invalid-result.json",
+      "definition": "volume",
+      "valid": false
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet external-app-connections (Plugin API Level 3)",
+  "type": "object",
+  "required": [
+    "external_app_connections"
+  ],
+  "properties": {
+    "external_app_connections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "bundle_id",
+          "command_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "bundle_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "command_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    }
+  }
+}

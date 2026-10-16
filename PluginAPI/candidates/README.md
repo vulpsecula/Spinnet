@@ -7,11 +7,12 @@ a stable Level, and nothing here changes what [Level 1](../README.md#what-level-
 or [Level 2](../README.md#what-level-2-offers) promises. A Plugin that
 declares no candidate is unaffected by any of it.
 
-The new [adaptive_layout r1](adaptive_layout/r1/README.md) is **supported** over
-Level 2, for explicit independent Plugin evaluation. It adds an identified
-adaptive card container; stable Level 2 alone does not offer it.
-
-[Homebrew autoremove r1](homebrew_autoremove/r1/README.md) adds exact opt-in unused-dependency preview and confirmed removal over Level 2.
+`adaptive_layout` r1/r2, `homebrew_autoremove` r1, `spotify_controls` r1 and
+`external_app_connections` r1 are **retired**, promoted to
+[Plugin API Level 3](../reference/level-3.md) for #94–#98. Their directories
+retain the exact provisional contracts and proof fixtures. Declare stable
+`api_level: 3` without `candidate_contracts`; the Host refuses retired declarations
+with that migration guidance. No currently supported candidate remains.
 
 The earlier revisions below are **retired**: `namespaces` r1, `host_operations` r2
 and `collections` r3 were promoted together to Plugin API Level 2 on

@@ -1,0 +1,71 @@
+{
+  "page": {
+    "id": "metrics",
+    "title": "Metrics",
+    "resizable": true,
+    "content": [
+      {
+        "kind": "adaptive",
+        "id": "cards",
+        "min_card_width": 280,
+        "max_columns": 2,
+        "spacing": 12,
+        "content": [
+          {
+            "kind": "column",
+            "id": "cpu",
+            "content": [
+              {
+                "kind": "text",
+                "id": "cpu-value",
+                "text": "12%"
+              }
+            ]
+          },
+          {
+            "kind": "column",
+            "id": "memory",
+            "content": [
+              {
+                "kind": "text",
+                "id": "memory-value",
+                "text": "Memory pressure and available physical memory"
+              }
+            ]
+          }
+        ],
+        "fit": {
+          "profiles": [
+            {
+              "id": "compact",
+              "min_card_width": 180,
+              "min_card_height": 601,
+              "spacing": 8,
+              "overrides": [
+                {
+                  "id": "cpu-value",
+                  "style": {
+                    "font_size": 20
+                  },
+                  "text": "CPU"
+                }
+              ]
+            },
+            {
+              "id": "standard",
+              "min_card_width": 280,
+              "min_card_height": 120,
+              "overrides": []
+            },
+            {
+              "id": "spacious",
+              "min_card_width": 320,
+              "min_card_height": 200,
+              "spacing": 16
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
