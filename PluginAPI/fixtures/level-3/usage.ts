@@ -50,3 +50,18 @@ spinnet.ui.source("invalid-task","tools.read",{tool:"homebrew",operation:"autore
 // @ts-expect-error App sources read playback; they never execute controls
 spinnet.ui.source("invalid-control","apps.perform",{bundle_id:"com.spotify.client",operation:"set_volume",arguments:{volume:50}});
 void [genericPreview,typedPreviewResult,typedPreviewSource,levelTwoPreview];
+
+// Generic calls expose all promoted Spotify result shapes.
+const genericVolume: import("../../spinnet-level-3").ResultOf<"apps.perform"> = volume;
+const genericNextOutcome: import("../../spinnet-level-3").ResultOf<"apps.perform"> = outcome;
+const genericVolumeCall = globals.requestHostService("apps.perform",{bundle_id:"com.spotify.client",operation:"volume"});
+const genericNextCall = globals.requestHostService("apps.perform",{bundle_id:"com.spotify.client",operation:"next_checked"});
+if (genericVolumeCall && "volume" in genericVolumeCall) {
+  const currentVolume: number = genericVolumeCall.volume;
+  void currentVolume;
+}
+if (genericNextCall && "outcome" in genericNextCall) {
+  const nextOutcome: SpotifyNextOutcome["outcome"] = genericNextCall.outcome;
+  void nextOutcome;
+}
+void [genericVolume,genericNextOutcome];

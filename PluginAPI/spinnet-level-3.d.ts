@@ -8,16 +8,17 @@ export type { AutoremovePreviewInput, AutoremoveTaskInput, AutoremovePreview } f
 import type * as Stable from "./spinnet-level-2";
 import type * as Layout from "./adaptive-layout";
 import type * as Autoremove from "./homebrew-autoremove";
-import type { SpotifyControlCallable } from "./spotify-controls";
+import type { SpotifyControlCallable, SpotifyVolume, SpotifyNextOutcome } from "./spotify-controls";
 import type { JSONValue } from "./spinnet";
 
 /** Catalogue types include the promoted Homebrew inputs at every entry point. */
 export type ReviewedToolReadInput = Stable.ReviewedToolReadInput | Autoremove.AutoremovePreviewInput;
 export type ReviewedToolReadResult = Stable.ReviewedToolReadResult | Autoremove.AutoremovePreview;
 export type ReviewedToolTaskInput = Stable.ReviewedToolTaskInput | Autoremove.AutoremoveTaskInput;
-export interface Operations extends Omit<Stable.Operations, "tools.read" | "tools.startTask"> {
+export interface Operations extends Omit<Stable.Operations, "tools.read" | "tools.startTask" | "apps.perform"> {
   "tools.read": {input: ReviewedToolReadInput; result: ReviewedToolReadResult};
   "tools.startTask": {input: ReviewedToolTaskInput; result: null};
+  "apps.perform": {input: Stable.InputOf<"apps.perform">; result: Stable.ResultOf<"apps.perform"> | SpotifyVolume | SpotifyNextOutcome};
 }
 export type InputOf<K extends Stable.OperationID> = Operations[K]["input"];
 export type ResultOf<K extends Stable.OperationID> = Operations[K]["result"];
