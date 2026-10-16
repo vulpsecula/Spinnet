@@ -1,0 +1,38 @@
+[
+  {
+    "pluginID": "com.spinnet.coffee",
+    "pluginVersion": "1.0.3",
+    "capability": "keep_awake",
+    "decision": "granted",
+    "scope": {
+      "capability": "keep_awake",
+      "command_ids": [
+        "coffee.open",
+        "coffee.manual",
+        "coffee.timed",
+        "coffee.app"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  },
+  {
+    "pluginID": "com.spinnet.coffee",
+    "pluginVersion": "1.0.3",
+    "capability": "read_frontmost_app",
+    "decision": "denied",
+    "scope": {
+      "capability": "read_frontmost_app",
+      "command_ids": [
+        "coffee.open",
+        "coffee.app"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  }
+]
