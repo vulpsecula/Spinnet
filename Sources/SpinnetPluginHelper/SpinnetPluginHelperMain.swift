@@ -234,12 +234,12 @@ struct SpinnetPluginHelperMain {
             sdk = adaptive
         }
         if invocation.apiLevel >= 3 || invocation.candidateContracts.contains(AdaptiveViewportLayout.declaration) {
-            guard let makeAdaptive = context.evaluateScript(SpinnetSDK.adaptiveViewportSource), makeAdaptive.isObject,
+            guard let makeAdaptive = context.evaluateScript(invocation.apiLevel >= 3 ? SpinnetSDK.levelThreeAdaptiveSource : SpinnetSDK.adaptiveViewportSource), makeAdaptive.isObject,
                   let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
             sdk = adaptive
         }
         if invocation.apiLevel >= 3 || invocation.candidateContracts.contains(HomebrewAutoremove.declaration) {
-            guard let makeAutoremove = context.evaluateScript(SpinnetSDK.homebrewAutoremoveSource), makeAutoremove.isObject,
+            guard let makeAutoremove = context.evaluateScript(invocation.apiLevel >= 3 ? SpinnetSDK.levelThreeAutoremoveSource : SpinnetSDK.homebrewAutoremoveSource), makeAutoremove.isObject,
                   let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
             sdk = autoremove
         }

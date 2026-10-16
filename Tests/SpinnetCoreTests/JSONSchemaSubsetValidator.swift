@@ -15,7 +15,7 @@ struct JSONSchemaSubsetValidator {
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
         "items", "contains", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
-        "allOf", "oneOf", "if", "then", "propertyNames", "maxProperties"
+        "allOf", "oneOf", "anyOf", "if", "then", "propertyNames", "maxProperties"
     ]
 
     private let root: JSONValue
@@ -155,6 +155,9 @@ struct JSONSchemaSubsetValidator {
             return Double(members.count) <= maximum ? [] : fail("has more than \(Int(maximum)) members")
         case ("allOf", .array(let schemas)):
             return schemas.flatMap { errors(for: instance, against: $0, at: path) }
+        case ("anyOf", .array(let schemas)):
+            return schemas.contains { errors(for: instance, against: $0, at: path).isEmpty }
+                ? [] : fail("matches none of the schemas where at least one must match")
         case ("oneOf", .array(let schemas)):
             let matching = schemas.filter { errors(for: instance, against: $0, at: path).isEmpty }.count
             return matching == 1 ? [] : fail("matches \(matching) of the schemas where exactly one must match")

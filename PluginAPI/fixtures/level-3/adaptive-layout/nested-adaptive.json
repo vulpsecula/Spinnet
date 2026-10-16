@@ -1,0 +1,25 @@
+{
+  "page": {
+    "id": "nested",
+    "title": "Nested",
+    "content": [
+      {
+        "kind": "row",
+        "id": "row",
+        "content": [
+          {
+            "kind": "adaptive",
+            "id": "cards",
+            "content": [
+              {
+                "kind": "text",
+                "id": "text",
+                "text": "Nested cards"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
