@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import SpinnetCore
 import XCTest
 @testable import SpinnetHost

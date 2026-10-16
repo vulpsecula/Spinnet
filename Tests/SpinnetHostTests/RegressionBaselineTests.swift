@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import SpinnetCore
 import XCTest
 @testable import SpinnetHost
@@ -263,19 +264,15 @@ final class RegressionBaselineTests: XCTestCase {
     }
 
     /// What a launch registers: every shipped Plugin, read from the
-    /// repository as a development run reads it.
+    /// locked revision consumed by packaging.
     private func registry(
         grantStore: PluginCapabilityGrantStore? = nil,
         pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
     ) throws -> PluginRegistry {
         let registry = PluginRegistry(grantStore: grantStore, externalAppExists: { _ in true },
                                       pluginSettingsComplete: pluginSettingsComplete)
-        let plugins = Self.repository.appendingPathComponent("Plugins")
-        for url in try FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil)
-            .filter({ $0.pathExtension == "spinnetplugin" })
-            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            let manifest = try PluginManifestLoader.load(packageAt: url).manifest
-            try registry.register(PluginPackage(rootURL: url, manifest: manifest, origin: .bundled))
+        for package in try ShippedPluginPackages.all() {
+            try registry.register(package)
         }
         return registry
     }

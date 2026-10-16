@@ -84,18 +84,20 @@ let package = Package(
             dependencies: ["SpinnetCore"],
             exclude: ["README.md"]
         ),
+        // Build-time fixtures shared by Host tests, never a published product.
+        .target(name: "SpinnetTestSupport", dependencies: ["SpinnetCore"], path: "Tests/Support"),
         .testTarget(
             name: "SpinnetPluginTestKitTests",
             dependencies: ["SpinnetPluginTestKit", "SpinnetCore", "SpinnetPluginHelper"]
         ),
         .testTarget(
             name: "SpinnetCoreTests",
-            dependencies: ["SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
+            dependencies: ["SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
             resources: [.copy("ArchiveFixtures")]
         ),
         .testTarget(
             name: "SpinnetHostTests",
-            dependencies: ["SpinnetHost", "SpinnetPluginTestKit"]
+            dependencies: ["SpinnetHost", "SpinnetPluginTestKit", "SpinnetTestSupport"]
         )
     ]
 )

@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 
 /// The architecture guard (#49): the Host's modules under `Sources/` do not

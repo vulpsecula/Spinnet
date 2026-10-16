@@ -3,8 +3,8 @@ import SpinnetCore
 
 /// The exact Plugin revision packaging ships, resolved through the same lock
 /// and development override. Fail closed when the source cannot be resolved.
-enum ShippedPluginPackages {
-    static func all() throws -> [PluginPackage] {
+public enum ShippedPluginPackages {
+    public static func all() throws -> [PluginPackage] {
         let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let resolver = Process()
@@ -30,11 +30,11 @@ enum ShippedPluginPackages {
 
     /// The shipped Plugins whose Commands are all Host Commands: Open URL,
     /// Screenshot and the rest that used to be built into the Library.
-    static func hostCommandPlugins() throws -> [PluginPackage] {
+    public static func hostCommandPlugins() throws -> [PluginPackage] {
         try all().filter { $0.manifest.commands.allSatisfy { $0.hostCommand != nil } }
     }
 
-    static func named(_ name: String) throws -> PluginPackage {
+    public static func named(_ name: String) throws -> PluginPackage {
         guard let package = try all().first(where: { $0.manifest.name == name }) else {
             throw CocoaError(.fileNoSuchFile)
         }

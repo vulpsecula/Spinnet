@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -15,12 +16,8 @@ final class ManifestSchemaTests: XCTestCase {
     }
 
     private func bundledManifestURLs() throws -> [URL] {
-        try FileManager.default.contentsOfDirectory(
-            at: Self.repositoryRoot.appendingPathComponent("Plugins"), includingPropertiesForKeys: nil
-        )
-        .filter { $0.pathExtension == "spinnetplugin" }
-        .map { $0.appendingPathComponent("manifest.json") }
-        .sorted { $0.path < $1.path }
+        try ShippedPluginPackages.all().map { $0.rootURL.appendingPathComponent("manifest.json") }
+            .sorted { $0.path < $1.path }
     }
 
     func testEveryBundledManifestValidatesAndDeclaresItsLevel() throws {

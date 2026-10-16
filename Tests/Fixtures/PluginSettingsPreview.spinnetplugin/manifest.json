@@ -332,6 +332,5 @@
       "is_configurable": false,
       "script": "translate.js"
     }
-  ],
-  "migrations": []
+  ]
 }

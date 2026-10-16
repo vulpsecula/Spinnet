@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import Carbon
 import SpinnetCore
