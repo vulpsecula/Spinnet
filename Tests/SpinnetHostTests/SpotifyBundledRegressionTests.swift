@@ -9,41 +9,24 @@ final class SpotifyBundledRegressionTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("RegressionBaseline/Spotify")
 
-    private var directory: URL!
-    private var defaultsSuite: String!
+    private var fixture: BundledRegressionFixture!
+    private var directory: URL { fixture.directory }
+    private var defaultsSuite: String { fixture.defaultsSuite }
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("SpotifyBaseline-\(UUID())")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for name in ["configuration.json", "capability-grants.json", "PluginSettings.json"] {
-            try FileManager.default.copyItem(at: Self.baseline.appendingPathComponent(name),
-                                            to: directory.appendingPathComponent(name))
-        }
-        defaultsSuite = "SpotifyBaseline-\(UUID())"
+        fixture = try BundledRegressionFixture(baseline: Self.baseline)
     }
 
     override func tearDownWithError() throws {
-        if let defaultsSuite { UserDefaults().removePersistentDomain(forName: defaultsSuite) }
-        if let directory { try FileManager.default.removeItem(at: directory) }
-    }
-
-    private func restoredGrants() throws -> PluginCapabilityGrantStore {
-        let grants = PluginCapabilityGrantStore()
-        try StoredDataMigration.restoreCapabilityGrants(
-            from: Data(contentsOf: directory.appendingPathComponent("capability-grants.json")), into: grants)
-        return grants
-    }
-
-    private func configuration() throws -> HostConfiguration {
-        try XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load())
+        try fixture?.cleanup()
     }
 
     func testSavedSpotifyMenuItemRestoresItsActionsAliasAndDecisionsUnchanged() throws {
         let package = try ShippedPluginPackages.named("Spotify")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in true }, externalAppConnectionStatus: { _ in .ready })
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         XCTAssertEqual(Set(stored.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
         XCTAssertEqual(stored.actions.count, 9)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Desk Music")
@@ -67,7 +50,7 @@ final class SpotifyBundledRegressionTests: XCTestCase {
         XCTAssertEqual(migrated, stored)
         XCTAssertEqual(try Data(contentsOf: settingsURL), settingsBytes)
         try HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).save(migrated)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         let restored = PluginCapabilityGrantStore()
         try StoredDataMigration.restoreCapabilityGrants(from: StoredDataMigration.encodeCapabilityGrants(grants), into: restored)
         XCTAssertEqual(Set(restored.allGrants), decisions)
@@ -75,10 +58,10 @@ final class SpotifyBundledRegressionTests: XCTestCase {
 
     func testRemovingSpotifyCleansItsOwnerAndKeepsTheConfiguredMenuItem() throws {
         let package = try ShippedPluginPackages.named("Spotify")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in true }, externalAppConnectionStatus: { _ in .ready })
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         let storage = PluginStorage(directory: directory.appendingPathComponent("Storage"))
         try storage.setValue(.string("transient business state"), forKey: "state", of: package.manifest.id)
         var forgotten: [PluginID] = []
@@ -94,7 +77,7 @@ final class SpotifyBundledRegressionTests: XCTestCase {
         XCTAssertEqual(forgotten, [package.manifest.id])
         XCTAssertEqual(try storage.keys(of: package.manifest.id), [])
         XCTAssertTrue(grants.allGrants.isEmpty)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         for action in stored.actions {
             XCTAssertEqual(registry.availability(for: action), .unavailable(.pluginMissing))
         }
@@ -136,10 +119,10 @@ final class SpotifyBundledRegressionTests: XCTestCase {
 extension SpotifyBundledRegressionTests {
     func testMissingSpotifyOrUnreadyConnectionNeverStartsTheHelperOrPlayback() throws {
         let package = try ShippedPluginPackages.named("Spotify")
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         let action = try XCTUnwrap(stored.actions.first)
         for status in [ExternalAppConnectionStatus.notInstalled, .notRunning, .permissionNeeded, .permissionDenied] {
-            let grants = try restoredGrants()
+            let grants = try fixture.restoredGrants()
             let registry = PluginRegistry(grantStore: grants, externalAppExists: { _ in status != .notInstalled },
                 externalAppConnectionStatus: { _ in status })
             try registry.register(package)
@@ -157,7 +140,7 @@ extension SpotifyBundledRegressionTests {
             XCTAssertEqual(failure.category, .commandUnavailable)
             XCTAssertEqual(helper.launchCount, 0)
             XCTAssertFalse(performed)
-            XCTAssertEqual(try configuration(), stored)
+            XCTAssertEqual(try fixture.configuration(), stored)
         }
     }
 }

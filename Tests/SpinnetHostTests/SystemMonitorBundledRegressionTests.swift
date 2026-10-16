@@ -8,41 +8,24 @@ final class SystemMonitorBundledRegressionTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("RegressionBaseline/SystemMonitor")
 
-    private var directory: URL!
-    private var defaultsSuite: String!
+    private var fixture: BundledRegressionFixture!
+    private var directory: URL { fixture.directory }
+    private var defaultsSuite: String { fixture.defaultsSuite }
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("SystemMonitorBaseline-\(UUID())")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for name in ["configuration.json", "capability-grants.json", "PluginSettings.json"] {
-            try FileManager.default.copyItem(at: Self.baseline.appendingPathComponent(name),
-                                            to: directory.appendingPathComponent(name))
-        }
-        defaultsSuite = "SystemMonitorBaseline-\(UUID())"
+        fixture = try BundledRegressionFixture(baseline: Self.baseline)
     }
 
     override func tearDownWithError() throws {
-        if let defaultsSuite { UserDefaults().removePersistentDomain(forName: defaultsSuite) }
-        if let directory { try FileManager.default.removeItem(at: directory) }
-    }
-
-    private func restoredGrants() throws -> PluginCapabilityGrantStore {
-        let grants = PluginCapabilityGrantStore()
-        try StoredDataMigration.restoreCapabilityGrants(
-            from: Data(contentsOf: directory.appendingPathComponent("capability-grants.json")), into: grants)
-        return grants
-    }
-
-    private func configuration() throws -> HostConfiguration {
-        try XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load())
+        try fixture?.cleanup()
     }
 
     func testSavedSystemMonitorMenuItemRestoresItsActionAliasAndDecisionUnchanged() throws {
         let package = try ShippedPluginPackages.named("System Monitor")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         XCTAssertEqual(Set(stored.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
         XCTAssertEqual(stored.actions.count, 1)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Machine status")
@@ -62,7 +45,7 @@ final class SystemMonitorBundledRegressionTests: XCTestCase {
         XCTAssertEqual(migrated, stored)
         XCTAssertEqual(try Data(contentsOf: settingsURL), settingsBytes)
         try HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).save(migrated)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         let restored = PluginCapabilityGrantStore()
         try StoredDataMigration.restoreCapabilityGrants(from: StoredDataMigration.encodeCapabilityGrants(grants), into: restored)
         XCTAssertEqual(Set(restored.allGrants), decisions)
@@ -70,7 +53,7 @@ final class SystemMonitorBundledRegressionTests: XCTestCase {
 
     func testSavedDeniedMetricAccessSurvivesLaunchWithoutOriginPrivilege() throws {
         let package = try ShippedPluginPackages.named("System Monitor")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         grants.setDecision(.denied, for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .readSystemStatus, scope: package.manifest.scope(for: .readSystemStatus))
         let encoded = try StoredDataMigration.encodeCapabilityGrants(grants)
@@ -81,17 +64,17 @@ final class SystemMonitorBundledRegressionTests: XCTestCase {
         try registry.register(package)
         XCTAssertEqual(restored.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .readSystemStatus, scope: package.manifest.scope(for: .readSystemStatus)), .denied)
-        for action in try configuration().actions {
+        for action in try fixture.configuration().actions {
             XCTAssertEqual(registry.availability(for: action), .unavailable(.capabilityDenied))
         }
     }
 
     func testRemovingSystemMonitorCleansItsOwnerAndKeepsTheConfiguredMenuItem() throws {
         let package = try ShippedPluginPackages.named("System Monitor")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         let storage = PluginStorage(directory: directory.appendingPathComponent("Storage"))
         try storage.setValue(.string("transient business state"), forKey: "state", of: package.manifest.id)
         var forgotten: [PluginID] = []
@@ -107,7 +90,7 @@ final class SystemMonitorBundledRegressionTests: XCTestCase {
         XCTAssertEqual(forgotten, [package.manifest.id])
         XCTAssertEqual(try storage.keys(of: package.manifest.id), [])
         XCTAssertTrue(grants.allGrants.isEmpty)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         for action in stored.actions {
             XCTAssertEqual(registry.availability(for: action), .unavailable(.pluginMissing))
         }

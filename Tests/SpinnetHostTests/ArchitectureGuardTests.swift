@@ -8,8 +8,10 @@ import XCTest
 ///
 /// Every occurrence the Host still has is listed below, per file and literal,
 /// with the reason it may stay or the W ticket under #47 that removes it. The
-/// list may only shrink: a new occurrence fails, and so does an exception
-/// that no longer matches what it excuses. The Clipboard History window, the
+/// Plugin-behaviour exceptions may only shrink: a new occurrence fails, and
+/// so does an exception that no longer matches what it excuses. Adding a
+/// Bundled Plugin can expose an existing Reviewed App Interface for the first
+/// time; list that reviewed authority with its exact count, as for Bob. The Clipboard History window, the
 /// one Host Surface, needs none: the Host presents it for whichever Plugin
 /// asks and names no Plugin to do so.
 final class ArchitectureGuardTests: XCTestCase {
@@ -20,6 +22,11 @@ final class ArchitectureGuardTests: XCTestCase {
         // Bob's Reviewed App Interface: the Apple Events operations the Host
         // has reviewed for Bob, which Plugins choose from (ADR 0012).
         .init("Sources/SpinnetCore/ReviewedAppInterface.swift", "com.hezongyidev.Bob", .reviewedAppInterface),
+        // Spotify's reviewed operation catalogue and fixed Apple Events target
+        // predate its bundling. These are Host-owned authority (ADR 0012),
+        // available to every granted External App Adapter, not Plugin logic.
+        .init("Sources/SpinnetCore/SpotifyPlayback.swift", "com.spotify.client", .reviewedAppInterface),
+        .init("Sources/SpinnetHost/SpotifyAppleEvents.swift", "com.spotify.client", count: 2, .reviewedAppInterface),
         // The links the Host reviewed for Shottr before they became Deep Link
         // Templates, kept only to check that a grant may carry over to them.
         .init("Sources/SpinnetHost/DeepLinkMigration.swift", "cc.ffitch.shottr", .retiredReview),

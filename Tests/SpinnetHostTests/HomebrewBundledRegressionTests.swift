@@ -8,41 +8,24 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("RegressionBaseline/Homebrew")
 
-    private var directory: URL!
-    private var defaultsSuite: String!
+    private var fixture: BundledRegressionFixture!
+    private var directory: URL { fixture.directory }
+    private var defaultsSuite: String { fixture.defaultsSuite }
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("HomebrewBaseline-\(UUID())")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for name in ["configuration.json", "capability-grants.json", "PluginSettings.json"] {
-            try FileManager.default.copyItem(at: Self.baseline.appendingPathComponent(name),
-                                            to: directory.appendingPathComponent(name))
-        }
-        defaultsSuite = "HomebrewBaseline-\(UUID())"
+        fixture = try BundledRegressionFixture(baseline: Self.baseline)
     }
 
     override func tearDownWithError() throws {
-        if let defaultsSuite { UserDefaults().removePersistentDomain(forName: defaultsSuite) }
-        if let directory { try FileManager.default.removeItem(at: directory) }
-    }
-
-    private func restoredGrants() throws -> PluginCapabilityGrantStore {
-        let grants = PluginCapabilityGrantStore()
-        try StoredDataMigration.restoreCapabilityGrants(
-            from: Data(contentsOf: directory.appendingPathComponent("capability-grants.json")), into: grants)
-        return grants
-    }
-
-    private func configuration() throws -> HostConfiguration {
-        try XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load())
+        try fixture?.cleanup()
     }
 
     func testSavedHomebrewMenuItemRestoresItsActionsAliasAndDecisionsUnchanged() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         XCTAssertEqual(Set(stored.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
         XCTAssertEqual(stored.actions.count, 14)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Homebrew · development Mac")
@@ -62,7 +45,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertEqual(migrated, stored)
         XCTAssertEqual(try Data(contentsOf: settingsURL), settingsBytes)
         try HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).save(migrated)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         let restored = PluginCapabilityGrantStore()
         try StoredDataMigration.restoreCapabilityGrants(from: StoredDataMigration.encodeCapabilityGrants(grants), into: restored)
         XCTAssertEqual(Set(restored.allGrants), decisions)
@@ -73,7 +56,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             Self.baseline.appendingPathComponent("historical-candidate-manifest.json")))
         XCTAssertEqual(historical.apiLevel, 2)
         XCTAssertEqual(historical.candidateContracts, [AdaptiveViewportLayout.declaration, HomebrewAutoremove.declaration])
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         XCTAssertEqual(stored.actions, try zip(stored.actions, historical.commands).map { saved, command in
             try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
         })
@@ -89,7 +72,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
             systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" },
             clipboardWriter: { _ in }, reviewedTools: profile)
-        let action = try XCTUnwrap(try configuration().actions.first)
+        let action = try XCTUnwrap(try fixture.configuration().actions.first)
         let request = PluginRuntimeHostServiceRequest(invocationID: "missing-homebrew", actionID: action.id,
             service: .reviewedToolRead,
             input: .object(["tool": .string("homebrew"), "operation": .string("installed")]), operation: "tools.read")
@@ -105,10 +88,10 @@ final class HomebrewBundledRegressionTests: XCTestCase {
 
     func testRemovingHomebrewCleansItsOwnerAndKeepsTheConfiguredMenuItem() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
-        let grants = try restoredGrants()
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
-        let stored = try configuration()
+        let stored = try fixture.configuration()
         let storage = PluginStorage(directory: directory.appendingPathComponent("Storage"))
         try storage.setValue(.string("transient business state"), forKey: "state", of: package.manifest.id)
         var forgotten: [PluginID] = []
@@ -124,7 +107,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertEqual(forgotten, [package.manifest.id])
         XCTAssertEqual(try storage.keys(of: package.manifest.id), [])
         XCTAssertTrue(grants.allGrants.isEmpty)
-        XCTAssertEqual(try configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), stored)
         for action in stored.actions {
             XCTAssertEqual(registry.availability(for: action), .unavailable(.pluginMissing))
         }
