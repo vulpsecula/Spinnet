@@ -117,13 +117,19 @@ final class SpotifyBundledRegressionTests: XCTestCase {
         // The Capability is optional in the accepted package; the broker rejects
         // any attempted playback until a new scoped grant is given.
         let action = try XCTUnwrap(stored.actions.first)
+        let reinstalled = try XCTUnwrap(relaunchedRegistry.package(for: package.manifest.id))
+        XCTAssertEqual(relaunchedRegistry.availability(for: action), .unavailable(.capabilityDenied))
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            reviewedAppPerformer: { _, _ in XCTFail("Reinstallation must not authorize Spotify"); return .null })
+            reviewedAppPerformer: { _, _ in XCTFail("Reinstallation must not authorize Spotify"); return .null },
+            pluginRegistry: relaunchedRegistry)
         let request = PluginRuntimeHostServiceRequest(invocationID: "reinstalled", actionID: action.id,
             service: .performAppOperation, input: .object(["bundle_id": .string("com.spotify.client"),
                 "operation": .string("play_pause")]), operation: "apps.perform")
-        XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
+        XCTAssertThrowsError(try broker.execute(request: request, for: reinstalled, action: action)) {
+            XCTAssertEqual($0 as? PluginHostServiceError,
+                           .unavailable("Connect the External App in Plugin Settings before using this Command"))
+        }
     }
 }
 

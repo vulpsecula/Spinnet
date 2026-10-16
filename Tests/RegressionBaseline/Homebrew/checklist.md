@@ -1,5 +1,17 @@
 # Homebrew additive onboarding baseline
 
+| Command | Behaviour retained from the accepted package |
+| --- | --- |
+| `brew.open` | Open the management navigation page |
+| `brew.installed`, `brew.search`, `brew.outdated` | Browse installed, discoverable and outdated packages |
+| `brew.vulnerabilities`, `brew.doctor` | Scoped advisory reports and reviewed diagnostic guidance |
+| `brew.adopt` | Review candidate applications before explicit adoption |
+| `brew.upgrade` | Preview selected or all upgrades before confirmation |
+| `brew.services`, `brew.services-menu` | Browse services or open the controlled Services menu |
+| `brew.taps` | Review taps and trust changes |
+| `brew.cleanup`, `brew.autoremove` | Review cleanup and unused-dependency removal |
+| `brew.clear-cache` | Clear this Plugin's cache |
+
 Accepted source: independent #93, `f6a9d91c96f12e0d23697f9802f3d29228483978`, version 1.5.0. Packaging promotes retired `adaptive_layout` r2 and `homebrew_autoremove` r1 to stable API Level 3. The historical manifest is byte-preserved here solely to prove saved Action identity. No retired candidate is registered. The six-Plugin historical baseline remains unchanged.
 
 Automated seams:

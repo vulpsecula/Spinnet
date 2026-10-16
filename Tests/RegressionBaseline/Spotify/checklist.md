@@ -3,6 +3,15 @@
 Additive baseline for the stable Level 3 Spotify 1.2.0 package accepted in #91.
 Historical six-Plugin configuration, grants and settings fixtures stay unchanged.
 
+| Command | Behaviour retained from the accepted package |
+| --- | --- |
+| `spotify.toggle` | Toggle local play/pause |
+| `spotify.play`, `spotify.pause` | Explicit local playback state |
+| `spotify.previous`, `spotify.next` | Previous track and bounded observed Next outcome |
+| `spotify.volume-up`, `spotify.volume-down` | Adjust Spotify volume within its bounds |
+| `spotify.volume` | Set Spotify volume from the configured input |
+| `spotify.mute` | Mute/unmute using the stored previous volume |
+
 - Restore all nine accepted Commands, Set Volume input 37, alias Desk Music,
   a disabled Mute Alternate Action and explicit Alternate Action order.
 - Preserve the scoped Spotify playback grant and empty Plugin Settings through

@@ -16,6 +16,10 @@ final class RegressionBaselineTests: XCTestCase {
         "com.spinnet.translator", "com.spinnet.smart-jump", "com.spinnet.window-position",
         "com.spinnet.clipboard-history", "com.spinnet.bob", "com.spinnet.shottr"
     ].map { PluginID($0) })
+    private static let addedPluginIDs = Set([
+        "com.spinnet.probe.current-app", "com.spinnet.coffee", "com.spinnet.external.spotify",
+        "com.spinnet.system-monitor", "com.spinnet.homebrew"
+    ].map { PluginID($0) })
 
     private var directory: URL!
     private var defaultsSuite: String!
@@ -200,8 +204,16 @@ final class RegressionBaselineTests: XCTestCase {
             $0["pluginID"] as? String == shottr.id.rawValue && $0["capability"] as? String == "control_external_app"
         })
         expected[index]["scope"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(templates))
-        XCTAssertEqual(try JSONSerialization.jsonObject(with: Data(contentsOf: written)) as? NSArray,
-                       expected as NSArray, "capability-grants.json did not write back as expected")
+        let actual = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: written)) as? [[String: Any]])
+        let historical = actual.filter { record in
+            guard let id = record["pluginID"] as? String else { return true }
+            return !Self.addedPluginIDs.contains(PluginID(id))
+        }
+        XCTAssertEqual(historical as NSArray, expected as NSArray,
+                       "historical capability grants did not write back as expected")
+        for grant in grants.allGrants where Self.addedPluginIDs.contains(grant.pluginID) {
+            XCTAssertEqual(grant.decision, .notDetermined, "new Bundled distribution grants no authority")
+        }
         let translator = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.translator"))?.manifest)
         let contact = try XCTUnwrap(translator.scope(for: .contactHTTPS))
         XCTAssertEqual(grants.consentedHTTPSHosts(for: translator.id, pluginVersion: translator.version,
@@ -229,9 +241,14 @@ final class RegressionBaselineTests: XCTestCase {
     // MARK: Checklist
 
     func testChecklistNamesEveryCommandAndPluginSetting() throws {
-        let checklist = try String(contentsOf: Self.baseline.appendingPathComponent("checklist.md"), encoding: .utf8)
-        let manifests = bundledManifests(in: try registry())
-        XCTAssertEqual(Set(manifests.map(\.id)), Self.pluginIDs)
+        let additions = ["CurrentApp", "KeepAwake", "Spotify", "SystemMonitor", "Homebrew"]
+        let checklistFiles = ["checklist.md"] + additions.map { "\($0)/checklist.md" }
+        let checklist = try checklistFiles.map {
+            try String(contentsOf: Self.baseline.appendingPathComponent($0), encoding: .utf8)
+        }.joined(separator: "\n")
+        let coveredIDs = Self.pluginIDs.union(Self.addedPluginIDs)
+        let manifests = try registry().manifests().filter { coveredIDs.contains($0.id) }
+        XCTAssertEqual(Set(manifests.map(\.id)), coveredIDs)
         for manifest in manifests {
             for command in manifest.commands {
                 XCTAssertTrue(checklist.contains("`\(command.id.rawValue)`"), "checklist misses \(command.id.rawValue)")
