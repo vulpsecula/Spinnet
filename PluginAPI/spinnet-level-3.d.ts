@@ -3,23 +3,44 @@
 export * from "./spinnet-level-2";
 export type { ExternalAppConnectionDeclaration, ExternalAppConnectionsManifest } from "./external-app-connections";
 export type { SpotifyControlInput, SpotifyVolume, SpotifyNextOutcome } from "./spotify-controls";
-export type { Adaptive, Fit, FitOptions, DensityProfile, DensityProfileOptions } from "./adaptive-layout";
+export type { Fit, FitOptions, DensityProfile, DensityProfileOptions } from "./adaptive-layout";
 export type { AutoremovePreviewInput, AutoremoveTaskInput, AutoremovePreview } from "./homebrew-autoremove";
 import type * as Stable from "./spinnet-level-2";
-import type * as Adaptive from "./adaptive-layout";
+import type * as Layout from "./adaptive-layout";
 import type * as Autoremove from "./homebrew-autoremove";
 import type { SpotifyControlCallable } from "./spotify-controls";
 import type { JSONValue } from "./spinnet";
 
+/** View Actions at Level 3 also accept the promoted autoremove Task input. */
+export type PerformAction<K extends Stable.ViewActionID = Stable.ViewActionID> =
+  Omit<Stable.PerformAction<K>, "input"> & {
+    input?: K extends "tools.startTask" ? Stable.InputOf<K> | Autoremove.AutoremoveTaskInput : Stable.InputOf<K>;
+  };
+export type PageAction = Stable.EventButton | PerformAction;
+export type Actions = Omit<Stable.Actions, "actions"> & {actions: PageAction[]};
+export type Leaf = Exclude<Stable.Leaf, Stable.Actions> | Actions;
+export interface Row extends Omit<Stable.Row, "content"> { content: (Leaf | Column)[] }
+export interface Column extends Omit<Stable.Column, "content"> { content: (Leaf | Row)[] }
+export interface Adaptive extends Omit<Layout.Adaptive, "content"> { content: (Leaf | Row | Column)[] }
+// Collection Item Actions retain their clipboard.write / selection.replace boundary.
+export type Component = Leaf | Row | Column | Adaptive | Stable.List | Stable.Grid | Stable.ActivityList;
+export interface PageComponents extends Omit<Layout.Components, "actions" | "row" | "column" | "adaptive"> {
+  actions(options: {id: Stable.ID; actions: PageAction[]}): Actions;
+  row(options: {id: Stable.ID; content: Row["content"]; style?: Stable.StyleOptions}): Row;
+  column(options: {id: Stable.ID; content: Column["content"]; style?: Stable.StyleOptions}): Column;
+  adaptive(options: Omit<Parameters<Layout.Components["adaptive"]>[0], "content"> & {content: Adaptive["content"]}): Adaptive;
+}
 export type RequestedOperation = Stable.RequestedOperation | ReturnType<Autoremove.AutoremoveTask["operation"]>;
-export type Page = Omit<Adaptive.Page, "sources"> & {
+export type Page = Omit<Stable.Page, "sources" | "content"> & {
   sources?: (Stable.Source | Autoremove.AutoremoveSource)[];
+  content: Component[];
 };
 export type Answer = Stable.Answer | {
   page: Page; state?: JSONValue; toast?: string; operation?: RequestedOperation;
 } | { operation: RequestedOperation; state?: JSONValue; toast?: string };
-export interface UI extends Omit<Adaptive.UI, "page" | "showPage" | "request" | "show"> {
-  page(options: Omit<Parameters<Adaptive.UI["page"]>[0], "sources"> & {sources?: Page["sources"]}): Page;
+export interface UI extends Omit<Layout.UI, "components" | "page" | "showPage" | "request" | "show"> {
+  components: PageComponents;
+  page(options: Omit<Parameters<Stable.UI["page"]>[0], "sources" | "content"> & {sources?: Page["sources"]; content: Component[]}): Page;
   showPage(page: Page, options?: {state?: JSONValue; toast?: string; operation?: RequestedOperation}): Answer;
   show(view: Stable.View, options?: {state?: JSONValue; toast?: string; operation?: RequestedOperation}): Answer;
   request(operation: RequestedOperation, options?: {toast?: string}): Answer;

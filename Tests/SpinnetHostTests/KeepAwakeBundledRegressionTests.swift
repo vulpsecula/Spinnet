@@ -12,23 +12,16 @@ final class KeepAwakeBundledRegressionTests: XCTestCase {
 
     func testStoredMenuActionsSettingsAndDecisionsSurviveLaunch() throws {
         let package = try ShippedPluginPackages.named("Keep Awake")
-        let grants = PluginCapabilityGrantStore()
-        try StoredDataMigration.restoreCapabilityGrants(
-            from: Data(contentsOf: baseline.appendingPathComponent("capability-grants.json")), into: grants)
+        let fixture = try BundledRegressionFixture(baseline: baseline)
+        defer { try? fixture.cleanup() }
+        let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        for name in ["configuration.json", "PluginSettings.json"] {
-            try FileManager.default.copyItem(at: baseline.appendingPathComponent(name), to: directory.appendingPathComponent(name))
-        }
+        let directory = fixture.directory
         let store = HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json"))
-        let before = try XCTUnwrap(store.load())
+        let before = try fixture.configuration()
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
-        let suite = "KeepAwakeBaseline-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: fixture.defaultsSuite))
         let migrated = try StoredDataMigration.migrate(before, registry: registry, pluginSettings: settings, defaults: defaults)
         XCTAssertEqual(migrated, before)
         XCTAssertEqual(Set(migrated.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))

@@ -190,19 +190,16 @@ as the external Emoji Plugin pins `0717f16`.
 
 | Candidate | Revision | Base Level | Reference |
 | --- | --- | --- | --- |
-| `adaptive_layout` | 1 | 2 | [Adaptive card layout](adaptive_layout/r1/README.md) |
-| `adaptive_layout` | 2 | 2 | [Viewport fit and density](adaptive_layout/r2/README.md) |
-| `homebrew_autoremove` | 1 | 2 | [Unused-dependency preview and removal](homebrew_autoremove/r1/README.md) |
-| `spotify_controls` | 1 | 2 | [Spotify Action controls](spotify_controls/r1/README.md) |
-| `external_app_connections` | 1 | 2 | [External App connections](external_app_connections/r1/README.md) |
+| None | — | — | — |
 
 ## Retired candidate declarations
 
-Promoted together to [Plugin API Level 2](../README.md#what-level-2-offers)
-by #79 on 2026-10-06. A Plugin declaring any of these revisions, at any
-Level, is refused with the Level to declare instead; each revision's
-material stays here, unchanged but for its `candidate.json`'s status, as
-the history of what Level 2 was proved as.
+The first six revisions became [Plugin API Level 2](../README.md#what-level-2-offers)
+by #79 on 2026-10-06; the remaining five became
+[Plugin API Level 3](../reference/level-3.md) for #94–#98.
+A Plugin declaring any of these revisions, at any Level, is refused with
+the Level to declare instead. Each revision's material stays here,
+unchanged but for its `candidate.json`'s status, as the historical proof record.
 
 | Candidate | Revision | Became | Tag |
 | --- | --- | --- | --- |
@@ -212,3 +209,8 @@ the history of what Level 2 was proved as.
 | [`collections`](collections/r1/reference.md) | 1 | Plugin API Level 2 (as revision 3) | `plugin-api-candidate/collections/r1` |
 | [`collections`](collections/r2/reference.md) | 2 | Plugin API Level 2 (as revision 3) | `plugin-api-candidate/collections/r2` |
 | [`collections`](collections/r3/reference.md) | 3 | Plugin API Level 2 | `plugin-api-candidate/collections/r3` |
+| [`adaptive_layout`](adaptive_layout/r1/README.md) | 1 | Plugin API Level 3 (as revision 2) | `plugin-api-candidate/adaptive_layout/r1` |
+| [`adaptive_layout`](adaptive_layout/r2/README.md) | 2 | Plugin API Level 3 | `plugin-api-candidate/adaptive_layout/r2` |
+| [`homebrew_autoremove`](homebrew_autoremove/r1/README.md) | 1 | Plugin API Level 3 | `plugin-api-candidate/homebrew_autoremove/r1` |
+| [`spotify_controls`](spotify_controls/r1/README.md) | 1 | Plugin API Level 3 | `plugin-api-candidate/spotify_controls/r1` |
+| [`external_app_connections`](external_app_connections/r1/README.md) | 1 | Plugin API Level 3 | `plugin-api-candidate/external_app_connections/r1` |
