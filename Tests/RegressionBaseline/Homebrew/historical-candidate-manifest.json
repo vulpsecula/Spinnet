@@ -1,0 +1,248 @@
+{
+  "protocol_version": "1.0",
+  "api_level": 2,
+  "id": "com.spinnet.homebrew",
+  "name": "Homebrew",
+  "version": "1.5.0",
+  "capabilities": [
+    "read_reviewed_tools",
+    "run_reviewed_tool_tasks",
+    "write_clipboard",
+    "open_url",
+    "open_local_path"
+  ],
+  "optional_capabilities": [
+    "read_reviewed_tools",
+    "run_reviewed_tool_tasks",
+    "write_clipboard",
+    "open_url",
+    "open_local_path"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "read_reviewed_tools",
+      "command_ids": [
+        "brew.open",
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.vulnerabilities",
+        "brew.doctor",
+        "brew.adopt",
+        "brew.upgrade",
+        "brew.services",
+        "brew.taps",
+        "brew.services-menu",
+        "brew.cleanup",
+        "brew.clear-cache",
+        "brew.autoremove"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "installed",
+            "outdated",
+            "search",
+            "info",
+            "version",
+            "taps",
+            "services",
+            "vulnerabilities",
+            "vulnerabilityDetail",
+            "doctor",
+            "previewInstall",
+            "previewUpgrade",
+            "previewUpgradeAll",
+            "adoptionCandidates",
+            "adoptionPreview",
+            "packageAnalytics",
+            "previewLink",
+            "previewUnlink",
+            "previewAutoremove"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "run_reviewed_tool_tasks",
+      "command_ids": [
+        "brew.open",
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.vulnerabilities",
+        "brew.doctor",
+        "brew.adopt",
+        "brew.upgrade",
+        "brew.services",
+        "brew.taps",
+        "brew.services-menu",
+        "brew.cleanup",
+        "brew.clear-cache",
+        "brew.autoremove"
+      ],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "install",
+            "upgrade",
+            "uninstall",
+            "pin",
+            "unpin",
+            "link",
+            "unlink",
+            "adopt",
+            "tap",
+            "untap",
+            "trust",
+            "untrust",
+            "serviceStart",
+            "serviceStop",
+            "serviceRestart",
+            "cleanup",
+            "doctorFix",
+            "upgradeSelected",
+            "upgradeAll",
+            "changeLanguage",
+            "update",
+            "autoremove"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "brew.open",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "brew.open",
+      "title": "Homebrew",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew.js"
+    },
+    {
+      "id": "brew.installed",
+      "title": "Show Installed",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-installed.js"
+    },
+    {
+      "id": "brew.search",
+      "title": "Search Packages",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-search.js"
+    },
+    {
+      "id": "brew.outdated",
+      "title": "Available Updates",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-outdated.js"
+    },
+    {
+      "id": "brew.vulnerabilities",
+      "title": "Security Check",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-vulnerabilities.js"
+    },
+    {
+      "id": "brew.doctor",
+      "title": "Run Doctor",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-doctor.js"
+    },
+    {
+      "id": "brew.adopt",
+      "title": "Adopt Apps",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-adopt.js"
+    },
+    {
+      "id": "brew.upgrade",
+      "title": "Review All Upgrades",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-upgrade.js"
+    },
+    {
+      "id": "brew.services",
+      "title": "Manage Services",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-services.js"
+    },
+    {
+      "id": "brew.taps",
+      "title": "Manage Package Sources",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-taps.js"
+    },
+    {
+      "id": "brew.services-menu",
+      "title": "Services Menu",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-services-menu.js"
+    },
+    {
+      "id": "brew.cleanup",
+      "title": "Clean Up",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-cleanup.js"
+    },
+    {
+      "id": "brew.clear-cache",
+      "title": "Clear Plugin Cache",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-clear-cache.js"
+    },
+    {
+      "id": "brew.autoremove",
+      "title": "Remove Unused Dependencies",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-autoremove.js"
+    }
+  ],
+  "candidate_contracts": [
+    {
+      "name": "adaptive_layout",
+      "revision": 2
+    },
+    {
+      "name": "homebrew_autoremove",
+      "revision": 1
+    }
+  ]
+}
