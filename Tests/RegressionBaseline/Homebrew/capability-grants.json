@@ -1,0 +1,141 @@
+[
+  {
+    "pluginID": "com.spinnet.homebrew",
+    "pluginVersion": "1.5.0",
+    "capability": "read_reviewed_tools",
+    "decision": "granted",
+    "scope": {
+      "capability": "read_reviewed_tools",
+      "command_ids": [
+        "brew.open",
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.vulnerabilities",
+        "brew.doctor",
+        "brew.adopt",
+        "brew.upgrade",
+        "brew.services",
+        "brew.taps",
+        "brew.services-menu",
+        "brew.cleanup",
+        "brew.clear-cache",
+        "brew.autoremove"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "installed",
+            "outdated",
+            "search",
+            "info",
+            "version",
+            "taps",
+            "services",
+            "vulnerabilities",
+            "vulnerabilityDetail",
+            "doctor",
+            "previewInstall",
+            "previewUpgrade",
+            "previewUpgradeAll",
+            "adoptionCandidates",
+            "adoptionPreview",
+            "packageAnalytics",
+            "previewLink",
+            "previewUnlink",
+            "previewAutoremove"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "pluginID": "com.spinnet.homebrew",
+    "pluginVersion": "1.5.0",
+    "capability": "run_reviewed_tool_tasks",
+    "decision": "denied",
+    "scope": {
+      "capability": "run_reviewed_tool_tasks",
+      "command_ids": [
+        "brew.open",
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.vulnerabilities",
+        "brew.doctor",
+        "brew.adopt",
+        "brew.upgrade",
+        "brew.services",
+        "brew.taps",
+        "brew.services-menu",
+        "brew.cleanup",
+        "brew.clear-cache",
+        "brew.autoremove"
+      ],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "install",
+            "upgrade",
+            "uninstall",
+            "pin",
+            "unpin",
+            "link",
+            "unlink",
+            "adopt",
+            "tap",
+            "untap",
+            "trust",
+            "untrust",
+            "serviceStart",
+            "serviceStop",
+            "serviceRestart",
+            "cleanup",
+            "doctorFix",
+            "upgradeSelected",
+            "upgradeAll",
+            "changeLanguage",
+            "update",
+            "autoremove"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  },
+  {
+    "pluginID": "com.spinnet.homebrew",
+    "pluginVersion": "1.5.0",
+    "capability": "write_clipboard",
+    "decision": "denied"
+  },
+  {
+    "pluginID": "com.spinnet.homebrew",
+    "pluginVersion": "1.5.0",
+    "capability": "open_url",
+    "decision": "granted"
+  },
+  {
+    "pluginID": "com.spinnet.homebrew",
+    "pluginVersion": "1.5.0",
+    "capability": "open_local_path",
+    "decision": "granted"
+  }
+]
