@@ -13,7 +13,7 @@ public enum HomebrewAutoremove {
             ((service == ReviewedToolReads.id && operation == .string("previewAutoremove")) ||
              (service == ReviewedToolTasksAddition.id && operation == .string("autoremove")))
         guard !needsCandidate || permits(member) else {
-            throw PluginHostServiceError.unavailable("Homebrew autoremove requires homebrew_autoremove r1")
+            throw PluginHostServiceError.unavailable("Homebrew autoremove requires Plugin API Level 3")
         }
     }
 

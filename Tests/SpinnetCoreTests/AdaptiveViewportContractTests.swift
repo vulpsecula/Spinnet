@@ -23,7 +23,7 @@ final class AdaptiveViewportContractTests: XCTestCase {
         let page = try PluginPage(parsing: Self.page(), permits: Self.permits)
         XCTAssertEqual(page.components.map(\.id), ["cards", "cpu", "value", "note"])
         XCTAssertEqual(page.inputs.map(\.id), ["note"])
-        XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: AdaptivePageContractTests.permits), "Revision1 cannot use fit")
+        XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: { $0 != AdaptiveViewportLayout.viewportFit && AdaptivePageContractTests.permits($0) }), "Revision1 cannot use fit")
         XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: CollectionsFixtures.permits))
     }
     func testProfilesOnlyOverrideBoundedPassiveTextAndNeverIntroduceTrees() throws {
@@ -54,10 +54,10 @@ final class AdaptiveViewportContractTests: XCTestCase {
             catch { XCTAssertFalse(fixture.valid,"\(fixture.file): \(error)") }
         }
         let declared = try JSONDecoder().decode(CandidateContract.self,from:Data(contentsOf:root.appendingPathComponent("candidate.json")))
-        XCTAssertEqual(declared,AdaptiveViewportLayout.contract)
+        XCTAssertEqual(declared.status, .retired(promotedToLevel: 3))
         XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(AdaptiveViewportLayout.viewportFit))
         let manifest = try PluginManifestLoader.load(packageAt:Self.fixture).manifest
-        XCTAssertThrowsError(try PluginInterfaceContracts(levels:PluginInterfaceContracts.host.levels,candidates:[AdaptivePageLayout.contract]).check(manifest,origin:.installed))
+        XCTAssertThrowsError(try PluginInterfaceContracts(levels:[1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers],candidates:[AdaptivePageLayout.contract]).check(manifest,origin:.installed))
     }
 
 }

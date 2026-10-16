@@ -62,8 +62,8 @@ final class MenuAvailabilityRefreshTests: XCTestCase {
     private func replay(clickDragEnabled: Bool = true, directOpen: Bool = false) throws {
         _ = NSApplication.shared
         let manifest = try PluginManifestLoader.decode(Data("""
-        {"api_level":2,"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
-        "candidate_contracts":[{"name":"external_app_connections","revision":1}],
+        {"api_level":3,"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
+
         "external_app_connections":[{"bundle_id":"com.spotify.client","command_ids":["control"]}],
         "capabilities":["control_external_app"],"optional_capabilities":["control_external_app"],
         "capability_scopes":[{"capability":"control_external_app","command_ids":["control"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":["playback_read","playback_control"]}]}],

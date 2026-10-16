@@ -4,7 +4,13 @@
   "base_level": 2,
   "requires": [],
   "conflicts": [],
-  "members": [{"kind":"behaviour","name":"spotify_controls"}],
+  "members": [
+    {
+      "kind": "behaviour",
+      "name": "spotify_controls"
+    }
+  ],
   "tag": "plugin-api-candidate/spotify_controls/r1",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 3
 }

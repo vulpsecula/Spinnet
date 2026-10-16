@@ -1471,14 +1471,14 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation),
            !PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: manifest) {
-            throw PluginHostServiceError.unavailable("Spotify \(operation) requires spotify_controls r1")
+            throw PluginHostServiceError.unavailable("Spotify \(operation) requires Plugin API Level 3")
         }
         if let family = interface.operations.first(where: { $0.name == operation })?.family
             ?? (bundleID == SpotifyPlayback.bundleID ? SpotifyControls.family(for: operation) : nil),
            !target.operationFamilies.contains(family) {
             throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
-        return try interface.request(operation: operation, arguments: arguments, candidateContracts: manifest.candidateContracts)
+        return try interface.request(operation: operation, arguments: arguments, apiLevel: manifest.apiLevel, candidateContracts: manifest.candidateContracts)
     }
 
     private func deepLink(from input: JSONValue, scope: PluginCapabilityScope?) throws -> DeepLink {

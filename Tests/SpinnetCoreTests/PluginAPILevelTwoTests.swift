@@ -28,9 +28,9 @@ final class PluginAPILevelTwoTests: XCTestCase {
     }
 
     func testThisHostSupportsLevelTwoAndReportsIt() {
-        XCTAssertEqual(PluginAPILevel.highestSupported, 2)
-        XCTAssertEqual(host.highestStableLevel, 2)
-        XCTAssertEqual(PluginRuntimeEnvironment(hostVersion: "1.0", preferredLanguage: "en").apiLevel, 2,
+        XCTAssertEqual(PluginAPILevel.highestSupported, 3)
+        XCTAssertEqual(host.highestStableLevel, 3)
+        XCTAssertEqual(PluginRuntimeEnvironment(hostVersion: "1.0", preferredLanguage: "en").apiLevel, 3,
                        "spinnet.environment.apiLevel is the highest stable Level, for every Plugin")
     }
 
@@ -45,11 +45,11 @@ final class PluginAPILevelTwoTests: XCTestCase {
                                            + CollectionsContract.promoted.members
                                            + PluginInterfaceContracts.levelTwoAdditions))
         XCTAssertTrue(Set(PluginInterfaceContracts.levelTwoAdditions).isDisjoint(with: PluginInterfaceContracts.levelOneMembers))
-        XCTAssertEqual(Set(host.levels.keys), [1, 2])
-        XCTAssertEqual(host.candidates.map { "\($0.name) r\($0.revision)" },
+        XCTAssertEqual(Set(host.levels.keys), [1, 2, 3])
+        XCTAssertEqual(host.candidates.filter { $0.status == .retired(promotedToLevel: 2) }.map { "\($0.name) r\($0.revision)" },
                        ["namespaces r1", "host_operations r1", "host_operations r2",
                         "collections r1", "collections r2", "collections r3"])
-        for candidate in host.candidates {
+        for candidate in host.candidates where candidate.status == .retired(promotedToLevel: 2) {
             XCTAssertEqual(candidate.status, .retired(promotedToLevel: 2), "\(candidate.name) r\(candidate.revision)")
         }
     }
@@ -63,9 +63,9 @@ final class PluginAPILevelTwoTests: XCTestCase {
     }
 
     func testALevelThreePluginIsRefusedWithTheUpdateMessage() throws {
-        XCTAssertThrowsError(try host.check(manifest(apiLevel: 3), origin: .installed)) {
-            XCTAssertEqual($0.localizedDescription, "Level Two needs Plugin API Level 3, but this version of Spinnet "
-                + "supports up to Level 2. Update Spinnet to install it.")
+        XCTAssertThrowsError(try host.check(manifest(apiLevel: 4), origin: .installed)) {
+            XCTAssertEqual($0.localizedDescription, "Level Two needs Plugin API Level 4, but this version of Spinnet "
+                + "supports up to Level 3. Update Spinnet to install it.")
         }
     }
 
@@ -140,7 +140,7 @@ final class PluginAPILevelTwoTests: XCTestCase {
                                             "event", "state"])
         XCTAssertEqual(Set(levelTwo.keys), Set(levelOne.keys).union(["api_level"]))
         XCTAssertEqual(levelTwo["api_level"], .number(2))
-        XCTAssertEqual(levelOne["environment"], .object(["api_level": .number(2), "host_version": .string("1.0"),
+        XCTAssertEqual(levelOne["environment"], .object(["api_level": .number(3), "host_version": .string("1.0"),
                                                          "preferred_language": .string("en")]))
     }
 
@@ -149,7 +149,7 @@ final class PluginAPILevelTwoTests: XCTestCase {
     /// A Plugin declaring any revision of the three, at any Level, is
     /// refused with the Level its candidate became.
     func testEveryRetiredDeclarationIsRefusedNamingLevelTwo() throws {
-        for candidate in host.candidates {
+        for candidate in host.candidates where candidate.status == .retired(promotedToLevel: 2) {
             for level in [1, 2] {
                 let declaring = try manifest(apiLevel: level, declaring: [candidate.declaration])
                 XCTAssertThrowsError(try host.check(declaring, origin: .installed)) {

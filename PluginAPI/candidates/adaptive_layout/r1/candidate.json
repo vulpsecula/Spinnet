@@ -11,5 +11,6 @@
     }
   ],
   "tag": "plugin-api-candidate/adaptive_layout/r1",
-  "status": "supported"
+  "status": "retired",
+  "promoted_to_level": 3
 }

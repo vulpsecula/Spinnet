@@ -1,12 +1,6 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
-  "candidate_contracts": [
-    {
-      "name": "adaptive_layout",
-      "revision": 1
-    }
-  ],
+  "api_level": 3,
   "id": "com.example.adaptive-cards",
   "name": "Adaptive Cards",
   "version": "1.0.0",

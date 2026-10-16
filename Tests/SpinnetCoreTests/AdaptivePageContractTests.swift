@@ -33,8 +33,8 @@ final class AdaptivePageContractTests: XCTestCase {
         XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent("adaptive")))
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: CollectionsFixtures.permits))
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: CollectionsFixtures.levelOne))
-        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(Self.manifest, origin: .bundled))
-        let oldHost = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels)
+        XCTAssertNoThrow(try PluginInterfaceContracts.host.check(Self.manifest, origin: .bundled))
+        let oldHost = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
         XCTAssertThrowsError(try oldHost.check(Self.manifest, origin: .installed))
         let wrongRevision = CandidateContract(name: "adaptive_layout", revision: 2, baseLevel: 2,
             members: [.viewComponent("adaptive")], tag: "plugin-api-candidate/adaptive_layout/r2")

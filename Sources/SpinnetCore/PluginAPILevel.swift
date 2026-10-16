@@ -7,9 +7,10 @@ import Foundation
 public enum PluginAPILevel {
     /// The highest level this Host supports. Level 1 is the first published
     /// level and Level 2 the Candidate Contracts `namespaces` r1,
-    /// `host_operations` r2 and `collections` r3 promoted together (#79),
-    /// both catalogued in `PluginAPI/README.md`.
-    public static let highestSupported = 2
+    /// `host_operations` r2 and `collections` r3 promoted together (#79).
+    /// Level 3 promotes the proved adaptive viewport, Spotify controls,
+    /// External App connections and Homebrew autoremove contracts (#96–98).
+    public static let highestSupported = 3
 
     /// The level of a manifest written before `api_level` existed. Such a
     /// manifest was written against the interface Level 1 grew out of, so
