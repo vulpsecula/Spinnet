@@ -40,6 +40,9 @@ opt in explicitly:
 SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
 ```
 
+`./script/build_and_run.sh --package` builds and verifies the signed bundle
+without stopping or launching the Host, useful for checking a clean checkout.
+
 Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
 permission again after rebuilding them.
 

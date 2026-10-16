@@ -39,7 +39,9 @@ fi
 
 BUNDLED_PLUGINS_DIR="$("$ROOT_DIR/script/resolve_bundled_plugins.sh")"
 
-pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
+if [[ "$MODE" != "--package" ]]; then
+    pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
+fi
 
 cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
@@ -165,6 +167,9 @@ open_app() {
 }
 
 case "$MODE" in
+    --package)
+        # Validate a clean-checkout bundle without replacing the running Host.
+        ;;
     run)
         open_app
         ;;
@@ -193,7 +198,7 @@ case "$MODE" in
         done
         ;;
     *)
-        echo "usage: $0 [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]" >&2
+        echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check]" >&2
         exit 2
         ;;
 esac
