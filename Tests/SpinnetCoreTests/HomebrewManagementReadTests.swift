@@ -15,6 +15,47 @@ final class HomebrewManagementReadTests: XCTestCase {
 }
 
 extension HomebrewManagementReadTests {
+    func testDoctorNeverOffersATruncatedCommandForCopyAndNamesTheReviewedBatch() throws {
+        let longCommand = "brew link " + String(repeating: "a", count: 600)
+        let report: [String: Any] = ["findings": [["text": "Unlinked tools", "remediation": ["commands": [longCommand, "brew link wget"]]]]]
+        let bytes = try JSONSerialization.data(withJSONObject: report)
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return .init(status: 1, stdout: bytes)
+        })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("doctor")]), owner: PluginID("doctor-complete-copy"))
+        XCTAssertEqual(result.value(atPointer: "/findings/0/commands"), .array([.string("brew link wget")]))
+        XCTAssertEqual(result.value(atPointer: "/findings/0/truncated"), .bool(true))
+        XCTAssertEqual(result.value(atPointer: "/fix_all/repairs"), .array([.object(["title": .string("Link wget")])]))
+    }
+
+    func testDoctorRechecksSandboxPermissionWarningsBeforeIssuingRepairs() throws {
+        var writable: Bool? = true
+        let targets = HomebrewManagementTargets()
+        let management = HomebrewManagementReads(targets: targets, doctorDirectoryWritable: { url in
+            XCTAssertEqual(url.path, "/opt/homebrew/Caskroom")
+            return writable
+        })
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return .init(status: 1, stdout: Data(#"{"tier":1,"findings":[{"check":"check_cask_staging_location","text":"The staging path /opt/homebrew/Caskroom is not writable by the current user.\n","remediation":{"text":"To fix this, run the suggested ownership command.","commands":["sudo chown -R $(whoami) /opt/homebrew/Caskroom"]}}]}"#.utf8))
+        }, management: management)
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("doctor")])
+        let owner = PluginID("doctor-writability")
+        let restricted = try profile.read(input, owner: owner)
+        XCTAssertEqual(restricted.value(atPointer: "/findings"), .array([]))
+        XCTAssertNil(restricted.value(atPointer: "/fix_all"))
+        writable = false
+        let actual = try profile.read(input, owner: owner)
+        XCTAssertEqual(actual.value(atPointer: "/findings/0/affects"), .array([.string("/opt/homebrew/Caskroom")]))
+        XCTAssertEqual(actual.value(atPointer: "/fix_all/count"), .number(1))
+        writable = nil
+        let unavailable = try profile.read(input, owner: owner)
+        XCTAssertEqual(unavailable.value(atPointer: "/findings"), .array([]))
+        XCTAssertNil(unavailable.value(atPointer: "/fix_all"))
+        XCTAssertEqual(unavailable.value(atPointer: "/context/unverified_directory_checks"), .number(1))
+    }
+
     func testServicesReadOnlyShowsCurrentUsersServicesWithoutFileOrAccountLeakage() throws {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
@@ -46,6 +87,19 @@ extension HomebrewManagementReadTests {
 }
 
 extension HomebrewManagementReadTests {
+    func testDoctorPreservesFindingStructureAndExcludesHostShellPathAdvice() throws {
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
+            return .init(status: 1, stdout: Data(#"{"tier":1,"findings":[{"check":"check_deprecated_disabled","text":"Some installed formulae are deprecated or disabled.","tier":2,"affects":["ruby@3.1"],"remediation":{"text":"Find a replacement.\n\nKeep existing projects in mind."}},{"check":"check_user_path_2","text":"Homebrew's bin was not found in your PATH.","remediation":{"commands":["edit shell configuration"]}}]}"#.utf8))
+        })
+        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("doctor")]), owner: PluginID("doctor-context"))
+        XCTAssertEqual(result.value(atPointer: "/findings/0/check"), .string("check_deprecated_disabled"))
+        XCTAssertEqual(result.value(atPointer: "/findings/0/affects"), .array([.string("ruby@3.1")]))
+        XCTAssertEqual(result.value(atPointer: "/findings/0/guidance"), .string("Find a replacement.\n\nKeep existing projects in mind."))
+        XCTAssertNil(result.value(atPointer: "/findings/1"))
+        XCTAssertEqual(result.value(atPointer: "/context/shell_path"), .string("not_checked"))
+    }
+
     func testDoctorOnlyIssuesReviewedRepairTargetsAndKeepsUnknownCommandsForCopy() throws {
         let targets = HomebrewManagementTargets()
         let management = HomebrewManagementReads(targets: targets)

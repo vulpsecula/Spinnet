@@ -19,7 +19,7 @@ See [schema](../schemas/homebrew-management-reads.schema.json) and
 | version | none | version, features |
 | taps | optional exact tap name | taps with actual official/trusted flags and package counts; selected tap adds at most 1,000 formula/cask package identities |
 | services | none | current user's named service statuses; no file paths/account names |
-| doctor | none | tier, findings with text/links/copyable commands and recognized repair targets |
+| doctor | none | tier, context, findings with check identity, affected items, text/guidance/links, complete copyable commands and recognized repair targets |
 | previewInstall / previewUpgrade | kind, names (1–50); upgrade also accepts greedy | packages, estimated:false, dry_run:true, succeeded, exit_status, stages, warnings, bounded stdout/stderr, summary |
 | previewUpgradeAll | optional kind and greedy | same actual output for current eligible unpinned formulae and casks, grouped into explicit bounded selections |
 | previewLink / previewUnlink | kind, names (exactly one) | package, complete, changes, paths, paths_fingerprint, no_op, dry_run, succeeded, diagnostics |
@@ -32,6 +32,35 @@ See [schema](../schemas/homebrew-management-reads.schema.json) and
 Every result has tool, operation and version. Version-gated Doctor JSON and
 vulnerability reads require Homebrew 7; older versions return available:false
 and reason:requires_homebrew_7, rather than pretend the scan/report is empty.
+Doctor executes the reviewed `brew doctor --json` implementation. The Host
+pins its result-annotation seam to reviewed upstream source digests before
+loading Doctor; a changed implementation makes Doctor unavailable pending
+review without disabling other reads. Each finding retains `check`, `tier`,
+and at most 100 `affects` strings of at most 200 characters. Text and guidance
+retain paragraphs within their existing 2,048-character bounds. `truncated`
+on a finding identifies omitted text, items, links or commands. Copyable
+commands retain only complete, unmodified strings: at most eight commands of
+512 characters. An oversized or scrubbed command is omitted, never offered
+as a shortened executable command.
+
+Doctor's `context` identifies `scope:host`, `shell_path:not_checked` and
+`directory_access:reported_paths_rechecked`. The Host's fixed subprocess PATH
+does not describe the user's terminal, so Doctor's PATH advice is excluded.
+The read-only sandbox remains intact. For the two reviewed directory-access
+checks the Host rechecks only bounded, canonical paths under the reviewed
+Homebrew prefix or its user cache/log directories, without writing files.
+At most 128 distinct directory checks are attempted per read. Writable paths
+are removed from those findings; unknown access suppresses that finding and
+its repair and increments `unverified_directory_checks`. A nonzero count
+requires an incomplete-check notice, never a clean bill of health. Ownership
+repair targets require confirmed access failures and the existing reviewed
+ownership vocabulary; English diagnostics alone do not grant authority.
+
+`fix_all` is an opaque Host-reviewed selection of at most eight distinct
+repairs, not a Homebrew command or a promise to resolve every finding. Its
+`repairs` lists the concrete titles in selection order and matches `count`.
+Plugins can preview this selection before requesting Host confirmation;
+neither these titles nor printed commands are executable Task inputs.
 The four earlier reads remain offline. The new remote reads have fixed reviewed
 routes: api.osv.dev/v1/querybatch and /v1/vulns/{id}, and
 formulae.brew.sh/api/{formula|cask}/{name}.json. OSV receives installed upstream

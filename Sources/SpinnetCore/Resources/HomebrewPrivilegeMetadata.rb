@@ -5,7 +5,9 @@ require 'digest'
 {
   'tap/abstract_core_tap.rb' => '580fa663435dc5caa04afbd1db4948924431943de0253139165456869cf35fb0',
   'tap/core_cask_tap.rb' => '5159c01629e803edb3f0469df4266cea246b5de44b34113cdd155bdcb19b27a0',
-  'tap.rb' => '8ea9d6c46ef61dda3b9bfd7e580f8e8b81358245fbb3a2eb4154a66cf5f400f1',
+  # Reviewed upstream dd2a8cf5c7 only replaces a nil-branch ternary with a
+  # modifier if in tap installation; metadata and trust semantics are unchanged.
+  'tap.rb' => %w[8ea9d6c46ef61dda3b9bfd7e580f8e8b81358245fbb3a2eb4154a66cf5f400f1 c8e13829ad436751a8347d73d80d13b0eace8ffc98f831b92a7911b36576693e],
   'api.rb' => '8863f378ac64fb5c678fc86e6b0b8a85349d864bdb1465ff3c90bbf49faee7fe',
   'api/homebrew-1.pem' => 'ef2d2c9e0219d485df9f07fff7b037feadc36c93085be9ffefb1390f31a3de1d',
   'api/internal.rb' => 'eb98dc96639bfa500261818f455fe894f6eda10150f5e62f1428a885586b2d03',
@@ -13,7 +15,7 @@ require 'digest'
   'cask/config.rb' => 'e544e0730a19b54942bddeb75ac36063e6964f63ea1cce63688bac021be17e20',
   'extend/os/mac/cask/config.rb' => '0154133c94dab6d6d4b3452d796bed9f27cfaaf82a4e04b90b4024a0ca9507d2'
 }.each do |file, expected|
-  unless Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/file).hexdigest == expected
+  unless Array(expected).include?(Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/file).hexdigest)
     warn '__SPINNET_SOURCE_ADAPTER_UNREVIEWED__'
     exit 79
   end

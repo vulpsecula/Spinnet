@@ -359,6 +359,7 @@ public final class HomebrewReadProfile {
             ? ["ruby", "--", Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")!.path] + arguments : arguments
         let output = try executeBounded(executable, guarded, environment, deadline, cancellation, stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: isReviewedCommand || arguments.first == "ruby" || arguments.first == "--version" || executable.lastPathComponent == "brew")
         if output.status == 77 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_SOURCE_NOT_ALLOWED__") { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        if output.status == 79 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_DOCTOR_SOURCE_UNREVIEWED__") { throw PluginHostServiceError.unavailable("This Homebrew Doctor source revision needs review before diagnostics") }
         if output.status == 79 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_SOURCE_ADAPTER_UNREVIEWED__") { throw PluginHostServiceError.unavailable("This Homebrew loader source revision needs review before metadata reads") }
         if output.status == 78 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_INSTALLED_HISTORY_UNAVAILABLE__") { throw PluginHostServiceError.unavailable("Installed Ruby history lacks immutable source provenance; this read accepts installed JSON only") }
         return output

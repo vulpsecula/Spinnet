@@ -7,14 +7,20 @@ public final class HomebrewManagementReads {
     private let remote: HomebrewManagementRemoteReads
     private let previewTransport: HTTPSTransport?
     private let applications: () -> [HomebrewAdoptionApplication]
+    private let doctorDirectoryWritable: (URL) -> Bool?
     private let lock = NSLock()
     private var appSnapshots: [String: HomebrewAdoptionApplication] = [:]
     private let targets: HomebrewManagementTargets
     public convenience init() { self.init(targets: .shared) }
     public init(targets: HomebrewManagementTargets, applications: @escaping () -> [HomebrewAdoptionApplication] = HomebrewAdoptionApplication.discover,
-                transport: HTTPSTransport? = nil) {
+                transport: HTTPSTransport? = nil, doctorDirectoryWritable: ((URL) -> Bool?)? = nil) {
         self.previewTransport = transport
         self.targets = targets; self.applications = applications; self.remote = HomebrewManagementRemoteReads(transport: transport)
+        self.doctorDirectoryWritable = doctorDirectoryWritable ?? { url in
+            var directory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &directory), directory.boolValue else { return nil }
+            return FileManager.default.isWritableFile(atPath: url.path)
+        }
     }
     public convenience init(transport: HTTPSTransport) { self.init(targets: .shared, transport: transport) }
     public func invalidateTargets(owner: PluginID) { targets.invalidate(owner: owner) }
@@ -352,9 +358,31 @@ public final class HomebrewManagementReads {
             result["tier"] = .string(Self.clean(String(describing: report["tier"] ?? 1), maximum: 20))
             var reviewedSet: [(key: String, value: HomebrewManagementTarget)] = []
             var issuedRepairs: [(key: String, value: HomebrewManagementTarget)] = []
-            result["findings"] = .array(findings.prefix(100).enumerated().map { index, finding in
+            var unverifiedDirectoryChecks = 0
+            var checkedDirectories: [URL: Bool] = [:]
+            var attemptedDirectories = Set<URL>()
+            result["findings"] = .array(findings.prefix(100).enumerated().compactMap { index, finding in
+                let check = finding["check"] as? String ?? ""
+                if ["check_user_path_1", "check_user_path_2", "check_user_path_3", "check_brew_path"].contains(check) { return nil }
+                var finding = finding
+                var verifiedDirectoryAccess = false
+                switch HomebrewDoctorContext.assess(finding, prefix: Self.prefix(of: executable), writable: { url in
+                    if attemptedDirectories.contains(url) { return checkedDirectories[url] }
+                    guard attemptedDirectories.count < 128 else { return nil }
+                    attemptedDirectories.insert(url)
+                    let access = doctorDirectoryWritable(url)
+                    checkedDirectories[url] = access
+                    return access
+                }) {
+                case .unrelated: break
+                case .absent: return nil
+                case .unverified: unverifiedDirectoryChecks += 1; return nil
+                case .verified(let verified): finding = verified; verifiedDirectoryAccess = true
+                }
                 let remediation = finding["remediation"] as? [String: Any]
-                let commands = (remediation?["commands"] as? [String] ?? []).prefix(8)
+                let rawCommands = remediation?["commands"] as? [String] ?? []
+                let commands = rawCommands.prefix(8).filter { $0.count <= 512 }
+                let copyableCommands = commands.filter { Self.clean($0, maximum: 512) == $0 }
                 var repairs: [JSONValue] = []
                 for command in commands {
                     let value: HomebrewManagementTarget?
@@ -366,7 +394,7 @@ public final class HomebrewManagementReads {
                         value = HomebrewReadInput.validToken(name) ? .init(operation: "link", kind: "formula", name: name,
                             arguments: ["link", "--formula", "--", name], needsPrivileges: false, summary: "Link " + name,
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
-                    } else { value = HomebrewOwnershipRepair.resolve(command: command, prefix: Self.prefix(of: executable)) }
+                    } else { value = verifiedDirectoryAccess ? HomebrewOwnershipRepair.resolve(command: command, prefix: Self.prefix(of: executable)) : nil }
                     if let value {
                         let key: String
                         if let existing = issuedRepairs.first(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { key = existing.key }
@@ -383,10 +411,19 @@ public final class HomebrewManagementReads {
                 var value: [String: JSONValue] = ["id": .string("finding-" + String(index)),
                     "text": .string(Self.clean(finding["text"] as? String ?? "Homebrew finding")),
                     "links": .array((finding["links"] as? [String] ?? []).prefix(8).compactMap { Self.safeURL($0).map(JSONValue.string) }),
-                    "commands": .array(commands.map { .string(Self.clean($0, maximum: 512)) }), "repairs": .array(repairs)]
+                    "commands": .array(copyableCommands.map(JSONValue.string)), "repairs": .array(repairs)]
+                value["check"] = .string(Self.clean(check, maximum: 100))
+                value["affects"] = .array((finding["affects"] as? [String] ?? []).prefix(100).map { .string(Self.clean($0, maximum: 200)) })
+                value["tier"] = .string(Self.clean(String(describing: finding["tier"] ?? 1), maximum: 20))
                 if let text = remediation?["text"] as? String { value["guidance"] = .string(Self.clean(text)) }
+                if copyableCommands.count != rawCommands.count || (finding["text"] as? String ?? "").count > 2048
+                    || (remediation?["text"] as? String ?? "").count > 2048 || (finding["affects"] as? [String] ?? []).count > 100
+                    || (finding["affects"] as? [String] ?? []).contains(where: { $0.count > 200 })
+                    || (finding["links"] as? [String] ?? []).count > 8 { value["truncated"] = .bool(true) }
                 return .object(value)
             })
+            result["context"] = .object(["scope": .string("host"), "shell_path": .string("not_checked"),
+                "directory_access": .string("reported_paths_rechecked"), "unverified_directory_checks": .number(Double(unverifiedDirectoryChecks))])
             if !reviewedSet.isEmpty {
                 let frozen = reviewedSet
                 let steps: [JSONValue] = frozen.map { entry in
@@ -402,7 +439,8 @@ public final class HomebrewManagementReads {
                     needsPrivileges: frozen.contains { $0.value.needsPrivileges }, summary: title,
                     metadata: .object(["doctor_steps": .array(steps)]))
                 let key = targets.issue(batch, owner: owner, domain: "doctor", current: { [targets] in frozen.allSatisfy { targets.isCurrent(target: $0.key, owner: owner) } })
-                result["fix_all"] = .object(["target": .string(key), "title": .string(title), "count": .number(Double(frozen.count))])
+                result["fix_all"] = .object(["target": .string(key), "title": .string(title), "count": .number(Double(frozen.count)),
+                    "repairs": .array(frozen.map { .object(["title": .string($0.value.summary)]) })])
             }
             if findings.count > 100 { result["truncated"] = .bool(true) }
             return .object(result)

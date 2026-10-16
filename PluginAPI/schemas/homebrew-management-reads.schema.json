@@ -604,6 +604,25 @@
                         }
                       }
                     }
+                  },
+                  "check": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "tier": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "affects": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "truncated": {
+                    "type": "boolean"
                   }
                 }
               },
@@ -1027,6 +1046,24 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 8
+            },
+            "repairs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 512
+                  }
+                }
+              }
             }
           }
         },
@@ -1150,6 +1187,32 @@
                 }
               }
             ]
+          }
+        },
+        "context": {
+          "type": "object",
+          "required": [
+            "scope",
+            "shell_path",
+            "directory_access",
+            "unverified_directory_checks"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "scope": {
+              "const": "host"
+            },
+            "shell_path": {
+              "const": "not_checked"
+            },
+            "directory_access": {
+              "const": "reported_paths_rechecked"
+            },
+            "unverified_directory_checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
           }
         }
       },

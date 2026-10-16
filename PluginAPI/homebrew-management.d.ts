@@ -25,10 +25,11 @@ export type HomebrewManagementReadResult = ManagementReadBase & {
   features?: { vulnerabilities: boolean; doctorJSON: boolean; trust: boolean };
   taps?: { name: string; official: boolean; trusted: boolean; remote?: string; formula_count: number; cask_count: number; packages?: {kind: PackageKind; name: string}[]; truncated?: boolean }[];
   services?: { name: string; status: "started" | "scheduled" | "stopped" | "none" | "error" | "unknown" | "other"; user_owned: true }[];
-  findings?: ({ id: string; text: string; guidance?: string; links: string[]; commands: string[]; repairs: { target: string; title: string }[] }
+  context?: {scope: "host"; shell_path: "not_checked"; directory_access: "reported_paths_rechecked"; unverified_directory_checks: number};
+  findings?: ({ id: string; text: string; check?: string; affects?: string[]; tier?: string; truncated?: boolean; guidance?: string; links: string[]; commands: string[]; repairs: { target: string; title: string }[] }
     | { name: string; installed_version: string; advisories: Advisory[]; open_count?: number; patched_count?: number; unknown_count?: number; upgrade_available?: boolean })[];
   applications?: { identity?: string; target: string; name: string; bundle_id: string; version: string; candidates?: {name: string; confidence: "ready" | "likely" | "unlikely" | "cannot"; reason: string}[] }[];
-  fix_all?: {target: string; title: string; count: number};
+  fix_all?: {target: string; title: string; count: number; repairs?: {title: string}[]};
   target?: string; name?: string; kind?: PackageKind; summary?: string; estimated?: false; dry_run?: true; succeeded?: boolean; exit_status?: number; stdout?: string; stderr?: string;
   stages?: {title: string; lines: string[]}[]; warnings?: string[];
   package?: ReviewedPackage; complete?: boolean; no_op?: boolean;
