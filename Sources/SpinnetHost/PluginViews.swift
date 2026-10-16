@@ -669,7 +669,9 @@ final class PluginViewWindows: PluginViewRenderer {
         entry.window.close()
         environment.sections.sessionEnded(session)
         environment.images?.sessionEnded(session)
-        if case .failed(let failure) = reason {
+        if reason == .capabilityRevoked {
+            report("Access revoked; \(environment.pluginName(session.pluginID)) window closed.")
+        } else if case .failed(let failure) = reason {
             let title = entry.model?.title ?? entry.page?.title ?? session.action.title
             report("\(environment.pluginName(session.pluginID)) — \(title) closed: \(failure.message)")
         }

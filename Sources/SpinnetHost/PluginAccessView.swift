@@ -109,52 +109,106 @@ struct PluginConsentSheet: View {
     var requiresConnection = false
     /// The Screenshot entry's own options, shown above its access.
     var screenshotSettings: ScreenshotSettingsModel? = nil
-    /// The Plugin's declared settings, saved by Done.
+    /// The Plugin's declared settings, saved by Save.
     var pluginSettings: PluginSettingsModel? = nil
     /// What the Plugin keeps in Plugin Storage.
     var pluginStorage: PluginStorageModel? = nil
+    @State private var showingPermissions = false
+
+    var body: some View {
+        if showingPermissions {
+            PluginPermissionsPage(privacy: privacy, manifest: manifest,
+                                  onDone: { showingPermissions = false })
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Plugin Settings")
+                    .font(.title2.weight(.semibold))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let screenshotSettings {
+                            ScreenshotSettingsView(model: screenshotSettings)
+                        }
+                        if let pluginSettings {
+                            PluginSettingsForm(model: pluginSettings)
+                        }
+                        if let connections { ExternalAppConnectionSettings(model: connections) }
+                        PluginPermissionsLink(pluginName: manifest.name,
+                                              open: { showingPermissions = true })
+                        if let pluginStorage {
+                            PluginStorageSection(model: pluginStorage, pluginName: manifest.name)
+                        }
+                    }
+                }
+                HStack {
+                    if pluginSettings != nil || requiresConnection {
+                        Button("Cancel", action: { if let onCancel { onCancel() } else { close() } })
+                            .keyboardShortcut(.cancelAction)
+                    }
+                    Spacer()
+                    Button(pluginSettings == nil ? "Done" : "Save") {
+                        // Settings that do not save keep the sheet open with the reason.
+                        if let pluginSettings, !pluginSettings.save() { return }
+                        close()
+                    }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(24)
+            .frame(width: 600, height: 640)
+        }
+    }
+
+    private func close() {
+        if let onDone { onDone() } else { privacy.pluginSettingsManifest = nil }
+    }
+}
+
+/// A separate immediate-action surface: returning never saves or discards a
+/// Plugin Settings draft in the presenting sheet.
+struct PluginPermissionsPage: View {
+    @ObservedObject var privacy: PrivacyPermissionsModel
+    let manifest: PluginManifest
+    let onDone: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Plugin Settings")
-                .font(.title2.weight(.semibold))
+            Text("Plugin Permissions").font(.title2.weight(.semibold))
+            Text("Changes take effect immediately and apply to all Actions from this Plugin.")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let screenshotSettings {
-                        ScreenshotSettingsView(model: screenshotSettings)
-                    }
-                    if let pluginSettings {
-                        PluginSettingsForm(model: pluginSettings)
-                    }
-                    if let connections { ExternalAppConnectionSettings(model: connections) }
-                    PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
-                                     setDecision: privacy.setCapabilityDecision,
-                                     consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
-                    if let pluginStorage {
-                        PluginStorageSection(model: pluginStorage, pluginName: manifest.name)
-                    }
-                }
+                PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
+                                 setDecision: privacy.setCapabilityDecision,
+                                 consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
             }
             HStack {
-                if pluginSettings != nil || requiresConnection {
-                    Button("Cancel", action: { if let onCancel { onCancel() } else { close() } })
-                        .keyboardShortcut(.cancelAction)
-                }
                 Spacer()
-                Button(pluginSettings == nil ? "Done" : "Save") {
-                    // Settings that do not save keep the sheet open with the reason.
-                    if let pluginSettings, !pluginSettings.save() { return }
-                    close()
-                }
+                Button("Done", action: onDone)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
         .frame(width: 600, height: 640)
+        .onExitCommand(perform: onDone)
     }
+}
 
-    private func close() {
-        if let onDone { onDone() } else { privacy.pluginSettingsManifest = nil }
+private struct PluginPermissionsLink: View {
+    let pluginName: String
+    let open: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Permissions").font(.headline)
+            Text("Manage access separately. Permission changes take effect immediately; Save and Cancel apply only to Plugin Settings.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Manage Permissions", action: open)
+                .accessibilityLabel("Manage Permissions for \(pluginName)")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -163,8 +217,7 @@ struct MenuItemAccessSummary: View {
     let manifest: PluginManifest
     let commandIDs: Set<CommandID>
     let inputs: [CommandID: JSONValue]
-    @State private var showingPluginSettings = false
-    @State private var connections: ExternalAppConnectionsModel?
+    @State private var showingPermissions = false
 
     private var capabilities: [PluginCapability] {
         manifest.capabilities.filter { capability in
@@ -232,19 +285,16 @@ struct MenuItemAccessSummary: View {
                         .accessibilityLabel("Enable Screen Recording")
                     }
                 }
-                Text("Manage Plugin-wide access in Library’s Plugin Settings. Your Slot edits will be kept while you open settings.")
+                Text("Permission changes apply immediately to all Actions from this Plugin. Your Menu Item edits are kept while you manage permissions.")
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Open Plugin Settings") {
-                    connections = privacy.connectionSettings?(manifest.id)
-                    showingPluginSettings = true
-                }
-                    .accessibilityLabel("Open Plugin Settings for \(manifest.name)")
+                Button("Manage Permissions") { showingPermissions = true }
+                    .accessibilityLabel("Manage Permissions for \(manifest.name)")
             }
             .padding(.top, 8)
         }
-        .sheet(isPresented: $showingPluginSettings) {
-            PluginConsentSheet(privacy: privacy, manifest: manifest,
-                               onDone: { showingPluginSettings = false }, connections: connections)
+        .sheet(isPresented: $showingPermissions) {
+            PluginPermissionsPage(privacy: privacy, manifest: manifest,
+                                  onDone: { showingPermissions = false })
         }
     }
 }

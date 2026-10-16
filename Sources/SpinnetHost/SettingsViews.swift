@@ -2583,7 +2583,7 @@ private struct PrivacySettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Plugin Capability Grants")
                     .font(.headline)
-                Text("Grant decisions apply to every Action from that Plugin and are checked again when the Action runs.")
+                Text("Changes take effect immediately and apply to all Actions from each Plugin. Access is checked again when an Action runs.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 

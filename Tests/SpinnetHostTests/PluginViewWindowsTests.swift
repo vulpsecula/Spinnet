@@ -150,6 +150,18 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertFalse(harness.window() === window)
     }
 
+    func testRevokingAccessReportsOnlyThePluginWindowItActuallyCloses() throws {
+        try harness.present(PluginViewHarness.form(title: "First"))
+        let window = try XCTUnwrap(harness.window())
+
+        harness.sessions.end(pluginID: harness.pluginID, because: .capabilityRevoked)
+
+        XCTAssertEqual(window.closes, 1)
+        XCTAssertEqual(harness.reports, ["Access revoked; View Gallery window closed."])
+        harness.sessions.end(pluginID: harness.pluginID, because: .capabilityRevoked)
+        XCTAssertEqual(harness.reports.count, 1, "There is no window left to close or report")
+    }
+
     /// A script that breaks the interface ends its session; the Host says so.
     func testAProtocolViolationClosesTheViewAndIsReported() throws {
         try harness.present(PluginViewHarness.form(title: "First"))
