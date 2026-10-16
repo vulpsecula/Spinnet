@@ -1,0 +1,207 @@
+{
+  "actions": [
+    {
+      "id": "BB000000-0000-4000-8000-000000000001",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.open",
+      "title": "Homebrew",
+      "execution": "javascript",
+      "script": "brew.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000002",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.installed",
+      "title": "Show Installed",
+      "execution": "javascript",
+      "script": "brew-installed.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000003",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.search",
+      "title": "Search Packages",
+      "execution": "javascript",
+      "script": "brew-search.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000004",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.outdated",
+      "title": "Available Updates",
+      "execution": "javascript",
+      "script": "brew-outdated.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000005",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.vulnerabilities",
+      "title": "Security Check",
+      "execution": "javascript",
+      "script": "brew-vulnerabilities.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000006",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.doctor",
+      "title": "Run Doctor",
+      "execution": "javascript",
+      "script": "brew-doctor.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000007",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.adopt",
+      "title": "Adopt Apps",
+      "execution": "javascript",
+      "script": "brew-adopt.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000008",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.upgrade",
+      "title": "Review All Upgrades",
+      "execution": "javascript",
+      "script": "brew-upgrade.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000009",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.services",
+      "title": "Manage Services",
+      "execution": "javascript",
+      "script": "brew-services.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000010",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.taps",
+      "title": "Manage Package Sources",
+      "execution": "javascript",
+      "script": "brew-taps.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000011",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.services-menu",
+      "title": "Services Menu",
+      "execution": "javascript",
+      "script": "brew-services-menu.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000012",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.cleanup",
+      "title": "Clean Up",
+      "execution": "javascript",
+      "script": "brew-cleanup.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000013",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.clear-cache",
+      "title": "Clear Plugin Cache",
+      "execution": "javascript",
+      "script": "brew-clear-cache.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "BB000000-0000-4000-8000-000000000014",
+      "pluginID": "com.spinnet.homebrew",
+      "commandID": "brew.autoremove",
+      "title": "Remove Unused Dependencies",
+      "execution": "javascript",
+      "script": "brew-autoremove.js",
+      "input": null,
+      "isConfigurable": false
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "Homebrew \u00b7 development Mac",
+          "primary_action_id": "BB000000-0000-4000-8000-000000000001",
+          "alternate_action_ids": [
+            "BB000000-0000-4000-8000-000000000002",
+            "BB000000-0000-4000-8000-000000000003",
+            "BB000000-0000-4000-8000-000000000004",
+            "BB000000-0000-4000-8000-000000000005"
+          ],
+          "alternate_action_order": [
+            "BB000000-0000-4000-8000-000000000002",
+            "BB000000-0000-4000-8000-000000000003",
+            "BB000000-0000-4000-8000-000000000004",
+            "BB000000-0000-4000-8000-000000000005",
+            "BB000000-0000-4000-8000-000000000006",
+            "BB000000-0000-4000-8000-000000000007",
+            "BB000000-0000-4000-8000-000000000008",
+            "BB000000-0000-4000-8000-000000000009",
+            "BB000000-0000-4000-8000-000000000010",
+            "BB000000-0000-4000-8000-000000000011",
+            "BB000000-0000-4000-8000-000000000012",
+            "BB000000-0000-4000-8000-000000000013",
+            "BB000000-0000-4000-8000-000000000014"
+          ],
+          "disabled_alternate_action_ids": [
+            "BB000000-0000-4000-8000-000000000006",
+            "BB000000-0000-4000-8000-000000000007",
+            "BB000000-0000-4000-8000-000000000008",
+            "BB000000-0000-4000-8000-000000000009",
+            "BB000000-0000-4000-8000-000000000010",
+            "BB000000-0000-4000-8000-000000000011",
+            "BB000000-0000-4000-8000-000000000012",
+            "BB000000-0000-4000-8000-000000000013",
+            "BB000000-0000-4000-8000-000000000014"
+          ]
+        }
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      }
+    ]
+  }
+}
