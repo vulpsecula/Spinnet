@@ -1,0 +1,30 @@
+{
+  "actions": [
+    {
+      "commandID": "monitor.show",
+      "execution": "javascript",
+      "id": "97000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.system-monitor",
+      "script": "monitor.js",
+      "title": "System Monitor"
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "Machine status",
+          "primary_action_id": "97000000-0000-4000-8000-000000000001",
+          "alternate_action_ids": [],
+          "disabled_alternate_action_ids": [],
+          "alternate_action_order": []
+        }
+      },
+      {
+        "item": null
+      }
+    ]
+  }
+}
