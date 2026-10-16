@@ -1,0 +1,99 @@
+{
+  "actions": [
+    {
+      "id": "CA000000-0000-4000-8000-000000000001",
+      "pluginID": "com.spinnet.coffee",
+      "commandID": "coffee.open",
+      "title": "Keep Awake",
+      "execution": "javascript",
+      "script": "coffee.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "CA000000-0000-4000-8000-000000000002",
+      "pluginID": "com.spinnet.coffee",
+      "commandID": "coffee.manual",
+      "title": "Keep Awake Until Stopped",
+      "execution": "javascript",
+      "script": "coffee.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "CA000000-0000-4000-8000-000000000003",
+      "pluginID": "com.spinnet.coffee",
+      "commandID": "coffee.timed",
+      "title": "Keep Awake for 30 Minutes",
+      "execution": "javascript",
+      "script": "coffee.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "CA000000-0000-4000-8000-000000000004",
+      "pluginID": "com.spinnet.coffee",
+      "commandID": "coffee.app",
+      "title": "Keep Awake While Current App Runs",
+      "execution": "javascript",
+      "script": "coffee.js",
+      "input": null,
+      "isConfigurable": false
+    },
+    {
+      "id": "CA000000-0000-4000-8000-000000000005",
+      "pluginID": "com.spinnet.coffee",
+      "commandID": "coffee.activities",
+      "title": "Keep Awake Activities",
+      "execution": "javascript",
+      "script": "coffee.js",
+      "input": null,
+      "isConfigurable": false
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "Stay awake \u00b7 workshop",
+          "primary_action_id": "CA000000-0000-4000-8000-000000000001",
+          "alternate_action_ids": [
+            "CA000000-0000-4000-8000-000000000002",
+            "CA000000-0000-4000-8000-000000000003",
+            "CA000000-0000-4000-8000-000000000004"
+          ],
+          "alternate_action_order": [
+            "CA000000-0000-4000-8000-000000000002",
+            "CA000000-0000-4000-8000-000000000003",
+            "CA000000-0000-4000-8000-000000000004",
+            "CA000000-0000-4000-8000-000000000005"
+          ],
+          "disabled_alternate_action_ids": [
+            "CA000000-0000-4000-8000-000000000005"
+          ]
+        }
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      },
+      {
+        "item": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "capability": "read_frontmost_app",
+    "decision": "granted",
+    "pluginID": "com.spinnet.probe.current-app",
+    "pluginVersion": "2.0.0"
+  },
+  {
+    "capability": "quit_frontmost_app",
+    "decision": "granted",
+    "pluginID": "com.spinnet.probe.current-app",
+    "pluginVersion": "2.0.0"
+  }
+]
