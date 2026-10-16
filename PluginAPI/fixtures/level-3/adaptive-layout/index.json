@@ -43,6 +43,10 @@
     {
       "file": "replacement-tree.json",
       "valid": false
+    },
+    {
+      "file": "nested-adaptive.json",
+      "valid": false
     }
   ]
 }

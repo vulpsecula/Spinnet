@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-/// The sources of the `spinnet` SDK object, Level 1's `spinnet.js` and Level
-/// 2's `spinnet-level-2.js`, compiled into whatever links this module so the
-/// helper never looks for a file at run time.
+/// The sources of the `spinnet` SDK object for each declared Plugin API
+/// Level, compiled into whatever links this module so the helper never
+/// looks for a file at run time.
 public enum SpinnetSDK {
     /// A script whose value is a function of `requestHostService` and the
     /// invocation's environment that returns the `spinnet` object.
@@ -14,7 +14,13 @@ public enum SpinnetSDK {
     /// runs with.
     public static let levelTwoSource = String(decoding: PackageResources.spinnet_level_2_js, as: UTF8.self)
 
-    /// Exact opt-in Homebrew autoremove operations.
+    /// Stable Level 3 adaptive cards and viewport fit over the Level 2 SDK.
+    public static let levelThreeAdaptiveSource = String(decoding: PackageResources.spinnet_level_3_adaptive_js, as: UTF8.self)
+
+    /// Stable Level 3 unused-dependency reads over the Level 2 SDK.
+    public static let levelThreeAutoremoveSource = String(decoding: PackageResources.spinnet_level_3_autoremove_js, as: UTF8.self)
+
+    /// Historical Homebrew autoremove SDK retained for candidate proof tests.
     public static let homebrewAutoremoveSource = String(decoding: PackageResources.homebrew_autoremove_js, as: UTF8.self)
 
     /// Exact opt-in adaptive_layout r1 candidate; its separate public source
