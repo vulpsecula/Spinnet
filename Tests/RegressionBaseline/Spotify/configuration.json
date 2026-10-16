@@ -1,0 +1,129 @@
+{
+  "actions": [
+    {
+      "commandID": "spotify.toggle",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000001",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Play / Pause"
+    },
+    {
+      "commandID": "spotify.play",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000002",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Play"
+    },
+    {
+      "commandID": "spotify.pause",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000003",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Pause"
+    },
+    {
+      "commandID": "spotify.previous",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000004",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Previous Song"
+    },
+    {
+      "commandID": "spotify.next",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000005",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Next Song"
+    },
+    {
+      "commandID": "spotify.volume-up",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000006",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Volume Up"
+    },
+    {
+      "commandID": "spotify.volume-down",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000007",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Volume Down"
+    },
+    {
+      "commandID": "spotify.volume",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000008",
+      "input": "37",
+      "isConfigurable": true,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Set Volume"
+    },
+    {
+      "commandID": "spotify.mute",
+      "execution": "javascript",
+      "id": "96000000-0000-4000-8000-000000000009",
+      "input": null,
+      "isConfigurable": false,
+      "pluginID": "com.spinnet.external.spotify",
+      "script": "actions.js",
+      "title": "Mute / Unmute"
+    }
+  ],
+  "menu": {
+    "slots": [
+      {
+        "item": {
+          "alias": "Desk Music",
+          "primary_action_id": "96000000-0000-4000-8000-000000000008",
+          "alternate_action_ids": [
+            "96000000-0000-4000-8000-000000000001",
+            "96000000-0000-4000-8000-000000000002",
+            "96000000-0000-4000-8000-000000000003",
+            "96000000-0000-4000-8000-000000000004",
+            "96000000-0000-4000-8000-000000000005",
+            "96000000-0000-4000-8000-000000000006",
+            "96000000-0000-4000-8000-000000000007"
+          ],
+          "disabled_alternate_action_ids": [
+            "96000000-0000-4000-8000-000000000009"
+          ],
+          "alternate_action_order": [
+            "96000000-0000-4000-8000-000000000009",
+            "96000000-0000-4000-8000-000000000007",
+            "96000000-0000-4000-8000-000000000006",
+            "96000000-0000-4000-8000-000000000005",
+            "96000000-0000-4000-8000-000000000004",
+            "96000000-0000-4000-8000-000000000003",
+            "96000000-0000-4000-8000-000000000002",
+            "96000000-0000-4000-8000-000000000001"
+          ]
+        }
+      },
+      {
+        "item": null
+      }
+    ]
+  }
+}
