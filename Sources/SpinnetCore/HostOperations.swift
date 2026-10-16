@@ -136,6 +136,7 @@ public struct RequestedHostOperation: Equatable, Hashable {
             throw Self.violation("closes the view while host.showPluginSettings opens a sheet beside it")
         }
         let input = members["input"] ?? .null
+        try HomebrewAutoremove.check(input, service: perform, permits: permits)
         try Self.checkInput(input, of: definition)
         self.init(perform: perform, input: input, id: id, closesView: closesView, notify: try flag("notify"))
     }

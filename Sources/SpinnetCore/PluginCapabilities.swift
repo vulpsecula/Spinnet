@@ -1007,6 +1007,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .systemMetrics:
             _ = try SystemMetricsInput(request.input)
         case .reviewedToolRead:
+            try HomebrewAutoremove.check(request.input, service: ReviewedToolReads.id, manifest: package.manifest)
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         case .httpsRequest:
             try httpsPerformer(for: package).validate(request.input)
@@ -1328,6 +1329,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
                     throw PluginHostServiceError.unavailable("The Plugin is no longer active")
                 }
+                try HomebrewAutoremove.check(source.input, service: ReviewedToolReads.id, manifest: package.manifest)
                 try HomebrewReadInput(source.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
                 try self.authorize(.reviewedToolRead, for: package, action: action)
             }, sample: { [self] action, source, cancellation in
@@ -1354,6 +1356,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private func readReviewedTool(_ input: JSONValue, for package: PluginPackage, action: ActionConfiguration,
                                   timeout: TimeInterval = ReviewedToolReads.callDeadline,
                                   cancellation: HostFetchedSections.Cancellation = .init(), registry: PluginRegistry? = nil) throws -> JSONValue {
+        try HomebrewAutoremove.check(input, service: ReviewedToolReads.id, manifest: package.manifest)
         let read = try HomebrewReadInput(input)
         let registry = registry ?? pluginRegistry
         let registration = registry?.ownerAdmission(for: package.manifest.id)

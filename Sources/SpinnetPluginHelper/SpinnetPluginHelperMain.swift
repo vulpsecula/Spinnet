@@ -238,6 +238,11 @@ struct SpinnetPluginHelperMain {
                   let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
             sdk = adaptive
         }
+        if invocation.candidateContracts.contains(HomebrewAutoremove.declaration) {
+            guard let makeAutoremove = context.evaluateScript(SpinnetSDK.homebrewAutoremoveSource), makeAutoremove.isObject,
+                  let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
+            sdk = autoremove
+        }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
     }

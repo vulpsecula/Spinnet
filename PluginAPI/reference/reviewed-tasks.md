@@ -56,15 +56,7 @@ Inputs are defined in [reviewed-tools.schema.json](../schemas/reviewed-tools.sch
 Package operations name one `kind` and bounded package `name`. Tap
 operations name a bounded `owner/repository`; service operations name one
 user-owned formula. Cleanup has a reviewed day threshold or explicit
-`pruneAll`. Autoremove instead has only `{tool:"homebrew", operation:"autoremove"}`
-and requires formula scope. It removes formulae installed only as dependencies
-that Homebrew now considers unused; it does not clean cached downloads or remove
-cask Apps. The Host obtains a fresh complete nonempty `previewAutoremove`, lists
-every candidate in its own paged confirmation, and refuses no-op, incomplete or
-changed results before creating a Task. The independent runner repeats the
-preview before its one fixed `brew autoremove` spawn. Its task record starts with
-the reviewed operation and preview output, then captures Homebrew output. No
-package name, flag or shell text can be supplied by a Plugin. Zap is an explicit cask-uninstall option and its deletion
+`pruneAll`. Zap is an explicit cask-uninstall option and its deletion
 scope is disclosed. Adoption and reviewed Doctor repairs name opaque
 Host-produced targets; a Plugin never supplies a command, executable,
 path, shell source, environment or elevated instruction. Selected upgrades

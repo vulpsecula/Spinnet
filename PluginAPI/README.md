@@ -61,11 +61,14 @@ written before the field existed as needing Level 1. A Plugin kept outside
 this repository pins the Level it was written for by the commit of this
 repository it tests against.
 
-Level 2 is still open: while no Plugin outside this repository depends on
-it, additions are made to Level 2 itself rather than raising the level, so a
-Plugin pinned to an earlier commit of Level 2 may lack a later addition.
-Once an outside Plugin depends on Level 2, it is frozen and later additions
-raise the level to 3.
+Level 2 is published and independent Plugins depend on it. New additions awaiting
+proof use exact named Candidate Contracts, with separate public schemas, types
+and fixtures. Stable additive promotion requires the next Plugin API Level.
+The dated approvals for additions during the earlier open Level 2 evaluation
+are historical exceptions; they do not authorize further stable additions.
+
+Homebrew unused-dependency preview and removal are available only through
+[`homebrew_autoremove` r1](candidates/homebrew_autoremove/r1/README.md).
 
 `protocol_version` is unrelated: it only frames the messages between the Host
 and the Plugin's helper, and stays `"1.0"`.

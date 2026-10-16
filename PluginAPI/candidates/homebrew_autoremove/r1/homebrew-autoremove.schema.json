@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "previewInput": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operation": {
+          "const": "previewAutoremove"
+        }
+      }
+    },
+    "taskInput": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operation": {
+          "const": "autoremove"
+        }
+      }
+    },
+    "previewResult": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operation": {
+          "const": "previewAutoremove"
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "requires_homebrew_7",
+            "requires_reviewed_homebrew_version"
+          ]
+        },
+        "packages": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "../../../schemas/reviewed-tools.schema.json#/$defs/package"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "dry_run": {
+          "const": true
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "exit_status": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "stdout": {
+          "type": "string",
+          "maxLength": 98304
+        },
+        "stderr": {
+          "type": "string",
+          "maxLength": 32768
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "no_op": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "previewAutoremove"
+              },
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "required": [
+              "dry_run",
+              "succeeded",
+              "complete",
+              "no_op",
+              "packages",
+              "exit_status",
+              "stdout",
+              "stderr"
+            ]
+          }
+        }
+      ]
+    },
+    "taskActivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "tool",
+        "name",
+        "status",
+        "operation",
+        "stage",
+        "elapsed_seconds",
+        "log",
+        "prevents_idle_sleep"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^activity_[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "task"
+        },
+        "tool": {
+          "const": "homebrew"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "status": {
+          "enum": [
+            "running",
+            "stopping",
+            "ended"
+          ]
+        },
+        "operation": {
+          "const": "autoremove"
+        },
+        "stage": {
+          "enum": [
+            "starting",
+            "fetching",
+            "installing",
+            "linking",
+            "finishing",
+            "stopping",
+            "awaiting manual installation",
+            "awaiting restart",
+            "awaiting logout",
+            "awaiting shutdown"
+          ]
+        },
+        "elapsed_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prevents_idle_sleep": {
+          "type": "boolean"
+        },
+        "log": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "name"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 160
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ],
+          "properties": {
+            "outcome": {
+              "enum": [
+                "completed",
+                "failed",
+                "stopped",
+                "interrupted",
+                "unknown"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "tool_failed",
+                "runner_refused",
+                "system_authorization_unavailable",
+                "privileged_result_lost",
+                "manual_installation_required",
+                "restart_required",
+                "logout_required",
+                "shutdown_required"
+              ]
+            },
+            "stop": {
+              "enum": [
+                "interrupted",
+                "terminated",
+                "killed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "reviewedToolScope": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info",
+              "install",
+              "upgrade",
+              "upgradeSelected",
+              "upgradeAll",
+              "uninstall",
+              "pin",
+              "unpin",
+              "link",
+              "unlink",
+              "adopt",
+              "tap",
+              "untap",
+              "trust",
+              "untrust",
+              "serviceStart",
+              "serviceStop",
+              "serviceRestart",
+              "cleanup",
+              "doctorFix",
+              "version",
+              "taps",
+              "services",
+              "vulnerabilities",
+              "vulnerabilityDetail",
+              "doctor",
+              "previewInstall",
+              "previewUpgrade",
+              "previewUpgradeAll",
+              "adoptionCandidates",
+              "adoptionPreview",
+              "packageAnalytics",
+              "changeLanguage",
+              "update",
+              "previewLink",
+              "previewUnlink",
+              "autoremove",
+              "previewAutoremove"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "formula",
+              "cask"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

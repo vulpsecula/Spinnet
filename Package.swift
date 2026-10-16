@@ -54,13 +54,13 @@ let package = Package(
             path: "PluginAPI",
             exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
                       "spinnet-level-2.d.ts", "homebrew-management.d.ts", "catalogue.json", "fixtures", "candidates/README.md", "candidates/collections", "candidates/host_operations",
-                      "candidates/namespaces", "candidates/schemas", "candidates/spotify_controls", "candidates/external_app_connections", "candidates/adaptive_layout/r1/candidate.json",
+                      "candidates/namespaces", "candidates/schemas", "candidates/spotify_controls", "candidates/homebrew_autoremove/r1/candidate.json", "candidates/homebrew_autoremove/r1/README.md", "candidates/homebrew_autoremove/r1/homebrew-autoremove.d.ts", "candidates/homebrew_autoremove/r1/homebrew-autoremove.schema.json", "candidates/homebrew_autoremove/r1/fixtures", "candidates/external_app_connections", "candidates/adaptive_layout/r1/candidate.json",
                       "candidates/adaptive_layout/r1/README.md", "candidates/adaptive_layout/r1/adaptive-layout.d.ts",
                       "candidates/adaptive_layout/r1/adaptive-layout.schema.json", "candidates/adaptive_layout/r1/fixtures", "candidates/adaptive_layout/r2/candidate.json",
                       "candidates/adaptive_layout/r2/README.md", "candidates/adaptive_layout/r2/adaptive-layout.d.ts",
                       "candidates/adaptive_layout/r2/adaptive-layout.schema.json", "candidates/adaptive_layout/r2/fixtures"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js"), .embedInCode("candidates/adaptive_layout/r2/adaptive-layout-r2.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("candidates/homebrew_autoremove/r1/homebrew-autoremove.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js"), .embedInCode("candidates/adaptive_layout/r2/adaptive-layout-r2.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

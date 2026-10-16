@@ -79,16 +79,6 @@
       "valid": true,
       "file": "task-ended-shutdown-required.json",
       "definition": "taskActivity"
-    },
-    {
-      "file": "autoremove.json",
-      "definition": "tools.startTask.input",
-      "valid": true
-    },
-    {
-      "file": "invalid-autoremove-selector.json",
-      "definition": "tools.startTask.input",
-      "valid": false
     }
   ],
   "description": "Published reviewed Task input and activity boundary fixtures."

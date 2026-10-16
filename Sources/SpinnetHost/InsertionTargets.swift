@@ -239,6 +239,9 @@ final class HostOperationsPerformer: HostOperationPerformer {
         }
         if (CurrentAppAddition.exitIDs.contains(operation.perform) || operation.perform == ReviewedToolTasksAddition.id), let definition = operation.definition {
             guard let broker = broker() else { throw PluginHostServiceError.unavailable("Host Services") }
+            if operation.perform == ReviewedToolTasksAddition.id {
+                try HomebrewAutoremove.check(operation.input, service: operation.perform, manifest: package.manifest)
+            }
             try broker.authorize(definition, for: package, action: action)
             if operation.perform == ReviewedToolTasksAddition.id { try HomebrewTaskInput(operation.input).authorize(in: package.manifest.scope(for: .runReviewedToolTasks)) }
             return

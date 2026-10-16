@@ -32,6 +32,7 @@ public struct PluginPageSource: Equatable {
             throw PluginPage.violation("\(perform) is not offered as a page source")
         }
         guard let input = fields["input"] else { throw PluginPage.violation("The source \(id) has no input") }
+        try HomebrewAutoremove.check(input, service: perform, permits: permits)
         self.input = input
         if perform == "activities.list", input != .null { throw PluginPage.violation("activities.list sources take null input") }
         every = try PluginPage.number(fields["every"], "The source \(id)'s every", in: 1...3_600)

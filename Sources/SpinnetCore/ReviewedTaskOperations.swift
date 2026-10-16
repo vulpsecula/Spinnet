@@ -36,6 +36,8 @@ public final class ReviewedTaskOperationPerformer {
               let package = registry.package(for: action.pluginID) else {
             return completion(.init(.refused(.commandUnavailable), message: "The Task owner was not current when accepted"))
         }
+        do { try HomebrewAutoremove.check(input.json, service: ReviewedToolTasksAddition.id, manifest: package.manifest) }
+        catch { return completion(.refusal(error)) }
         let operationGeneration = generations[action.pluginID, default: 0]
         let currentAuthority = { [self] in
             guard registry.isCurrent(registration, for: package), tasks.ownerGeneration(action.pluginID) == generation else {

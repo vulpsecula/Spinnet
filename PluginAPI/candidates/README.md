@@ -11,6 +11,8 @@ The new [adaptive_layout r1](adaptive_layout/r1/README.md) is **supported** over
 Level 2, for explicit independent Plugin evaluation. It adds an identified
 adaptive card container; stable Level 2 alone does not offer it.
 
+[Homebrew autoremove r1](homebrew_autoremove/r1/README.md) adds exact opt-in unused-dependency preview and confirmed removal over Level 2.
+
 The earlier revisions below are **retired**: `namespaces` r1, `host_operations` r2
 and `collections` r3 were promoted together to Plugin API Level 2 on
 2026-10-06 (#79), and the earlier revisions of the same candidates were
@@ -189,6 +191,7 @@ as the external Emoji Plugin pins `0717f16`.
 | --- | --- | --- | --- |
 | `adaptive_layout` | 1 | 2 | [Adaptive card layout](adaptive_layout/r1/README.md) |
 | `adaptive_layout` | 2 | 2 | [Viewport fit and density](adaptive_layout/r2/README.md) |
+| `homebrew_autoremove` | 1 | 2 | [Unused-dependency preview and removal](homebrew_autoremove/r1/README.md) |
 | `spotify_controls` | 1 | 2 | [Spotify Action controls](spotify_controls/r1/README.md) |
 | `external_app_connections` | 1 | 2 | [External App connections](external_app_connections/r1/README.md) |
 

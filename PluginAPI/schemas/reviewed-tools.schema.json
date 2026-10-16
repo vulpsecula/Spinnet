@@ -252,9 +252,7 @@
               "changeLanguage",
               "update",
               "previewLink",
-              "previewUnlink",
-              "autoremove",
-              "previewAutoremove"
+              "previewUnlink"
             ]
           }
         },
@@ -599,22 +597,6 @@
             "tool",
             "operation"
           ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "tool",
-            "operation"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "tool": {
-              "const": "homebrew"
-            },
-            "operation": {
-              "const": "autoremove"
-            }
-          }
         }
       ]
     },
@@ -677,8 +659,7 @@
             "cleanup",
             "doctorFix",
             "changeLanguage",
-            "update",
-            "autoremove"
+            "update"
           ]
         },
         "stage": {

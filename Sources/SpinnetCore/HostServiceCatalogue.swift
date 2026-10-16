@@ -546,6 +546,7 @@ public extension PluginInterfaceContracts {
         }
         do {
             let (service, input) = try operation.callImplementation(of: call.input)
+            try HomebrewAutoremove.check(input, service: call.name, manifest: manifest, contracts: self)
             if service == .performAppOperation, input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
                case .string(let name)? = input.value(atPointer: "/operation"),
                SpotifyControls.operationNames.contains(name), !permits(SpotifyControls.member, declaredBy: manifest) {
