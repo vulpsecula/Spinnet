@@ -2,7 +2,7 @@ import XCTest
 
 /// The architecture guard (#49): the Host's modules under `Sources/` do not
 /// name the Plugin IDs, Command IDs or External App bundle IDs that the
-/// manifests in `Plugins/` declare. Plugin behaviour belongs in the Plugin
+/// manifests in the locked shipped revision declare. Plugin behaviour belongs in the Plugin
 /// (ADR 0009).
 ///
 /// Every occurrence the Host still has is listed below, per file and literal,
@@ -58,12 +58,10 @@ final class ArchitectureGuardTests: XCTestCase {
     }
 
     private func declaredLiterals() throws -> [ArchitectureGuard.DeclaredLiteral] {
-        let plugins = Self.repository.appendingPathComponent("Plugins")
-        return try FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil)
-            .map { $0.appendingPathComponent("manifest.json") }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
-            .sorted { $0.path < $1.path }
-            .flatMap { try ArchitectureGuard.declaredLiterals(inManifest: Data(contentsOf: $0)) }
+        try ShippedPluginPackages.all().flatMap { package in
+            try ArchitectureGuard.declaredLiterals(inManifest: Data(contentsOf:
+                package.rootURL.appendingPathComponent("manifest.json")))
+        }
     }
 
     /// Every Swift file under `Sources/`, keyed by its path from the

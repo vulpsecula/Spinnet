@@ -14,11 +14,15 @@ the repository root:
 swift build
 swift build --product SpinnetPluginHelper
 swift test
-SPINNET_BUNDLED_PLUGINS_DIR=Plugins swift run SpinnetHost
+SPINNET_BUNDLED_PLUGINS_DIR="$(./script/resolve_bundled_plugins.sh)" swift run SpinnetHost
 ```
 
 Bundled Plugins ship inside the app bundle, so a `swift run` has none unless
-`SPINNET_BUNDLED_PLUGINS_DIR` points at the repository's `Plugins` directory.
+`SPINNET_BUNDLED_PLUGINS_DIR` points at a directory of Plugin packages. The
+resolver fetches the exact commit in `bundled-plugins.lock.json` into `.build/`
+and reuses it offline. For coordinated development, set the variable to a local
+`SpinnetPlugins/Plugins` checkout before resolving or packaging. That override
+changes only development/build inputs, never a packaged Host's runtime source.
 Without it the Host still starts, with an empty Library, and it leaves
 the access decisions alone rather than reading a launch that saw no Bundled
 Plugin as a sign that they are gone. A Host running from an app bundle reads
@@ -39,11 +43,14 @@ SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
 Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
 permission again after rebuilding them.
 
-The Host reads every Plugin package it finds in `Plugins` through the public
-manifest loader. Open URL, Screenshot and the other Plugins whose Commands are
+The official packages live in the independent MIT repository
+[SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
+submodule or SwiftPM dependency on it: packaging reads the lock file, fetches
+that full commit into a cache and copies its `Plugins/` packages into the app.
+The public manifest loader reads the resulting bundled directory. Open URL, Screenshot and the other Plugins whose Commands are
 Host Commands (see the Host Command catalogue in
 [`PluginAPI/reference/manifest.md`](PluginAPI/reference/manifest.md#host-commands))
-are packages there like
+are packages in that repository like
 Clipboard History, and can be removed like it. A Bundled Plugin is delivered into
 `SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
 Application Support, and the Host discovers both by reading a directory.
@@ -186,9 +193,8 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 `Sources/SpinnetCore`, `Sources/SpinnetHost`, `Sources/SpinnetPluginHelper`,
-the remaining first-party application source, and the first-party Plugins
-maintained in this repository are covered by that licence unless a file states
-otherwise. The exception is [`PluginAPI/`](PluginAPI/), the versioned
+the remaining first-party application source, and the historical Host test
+fixtures are covered by that licence unless a file states otherwise. The exception is [`PluginAPI/`](PluginAPI/), the versioned
 Documented Plugin Interface, which is published under the MIT licence in
 [`PluginAPI/LICENSE`](PluginAPI/LICENSE) so that Plugins can copy its schemas
 and type definitions.
@@ -214,8 +220,10 @@ through the Documented Plugin Interface in [`PluginAPI/`](PluginAPI/) keeps
 its own licence;
 running inside Spinnet does not place it under the GPL. Community Plugins may
 use any OSI-approved open-source licence, and their authors keep their
-copyright. Plugins bundled with Spinnet and maintained here are
-`GPL-3.0-only`, and the official Plugin registry is for open-source Plugins.
+copyright. Official Plugins bundled with Spinnet are maintained separately in
+[SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins) under MIT; their
+exact third-party notices remain applicable. The official Plugin registry is
+for open-source Plugins.
 
 ### Third-party material
 

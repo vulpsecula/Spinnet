@@ -1,12 +1,24 @@
 import Foundation
 import SpinnetCore
 
-/// The Plugin packages this repository ships, read from `Plugins/` as the
-/// Host reads them from its app bundle.
+/// The exact Plugin revision packaging ships, resolved through the same lock
+/// and development override. Fail closed when the source cannot be resolved.
 enum ShippedPluginPackages {
     static func all() throws -> [PluginPackage] {
-        let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Plugins")
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let resolver = Process()
+        resolver.executableURL = URL(fileURLWithPath: "/bin/bash")
+        resolver.arguments = [repository.appendingPathComponent("script/resolve_bundled_plugins.sh").path]
+        let output = Pipe()
+        resolver.standardOutput = output
+        try resolver.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        resolver.waitUntilExit()
+        guard resolver.terminationStatus == 0,
+              let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else { throw CocoaError(.fileReadUnknown) }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
         return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "spinnetplugin" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }

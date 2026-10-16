@@ -11,8 +11,8 @@ enum BundledPluginSource: Equatable {
     /// The Plugins directory inside the running app bundle.
     case packaged(URL)
     /// The directory named by `SPINNET_BUNDLED_PLUGINS_DIR` for a run outside
-    /// an app bundle, which is how a development run reads the repository's
-    /// Plugins.
+    /// an app bundle. It can point at a resolved snapshot or a local Plugin
+    /// repository's packages.
     case development(URL)
     /// A run outside an app bundle that was given no directory to read.
     case none

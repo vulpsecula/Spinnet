@@ -37,6 +37,8 @@ if [[ -z "$SIGNING_IDENTITY" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
     exit 1
 fi
 
+BUNDLED_PLUGINS_DIR="$("$ROOT_DIR/script/resolve_bundled_plugins.sh")"
+
 pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 
 cd "$ROOT_DIR"
@@ -88,13 +90,13 @@ done
 # because they carry no loadable code; codesign seals them as resources.
 mkdir -p "$APP_PLUGINS"
 bundled_count=0
-for package in "$ROOT_DIR"/Plugins/*.spinnetplugin; do
+for package in "$BUNDLED_PLUGINS_DIR"/*.spinnetplugin; do
     [[ -d "$package" ]] || continue
     ditto "$package" "$APP_PLUGINS/$(basename "$package")"
     bundled_count=$((bundled_count + 1))
 done
 if [[ "$bundled_count" -eq 0 ]]; then
-    echo "error: no Plugin packages found in $ROOT_DIR/Plugins" >&2
+    echo "error: no Plugin packages found in $BUNDLED_PLUGINS_DIR" >&2
     exit 1
 fi
 echo "Bundled $bundled_count Plugin package(s)"

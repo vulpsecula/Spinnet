@@ -1,21 +1,27 @@
+import Foundation
 import SpinnetCore
 import SpinnetPluginTestKit
 
-// Host tests that need a real Bundled Plugin package as input load it through
-// the Plugin test kit. The Plugins' own behaviour is tested in
-// BundledPluginTests.
+// Fixed historical packages exercise Host mechanics. Current Plugin
+// behaviour is tested in the independent SpinnetPlugins repository.
 
-/// The repository's Window Position package, registered the way the Host
+/// The historical Window Position package, registered the way the Host
 /// registers a Plugin that ships with the app.
 enum WindowPositionFixture {
     static func load() throws -> PluginPackage {
-        try PluginUnderTest(named: "WindowPosition.spinnetplugin", origin: .bundled).package
+        try legacyPlugin("WindowPosition")
     }
 }
 
-/// The repository's Translator package, registered the same way.
+/// The historical Translator package, registered the same way.
 enum TranslatorFixture {
     static func load() throws -> PluginPackage {
-        try PluginUnderTest(named: "Translator.spinnetplugin", origin: .bundled).package
+        try legacyPlugin("Translator")
     }
+}
+
+private func legacyPlugin(_ name: String) throws -> PluginPackage {
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Fixtures/LegacyBundledPlugins")
+    return try PluginUnderTest(packageAt: directory.appendingPathComponent(name + ".spinnetplugin"), origin: .bundled).package
 }

@@ -19,7 +19,8 @@ public struct PluginUnderTest {
     /// Loads the package called `name`, such as `Translator.spinnetplugin`,
     /// from the nearest parent directory of `path` that holds it, either
     /// directly or in a `Plugins` directory. The default `path` is the calling
-    /// test file, so a test finds its Plugin wherever the repository is checked out.
+    /// test file, so an independent Plugin repository can keep packages under `Plugins/`.
+    /// Host-owned fixtures should use `init(packageAt:origin:)` explicitly.
     public init(named name: String, origin: PluginOrigin = .installed, searchingFrom path: String = #filePath) throws {
         var directory = URL(fileURLWithPath: path).deletingLastPathComponent()
         while true {

@@ -12,7 +12,7 @@ final class DeepLinkMigrationTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     private func shottr() throws -> PluginManifest {
-        try PluginManifestLoader.load(packageAt: Self.repository.appendingPathComponent("Plugins/Shottr.spinnetplugin"))
+        try PluginManifestLoader.load(packageAt: Self.repository.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Shottr.spinnetplugin"))
             .manifest
     }
 

@@ -93,11 +93,6 @@ let package = Package(
             dependencies: ["SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
             resources: [.copy("ArchiveFixtures")]
         ),
-        // The Bundled Plugins' behaviour, run through the Plugin test kit.
-        .testTarget(
-            name: "BundledPluginTests",
-            dependencies: ["SpinnetPluginTestKit", "SpinnetCore", "SpinnetPluginHelper"]
-        ),
         .testTarget(
             name: "SpinnetHostTests",
             dependencies: ["SpinnetHost", "SpinnetPluginTestKit"]

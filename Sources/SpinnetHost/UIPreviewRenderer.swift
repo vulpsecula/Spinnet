@@ -24,16 +24,16 @@ enum UIPreviewRenderer {
         exit(0)
     }
 
-    private static func translatorManifest() throws -> PluginManifest {
+    private static func previewManifest() throws -> PluginManifest {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         return try PluginManifestLoader.load(
-            packageAt: root.appendingPathComponent("Plugins/Translator.spinnetplugin")
+            packageAt: root.appendingPathComponent("Tests/Fixtures/PluginSettingsPreview.spinnetplugin")
         ).manifest
     }
 
     private static func renderPluginSettings(into directory: URL) throws {
-        let manifest = try translatorManifest()
+        let manifest = try previewManifest()
         let grants = PluginCapabilityGrantStore()
         let store = try PluginSettingsStore(
             fileURL: FileManager.default.temporaryDirectory

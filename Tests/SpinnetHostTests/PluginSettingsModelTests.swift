@@ -128,7 +128,7 @@ final class PluginSettingsModelTests: XCTestCase {
 
     private func translatorModel() throws -> (PluginSettingsModel, PluginSettingsStore) {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/Translator.spinnetplugin")).manifest
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Translator.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         let grants = PluginCapabilityGrantStore()
         let model = PluginSettingsModel(
@@ -215,7 +215,7 @@ final class PluginSettingsModelTests: XCTestCase {
 
     private func smartJumpModel(stored: [String: JSONValue]? = nil) throws -> (PluginSettingsModel, PluginSettingsStore) {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Plugins/SmartJump.spinnetplugin")).manifest
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/SmartJump.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         if let stored { try store.setValues(stored, for: manifest.id) }
         let grants = PluginCapabilityGrantStore()
