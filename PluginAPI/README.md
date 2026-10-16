@@ -10,6 +10,20 @@ licence.
 
 | File | Contents |
 | --- | --- |
+| [`reference/level-3.md`](reference/level-3.md) | Level 3: stable Spotify controls, External App connections, adaptive cards/viewport fit and unused-dependency Tasks; migration from retired candidates |
+| [`spinnet-level-3.d.ts`](spinnet-level-3.d.ts) | Composed Level 3 SDK types, including the additions to existing namespaces |
+| [`catalogue-level-3.json`](catalogue-level-3.json) | Level 3 catalogue; `catalogue.json` retains the published Level 2 record |
+| [`schemas/manifest-level-3.schema.json`](schemas/manifest-level-3.schema.json) | Stable Level 3 manifests, with no candidate declarations |
+| [`schemas/pages-level-3.schema.json`](schemas/pages-level-3.schema.json) | Level 3 pages, adaptive cards and sources |
+| [`schemas/namespaces-level-3.schema.json`](schemas/namespaces-level-3.schema.json) | Level 3 catalogue-ID inputs and results |
+| [`schemas/host-operations-level-3.schema.json`](schemas/host-operations-level-3.schema.json) | Level 3 Requested Host Operations |
+| [`schemas/sources-level-3.schema.json`](schemas/sources-level-3.schema.json) | Level 3 visible-page sources |
+| [`schemas/catalogue-level-3.schema.json`](schemas/catalogue-level-3.schema.json) | Level 3 catalogue shape |
+| [`schemas/adaptive-layout.schema.json`](schemas/adaptive-layout.schema.json) | Stable adaptive cards and viewport profiles |
+| [`schemas/spotify-controls.schema.json`](schemas/spotify-controls.schema.json) | Stable local Spotify control inputs and outcomes |
+| [`schemas/external-app-connections.schema.json`](schemas/external-app-connections.schema.json) | Stable reviewed External App connection declarations |
+| [`schemas/homebrew-autoremove.schema.json`](schemas/homebrew-autoremove.schema.json) | Stable unused-dependency preview and Task inputs |
+| [`fixtures/level-3/`](fixtures/level-3/usage.ts) | Promoted valid/invalid fixtures and composed SDK example |
 | [`reference/manifest.md`](reference/manifest.md) | The package, its manifest, Capabilities and scopes, Commands, Host Commands, fields, Plugin Settings and `migrations` |
 | [`reference/scripts.md`](reference/scripts.md) | How a script runs: its globals, the `spinnet` SDK, its answer, failures, limits, and the helper protocol |
 | [`reference/host-services.md`](reference/host-services.md) | Every Host Service: input, result, Capability, System Permission and rules |
@@ -404,6 +418,6 @@ The expanded Homebrew `tools.read` profile is documented in
 [management reads](reference/homebrew-management-reads.md), with
 [typed operations/results](schemas/homebrew-management-reads.schema.json).
 
-Spotify volume, play/pause toggle and observed Next outcomes are opt-in additions
-under [`spotify_controls` r1](candidates/spotify_controls/r1/README.md), separate
-from the stable Reviewed App Interface.
+Spotify volume, play/pause toggle and observed Next outcomes are stable at
+[Level 3](reference/level-3.md). Their former `spotify_controls` r1 declaration
+is retired. Level 2 keeps its existing Reviewed App Interface.

@@ -1,0 +1,35 @@
+[
+  {
+    "pluginID": "com.spinnet.external.spotify",
+    "pluginVersion": "1.2.0",
+    "capability": "control_external_app",
+    "decision": "granted",
+    "scope": {
+      "capability": "control_external_app",
+      "command_ids": [
+        "spotify.toggle",
+        "spotify.play",
+        "spotify.pause",
+        "spotify.previous",
+        "spotify.next",
+        "spotify.volume-up",
+        "spotify.volume-down",
+        "spotify.volume",
+        "spotify.mute"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [
+        {
+          "bundle_id": "com.spotify.client",
+          "name": "Spotify",
+          "operation_families": [
+            "playback_read",
+            "playback_control"
+          ]
+        }
+      ]
+    }
+  }
+]
