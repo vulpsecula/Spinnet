@@ -9,7 +9,8 @@ same exact public commit.
 
 [Declaration](candidate.json), [schema](homebrew-autoremove.schema.json),
 [types](homebrew-autoremove.d.ts), [SDK](homebrew-autoremove.js),
-[fixtures](fixtures/index.json).
+[fixtures](fixtures/index.json). [Typed usage](fixtures/type-usage.ts) demonstrates
+preview Sources and removal operations/actions through the existing UI builders.
 
 - `tools.read` operation `previewAutoremove`: no selector, formula scope only.
   Available as a synchronous call or one-shot Host-Run Source.
