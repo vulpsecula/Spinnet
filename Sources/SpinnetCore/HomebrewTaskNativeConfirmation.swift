@@ -7,6 +7,12 @@ enum HomebrewTaskNativeConfirmation {
     /// The same frozen inputs drive execution, summary and paged target rows.
     /// Batch steps take precedence; a selected batch uses resolvedInput.names.
     static func selectedPackages(_ plan: HomebrewTaskPlan) throws -> [(kind: String, name: String)] {
+        if plan.input.operation == "autoremove", case .array(let packages)? = plan.package.value(atPointer: "/packages") {
+            return try packages.map { record in
+                guard record.value(atPointer: "/kind") == .string("formula"), case .string(let name)? = record.value(atPointer: "/name"), HomebrewTaskInput.validPackageName(name) else { throw PluginHostServiceError.tool(.planChanged) }
+                return ("formula", name)
+            }
+        }
         var targets: [(kind: String, name: String)] = []
         for input in plan.steps.isEmpty ? [plan.resolvedInput] : plan.steps {
             guard ["formula", "cask"].contains(input.kind) else { continue }
@@ -22,6 +28,15 @@ enum HomebrewTaskNativeConfirmation {
 
     static func details(_ plan: HomebrewTaskPlan, disclosure: HomebrewNativeInspection.Disclosure,
                         cancellation: HostFetchedSections.Cancellation) throws -> HostConfirmationDetails {
+        if plan.input.operation == "autoremove" {
+            let targets = try selectedPackages(plan)
+            let rows = targets.map { target in
+                HostConfirmationDetails.Row(id: "autoremove/" + target.name, title: "Remove " + target.name,
+                    detail: "Installed formula dependency that Homebrew considers unused. No cask App is removed.")
+            }
+            return try HostConfirmationDetails(title: "Remove Unused Dependencies",
+                summary: "\(targets.count) installed formula dependencies will be uninstalled. Every candidate is listed below. Stopping does not undo removals.", rows: rows)
+        }
         var rows: [HostConfirmationDetails.Row] = []
         var totalBytes = 0
         func add(_ id: String, _ title: String, _ detail: String) throws {

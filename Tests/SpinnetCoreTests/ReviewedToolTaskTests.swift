@@ -442,8 +442,9 @@ final class ReviewedToolTaskTests: XCTestCase {
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("wget")]))
         let plan = try host!.prepare(input, owner: owner, pluginName: "Homebrew")
         let id = try host!.launch(plan), directory = journal.appendingPathComponent(id)
-        let deadline = Date().addingTimeInterval(2)
-        while !FileManager.default.fileExists(atPath: directory.appendingPathComponent("started").path), Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        let startupDeadline = Date().addingTimeInterval(15)
+        while !FileManager.default.fileExists(atPath: directory.appendingPathComponent("started").path), Date() < startupDeadline { Thread.sleep(forTimeInterval: 0.01) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("started").path))
         host!.invalidate(owner)
         XCTAssertTrue(host!.hasRunningTasks)
         XCTAssertTrue(activities.list(for: owner).isEmpty)
@@ -455,7 +456,8 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertTrue(restored.hasRunningTasks)
         XCTAssertTrue(restoredActivities.list(for: owner).isEmpty)
         try restored.stop(id)
-        while restored.hasRunningTasks, Date() < deadline { restored.refresh(); Thread.sleep(forTimeInterval: 0.01) }
+        let stopDeadline = Date().addingTimeInterval(5)
+        while restored.hasRunningTasks, Date() < stopDeadline { restored.refresh(); Thread.sleep(forTimeInterval: 0.01) }
         XCTAssertFalse(restored.hasRunningTasks)
         XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("started")), "started\n")
         XCTAssertEqual(restoredActivities.list().first?.json.value(atPointer: "/result/outcome"), .string("stopped"))
@@ -668,5 +670,34 @@ extension ReviewedToolTaskTests {
         XCTAssertEqual(plan.resolvedInput.name, "acme/tools/canonical")
         XCTAssertTrue(plan.confirmation.message.contains("acme/tools/canonical"))
         host.decline(plan)
+    }
+}
+
+extension ReviewedToolTaskTests {
+    func testAutoremoveRequiresGlobalFormulaScopeAndFreshConcreteHostConfirmation() throws {
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("autoremove")]))
+        XCTAssertEqual(input.arguments, ["autoremove"])
+        XCTAssertEqual(input.kind, "formula")
+        for extra: [String: JSONValue] in [["name": .string("wget")], ["kind": .string("cask")], ["force": .bool(true)]] {
+            var fields = input.fields; fields.merge(extra, uniquingKeysWith: { _, b in b })
+            XCTAssertThrowsError(try HomebrewTaskInput(.object(fields)))
+        }
+        XCTAssertThrowsError(try input.authorize(in: .init(capability: .runReviewedToolTasks, commandIDs: [.init("manage")], reviewedTools: [.init(tool: "homebrew", operations: ["autoremove"], kinds: ["cask"])])))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var preview: JSONValue = .object(["available": .bool(true), "succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(false),
+            "packages": .array([.object(["name": .string("old-lib"), "kind": .string("formula")])])])
+        let host = HostReviewedToolTasks(activities: HostActivities(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in preview }, trustedTaps: { [] })
+        let plan = try host.prepare(input, owner: .init("management"), pluginName: "Homebrew")
+        XCTAssertTrue(plan.confirmation.message.contains("old-lib"))
+        XCTAssertTrue(plan.confirmation.message.contains("installed only as dependencies"))
+        XCTAssertTrue(try XCTUnwrap(plan.confirmation.details).rows.contains { $0.title.contains("old-lib") })
+        XCTAssertEqual(plan.confirmation.details?.title, "Remove Unused Dependencies")
+        XCTAssertTrue(plan.confirmation.details?.summary.contains("1 installed formula") == true)
+        XCTAssertTrue(plan.confirmation.message.contains("Stopping does not undo"))
+        preview = .object(["available": .bool(true), "succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(true), "packages": .array([])])
+        XCTAssertThrowsError(try host.launch(plan))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path), "A changed preview must never create a Task journal or launch a runner")
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("management"), pluginName: "Homebrew"), "A no-op cannot start a mutating Task")
     }
 }

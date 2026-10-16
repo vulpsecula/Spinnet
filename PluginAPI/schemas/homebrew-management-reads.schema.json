@@ -374,6 +374,22 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "previewAutoremove"
+            }
+          }
         }
       ]
     },
@@ -404,7 +420,8 @@
             "packageAnalytics",
             "previewUpgradeAll",
             "previewLink",
-            "previewUnlink"
+            "previewUnlink",
+            "previewAutoremove"
           ]
         },
         "version": {
@@ -1479,6 +1496,33 @@
               "stderr",
               "warnings",
               "summary"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "previewAutoremove"
+              },
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "required": [
+              "dry_run",
+              "succeeded",
+              "complete",
+              "no_op",
+              "packages",
+              "exit_status",
+              "stdout",
+              "stderr"
             ]
           }
         }

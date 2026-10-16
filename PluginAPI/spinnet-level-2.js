@@ -69,7 +69,7 @@
 
   function validateManagementRead(v) {
     function invalid() { throw new TypeError("tools.read contains unsupported management input"); }
-    const globals = ["version", "doctor", "adoptionCandidates"];
+    const globals = ["version", "doctor", "adoptionCandidates", "previewAutoremove"];
     const name = n => typeof n === "string" && n.length <= 160 && /^([a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9+_.@-]*$/.test(n);
     let allowed = ["tool", "operation"];
     if (v.operation === "services") {
@@ -102,7 +102,7 @@
   function validateToolRead(v) {
     function invalid() { throw new TypeError("tools.read contains unsupported members, names or kinds"); }
     if (!v || typeof v !== "object" || Array.isArray(v) || v.tool !== "homebrew") invalid();
-    if (["version", "taps", "services", "doctor", "adoptionCandidates", "adoptionPreview", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewLink", "previewUnlink", "packageAnalytics", "vulnerabilities", "vulnerabilityDetail"].includes(v.operation)) return validateManagementRead(v);
+    if (["version", "taps", "services", "doctor", "adoptionCandidates", "adoptionPreview", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewAutoremove", "previewLink", "previewUnlink", "packageAnalytics", "vulnerabilities", "vulnerabilityDetail"].includes(v.operation)) return validateManagementRead(v);
     const keys = {installed: ["tool", "operation", "kind"], outdated: ["tool", "operation", "kind", "greedy"], search: ["tool", "operation", "kind", "query"], info: ["tool", "operation", "kind", "names"]}[v.operation];
     if (!keys || Object.keys(v).some(k => !keys.includes(k))) invalid();
     if (v.kind !== undefined && !["formula", "cask"].includes(v.kind)) invalid();

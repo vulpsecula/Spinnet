@@ -2,7 +2,7 @@
 import type { ReviewedPackage } from "./spinnet-level-2";
 export type PackageKind = "formula" | "cask";
 export type HomebrewManagementReadInput =
-  | { tool: "homebrew"; operation: "version" | "doctor" | "adoptionCandidates" }
+  | { tool: "homebrew"; operation: "version" | "doctor" | "adoptionCandidates" | "previewAutoremove" }
   | { tool: "homebrew"; operation: "services"; kind?: "formula" }
   | { tool: "homebrew"; operation: "taps"; tap?: string }
   | { tool: "homebrew"; operation: "previewInstall" | "packageAnalytics"; kind: PackageKind; names: string[] }

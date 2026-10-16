@@ -6,7 +6,7 @@ public enum ReviewedToolTasksAddition {
 }
 
 public struct HomebrewTaskInput: Equatable {
-    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "doctorFix", "changeLanguage", "update"]
+    public static let operations = ["install", "upgrade", "upgradeSelected", "upgradeAll", "uninstall", "pin", "unpin", "link", "unlink", "adopt", "tap", "untap", "trust", "untrust", "serviceStart", "serviceStop", "serviceRestart", "cleanup", "autoremove", "doctorFix", "changeLanguage", "update"]
     public let operation: String
     public let kind: String
     public let name: String
@@ -23,6 +23,7 @@ public struct HomebrewTaskInput: Equatable {
         case "changeLanguage": return "Change App Language"
         case "adopt": return "Adopt App"
         case "cleanup": return "Clean Up"
+        case "autoremove": return "Remove Unused Dependencies"
         case "untrust": return "Stop Trusting Tap"
         case "untap": return "Remove Tap"
         case "tap": return "Add Tap"
@@ -39,8 +40,8 @@ public struct HomebrewTaskInput: Equatable {
         func text(_ key: String) -> String? { if case .string(let value)? = fields[key] { return value }; return nil }
         kind = text("kind") ?? (["upgradeAll", "update"].contains(operation) ? "both" : operation == "adopt" ? "cask" : "formula"); name = text("name") ?? text("tap") ?? text("target") ?? ""
         var allowed: Set<String> = ["tool", "operation"]
-        if operation == "update" {
-            // Global metadata and Homebrew-self update has no package selector.
+        if ["update", "autoremove"].contains(operation) {
+            // Global operations never accept a Plugin-chosen package selector.
         } else if ["tap", "untap", "trust", "untrust"].contains(operation) {
             allowed.insert("tap")
             guard text("tap")?.range(of: "^[a-z0-9][a-z0-9_.-]{0,63}/[a-z0-9][a-z0-9_.-]{0,63}$", options: .regularExpression) != nil else { throw Self.invalid() }
@@ -79,6 +80,7 @@ public struct HomebrewTaskInput: Equatable {
     public var arguments: [String] {
         switch operation {
         case "update": return ["update"]
+        case "autoremove": return ["autoremove"]
         case "trust", "untrust": return [operation, "--tap", "--", name]
         case "tap", "untap": return [operation, "--", name]
         case "serviceStart", "serviceStop", "serviceRestart": return ["services", String(operation.dropFirst(7)).lowercased(), "--", name]

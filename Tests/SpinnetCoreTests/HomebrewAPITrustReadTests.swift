@@ -134,7 +134,7 @@ final class HomebrewAPITrustReadTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let profile = HomebrewReadProfile(executable: { executable })
         func read(_ name: String) throws -> JSONValue {
-            try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("api-origin"))
+            try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("api-origin"), timeout: 15)
         }
         XCTAssertThrowsError(try read("custom")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed)) }
         XCTAssertThrowsError(try read("configured")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed)) }

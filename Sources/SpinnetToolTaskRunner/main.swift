@@ -113,6 +113,18 @@ do {
             lastResult = .init(outcome: "stopped", exitStatus: 130, stop: "interrupted"); break
         }
         let metadata = record.stepMetadata?[index] ?? record.package
+        if step.operation == "autoremove" {
+            // Repeat the guarded preview in the independent runner, before its
+            // one mutation spawn. A drifted command or inventory never retargets
+            // the Host-confirmed global operation.
+            guard try HostReviewedToolTasks.preflight(step, executable: URL(fileURLWithPath: record.executable)) == metadata else { throw PluginHostServiceError.tool(.planChanged) }
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) {
+                lastResult = .init(outcome: "stopped", exitStatus: 130, stop: "interrupted"); break
+            }
+            log.append(Data("Reviewed operation: brew autoremove\n".utf8))
+            if case .string(let output)? = metadata.value(atPointer: "/stdout") { log.append(Data(output.utf8)) }
+            record.log = log.lines; try record.save(to: directory)
+        }
         var arguments = metadata.value(atPointer: "/adopt") == .bool(true) && step.operation == "install" && step.kind == "cask"
             ? ["install", "--cask", "--adopt", "--", step.name] : step.arguments
         var executable = URL(fileURLWithPath: record.executable)

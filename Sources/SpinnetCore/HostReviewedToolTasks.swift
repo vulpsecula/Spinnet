@@ -214,6 +214,12 @@ public final class HostReviewedToolTasks {
             if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
             if case .string(let language)? = input.fields["language"] { disclosure += " Reinstalls the App with language \(language)." }
             if input.fields["zap"] == .bool(true) { disclosure += " Zap deletes related settings and files and may delete files shared by Apps." }
+            if input.operation == "autoremove", case .array(let packages)? = package.value(atPointer: "/packages") {
+                let names = packages.compactMap { item -> String? in if case .string(let name)? = item.value(atPointer: "/name") { return name }; return nil }
+                disclosure = "Homebrew will uninstall formulae installed only as dependencies that are no longer needed. "
+                    + (names.count <= 100 ? "Chosen formulae: " + names.joined(separator: ", ") + "." : "Every chosen formula is listed in the complete review below.")
+                    + " Cask Apps and packages installed on request are retained. This differs from cleaning old versions and cached downloads."
+            }
             if input.operation == "cleanup" { disclosure += input.fields["pruneAll"] == .bool(true) ? " All eligible Homebrew cache downloads and old package versions may be deleted." : " Eligible files older than the selected threshold and old package versions may be deleted." }
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
@@ -266,7 +272,7 @@ public final class HostReviewedToolTasks {
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
                 }
             }
-            if (!plan.steps.isEmpty || input.operation == "upgradeSelected"), !plan.requiresNativeInspection, plan.confirmation.details == nil {
+            if (!plan.steps.isEmpty || ["upgradeSelected", "autoremove"].contains(input.operation)), !plan.requiresNativeInspection, plan.confirmation.details == nil {
                 let details = try HomebrewTaskNativeConfirmation.details(plan, disclosure: .init(receipts: [], targets: []), cancellation: cancellation)
                 plan.confirmation = .init(title: plan.confirmation.title, message: plan.confirmation.message,
                     confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
@@ -853,6 +859,15 @@ public final class HostReviewedToolTasks {
     }
     private static func text(_ value: JSONValue, _ key: String) -> String { if case .string(let text)? = value.value(atPointer: "/" + key) { return text }; return "" }
     private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue, prefix: URL) throws {
+        if input.operation == "autoremove" {
+            guard package.value(atPointer: "/available") == .bool(true), package.value(atPointer: "/succeeded") == .bool(true),
+                  package.value(atPointer: "/complete") == .bool(true), package.value(atPointer: "/no_op") == .bool(false),
+                  case .array(let packages)? = package.value(atPointer: "/packages"), (1...2000).contains(packages.count),
+                  packages.allSatisfy({ record in
+                      guard record.value(atPointer: "/kind") == .string("formula"), case .string(let name)? = record.value(atPointer: "/name") else { return false }
+                      return HomebrewTaskInput.validPackageName(name)
+                  }), Set(packages.compactMap { $0.value(atPointer: "/name") }).count == packages.count else { throw PluginHostServiceError.tool(.planChanged) }
+        }
         if ["link", "unlink"].contains(input.operation) {
             guard package.value(atPointer: "/link_preview/succeeded") == .bool(true),
                   package.value(atPointer: "/link_preview/complete") == .bool(true),
@@ -883,6 +898,9 @@ public final class HostReviewedToolTasks {
         }
     }
     public static func preflight(_ input: HomebrewTaskInput, executable: URL, cancellation: HostFetchedSections.Cancellation = .init()) throws -> JSONValue {
+        if input.operation == "autoremove" {
+            return try HomebrewReadProfile(executable: { executable }).read(.object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")]), owner: PluginID("host-task-preflight"), timeout: 15, cancellation: cancellation)
+        }
         if ["tap", "untap", "trust", "untrust", "cleanup", "update"].contains(input.operation) { return .object([:]) }
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
         if input.operation.hasPrefix("service") {

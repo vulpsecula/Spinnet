@@ -3,7 +3,7 @@ import Foundation
 /// Reviewed Homebrew management reads. Plugin input never supplies argv, a path,
 /// a script, an environment or a URL. Old #87 reads keep their offline executor.
 public final class HomebrewManagementReads {
-    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewLink", "previewUnlink", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
+    public static let operations = ["version", "taps", "services", "vulnerabilities", "vulnerabilityDetail", "doctor", "previewInstall", "previewUpgrade", "previewUpgradeAll", "previewAutoremove", "previewLink", "previewUnlink", "adoptionCandidates", "adoptionPreview", "packageAnalytics"]
     private let remote: HomebrewManagementRemoteReads
     private let previewTransport: HTTPSTransport?
     private let applications: () -> [HomebrewAdoptionApplication]
@@ -20,7 +20,7 @@ public final class HomebrewManagementReads {
     public func invalidateTargets(owner: PluginID) { targets.invalidate(owner: owner) }
     public static func validate(_ input: JSONValue) throws {
         guard case .object(let fields) = input, fields["tool"] == .string("homebrew"), case .string(let operation)? = fields["operation"], operations.contains(operation) else { throw invalid() }
-        let global = ["version", "doctor", "adoptionCandidates"]
+        let global = ["version", "doctor", "adoptionCandidates", "previewAutoremove"]
         if operation == "services" {
             guard Set(fields.keys).isSubset(of: ["tool", "operation", "kind"]), fields["kind"] == nil || fields["kind"] == .string("formula") else { throw invalid() }
             return
@@ -173,6 +173,28 @@ public final class HomebrewManagementReads {
                 cancellation: cancellation, stillAuthorized: stillAuthorized), uniquingKeysWith: { _, new in new })
             result["available"] = .bool(true); result["offset"] = .number(Double(offset)); result["total"] = .number(Double(inventory.count))
             if input.value(atPointer: "/names") == nil, offset + 20 < inventory.count { result["next_offset"] = .number(Double(offset + 20)) }
+            return .object(result)
+        }
+        if operation == "previewAutoremove" {
+            result["available"] = .bool(String(version).hasPrefix("7.0."))
+            guard String(version).hasPrefix("7.0.") else {
+                result["reason"] = .string("requires_reviewed_homebrew_version"); return .object(result)
+            }
+            let adapter = Bundle.module.url(forResource: "HomebrewAutoremovePreview", withExtension: "rb")!
+            let output = try run(["ruby", "--", adapter.path, "--dry-run"])
+            result["dry_run"] = .bool(true); result["exit_status"] = .number(Double(output.status))
+            result["stderr"] = .string(Self.clean(String(decoding: output.stderr, as: UTF8.self), maximum: 32768))
+            guard output.status == 0, let document = try? JSONDecoder().decode(JSONValue.self, from: output.stdout),
+                  case .string(let stdout)? = document.value(atPointer: "/stdout"), stdout.utf8.count <= 98304,
+                  case .array(let names)? = document.value(atPointer: "/names"), names.count <= 2000,
+                  Set(names).count == names.count, names.allSatisfy({ if case .string(let n) = $0 { return HomebrewReadInput.validPackageName(n) }; return false }) else {
+                result["succeeded"] = .bool(false); result["complete"] = .bool(false); result["no_op"] = .bool(false)
+                result["packages"] = .array([]); result["stdout"] = .string(Self.clean(String(decoding: output.stdout, as: UTF8.self), maximum: 98304))
+                return .object(result)
+            }
+            result["succeeded"] = .bool(true); result["complete"] = .bool(true); result["no_op"] = .bool(names.isEmpty)
+            result["stdout"] = .string(Self.clean(stdout, maximum: 98304))
+            result["packages"] = .array(names.map { .object(["kind": .string("formula"), "name": $0]) })
             return .object(result)
         }
         if ["previewLink", "previewUnlink"].contains(operation) {

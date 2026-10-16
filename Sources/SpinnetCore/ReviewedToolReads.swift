@@ -26,7 +26,7 @@ public struct HomebrewReadInput {
     public var kinds: [String] {
         if ["version", "taps", "doctor"].contains(operation) { return [] }
         if ["adoptionCandidates", "adoptionPreview"].contains(operation) { return ["cask"] }
-        if ["services", "vulnerabilities", "vulnerabilityDetail"].contains(operation) { return ["formula"] }
+        if ["services", "vulnerabilities", "vulnerabilityDetail", "previewAutoremove"].contains(operation) { return ["formula"] }
         return kind.map { [$0] } ?? ["formula", "cask"]
     }
     public init(_ input: JSONValue) throws {

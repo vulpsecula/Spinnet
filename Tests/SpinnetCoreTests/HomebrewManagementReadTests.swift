@@ -535,3 +535,41 @@ extension HomebrewManagementReadTests {
         }
     }
 }
+
+extension HomebrewManagementReadTests {
+    func testAutoremovePreviewIsGlobalFormulaOnlyAndNeverRunsMutation() throws {
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
+            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.9\n".utf8)) }
+            XCTAssertEqual(args.first, "ruby")
+            XCTAssertTrue(args[2].hasSuffix("HomebrewAutoremovePreview.rb"))
+            XCTAssertEqual(Array(args.dropFirst(3)), ["--dry-run"])
+            return .init(status: 0, stdout: Data(#"{"stdout":"==> Would autoremove 2 unneeded formulae:\nold-lib\nold-tool\n","names":["old-lib","old-tool"]}"#.utf8))
+        })
+        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")])
+        let answer = try profile.read(input, owner: .init("management"))
+        XCTAssertEqual(answer.value(atPointer: "/packages/0/name"), .string("old-lib"))
+        XCTAssertEqual(answer.value(atPointer: "/packages/1/kind"), .string("formula"))
+        XCTAssertEqual(answer.value(atPointer: "/dry_run"), .bool(true))
+        XCTAssertEqual(answer.value(atPointer: "/complete"), .bool(true))
+        XCTAssertEqual(answer.value(atPointer: "/no_op"), .bool(false))
+        for extra: [String: JSONValue] in [["kind": .string("cask")], ["names": .array([.string("wget")])], ["args": .array([.string("--force")])]] {
+            var fields = ["tool": JSONValue.string("homebrew"), "operation": .string("previewAutoremove")]; fields.merge(extra, uniquingKeysWith: { _, b in b })
+            XCTAssertThrowsError(try HomebrewReadInput(.object(fields)))
+        }
+        let request = try HomebrewReadInput(input)
+        XCTAssertEqual(request.kinds, ["formula"])
+        XCTAssertThrowsError(try request.authorize(in: .init(capability: .readReviewedTools, commandIDs: [.init("manage")], reviewedTools: [.init(tool: "homebrew", operations: ["previewAutoremove"], kinds: ["cask"])])))
+    }
+}
+
+extension HomebrewManagementReadTests {
+    func testActualLocalAutoremovePreviewNeverStartsAMutation() throws {
+        guard ProcessInfo.processInfo.environment["SPINNET_TEST_LOCAL_AUTOREMOVE_PREVIEW"] == "1" else { throw XCTSkip("Explicit local read-only integration opt-in") }
+        let result = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")]), owner: .init("readonly-autoremove-integration"), timeout: 15)
+        XCTAssertEqual(result.value(atPointer: "/available"), .bool(true))
+        XCTAssertEqual(result.value(atPointer: "/succeeded"), .bool(true), "\(result)")
+        XCTAssertEqual(result.value(atPointer: "/complete"), .bool(true), "\(result)")
+        XCTAssertEqual(result.value(atPointer: "/dry_run"), .bool(true))
+        XCTAssertEqual(result.value(atPointer: "/exit_status"), .number(0))
+    }
+}

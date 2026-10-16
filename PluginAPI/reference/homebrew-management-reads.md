@@ -1,7 +1,7 @@
 # Reviewed Homebrew management reads (Plugin API Level 2)
 
 The `tools.read` Homebrew profile now supports version, taps, services, doctor,
-previewInstall, previewUpgrade, previewUpgradeAll, previewLink, previewUnlink, adoptionCandidates, adoptionPreview,
+previewInstall, previewUpgrade, previewUpgradeAll, previewAutoremove, previewLink, previewUnlink, adoptionCandidates, adoptionPreview,
 vulnerabilities, vulnerabilityDetail and packageAnalytics, beside its existing
 installed/outdated/search/info reads. The Plugin declares each operation and
 package kind in read_reviewed_tools. Reading is separate from mutation.
@@ -21,6 +21,7 @@ See [schema](../schemas/homebrew-management-reads.schema.json) and
 | services | none | current user's named service statuses; no file paths/account names |
 | doctor | none | tier, findings with text/links/copyable commands and recognized repair targets |
 | previewInstall / previewUpgrade | kind, names (1–50); upgrade also accepts greedy | packages, estimated:false, dry_run:true, succeeded, exit_status, stages, warnings, bounded stdout/stderr, summary |
+| previewAutoremove | none; formula scope | actual `brew autoremove --dry-run` output and up to 2,000 formula identities; `complete`, `succeeded` and `no_op` distinguish eligible removal from failure or no work |
 | previewUpgradeAll | optional kind and greedy | same actual output for current eligible unpinned formulae and casks, grouped into explicit bounded selections |
 | previewLink / previewUnlink | kind, names (exactly one) | package, complete, changes, paths, paths_fingerprint, no_op, dry_run, succeeded, diagnostics |
 | adoptionCandidates | none | applications with opaque app_ selection target, name, bundle_id, version |
@@ -165,3 +166,13 @@ Null, scalar, array, malformed or changing history is explicitly unavailable;
 it never falls through to Ruby evaluation or a current-catalog fallback. Legacy
 installed Ruby history requires immutable source provenance and stays unavailable
 in this read profile.
+
+`previewAutoremove` is a global, read-only formula inventory operation. It never
+accepts a package selector, kind, flag or environment. Homebrew retains cask Apps
+and packages installed on request while calculating now-unused dependencies.
+The reviewed Homebrew 7.0.x command and dependency-analysis sources are checked
+before the write- and network-denied subprocess runs. Only a complete successful
+preview may lead to `tools.startTask` with operation `autoremove`; a no-op has no
+mutating Task. Preview output is at most 98,304 bytes and stderr 32,768 characters;
+malformed, overbound or failed output has `complete: false`, never a partial
+removal list presented as authoritative.

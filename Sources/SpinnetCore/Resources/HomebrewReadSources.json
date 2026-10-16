@@ -25,5 +25,9 @@
   "Library/Homebrew/extend/os/mac/keg.rb": "6cebba52dda1066218d4ac08081add08c59a2d22c7cbf3a266fbf5776af3f7f7",
   "Library/Homebrew/cask/artifact/symlinked.rb": "712e33cada422b0fea9d3a1734588d3c20fc3ac2ac9502605944dd5c0c88894e",
   "Library/Homebrew/cask/artifact/relocated.rb": "6ee9d6082188bb8ed83d18870150d3186bd2ae898e0847942e527a69a391d300",
-  "Library/Homebrew/cask/caskroom.rb": "de98e74312e521f82ec1822a46a52a7096a70dc1bf3d1d6b9b6230d57279538a"
+  "Library/Homebrew/cask/caskroom.rb": "de98e74312e521f82ec1822a46a52a7096a70dc1bf3d1d6b9b6230d57279538a",
+  "Library/Homebrew/cmd/autoremove.rb": "9de7dfb6f0fc1b69fb22fac12d374832b1745365995f2cbcd327d2fd6595eb24",
+  "Library/Homebrew/cleanup.rb": "d18d2668d6bb70823c886df30bd5870c60833ba4d170c265484e6194ebeb3948",
+  "Library/Homebrew/utils/autoremove.rb": "68987ba30d6d0a68a6ea7518546a4e40fbf4780bb605fdb0483747eecbed51e1",
+  "Library/Homebrew/installed_dependents.rb": "92aab0902598ae154591944a33e945cde80755d4f1e0a369f36338c3110417d8"
 }
