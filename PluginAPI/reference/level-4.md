@@ -35,3 +35,5 @@ are unchanged: Level 4 adds delivery behaviour, not a new operation or access.
 Older Hosts refuse Level 4 before installation with an update message.
 
 A [type-checked example](../fixtures/level-4/usage.ts) exercises the unchanged activity source builder.
+
+The locally evaluated [`live_activity_delivery` r1](../candidates/live_activity_delivery/r1/candidate.json) is retired into this Level; candidate declarations receive the stable migration message.

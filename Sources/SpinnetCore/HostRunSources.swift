@@ -17,6 +17,7 @@ public enum HostRunSourceAddition {
 /// Plugins' source cadence or waking scripts for unchanged activity data.
 public enum LiveActivityDelivery {
     public static let apiLevel = 4
+    public static let declaration = CandidateContractRevision(name: "live_activity_delivery", revision: 1)
     public static let minimumInterval: TimeInterval = 1
     public static let member = PluginInterfaceMember.behaviour("live_activity_delivery")
 }

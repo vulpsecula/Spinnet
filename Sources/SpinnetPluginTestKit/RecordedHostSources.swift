@@ -59,7 +59,8 @@ public final class RecordedHostSources {
                     actionID: action.id, service: .reviewedToolRead, input: source.input, operation: ReviewedToolReads.id), for: plugin.package, action: action)
             })
         let activityAdapter = broker.activitySourceAdapter(using: registry)
-        let activitySource = HostSourceAdapter(minimumInterval: 1, deadline: 1, ownerIdentity: activityAdapter.ownerIdentity,
+        let activitySource = HostSourceAdapter(minimumInterval: 1, deadline: 1,
+            deliveryInterval: activityAdapter.deliveryInterval, ownerIdentity: activityAdapter.ownerIdentity,
             authorize: activityAdapter.authorize, sample: { action, source, cancellation in
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
                 return try recorded.execute(request: PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString,

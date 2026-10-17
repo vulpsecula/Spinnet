@@ -270,6 +270,7 @@ public struct PluginInterfaceContracts: Equatable {
         levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member]],
         candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
             + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
+            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4)]
     )
 
     /// Proved additions required by the Bundled Plugins (#96–98). Earlier
