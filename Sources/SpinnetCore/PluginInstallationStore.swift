@@ -48,6 +48,10 @@ public final class PluginInstallationStore {
     /// option and deleting it would only last until the next launch. The user's
     /// decision is recorded here instead, and discovery skips what it names.
     private var removedIndexURL: URL { directory.appendingPathComponent("removed.json") }
+    /// The last shipped declarations, before an app update replaces its
+    /// resources. They identify the actual predecessor, rather than choosing
+    /// an arbitrary historical version from the user's access decisions.
+    private var bundledManifestsURL: URL { directory.appendingPathComponent("bundled-manifests.json") }
 
     private func readIndex() throws -> [String: String] {
         guard FileManager.default.fileExists(atPath: indexURL.path) else { return [:] }
@@ -109,10 +113,12 @@ public final class PluginInstallationStore {
     /// Registers every installed Plugin. One this Host cannot register, such
     /// as a broken package or one declaring a Candidate Contract revision the
     /// Host does not provide, is recorded as a Refused Plugin with the reason
-    /// and left installed, and the others restore regardless. Only an index that
-    /// cannot be read stops the restore.
+    /// and left installed, and the others restore regardless. Unreadable
+    /// indexes or failed persistence stop the restore.
     public func restore() throws {
-        for (rawID, name) in try readIndex().sorted(by: { $0.key < $1.key }) {
+        let installed = try readIndex()
+        try restoreBundledDecisions(installed: installed)
+        for (rawID, name) in installed.sorted(by: { $0.key < $1.key }) {
             let pluginID = PluginID(rawID)
             // Shipped packages own their identities even if an older Host
             // installed a package with that ID before it became bundled.
@@ -132,6 +138,45 @@ public final class PluginInstallationStore {
                 registry.recordRefused(RefusedPlugin(id: pluginID, manifest: manifest,
                                                      reason: error.localizedDescription))
             }
+        }
+    }
+
+    private func restoreBundledDecisions(installed: [String: String]) throws {
+        let current = Dictionary(uniqueKeysWithValues: registry.manifests().compactMap { manifest in
+            registry.package(for: manifest.id)?.origin == .bundled ? (manifest.id.rawValue, manifest) : nil
+        })
+        let recorded: [String: PluginManifest]
+        if FileManager.default.fileExists(atPath: bundledManifestsURL.path) {
+            recorded = try JSONDecoder().decode([String: PluginManifest].self, from: Data(contentsOf: bundledManifestsURL))
+        } else {
+            recorded = [:]
+        }
+        var changed = false
+        for (rawID, manifest) in current.sorted(by: { $0.key < $1.key }) {
+            var previous = recorded[rawID]
+            // On first onboarding the predecessor may still be installed.
+            // It can declare a retired candidate: its declaration is used
+            // only to compare scopes, never registered or executed here.
+            if previous == nil, let name = installed[rawID],
+               name == URL(fileURLWithPath: name).lastPathComponent {
+                previous = try? PluginManifestLoader.load(packageAt: directory.appendingPathComponent(name)).manifest
+            }
+            if let previous, previous.id == manifest.id {
+                let inherited = grants.restoreDecisions(for: manifest, replacing: previous,
+                                                        requiringConsistentHistory: recorded[rawID] == nil)
+                changed = changed || inherited
+            }
+        }
+        // Decisions must reach disk before advancing the predecessor. If a
+        // write fails or the Host crashes, the next launch can retry safely.
+        if changed { try persistGrants() }
+        // A development run may discover only part of the shipped set. Keep
+        // the last declaration of anything it did not load; Plugin Removal
+        // still clears all of that Plugin's decisions separately.
+        let updated = recorded.merging(current) { _, replacement in replacement }
+        if updated != recorded {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(updated).write(to: bundledManifestsURL, options: .atomic)
         }
     }
 

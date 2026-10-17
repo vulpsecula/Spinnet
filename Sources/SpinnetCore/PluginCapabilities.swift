@@ -210,6 +210,33 @@ public final class PluginCapabilityGrantStore {
         }
     }
 
+    /// A launch may replace a shipped package without an installation. Carry
+    /// unchanged access forward, but never overwrite a decision already made
+    /// for the replacement, including a denial or a decision on another scope.
+    @discardableResult
+    func restoreDecisions(for manifest: PluginManifest, replacing previous: PluginManifest,
+                          requiringConsistentHistory: Bool) -> Bool {
+        let saved = allGrants
+        let current = saved.filter { $0.pluginID == manifest.id && $0.pluginVersion == manifest.version }
+        var changed = false
+        for grant in inheritedGrants(for: manifest, replacing: previous)
+        where grant.decision != .notDetermined {
+            guard !current.contains(where: { $0.capability == grant.capability && $0.decision != .notDetermined }) else { continue }
+            // Older Hosts did not record which Bundled version was active.
+            // An installed copy left underneath one is not a reliable
+            // predecessor if other saved versions disagree about its access.
+            if requiringConsistentHistory, saved.contains(where: {
+                $0.pluginID == manifest.id && $0.pluginVersion != manifest.version
+                    && $0.capability == grant.capability
+                    && ($0.decision != grant.decision || $0.scope != grant.scope)
+            }) { continue }
+            setDecision(grant.decision, for: grant.pluginID, pluginVersion: grant.pluginVersion,
+                        capability: grant.capability, scope: grant.scope)
+            changed = true
+        }
+        return changed
+    }
+
     /// The Capabilities nobody will have decided on once `manifest` is
     /// installed over `previous`: what the user is asked to allow first.
     public func requestsAfterInstallation(of manifest: PluginManifest,
