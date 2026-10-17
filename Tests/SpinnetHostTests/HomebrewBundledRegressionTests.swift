@@ -35,12 +35,13 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             pluginsDirectory.appendingPathComponent("bundled-manifests.json"))
         let priorDecisions = grants.allGrants
         try PluginInstallationStore(directory: pluginsDirectory, registry: registry, grants: grants, persistGrants: {}).restore()
-        for prior in priorDecisions {
-            XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
-                capability: prior.capability, scope: package.manifest.scope(for: prior.capability)), prior.decision)
-        }
+        for prior in priorDecisions { XCTAssertTrue(grants.allGrants.contains(prior)) }
+        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+            capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp)), .notDetermined,
+            "Old reviewed tool grants must never authorize the new Terminal scope")
         let stored = try fixture.configuration()
-        XCTAssertEqual(Set(stored.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
+        XCTAssertTrue(Set(stored.actions.map(\.commandID)).isSubset(of: Set(package.manifest.commands.map(\.id))))
+        XCTAssertEqual(package.manifest.commands.count, 21)
         XCTAssertEqual(stored.actions.count, 14)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Homebrew · development Mac")
         for action in stored.actions {
@@ -51,9 +52,11 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let settings = try PluginSettingsStore(fileURL: settingsURL)
         XCTAssertTrue(package.manifest.settingsFields.isEmpty)
         XCTAssertEqual(settings.values(for: package.manifest.id), [:])
-        let decisions = Set(grants.allGrants)
         StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
-        XCTAssertEqual(Set(grants.allGrants), decisions)
+        let decisions = Set(grants.allGrants)
+        XCTAssertTrue(Set(priorDecisions).isSubset(of: decisions))
+        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+            capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp)), .notDetermined)
         let migrated = try StoredDataMigration.migrate(stored, registry: registry, pluginSettings: settings,
                                                       defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite)))
         XCTAssertEqual(migrated, stored)
@@ -75,11 +78,11 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
         })
         let package = try ShippedPluginPackages.named("Homebrew")
-        XCTAssertEqual(package.manifest.apiLevel, 4)
+        XCTAssertEqual(package.manifest.apiLevel, 5)
         XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
     }
 
-    func testBundledOriginRechecksReadAuthorityBeforeReportingMissingHomebrew() throws {
+    func testTerminalLauncherCannotUseRetiredReadAuthorityEvenWithAHistoricalGrant() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
         let grants = PluginCapabilityGrantStore()
         let profile = HomebrewReadProfile(executable: { throw PluginHostServiceError.tool(.missing) })
@@ -91,12 +94,12 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             service: .reviewedToolRead,
             input: .object(["tool": .string("homebrew"), "operation": .string("installed")]), operation: "tools.read")
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityDenied(.readReviewedTools))
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.readReviewedTools))
         }
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .tool(.missing))
+            XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.readReviewedTools))
         }
     }
 
