@@ -34,28 +34,11 @@ commands for tight package-level checks.
 
 ### Host launch
 
-- **Packaged app:** use `./script/build_and_run.sh` for normal development,
-  user testing and manual acceptance. It builds the Host and Helpers, bundles
-  Plugins, signs and launches `dist/SpinnetHost.app`; it does not install into
-  `/Applications` or `~/Applications`. `--verify` also checks that the process
-  stays running; `--package` builds and verifies the same app without stopping
-  or launching the Host.
-- **Signing:** keep the stable Apple Development identity for permission and
-  native behaviour checks. macOS binds Accessibility consent to the signed
-  app. Use `SPINNET_ALLOW_ADHOC_SIGNING=1` only for isolated tests that do not
-  depend on retained System Permissions.
-- **Direct debugging:** reserve `swift run SpinnetHost` for targeted executable
-  debugging. Build the Helpers needed by the scenario separately and supply
-  Bundled Plugins with
-  `SPINNET_BUNDLED_PLUGINS_DIR="$(./script/resolve_bundled_plugins.sh)" swift run SpinnetHost`.
-  Without that variable, a direct run loads no Bundled Plugins. For coordinated
-  Plugin development, the variable can instead name a local
-  `SpinnetPlugins/Plugins` directory; packaging also accepts this build input.
-  A packaged Host always loads its own `Contents/Resources/Plugins` and ignores
-  the runtime override.
-- **Instances and evidence:** quit existing Hosts through their normal Quit
-  flow before switching entrypoints or app copies. Both entrypoints use the
-  same saved user data, and the script stops only its own `dist/` executable.
-  Before reporting manual acceptance, confirm the running executable path and
-  the Plugin versions it loads; identify whether the check used the packaged
-  app or a direct run. Keep test artifacts separate from the daily app path.
+- Use `./script/build_and_run.sh` for normal development and manual acceptance
+  of the packaged app. Reserve `swift run SpinnetHost` for targeted debugging.
+- Quit existing Hosts before switching entrypoints; they share saved user data.
+  Confirm the running app path and Plugin versions before reporting acceptance.
+
+For launch options, signing and Plugin source overrides, read
+[the launcher](script/build_and_run.sh) and
+[the Plugin resolver](script/resolve_bundled_plugins.sh).

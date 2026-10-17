@@ -14,8 +14,8 @@ the repository root:
 ./script/build_and_run.sh
 ```
 
-Run `swift test` for package tests. For direct SwiftPM debugging, signing,
-packaging-only checks and Plugin source overrides, follow
+Run `swift test` for package tests. For choosing between packaged-app and
+direct SwiftPM launches, follow
 [Host launch](AGENTS.md#host-launch).
 
 The official packages live in the independent MIT repository
