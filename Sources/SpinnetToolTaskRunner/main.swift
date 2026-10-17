@@ -123,7 +123,7 @@ do {
             }
             log.append(Data("Reviewed operation: brew autoremove\n".utf8))
             if case .string(let output)? = metadata.value(atPointer: "/stdout") { log.append(Data(output.utf8)) }
-            record.log = log.lines; try record.save(to: directory)
+            record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try record.save(to: directory)
         }
         var arguments = metadata.value(atPointer: "/adopt") == .bool(true) && step.operation == "install" && step.kind == "cask"
             ? ["install", "--cask", "--adopt", "--", step.name] : step.arguments
@@ -137,7 +137,7 @@ do {
                 guard case .string(let path) = value else { throw PluginHostServiceError.tool(.planChanged) }
                 let process = HomebrewTaskProcess(executable: executable, arguments: ["--repair-directory", path], environment: environment)
                 try reserveProcess()
-                do { try process.start(output: { data in lock.lock(); log.append(data); record.log = log.lines; try? record.save(to: directory); lock.unlock() }, finished: { result in reapedProcess(result) }) }
+                do { try process.start(output: { data in lock.lock(); log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try? record.save(to: directory); lock.unlock() }, finished: { result in reapedProcess(result) }) }
                 catch { noSpawn(process); throw error }
                 do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
                 while finished.wait(timeout: .now() + 0.1) == .timedOut {
@@ -163,7 +163,7 @@ do {
         try reserveProcess()
         do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
-            log.append(data); record.log = log.lines; record.stage = log.stage
+            log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; record.stage = log.stage
             try? record.save(to: directory)
         }, finished: { result in
             reapedProcess(result)
@@ -191,7 +191,7 @@ do {
         if ended.wait(timeout: .now() + 30) != .success { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: nil) }
     }
     lock.lock()
-    log.finish(); record.log = log.lines; record.stage = log.stage
+    log.finish(); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; record.stage = log.stage
     let lostPrivilegedResult = record.privilegePlan?.requiresSystemAuthorization == true && lastResult?.exitStatus == 70
     var outcome: [String: JSONValue] = ["outcome": .string(lostPrivilegedResult ? "unknown" : lastResult?.outcome ?? "unknown")]
     if let stop = lastResult?.stop { outcome["stop"] = .string(stop) }

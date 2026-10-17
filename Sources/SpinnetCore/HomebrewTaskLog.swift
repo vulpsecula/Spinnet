@@ -14,6 +14,11 @@ public final class HomebrewTaskLog {
     private var oscEscape = false
     public private(set) var stage = "starting"
     public var lines: [String] { kept.suffix(20).map { String($0.prefix(200)) } }
+    public var output: String {
+        HomebrewCommandOutput.tail(kept.joined(separator: "\n"))
+    }
+    public var outputTruncated: Bool { discardedOutput || bytes > HomebrewCommandOutput.maximumOutputBytes }
+    private var discardedOutput = false
     public init() {}
     public func append(_ data: Data, home: String = NSHomeDirectory()) {
         for byte in data {
@@ -48,7 +53,7 @@ public final class HomebrewTaskLog {
             default:
                 if !discardingLongLine {
                     if pending.count < 16_384 { pending.append(byte) }
-                    else { discardingLongLine = true }
+                    else { discardingLongLine = true; discardedOutput = true }
                 }
             }
         }
@@ -95,6 +100,7 @@ public final class HomebrewTaskLog {
         else { row = kept.count; kept.append(text) }
         bytes += text.utf8.count + 1
         while bytes > Self.maximumBytes, !kept.isEmpty {
+            discardedOutput = true
             bytes -= kept.removeFirst().utf8.count + 1; row = max(0, row - 1)
         }
     }

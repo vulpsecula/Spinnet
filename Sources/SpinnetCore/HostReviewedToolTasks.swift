@@ -554,6 +554,10 @@ public final class HostReviewedToolTasks {
             "elapsed_seconds": .number(max(0, (held ? Date() : record.ended ?? Date()).timeIntervalSince(record.started)).rounded(.down)),
             "log": .array(record.log.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(preventsSleep)]
         if let input, !input.name.isEmpty { detail["package"] = .object(["name": .string(input.name), "kind": .string(input.kind)]) }
+        if let output = record.output {
+            detail["output"] = .string(HomebrewCommandOutput.tail(output))
+            detail["output_truncated"] = .bool(record.outputTruncated ?? false)
+        }
         if !held, let result = record.result { detail["result"] = result }
         activities.updateTask(record.id, status: held ? "\(state.capitalized): \(record.stage)" + (preventsSleep ? " — prevents idle system sleep" : " — idle sleep prevention unavailable") : "Ended: \(Self.text(record.result ?? .null, "outcome"))", detail: .object(detail), detached: record.detached)
     }
@@ -979,6 +983,8 @@ public struct HomebrewTaskJournal: Codable {
     public var processIdentity: UInt64?
     public var stage: String
     public var log: [String]
+    public var output: String? = nil
+    public var outputTruncated: Bool? = nil
     public var result: JSONValue?
     public var ended: Date?
     public var scope: PluginCapabilityScope? = nil

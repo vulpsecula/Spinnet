@@ -1035,6 +1035,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             _ = try SystemMetricsInput(request.input)
         case .reviewedToolRead:
             try HomebrewAutoremove.check(request.input, service: ReviewedToolReads.id, manifest: package.manifest)
+            try HomebrewCommandOutput.check(request.input, manifest: package.manifest)
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         case .httpsRequest:
             try httpsPerformer(for: package).validate(request.input)
@@ -1075,7 +1076,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .listActivities:
             guard request.input == .null else { throw PluginHostServiceError.invalidInput("activities.list takes no input") }
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
-            return .array(activities.list(for: package.manifest.id).map(\.json))
+            return .array(HomebrewCommandOutput.activities(activities.list(for: package.manifest.id).map(\.json), manifest: package.manifest))
         case .stopActivity:
             let id = try KeepAwakeRequest.stopID(input: request.input)
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
@@ -1360,6 +1361,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                     throw PluginHostServiceError.unavailable("The Plugin is no longer active")
                 }
                 try HomebrewAutoremove.check(source.input, service: ReviewedToolReads.id, manifest: package.manifest)
+                try HomebrewCommandOutput.check(source.input, manifest: package.manifest)
                 try HomebrewReadInput(source.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
                 try self.authorize(.reviewedToolRead, for: package, action: action)
             }, sample: { [self] action, source, cancellation in
@@ -1386,7 +1388,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                       registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
             }, sample: { [self] action, _, cancellation in
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
-                return .array(activities?.list(for: action.pluginID).map(\.json) ?? [])
+                guard let manifest = registry.package(for: action.pluginID)?.manifest else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
+                return .array(HomebrewCommandOutput.activities(activities?.list(for: action.pluginID).map(\.json) ?? [], manifest: manifest))
             })
     }
 
@@ -1394,6 +1397,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                                   timeout: TimeInterval = ReviewedToolReads.callDeadline,
                                   cancellation: HostFetchedSections.Cancellation = .init(), registry: PluginRegistry? = nil) throws -> JSONValue {
         try HomebrewAutoremove.check(input, service: ReviewedToolReads.id, manifest: package.manifest)
+        try HomebrewCommandOutput.check(input, manifest: package.manifest)
         let read = try HomebrewReadInput(input)
         let registry = registry ?? pluginRegistry
         let registration = registry?.ownerAdmission(for: package.manifest.id)

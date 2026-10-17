@@ -13,6 +13,7 @@ public enum SpinnetSDK {
     /// returns the `spinnet` object a Plugin declaring Plugin API Level 2
     /// runs with.
     public static let levelTwoSource = String(decoding: PackageResources.spinnet_level_2_js, as: UTF8.self)
+    public static let commandOutputSource = String(decoding: PackageResources.spinnet_command_output_js, as: UTF8.self)
 
     /// Stable Level 3 adaptive cards and viewport fit over the Level 2 SDK.
     public static let levelThreeAdaptiveSource = String(decoding: PackageResources.spinnet_level_3_adaptive_js, as: UTF8.self)

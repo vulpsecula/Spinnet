@@ -264,13 +264,13 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host provides stable Levels 1–5. Proved candidate revisions
+    /// This Host provides stable Levels 1–6. Proved candidate revisions
     /// retired into Level 3 are refused with the stable migration message.
     public static let host = PluginInterfaceContracts(
-        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member], 5: [TerminalHomebrew.member]],
+        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member], 5: [TerminalHomebrew.member], 6: [HomebrewCommandOutput.member]],
         candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
             + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
-            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4), CandidateContract.retired(TerminalHomebrew.declaration, promotedToLevel: 5)]
+            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4), CandidateContract.retired(TerminalHomebrew.declaration, promotedToLevel: 5), CandidateContract.retired(HomebrewCommandOutput.declaration, promotedToLevel: 6)]
     )
 
     /// Proved additions required by the Bundled Plugins (#96–98). Earlier
@@ -328,6 +328,10 @@ public struct PluginInterfaceContracts: Equatable {
         }
         if !manifest.externalAppConnections.isEmpty, !permits(ExternalAppConnections.member, declaredBy: manifest) {
             throw ConfigurationError.invalidManifest("external_app_connections requires Plugin API Level 3")
+        }
+        if manifest.scope(for: .readReviewedTools)?.reviewedTools.contains(where: { $0.tool == "homebrew" && $0.operations.contains("commandOutput") }) == true,
+           !permits(HomebrewCommandOutput.member, declaredBy: manifest) {
+            throw ConfigurationError.invalidManifest("Homebrew command output requires its declared interface revision")
         }
         if manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == TerminalHomebrew.bundleID && $0.operationFamilies.contains(TerminalHomebrew.family) }) == true,
            !permits(TerminalHomebrew.member, declaredBy: manifest) {

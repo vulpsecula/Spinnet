@@ -110,6 +110,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
         }
         if request.service == .reviewedToolRead {
             try HomebrewAutoremove.check(request.input, service: ReviewedToolReads.id, manifest: package.manifest)
+            try HomebrewCommandOutput.check(request.input, manifest: package.manifest)
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         }
         switch request.operation.flatMap({ operations[$0] }) ?? answers[request.service] {

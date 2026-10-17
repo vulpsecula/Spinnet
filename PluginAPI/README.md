@@ -426,3 +426,5 @@ Spotify volume, play/pause toggle and observed Next outcomes are stable at
 is retired. Level 2 keeps its existing Reviewed App Interface.
 
 Plugin API [Level 5](reference/level-5.md) adds typed Homebrew handoff to Terminal. [Manifest schema](schemas/manifest-level-5.schema.json) · [types](spinnet-level-5.d.ts).
+
+Plugin API [Level 6](reference/level-6.md) adds native command output inside Plugin Views, including read-only command text, bounded Task transcripts and literal monospaced output. [Manifest schema](schemas/manifest-level-6.schema.json) · [types](spinnet-level-6.d.ts).

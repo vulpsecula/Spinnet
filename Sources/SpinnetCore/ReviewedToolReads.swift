@@ -16,7 +16,7 @@ public enum ReviewedToolReads {
 
 /// Validates the complete typed request before any executable discovery or process launch.
 public struct HomebrewReadInput {
-    public static let operations = ["installed", "outdated", "search", "info"] + HomebrewManagementReads.operations
+    public static let operations = ["installed", "outdated", "search", "info", "commandOutput"] + HomebrewManagementReads.operations
     public let rawInput: JSONValue
     public let operation: String
     public let kind: String?
@@ -24,6 +24,11 @@ public struct HomebrewReadInput {
     public let names: [String]
     public let greedy: Bool
     public var kinds: [String] {
+        if operation == "commandOutput" {
+            if rawInput.value(atPointer: "/command") == .string("services") { return ["formula"] }
+            if case .string(let command)? = rawInput.value(atPointer: "/command"), ["list", "outdated", "search", "info"].contains(command) { return kind.map { [$0] } ?? ["formula", "cask"] }
+            return []
+        }
         if ["version", "taps", "doctor"].contains(operation) { return [] }
         if ["adoptionCandidates", "adoptionPreview"].contains(operation) { return ["cask"] }
         if ["services", "vulnerabilities", "vulnerabilityDetail", "previewAutoremove"].contains(operation) { return ["formula"] }
@@ -43,6 +48,10 @@ public struct HomebrewReadInput {
             names = values.map { if case .string(let text) = $0 { return text }; return "" }
         } else { names = [] }
         if let value = fields["greedy"] { guard case .bool(let flag) = value else { throw Self.invalid() }; greedy = flag } else { greedy = false }
+        if operation == "commandOutput" {
+            _ = try HomebrewCommandOutput.arguments(input)
+            return
+        }
         if HomebrewManagementReads.operations.contains(operation) {
             try HomebrewManagementReads.validate(input)
             return
@@ -153,6 +162,19 @@ public final class HomebrewReadProfile {
         defer { HomebrewReadAdmission.shared.release(owner) }
         try stillAuthorized()
         let executable = try executable()
+        if request.operation == "commandOutput" {
+            let arguments = try HomebrewCommandOutput.arguments(input)
+            let captured = try execute(executable, arguments, Self.environment, deadline, cancellation)
+            try stillAuthorized()
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The command read was cancelled") }
+            guard captured.stdout.count <= ReviewedToolReads.stdoutBytes, captured.stderr.count <= ReviewedToolReads.stderrBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
+            let log = HomebrewTaskLog()
+            log.append(captured.stdout)
+            if !captured.stdout.isEmpty, captured.stdout.last != 10, !captured.stderr.isEmpty { log.append(Data([10])) }
+            log.append(captured.stderr); log.finish()
+            return .object(["tool": .string("homebrew"), "operation": .string("commandOutput"),
+                "output": .string(log.output), "output_truncated": .bool(log.outputTruncated), "exit_status": .number(Double(captured.status))])
+        }
         if HomebrewManagementReads.operations.contains(request.operation) {
             let result = try management.read(request.rawInput, owner: owner, executable: executable, deadline: deadline,
                 cancellation: cancellation, execute: execute, stillAuthorized: stillAuthorized)

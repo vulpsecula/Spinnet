@@ -1,0 +1,16 @@
+{
+  "name": "homebrew_command_output",
+  "revision": 1,
+  "base_level": 5,
+  "requires": [],
+  "conflicts": [],
+  "members": [
+    {
+      "kind": "behaviour",
+      "name": "homebrew_command_output"
+    }
+  ],
+  "tag": "plugin-api-candidate/homebrew_command_output/r1",
+  "status": "retired",
+  "promoted_to_level": 6
+}

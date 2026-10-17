@@ -259,7 +259,7 @@ struct PageComponentView: View {
         case .text(let original):
             let override = densityOverrides.first { $0.id == original.id }
             let text = PluginPageText(id: original.id, title: original.title, text: override?.text ?? original.text,
-                style: override?.style ?? original.style, binding: original.binding)
+                style: override?.style ?? original.style, binding: original.binding, isOutput: original.isOutput)
             VStack(alignment: .leading, spacing: 4) {
                 if let title = text.title {
                     Text(title)
@@ -267,7 +267,12 @@ struct PageComponentView: View {
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
                 }
-                if let shown = model.sourceText(text.id) {
+                if text.isOutput {
+                    let output = model.sourceText(text.id)?.text ?? text.text
+                    PluginCommandOutputView(text: output)
+                        .frame(height: min(280, max(44, CGFloat(output.split(separator: "\n", omittingEmptySubsequences: false).count) * 15 + 24)))
+                        .opacity(model.sourceText(text.id)?.isStale == true ? 0.5 : 1)
+                } else if let shown = model.sourceText(text.id) {
                     Text(shown.text)
                         .modifier(PageTextStyle(style: text.style))
                         .opacity(shown.isStale ? 0.5 : 1)

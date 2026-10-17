@@ -474,13 +474,16 @@ public enum PluginPageComponent: Equatable {
         case .text:
             var allowed: Set<String> = ["kind", "id", "title", "text", "style"]
             if permits(HostRunSourceAddition.bindings) { allowed.insert("bind") }
+            if permits(HomebrewCommandOutput.member) { allowed.insert("format") }
             let fields = try PluginPage.object(value, "A text component", allowed: allowed)
+            if let format = fields["format"], format != .string("output") { throw PluginPage.violation("A text format must be output") }
             let id = try PluginPage.identifier(fields["id"], "A text component's id")
             self = .text(PluginPageText(
                 id: id, title: try fields["title"].map { try PluginPage.text($0, "The text \(id)'s title") },
                 text: try PluginPage.text(fields["text"], "The text \(id)'s text", allowsBlank: true),
                 style: try PluginPageStyle.parse(fields, kind: "text", id: id, permits: permits),
-                binding: try fields["bind"].map { try PluginSourceBinding(parsing: $0) }))
+                binding: try fields["bind"].map { try PluginSourceBinding(parsing: $0) },
+                isOutput: fields["format"] == .string("output")))
         case .actions:
             let fields = try PluginPage.object(value, "An actions component", allowed: ["kind", "id", "actions"])
             let id = try PluginPage.identifier(fields["id"], "An actions component's id")

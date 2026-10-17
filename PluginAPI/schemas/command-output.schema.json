@@ -1,0 +1,415 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "list"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "package": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "outdated"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "package": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "search"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "package": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[^\\x00-\\x1f\\x7f]{1,200}$"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "package",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "info"
+            },
+            "kind": {
+              "enum": [
+                "formula",
+                "cask"
+              ]
+            },
+            "package": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "package",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "services"
+            },
+            "package": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+            },
+            "action": {
+              "enum": [
+                "list",
+                "info"
+              ]
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "action": {
+                    "enum": [
+                      "start",
+                      "stop",
+                      "restart",
+                      "info"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              },
+              "then": {
+                "required": [
+                  "package"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "package"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "tap"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "doctor"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "config"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "const": "version"
+            },
+            "tool": {
+              "const": "homebrew"
+            },
+            "operation": {
+              "const": "commandOutput"
+            }
+          },
+          "required": [
+            "command",
+            "tool",
+            "operation"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operation",
+        "output",
+        "output_truncated",
+        "exit_status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operation": {
+          "const": "commandOutput"
+        },
+        "output": {
+          "type": "string",
+          "description": "Up to 64 KiB of sanitized literal command text; the last output is retained when bounded."
+        },
+        "output_truncated": {
+          "type": "boolean"
+        },
+        "exit_status": {
+          "type": "integer"
+        }
+      }
+    },
+    "reviewedToolScope": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info",
+              "install",
+              "upgrade",
+              "upgradeSelected",
+              "upgradeAll",
+              "uninstall",
+              "pin",
+              "unpin",
+              "link",
+              "unlink",
+              "adopt",
+              "tap",
+              "untap",
+              "trust",
+              "untrust",
+              "serviceStart",
+              "serviceStop",
+              "serviceRestart",
+              "cleanup",
+              "doctorFix",
+              "version",
+              "taps",
+              "services",
+              "vulnerabilities",
+              "vulnerabilityDetail",
+              "doctor",
+              "previewInstall",
+              "previewUpgrade",
+              "previewUpgradeAll",
+              "adoptionCandidates",
+              "adoptionPreview",
+              "packageAnalytics",
+              "changeLanguage",
+              "update",
+              "previewLink",
+              "previewUnlink",
+              "autoremove",
+              "previewAutoremove",
+              "commandOutput"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "formula",
+              "cask"
+            ]
+          }
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "text",
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text"
+        },
+        "id": {
+          "$ref": "pages.schema.json#/$defs/identifier"
+        },
+        "title": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "format": {
+          "const": "output"
+        },
+        "style": {
+          "type": "object"
+        },
+        "bind": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

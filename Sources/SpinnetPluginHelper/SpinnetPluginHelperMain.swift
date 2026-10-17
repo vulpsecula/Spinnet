@@ -243,6 +243,11 @@ struct SpinnetPluginHelperMain {
                   let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
             sdk = autoremove
         }
+        if invocation.apiLevel >= 6 || invocation.candidateContracts.contains(HomebrewCommandOutput.declaration) {
+            guard let makeOutput = context.evaluateScript(SpinnetSDK.commandOutputSource), makeOutput.isObject,
+                  let output = makeOutput.call(withArguments: [sdk, requestHostService]), output.isObject else { return false }
+            sdk = output
+        }
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
     }
