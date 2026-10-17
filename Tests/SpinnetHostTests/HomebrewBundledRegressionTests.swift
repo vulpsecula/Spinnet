@@ -36,9 +36,15 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let priorDecisions = grants.allGrants
         try PluginInstallationStore(directory: pluginsDirectory, registry: registry, grants: grants, persistGrants: {}).restore()
         for prior in priorDecisions { XCTAssertTrue(grants.allGrants.contains(prior)) }
-        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
-            capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp)), .notDetermined,
-            "Old reviewed tool grants must never authorize the new Terminal scope")
+        for capability in package.manifest.capabilities {
+            XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+                capability: capability, scope: package.manifest.scope(for: capability)), .notDetermined,
+                "Changed command/output scopes need fresh consent")
+        }
+        // Simulate the user's explicit read approval before exercising saved
+        // Actions. The optional mutation grant remains undecided.
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+            capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
         let stored = try fixture.configuration()
         XCTAssertTrue(Set(stored.actions.map(\.commandID)).isSubset(of: Set(package.manifest.commands.map(\.id))))
         XCTAssertEqual(package.manifest.commands.count, 21)
@@ -56,7 +62,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let decisions = Set(grants.allGrants)
         XCTAssertTrue(Set(priorDecisions).isSubset(of: decisions))
         XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
-            capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp)), .notDetermined)
+            capability: .runReviewedToolTasks, scope: package.manifest.scope(for: .runReviewedToolTasks)), .notDetermined)
         let migrated = try StoredDataMigration.migrate(stored, registry: registry, pluginSettings: settings,
                                                       defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite)))
         XCTAssertEqual(migrated, stored)
@@ -78,11 +84,11 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
         })
         let package = try ShippedPluginPackages.named("Homebrew")
-        XCTAssertEqual(package.manifest.apiLevel, 5)
+        XCTAssertEqual(package.manifest.apiLevel, 6)
         XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
     }
 
-    func testTerminalLauncherCannotUseRetiredReadAuthorityEvenWithAHistoricalGrant() throws {
+    func testCommandLauncherCannotUseUndeclaredStructuredReadsEvenWithAHistoricalGrant() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
         let grants = PluginCapabilityGrantStore()
         let profile = HomebrewReadProfile(executable: { throw PluginHostServiceError.tool(.missing) })
@@ -144,6 +150,8 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertEqual(relaunchedRegistry.package(for: package.manifest.id)?.origin, .installed)
         XCTAssertTrue(try relaunchedStore.removedPluginIDs().contains(package.manifest.id))
         XCTAssertTrue(grants.allGrants.allSatisfy { $0.decision == .notDetermined })
+        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
+            capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
         for action in stored.actions {
             XCTAssertEqual(relaunchedRegistry.availability(for: action), .available)
         }

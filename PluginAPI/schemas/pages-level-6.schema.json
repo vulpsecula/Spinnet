@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Plugin API Level 6 pages",
-  "description": "Plugin API Level 2, promoted from Candidate Contract collections revision 3. What a Level 2 script may answer and receive: an answer with a page, the page's components and collection, the page events, the called event of an explicit call into the open View Session, and operation_finished. A collection may give its total and one slice of its items from start, with sections as headers that count their items, and the Host keeps a window of them around what the user sees and asks for the rest with load_range; item actions may toggle the marks items carry; and page and item actions the Host performs may ask to notify. Level 1 answers and events stay valid and keep their meaning; Level 1's own schemas are unchanged and refuse everything here. Page and item actions name the Host Service they perform by its catalogue ID (../catalogue.json).",
+  "description": "Plugin API Level 6 page descriptions. Retains earlier page vocabulary and adds literal monospaced text.format=output with no terminal input.",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",

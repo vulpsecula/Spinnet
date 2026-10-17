@@ -172,6 +172,9 @@ public final class HomebrewReadProfile {
             log.append(captured.stdout)
             if !captured.stdout.isEmpty, captured.stdout.last != 10, !captured.stderr.isEmpty { log.append(Data([10])) }
             log.append(captured.stderr); log.finish()
+            try stillAuthorized()
+            guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The command read was cancelled") }
             return .object(["tool": .string("homebrew"), "operation": .string("commandOutput"),
                 "output": .string(log.output), "output_truncated": .bool(log.outputTruncated), "exit_status": .number(Double(captured.status))])
         }

@@ -2,6 +2,16 @@ import XCTest
 @testable import SpinnetCore
 
 final class HomebrewCommandOutputTests: XCTestCase {
+    func testACommandThatExceededItsDeadlineCannotReturnACompletedOutput() throws {
+        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, _, _, _ in
+            Thread.sleep(forTimeInterval: 0.03)
+            return HomebrewReadOutput(status: 0, stdout: Data("late output\n".utf8))
+        })
+        XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("commandOutput"), "command": .string("version")]), owner: .init("deadline"), timeout: 0.01)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .tool(.timedOut))
+        }
+    }
+
     func testNativeVersionReadWithTheInstalledHomebrew() throws {
         guard ProcessInfo.processInfo.environment["SPINNET_HOMEBREW_NATIVE_PROBE"] == "1" else { throw XCTSkip("Opt-in read-only installed Homebrew probe") }
         let result = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string("commandOutput"), "command": .string("version")]), owner: .init("native-probe"), timeout: 15)
