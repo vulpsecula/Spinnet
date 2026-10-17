@@ -7,44 +7,16 @@ Actions in per-Plugin helpers, and local Clipboard History collection.
 
 ## Run
 
-The project requires macOS and Xcode's Swift toolchain. Run these commands from
+The project requires macOS and Xcode's Swift toolchain. Run this command from
 the repository root:
 
 ```sh
-swift build
-swift build --product SpinnetPluginHelper
-swift test
-SPINNET_BUNDLED_PLUGINS_DIR="$(./script/resolve_bundled_plugins.sh)" swift run SpinnetHost
+./script/build_and_run.sh
 ```
 
-Bundled Plugins ship inside the app bundle, so a `swift run` has none unless
-`SPINNET_BUNDLED_PLUGINS_DIR` points at a directory of Plugin packages. The
-resolver fetches the exact commit in `bundled-plugins.lock.json` into `.build/`
-and reuses it offline. For coordinated development, set the variable to a local
-`SpinnetPlugins/Plugins` checkout before resolving or packaging. That override
-changes only development/build inputs, never a packaged Host's runtime source.
-Without it the Host still starts, with an empty Library, and it leaves
-the access decisions alone rather than reading a launch that saw no Bundled
-Plugin as a sign that they are gone. A Host running from an app bundle reads
-the Plugins that bundle carries and ignores the variable: Bundled authority is
-for the Plugins a signed build ships, not for a directory the environment
-names.
-
-For the bundled app workflow, use `./script/build_and_run.sh`. It selects an
-Apple Development identity and refuses ad-hoc signing by default because macOS
-binds Accessibility consent to the app's signed code requirement. If you need
-an intentionally permission-free local run without a development certificate,
-opt in explicitly:
-
-```sh
-SPINNET_ALLOW_ADHOC_SIGNING=1 ./script/build_and_run.sh --verify
-```
-
-`./script/build_and_run.sh --package` builds and verifies the signed bundle
-without stopping or launching the Host, useful for checking a clean checkout.
-
-Ad-hoc builds are for isolated tests only; macOS may ask for Accessibility
-permission again after rebuilding them.
+Run `swift test` for package tests. For direct SwiftPM debugging, signing,
+packaging-only checks and Plugin source overrides, follow
+[Host launch](AGENTS.md#host-launch).
 
 The official packages live in the independent MIT repository
 [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
