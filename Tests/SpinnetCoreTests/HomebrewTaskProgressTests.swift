@@ -4,6 +4,57 @@ import XCTest
 import SpinnetCore
 
 final class HomebrewTaskProgressTests: XCTestCase {
+    func testTerminalOutputSupportsHomebrewsActualDownloadRenderer() throws {
+        let executable: URL
+        do { executable = try HomebrewReadProfile.discover() }
+        catch { throw XCTSkip("Homebrew is unavailable for the read-only rendering probe") }
+        let ended = expectation(description: "read-only Homebrew renderer reaped")
+        let lock = NSLock(), log = HomebrewTaskLog()
+        var liveProgress = false
+        var environment = HomebrewReadProfile.environment
+        environment["TERM"] = "dumb"
+        let process = HomebrewTaskProcess(executable: executable, arguments: ["ruby", "-e", """
+            require "download_queue"
+            require "utils/formatter"
+            queue = Homebrew::DownloadQueue.new
+            if queue.send(:tty_with_cursor_move_support?)
+              download = Struct.new(:fetched_size, :total_size, :phase).new(50, 100, :downloading)
+              future = Object.new
+              def future.fulfilled?; false; end
+              print Tty.begin_synchronized_update
+              print queue.send(:message_with_progress, download, future, "example", 7)
+              print Tty.clear_to_end, Tty.move_cursor_beginning, Tty.end_synchronized_update
+              $stdout.flush
+              sleep 0.2
+            else
+              puts "Homebrew progress disabled"
+            end
+            """], environment: environment, outputPolicy: .terminal)
+        try process.start(output: { data in
+            lock.lock(); log.append(data)
+            if log.lines.contains(where: { $0.contains("#") && $0.contains("Downloading") }), HomebrewTaskProcess.startIdentity(process.processIdentifier) != nil { liveProgress = true }
+            lock.unlock()
+        }, finished: { result in
+            XCTAssertEqual(result.outcome, "completed"); ended.fulfill()
+        })
+        wait(for: [ended], timeout: 15)
+        lock.lock(); defer { lock.unlock() }; log.finish()
+        XCTAssertTrue(liveProgress, "Homebrew's real renderer must publish its download bar before exit, without a newline")
+    }
+
+    func testHomebrewSynchronizedMultilineRedrawPublishesBeforeNewlineAndReplacesRows() {
+        let log = HomebrewTaskLog()
+        log.append(Data("==> Fetching downloads\r\n".utf8))
+        func frame(_ first: String, _ second: String) -> Data {
+            Data(("\u{1b}[?2026h" + first + "\u{1b}[J\n" + second + "\u{1b}[J\u{1b}[1F\u{1b}[?2026l").utf8)
+        }
+        for byte in frame("one ## Downloading 2/10MB", "two # Downloading 1/10MB") { log.append(Data([byte])) }
+        XCTAssertEqual(log.lines, ["==> Fetching downloads", "one ## Downloading 2/10MB", "two # Downloading 1/10MB"])
+        for byte in frame("one ##### Downloading 5/10MB", "two ### Downloading 3/10MB") { log.append(Data([byte])) }
+        XCTAssertEqual(log.lines, ["==> Fetching downloads", "one ##### Downloading 5/10MB", "two ### Downloading 3/10MB"])
+        XCTAssertTrue(log.lines.allSatisfy { !$0.contains("\u{1b}") })
+    }
+
     func testRealCurlPublishesDownloadProgressThroughTerminalAndTaskLog() throws {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)

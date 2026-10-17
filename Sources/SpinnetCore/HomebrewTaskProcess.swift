@@ -32,7 +32,12 @@ public final class HomebrewTaskProcess {
     public init(executable: URL, arguments: [String], environment: [String: String],
                 interruptGrace: TimeInterval = 10, terminateGrace: TimeInterval = 5, standardInput: Data? = nil, inputPolicy: InputPolicy = .vendor,
                 groupPolicy: GroupPolicy = .independentGroup, outputPolicy: OutputPolicy = .pipe) {
-        self.executable = executable; self.arguments = arguments; self.environment = environment
+        self.executable = executable; self.arguments = arguments
+        var outputEnvironment = environment
+        // The output-only PTY supports cursor redraws. `dumb` suppresses
+        // Homebrew's download renderer even when both output streams are TTYs.
+        if outputPolicy == .terminal { outputEnvironment["TERM"] = "xterm-256color" }
+        self.environment = outputEnvironment
         self.interruptGrace = interruptGrace; self.terminateGrace = terminateGrace
         self.standardInput = standardInput; self.inputPolicy = inputPolicy
         self.groupPolicy = groupPolicy

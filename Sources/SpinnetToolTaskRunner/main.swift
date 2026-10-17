@@ -45,7 +45,6 @@ do {
     var environment = HomebrewReadProfile.environment
     environment["HOMEBREW_NO_BOOTSNAP"] = "1"
     environment["HOMEBREW_NO_INSTALL_UPGRADE"] = "1"; environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
-    environment["TERM"] = "dumb"
     record.runnerPID = getpid(); record.runnerIdentity = HomebrewTaskProcess.startIdentity(getpid())
     var privilegeConnection: NSXPCConnection?
     var privilegeProxy: HomebrewPrivilegeRunnerProtocol?

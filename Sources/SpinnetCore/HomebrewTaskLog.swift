@@ -8,30 +8,82 @@ public final class HomebrewTaskLog {
     private var discardingLongLine = false
     private var kept: [String] = []
     private var bytes = 0
-    private var progressLine: String?
-    private var rewritingLine = false
+    private var row = 0
+    private var escape: [UInt8]?
+    private var inOSC = false
+    private var oscEscape = false
     public private(set) var stage = "starting"
-    public var lines: [String] { (kept + (progressLine.map { [$0] } ?? [])).suffix(20).map { String($0.prefix(200)) } }
+    public var lines: [String] { kept.suffix(20).map { String($0.prefix(200)) } }
     public init() {}
     public func append(_ data: Data, home: String = NSHomeDirectory()) {
         for byte in data {
-            if byte == 10 || byte == 13 {
-                if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home, progress: byte == 13 || rewritingLine) }
-                if byte == 10 { commitProgress() }
-                rewritingLine = byte == 13
-                pending.removeAll(keepingCapacity: true); discardingLongLine = false
-            } else if !discardingLongLine {
-                if pending.count < 16_384 { pending.append(byte) }
-                else { discardingLongLine = true }
+            if inOSC {
+                if byte == 7 || (oscEscape && byte == 92) { inOSC = false }
+                oscEscape = byte == 27
+                continue
+            }
+            if var sequence = escape {
+                if sequence.isEmpty {
+                    if byte == 93 { inOSC = true; oscEscape = false; escape = nil; continue }
+                    guard byte == 91 else { escape = nil; continue }
+                    escape = [byte]; continue
+                }
+                if (64...126).contains(byte) {
+                    handleCSI(sequence.dropFirst(), final: byte, home: home)
+                    escape = nil
+                } else {
+                    // Retain only bounded parameters, while consuming the
+                    // whole escape so split frames never leak control text.
+                    if sequence.count < 64 { sequence.append(byte) }
+                    escape = sequence
+                }
+                continue
+            }
+            switch byte {
+            case 27: escape = []
+            case 10:
+                publish(home: home); resetLine(); row = min(row + 1, kept.count)
+            case 13:
+                publish(home: home); resetLine()
+            default:
+                if !discardingLongLine {
+                    if pending.count < 16_384 { pending.append(byte) }
+                    else { discardingLongLine = true }
+                }
             }
         }
     }
     public func finish(home: String = NSHomeDirectory()) {
-        if !pending.isEmpty { accept(String(decoding: pending, as: UTF8.self), home: home, progress: rewritingLine); pending.removeAll() }
-        commitProgress(); rewritingLine = false; discardingLongLine = false
+        publish(home: home); resetLine(); escape = nil; inOSC = false; oscEscape = false
     }
-    private func accept(_ text: String, home: String, progress: Bool) {
-        let text = Self.redact(text, home: home)
+    private func resetLine() { pending.removeAll(keepingCapacity: true); discardingLongLine = false }
+    private func handleCSI(_ parameters: ArraySlice<UInt8>, final: UInt8, home: String) {
+        let parameter = String(decoding: parameters, as: UTF8.self)
+        let count = max(1, min(24, Int(parameter) ?? 1))
+        switch final {
+        case 65, 70: // Cursor up / preceding line, as Homebrew redraws a download queue.
+            publish(home: home); resetLine(); row = max(0, row - count)
+        case 66, 69:
+            publish(home: home); resetLine(); row = min(kept.count, row + count)
+        case 71: // Beginning of this row.
+            publish(home: home); resetLine()
+        case 74: // Clear to the end of the screen, retaining the current row.
+            publish(home: home)
+            if row + 1 < kept.count {
+                for value in kept[(row + 1)...] { bytes -= value.utf8.count + 1 }
+                kept.removeSubrange((row + 1)...)
+            }
+        case 75: publish(home: home)
+        case 108 where parameter == "?2026":
+            // Homebrew ends a redraw without a newline. Publish the final
+            // row now; keep its raw fragment for safe continued redaction.
+            publish(home: home)
+        default: break // Styling, cursor visibility and unsupported controls add no text.
+        }
+    }
+    private func publish(home: String) {
+        guard !pending.isEmpty else { return }
+        let text = Self.redact(String(decoding: pending, as: UTF8.self), home: home)
         guard !text.isEmpty else { return }
         if text.hasPrefix("==>") {
             if text.range(of: "(?i)fetching|downloading", options: .regularExpression) != nil { stage = "fetching" }
@@ -39,17 +91,11 @@ public final class HomebrewTaskLog {
             else if text.range(of: "(?i)linking|caveats", options: .regularExpression) != nil { stage = "linking" }
             else if text.range(of: "(?i)finishing|summary|checking for dependents", options: .regularExpression) != nil { stage = "finishing" }
         }
-        if progress { progressLine = text }
-        else { kept.append(text); bytes += text.utf8.count + 1 }
-        trim()
-    }
-    private func commitProgress() {
-        if let progressLine { kept.append(progressLine); bytes += progressLine.utf8.count + 1 }
-        progressLine = nil; trim()
-    }
-    private func trim() {
-        while bytes + (progressLine.map { $0.utf8.count + 1 } ?? 0) > Self.maximumBytes, !kept.isEmpty {
-            bytes -= kept.removeFirst().utf8.count + 1
+        if row < kept.count { bytes -= kept[row].utf8.count + 1; kept[row] = text }
+        else { row = kept.count; kept.append(text) }
+        bytes += text.utf8.count + 1
+        while bytes > Self.maximumBytes, !kept.isEmpty {
+            bytes -= kept.removeFirst().utf8.count + 1; row = max(0, row - 1)
         }
     }
     public static func redact(_ input: String, home: String = NSHomeDirectory()) -> String {

@@ -76,7 +76,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
-        for activity in activities?.list() ?? [] {
+        for activity in activities?.list() ?? [] where !(activity.kind == "task" && activity.detail?.value(atPointer: "/status") == .string("ended")) {
             let heading = NSMenuItem(title: activity.name, action: nil, keyEquivalent: "")
             heading.isEnabled = false
             menu.addItem(heading)

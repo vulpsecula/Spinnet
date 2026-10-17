@@ -5,6 +5,23 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostActivityPresentationTests: XCTestCase {
+    func testStatusMenuDropsEndedTasksAndKeepsOwnerHistoryAndLiveStopControls() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        XCTAssertTrue(controller.makeMenu().items.contains { $0.representedObject as? String == task.id })
+        activities.updateTask(task.id, status: "Completed", detail: .object([
+            "id": .string(task.id), "name": .string("Upgrade"), "status": .string("ended"),
+            "result": .object(["outcome": .string("completed")])]))
+        XCTAssertEqual(activities.list(for: owner).count, 1, "Keep task history available to the Plugin")
+        let menu = controller.makeMenu()
+        XCTAssertFalse(menu.items.contains { $0.representedObject as? String == task.id })
+        XCTAssertFalse(menu.items.contains { $0.title == "Completed" })
+        let recovery = try activities.register(owner: owner, pluginName: "Packages", kind: "native_lane", status: "Awaiting reap proof", stop: {})
+        XCTAssertTrue(controller.makeMenu().items.contains { $0.representedObject as? String == recovery.id }, "Keep unresolved resource supervision visible")
+    }
+
     func testVisibleRowsRefreshWithTheActualRunLoopTimerAndPauseWhenHidden() throws {
         let recorded = RecordedKeepAwake()
         let owner = PluginID("clock")
