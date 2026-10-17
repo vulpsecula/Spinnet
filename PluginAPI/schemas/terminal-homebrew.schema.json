@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Terminal Homebrew arguments, Plugin API Level 5",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "list"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "outdated"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "search"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\x00-\\x1f\\x7f]{1,200}$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "info"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "update"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "upgrade"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "install"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "uninstall"
+        },
+        "kind": {
+          "enum": [
+            "formula",
+            "cask"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "adopt"
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "services"
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(?:[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$"
+        },
+        "action": {
+          "enum": [
+            "list",
+            "start",
+            "stop",
+            "restart",
+            "info"
+          ]
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "start",
+                  "stop",
+                  "restart",
+                  "info"
+                ]
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "package"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "package"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "tap"
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "untap"
+        },
+        "package": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$"
+        }
+      },
+      "required": [
+        "command",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "doctor"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "cleanup"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "autoremove"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "config"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "version"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

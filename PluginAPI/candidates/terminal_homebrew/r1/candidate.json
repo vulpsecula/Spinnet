@@ -1,0 +1,16 @@
+{
+  "name": "terminal_homebrew",
+  "revision": 1,
+  "base_level": 4,
+  "requires": [],
+  "conflicts": [],
+  "members": [
+    {
+      "kind": "behaviour",
+      "name": "terminal_homebrew"
+    }
+  ],
+  "tag": "plugin-api-candidate/terminal_homebrew/r1",
+  "status": "retired",
+  "promoted_to_level": 5
+}

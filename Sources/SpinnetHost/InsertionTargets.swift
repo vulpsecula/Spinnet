@@ -344,6 +344,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
                                                       service: implementation.service, input: implementation.input,
                                                       operation: operation.perform)
         request.allowsAutomationPrompt = true
+        request.allowsTerminalHandoff = true
         queue.async {
             let result: HostOperationResult
             do {

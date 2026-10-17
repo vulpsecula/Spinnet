@@ -44,7 +44,8 @@ struct AppleEventSender {
     /// The handler comes from the Host's own Reviewed App Interface; the
     /// bundle identifier and the argument are string literals.
     static func appleScriptSource(for request: AppleEventRequest) -> String {
-        "tell application id \(appleScriptLiteral(request.bundleID)) to \(request.handler) \(appleScriptLiteral(request.argument))"
+        let source = "tell application id \(appleScriptLiteral(request.bundleID)) to \(request.handler) \(appleScriptLiteral(request.argument))"
+        return request.activatesApplication ? source + "\ntell application id \(appleScriptLiteral(request.bundleID)) to activate" : source
     }
 
     /// AppleScript text literals use backslash escapes for quotes, backslashes,

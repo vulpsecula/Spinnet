@@ -52,6 +52,18 @@ public final class RecordedHostServices: PluginHostServiceBroker {
         self.keepAwake = keepAwake
     }
 
+    static func validateTerminalHandoff(input: JSONValue, package: PluginPackage, action: ActionConfiguration) throws {
+        try PluginInterfaceContracts.host.check(package.manifest, origin: package.origin)
+        guard package.manifest.declares(.controlExternalApp, for: action.commandID),
+              PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: package.manifest),
+              package.manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == TerminalHomebrew.bundleID && $0.operationFamilies.contains(TerminalHomebrew.family) }) == true,
+              case .object(let fields) = input, Set(fields.keys).isSubset(of: ["bundle_id", "operation", "arguments"]),
+              fields["operation"] == .string("homebrew"), case .object(let arguments)? = fields["arguments"] else {
+            throw PluginHostServiceError.unavailable("Terminal Homebrew needs its declared App scope and typed arguments")
+        }
+        _ = try TerminalHomebrew.arguments(arguments)
+    }
+
     public func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
                         action: ActionConfiguration) throws -> JSONValue {
         // Every Capability the Command declares counts as granted; one it
@@ -61,6 +73,10 @@ public final class RecordedHostServices: PluginHostServiceBroker {
         if let capability = request.service.requiredCapability,
            !package.manifest.declares(capability, for: action.commandID) {
             throw PluginHostServiceError.capabilityDenied(capability)
+        }
+        if request.service == .performAppOperation, request.input.value(atPointer: "/bundle_id") == .string(TerminalHomebrew.bundleID) {
+            guard request.allowsTerminalHandoff else { throw PluginHostServiceError.unavailable("Terminal Homebrew needs a committed requested operation") }
+            try Self.validateTerminalHandoff(input: request.input, package: package, action: action)
         }
         if request.service == .performAppOperation, request.input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID) {
             guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }

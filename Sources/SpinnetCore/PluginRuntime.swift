@@ -491,6 +491,8 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
     /// a reviewed read to ask for Automation consent outside a helper deadline.
     /// Never encoded or decoded from helper messages.
     public var allowsAutomationPrompt = false
+    /// Set only after a gesture-requested operation commits; never decoded.
+    public var allowsTerminalHandoff = false
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,

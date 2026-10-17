@@ -246,6 +246,10 @@ public struct RequestedHostOperation: Equatable, Hashable {
         if let unknown = members.keys.sorted().first(where: { !definition.inputMembers.contains($0) }) {
             throw violation("gives \(id) the input member \(unknown), which it does not take")
         }
+        if id == "apps.perform", members["bundle_id"] == .string(TerminalHomebrew.bundleID) {
+            guard members["operation"] == .string("homebrew"), case .object(let arguments)? = members["arguments"] else { throw violation("gives Terminal an unsupported operation") }
+            do { _ = try TerminalHomebrew.arguments(arguments) } catch { throw violation("gives Terminal invalid Homebrew arguments") }
+        }
         let required = id == "apps.perform" ? ["bundle_id", "operation"] : ["template"]
         for member in required {
             guard case .string(let text)? = members[member], !text.trimmingCharacters(in: .whitespaces).isEmpty else {

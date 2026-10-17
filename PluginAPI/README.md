@@ -424,3 +424,5 @@ The expanded Homebrew `tools.read` profile is documented in
 Spotify volume, play/pause toggle and observed Next outcomes are stable at
 [Level 3](reference/level-3.md). Their former `spotify_controls` r1 declaration
 is retired. Level 2 keeps its existing Reviewed App Interface.
+
+Plugin API [Level 5](reference/level-5.md) adds typed Homebrew handoff to Terminal. [Manifest schema](schemas/manifest-level-5.schema.json) · [types](spinnet-level-5.d.ts).

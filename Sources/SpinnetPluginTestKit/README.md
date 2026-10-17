@@ -178,7 +178,7 @@ lists what reached the network, as it left.
 
 ## Plugin API Levels and Candidate Contracts
 
-A run is held to what the Host offers: Plugin API Levels 1–4. The candidates
+A run is held to what the Host offers: Plugin API Levels 1–5. The candidates
 promoted into Levels 2 and 3 are retired (see `PluginAPI/candidates/README.md`). A Plugin that Host would
 refuse, such as one needing a higher Level or declaring a retired
 candidate, fails with the refusal as an `invalidAction`, and a Host Service

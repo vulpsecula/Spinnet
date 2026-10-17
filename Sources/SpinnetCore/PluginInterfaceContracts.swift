@@ -264,13 +264,13 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host provides stable Levels 1–4. Proved candidate revisions
+    /// This Host provides stable Levels 1–5. Proved candidate revisions
     /// retired into Level 3 are refused with the stable migration message.
     public static let host = PluginInterfaceContracts(
-        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member]],
+        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member], 5: [TerminalHomebrew.member]],
         candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
             + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
-            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4)]
+            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4), CandidateContract.retired(TerminalHomebrew.declaration, promotedToLevel: 5)]
     )
 
     /// Proved additions required by the Bundled Plugins (#96–98). Earlier
@@ -328,6 +328,10 @@ public struct PluginInterfaceContracts: Equatable {
         }
         if !manifest.externalAppConnections.isEmpty, !permits(ExternalAppConnections.member, declaredBy: manifest) {
             throw ConfigurationError.invalidManifest("external_app_connections requires Plugin API Level 3")
+        }
+        if manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == TerminalHomebrew.bundleID && $0.operationFamilies.contains(TerminalHomebrew.family) }) == true,
+           !permits(TerminalHomebrew.member, declaredBy: manifest) {
+            throw ConfigurationError.invalidManifest("Terminal Homebrew requires Plugin API Level 5")
         }
         for scope in manifest.capabilityScopes {
             let operation = scope.capability == .readReviewedTools ? "previewAutoremove" : scope.capability == .runReviewedToolTasks ? "autoremove" : ""

@@ -1228,6 +1228,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .httpsRequest:
             return try httpsPerformer(for: package).perform(request.input)
         case .performAppOperation:
+            if request.input.value(atPointer: "/bundle_id") == .string(TerminalHomebrew.bundleID), !request.allowsTerminalHandoff {
+                throw PluginHostServiceError.unavailable("Terminal Homebrew is available only as a gesture-requested Host Operation")
+            }
             let event = try appleEventRequest(from: request.input, package: package)
             if event.bundleID == SpotifyPlayback.bundleID {
                 guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
@@ -1498,6 +1501,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.externalAppOperationUnsupported(
                 "\(bundleID) has no Apple Events interface Spinnet has reviewed"
             )
+        }
+        if bundleID == TerminalHomebrew.bundleID {
+            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
+            catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
+            guard PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: manifest) else {
+                throw PluginHostServiceError.unavailable("Terminal Homebrew requires Plugin API Level 5")
+            }
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation) {
             do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }

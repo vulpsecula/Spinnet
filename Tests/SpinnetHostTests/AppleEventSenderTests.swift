@@ -51,3 +51,12 @@ final class AppleEventSenderTests: XCTestCase {
                        "Allow Spinnet to control Translator in System Settings > Privacy & Security > Automation, then try again")
     }
 }
+
+extension AppleEventSenderTests {
+    func testTerminalHandoffUsesOneLiteralInANewWindowThenActivatesTheApplication() throws {
+        let request = try TerminalHomebrew.request(arguments: ["command": .string("version")], executable: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+        let source = AppleEventSender.appleScriptSource(for: request)
+        XCTAssertEqual(source, "tell application id \"com.apple.Terminal\" to do script \"'/opt/homebrew/bin/brew' '--version'\"\ntell application id \"com.apple.Terminal\" to activate")
+        XCTAssertNotNil(NSAppleScript(source: source), "Terminal's scripting dictionary must compile the reviewed handoff")
+    }
+}
