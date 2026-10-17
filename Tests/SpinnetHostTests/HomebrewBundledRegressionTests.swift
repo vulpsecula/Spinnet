@@ -25,6 +25,20 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
         try registry.register(package)
+        // Exercise the actual startup transition from the saved declaration;
+        // the historical access fixture remains tied to its original version.
+        let previous = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf:
+            Self.baseline.appendingPathComponent("historical-candidate-manifest.json")))
+        let pluginsDirectory = directory.appendingPathComponent("Plugins")
+        try FileManager.default.createDirectory(at: pluginsDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode([previous.id.rawValue: previous]).write(to:
+            pluginsDirectory.appendingPathComponent("bundled-manifests.json"))
+        let priorDecisions = grants.allGrants
+        try PluginInstallationStore(directory: pluginsDirectory, registry: registry, grants: grants, persistGrants: {}).restore()
+        for prior in priorDecisions {
+            XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
+                capability: prior.capability, scope: package.manifest.scope(for: prior.capability)), prior.decision)
+        }
         let stored = try fixture.configuration()
         XCTAssertEqual(Set(stored.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
         XCTAssertEqual(stored.actions.count, 14)
@@ -61,7 +75,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
         })
         let package = try ShippedPluginPackages.named("Homebrew")
-        XCTAssertEqual(package.manifest.apiLevel, 3)
+        XCTAssertEqual(package.manifest.apiLevel, 4)
         XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
     }
 

@@ -25,7 +25,7 @@ final class ManifestSchemaTests: XCTestCase {
         let urls = try bundledManifestURLs()
         XCTAssertEqual(urls.count, 22, "Twenty-two Bundled Plugins ship with Spinnet")
         let promotedLevels = ["CurrentApp.spinnetplugin": 2, "KeepAwake.spinnetplugin": 2,
-                              "Homebrew.spinnetplugin": 3, "Spotify.spinnetplugin": 3,
+                              "Homebrew.spinnetplugin": 4, "Spotify.spinnetplugin": 3,
                               "SystemMonitor.spinnetplugin": 3]
 
         for url in urls {
