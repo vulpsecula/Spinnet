@@ -10,6 +10,9 @@ licence.
 
 | File | Contents |
 | --- | --- |
+| [`reference/level-4.md`](reference/level-4.md) | Level 4: one-second activity source delivery; other source and authority rules remain unchanged |
+| [`spinnet-level-4.d.ts`](spinnet-level-4.d.ts) | Level 4 SDK types, retaining Level 3 vocabulary |
+| [`schemas/manifest-level-4.schema.json`](schemas/manifest-level-4.schema.json) | Stable Level 4 manifests |
 | [`reference/level-3.md`](reference/level-3.md) | Level 3: stable Spotify controls, External App connections, adaptive cards/viewport fit and unused-dependency Tasks; migration from retired candidates |
 | [`spinnet-level-3.d.ts`](spinnet-level-3.d.ts) | Composed Level 3 SDK types, including the additions to existing namespaces |
 | [`catalogue-level-3.json`](catalogue-level-3.json) | Level 3 catalogue; `catalogue.json` retains the published Level 2 record |

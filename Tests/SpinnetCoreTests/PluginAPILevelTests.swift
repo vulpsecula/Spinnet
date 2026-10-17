@@ -67,7 +67,7 @@ final class PluginAPILevelTests: XCTestCase {
         XCTAssertThrowsError(try store.install(from: source)) { error in
             XCTAssertEqual(
                 error.localizedDescription,
-                "Level needs Plugin API Level 4, but this version of Spinnet supports up to Level 3. "
+                "Level needs Plugin API Level 5, but this version of Spinnet supports up to Level 4. "
                     + "Update Spinnet to install it."
             )
         }
@@ -84,6 +84,6 @@ final class PluginAPILevelTests: XCTestCase {
 
         try store.install(from: writePackage(apiLevel: PluginAPILevel.highestSupported))
 
-        XCTAssertEqual(registry.package(for: PluginID("com.example.level"))?.manifest.apiLevel, 3)
+        XCTAssertEqual(registry.package(for: PluginID("com.example.level"))?.manifest.apiLevel, 4)
     }
 }

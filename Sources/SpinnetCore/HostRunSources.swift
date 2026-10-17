@@ -13,6 +13,14 @@ public enum HostRunSourceAddition {
     public static let maximumFailureMessage = 512
 }
 
+/// Level 4 opts into live local activity delivery without changing older
+/// Plugins' source cadence or waking scripts for unchanged activity data.
+public enum LiveActivityDelivery {
+    public static let apiLevel = 4
+    public static let minimumInterval: TimeInterval = 1
+    public static let member = PluginInterfaceMember.behaviour("live_activity_delivery")
+}
+
 /// All result and authority inputs are retained as the complete JSON definition.
 public struct PluginPageSource: Equatable {
     public let id: String
@@ -140,18 +148,21 @@ public struct PluginSourceBinding: Equatable {
 public struct HostSourceAdapter {
     public let minimumInterval: TimeInterval?
     public let deadline: TimeInterval
+    public let deliveryInterval: (ActionConfiguration) -> TimeInterval
     /// Opaque current owner registration, rotated even for equal-version updates.
     public let ownerIdentity: (ActionConfiguration) -> AnyHashable?
     public let authorize: (ActionConfiguration, PluginPageSource) throws -> Void
     public let retire: (ActionConfiguration, PluginPageSource) -> Void
     public let sample: (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue
     public init(minimumInterval: TimeInterval? = nil, deadline: TimeInterval,
+                deliveryInterval: @escaping (ActionConfiguration) -> TimeInterval = { _ in HostRunSourceAddition.deliveryInterval },
                 ownerIdentity: @escaping (ActionConfiguration) -> AnyHashable? = { _ in nil },
                 authorize: @escaping (ActionConfiguration, PluginPageSource) throws -> Void,
                 retire: @escaping (ActionConfiguration, PluginPageSource) -> Void = { _, _ in },
                 sample: @escaping (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue) {
         self.minimumInterval = minimumInterval
         self.deadline = deadline
+        self.deliveryInterval = deliveryInterval
         self.ownerIdentity = ownerIdentity
         self.authorize = authorize
         self.retire = retire
@@ -369,8 +380,14 @@ public final class HostRunSources {
         }
         if let every = record.source.every { start(record, plugin: plugin, after: every) }
     }
+    private func deliveryDue(_ record: Record, plugin: PluginID) -> TimeInterval {
+        let requested = adapters[record.source.perform]?.deliveryInterval(record.action) ?? HostRunSourceAddition.deliveryInterval
+        let interval = requested.isFinite ? max(HostRunSourceAddition.minimumInterval, requested) : HostRunSourceAddition.deliveryInterval
+        return (deliveryTimes[plugin]?[record.source.id] ?? -.infinity) + interval
+    }
+
     private func deliver(_ record: Record, plugin: PluginID) {
-        let due = (deliveryTimes[plugin]?[record.source.id] ?? -.infinity) + HostRunSourceAddition.deliveryInterval
+        let due = deliveryDue(record, plugin: plugin)
         if now() < due {
             schedule(due - now()) { [weak self, weak record] in
                 guard let self, let record, self.current(record, plugin: plugin), record.pending != nil else { return }
@@ -380,7 +397,7 @@ public final class HostRunSources {
     }
     private func deliverPending(_ record: Record, plugin: PluginID) {
         guard visible(record, plugin: plugin), let event = record.pending else { return }
-        let due = (deliveryTimes[plugin]?[record.source.id] ?? -.infinity) + HostRunSourceAddition.deliveryInterval
+        let due = deliveryDue(record, plugin: plugin)
         guard now() >= due else { return }
         record.pending = nil
         let isFailure: Bool

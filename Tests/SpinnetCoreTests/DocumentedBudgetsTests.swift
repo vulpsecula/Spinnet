@@ -2,6 +2,13 @@ import XCTest
 @testable import SpinnetCore
 
 final class HostRunSourceBudgetsTests: XCTestCase {
+    func testLevelFourActivityDeliveryHasItsOwnPublishedFloor() {
+        XCTAssertPublished("minimum interval of **one second**", in: "reference/level-4.md")
+        XCTAssertEqual(LiveActivityDelivery.minimumInterval, 1)
+        XCTAssertEqual(LiveActivityDelivery.apiLevel, 4)
+        XCTAssertEqual(HostRunSourceAddition.deliveryInterval, 15)
+    }
+
     func testSourceBudgetsMatchThePublishedPage() {
         XCTAssertPublished("Bounds: eight sources/page", in: "reference/sources.md")
         XCTAssertEqual(HostRunSourceAddition.maximumSources, 8)

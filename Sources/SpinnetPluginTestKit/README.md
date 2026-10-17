@@ -25,6 +25,13 @@ next to the test bundle, where the kit looks for it.
 
 If the helper is somewhere else, set `SPINNET_PLUGIN_HELPER_URL` to its path.
 
+## Stable Level 4 activity delivery
+
+Level 4 retains the Level 3 SDK vocabulary and opts into one-second
+`activities.list` source delivery. The [Level 4 reference](../../PluginAPI/reference/level-4.md)
+states its visibility, cadence and resource bounds. Recorded events exercise
+Plugin rendering; Host source tests separately verify the scheduler cadence.
+
 ## Stable Level 3 additions
 
 Declare `api_level: 3` without `candidate_contracts` to use the proved adaptive
@@ -171,7 +178,7 @@ lists what reached the network, as it left.
 
 ## Plugin API Levels and Candidate Contracts
 
-A run is held to what the Host offers: Plugin API Levels 1–3. The candidates
+A run is held to what the Host offers: Plugin API Levels 1–4. The candidates
 promoted into Levels 2 and 3 are retired (see `PluginAPI/candidates/README.md`). A Plugin that Host would
 refuse, such as one needing a higher Level or declaring a retired
 candidate, fails with the refusal as an `invalidAction`, and a Host Service

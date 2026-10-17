@@ -63,7 +63,10 @@ Supported failure categories are `capability_denied`, `host_service_failed` and
 `timed_out`; reviewed App sources also offer `external_app_missing`,
 `external_app_not_running`, `automation_permission_needed`,
 `automation_permission_denied` and `external_app_operation_unsupported`, plus `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` for reviewed tool sources. It is not a gesture; its answer may not request an operation.
-Deliveries of one source ID are at least 15 seconds apart, across redefinitions.
+Deliveries of one source ID are at least 15 seconds apart, across redefinitions,
+for Levels 1–3 and for every non-activity source at Level 4. A Level 4
+`activities.list` source may deliver changed state at a minimum interval of
+one second; see [Level 4](level-4.md).
 At most one waits per source; newer results replace older waiting ones. A floor-held
 result waits while hidden and is considered on show; a result already queued in
 the View Session may dispatch while hidden, because sampling has already ended.

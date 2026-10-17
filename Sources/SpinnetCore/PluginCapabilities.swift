@@ -1370,6 +1370,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     public func activitySourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
         HostSourceAdapter(minimumInterval: 1, deadline: 1,
+            deliveryInterval: { action in
+                guard let manifest = registry.package(for: action.pluginID)?.manifest,
+                      registry.contracts.permitting(manifest)(LiveActivityDelivery.member) else {
+                    return HostRunSourceAddition.deliveryInterval
+                }
+                return LiveActivityDelivery.minimumInterval
+            },
             ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
             authorize: { action, source in
                 guard source.input == .null, registry.isEnabled(for: action.pluginID),

@@ -11,7 +11,7 @@ final class ManifestSchemaTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     private func validator(level: Int = 1) throws -> JSONSchemaSubsetValidator {
-        let schema = level == 3 ? "manifest-level-3.schema.json" : "manifest.schema.json"
+        let schema = level >= 3 ? "manifest-level-\(level).schema.json" : "manifest.schema.json"
         return try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot
             .appendingPathComponent("PluginAPI/schemas/\(schema)"))
     }

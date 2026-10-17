@@ -264,10 +264,10 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host provides stable Levels 1–3. Proved candidate revisions
+    /// This Host provides stable Levels 1–4. Proved candidate revisions
     /// retired into Level 3 are refused with the stable migration message.
     public static let host = PluginInterfaceContracts(
-        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers],
+        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member]],
         candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
             + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
     )
