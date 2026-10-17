@@ -20,7 +20,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         try fixture?.cleanup()
     }
 
-    func testSavedHomebrewMenuItemRestoresItsActionsAliasAndDecisionsUnchanged() throws {
+    func testSavedHomebrewMenuItemMigratesRetiredEntrypointsKeepingBindingsAndDecisions() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
         let grants = try fixture.restoredGrants()
         let registry = PluginRegistry(grantStore: grants)
@@ -46,11 +46,14 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
         let stored = try fixture.configuration()
-        XCTAssertTrue(Set(stored.actions.map(\.commandID)).isSubset(of: Set(package.manifest.commands.map(\.id))))
-        XCTAssertEqual(package.manifest.commands.count, 21)
+        let expected = try XCTUnwrap(package.manifest.migrate(stored))
+        XCTAssertEqual(expected.actions.map(\.id), stored.actions.map(\.id))
+        XCTAssertEqual(expected.menu, stored.menu)
+        XCTAssertTrue(Set(expected.actions.map(\.commandID)).isSubset(of: Set(package.manifest.commands.map(\.id))))
+        XCTAssertEqual(package.manifest.commands.count, 10)
         XCTAssertEqual(stored.actions.count, 14)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Homebrew · development Mac")
-        for action in stored.actions {
+        for action in expected.actions {
             XCTAssertEqual(registry.availability(for: action), .available)
         }
         let settingsURL = directory.appendingPathComponent("PluginSettings.json")
@@ -65,10 +68,11 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             capability: .runReviewedToolTasks, scope: package.manifest.scope(for: .runReviewedToolTasks)), .notDetermined)
         let migrated = try StoredDataMigration.migrate(stored, registry: registry, pluginSettings: settings,
                                                       defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite)))
-        XCTAssertEqual(migrated, stored)
+        XCTAssertEqual(migrated, expected)
+        XCTAssertNil(try package.manifest.migrate(migrated), "Retired entrypoint migration is idempotent")
         XCTAssertEqual(try Data(contentsOf: settingsURL), settingsBytes)
         try HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).save(migrated)
-        XCTAssertEqual(try fixture.configuration(), stored)
+        XCTAssertEqual(try fixture.configuration(), expected)
         let restored = PluginCapabilityGrantStore()
         try StoredDataMigration.restoreCapabilityGrants(from: StoredDataMigration.encodeCapabilityGrants(grants), into: restored)
         XCTAssertEqual(Set(restored.allGrants), decisions)
@@ -152,7 +156,8 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertTrue(grants.allGrants.allSatisfy { $0.decision == .notDetermined })
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
-        for action in stored.actions {
+        let migrated = try package.manifest.migrate(stored) ?? stored
+        for action in migrated.actions {
             XCTAssertEqual(relaunchedRegistry.availability(for: action), .available)
         }
     }
