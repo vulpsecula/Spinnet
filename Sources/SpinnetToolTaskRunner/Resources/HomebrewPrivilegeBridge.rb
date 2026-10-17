@@ -19,7 +19,8 @@ REVIEWED_SOURCE_DIGESTS = {
   "cask/artifact/pkg.rb" => "35580f7ba61ac3b5bd3ad833519808dd23f368b436d2779c4c288c712775e3b2",
   "cask/artifact/installer.rb" => "9fe1be61de33e1daf58a74fac19400cac19ef23e54398a934fc9754fc2214e23",
   "cask/artifact/generated_script.rb" => "0d054e305b0e7922488e07899a436e27f7adb9e16af08cff031bee77e2c3da12",
-  "cask/artifact/abstract_artifact.rb" => "988040578e5fde71f2d34ac319d84ce297e2c07e0c2ca1fe7fd78732cff4fa38",
+  # Homebrew dd2a8cf5: equivalent conditional assignment in read_script_arguments.
+  "cask/artifact/abstract_artifact.rb" => "4777d8ff029670880ea35fc1be32e5e6660f13546cf5ad8aed2b323d257432f3",
   "cask/installer.rb" => "7043f72f6cea608eb1d12e1bcb545576657975fe822605dcdc45d15738a3c21d",
   "cask/download.rb" => "ec2a119267476575af84f43ffca2043daaba7ee1709b68f2961c88276f9709e1",
   "cmd/install.rb" => "23e54ecfcba3a27d33e9c32d591ecf6ed0465b2417cc946228b98c9b305a2746",
