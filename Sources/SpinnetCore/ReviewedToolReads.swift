@@ -358,8 +358,8 @@ public final class HomebrewReadProfile {
     }
     /// macOS Bash 3.2 uses the system temporary directory for here-strings,
     /// ignoring TMPDIR. Homebrew 3073d6a's curl ETag probe calls numeric twice,
-    /// producing these notices under the intentionally write-denied read
-    /// sandbox. They affect optional network metadata only. Accept precisely
+    /// which produced these notices before the narrow temporary-file exception.
+    /// They affect optional network metadata only. Accept precisely
     /// that pair before a separately exact no-match diagnostic; every other
     /// error still fails and raw command output remains untouched.
     private static func noMatchDiagnostic(_ stderr: Data, executable: URL) -> String {
@@ -414,12 +414,23 @@ public final class HomebrewReadProfile {
         let cap = arguments.first == "--files" ? 16 * 1024 * 1024 : 4 * 1024 * 1024
         return try executeBounded(URL(fileURLWithPath: "/usr/sbin/pkgutil"), arguments, ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"], deadline, .init(), stdoutLimit: cap, readOnly: true)
     }
+    static func readOnlySandbox(executable: URL) -> String {
+        var profile = "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))"
+        if executable.lastPathComponent == "brew" {
+            // Apple Bash 3.2 ignores TMPDIR for here-documents. Its initial
+            // access(W_OK) also checks the directory itself before mkstemp.
+            // Permit that check and only regular sh-thd files, never links or
+            // arbitrary /tmp contents. Persistent paths remain write-denied.
+            profile += #"(allow file-write-data (literal "/private/tmp"))(allow file-write-data file-write-unlink (regex #"^/private/tmp/sh-thd-[0-9]+$"))(allow file-write-create (require-all (regex #"^/private/tmp/sh-thd-[0-9]+$") (vnode-type REGULAR-FILE)))"#
+        }
+        return profile
+    }
     private static func executeBounded(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
         _ cancellation: HostFetchedSections.Cancellation, stdoutLimit: Int, readOnly: Bool) throws -> HomebrewReadOutput {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
-        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))" : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
+        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? Self.readOnlySandbox(executable: executable) : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
         let launcher = "/usr/bin/sandbox-exec"
         let sandboxArguments = ["-p", sandbox, executable.path] + arguments
         var out: [Int32] = [0, 0], err: [Int32] = [0, 0]
