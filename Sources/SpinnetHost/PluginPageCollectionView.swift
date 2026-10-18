@@ -360,7 +360,8 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
                   })
         if let listCell = cell as? PageListCell {
             let toggles = item == nil ? [] : model.menu(at: position).filter { $0.action.toggle != nil }
-            listCell.showToggles(toggles) { [weak model] action in
+            let columns = model.collection?.actions.filter { $0.toggle != nil } ?? []
+            listCell.showToggles(toggles, columns: columns) { [weak model] action in
                 // A reused cell's control is only authority for the item and
                 // action it still displays. The Plugin owns the resulting mark.
                 guard model?.item(at: position)?.id == item?.id,
@@ -674,6 +675,11 @@ private final class PageItemToggleButton: NSButton {
         setButtonType(.switch)
         title = ""
         controlSize = .small
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: PageListCell.toggleSide),
+            heightAnchor.constraint(equalToConstant: PageListCell.toggleSide)
+        ])
         state = displayedState
         toolTip = entry.title
         setAccessibilityLabel(entry.title)
@@ -693,6 +699,7 @@ private final class PageItemToggleButton: NSButton {
 /// A list row: leading toggle controls, symbol, title and subtitle, accessory.
 final class PageListCell: PageCell {
     static let identifier = NSUserInterfaceItemIdentifier("PageListCell")
+    static let toggleSide: CGFloat = 18
     private let symbol = PageCellLabel(labelWithString: "")
     /// The item's icon, a system symbol (#81), in the symbol's place.
     private let icon = NSImageView()
@@ -700,6 +707,7 @@ final class PageListCell: PageCell {
     private let subtitle = PageCellLabel(labelWithString: "")
     private let accessory = PageCellLabel(labelWithString: "")
     private let toggles = NSStackView()
+    private var toggleWidth: NSLayoutConstraint!
 
     override func loadView() {
         super.loadView()
@@ -716,13 +724,18 @@ final class PageListCell: PageCell {
         text.orientation = .vertical
         text.alignment = .leading
         text.spacing = 1
+        text.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        text.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         icon.symbolConfiguration = NSImage.SymbolConfiguration(textStyle: .body)
         icon.setAccessibilityElement(false)
         toggles.orientation = .horizontal
         toggles.spacing = 4
         toggles.setContentHuggingPriority(.required, for: .horizontal)
+        toggleWidth = toggles.widthAnchor.constraint(equalToConstant: 0)
+        toggleWidth.isActive = true
         let row = NSStackView(views: [toggles, symbol, icon, text, accessory])
         row.orientation = .horizontal
+        row.distribution = .fill
         row.spacing = 8
         row.alignment = .centerY
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -740,17 +753,30 @@ final class PageListCell: PageCell {
         ])
     }
 
-    func showToggles(_ entries: [PluginPageModel.MenuEntry], choose: @escaping (PluginPageItemAction) -> Void) {
+    func showToggles(_ entries: [PluginPageModel.MenuEntry], columns: [PluginPageItemAction],
+                     choose: @escaping (PluginPageItemAction) -> Void) {
         for control in toggles.arrangedSubviews {
             toggles.removeArrangedSubview(control)
             control.removeFromSuperview()
         }
-        for entry in entries {
-            toggles.addArrangedSubview(PageItemToggleButton(entry: entry) { choose(entry.action) })
+        for column in columns {
+            if let entry = entries.first(where: { $0.action.id == column.id }) {
+                toggles.addArrangedSubview(PageItemToggleButton(entry: entry) { choose(entry.action) })
+            } else {
+                // Items that cannot toggle still occupy the same column as
+                // their neighbours. A blank slot is neither a disabled action
+                // nor an accessibility control.
+                let spacer = NSView()
+                spacer.setAccessibilityElement(false)
+                toggles.addArrangedSubview(spacer)
+                spacer.widthAnchor.constraint(equalToConstant: Self.toggleSide).isActive = true
+                spacer.heightAnchor.constraint(equalToConstant: Self.toggleSide).isActive = true
+            }
         }
-        toggles.isHidden = entries.isEmpty
+        toggleWidth.constant = CGFloat(columns.count) * Self.toggleSide + CGFloat(max(0, columns.count - 1)) * toggles.spacing
+        toggles.isHidden = columns.isEmpty
         view.setAccessibilityRole(entries.isEmpty ? .button : .group)
-        view.setAccessibilityChildren(entries.isEmpty ? nil : toggles.arrangedSubviews)
+        view.setAccessibilityChildren(entries.isEmpty ? nil : toggles.arrangedSubviews.filter { $0 is NSButton })
     }
 
     override func show(_ item: PluginPageItem?, isSelected: Bool, isFocused: Bool, label text: String,

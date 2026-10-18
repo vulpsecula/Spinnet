@@ -360,6 +360,62 @@ final class PluginPagePanelTests: XCTestCase {
         XCTAssertTrue(checkboxes(in: reused.view).isEmpty, "Reused pinned rows must not retain an old checkbox")
     }
 
+    private func alignedUpgradeList(marked: Set<Int> = [0, 1]) -> JSONValue {
+        let names = ["short", "a-much-longer-package-name", "pinned-package"]
+        let items: [JSONValue] = names.enumerated().map { position, name in
+            .object(["id": .string("i\(position)"), "title": .string(name),
+                     "subtitle": .string(position == 0 ? "1.0 → 2.0" : "A much longer version and package description"),
+                     "icon": .object(["symbol": .string(position == 1 ? "app" : "shippingbox")]),
+                     "accessory": .string(position == 2 ? "Unpin" : marked.contains(position) ? "Upgrade" : "Select"),
+                     "marks": .array(marked.contains(position) ? [.string("included")] : []),
+                     "actions": .array(position == 2 ? [.string("upgrade")] : [.string("upgrade"), .string("include")])])
+        }
+        return .object(["id": .string("search"), "title": .string("Upgrades"), "content": .array([
+            .object(["kind": .string("list"), "id": .string("results"), "rows": .number(3), "items": .array(items),
+                     "actions": .array([
+                        .object(["id": .string("upgrade"), "title": .string("Upgrade"), "default": .bool(true)]),
+                        .object(["id": .string("include"), "title": .string("Include in Upgrade"), "toggle": .string("included")])])])])])
+    }
+
+    private func labels(in view: NSView) -> [NSTextField] {
+        (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { labels(in: $0) }
+    }
+
+    func testListToggleColumnsKeepTitlesSubtitlesAndAccessoriesAlignedAcrossMarkChanges() throws {
+        try show(alignedUpgradeList())
+        func positions() throws -> [(CGFloat, CGFloat, CGFloat)] {
+            try (0..<3).map { index in
+                let root = try XCTUnwrap(cell(at: index))
+                let title = try XCTUnwrap(labels(in: root).first { ["short", "a-much-longer-package-name", "pinned-package"].contains($0.stringValue) })
+                let subtitle = try XCTUnwrap(labels(in: root).first { $0.stringValue.contains("→") || $0.stringValue.hasPrefix("A much") })
+                let accessory = try XCTUnwrap(labels(in: root).first { ["Upgrade", "Select", "Unpin"].contains($0.stringValue) })
+                XCTAssertGreaterThan(title.bounds.width, 10, "Title must retain drawable width")
+                XCTAssertGreaterThan(subtitle.bounds.width, 10, "Subtitle must retain drawable width")
+                XCTAssertFalse(title.isHiddenOrHasHiddenAncestor)
+                return (title.convert(title.bounds, to: root).minX,
+                        subtitle.convert(subtitle.bounds, to: root).minX,
+                        accessory.convert(accessory.bounds, to: root).maxX)
+            }
+        }
+        let before = try positions()
+        for row in before {
+            XCTAssertEqual(row.0, before[0].0, accuracy: 0.5, "Titles need a shared leading column, including rows without a toggle")
+            XCTAssertEqual(row.1, row.0, accuracy: 0.5)
+            XCTAssertEqual(row.2, before[0].2, accuracy: 0.5)
+        }
+        for marks: Set<Int> in [[1], [], [0], [0, 1]] {
+            let toggle = try XCTUnwrap(checkboxes(in: XCTUnwrap(cell(at: 0))).first)
+            toggle.performClick(nil)
+            try harness.answer(alignedUpgradeList(marked: marks)); settle()
+            let after = try positions()
+            for index in 0..<3 {
+                XCTAssertEqual(after[index].0, before[index].0, accuracy: 0.5, "Toggling must not move titles")
+                XCTAssertEqual(after[index].1, before[index].1, accuracy: 0.5, "Toggling must not move subtitles")
+                XCTAssertEqual(after[index].2, before[index].2, accuracy: 0.5, "Accessory trailing edge must stay fixed")
+            }
+        }
+    }
+
     /// The panel takes the height the collection asks for, and a reset
     /// answer writes the field while an answer to typing does not.
     func testTheFieldIsWrittenOnlyWhenReset() throws {
