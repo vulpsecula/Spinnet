@@ -486,14 +486,29 @@ public enum HomebrewPrivilegeReview {
         "cmd/uninstall.rb": "6caafdb7808550dc6dc9918692b545969c81ec134b540bf6ffb9fbcbfc0dcd72",
         "trust.rb": "0c40d55f481127ee83318439a46a1204c9ffe6691cc0a7143e89819baf794e3a"
     ]
+    // Reviewed complete snapshots: Homebrew 19fe946 and 3073d6a. The latter
+    // changes directive ordering, but all elevation still passes the same
+    // phase-bound bridge. Dispatch compatibility tests exercise the real seam.
+    public static let reviewedSourceUpdates: [String: String] = [
+        "cask/artifact/abstract_uninstall.rb": "474917562f4a7e404b6a8e1b7372b0abd4337de29f1d8ffaa081cc405d747e5f",
+        "cask/artifact/zap.rb": "b37740fcf730a86f690fc74ff6b1386c2da9b8c9604cc748800085ad47a3b312",
+        "cask/artifact/uninstall.rb": "3da21343c450a3fd644fb8bfe1efa80a8709da161ceac3279bd8b133ac3bb6e9",
+        "cask/installer.rb": "dfd30f709840fc9b8adc92659c361a9c8057a9b33bfddc5e8358a3b91ed5cbfc",
+        "cmd/upgrade.rb": "f855d2854c84c3c20bd6ffe1985c7b99ff445f1f4d9e40b4212ba8a6ac7db0c7"
+    ]
+    public static var reviewedSourceCohorts: [[String: String]] {
+        [reviewedSourceDigests, reviewedSourceDigests.merging(reviewedSourceUpdates) { _, new in new }]
+    }
     public static func checkCompatibility(executable: URL) throws {
+        let refusal = PluginHostServiceError.unavailable("This Homebrew source revision needs review before system authorization can run")
         let library = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Library/Homebrew")
-        for (path, digest) in reviewedSourceDigests {
+        var actual: [String: String] = [:]
+        for path in reviewedSourceDigests.keys {
             let file = library.appendingPathComponent(path)
-            guard let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 512 * 1024, let bytes = try? Data(contentsOf: file), HomebrewSystemAuthorization.digest(bytes) == digest else {
-                throw PluginHostServiceError.unavailable("This Homebrew source revision needs review before system authorization can run")
-            }
+            guard let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 512 * 1024, let bytes = try? Data(contentsOf: file) else { throw refusal }
+            actual[path] = HomebrewSystemAuthorization.digest(bytes)
         }
+        guard reviewedSourceCohorts.contains(actual) else { throw refusal }
     }
     /// Fresh Homebrew metadata supplies the concrete checksum. No Plugin path,
     /// package checksum or installer option is accepted as authority.

@@ -15,7 +15,8 @@ final class TerminalHomebrewTests: XCTestCase {
     func testCandidatePromotionAndOlderLevelRefusal() throws {
         let oldLevels = PluginInterfaceContracts.host.levels.filter { $0.key <= 4 }
         let candidate = PluginInterfaceContracts(levels: oldLevels, candidates: [TerminalHomebrew.contract])
-        XCTAssertEqual(try candidate.promoting(TerminalHomebrew.declaration.name, toLevel: 5).levels, PluginInterfaceContracts.host.levels)
+        XCTAssertEqual(try candidate.promoting(TerminalHomebrew.declaration.name, toLevel: 5).levels,
+                       PluginInterfaceContracts.host.levels.filter { $0.key <= 5 })
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [.init(bundleID: TerminalHomebrew.bundleID, operationFamilies: [TerminalHomebrew.family])])
         let manifest = try PluginManifest(apiLevel: 4, id: .init("old"), name: "Old", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])

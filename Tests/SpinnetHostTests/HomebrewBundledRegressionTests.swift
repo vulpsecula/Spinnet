@@ -92,7 +92,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
     }
 
-    func testCommandLauncherCannotUseUndeclaredStructuredReadsEvenWithAHistoricalGrant() throws {
+    func testBrowserCannotUseUndeclaredAnalyticsReadsEvenWithAHistoricalGrant() throws {
         let package = try ShippedPluginPackages.named("Homebrew")
         let grants = PluginCapabilityGrantStore()
         let profile = HomebrewReadProfile(executable: { throw PluginHostServiceError.tool(.missing) })
@@ -102,7 +102,8 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let action = try XCTUnwrap(try fixture.configuration().actions.first)
         let request = PluginRuntimeHostServiceRequest(invocationID: "missing-homebrew", actionID: action.id,
             service: .reviewedToolRead,
-            input: .object(["tool": .string("homebrew"), "operation": .string("installed")]), operation: "tools.read")
+            input: .object(["tool": .string("homebrew"), "operation": .string("packageAnalytics"),
+                            "kind": .string("formula"), "names": .array([.string("wget")])]), operation: "tools.read")
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) {
             XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.readReviewedTools))
         }

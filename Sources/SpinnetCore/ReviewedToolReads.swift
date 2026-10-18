@@ -199,7 +199,7 @@ public final class HomebrewReadProfile {
             guard output.status == 0 || (output.status == 1 && ["search", "info"].contains(request.operation)) else { throw PluginHostServiceError.tool(.failed) }
             if request.operation == "search" {
                 if output.status == 1 {
-                    let diagnostic = String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let diagnostic = Self.noMatchDiagnostic(output.stderr, executable: executable)
                     guard output.stdout.isEmpty, diagnostic == "Error: No formulae or casks found for \"\(request.query!)\"." else { throw PluginHostServiceError.tool(.failed) }
                     continue
                 }
@@ -209,7 +209,7 @@ public final class HomebrewReadProfile {
             } else {
                 guard let raw = try? JSONSerialization.jsonObject(with: output.stdout) as? [String: Any] else {
                     if request.operation == "info", output.status == 1, output.stdout.isEmpty {
-                        let diagnostic = String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let diagnostic = Self.noMatchDiagnostic(output.stderr, executable: executable)
                         let missing = names.filter {
                             diagnostic == "Error: No available formula with the name \"\($0)\"."
                                 || diagnostic == "Error: Cask '\($0)' is unavailable: No Cask with this name exists."
@@ -355,6 +355,21 @@ public final class HomebrewReadProfile {
         }
         result.merge(HomebrewPackageMetadata.project(raw, kind: kind, name: name, prefix: prefix, includeConfiguration: includeConfiguration)) { _, new in new }
         return .object(result)
+    }
+    /// macOS Bash 3.2 uses the system temporary directory for here-strings,
+    /// ignoring TMPDIR. Homebrew 3073d6a's curl ETag probe calls numeric twice,
+    /// producing these notices under the intentionally write-denied read
+    /// sandbox. They affect optional network metadata only. Accept precisely
+    /// that pair before a separately exact no-match diagnostic; every other
+    /// error still fails and raw command output remains untouched.
+    private static func noMatchDiagnostic(_ stderr: Data, executable: URL) -> String {
+        let diagnostic = String(decoding: stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        let root = executable.resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
+        let warning = root.appendingPathComponent("Library/Homebrew/utils.sh").path
+            + ": line 144: cannot create temp file for here document: Operation not permitted"
+        let lines = diagnostic.components(separatedBy: "\n")
+        if lines.count == 3, lines[0] == warning, lines[1] == warning { return lines[2] }
+        return diagnostic
     }
     /// A separate process group, bounded pipes and no stdin. Stop attempts never undo work.
     public static func execute(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date) throws -> HomebrewReadOutput {

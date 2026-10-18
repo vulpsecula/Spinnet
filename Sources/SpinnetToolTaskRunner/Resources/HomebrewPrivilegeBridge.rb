@@ -29,9 +29,20 @@ REVIEWED_SOURCE_DIGESTS = {
   "cmd/uninstall.rb" => "6caafdb7808550dc6dc9918692b545969c81ec134b540bf6ffb9fbcbfc0dcd72",
   "trust.rb" => "0c40d55f481127ee83318439a46a1204c9ffe6691cc0a7143e89819baf794e3a"
 }
-REVIEWED_SOURCE_DIGESTS.each do |path, expected|
-  abort "This Homebrew source revision needs privileged adapter review" unless Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/path).hexdigest == expected
+# Complete reviewed Homebrew 3073d6a snapshot; never accept arbitrary mixtures
+# of old/new private dispatchers and installer code.
+REVIEWED_SOURCE_UPDATES = {
+  "cask/artifact/abstract_uninstall.rb" => "474917562f4a7e404b6a8e1b7372b0abd4337de29f1d8ffaa081cc405d747e5f",
+  "cask/artifact/zap.rb" => "b37740fcf730a86f690fc74ff6b1386c2da9b8c9604cc748800085ad47a3b312",
+  "cask/artifact/uninstall.rb" => "3da21343c450a3fd644fb8bfe1efa80a8709da161ceac3279bd8b133ac3bb6e9",
+  "cask/installer.rb" => "dfd30f709840fc9b8adc92659c361a9c8057a9b33bfddc5e8358a3b91ed5cbfc",
+  "cmd/upgrade.rb" => "f855d2854c84c3c20bd6ffe1985c7b99ff445f1f4d9e40b4212ba8a6ac7db0c7"
+}
+REVIEWED_SOURCE_COHORTS = [REVIEWED_SOURCE_DIGESTS, REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES)].freeze
+actual_sources = REVIEWED_SOURCE_DIGESTS.keys.to_h do |path|
+  [path, Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/path).hexdigest]
 end
+abort "This Homebrew source revision needs privileged adapter review" unless REVIEWED_SOURCE_COHORTS.include?(actual_sources)
 abort "Spinnet privileged bridge accepts no source arguments" unless ARGV.length == 1
 context = JSON.parse(File.read(ARGV.fetch(0), 1_048_577))
 abort "Invalid Spinnet privilege context" unless context.is_a?(Hash) && context["arguments"].is_a?(Array)

@@ -8,7 +8,8 @@ require 'digest'
   # Reviewed upstream dd2a8cf5c7 only replaces a nil-branch ternary with a
   # modifier if in tap installation; metadata and trust semantics are unchanged.
   'tap.rb' => %w[8ea9d6c46ef61dda3b9bfd7e580f8e8b81358245fbb3a2eb4154a66cf5f400f1 c8e13829ad436751a8347d73d80d13b0eace8ffc98f831b92a7911b36576693e],
-  'api.rb' => '8863f378ac64fb5c678fc86e6b0b8a85349d864bdb1465ff3c90bbf49faee7fe',
+  # 3073d6a changes only fetch_json_api_file, unused by this held-JWS exporter.
+  'api.rb' => %w[8863f378ac64fb5c678fc86e6b0b8a85349d864bdb1465ff3c90bbf49faee7fe 6101919e4890fef71db07c43310d30557fd354bd2195822a3fa8cb705d506d83],
   'api/homebrew-1.pem' => 'ef2d2c9e0219d485df9f07fff7b037feadc36c93085be9ffefb1390f31a3de1d',
   'api/internal.rb' => 'eb98dc96639bfa500261818f455fe894f6eda10150f5e62f1428a885586b2d03',
   'api/cask_struct.rb' => 'bab1b13ddd718f20d724ef6963a229d1a4a1eca2621a58213c6efb8dfa8f394f',

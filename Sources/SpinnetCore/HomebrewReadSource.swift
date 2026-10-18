@@ -10,10 +10,17 @@ enum HomebrewReadSource {
         let resolved = executable.resolvingSymlinksInPath()
         guard resolved.deletingLastPathComponent().lastPathComponent == "bin",
               let manifestURL = Bundle.module.url(forResource: "HomebrewReadSources", withExtension: "json"),
-              let manifest = try? JSONDecoder().decode([String: String].self, from: Data(contentsOf: manifestURL)) else { throw refusal }
+              let cohorts = try? JSONDecoder().decode([[String: String]].self, from: Data(contentsOf: manifestURL)),
+              let manifest = cohorts.first, !manifest.isEmpty,
+              cohorts.allSatisfy({ Set($0.keys) == Set(manifest.keys) }) else { throw refusal }
         let repository = resolved.deletingLastPathComponent().deletingLastPathComponent()
+        // Hash each bounded live file once, then accept only a complete reviewed
+        // snapshot. Per-file allowlists would also admit unreviewed hybrids.
+        // The cohorts are upstream 19fe946 and 3073d6a; keeping the earlier one
+        // preserves its compatibility without weakening source drift refusal.
+        var actual: [String: String] = [:]
         var total = 0
-        for (path, expected) in manifest.sorted(by: { $0.key < $1.key }) {
+        for path in manifest.keys.sorted() {
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
             guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
             let fd = open(repository.appendingPathComponent(path).path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
@@ -38,8 +45,9 @@ enum HomebrewReadSource {
                   before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
                   before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
                   before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
-                  before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
-                  digest.finalize().map({ String(format: "%02x", $0) }).joined() == expected else { throw refusal }
+                  before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec else { throw refusal }
+            actual[path] = digest.finalize().map { String(format: "%02x", $0) }.joined()
         }
+        guard cohorts.contains(actual) else { throw refusal }
     }
 }

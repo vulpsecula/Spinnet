@@ -3,6 +3,22 @@ import SpinnetCore
 @testable import SpinnetHost
 
 final class HomebrewManagementNativeTests: XCTestCase {
+    func testActualBrowserInventorySearchAndServicesWithoutMutation() throws {
+        guard ProcessInfo.processInfo.environment["SPINNET_HOMEBREW_BROWSER_NATIVE"] == "1" else { throw XCTSkip("Opt-in read-only Homebrew browser checks") }
+        let profile = HomebrewReadProfile()
+        for input: JSONValue in [
+            .object(["tool": .string("homebrew"), "operation": .string("installed")]),
+            .object(["tool": .string("homebrew"), "operation": .string("outdated")]),
+            .object(["tool": .string("homebrew"), "operation": .string("search"), "query": .string("wget")]),
+            .object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("wget")])]),
+            .object(["tool": .string("homebrew"), "operation": .string("services")]),
+            .object(["tool": .string("homebrew"), "operation": .string("taps")])
+        ] {
+            let result = try profile.read(input, owner: .init("native.browser"), timeout: 15)
+            XCTAssertLessThanOrEqual(try JSONEncoder().encode(result).count, 512 * 1024)
+            print("HOMEBREW_BROWSER_NATIVE operation=\(input.value(atPointer: "/operation") ?? .null) bytes=\(try JSONEncoder().encode(result).count)")
+        }
+    }
     func testActualInstalledPackageMetadataWithoutNetworkOrMutation() throws {
         guard ProcessInfo.processInfo.environment["SPINNET_PACKAGE_METADATA_NATIVE"] == "1" else { throw XCTSkip("Opt-in local package metadata check") }
         let profile = HomebrewReadProfile()
