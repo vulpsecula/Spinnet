@@ -203,6 +203,10 @@ unchanged but for its `candidate.json`'s status, as the historical proof record.
 
 | Candidate | Revision | Became | Tag |
 | --- | --- | --- | --- |
+| [`homebrew_catalog_refresh`](homebrew_catalog_refresh/r1/README.md) | 1 | Plugin API Level 7 | `plugin-api-candidate/homebrew_catalog_refresh/r1` |
+| [`homebrew_command_output`](homebrew_command_output/r1/README.md) | 1 | Plugin API Level 6 | `plugin-api-candidate/homebrew_command_output/r1` |
+| [`terminal_homebrew`](terminal_homebrew/r1/README.md) | 1 | Plugin API Level 5 | `plugin-api-candidate/terminal_homebrew/r1` |
+| [`live_activity_delivery`](live_activity_delivery/r1/README.md) | 1 | Plugin API Level 4 | `plugin-api-candidate/live_activity_delivery/r1` |
 | [`namespaces`](namespaces/r1/reference.md) | 1 | Plugin API Level 2 | `plugin-api-candidate/namespaces/r1` |
 | [`host_operations`](host_operations/r1/reference.md) | 1 | Plugin API Level 2 (as revision 2) | `plugin-api-candidate/host_operations/r1` |
 | [`host_operations`](host_operations/r2/reference.md) | 2 | Plugin API Level 2 | `plugin-api-candidate/host_operations/r2` |

@@ -2,14 +2,14 @@
 
 `tools.startTask` is offered as a Requested Host Operation and a page
 action. A Plugin Page gesture chooses concrete reviewed work; an Action's
-start, a call and a source delivery cannot start a mutation. Declare the
+start, a call and a source delivery cannot start a mutation. Level 7 adds the narrowly scoped [automatic catalog refresh](level-7.md) exception for entry and foreground navigation; package mutations keep this rule. Declare the
 separate `run_reviewed_tool_tasks` Capability with `reviewed_tools` scopes
 listing the tool (`homebrew`), allowed operations and package kinds.
 
 The Host validates typed input and current authority, reserves one
 Host-wide slot, reads the concrete package plan and current Homebrew trust,
 then draws a Host Confirmation. Cancel is the default. No task queues,
-automatic update/cleanup, mutation retries or replay exist. After
+automatic update/cleanup, mutation retries or replay exist in Levels 2–6; Level 7 offers only the separately granted catalog refresh described above. After
 confirmation the Host checks identity, scope, source trust and the exact
 plan again; a changed plan is refused for review. Canonical package names resolved
 from aliases or renames are frozen in the confirmed Task, and existing canonical

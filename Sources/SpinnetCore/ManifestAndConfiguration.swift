@@ -712,6 +712,11 @@ public struct PluginManifest: Codable, Equatable {
                           && tool.operations.allSatisfy { (scope.capability == .readReviewedTools ? HomebrewReadInput.operations : HomebrewTaskInput.operations).contains($0) }
                           && tool.kinds.allSatisfy { ["formula", "cask"].contains($0) }
                       }) else { throw ConfigurationError.invalidManifest("Invalid reviewed tool read scope") }
+                if scope.capability == .runReviewedToolTasks,
+                   scope.reviewedTools.contains(where: { $0.operations.contains(HomebrewCatalogRefresh.operation) }),
+                   apiLevel < 7, !candidateContracts.contains(HomebrewCatalogRefresh.declaration) {
+                    throw ConfigurationError.invalidManifest("Automatic catalog refresh requires Plugin API Level 7")
+                }
             } else if !scope.reviewedTools.isEmpty {
                 throw ConfigurationError.invalidManifest("Only reviewed tool Capabilities declare reviewed_tools")
             }

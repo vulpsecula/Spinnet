@@ -28,9 +28,9 @@ final class PluginAPILevelTwoTests: XCTestCase {
     }
 
     func testThisHostSupportsLevelTwoAndReportsIt() {
-        XCTAssertEqual(PluginAPILevel.highestSupported, 6)
-        XCTAssertEqual(host.highestStableLevel, 6)
-        XCTAssertEqual(PluginRuntimeEnvironment(hostVersion: "1.0", preferredLanguage: "en").apiLevel, 6,
+        XCTAssertEqual(PluginAPILevel.highestSupported, 7)
+        XCTAssertEqual(host.highestStableLevel, 7)
+        XCTAssertEqual(PluginRuntimeEnvironment(hostVersion: "1.0", preferredLanguage: "en").apiLevel, 7,
                        "spinnet.environment.apiLevel is the highest stable Level, for every Plugin")
     }
 
@@ -45,7 +45,7 @@ final class PluginAPILevelTwoTests: XCTestCase {
                                            + CollectionsContract.promoted.members
                                            + PluginInterfaceContracts.levelTwoAdditions))
         XCTAssertTrue(Set(PluginInterfaceContracts.levelTwoAdditions).isDisjoint(with: PluginInterfaceContracts.levelOneMembers))
-        XCTAssertEqual(Set(host.levels.keys), [1, 2, 3, 4, 5, 6])
+        XCTAssertEqual(Set(host.levels.keys), [1, 2, 3, 4, 5, 6, 7])
         XCTAssertEqual(host.candidates.filter { $0.status == .retired(promotedToLevel: 2) }.map { "\($0.name) r\($0.revision)" },
                        ["namespaces r1", "host_operations r1", "host_operations r2",
                         "collections r1", "collections r2", "collections r3"])
@@ -62,10 +62,10 @@ final class PluginAPILevelTwoTests: XCTestCase {
         XCTAssertNoThrow(try host.check(levelTwo, origin: .bundled), "Level 2 is stable, so a Bundled Plugin may use it")
     }
 
-    func testALevelSevenPluginIsRefusedWithTheUpdateMessage() throws {
-        XCTAssertThrowsError(try host.check(manifest(apiLevel: 7), origin: .installed)) {
-            XCTAssertEqual($0.localizedDescription, "Level Two needs Plugin API Level 7, but this version of Spinnet "
-                + "supports up to Level 6. Update Spinnet to install it.")
+    func testANewerLevelPluginIsRefusedWithTheUpdateMessage() throws {
+        XCTAssertThrowsError(try host.check(manifest(apiLevel: PluginAPILevel.highestSupported + 1), origin: .installed)) {
+            XCTAssertEqual($0.localizedDescription, "Level Two needs Plugin API Level 8, but this version of Spinnet "
+                + "supports up to Level 7. Update Spinnet to install it.")
         }
     }
 
@@ -140,7 +140,7 @@ final class PluginAPILevelTwoTests: XCTestCase {
                                             "event", "state"])
         XCTAssertEqual(Set(levelTwo.keys), Set(levelOne.keys).union(["api_level"]))
         XCTAssertEqual(levelTwo["api_level"], .number(2))
-        XCTAssertEqual(levelOne["environment"], .object(["api_level": .number(6), "host_version": .string("1.0"),
+        XCTAssertEqual(levelOne["environment"], .object(["api_level": .number(7), "host_version": .string("1.0"),
                                                          "preferred_language": .string("en")]))
     }
 

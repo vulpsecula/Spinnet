@@ -428,3 +428,5 @@ is retired. Level 2 keeps its existing Reviewed App Interface.
 Plugin API [Level 5](reference/level-5.md) adds typed Homebrew handoff to Terminal. [Manifest schema](schemas/manifest-level-5.schema.json) · [types](spinnet-level-5.d.ts).
 
 Plugin API [Level 6](reference/level-6.md) adds native command output inside Plugin Views, including read-only command text, bounded Task transcripts and literal monospaced output. [Manifest schema](schemas/manifest-level-6.schema.json) · [types](spinnet-level-6.d.ts).
+
+Plugin API [Level 7](reference/level-7.md) adds separately scoped automatic Homebrew catalog refresh before browsing. [Manifest schema](schemas/manifest-level-7.schema.json) · [types](spinnet-level-7.d.ts).

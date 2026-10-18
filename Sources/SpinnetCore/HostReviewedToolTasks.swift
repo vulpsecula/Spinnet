@@ -209,7 +209,7 @@ public final class HostReviewedToolTasks {
                 if case .array(let warnings)? = package.value(atPointer: "/link_preview/warnings") { disclosure += "\nHomebrew diagnostics:\n" + warnings.compactMap { if case .string(let warning) = $0 { return warning }; return nil }.joined(separator: "\n") }
                 disclosure += " Changed links, sources or diagnostics require a new confirmation."
             }
-            if input.operation == "update" { disclosure = "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied." }
+            if ["update", "refreshCatalog"].contains(input.operation) { disclosure = "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied." }
             if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
             if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
             if case .string(let language)? = input.fields["language"] { disclosure += " Reinstalls the App with language \(language)." }
@@ -905,7 +905,7 @@ public final class HostReviewedToolTasks {
         if input.operation == "autoremove" {
             return try HomebrewReadProfile(executable: { executable }).read(.object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")]), owner: PluginID("host-task-preflight"), timeout: 15, cancellation: cancellation)
         }
-        if ["tap", "untap", "trust", "untrust", "cleanup", "update"].contains(input.operation) { return .object([:]) }
+        if ["tap", "untap", "trust", "untrust", "cleanup", "update", "refreshCatalog"].contains(input.operation) { return .object([:]) }
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
         if input.operation.hasPrefix("service") {
             let current = try HomebrewReadProfile.executeCancellable(executable, ["services", "list", "--json"], HomebrewReadProfile.environment, Date().addingTimeInterval(15), cancellation)

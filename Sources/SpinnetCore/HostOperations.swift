@@ -137,6 +137,7 @@ public struct RequestedHostOperation: Equatable, Hashable {
         }
         let input = members["input"] ?? .null
         try HomebrewAutoremove.check(input, service: perform, permits: permits)
+        if perform == ReviewedToolTasksAddition.id { try HomebrewCatalogRefresh.check(input, permits: permits) }
         try Self.checkInput(input, of: definition)
         self.init(perform: perform, input: input, id: id, closesView: closesView, notify: try flag("notify"))
     }

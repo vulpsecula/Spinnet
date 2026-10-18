@@ -108,6 +108,6 @@ final class HomebrewCommandOutputTests: XCTestCase {
         XCTAssertNil(HomebrewCommandOutput.activity(activity, manifest: old).value(atPointer: "/output"))
         XCTAssertEqual(HomebrewCommandOutput.activity(activity, manifest: current), activity)
         let candidateHost = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels.filter { $0.key <= 5 }, candidates: [HomebrewCommandOutput.contract])
-        XCTAssertEqual(try candidateHost.promoting(HomebrewCommandOutput.declaration.name, toLevel: 6).levels, PluginInterfaceContracts.host.levels)
+        XCTAssertEqual(try candidateHost.promoting(HomebrewCommandOutput.declaration.name, toLevel: 6).levels, PluginInterfaceContracts.host.levels.filter { $0.key <= 6 })
     }
 }

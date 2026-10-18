@@ -309,10 +309,12 @@ public struct PluginScriptAnswer: Equatable {
     public init(parsing value: JSONValue, answering event: PluginViewEvent?,
                 permits: (PluginInterfaceMember) -> Bool) throws {
         try self.init(parsing: value, permits: permits)
-        if operation?.perform == ReviewedToolTasksAddition.id, event?.isReviewedTaskGesture != true {
+        let catalogRefresh = HomebrewCatalogRefresh.isRefresh(operation) && permits(HomebrewCatalogRefresh.member)
+        if catalogRefresh && !HomebrewCatalogRefresh.permitsStart(event) { throw Self.violation("starts a catalog refresh from a background event") }
+        if operation?.perform == ReviewedToolTasksAddition.id, !catalogRefresh, event?.isReviewedTaskGesture != true {
             throw Self.violation("starts a reviewed Task without a choice in a Plugin Page")
         }
-        if operation != nil, let event, !event.isGesture {
+        if operation != nil, !catalogRefresh, let event, !event.isGesture {
             throw Self.violation("to \(event.typeName) requests an operation; only an answer to a gesture may")
         }
     }

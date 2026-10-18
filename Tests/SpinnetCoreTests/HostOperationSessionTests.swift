@@ -455,6 +455,25 @@ final class HostOperationSessionTests: XCTestCase {
         XCTAssertEqual(performer.performed.count, 0)
     }
 
+    func testCatalogRefreshEntryExceptionCommitsOnlyForTheDeclaredInterface() throws {
+        let value: JSONValue = .object(["page": .object(["id": .string("catalog"), "title": .string("Catalog"), "content": .array([
+            .object(["kind": .string("text"), "id": .string("status"), "text": .string("Updating…")])])]),
+            "operation": RequestedHostOperation(perform: "tools.startTask", input: .object(["tool": .string("homebrew"), "operation": .string("refreshCatalog")])).json])
+        for optedIn in [false, true] {
+            setUp()
+            sessions = PluginViewSessions(renderer: renderer, runEvent: runner.run, schedule: clock.schedule, showFeedback: { _ in },
+                permitting: { _ in { member in member != HomebrewCatalogRefresh.member || optedIn } }, operations: performer)
+            if optedIn {
+                XCTAssertTrue(try sessions.actionAnswered(Self.action(), with: value))
+                XCTAssertEqual(performer.performed.count, 1)
+                XCTAssertEqual(performer.performed.first?.operation.input.value(atPointer: "/operation"), .string("refreshCatalog"))
+            } else {
+                XCTAssertThrowsError(try sessions.actionAnswered(Self.action(), with: value))
+                XCTAssertTrue(performer.performed.isEmpty)
+            }
+        }
+    }
+
     // MARK: - Support
 
     private static let pluginID = PluginID("com.example.operations")

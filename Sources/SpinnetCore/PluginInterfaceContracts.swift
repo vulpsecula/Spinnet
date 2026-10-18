@@ -264,13 +264,13 @@ public struct PluginInterfaceContracts: Equatable {
         CandidateContractRevision(name: CollectionsContract.name, revision: 2), CollectionsContract.declaration
     ]
 
-    /// This Host provides stable Levels 1–6. Proved candidate revisions
+    /// This Host provides stable Levels 1–7. Proved candidate revisions
     /// retired into Level 3 are refused with the stable migration message.
     public static let host = PluginInterfaceContracts(
-        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member], 5: [TerminalHomebrew.member], 6: [HomebrewCommandOutput.member]],
+        levels: [1: levelOneMembers, 2: levelTwoMembers, 3: levelThreeMembers, 4: [LiveActivityDelivery.member], 5: [TerminalHomebrew.member], 6: [HomebrewCommandOutput.member], 7: [HomebrewCatalogRefresh.member]],
         candidates: retiredIntoLevelTwo.map { CandidateContract.retired($0, promotedToLevel: 2) }
             + retiredIntoLevelThree.map { CandidateContract.retired($0, promotedToLevel: 3) }
-            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4), CandidateContract.retired(TerminalHomebrew.declaration, promotedToLevel: 5), CandidateContract.retired(HomebrewCommandOutput.declaration, promotedToLevel: 6)]
+            + [CandidateContract.retired(LiveActivityDelivery.declaration, promotedToLevel: 4), CandidateContract.retired(TerminalHomebrew.declaration, promotedToLevel: 5), CandidateContract.retired(HomebrewCommandOutput.declaration, promotedToLevel: 6), CandidateContract.retired(HomebrewCatalogRefresh.declaration, promotedToLevel: 7)]
     )
 
     /// Proved additions required by the Bundled Plugins (#96–98). Earlier

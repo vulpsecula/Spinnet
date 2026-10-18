@@ -36,7 +36,10 @@ public final class ReviewedTaskOperationPerformer {
               let package = registry.package(for: action.pluginID) else {
             return completion(.init(.refused(.commandUnavailable), message: "The Task owner was not current when accepted"))
         }
-        do { try HomebrewAutoremove.check(input.json, service: ReviewedToolTasksAddition.id, manifest: package.manifest) }
+        do {
+            try HomebrewAutoremove.check(input.json, service: ReviewedToolTasksAddition.id, manifest: package.manifest)
+            try HomebrewCatalogRefresh.check(input.json, manifest: package.manifest)
+        }
         catch { return completion(.refusal(error)) }
         let operationGeneration = generations[action.pluginID, default: 0]
         let currentAuthority = { [self] in
@@ -55,7 +58,23 @@ public final class ReviewedTaskOperationPerformer {
                         self.tasks.decline(plan); completion(.init(.cancelled)); return
                     }
                     do { try currentAuthority() } catch { self.tasks.decline(plan); completion(.refusal(error)); return }
-                    self.present(plan, for: action, generation: operationGeneration, authorize: currentAuthority, completion: completion)
+                    if input.operation == HomebrewCatalogRefresh.operation {
+                        // The distinct refreshCatalog scope is the user's
+                        // consent for automatic entry updates. It never admits
+                        // a package change or accepts caller-supplied flags.
+                        self.background {
+                            do {
+                                _ = try self.tasks.launch(plan, authorize: currentAuthority)
+                                self.executor { completion(.init(.succeeded)) }
+                            } catch {
+                                self.executor {
+                                    completion(self.generations[action.pluginID, default: 0] == operationGeneration ? .refusal(error) : .init(.cancelled))
+                                }
+                            }
+                        }
+                    } else {
+                        self.present(plan, for: action, generation: operationGeneration, authorize: currentAuthority, completion: completion)
+                    }
                 }
             } catch { self.executor { completion(.refusal(error)) } }
         }

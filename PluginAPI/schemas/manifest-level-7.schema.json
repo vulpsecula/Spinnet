@@ -1,0 +1,814 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spinnet Plugin API Level 7 manifest",
+  "description": "Plugin API Level 7 adds separately scoped automatic Homebrew catalog refresh. Earlier Levels retain their contracts.",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "api_level",
+    "id",
+    "name",
+    "version",
+    "commands"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "description": "Frames the messages between the Host and the Plugin's helper. It says nothing about which Host features the Plugin needs; api_level does.",
+      "const": "1.0"
+    },
+    "api_level": {
+      "const": 7
+    },
+    "id": {
+      "description": "The Plugin's identity, stable across versions, such as com.example.plugin.",
+      "$ref": "#/$defs/text"
+    },
+    "name": {
+      "$ref": "#/$defs/text"
+    },
+    "version": {
+      "$ref": "#/$defs/text"
+    },
+    "capabilities": {
+      "description": "The protected Host functionality the Plugin may request. A declaration is not a grant: the user decides each one.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "uniqueItems": true
+    },
+    "optional_capabilities": {
+      "description": "Declared Capabilities whose denial does not stop a JavaScript Command from starting.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "uniqueItems": true
+    },
+    "capability_scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capabilityScope"
+      }
+    },
+    "settings_fields": {
+      "description": "Plugin Settings: fields shared by every Menu Item made from this Plugin.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "default_settings": {
+      "description": "Starting values for settings_fields, keyed by field key.",
+      "type": "object"
+    },
+    "preset": {
+      "$ref": "#/$defs/preset"
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1
+    },
+    "migrations": {
+      "$ref": "#/$defs/migrations"
+    },
+    "external_app_connections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "bundle_id",
+          "command_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "bundle_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "command_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "api_level": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "#/$defs/command"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "api_level": {
+            "maximum": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/$defs/levelOneCapability"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "api_level": {
+            "minimum": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "namespaces.schema.json#/$defs/command"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "text": {
+      "description": "Display or identity text: not blank, at most 256 characters.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "\\S"
+    },
+    "capability": {
+      "enum": [
+        "read_selected_text",
+        "write_clipboard",
+        "read_current_clipboard",
+        "read_clipboard_history",
+        "monitor_clipboard",
+        "contact_https",
+        "control_external_app",
+        "position_focused_window",
+        "open_url",
+        "open_local_path",
+        "capture_screen",
+        "insert_into_focused_app",
+        "read_frontmost_app",
+        "quit_frontmost_app",
+        "keep_awake",
+        "read_reviewed_tools",
+        "run_reviewed_tool_tasks",
+        "read_system_status"
+      ]
+    },
+    "levelOneCapability": {
+      "description": "The Capabilities a Plugin API Level 1 manifest may declare; read_frontmost_app and quit_frontmost_app are Level 2's (#83).",
+      "enum": [
+        "read_selected_text",
+        "write_clipboard",
+        "read_current_clipboard",
+        "read_clipboard_history",
+        "monitor_clipboard",
+        "contact_https",
+        "control_external_app",
+        "position_focused_window",
+        "open_url",
+        "open_local_path",
+        "capture_screen",
+        "insert_into_focused_app"
+      ]
+    },
+    "capabilityScope": {
+      "description": "Concrete disclosure for one declared Capability. Every member is required; use empty arrays for those that do not apply.",
+      "type": "object",
+      "required": [
+        "capability",
+        "command_ids",
+        "data_types",
+        "includes_existing_host_data",
+        "https_hosts",
+        "external_apps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reviewed_tools": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "command-output.schema.json#/$defs/reviewedToolScope"
+          }
+        },
+        "capability": {
+          "$ref": "#/$defs/capability"
+        },
+        "command_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "data_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includes_existing_host_data": {
+          "type": "boolean"
+        },
+        "https_hosts": {
+          "description": "Exact host names, without a scheme, path, port, credentials, or wildcard.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^\\s/:@*?#]+$"
+          }
+        },
+        "external_apps": {
+          "description": "The External Apps a control_external_app scope reaches. Each names operation_families, deep_link_templates, or both; the Host requires at least one.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "bundle_id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "bundle_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "description": "The application's name, shown in consent and in the guidance when it is not installed. Required with deep_link_templates.",
+                "$ref": "#/$defs/text"
+              },
+              "operation_families": {
+                "description": "Families of operations from the Host's Reviewed App Interface for this application, which a script sends with the perform_app_operation Host Service. An application without a Reviewed App Interface has none.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              },
+              "deep_link_templates": {
+                "description": "Links into the application's own URL scheme. A script opens one with the open_deep_link Host Service; a Command opens one with the deep_link.open Host Command. The Host opens a link only in this application, without bringing it forward. Changing a template asks for consent again.",
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/deepLinkTemplate"
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "preset": {
+      "description": "The Plugin's single Library entry.",
+      "type": "object",
+      "required": [
+        "readiness",
+        "is_configurable"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "readiness": {
+          "enum": [
+            "ready_to_use",
+            "setup_required"
+          ]
+        },
+        "is_configurable": {
+          "type": "boolean"
+        },
+        "default_primary_command_id": {
+          "$ref": "#/$defs/text"
+        },
+        "default_alternate_command_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "uniqueItems": true
+        },
+        "default_inputs": {
+          "description": "Starting Action inputs, keyed by Command ID.",
+          "type": "object"
+        }
+      }
+    },
+    "command": {
+      "description": "A Level 1 manifest's Command. A Level 2 manifest's Commands are namespaces.schema.json's command.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "execution"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "description": {
+          "description": "One sentence saying what the Command does.",
+          "$ref": "#/$defs/text"
+        },
+        "execution": {
+          "enum": [
+            "host",
+            "javascript"
+          ]
+        },
+        "is_configurable": {
+          "type": "boolean"
+        },
+        "host_command": {
+          "$ref": "#/$defs/hostCommand"
+        },
+        "script": {
+          "$ref": "#/$defs/scriptPath"
+        },
+        "configuration_field": {
+          "$ref": "#/$defs/field"
+        },
+        "configuration_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "deep_link_template": {
+          "description": "The ID of the Deep Link Template a deep_link.open Command opens. It must be declared in the control_external_app scope that covers this Command; each of its parameters is filled from the configuration field with the same key.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "execution"
+            ],
+            "properties": {
+              "execution": {
+                "const": "host"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "script": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "execution"
+            ],
+            "properties": {
+              "execution": {
+                "const": "javascript"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "script"
+            ],
+            "properties": {
+              "host_command": false,
+              "deep_link_template": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "host_command"
+            ],
+            "properties": {
+              "host_command": {
+                "const": "deep_link.open"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "deep_link_template"
+            ]
+          }
+        }
+      ]
+    },
+    "deepLinkTemplate": {
+      "description": "A link into an External App's URL scheme: a fixed scheme, host and path, with {key} placeholders after the host for the declared parameters. http, https, file and other web schemes are refused; they have their own Host Services.",
+      "type": "object",
+      "required": [
+        "id",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique across the scope; how a Command or a script names the template.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:\\S+$"
+        },
+        "parameters": {
+          "description": "One per placeholder, each used exactly once.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deepLinkParameter"
+          }
+        }
+      }
+    },
+    "deepLinkParameter": {
+      "description": "A bounded value for one placeholder: one of the choices, which are written into the link as they are, or text of at most max_length characters (at most 2048), which is percent-encoded.",
+      "type": "object",
+      "required": [
+        "key",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "kind": {
+          "enum": [
+            "choice",
+            "text"
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9._~-]+$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "choice"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices"
+            ],
+            "properties": {
+              "max_length": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "max_length"
+            ],
+            "properties": {
+              "choices": false
+            }
+          }
+        }
+      ]
+    },
+    "hostCommand": {
+      "description": "A declarative operation the Host performs itself.",
+      "enum": [
+        "url.open",
+        "application.open",
+        "file.open",
+        "folder.open",
+        "keyboard_shortcut.invoke",
+        "service.invoke",
+        "shortcut.invoke",
+        "clipboard.copy",
+        "clipboard.paste",
+        "clipboard.cut",
+        "feedback.present",
+        "screen.capture_area",
+        "screen.capture_full_screen",
+        "screen.capture_window",
+        "deep_link.open"
+      ]
+    },
+    "migrations": {
+      "description": "How data an earlier version of the Plugin left behind maps onto this one, applied whenever the Host registers or updates the Plugin. It may rename Commands, rename settings keys, and drop an Action's input, and nothing else: a migration never grants a Capability. The Host also checks that each step moves something this version no longer declares onto something it does, and that drop_input names only Commands that are not configurable.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rename_commands": {
+          "description": "Retired Command IDs, each mapped to the declared Command its Actions move onto. Actions keep their IDs.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "rename_settings": {
+          "description": "Retired settings keys, each mapped to the declared key its stored value moves to. A value already stored under the new key wins.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "\\S"
+          }
+        },
+        "drop_input": {
+          "description": "Declared Commands that take no input; their Actions drop whatever an earlier version stored.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "scriptPath": {
+      "description": "A path relative to the package root that does not leave it.",
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^(?!/)(?!.*\\\\)(?!(?:.*/)?\\.\\.?(?:/|$))\\S"
+    },
+    "field": {
+      "description": "One Host-rendered field. key is needed inside configuration_fields and settings_fields; overridable and group only inside settings_fields; used_when only inside a field set; columns and max_rows only on a list.",
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/fieldKind"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "placeholder": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "uniqueItems": true
+        },
+        "choice_titles": {
+          "description": "What to show for each choice, in the same order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S"
+        },
+        "used_when": {
+          "description": "Another choice field in the same set, and the choices of it that use this field.",
+          "type": "object",
+          "required": [
+            "key",
+            "values"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "overridable": {
+          "type": "boolean"
+        },
+        "group": {
+          "type": "string"
+        },
+        "columns": {
+          "description": "The typed columns of a list; each row holds one string per column.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listColumn"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "max_rows": {
+          "description": "The most rows a list may hold; 100 when absent.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "choice",
+                  "ordered_choices"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices"
+            ],
+            "properties": {
+              "choices": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "list"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "columns"
+            ]
+          }
+        }
+      ]
+    },
+    "listColumn": {
+      "description": "One column of a list. A text cell is one non-blank line of at most max_length characters (256 when absent); a url_template cell is an https address holding {query} exactly once, in its path or query.",
+      "type": "object",
+      "required": [
+        "key",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "url_template"
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "placeholder": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "unique": {
+          "description": "No two rows hold the same cell in this column, ignoring surrounding whitespace.",
+          "type": "boolean"
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "max_length"
+            ]
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "text"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "fieldKind": {
+      "enum": [
+        "text",
+        "multiline_text",
+        "toggle",
+        "choice",
+        "application",
+        "file",
+        "folder",
+        "shortcut",
+        "keyboard_shortcut",
+        "url",
+        "size",
+        "position",
+        "credential",
+        "https_endpoint",
+        "ordered_choices",
+        "list"
+      ]
+    }
+  }
+}

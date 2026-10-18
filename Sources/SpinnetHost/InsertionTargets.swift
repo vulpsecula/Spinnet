@@ -241,6 +241,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
             guard let broker = broker() else { throw PluginHostServiceError.unavailable("Host Services") }
             if operation.perform == ReviewedToolTasksAddition.id {
                 try HomebrewAutoremove.check(operation.input, service: operation.perform, manifest: package.manifest)
+                try HomebrewCatalogRefresh.check(operation.input, manifest: package.manifest)
             }
             try broker.authorize(definition, for: package, action: action)
             if operation.perform == ReviewedToolTasksAddition.id { try HomebrewTaskInput(operation.input).authorize(in: package.manifest.scope(for: .runReviewedToolTasks)) }

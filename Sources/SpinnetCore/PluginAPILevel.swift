@@ -11,7 +11,7 @@ public enum PluginAPILevel {
     /// Level 3 promotes the proved adaptive viewport, Spotify controls,
     /// External App connections and Homebrew autoremove contracts (#96–98).
     /// Level 4 opts into one-second local activity source delivery.
-    public static let highestSupported = 6
+    public static let highestSupported = 7
 
     /// The level of a manifest written before `api_level` existed. Such a
     /// manifest was written against the interface Level 1 grew out of, so

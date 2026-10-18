@@ -1,0 +1,16 @@
+{
+  "name": "homebrew_catalog_refresh",
+  "revision": 1,
+  "base_level": 6,
+  "requires": [],
+  "conflicts": [],
+  "members": [
+    {
+      "kind": "behaviour",
+      "name": "homebrew_catalog_refresh"
+    }
+  ],
+  "tag": "plugin-api-candidate/homebrew_catalog_refresh/r1",
+  "status": "retired",
+  "promoted_to_level": 7
+}
