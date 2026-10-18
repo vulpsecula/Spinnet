@@ -358,6 +358,16 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
                           return true
                       }
                   })
+        if let listCell = cell as? PageListCell {
+            let toggles = item == nil ? [] : model.menu(at: position).filter { $0.action.toggle != nil }
+            listCell.showToggles(toggles) { [weak model] action in
+                // A reused cell's control is only authority for the item and
+                // action it still displays. The Plugin owns the resulting mark.
+                guard model?.item(at: position)?.id == item?.id,
+                      model?.menu(at: position).contains(where: { $0.action == action }) == true else { return }
+                model?.choose(action, at: position)
+            }
+        }
     }
 
     // MARK: Pointer
@@ -650,7 +660,37 @@ final class PageGridCell: PageCell {
     }
 }
 
-/// A list row: leading symbol, title and subtitle, trailing accessory.
+/// A toggle's native control. AppKit briefly flips a switch before invoking
+/// its action; restore the displayed value until the Plugin answers, including
+/// when it refuses the change. The control never performs the row's default.
+private final class PageItemToggleButton: NSButton {
+    private let displayedState: NSControl.StateValue
+    private let choose: () -> Void
+
+    init(entry: PluginPageModel.MenuEntry, choose: @escaping () -> Void) {
+        displayedState = entry.isChecked ? .on : .off
+        self.choose = choose
+        super.init(frame: .zero)
+        setButtonType(.switch)
+        title = ""
+        controlSize = .small
+        state = displayedState
+        toolTip = entry.title
+        setAccessibilityLabel(entry.title)
+        target = self
+        action = #selector(chosen(_:))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func chosen(_ sender: NSButton) {
+        state = displayedState
+        choose()
+    }
+}
+
+/// A list row: leading toggle controls, symbol, title and subtitle, accessory.
 final class PageListCell: PageCell {
     static let identifier = NSUserInterfaceItemIdentifier("PageListCell")
     private let symbol = PageCellLabel(labelWithString: "")
@@ -659,6 +699,7 @@ final class PageListCell: PageCell {
     private let titleField = PageCellLabel(labelWithString: "")
     private let subtitle = PageCellLabel(labelWithString: "")
     private let accessory = PageCellLabel(labelWithString: "")
+    private let toggles = NSStackView()
 
     override func loadView() {
         super.loadView()
@@ -677,7 +718,10 @@ final class PageListCell: PageCell {
         text.spacing = 1
         icon.symbolConfiguration = NSImage.SymbolConfiguration(textStyle: .body)
         icon.setAccessibilityElement(false)
-        let row = NSStackView(views: [symbol, icon, text, accessory])
+        toggles.orientation = .horizontal
+        toggles.spacing = 4
+        toggles.setContentHuggingPriority(.required, for: .horizontal)
+        let row = NSStackView(views: [toggles, symbol, icon, text, accessory])
         row.orientation = .horizontal
         row.spacing = 8
         row.alignment = .centerY
@@ -694,6 +738,19 @@ final class PageListCell: PageCell {
             symbol.widthAnchor.constraint(equalToConstant: 22),
             icon.widthAnchor.constraint(equalToConstant: 22)
         ])
+    }
+
+    func showToggles(_ entries: [PluginPageModel.MenuEntry], choose: @escaping (PluginPageItemAction) -> Void) {
+        for control in toggles.arrangedSubviews {
+            toggles.removeArrangedSubview(control)
+            control.removeFromSuperview()
+        }
+        for entry in entries {
+            toggles.addArrangedSubview(PageItemToggleButton(entry: entry) { choose(entry.action) })
+        }
+        toggles.isHidden = entries.isEmpty
+        view.setAccessibilityRole(entries.isEmpty ? .button : .group)
+        view.setAccessibilityChildren(entries.isEmpty ? nil : toggles.arrangedSubviews)
     }
 
     override func show(_ item: PluginPageItem?, isSelected: Bool, isFocused: Bool, label text: String,

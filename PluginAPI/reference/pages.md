@@ -217,6 +217,11 @@ item's new marks, and refuses as it likes (a toast, no change). An item may
 carry only marks its collection's toggle actions name; two toggle actions of
 one collection toggle different marks, and a toggle performs nothing.
 
+A List also shows each offered toggle as a leading checkbox. Clicking it
+delivers the same item action, independently of the row's current selection
+or default action. Its checked value changes only when the Plugin answers
+with updated marks. A row that does not offer the toggle has no checkbox.
+
 ## Outcomes of page and item actions
 
 A page action or item action the Host performs may set `notify: true`. Once

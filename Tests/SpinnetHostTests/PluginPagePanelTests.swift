@@ -307,6 +307,59 @@ final class PluginPagePanelTests: XCTestCase {
                        ["Insert", "Copy", "Favourite, checked"])
     }
 
+    private func toggleList(marked: Set<Int> = [], pinned: Bool = false) -> JSONValue {
+        let items: [JSONValue] = (0..<3).map { position in
+            .object(["id": .string("i\(position)"), "title": .string("package \(position)"),
+                     "marks": .array(marked.contains(position) ? [.string("included")] : []),
+                     "actions": .array(position == 2 && pinned ? [.string("upgrade")] : [.string("upgrade"), .string("include")])])
+        }
+        return .object(["id": .string("search"), "title": .string("Upgrades"), "content": .array([
+            .object(["kind": .string("list"), "id": .string("results"), "rows": .number(3), "items": .array(items),
+                     "actions": .array([
+                        .object(["id": .string("upgrade"), "title": .string("Upgrade"), "default": .bool(true)]),
+                        .object(["id": .string("include"), "title": .string("Include in Upgrade"), "toggle": .string("included")])])])])])
+    }
+
+    private func checkboxes(in view: NSView) -> [NSButton] {
+        (view as? NSButton).map { [$0] } ?? view.subviews.flatMap { checkboxes(in: $0) }
+    }
+
+    func testListCheckboxesToggleIndependentRowsWithoutPerformingTheirDefaultAction() throws {
+        try show(toggleList(marked: [0], pinned: true))
+        let first = try XCTUnwrap(cell(at: 0)), second = try XCTUnwrap(cell(at: 1))
+        let firstToggle = try XCTUnwrap(checkboxes(in: first).first)
+        let secondToggle = try XCTUnwrap(checkboxes(in: second).first)
+        XCTAssertEqual(firstToggle.state, .on); XCTAssertEqual(secondToggle.state, .off)
+        XCTAssertEqual(firstToggle.accessibilityLabel(), "Include in Upgrade")
+        XCTAssertTrue(checkboxes(in: try XCTUnwrap(cell(at: 2))).isEmpty)
+        let point = firstToggle.convert(NSPoint(x: firstToggle.bounds.midX, y: firstToggle.bounds.midY), to: panel.contentView!)
+        XCTAssertTrue(panel.contentView?.hitTest(point) is NSButton, "The leading checkbox must receive pointer input")
+        firstToggle.performClick(nil)
+        guard case .itemAction(_, _, "include", let oldFirst, _)? = harness.events.last?.event else { return XCTFail("Checkbox did not send include") }
+        XCTAssertEqual(oldFirst.id, "i0"); XCTAssertEqual(oldFirst.marks, ["included"])
+        XCTAssertEqual(firstToggle.state, .on, "Only the Plugin answer may change the displayed mark")
+        try harness.answer(toggleList(marked: [], pinned: true)); settle()
+        XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off)
+        let currentSecond = try XCTUnwrap(checkboxes(in: XCTUnwrap(cell(at: 1))).first)
+        currentSecond.performClick(nil)
+        guard case .itemAction(_, _, "include", let oldSecond, _)? = harness.events.last?.event else { return XCTFail("Second row did not send include") }
+        XCTAssertEqual(oldSecond.id, "i1"); XCTAssertTrue(oldSecond.marks.isEmpty)
+        try harness.answer(toggleList(marked: [1], pinned: true)); settle()
+        XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off)
+        XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 1))).first?.state, .on)
+        let refused = try XCTUnwrap(checkboxes(in: XCTUnwrap(cell(at: 0))).first)
+        refused.performClick(nil)
+        try harness.answer(toggleList(marked: [1], pinned: true)); settle()
+        XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off,
+                       "A Plugin refusal must leave the checkbox unchanged")
+        XCTAssertTrue(harness.performer.performed.isEmpty)
+        XCTAssertTrue(harness.events.allSatisfy { if case .itemAction(_, _, "include", _, _) = $0.event { return true }; return false })
+        try harness.answer(toggleList(marked: [1], pinned: true)); settle()
+        let reused = try XCTUnwrap(try collectionView.item(at: IndexPath(item: 0, section: 0)) as? PageListCell)
+        try collectionView.configure(reused, at: 2)
+        XCTAssertTrue(checkboxes(in: reused.view).isEmpty, "Reused pinned rows must not retain an old checkbox")
+    }
+
     /// The panel takes the height the collection asks for, and a reset
     /// answer writes the field while an answer to typing does not.
     func testTheFieldIsWrittenOnlyWhenReset() throws {
