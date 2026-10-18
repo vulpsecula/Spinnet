@@ -263,7 +263,7 @@ struct FetchedAnswer: Equatable {
             switch error {
             case .externalAppMissing(let message), .externalAppOperationUnsupported(let message),
                  .invalidInput(let message), .unavailable(let message), .failed(let message),
-                 .storageLimitExceeded(let message):
+                 .storageLimitExceeded(let message), .toolReadFailed(let message):
                 return message
             case .capabilityDenied, .capabilityScopeDenied, .systemPermissionDenied, .automationPermissionDenied, .insertion, .tool, .appRead:
                 return error.description

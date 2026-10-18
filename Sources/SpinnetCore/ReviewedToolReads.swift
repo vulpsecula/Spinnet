@@ -196,11 +196,13 @@ public final class HomebrewReadProfile {
             guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
             try stillAuthorized()
             guard output.stdout.count <= ReviewedToolReads.stdoutBytes, output.stderr.count <= ReviewedToolReads.stderrBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
-            guard output.status == 0 || (output.status == 1 && ["search", "info"].contains(request.operation)) else { throw PluginHostServiceError.tool(.failed) }
+            guard output.status == 0 || (output.status == 1 && ["search", "info"].contains(request.operation)) else {
+                throw request.operation == "search" ? Self.searchFailure(output) : PluginHostServiceError.tool(.failed)
+            }
             if request.operation == "search" {
                 if output.status == 1 {
                     let diagnostic = Self.noMatchDiagnostic(output.stderr, executable: executable)
-                    guard output.stdout.isEmpty, diagnostic == "Error: No formulae or casks found for \"\(request.query!)\"." else { throw PluginHostServiceError.tool(.failed) }
+                    guard output.stdout.isEmpty, diagnostic == "Error: No formulae or casks found for \"\(request.query!)\"." else { throw Self.searchFailure(output) }
                     continue
                 }
                 for line in String(decoding: output.stdout, as: UTF8.self).split(whereSeparator: \.isWhitespace) where Self.validReturnedName(String(line)) {
@@ -355,6 +357,15 @@ public final class HomebrewReadProfile {
         }
         result.merge(HomebrewPackageMetadata.project(raw, kind: kind, name: name, prefix: prefix, includeConfiguration: includeConfiguration)) { _, new in new }
         return .object(result)
+    }
+    private static func searchFailure(_ output: HomebrewReadOutput) -> PluginHostServiceError {
+        // Redact before shortening: truncating a credential-bearing URL first
+        // could discard the delimiter that identifies its secret portion.
+        let redacted = HomebrewTaskLog.redact(String(decoding: output.stderr, as: UTF8.self))
+        let log = HomebrewTaskLog(); log.append(Data(String(redacted.prefix(4096)).utf8)); log.finish()
+        let detail = log.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = "Homebrew search failed (exit \(output.status))." + (detail.isEmpty ? "" : "\n" + detail)
+        return .toolReadFailed(String(message.prefix(HostRunSourceAddition.maximumFailureMessage)))
     }
     /// macOS Bash 3.2 uses the system temporary directory for here-strings,
     /// ignoring TMPDIR. Homebrew 3073d6a's curl ETag probe calls numeric twice,

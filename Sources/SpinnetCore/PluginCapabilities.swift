@@ -679,6 +679,8 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// failed because of its target.
     case insertion(InsertionFailure)
     case tool(ReviewedToolFailure)
+    /// Native reviewed-read failure detail, already bounded and sanitized.
+    case toolReadFailed(String)
     case appRead(ReviewedAppReadFailure)
 
     public var description: String {
@@ -705,6 +707,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return message
         case .appRead(let failure): return failure.message
         case .tool(let failure): return failure.message
+        case .toolReadFailed(let message): return message
         case .insertion(let failure):
             return failure.message
         }
@@ -730,6 +733,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .storageLimitExceeded
         case .appRead(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
         case .tool(let failure): return PluginRuntimeFailureCategory(rawValue: failure.rawValue)!
+        case .toolReadFailed: return .toolFailed
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
@@ -749,7 +753,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
             return .externalAppOperationUnsupported
         case .invalidInput, .unavailable, .failed, .storageLimitExceeded:
             return .hostServiceFailed
-        case .tool, .appRead: return .hostServiceFailed
+        case .tool, .toolReadFailed, .appRead: return .hostServiceFailed
         case .insertion(let failure):
             return failure.reason == .targetChanged ? .insertionTargetChanged : .hostServiceFailed
         }
