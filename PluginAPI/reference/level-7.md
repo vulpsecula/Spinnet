@@ -12,6 +12,11 @@ allows automatic catalog updates without a per-Task Host Confirmation. An old
 `update` grant does not authorize this operation. The legacy explicit `update`
 Task and every package mutation retain their confirmation rules at every Level.
 
+For this operation only, the page commits before Capability authorization.
+The performer checks authorization before any work; a refusal is delivered as
+the operation outcome so the Plugin can offer local browsing. This does not
+authorize a Task or change pre-commit refusal for other operations.
+
 An Action's start, an explicit `called` event, or a foreground Plugin Page gesture
 (including a navigation field change) may request this operation. Background
 sources, timers, settings changes, range loads and operation results cannot start

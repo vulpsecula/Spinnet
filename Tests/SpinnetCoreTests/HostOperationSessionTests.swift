@@ -474,6 +474,27 @@ final class HostOperationSessionTests: XCTestCase {
         }
     }
 
+    func testCatalogConsentRefusalKeepsItsPageAndDeliversTheFallbackOutcome() throws {
+        for fromPage in [false, true] {
+            setUp()
+            sessions = PluginViewSessions(renderer: renderer, runEvent: runner.run, schedule: clock.schedule, showFeedback: { _ in },
+                permitting: { _ in { _ in true } }, operations: performer)
+            performer.refusal = .capabilityDenied(.runReviewedToolTasks)
+            let operation = RequestedHostOperation(perform: "tools.startTask", input: .object(["tool": .string("homebrew"), "operation": .string("refreshCatalog")]), id: "catalog", notify: true)
+            let answer: JSONValue = .object(["page": .object(["id": .string("catalog"), "title": .string("Catalog"), "content": .array([
+                .object(["kind": .string("text"), "id": .string("status"), "text": .string("Updating…")])])]), "operation": operation.json])
+            if fromPage {
+                let session = try start()
+                session.send(.called, insertionTarget: .notShown)
+                runner.runs[0].finish(.succeeded(answer))
+            } else { XCTAssertTrue(try sessions.actionAnswered(Self.action(), with: answer)) }
+            XCTAssertEqual(performer.performed.count, 1, "Authorization belongs to the performer for catalog refresh only")
+            performer.finish(0, .refused(.capabilityDenied))
+            XCTAssertEqual(sessions.session(for: Self.pluginID)?.page?.id, "catalog")
+            XCTAssertEqual(runner.runs.last?.delivery.event, .operationFinished(id: "catalog", perform: "tools.startTask", outcome: .refused(.capabilityDenied)))
+        }
+    }
+
     // MARK: - Support
 
     private static let pluginID = PluginID("com.example.operations")

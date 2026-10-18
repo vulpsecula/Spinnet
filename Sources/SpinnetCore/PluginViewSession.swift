@@ -522,14 +522,16 @@ public final class PluginViewSession {
                 return
             }
             if let operation = answer.operation {
-                // A refused Capability or System Permission refuses the whole
-                // answer, as a refused Host Service refuses an invocation:
-                // the last good view and state stay, and nothing is requested.
+                // Other operations refuse the whole answer before commit if
+                // their Capability or System Permission is refused.
                 do {
                     guard let operations else {
                         throw PluginHostServiceError.unavailable("This Host performs no Requested Host Operations")
                     }
-                    try operations.authorize(operation, for: action)
+                    // Catalog refresh is optional to browsing. Its performer
+                    // checks consent before work and reports refusal to this
+                    // page so the user can choose the local catalog.
+                    if !HomebrewCatalogRefresh.isRefresh(operation) { try operations.authorize(operation, for: action) }
                 } catch {
                     let refusal = error as? PluginHostServiceError ?? .failed(error.localizedDescription)
                     self.error = ActionFailure(pluginID: action.pluginID, actionID: action.id,
@@ -849,8 +851,8 @@ public final class PluginViewSessions {
     /// An answer that requests an operation commits it with the view it
     /// shows, if any, which then owns it. Nothing was shown where text would
     /// go when the Action started, so an insertion it requests is refused.
-    /// A refused Capability or System Permission refuses the whole answer:
-    /// this throws the `PluginHostServiceError`, and nothing is shown.
+    /// A refused Capability or System Permission refuses the whole answer,
+    /// except catalog refresh whose refusal is delivered to its browsing page.
     @discardableResult
     public func actionAnswered(_ action: ActionConfiguration, with value: JSONValue) throws -> Bool {
         let permits = permitting(action)
@@ -861,7 +863,7 @@ public final class PluginViewSessions {
                 throw PluginHostServiceError.unavailable("This Host performs no Requested Host Operations")
             }
             if let view = answer.view { try readView(action, view) }
-            try operations.authorize(operation, for: action)
+            if !HomebrewCatalogRefresh.isRefresh(operation) { try operations.authorize(operation, for: action) }
         }
         let existing = sessions[action.pluginID]
         if let view = answer.description {
