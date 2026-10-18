@@ -224,7 +224,7 @@
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "command-output.schema.json#/$defs/reviewedToolScope"
+            "$ref": "catalog-refresh.schema.json#/$defs/reviewedToolScope"
           }
         },
         "capability": {

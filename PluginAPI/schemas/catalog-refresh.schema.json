@@ -14,5 +14,84 @@
     "operation": {
       "const": "refreshCatalog"
     }
+  },
+  "$defs": {
+    "reviewedToolScope": {
+      "type": "object",
+      "required": [
+        "tool",
+        "operations",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "const": "homebrew"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "installed",
+              "outdated",
+              "search",
+              "info",
+              "install",
+              "upgrade",
+              "upgradeSelected",
+              "upgradeAll",
+              "uninstall",
+              "pin",
+              "unpin",
+              "link",
+              "unlink",
+              "adopt",
+              "tap",
+              "untap",
+              "trust",
+              "untrust",
+              "serviceStart",
+              "serviceStop",
+              "serviceRestart",
+              "cleanup",
+              "doctorFix",
+              "version",
+              "taps",
+              "services",
+              "vulnerabilities",
+              "vulnerabilityDetail",
+              "doctor",
+              "previewInstall",
+              "previewUpgrade",
+              "previewUpgradeAll",
+              "adoptionCandidates",
+              "adoptionPreview",
+              "packageAnalytics",
+              "changeLanguage",
+              "update",
+              "previewLink",
+              "previewUnlink",
+              "autoremove",
+              "previewAutoremove",
+              "commandOutput",
+              "refreshCatalog"
+            ]
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "formula",
+              "cask"
+            ]
+          }
+        }
+      }
+    }
   }
 }
