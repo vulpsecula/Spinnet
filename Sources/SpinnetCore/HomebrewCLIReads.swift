@@ -22,7 +22,16 @@ extension HomebrewReadProfile {
             try HomebrewBootstrapOptions.validate(executable: executable, environment: environment,
                                                   deadline: deadline, cancellation: cancellation)
         }
-        return try executeBounded(executable, arguments, environment, deadline, cancellation,
-                                  stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: true)
+        guard ["info", "outdated", "search", "list", "tap", "tap-info", "trust", "services"].contains(command) else {
+            return try executeBounded(executable, arguments, environment, deadline, cancellation,
+                                      stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: true)
+        }
+        let cache = try HomebrewReadCache(environment: environment, deadline: deadline, cancellation: cancellation)
+        var isolatedEnvironment = environment
+        isolatedEnvironment["HOMEBREW_CACHE"] = cache.directory.path
+        return try withExtendedLifetime(cache) {
+            try executeBounded(executable, arguments, isolatedEnvironment, deadline, cancellation,
+                               stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: true, writableCache: cache.directory)
+        }
     }
 }

@@ -35,7 +35,15 @@ final class HomebrewReadBootstrapNativeTests: XCTestCase {
     }
     func testNativeSelectedOutdatedCasksCanReachUpgradePreflight() throws {
         try requireNativeProbe()
-        let brew = try HomebrewReadProfile.discover(), profile = HomebrewReadProfile()
+        let brew = try HomebrewReadProfile.discover()
+        let profile = HomebrewReadProfile(executable: { brew }, execute: { executable, arguments, environment, deadline in
+            let output = try HomebrewReadProfile.executeReadCancellable(executable, arguments, environment, deadline, .init())
+            if output.status != 0 && !(arguments.first == "outdated" && output.status == 1) {
+                let log = HomebrewTaskLog(); log.append(output.stderr); log.finish()
+                XCTFail("Selected-cask read \(arguments) exited \(output.status): \(log.output.prefix(1600))")
+            }
+            return output
+        })
         let outdated = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("outdated"), "kind": .string("cask")]), owner: .init("selected-casks-native"), timeout: 15)
         guard case .array(let packages)? = outdated.value(atPointer: "/packages") else { return XCTFail("Missing cask list") }
         let names = Array(packages.compactMap { $0.value(atPointer: "/name") }.prefix(50))

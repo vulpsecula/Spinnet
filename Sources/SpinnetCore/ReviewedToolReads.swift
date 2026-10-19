@@ -431,7 +431,7 @@ public final class HomebrewReadProfile {
         let cap = arguments.first == "--files" ? 16 * 1024 * 1024 : 4 * 1024 * 1024
         return try executeBounded(URL(fileURLWithPath: "/usr/sbin/pkgutil"), arguments, ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"], deadline, .init(), stdoutLimit: cap, readOnly: true)
     }
-    static func readOnlySandbox(executable: URL) -> String {
+    static func readOnlySandbox(executable: URL, writableCache: URL? = nil) -> String {
         var profile = "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))"
         if executable.lastPathComponent == "brew" {
             // Apple Bash 3.2 ignores TMPDIR for here-documents. Its initial
@@ -440,14 +440,18 @@ public final class HomebrewReadProfile {
             // arbitrary /tmp contents. Persistent paths remain write-denied.
             profile += #"(allow file-write-data (literal "/private/tmp"))(allow file-write-data file-write-unlink (regex #"^/private/tmp/sh-thd-[0-9]+$"))(allow file-write-create (require-all (regex #"^/private/tmp/sh-thd-[0-9]+$") (vnode-type REGULAR-FILE)))"#
         }
+        if let writableCache {
+            let path = writableCache.path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            profile += "(allow file-write* (subpath \"\(path)\"))"
+        }
         return profile
     }
     static func executeBounded(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
-        _ cancellation: HostFetchedSections.Cancellation, stdoutLimit: Int, readOnly: Bool) throws -> HomebrewReadOutput {
+        _ cancellation: HostFetchedSections.Cancellation, stdoutLimit: Int, readOnly: Bool, writableCache: URL? = nil) throws -> HomebrewReadOutput {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
-        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? Self.readOnlySandbox(executable: executable) : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
+        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? Self.readOnlySandbox(executable: executable, writableCache: writableCache) : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
         let launcher = "/usr/bin/sandbox-exec"
         let sandboxArguments = ["-p", sandbox, executable.path] + arguments
         var out: [Int32] = [0, 0], err: [Int32] = [0, 0]

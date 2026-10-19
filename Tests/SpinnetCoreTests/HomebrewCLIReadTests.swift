@@ -68,6 +68,71 @@ final class HomebrewCLIReadTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
     }
 
+    func testMetadataReadCanRebuildMissingIndexesWithoutChangingTheOriginalCache() throws {
+        let executable = try fixture("""
+        /bin/cat "$HOMEBREW_CACHE/api/catalog.json" || exit 65
+        printf 'rebuilt' > "$HOMEBREW_CACHE/api/cask_names.txt" || exit 66
+        printf 'changed' > "$0.mutated" 2>/dev/null && exit 67
+        printf '\\n%s' "$HOMEBREW_CACHE" >&2
+        """)
+        let root = executable.deletingLastPathComponent().deletingLastPathComponent()
+        let cache = root.appendingPathComponent("cache")
+        try FileManager.default.createDirectory(at: cache.appendingPathComponent("api"), withIntermediateDirectories: true)
+        let catalog = Data(#"{"formulae":[],"casks":[]}"#.utf8)
+        try catalog.write(to: cache.appendingPathComponent("api/catalog.json"))
+        var environment = HomebrewReadProfile.environment
+        environment["HOMEBREW_CACHE"] = cache.path
+        let output = try HomebrewReadProfile.executeReadCancellable(executable, ["info", "--json=v2", "--cask", "--", "example"], environment, Date().addingTimeInterval(3), .init())
+        XCTAssertEqual(output.status, 0, String(decoding: output.stderr, as: UTF8.self))
+        XCTAssertEqual(output.stdout, catalog)
+        XCTAssertEqual(try Data(contentsOf: cache.appendingPathComponent("api/catalog.json")), catalog)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.appendingPathComponent("api/cask_names.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: executable.appendingPathExtension("mutated").path))
+        let temporaryCache = String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(temporaryCache.contains("spinnet-brew-read-"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temporaryCache), "The isolated cache must be removed after the child exits")
+    }
+
+    func testTemporaryCacheCannotBeUsedToWriteThroughLinksToPersistentFiles() throws {
+        let executable = try fixture("""
+        /bin/ln -s "$0" "$HOMEBREW_CACHE/escape" || exit 65
+        printf 'changed' > "$HOMEBREW_CACHE/escape" 2>/dev/null && exit 66
+        /bin/ln "$0" "$HOMEBREW_CACHE/hardlink" 2>/dev/null && exit 67
+        exit 0
+        """)
+        let original = try Data(contentsOf: executable)
+        let output = try HomebrewReadProfile.executeReadCancellable(executable, ["info", "--json=v2", "--cask", "--", "example"], HomebrewReadProfile.environment, Date().addingTimeInterval(3), .init())
+        XCTAssertEqual(output.status, 0, String(decoding: output.stderr, as: UTF8.self))
+        XCTAssertEqual(try Data(contentsOf: executable), original)
+    }
+
+    func testCacheSnapshotRejectsLinksSpecialFilesAndOversizedInput() throws {
+        let executable = try fixture("exit 0")
+        let root = executable.deletingLastPathComponent().deletingLastPathComponent()
+        let cache = root.appendingPathComponent("cache"), api = cache.appendingPathComponent("api")
+        try FileManager.default.createDirectory(at: api, withIntermediateDirectories: true)
+        let file = api.appendingPathComponent("untrusted")
+        var environment = HomebrewReadProfile.environment
+        environment["HOMEBREW_CACHE"] = cache.path
+        func rejected() {
+            XCTAssertThrowsError(try HomebrewReadCache(environment: environment, deadline: Date().addingTimeInterval(3), cancellation: .init()))
+        }
+        try FileManager.default.createSymbolicLink(at: file, withDestinationURL: executable)
+        rejected()
+        try FileManager.default.removeItem(at: file)
+        XCTAssertEqual(mkfifo(file.path, 0o600), 0)
+        rejected()
+        try FileManager.default.removeItem(at: file)
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.truncate(atOffset: 256 * 1024 * 1024 + 1)
+        try handle.close()
+        rejected()
+        let cancelled = HostFetchedSections.Cancellation(); cancelled.cancel()
+        XCTAssertThrowsError(try HomebrewReadCache(environment: environment, deadline: Date().addingTimeInterval(3), cancellation: cancelled))
+        XCTAssertThrowsError(try HomebrewReadCache(environment: environment, deadline: .distantPast, cancellation: .init()))
+    }
+
     func testUnknownJSONMembersAreCompatibleButBrokenPackageListsAreNotEmptySuccess() throws {
         var body = #"{"formulae":[],"casks":[],"new_field":{"anything":true}}"#
         var status: Int32 = 0

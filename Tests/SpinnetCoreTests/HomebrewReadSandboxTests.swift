@@ -3,10 +3,10 @@ import Darwin
 @testable import SpinnetCore
 
 final class HomebrewReadSandboxTests: XCTestCase {
-    private func run(_ arguments: [String], executable: String = "/opt/homebrew/bin/brew") throws -> (Int32, String, String) {
+    private func run(_ arguments: [String], executable: String = "/opt/homebrew/bin/brew", writableCache: URL? = nil) throws -> (Int32, String, String) {
         let process = Process(), output = Pipe(), error = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
-        process.arguments = ["-p", HomebrewReadProfile.readOnlySandbox(executable: URL(fileURLWithPath: executable)), "/bin/bash", "-p", "-c"] + arguments
+        process.arguments = ["-p", HomebrewReadProfile.readOnlySandbox(executable: URL(fileURLWithPath: executable), writableCache: writableCache), "/bin/bash", "-p", "-c"] + arguments
         process.standardOutput = output; process.standardError = error
         try process.run(); process.waitUntilExit()
         return (process.terminationStatus, String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self), String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
@@ -50,5 +50,9 @@ final class HomebrewReadSandboxTests: XCTestCase {
         let result = try run(["/usr/bin/nc -vz -w 1 127.0.0.1 \"$1\"", "probe", String(UInt16(bigEndian: address.sin_port))])
         XCTAssertNotEqual(result.0, 0)
         XCTAssertTrue(result.2.contains("Operation not permitted"))
+        let cache = try HomebrewReadCache(environment: ["HOME": "/nonexistent-spinnet-read-fixture"], deadline: Date().addingTimeInterval(3), cancellation: .init())
+        let isolated = try run(["/usr/bin/nc -vz -w 1 127.0.0.1 \"$1\"", "probe", String(UInt16(bigEndian: address.sin_port))], writableCache: cache.directory)
+        XCTAssertNotEqual(isolated.0, 0)
+        XCTAssertTrue(isolated.2.contains("Operation not permitted"), "Writable temporary cache must not enable network access")
     }
 }
