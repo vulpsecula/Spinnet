@@ -718,6 +718,21 @@ extension ReviewedToolTaskTests {
 }
 
 extension ReviewedToolTaskTests {
+    func testEmptyAutoremovePreparationReportsNoWorkAndNeverCreatesATask() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: .init(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["available": .bool(true), "succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(true), "packages": .array([])])
+            }, trustedTaps: { [] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("autoremove")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("empty-autoremove"), pluginName: "Homebrew")) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .toolReadFailed("No unused Homebrew dependencies to remove. No Task was started."))
+        }
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    }
+
     func testAutoremoveRequiresGlobalFormulaScopeAndFreshConcreteHostConfirmation() throws {
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("autoremove")]))
         XCTAssertEqual(input.arguments, ["autoremove"])
@@ -740,7 +755,7 @@ extension ReviewedToolTaskTests {
         XCTAssertTrue(plan.confirmation.details?.summary.contains("1 installed formula") == true)
         XCTAssertTrue(plan.confirmation.message.contains("Stopping does not undo"))
         preview = .object(["available": .bool(true), "succeeded": .bool(true), "complete": .bool(true), "no_op": .bool(true), "packages": .array([])])
-        XCTAssertThrowsError(try host.launch(plan))
+        XCTAssertThrowsError(try host.launch(plan)) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged)) }
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path), "A changed preview must never create a Task journal or launch a runner")
         XCTAssertThrowsError(try host.prepare(input, owner: .init("management"), pluginName: "Homebrew"), "A no-op cannot start a mutating Task")
     }

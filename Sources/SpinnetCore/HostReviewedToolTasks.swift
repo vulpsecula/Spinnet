@@ -188,7 +188,7 @@ public final class HostReviewedToolTasks {
             guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
             preparation.advance("checking package source trust")
             try checkSource(package)
-            try Self.checkOptions(input, package: package, prefix: HomebrewManagementReads.prefix(of: executable))
+            try Self.checkOptions(input, package: package, prefix: HomebrewManagementReads.prefix(of: executable), preparing: true)
             let resolved = try resolvedInput(resolvedTarget, package: package)
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
             try authorize()
@@ -873,11 +873,15 @@ public final class HostReviewedToolTasks {
         return result
     }
     private static func text(_ value: JSONValue, _ key: String) -> String { if case .string(let text)? = value.value(atPointer: "/" + key) { return text }; return "" }
-    private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue, prefix: URL) throws {
+    private static func checkOptions(_ input: HomebrewTaskInput, package: JSONValue, prefix: URL, preparing: Bool = false) throws {
         if input.operation == "autoremove" {
             guard package.value(atPointer: "/available") == .bool(true), package.value(atPointer: "/succeeded") == .bool(true),
-                  package.value(atPointer: "/complete") == .bool(true), package.value(atPointer: "/no_op") == .bool(false),
-                  case .array(let packages)? = package.value(atPointer: "/packages"), (1...2000).contains(packages.count),
+                  package.value(atPointer: "/complete") == .bool(true),
+                  case .array(let packages)? = package.value(atPointer: "/packages") else { throw PluginHostServiceError.tool(.planChanged) }
+            if preparing, packages.isEmpty, package.value(atPointer: "/no_op") == .bool(true) {
+                throw PluginHostServiceError.toolReadFailed("No unused Homebrew dependencies to remove. No Task was started.")
+            }
+            guard package.value(atPointer: "/no_op") == .bool(false), (1...2000).contains(packages.count),
                   packages.allSatisfy({ record in
                       guard record.value(atPointer: "/kind") == .string("formula"), case .string(let name)? = record.value(atPointer: "/name") else { return false }
                       return HomebrewTaskInput.validPackageName(name)
