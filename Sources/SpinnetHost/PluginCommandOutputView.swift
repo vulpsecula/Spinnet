@@ -5,6 +5,7 @@ import SwiftUI
 /// and scroll position when a one-second source supplies another output frame.
 struct PluginCommandOutputView: NSViewRepresentable {
     let text: String
+    private static var outputFont: NSFont { .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular) }
 
     func makeNSView(context: Context) -> NSScrollView {
         Self.makeOutputView()
@@ -13,11 +14,14 @@ struct PluginCommandOutputView: NSViewRepresentable {
     static func makeOutputView() -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+        // Keep overflow discoverable even with a mouse and no scroll gesture.
+        scroll.scrollerStyle = .legacy
         scroll.autohidesScrollers = true; scroll.borderType = .lineBorder
         let view = NSTextView(frame: scroll.contentView.bounds)
         view.isEditable = false; view.isSelectable = true; view.isRichText = false
         view.isAutomaticLinkDetectionEnabled = false
-        view.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        view.font = outputFont
+        view.usesFontPanel = false
         view.textColor = .textColor; view.backgroundColor = .textBackgroundColor
         view.textContainerInset = NSSize(width: 8, height: 8)
         view.isVerticallyResizable = true; view.isHorizontallyResizable = true
@@ -34,19 +38,25 @@ struct PluginCommandOutputView: NSViewRepresentable {
     }
 
     static func updateOutput(_ text: String, in scroll: NSScrollView) {
-        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
+        guard let view = scroll.documentView as? NSTextView else { return }
         let selection = view.selectedRange(), origin = scroll.contentView.bounds.origin
         let followsTail = selection.length == 0 && (view.string.isEmpty || scroll.documentVisibleRect.maxY >= view.bounds.maxY - 8)
-        view.string = text
-        view.layoutManager?.ensureLayout(for: view.textContainer!)
+        if view.string != text {
+            view.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: [.font: outputFont, .foregroundColor: NSColor.textColor]))
+        }
+        if let container = view.textContainer { view.layoutManager?.ensureLayout(for: container) }
         if let container = view.textContainer, let layout = view.layoutManager {
             let used = layout.usedRect(for: container)
             view.setFrameSize(NSSize(width: max(scroll.contentSize.width, used.maxX + 16), height: max(scroll.contentSize.height, used.maxY + 16)))
         }
         view.setSelectedRange(NSRange(location: min(selection.location, view.string.utf16.count), length: min(selection.length, max(0, view.string.utf16.count - selection.location))))
-        if followsTail { view.scrollRangeToVisible(NSRange(location: view.string.utf16.count, length: 0)) }
-        else {
-            scroll.contentView.scroll(to: origin); scroll.reflectScrolledClipView(scroll.contentView)
-        }
+        // Follow new rows vertically; scrolling the insertion point into view
+        // also jumps horizontally to the end of a long progress bar.
+        let maximumX = max(0, view.frame.width - scroll.contentSize.width)
+        let maximumY = max(0, view.frame.height - scroll.contentSize.height)
+        let target = NSPoint(x: min(max(0, origin.x), maximumX),
+            y: followsTail ? maximumY : min(max(0, origin.y), maximumY))
+        scroll.contentView.scroll(to: target)
+        scroll.reflectScrolledClipView(scroll.contentView)
     }
 }

@@ -105,11 +105,13 @@ public enum HomebrewNoCheckSnapshot {
         // An orphan or changed cache is never silently discarded and fetched again.
         guard file >= 0 else { throw PluginHostServiceError.tool(.planChanged) }; defer { close(file) }
         do {
+            let downloadStarted = ProcessInfo.processInfo.systemUptime
             try fetch(source, file, maximumBytes, deadline.date, isCancelled)
             try check(deadline, isCancelled)
             guard fsync(file) == 0, fchmod(file, 0o400) == 0, lseek(file, 0, SEEK_SET) == 0 else { throw PluginHostServiceError.tool(.failed) }
             try privateFile(file, maximum: maximumBytes)
             let frozen = try hash(file, deadline: deadline, isCancelled: isCancelled)
+            ReviewedTaskPreparationDiagnostics.downloadFinished(bytes: frozen.count, started: downloadStarted)
             guard publishedSHA256 == nil || frozen.sha256 == publishedSHA256 else { throw PluginHostServiceError.tool(.planChanged) }
             let bytes = try encoder.encode(Receipt(identity: identity, sha256: frozen.sha256, byteCount: frozen.count))
             let receipt = openat(stage, receiptName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)

@@ -4,6 +4,26 @@ import XCTest
 import SpinnetCore
 
 final class HomebrewTaskProgressTests: XCTestCase {
+    func testTerminalOffersTwoHundredColumnsForUntruncatedProgressAndKeepsInputClosed() throws {
+        let ended = expectation(description: "terminal geometry probe reaped")
+        let lock = NSLock()
+        var output = Data()
+        let process = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", """
+            /bin/stty size <&1
+            printf 'columns=%s\\n' "$COLUMNS"
+            if test -t 0; then printf 'unexpected interactive input\\n'; fi
+            """], environment: HomebrewReadProfile.environment, outputPolicy: .terminal)
+        try process.start(output: { bytes in lock.lock(); output.append(bytes); lock.unlock() }, finished: { result in
+            XCTAssertEqual(result.outcome, "completed"); ended.fulfill()
+        })
+        wait(for: [ended], timeout: 5)
+        lock.lock(); defer { lock.unlock() }
+        let text = String(decoding: output, as: UTF8.self)
+        XCTAssertTrue(text.contains("24 200"), text)
+        XCTAssertTrue(text.contains("columns=200"), text)
+        XCTAssertFalse(text.contains("unexpected interactive input"))
+    }
+
     func testTerminalOutputSupportsHomebrewsActualDownloadRenderer() throws {
         let executable: URL
         do { executable = try HomebrewReadProfile.discover() }

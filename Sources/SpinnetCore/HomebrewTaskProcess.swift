@@ -36,7 +36,10 @@ public final class HomebrewTaskProcess {
         var outputEnvironment = environment
         // The output-only PTY supports cursor redraws. `dumb` suppresses
         // Homebrew's download renderer even when both output streams are TTYs.
-        if outputPolicy == .terminal { outputEnvironment["TERM"] = "xterm-256color" }
+        if outputPolicy == .terminal {
+            outputEnvironment["TERM"] = "xterm-256color"
+            outputEnvironment["COLUMNS"] = "200"
+        }
         self.environment = outputEnvironment
         self.interruptGrace = interruptGrace; self.terminateGrace = terminateGrace
         self.standardInput = standardInput; self.inputPolicy = inputPolicy
@@ -88,7 +91,7 @@ public final class HomebrewTaskProcess {
             // A fixed width keeps vendor progress within the published line
             // bound. Only stdout/stderr use the slave; stdin remains EOF or
             // the separately bounded native input, never a terminal session.
-            var size = winsize(ws_row: 24, ws_col: 100, ws_xpixel: 0, ws_ypixel: 0)
+            var size = winsize(ws_row: 24, ws_col: 200, ws_xpixel: 0, ws_ypixel: 0)
             var master: Int32 = -1, slave: Int32 = -1
             guard openpty(&master, &slave, nil, nil, &size) == 0 else { throw PluginHostServiceError.tool(.failed) }
             descriptors = [master, slave]

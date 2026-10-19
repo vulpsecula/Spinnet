@@ -175,17 +175,17 @@ public final class HostReviewedToolTasks {
             package: .null, executable: URL(fileURLWithPath: "/"), confirmation: .init(title: "", message: "", confirmTitle: "", isDestructive: true), generation: generation)
         let cancellation = HostFetchedSections.Cancellation()
         pending = reservation; preparationID = id; pendingCancellation = cancellation; lock.unlock()
-        var preparationStage = "discovering Homebrew"
+        var preparation = ReviewedTaskPreparationDiagnostics()
         do {
             let executable = try self.executable()
-            preparationStage = "reading selected package metadata"
+            preparation.advance("reading selected package metadata")
             let (resolvedTarget, package) = try review(input, owner: owner, cancellation: cancellation)
             if let scope {
                 let concreteSteps = try steps(resolvedTarget, package: package)
                 for kind in concreteSteps.isEmpty ? [resolvedTarget.kind] : concreteSteps.map(\.kind) { try input.authorizeResolvedKind(kind, in: scope) }
             }
             guard try JSONEncoder().encode(package).count <= 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
-            preparationStage = "checking package source trust"
+            preparation.advance("checking package source trust")
             try checkSource(package)
             try Self.checkOptions(input, package: package, prefix: HomebrewManagementReads.prefix(of: executable))
             let resolved = try resolvedInput(resolvedTarget, package: package)
@@ -244,9 +244,9 @@ public final class HostReviewedToolTasks {
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
             if plan.needsPrivileges {
-                preparationStage = "inspecting native cask changes"
+                preparation.advance("inspecting native cask changes")
                 let bindings = try privilegeReview(resolved, package, executable, nil, cancellation)
-                preparationStage = "checking installed cask source evidence"
+                preparation.advance("checking installed cask source evidence")
                 try checkInstalledSources(bindings, package: package)
                 let nativeDetails = nativeInspection == nil ? bindings.flatMap { cask -> [String] in
                     (cask.installedTap.map { ["Installed source recorded locally for \(cask.name): \($0), version \(cask.uninstallVersion ?? cask.version). This records local history; native receipt/file ownership is checked independently."] } ?? [])
@@ -262,7 +262,7 @@ public final class HostReviewedToolTasks {
                             confirmTitle: previous.confirmation.confirmTitle, isDestructive: true), scope: previous.scope, steps: previous.steps, generation: previous.generation)
                 }
                 plan.privilegedCasks = bindings
-                preparationStage = "building the native confirmation"
+                preparation.advance("building the native confirmation")
                 if nativeInspection != nil, bindings.contains(where: { !($0.receipts ?? []).isEmpty }) {
                     let draft = try inspectionDraft(plan)
                     plan.nativeInspection = .init(draft: draft, reservation: nil, disclosure: nil)
@@ -286,12 +286,13 @@ public final class HostReviewedToolTasks {
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
-            pending = plan; preparationID = nil; return plan
+            pending = plan; preparationID = nil; preparation.finish(succeeded: true); return plan
         } catch {
+            preparation.finish(succeeded: false)
             lock.lock(); let held = pending?.id == id ? pending : nil; preparationID = nil; lock.unlock()
             if let held { decline(held) } else { cancellation.cancel() }
             if error as? PluginHostServiceError == .tool(.failed) {
-                throw PluginHostServiceError.toolReadFailed("Homebrew failed while \(preparationStage). No Task was started.")
+                throw PluginHostServiceError.toolReadFailed("Homebrew failed while \(preparation.stage). No Task was started.")
             }
             throw error
         }
