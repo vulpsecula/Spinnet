@@ -1,8 +1,31 @@
 import XCTest
-import SpinnetCore
+@testable import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
+    func testDownloadHashIsSecondaryWhileMissingPublisherChecksumStaysVisible() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let digest = String(repeating: "a", count: 64)
+        let snapshot = HomebrewNoCheckSnapshot.Result(fileURL: root.appendingPathComponent("frozen.archive"), sha256: digest,
+            sourceURL: URL(string: "https://example.com/App.dmg")!, byteCount: 12345,
+            sourceSHA256: digest, projectionSHA256: digest, configurationSHA256: digest)
+        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: digest, packages: [], downloadSnapshot: snapshot)
+        let host = HostReviewedToolTasks(activities: .init(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"),
+                    "installed_version": .string("1"), "version": .string("2"), "needs_privileges": .bool(true)])
+            }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [cask] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"), "kind": .string("cask"), "name": .string("example")]))
+        let plan = try host.prepare(input, owner: .init("download-review"), pluginName: "Homebrew")
+        defer { host.decline(plan) }
+        let details = try XCTUnwrap(plan.confirmation.details)
+        XCTAssertTrue(details.actionRows.contains { $0.title == "Upgrade example" && $0.detail.contains("1 → 2") })
+        XCTAssertTrue(details.actionRows.contains { $0.title.contains("no publisher checksum") })
+        XCTAssertFalse(details.actionRows.contains { $0.detail.contains(digest) })
+        XCTAssertTrue(details.verificationRows.contains { $0.detail.contains(digest) && $0.detail.contains(snapshot.sourceURL.absoluteString) })
+        XCTAssertEqual(plan.privilegedCasks.first?.downloadSnapshot, snapshot)
+    }
     func testOpaqueNativePreparationFailureNamesTheStageAndReleasesTheLane() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -116,9 +139,9 @@ final class ReviewedToolTaskTests: XCTestCase {
         XCTAssertFalse(final.requiresNativeInspection)
         XCTAssertEqual(transport.inspections, 1)
         let details = try XCTUnwrap(final.confirmation.details)
-        XCTAssertTrue(details.rows.contains { $0.detail.contains("/Library/Example/file") })
-        XCTAssertTrue(details.rows.contains { $0.detail.contains("/Library/Example/keep") && $0.title.contains("Retain") })
-        XCTAssertTrue(details.rows.contains { $0.detail.contains("org.example.receipt") && $0.title.contains("Forget") })
+        XCTAssertTrue(details.actionRows.contains { $0.detail.contains("/Library/Example/file") })
+        XCTAssertTrue(details.actionRows.contains { $0.detail.contains("/Library/Example/keep") && $0.title.contains("Retain") })
+        XCTAssertTrue(details.actionRows.contains { $0.detail.contains("org.example.receipt") && $0.title.contains("Forget") })
         XCTAssertEqual(transport.admissions, 0, "The second Host confirmation has not answered")
         _ = try host.launch(final)
         XCTAssertEqual(transport.admissions, 1)
@@ -140,10 +163,10 @@ final class ReviewedToolTaskTests: XCTestCase {
             let plan = try host.prepare(input, owner: .init("installer-review"), pluginName: "Homebrew")
             let details = try XCTUnwrap(plan.confirmation.details)
             if binding == native {
-                XCTAssertTrue(details.rows.contains { $0.detail.contains("Example.pkg") && $0.detail.contains("component") && $0.detail.contains("/Applications") && $0.detail.contains("allowUntrusted") })
-                XCTAssertTrue(details.rows.contains { $0.detail.contains("install.sh") && $0.detail.contains("--quiet") })
+                XCTAssertTrue(details.actionRows.contains { $0.detail.contains("Example.pkg") && $0.detail.contains("component") && $0.detail.contains("/Applications") && $0.detail.contains("allowUntrusted") })
+                XCTAssertTrue(details.actionRows.contains { $0.detail.contains("install.sh") && $0.detail.contains("--quiet") })
             } else {
-                XCTAssertTrue(details.rows.contains { $0.detail.contains("Installer.app") && $0.detail.contains("not verified installation") })
+                XCTAssertTrue(details.actionRows.contains { $0.detail.contains("Installer.app") && $0.detail.contains("not verified installation") })
                 XCTAssertFalse(plan.needsSystemAuthorization)
                 XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization is required"))
             }
@@ -201,10 +224,12 @@ final class ReviewedToolTaskTests: XCTestCase {
             "names": .array((0..<3).map { .string("alias\($0)") })]))
         let plan = try host.prepare(input, owner: .init("selected-native"), pluginName: "Homebrew")
         let details = try XCTUnwrap(plan.confirmation.details)
-        let rows = details.rows.filter { $0.id.hasPrefix("package-target/") }
+        let rows = details.actionRows.filter { $0.id.hasPrefix("package-target/") }
         XCTAssertEqual(rows.count, 3)
         for index in 0..<3 { XCTAssertTrue(rows.contains { $0.id == "package-target/cask/package\(index)" && $0.detail.contains("1 → 2") }) }
-        XCTAssertTrue(details.rows.contains { $0.detail.contains("New.pkg") })
+        XCTAssertTrue(details.actionRows.contains { $0.detail.contains("New.pkg") })
+        XCTAssertTrue(details.verificationRows.contains { $0.title.contains("installed history") })
+        XCTAssertFalse(details.summary.contains("0 receipts"))
         host.decline(plan)
     }
 
@@ -223,7 +248,7 @@ final class ReviewedToolTaskTests: XCTestCase {
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeAll")]))
         let plan = try host.prepare(input, owner: .init("all-upgrades"), pluginName: "Homebrew")
         let details = try XCTUnwrap(plan.confirmation.details)
-        let targetRows = details.rows.filter { $0.id.hasPrefix("package-target/") }
+        let targetRows = details.actionRows.filter { $0.id.hasPrefix("package-target/") }
         XCTAssertEqual(targetRows.count, 150)
         for index in 0..<150 {
             XCTAssertTrue(targetRows.contains { $0.title == "Upgrade package\(index)" && $0.detail.contains("1 → 2") })

@@ -35,6 +35,20 @@ final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
         XCTAssertEqual(try grant.load(owner: getuid(), deadline: Date().addingTimeInterval(2)), manifest)
         XCTAssertTrue(grant.valid); XCTAssertEqual(grant.phase, .uninstall)
         XCTAssertEqual(grant.entryCount, 0); XCTAssertEqual(grant.unmatchedCount, 1)
+        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: String(repeating: "a", count: 64), packages: [], launchServiceRemovals: [grant])
+        let host = HostReviewedToolTasks(activities: .init(), journal: root.appendingPathComponent("tasks"), runnerURL: URL(fileURLWithPath: "/missing"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"),
+                    "installed_version": .string("1"), "version": .string("2"), "needs_privileges": .bool(true)])
+            }, trustedTaps: { [] }, privilegeReview: { _, _, _ in [cask] })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"), "kind": .string("cask"), "name": .string("example")]))
+        let plan = try host.prepare(input, owner: .init("confirmation"), pluginName: "Homebrew")
+        let details = try XCTUnwrap(plan.confirmation.details)
+        XCTAssertEqual(details.actionRows.map(\.title), ["Upgrade example"], "Absent services must not appear as extra changes")
+        XCTAssertEqual(details.verificationRows.count, 1, "Installed history stays available in verification details")
+        XCTAssertFalse(details.rows.contains { $0.id.contains("/unmatched/") })
+        XCTAssertEqual(plan.privilegedCasks.first?.launchServiceRemovals, [grant], "Presentation must not change the execution grant")
+        host.decline(plan)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(grant)) as? [String: Any])
         object["bytesSHA256"] = String(repeating: "a", count: 64)
         let substituted = try JSONDecoder().decode(HomebrewNativeLaunchServiceGrant.self, from: JSONSerialization.data(withJSONObject: object))

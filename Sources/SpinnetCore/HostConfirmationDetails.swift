@@ -4,10 +4,14 @@ import Foundation
 /// Paging changes presentation only; no row is dropped from the confirmed plan.
 public struct HostConfirmationDetails: Equatable {
     public struct Row: Equatable, Identifiable {
+        public enum Presentation: Equatable { case action, verification }
         public let id: String
         public let title: String
         public let detail: String
-        public init(id: String, title: String, detail: String) { self.id = id; self.title = title; self.detail = detail }
+        public let presentation: Presentation
+        public init(id: String, title: String, detail: String, presentation: Presentation = .action) {
+            self.id = id; self.title = title; self.detail = detail; self.presentation = presentation
+        }
     }
     public static let pageSize = 100
     public static let maximumRows = 60_000
@@ -15,6 +19,8 @@ public struct HostConfirmationDetails: Equatable {
     public let title: String
     public let summary: String
     public let rows: [Row]
+    public let actionRows: [Row]
+    public let verificationRows: [Row]
     public var pageCount: Int { max(1, (rows.count + Self.pageSize - 1) / Self.pageSize) }
     public init(title: String, summary: String, rows: [Row], expectedRows: Int? = nil) throws {
         guard !title.isEmpty, title.utf8.count <= 256, summary.utf8.count <= 32 * 1024,
@@ -31,6 +37,8 @@ public struct HostConfirmationDetails: Equatable {
             bytes += size
         }
         self.title = title; self.summary = summary; self.rows = rows
+        self.actionRows = rows.filter { $0.presentation == .action }
+        self.verificationRows = rows.filter { $0.presentation == .verification }
     }
     public func rows(onPage page: Int) throws -> ArraySlice<Row> {
         guard page >= 0, page < pageCount else { throw PluginHostServiceError.tool(.planChanged) }

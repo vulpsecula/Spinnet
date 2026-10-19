@@ -39,14 +39,14 @@ enum HomebrewTaskNativeConfirmation {
         }
         var rows: [HostConfirmationDetails.Row] = []
         var totalBytes = 0
-        func add(_ id: String, _ title: String, _ detail: String) throws {
+        func add(_ id: String, _ title: String, _ detail: String, presentation: HostConfirmationDetails.Row.Presentation = .action) throws {
             guard !cancellation.isCancelled else { throw HomebrewNativeInspection.Failure.authorizationCancelled }
             let size = id.utf8.count + title.utf8.count + detail.utf8.count
             guard rows.count < HostConfirmationDetails.maximumRows, size <= HostConfirmationDetails.maximumBytes - totalBytes else {
                 throw PluginHostServiceError.tool(.outputTooLarge)
             }
             totalBytes += size
-            rows.append(.init(id: id, title: title, detail: detail))
+            rows.append(.init(id: id, title: title, detail: detail, presentation: presentation))
         }
         func scriptText(_ script: HomebrewPrivilegePlan.NativeScript) -> String {
             let args = script.arguments.enumerated().map { "Argument \($0.offset + 1): \($0.element)" }.joined(separator: "\n")
@@ -66,11 +66,11 @@ enum HomebrewTaskNativeConfirmation {
             let record = metadata.first { $0.value(atPointer: "/name") == .string(target.name) && $0.value(atPointer: "/kind") == .string(target.kind) }
             func value(_ field: String) -> String? { if case .string(let text)? = record?.value(atPointer: "/" + field) { return text }; return nil }
             let from = value("installed_version") ?? "not installed", to = value("version") ?? "unknown"
-            var description = "Kind: \(target.kind)\nVersion: \(from) → \(to)\nSource: \(value("tap") ?? "unknown")."
-            if case .array(let dependencies)? = record?.value(atPointer: "/dependencies") {
+            var description = "\(from) → \(to) · \(target.kind)\nSource: \(value("tap") ?? "unknown")"
+            if case .array(let dependencies)? = record?.value(atPointer: "/dependencies"), !dependencies.isEmpty {
                 description += "\nDeclared dependencies: " + dependencies.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: ", ")
             }
-            if case .array(let warnings)? = record?.value(atPointer: "/warnings") {
+            if case .array(let warnings)? = record?.value(atPointer: "/warnings"), !warnings.isEmpty {
                 description += "\nWarnings:\n" + warnings.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: "\n")
             }
             try add("package-target/" + target.kind + "/" + target.name, operation + " " + target.name, description)
@@ -96,13 +96,17 @@ enum HomebrewTaskNativeConfirmation {
             let manifest = try grant.load(owner: getuid(), deadline: deadline)
             for entry in manifest.entries { try add(id + "/target/" + entry.path, title, "\(entry.path)\nAction: \(entry.operation.rawValue).") }
             for retained in manifest.retainedDirectories { try add(id + "/retain/" + retained.path, "Retain nonempty directory", "\(retained.path)\n\(retained.reason)") }
-            for pattern in manifest.unmatchedPatterns { try add(id + "/unmatched/" + pattern, "Expression has no current match", pattern) }
+            // Unmatched patterns authorize no concrete change. The sealed grant
+            // still retains them for execution-time validation.
         }
         for (index, cask) in plan.privilegedCasks.enumerated() {
             let base = "cask/\(index)/\(cask.name)"
-            try add(base, "Selected package and installed history", "\(cask.name)\nVersion: \(cask.uninstallVersion ?? cask.version)\nInstalled source: \(cask.installedTap ?? "not installed"). Current source and configuration are rechecked before admission.")
-            if let proof = cask.sourceProof { try add(base + "/source", "Verified publisher source", "Homebrew's signed cask catalog was verified for \(cask.name). Languages: \(proof.configuration.languages.joined(separator: ", ")).\nApplication directory: \(proof.configuration.appDirectory.path).\nDownload: \(cask.downloadURL ?? "No new download")") }
-            if let snapshot = cask.downloadSnapshot { try add(base + "/snapshot", "Exact downloaded snapshot without publisher checksum", "\(snapshot.sourceURL.absoluteString)\n\(snapshot.byteCount) bytes. SHA-256: \(snapshot.sha256). This exact downloaded snapshot is used; no latest-download retry.") }
+            try add(base, "\(cask.name): installed history", "Version: \(cask.uninstallVersion ?? cask.version)\nInstalled source: \(cask.installedTap ?? "not installed"). Current source and configuration are rechecked before admission.", presentation: .verification)
+            if let proof = cask.sourceProof { try add(base + "/source", "\(cask.name): verified catalog source", "Homebrew's signed cask catalog was verified. Languages: \(proof.configuration.languages.joined(separator: ", ")).\nApplication directory: \(proof.configuration.appDirectory.path).\nDownload: \(cask.downloadURL ?? "No new download")", presentation: .verification) }
+            if let snapshot = cask.downloadSnapshot {
+                try add(base + "/checksum-warning", "\(cask.name): no publisher checksum", "Homebrew does not provide a publisher checksum for this download. Spinnet will use the exact downloaded copy verified during preparation.")
+                try add(base + "/snapshot", "\(cask.name): downloaded copy", "\(snapshot.sourceURL.absoluteString)\n\(snapshot.byteCount) bytes. SHA-256: \(snapshot.sha256). This exact downloaded snapshot is used; no latest-download retry.", presentation: .verification)
+            }
             for (i, package) in (cask.packageInstallers ?? []).enumerated() {
                 try add(base + "/package/\(i)", "Run native package installer with these exact choices", packageText(package))
             }
@@ -117,7 +121,7 @@ enum HomebrewTaskNativeConfirmation {
                     title: action.phase.rawValue.hasSuffix("Rmdir") ? "Remove only if empty" : "Remove related path; shared data may be deleted")
             }
             if let code = cask.removalCode {
-                try add(base + "/removal-source", "Verified immutable removal source", code.confirmationDetails)
+                try add(base + "/removal-source", "Verified immutable removal source", code.confirmationDetails, presentation: .verification)
                 for (i, action) in code.actions.enumerated() {
                     try add(base + "/removal/\(i)", "Execute reviewed removal action", scriptText(action.script) + (action.package.map { "\n" + packageText($0) } ?? ""))
                 }
@@ -133,7 +137,7 @@ enum HomebrewTaskNativeConfirmation {
                     let files = entry.plists.map { "\($0.removeFile ? "Remove" : "Retain") \($0.path.path)\nProgram: \($0.program)" }.joined(separator: "\n")
                     try add(key + "/entry/\(i)", "Remove reviewed launch service and its selected files", "Label: \(entry.label)\nDomain: \(entry.domain.target)\n" + files + "\nRetain domains: " + entry.retainedDomains.map(\.target).joined(separator: ", "))
                 }
-                for (i, unmatched) in manifest.unmatched.enumerated() { try add(key + "/unmatched/\(i)", "Launch-service expression has no match", "\(unmatched.pattern)") }
+                // No matching service means no stop or removal to disclose.
             }
             for (i, installer) in (cask.manualInstallers ?? []).enumerated() { try add(base + "/manual/\(i)", "Open native installer for manual completion", installer + "\nOpening is not verified installation; the Task reports manual completion required.") }
         }
@@ -143,6 +147,10 @@ enum HomebrewTaskNativeConfirmation {
                 try add("repair/\(index)", "Restore reviewed Homebrew directory ownership", text + "\nRestore this reviewed directory's root-owned entries to the requesting account; permissions are not changed.")
             }
         }
-        return try HostConfirmationDetails(title: "Complete Native Changes", summary: "\(disclosure.receipts.count) receipts; \(disclosure.targets.count) receipt-owned targets; \(disclosure.targetBytes) bytes. Every retained path and other selected native action is listed. Cancellation before admission changes no installed package; stopping admitted work never rolls back changes.", rows: rows)
+        var summary = "Review the selected packages and any additional changes below."
+        if !disclosure.receipts.isEmpty || !disclosure.targets.isEmpty {
+            summary += " Receipt cleanup: \(disclosure.receipts.count) receipts, \(disclosure.targets.count) paths (\(disclosure.targetBytes) bytes)."
+        }
+        return try HostConfirmationDetails(title: "Packages and Changes", summary: summary, rows: rows)
     }
 }
