@@ -3,6 +3,7 @@
 <plist version="1.0"><dict>
 <key>Label</key><string>com.vulpsecula.SpinnetHost.privileged-tools</string>
 <key>BundleProgram</key><string>Contents/Helpers/SpinnetPrivilegedToolHelper</string>
+<key>AssociatedBundleIdentifiers</key><array><string>com.vulpsecula.SpinnetHost.preview</string></array>
 <key>MachServices</key><dict>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.host</key><true/>
 <key>com.vulpsecula.SpinnetHost.reviewed-tools.runner</key><true/>

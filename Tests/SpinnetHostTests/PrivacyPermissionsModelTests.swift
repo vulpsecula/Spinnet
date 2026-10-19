@@ -96,6 +96,84 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertEqual(authorityChanges, 1)
     }
 
+    func testBackgroundAccessIsEnabledOnlyFromAnExplicitHostActionAndNeverGrantsPluginAccess() throws {
+        var state = HostBackgroundOperationsStatus.notEnabled
+        var requests = 0
+        let plugin = try manifest()
+        let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [plugin] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            backgroundOperationsCheck: { state }, backgroundOperationsEnable: {
+                requests += 1
+                state = .approvalRequired
+                throw PluginHostServiceError.unavailable("Allow Spinnet in macOS Login Items")
+            }, openBackgroundOperationsSettings: { XCTFail("The registration path owns its approval prompt") })
+        model.refreshSystemPermissionStatus()
+        XCTAssertEqual(model.backgroundOperationsStatus, .notEnabled)
+        XCTAssertEqual(requests, 0, "Opening and refreshing Host settings cannot register anything")
+        model.manageBackgroundOperations()
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(model.backgroundOperationsStatus, .approvalRequired)
+        XCTAssertNil(model.backgroundOperationsError, "Pending system approval is normal setup, not a Task failure")
+        XCTAssertTrue(model.capabilityGrants.allSatisfy { $0.decision == .notDetermined })
+        state = .enabled
+        model.refreshSystemPermissionStatus()
+        XCTAssertEqual(model.backgroundOperationsStatus, .enabled)
+        XCTAssertEqual(requests, 1, "Returning from System Settings only refreshes")
+        XCTAssertTrue(model.capabilityGrants.allSatisfy { $0.decision == .notDetermined })
+    }
+
+    func testPendingApprovalAndEnabledBackgroundAccessOpenHostSettingsWithoutReregistering() {
+        for state in [HostBackgroundOperationsStatus.approvalRequired, .enabled] {
+            var opened = 0
+            let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [] },
+                accessibilityPermissionCheck: { true }, defaults: defaults,
+                backgroundOperationsCheck: { state }, backgroundOperationsEnable: { XCTFail("Already registered") },
+                openBackgroundOperationsSettings: { opened += 1 })
+            model.manageBackgroundOperations()
+            XCTAssertEqual(opened, 1)
+            XCTAssertEqual(model.backgroundOperationsStatus, state)
+        }
+    }
+
+    func testFailedBackgroundSetupCanBeRetriedAndLiveStatePreventsDuplicateRegistration() {
+        var state = HostBackgroundOperationsStatus.notEnabled
+        var requests = 0, opened = 0
+        let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            backgroundOperationsCheck: { state }, backgroundOperationsEnable: {
+                requests += 1
+                if requests == 1 { throw PluginHostServiceError.unavailable("Registration failed") }
+                state = .enabled
+            }, openBackgroundOperationsSettings: { opened += 1 })
+        model.manageBackgroundOperations()
+        XCTAssertTrue(model.backgroundOperationsError?.contains("Registration failed") == true)
+        model.manageBackgroundOperations()
+        XCTAssertEqual(model.backgroundOperationsStatus, .enabled)
+        XCTAssertNil(model.backgroundOperationsError)
+        state = .notEnabled
+        model.refreshSystemPermissionStatus()
+        // A second window or macOS can change state after the last refresh.
+        state = .enabled
+        model.manageBackgroundOperations()
+        XCTAssertEqual(requests, 2)
+        XCTAssertEqual(opened, 0, "An already approved enable request just refreshes its status")
+    }
+
+    func testStaleStatusAndSettingsButtonsCannotBecomeAnEnableRequest() {
+        for displayed in [HostBackgroundOperationsStatus.enabled, .approvalRequired, .unavailable] {
+            var state = displayed
+            var opened = 0
+            let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [] },
+                accessibilityPermissionCheck: { true }, defaults: defaults,
+                backgroundOperationsCheck: { state }, backgroundOperationsEnable: { XCTFail("The user did not click Enable") },
+                openBackgroundOperationsSettings: { opened += 1 })
+            state = .notEnabled
+            model.manageBackgroundOperations()
+            XCTAssertEqual(model.backgroundOperationsStatus, .notEnabled)
+            XCTAssertEqual(opened, displayed == .unavailable ? 0 : 1)
+        }
+    }
+
     func testAllowingAnInstallGrantsTheAccessItAskedFor() throws {
         let m = try manifest(capabilities: [.readSelectedText, .writeClipboard])
         let model = makeModel(manifests: [m])

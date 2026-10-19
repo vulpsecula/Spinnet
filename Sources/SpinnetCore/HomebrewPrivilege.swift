@@ -343,25 +343,25 @@ public enum HomebrewSystemAuthorization {
             // macOS can report notFound before it has ever seen this service,
             // even when the signed app contains the complete daemon payload.
             guard bundledServiceExists else {
-                throw PluginHostServiceError.unavailable("Spinnet's reviewed tool helper is missing from this app bundle. Reinstall a complete signed Spinnet app; the Task has not started")
+                throw PluginHostServiceError.unavailable("Spinnet's background system operations are missing from this app bundle. Reinstall a complete signed Spinnet app; the Task has not started")
             }
             do { try register() }
             catch {
                 let failure = error as NSError
-                throw PluginHostServiceError.unavailable("macOS could not register Spinnet's reviewed tool helper (\(failure.domain) \(failure.code)): \(failure.localizedDescription). The Task has not started")
+                throw PluginHostServiceError.unavailable("macOS could not enable Spinnet's background system operations (\(failure.domain) \(failure.code)): \(failure.localizedDescription). The Task has not started")
             }
         }
         switch status() {
         case .enabled: return
         case .requiresApproval:
             openSettings()
-            throw PluginHostServiceError.unavailable("Enable Spinnet's reviewed tool helper in macOS Login Items before retrying; the Task has not started")
+            throw PluginHostServiceError.unavailable("Allow Spinnet under Background Activity in macOS Login Items & Extensions, then retry. You can manage this in Spinnet Settings > Privacy & Permissions. The Task has not started")
         case .notRegistered:
-            throw PluginHostServiceError.unavailable("macOS has not registered Spinnet's reviewed tool helper after the registration attempt; the Task has not started")
+            throw PluginHostServiceError.unavailable("macOS has not registered Spinnet for background system operations after the registration attempt; the Task has not started")
         case .notFound:
-            throw PluginHostServiceError.unavailable("macOS cannot find Spinnet's reviewed tool helper after the registration attempt; the Task has not started")
+            throw PluginHostServiceError.unavailable("macOS cannot find Spinnet's background system operations after the registration attempt; the Task has not started")
         @unknown default:
-            throw PluginHostServiceError.unavailable("macOS returned an unknown reviewed tool helper status; the Task has not started")
+            throw PluginHostServiceError.unavailable("macOS returned an unknown Spinnet background activity status; the Task has not started")
         }
     }
     /// The external form exists only in native memory and XPC; it never enters

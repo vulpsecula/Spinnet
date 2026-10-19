@@ -33,7 +33,7 @@ public enum HomebrewNativeInspectionAuthorization {
     public static func requireExistingService() throws {
         _ = try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.helperIdentifier)
         let service = SMAppService.daemon(plistName: HomebrewSystemAuthorization.helperIdentifier + ".plist")
-        guard service.status == .enabled else { throw PluginHostServiceError.unavailable("Authenticated read-only inspection requires Spinnet's already enabled reviewed tool helper; no helper was registered and no mutation started") }
+        guard service.status == .enabled else { throw PluginHostServiceError.unavailable("Enable Spinnet Background Operations in Spinnet Settings > Privacy & Permissions before retrying. Background access was not changed and no Task has started") }
     }
     public static func hostConnection() throws -> NSXPCConnection {
         let connection = NSXPCConnection(machServiceName: hostService, options: .privileged)

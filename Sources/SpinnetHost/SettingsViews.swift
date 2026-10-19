@@ -870,7 +870,10 @@ struct SettingsRootView: View {
                     openURL: openURL,
                     screenRecordingPermissionGranted: privacy.screenRecordingPermissionGranted,
                     screenRecordingAwaitsRestart: privacy.screenRecordingAwaitsRestart,
-                    enableScreenRecording: { privacy.requestScreenRecordingPermission() }
+                    enableScreenRecording: { privacy.requestScreenRecordingPermission() },
+                    backgroundOperationsStatus: privacy.backgroundOperationsStatus,
+                    backgroundOperationsError: privacy.backgroundOperationsError,
+                    manageBackgroundOperations: privacy.manageBackgroundOperations
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
             case .about:
@@ -2443,6 +2446,9 @@ private struct PrivacySettingsView: View {
     /// Asks macOS for Screen Recording, returning false when it will not ask
     /// again and System Settings is the way forward.
     var enableScreenRecording: () -> Bool = { false }
+    var backgroundOperationsStatus: HostBackgroundOperationsStatus = .notEnabled
+    var backgroundOperationsError: String?
+    var manageBackgroundOperations: () -> Void = {}
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -2464,6 +2470,9 @@ private struct PrivacySettingsView: View {
                             Divider().padding(.leading, 52)
                         }
                     }
+                    Divider().padding(.leading, 52)
+                    HostBackgroundOperationsPermissionView(status: backgroundOperationsStatus,
+                        error: backgroundOperationsError, manage: manageBackgroundOperations)
                     Divider().padding(.leading, 52)
                     Text("Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action.")
                         .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)

@@ -114,6 +114,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>Spinnet</string>
+  <key>CFBundleDisplayName</key>
+  <string>Spinnet</string>
   <key>CFBundleShortVersionString</key>
   <string>$APP_VERSION</string>
   <key>CFBundlePackageType</key>

@@ -2,6 +2,7 @@ import Combine
 import CoreGraphics
 import Foundation
 import SpinnetCore
+import ServiceManagement
 
 /// Owns the three layers of authority the Privacy & Permissions page presents:
 /// the Host's System Permissions, the Capabilities granted to each Plugin, and
@@ -19,6 +20,8 @@ final class PrivacyPermissionsModel: ObservableObject {
     /// as missing. macOS applies the grant only to a relaunched process, so the
     /// page offers a restart instead of asking again.
     @Published private(set) var screenRecordingAwaitsRestart = false
+    @Published private(set) var backgroundOperationsStatus: HostBackgroundOperationsStatus
+    @Published private(set) var backgroundOperationsError: String?
 
     /// The Plugin whose access sheet is open, for review or for consent.
     @Published var pluginSettingsManifest: PluginManifest?
@@ -51,6 +54,9 @@ final class PrivacyPermissionsModel: ObservableObject {
     private var grantObserver: UUID?
     private let screenRecordingPermissionCheck: () -> Bool
     private let screenRecordingPermissionRequest: () -> Bool
+    private let backgroundOperationsCheck: () -> HostBackgroundOperationsStatus
+    private let backgroundOperationsEnable: () throws -> Void
+    private let openBackgroundOperationsSettings: () -> Void
 
     init(
         grantStore: PluginCapabilityGrantStore,
@@ -58,8 +64,15 @@ final class PrivacyPermissionsModel: ObservableObject {
         accessibilityPermissionCheck: @escaping () -> Bool,
         defaults: UserDefaults,
         screenRecordingPermissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
-        screenRecordingPermissionRequest: @escaping () -> Bool = { CGRequestScreenCaptureAccess() }
+        screenRecordingPermissionRequest: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
+        backgroundOperationsCheck: @escaping () -> HostBackgroundOperationsStatus = HostBackgroundOperationsStatus.current,
+        backgroundOperationsEnable: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
+        openBackgroundOperationsSettings: @escaping () -> Void = { SMAppService.openSystemSettingsLoginItems() }
     ) {
+        self.backgroundOperationsCheck = backgroundOperationsCheck
+        self.backgroundOperationsEnable = backgroundOperationsEnable
+        self.openBackgroundOperationsSettings = openBackgroundOperationsSettings
+        backgroundOperationsStatus = backgroundOperationsCheck()
         self.screenRecordingPermissionCheck = screenRecordingPermissionCheck
         self.screenRecordingPermissionRequest = screenRecordingPermissionRequest
         screenRecordingPermissionGranted = screenRecordingPermissionCheck()
@@ -98,7 +111,34 @@ final class PrivacyPermissionsModel: ObservableObject {
         if accessibilityPermissionGranted && permissionGuidePresented { permissionGuidePresented = false }
         screenRecordingPermissionGranted = screenRecordingPermissionCheck()
         if screenRecordingPermissionGranted { screenRecordingAwaitsRestart = false }
+        backgroundOperationsStatus = backgroundOperationsCheck()
+        if backgroundOperationsStatus == .enabled { backgroundOperationsError = nil }
         onAuthorityChanged?()
+    }
+
+    /// Only an explicit action enables background work. Initialization, focus
+    /// changes and permission refreshes never register a service or open Settings.
+    func manageBackgroundOperations() {
+        backgroundOperationsError = nil
+        // Preserve the action the user actually clicked. A stale "Open Settings"
+        // or "Check Again" button must never become an enable request.
+        switch backgroundOperationsStatus {
+        case .notEnabled:
+            // Another window may already have registered or approved Spinnet.
+            switch backgroundOperationsCheck() {
+            case .notEnabled:
+                do { try backgroundOperationsEnable() }
+                catch { backgroundOperationsError = error.localizedDescription }
+            case .approvalRequired: openBackgroundOperationsSettings()
+            case .enabled, .unavailable: break
+            }
+        case .approvalRequired, .enabled:
+            openBackgroundOperationsSettings()
+        case .unavailable: break
+        }
+        refreshSystemPermissionStatus()
+        // Waiting for macOS approval is a normal setup state, not a Task error.
+        if backgroundOperationsStatus == .approvalRequired { backgroundOperationsError = nil }
     }
 
     func isGranted(_ permission: PluginSystemPermission) -> Bool {
