@@ -331,10 +331,37 @@ public enum HomebrewSystemAuthorization {
     public static func prepareService() throws {
         _ = try requirement(identifier: helperIdentifier)
         let daemon = SMAppService.daemon(plistName: helperIdentifier + ".plist")
-        if daemon.status == .notRegistered { try daemon.register() }
-        guard daemon.status == .enabled else {
-            if daemon.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+        try prepareService(status: { daemon.status }, register: { try daemon.register() },
+            openSettings: { SMAppService.openSystemSettingsLoginItems() },
+            bundledServiceExists: FileManager.default.fileExists(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/" + helperIdentifier + ".plist").path)
+                && FileManager.default.isExecutableFile(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetPrivilegedToolHelper").path))
+    }
+    static func prepareService(status: () -> SMAppService.Status, register: () throws -> Void,
+                               openSettings: () -> Void, bundledServiceExists: Bool) throws {
+        let initial = status()
+        if initial == .notRegistered || initial == .notFound {
+            // macOS can report notFound before it has ever seen this service,
+            // even when the signed app contains the complete daemon payload.
+            guard bundledServiceExists else {
+                throw PluginHostServiceError.unavailable("Spinnet's reviewed tool helper is missing from this app bundle. Reinstall a complete signed Spinnet app; the Task has not started")
+            }
+            do { try register() }
+            catch {
+                let failure = error as NSError
+                throw PluginHostServiceError.unavailable("macOS could not register Spinnet's reviewed tool helper (\(failure.domain) \(failure.code)): \(failure.localizedDescription). The Task has not started")
+            }
+        }
+        switch status() {
+        case .enabled: return
+        case .requiresApproval:
+            openSettings()
             throw PluginHostServiceError.unavailable("Enable Spinnet's reviewed tool helper in macOS Login Items before retrying; the Task has not started")
+        case .notRegistered:
+            throw PluginHostServiceError.unavailable("macOS has not registered Spinnet's reviewed tool helper after the registration attempt; the Task has not started")
+        case .notFound:
+            throw PluginHostServiceError.unavailable("macOS cannot find Spinnet's reviewed tool helper after the registration attempt; the Task has not started")
+        @unknown default:
+            throw PluginHostServiceError.unavailable("macOS returned an unknown reviewed tool helper status; the Task has not started")
         }
     }
     /// The external form exists only in native memory and XPC; it never enters
