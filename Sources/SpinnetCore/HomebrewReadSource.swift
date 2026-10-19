@@ -16,8 +16,8 @@ enum HomebrewReadSource {
         let repository = resolved.deletingLastPathComponent().deletingLastPathComponent()
         // Hash each bounded live file once, then accept only a complete reviewed
         // snapshot. Per-file allowlists would also admit unreviewed hybrids.
-        // The cohorts are upstream 19fe946 and 3073d6a; keeping the earlier one
-        // preserves its compatibility without weakening source drift refusal.
+        // Complete upstream snapshots 19fe946, 3073d6a and 3849568 retain
+        // compatibility without accepting unknown mixtures or source drift.
         var actual: [String: String] = [:]
         var total = 0
         for path in manifest.keys.sorted() {

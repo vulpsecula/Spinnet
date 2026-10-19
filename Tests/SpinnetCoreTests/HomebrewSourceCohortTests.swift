@@ -6,7 +6,8 @@ import SpinnetCore
 /// read-only bootstrap command; an unreviewed combination must not start it.
 final class HomebrewSourceCohortTests: XCTestCase {
     private static let previous = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b"
-    private static let current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
+    private static let intermediate = "3073d6a8c34f71da054b000cfdbb62594a07c969"
+    private static let current = "38495687df01c86c02349292cb58603c1130b2b7"
     private static let repository = "/opt/homebrew"
 
     private func bytes(_ path: String, at revision: String) throws -> Data {
@@ -56,6 +57,15 @@ final class HomebrewSourceCohortTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "Caskroom")
         XCTAssertEqual(result.deletingLastPathComponent().lastPathComponent,
             executable.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)
+    }
+    func testIntermediateReviewedSourceSnapshotStillStartsTheReadOnlyBootstrap() throws {
+        XCTAssertFalse(try readCaskroom(stage(Self.intermediate)).isEmpty)
+    }
+    func testRevertingTheOnlyChangedLoaderProducesTheReviewedIntermediateCohort() throws {
+        let executable = try stage(Self.current)
+        let target = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Library/Homebrew/formulary.rb")
+        try bytes("Library/Homebrew/formulary.rb", at: Self.intermediate).write(to: target)
+        XCTAssertFalse(try readCaskroom(executable).isEmpty)
     }
     func testEarlierReviewedSourceSnapshotStillStartsTheReadOnlyBootstrap() throws {
         let executable = try stage(Self.previous)

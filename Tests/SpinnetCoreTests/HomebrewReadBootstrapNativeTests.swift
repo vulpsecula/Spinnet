@@ -16,6 +16,12 @@ final class HomebrewReadBootstrapNativeTests: XCTestCase {
             XCTAssertEqual(result.value(atPointer: "/exit_status"), .number(0), command)
         }
     }
+    func testNativeAvailableUpgradeMetadataAfterReviewedSourceUpdate() throws {
+        try requireNativeProbe()
+        let result = try HomebrewReadProfile().read(.object(["tool":.string("homebrew"),"operation":.string("outdated")]),owner:.init("upgrades-after-update-native"),timeout:15)
+        XCTAssertEqual(result.value(atPointer:"/operation"),.string("outdated"))
+        guard case .array? = result.value(atPointer:"/packages") else { return XCTFail("Available Upgrades requires a package list after update") }
+    }
     func testNativeSearchMatchesAndMissesCompleteWithoutReviewedReadFailure() throws {
         try requireNativeProbe()
         let installed = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string("installed")]), owner: .init("search-bootstrap-native"), timeout: 15)

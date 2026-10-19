@@ -6,10 +6,10 @@ require 'digest'
 if defined?(HOMEBREW_LIBRARY_PATH)
   {
     'trust.rb' => '0c40d55f481127ee83318439a46a1204c9ffe6691cc0a7143e89819baf794e3a',
-    # Reviewed 19fe946 and 3073d6a cohorts; the latter only adds typed
-    # compatibility_version from API data at this loader seam. The Host
+    # Reviewed 19fe946, 3073d6a and 3849568 cohorts. Later revisions add
+    # compatibility_version and local_patch_checksums API accessors. The Host
     # accepts a complete source cohort before this second loader check.
-    'formulary.rb' => %w[739950efcc367eeb8a5b97830cb40d0137570d7cc0a881e4f9ed159c21a5d161 da062bf811e5b7ed0d1b02a9d4c7782490276d682f9d7be2327232697cdfe8f9],
+    'formulary.rb' => %w[739950efcc367eeb8a5b97830cb40d0137570d7cc0a881e4f9ed159c21a5d161 da062bf811e5b7ed0d1b02a9d4c7782490276d682f9d7be2327232697cdfe8f9 b4eae02fef6405002f22d1ab81187786cb103f7ec6967d58fcbb11918da1beac],
     'cask/cask_loader.rb' => 'b013adf5701f86159eca5bc2ebfa4957ef71971d5e1c0e804cf820f5f39636ff'
   }.each do |file, expected|
     unless Array(expected).include?(Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/file).hexdigest)
