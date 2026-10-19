@@ -163,6 +163,9 @@ else
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"
 "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner" --verify-resources
+if [[ -n "$SIGNING_IDENTITY" && "$SIGNING_IDENTITY" != "-" ]]; then
+    bash "$ROOT_DIR/script/check_background_helper.sh" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
+fi
 if [[ "$MODE" != "--package" ]]; then
     if ! "$APP_BINARY" --refresh-existing-background-operations; then
         echo "warning: background component update is pending; open Spinnet Privacy & Permissions for its status" >&2

@@ -120,7 +120,7 @@ final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
         do {
             guard uid != 0, let identity, HomebrewTaskProcess.startIdentity(pid) == identity,
                   expectedRevision.range(of: "^[a-f0-9]{40,64}$", options: .regularExpression) != nil else { throw PluginHostServiceError.tool(.planChanged) }
-            guard try HomebrewBackgroundUpdate.helperRevision(at: URL(fileURLWithPath: CommandLine.arguments[0])) == expectedRevision else { throw PluginHostServiceError.tool(.planChanged) }
+            guard try HomebrewBackgroundUpdate.helperRevision(at: HomebrewBackgroundUpdate.currentExecutableURL()) == expectedRevision else { throw PluginHostServiceError.tool(.planChanged) }
             state.lock.lock(); defer { state.lock.unlock() }
             if state.updating { reply("restarting", ""); return }
             let busy = !state.tasks.isEmpty || !state.admissions.isEmpty || state.inspection != nil || state.inspectionRecoveryUnavailable
@@ -921,8 +921,14 @@ final class Listener: NSObject, NSXPCListenerDelegate {
     }
 }
 do {
+    // Read-only packaged validation also exercises launchd's relative argv[0].
+    // It must not initialize recovery, listen on XPC or request authorization.
+    if CommandLine.arguments == [CommandLine.arguments[0], "--verify-signature"] {
+        print(try HomebrewBackgroundUpdate.helperRevision(at: HomebrewBackgroundUpdate.currentExecutableURL()))
+        exit(0)
+    }
     guard getuid() == 0 else { exit(77) }
-    loadedHelperRevision = try HomebrewBackgroundUpdate.helperRevision(at: URL(fileURLWithPath: CommandLine.arguments[0]))
+    loadedHelperRevision = try HomebrewBackgroundUpdate.helperRevision(at: HomebrewBackgroundUpdate.currentExecutableURL())
     try initializeNativeInspectionRecovery()
     let hostDelegate = Listener(.host), runnerDelegate = Listener(.runner), clientDelegate = Listener(.client)
     let inspectionHostDelegate = Listener(.inspectionHost), inspectionClientDelegate = Listener(.inspectionClient)
@@ -959,4 +965,7 @@ do {
         }
     }; timer.resume()
     RunLoop.current.run()
-} catch { exit(77) }
+} catch {
+    FileHandle.standardError.write(Data(("Spinnet background component startup failed: \(error.localizedDescription)\n").utf8))
+    exit(77)
+}

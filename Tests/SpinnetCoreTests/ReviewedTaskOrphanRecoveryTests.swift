@@ -96,7 +96,7 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
         }
     }
 
-    func testKnownPrivilegedTerminalResultsSurviveUnresolvedRootLiveness() throws {
+    func testKnownPrivilegedTerminalResultsSurviveRootConnectionFailureAndRecovery() throws {
         for outcome in ["completed", "failed"] {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let id = "activity_terminal_root", directory = root.appendingPathComponent(id)
@@ -111,9 +111,14 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
             try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
             try HomebrewTaskProcessLease(taskID: id, runnerPID: 999999, runnerIdentity: 123).save(to: directory)
             let activities = HostActivities(), power = Power(), stateLock = NSLock()
-            var running = true, stops = 0
+            var reachable = false, running = true, stops = 0, successfulQueries = 0
             let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil, recoveryPower: power,
-                privilegedTaskIsRunning: { _ in stateLock.lock(); defer { stateLock.unlock() }; return running },
+                privilegedTaskIsRunning: { _ in
+                    stateLock.lock(); defer { stateLock.unlock() }
+                    guard reachable else { throw PluginHostServiceError.unavailable("Background component startup failed") }
+                    successfulQueries += 1
+                    return running
+                },
                 stopPrivilegedTask: { _ in stateLock.lock(); stops += 1; stateLock.unlock() })
             XCTAssertTrue(host.hasRunningTasks)
             XCTAssertEqual(power.held, 1)
@@ -124,6 +129,12 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
             XCTAssertTrue(host.hasRunningTasks)
             let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("cleanup")]))
             XCTAssertThrowsError(try host.prepare(input, owner: .init("next"), pluginName: "Next")) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.busy)) }
+            stateLock.lock(); reachable = true; stateLock.unlock(); host.refresh()
+            let connected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                stateLock.lock(); defer { stateLock.unlock() }; return successfulQueries > 0
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [connected], timeout: 3), .completed)
+            XCTAssertTrue(host.hasRunningTasks, "A restored connection alone does not prove Root work ended")
             stateLock.lock(); running = false; stateLock.unlock(); host.refresh()
             let reaped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !host.hasRunningTasks }, object: nil)
             XCTAssertEqual(XCTWaiter.wait(for: [reaped], timeout: 3), .completed)

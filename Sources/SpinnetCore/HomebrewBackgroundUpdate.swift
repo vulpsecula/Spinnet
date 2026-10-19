@@ -1,11 +1,24 @@
 import Foundation
 import Security
 import ServiceManagement
+import Darwin
 
 /// Preserve the existing registration and approval. An authenticated idle
 /// helper exits itself when its loaded revision differs from the app bundle.
 public enum HomebrewBackgroundUpdate {
     private static let lock = NSLock()
+    /// BundleProgram may supply a relative argv[0]. Resolve the running image
+    /// through the kernel instead of treating that caller-controlled name as a path.
+    public static func currentExecutableURL() throws -> URL {
+        var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let count = path.withUnsafeMutableBytes { proc_pidpath(getpid(), $0.baseAddress, UInt32($0.count)) }
+        guard count > 0, let end = path.firstIndex(of: 0), end > 0,
+              let absolute = String(bytes: path[..<end].map { UInt8(bitPattern: $0) }, encoding: .utf8),
+              absolute.hasPrefix("/") else {
+            throw PluginHostServiceError.unavailable("Spinnet could not locate its running background executable")
+        }
+        return URL(fileURLWithPath: absolute)
+    }
     public static func helperRevision(at url: URL) throws -> String {
         var code: SecStaticCode?, requirement: SecRequirement?, information: CFDictionary?
         let expression = try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.helperIdentifier)
@@ -26,7 +39,7 @@ public enum HomebrewBackgroundUpdate {
         try refresh(revision: helperRevision(at: url), request: { expected in
             let connection = try HomebrewSystemAuthorization.hostConnection(); defer { connection.invalidate() }
             let done = DispatchSemaphore(value: 0), result = Reply()
-            guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in result.finish("", "Spinnet's background component must be restarted from macOS Login Items before retrying"); done.signal() }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
+            guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in result.finish("", "Spinnet's background component is enabled but could not be reached. Its startup or connection failed; no Task was started"); done.signal() }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
             proxy.refreshForUpdate(expected) { revision, failure in result.finish(revision, failure); done.signal() }
             guard done.wait(timeout: .now() + 5) == .success else { throw PluginHostServiceError.tool(.timedOut) }
             let value = result.value
