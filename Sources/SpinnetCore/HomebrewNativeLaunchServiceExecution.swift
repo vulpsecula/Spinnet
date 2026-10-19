@@ -9,6 +9,10 @@ public enum HomebrewNativeLaunchServiceExecution {
         public let state: State
         public let response: HomebrewNativeLaunchServiceInventory.Response?
         public let process: HomebrewTaskProcess
+        public let diagnostic: String?
+        init(state: State, response: HomebrewNativeLaunchServiceInventory.Response?, process: HomebrewTaskProcess, diagnostic: String? = nil) {
+            self.state = state; self.response = response; self.process = process; self.diagnostic = diagnostic
+        }
     }
     private final class Completion {
         let lock = NSLock(), done = DispatchSemaphore(value: 0)
@@ -68,15 +72,16 @@ public enum HomebrewNativeLaunchServiceExecution {
             if stopGraceState.hasExpired(at: ProcessInfo.processInfo.systemUptime) { return .init(state: .unknown, response: nil, process: process) }
         }
         completion.lock.lock(); let result = completion.result, failure = completion.failure, bytes = completion.bytes; completion.lock.unlock()
-        if let failure { return .init(state: .completed, response: .init(failure: failure), process: process) }
+        let execution = "worker \(result?.outcome ?? "unknown"), exit \(result.map { String($0.exitStatus) } ?? "unknown"), \(bytes.count) output bytes"
+        if let failure { return .init(state: .completed, response: .init(failure: failure), process: process, diagnostic: "\(execution); process resource inspection failed") }
         guard result?.outcome == "completed", result?.exitStatus == 0,
               let response = try? JSONDecoder().decode(HomebrewNativeLaunchServiceInventory.Response.self, from: bytes), response.version == 1,
               (response.manifest != nil ? 1 : 0) + (response.failure != nil ? 1 : 0) + (response.unavailable != nil ? 1 : 0) == 1,
-              response.unavailable?.utf8.count ?? 0 <= 4096 else { return .init(state: .completed, response: .init(failure: .failed), process: process) }
+              response.unavailable?.utf8.count ?? 0 <= 4096 else { return .init(state: .completed, response: .init(failure: .failed), process: process, diagnostic: "\(execution); no valid inventory reply") }
         if let manifest = response.manifest {
             do { try HomebrewNativeLaunchServices.validateNative(manifest, context: request.context, declarations: request.declarations) }
             catch { return .init(state: .completed, response: .init(failure: .sourceNotAllowed), process: process) }
         }
-        return .init(state: .completed, response: response, process: process)
+        return .init(state: .completed, response: response, process: process, diagnostic: response.failure == .failed ? "\(execution); inventory reported failure" : nil)
     }
 }

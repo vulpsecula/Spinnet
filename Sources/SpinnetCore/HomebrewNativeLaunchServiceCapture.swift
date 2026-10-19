@@ -23,6 +23,9 @@ public enum HomebrewNativeLaunchServiceCapture {
             throw error
         }
         guard outcome.state == .completed, let response = outcome.response else { throw PluginHostServiceError.unavailable("Native launch-service inspection is incomplete; no mutation or replay") }
+        if response.failure == .failed {
+            throw PluginHostServiceError.toolReadFailed("Native launch-service inventory failed: \(outcome.diagnostic ?? "no complete inventory"). No changes were started.")
+        }
         if let failure = response.failure { throw PluginHostServiceError.tool(failure) }
         if let unavailable = response.unavailable { throw PluginHostServiceError.unavailable(unavailable) }
         guard let manifest = response.manifest else { throw PluginHostServiceError.tool(.failed) }

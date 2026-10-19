@@ -29,6 +29,8 @@ final class HomebrewNativeLaunchServiceExecutionTests: XCTestCase {
             XCTAssertFalse(started)
             let malformed = try HomebrewNativeLaunchServiceExecution.capture(request, toolsDirectory: tools)
             XCTAssertEqual(malformed.state, .completed); XCTAssertEqual(malformed.response?.failure, .failed); XCTAssertNil(malformed.response?.manifest)
+            XCTAssertTrue(malformed.diagnostic?.contains("no valid inventory reply") == true)
+            XCTAssertTrue(malformed.diagnostic?.contains("exit 0") == true)
         }
         try fixture("fixture.large", duration: 20) { request, tools in
             let result = try HomebrewNativeLaunchServiceExecution.capture(request, toolsDirectory: tools)

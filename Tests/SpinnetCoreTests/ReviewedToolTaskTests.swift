@@ -3,6 +3,20 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
+    func testOpaqueNativePreparationFailureNamesTheStageAndReleasesTheLane() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = HostReviewedToolTasks(activities: .init(), journal: root, runnerURL: URL(fileURLWithPath: "/missing"), executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+            .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "version": .string("2"), "outdated": .bool(true), "needs_privileges": .bool(true)])
+        }, privilegeReview: { _, _, _ in throw PluginHostServiceError.tool(.failed) }, nativeInspection: nil)
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"), "kind": .string("cask"), "name": .string("example")]))
+        XCTAssertThrowsError(try host.prepare(input, owner: .init("native-failure"), pluginName: "Homebrew")) { error in
+            guard case .toolReadFailed(let message) = error as? PluginHostServiceError else { return XCTFail("Missing preparation context: \(error)") }
+            XCTAssertTrue(message.contains("inspecting native cask changes"))
+        }
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    }
     func testCancellingPreparationSignalsWorkerAndHoldsLaneUntilActualCompletion() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

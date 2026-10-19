@@ -33,6 +33,23 @@ final class HomebrewReadBootstrapNativeTests: XCTestCase {
             }
         }
     }
+    func testNativeSelectedOutdatedCasksCanReachUpgradePreflight() throws {
+        try requireNativeProbe()
+        let brew = try HomebrewReadProfile.discover(), profile = HomebrewReadProfile()
+        let outdated = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("outdated"), "kind": .string("cask")]), owner: .init("selected-casks-native"), timeout: 15)
+        guard case .array(let packages)? = outdated.value(atPointer: "/packages") else { return XCTFail("Missing cask list") }
+        let names = Array(packages.compactMap { $0.value(atPointer: "/name") }.prefix(50))
+        guard !names.isEmpty else { throw XCTSkip("No outdated casks available") }
+        let metadata = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array(names)]), owner: .init("selected-casks-native"), timeout: 15)
+        guard case .array(let records)? = metadata.value(atPointer: "/packages") else { return XCTFail("Missing batch metadata") }
+        XCTAssertEqual(records.count, names.count)
+        let eligible = records.filter { $0.value(atPointer: "/outdated") == .bool(true) && $0.value(atPointer: "/pinned") != .bool(true) }.compactMap { $0.value(atPointer: "/name") }
+        guard !eligible.isEmpty else { throw XCTSkip("All current casks are pinned or already current") }
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string("cask"), "names": .array(eligible)]))
+        let preflight = try HostReviewedToolTasks.preflight(input, executable: brew)
+        guard case .array(let planned)? = preflight.value(atPointer: "/packages") else { return XCTFail("Missing upgrade plan") }
+        XCTAssertEqual(planned.count, eligible.count)
+    }
     func testNativeSearchMatchesAndMissesCompleteWithoutReviewedReadFailure() throws {
         try requireNativeProbe()
         let installed = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string("installed")]), owner: .init("search-bootstrap-native"), timeout: 15)
