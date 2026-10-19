@@ -1091,8 +1091,10 @@ private struct SlotConfigurationSheet: View {
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
-                        Divider()
-                        actionParameters()
+                        if !configurableCommands.isEmpty {
+                            Divider()
+                            actionParameters()
+                        }
                         if let endpointConsent {
                             EndpointConsentBox(consent: endpointConsent, allowed: Binding(
                                 get: { Set(endpointConsent.newHosts).isSubset(of: allowedEndpointHosts) },
