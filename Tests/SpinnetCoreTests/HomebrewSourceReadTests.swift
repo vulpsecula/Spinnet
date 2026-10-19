@@ -2,9 +2,10 @@ import XCTest
 import SpinnetCore
 
 /// Fixture CLI retains Homebrew's qualified-argv trust exception. The public
-/// read must prevent it from reaching a package definition, including aliases.
+/// private inspection must prevent it from reaching a package definition,
+/// including aliases. Ordinary CLI reads delegate loading to Homebrew.
 final class HomebrewSourceReadTests: XCTestCase {
-    func testChangedHomebrewLoaderIsRejectedBeforeItsBootstrapCanEvaluateIt() throws {
+    func testPrivateInspectionRejectsChangedLoaderBeforeItsBootstrapCanEvaluateIt() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let executable = root.appendingPathComponent("bin/brew")
@@ -19,7 +20,7 @@ final class HomebrewSourceReadTests: XCTestCase {
         printf '%s\\n' '{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"bootstrap-evaluated"}}],"casks":[]}'
         """.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
-        let profile = HomebrewReadProfile(executable: { executable })
+        let profile = HomebrewReadProfile(executable: { executable }, execute: HomebrewReadProfile.execute)
         XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("example")])]), owner: PluginID("bootstrap-tracer"))) { error in
             guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected prelaunch source revision refusal: \(error)") }
             XCTAssertTrue(reason.contains("source revision"))
@@ -128,7 +129,7 @@ final class HomebrewSourceReadTests: XCTestCase {
         exec /usr/bin/ruby -I'\(root.appendingPathComponent("lib").path)' -rcmd/info -e 'ARGV.shift; Homebrew::Info.new(ARGV).run' -- "$@"
         """)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.appendingPathComponent("fixture-cli").path)
-        let profile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") })
+        let profile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") }, execute: HomebrewReadProfile.execute)
         func read(_ name: String) throws -> JSONValue {
             try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("trust-tracer"))
         }
@@ -141,7 +142,7 @@ final class HomebrewSourceReadTests: XCTestCase {
         }
         XCTAssertThrowsError(try read("writer"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("outside-read").path))
-        let caskProfile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") })
+        let caskProfile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") }, execute: HomebrewReadProfile.execute)
         func history(_ name: String) throws -> JSONValue {
             try caskProfile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string(name)])]), owner: PluginID("history-tracer"))
         }

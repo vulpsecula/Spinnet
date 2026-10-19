@@ -362,9 +362,9 @@ public final class HomebrewManagementReads {
             var checkedDirectories: [URL: Bool] = [:]
             var attemptedDirectories = Set<URL>()
             result["findings"] = .array(findings.prefix(100).enumerated().compactMap { index, finding in
+                var finding = HomebrewDoctorContext.publicFinding(finding, prefix: Self.prefix(of: executable))
                 let check = finding["check"] as? String ?? ""
                 if ["check_user_path_1", "check_user_path_2", "check_user_path_3", "check_brew_path"].contains(check) { return nil }
-                var finding = finding
                 var verifiedDirectoryAccess = false
                 switch HomebrewDoctorContext.assess(finding, prefix: Self.prefix(of: executable), writable: { url in
                     if attemptedDirectories.contains(url) { return checkedDirectories[url] }

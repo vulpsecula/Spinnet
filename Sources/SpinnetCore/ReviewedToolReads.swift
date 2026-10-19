@@ -126,7 +126,7 @@ public final class HomebrewReadProfile {
     public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil, management: HomebrewManagementReads = HomebrewManagementReads()) {
         self.executable = executable
         self.management = management
-        self.execute = execute.map { operation in { executable, arguments, environment, deadline, _ in try operation(executable, arguments, environment, deadline) } } ?? Self.executeCancellable
+        self.execute = execute.map { operation in { executable, arguments, environment, deadline, _ in try operation(executable, arguments, environment, deadline) } } ?? Self.executeReadCancellable
     }
     public init(executable: @escaping () throws -> URL, executeCancellable: @escaping CancellableExecutor, management: HomebrewManagementReads = HomebrewManagementReads()) {
         self.executable = executable; self.execute = executeCancellable; self.management = management
@@ -196,7 +196,7 @@ public final class HomebrewReadProfile {
             guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
             try stillAuthorized()
             guard output.stdout.count <= ReviewedToolReads.stdoutBytes, output.stderr.count <= ReviewedToolReads.stderrBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
-            guard output.status == 0 || (output.status == 1 && ["search", "info"].contains(request.operation)) else {
+            guard output.status == 0 || (output.status == 1 && ["search", "info", "outdated"].contains(request.operation)) else {
                 throw request.operation == "search" ? Self.searchFailure(output) : PluginHostServiceError.tool(.failed)
             }
             if request.operation == "search" {
@@ -223,6 +223,12 @@ public final class HomebrewReadProfile {
                         continue
                     }
                     throw PluginHostServiceError.tool(.failed)
+                }
+                // Public JSON is extensible, but a missing/wrongly typed list
+                // must not be reported as a successful empty inventory.
+                for packageKind in request.kinds {
+                    let key = packageKind == "formula" ? "formulae" : "casks"
+                    guard raw[key] is [[String: Any]] else { throw PluginHostServiceError.tool(.failed) }
                 }
                 var canonicalSelectors = Set<String>()
                 for (key, packageKind) in [("formulae", "formula"), ("casks", "cask")] {
@@ -436,7 +442,7 @@ public final class HomebrewReadProfile {
         }
         return profile
     }
-    private static func executeBounded(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
+    static func executeBounded(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
         _ cancellation: HostFetchedSections.Cancellation, stdoutLimit: Int, readOnly: Bool) throws -> HomebrewReadOutput {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.

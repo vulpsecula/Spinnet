@@ -132,7 +132,7 @@ final class HomebrewAPITrustReadTests: XCTestCase {
         """)
         let executable = root.appendingPathComponent("fixture-cli")
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
-        let profile = HomebrewReadProfile(executable: { executable })
+        let profile = HomebrewReadProfile(executable: { executable }, execute: HomebrewReadProfile.execute)
         func read(_ name: String) throws -> JSONValue {
             try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("api-origin"), timeout: 15)
         }

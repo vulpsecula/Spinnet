@@ -22,6 +22,17 @@ final class HomebrewReadBootstrapNativeTests: XCTestCase {
         XCTAssertEqual(result.value(atPointer:"/operation"),.string("outdated"))
         guard case .array? = result.value(atPointer:"/packages") else { return XCTFail("Available Upgrades requires a package list after update") }
     }
+    func testNativePublicManagementReads() throws {
+        try requireNativeProbe()
+        for operation in ["version", "taps", "doctor"] {
+            let result = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string(operation)]), owner: .init("public-management-native"), timeout: 15)
+            XCTAssertEqual(result.value(atPointer: "/operation"), .string(operation))
+            if operation == "doctor" {
+                XCTAssertEqual(result.value(atPointer: "/available"), .bool(true))
+                XCTAssertNotNil(result.value(atPointer: "/findings"))
+            }
+        }
+    }
     func testNativeSearchMatchesAndMissesCompleteWithoutReviewedReadFailure() throws {
         try requireNativeProbe()
         let installed = try HomebrewReadProfile().read(.object(["tool": .string("homebrew"), "operation": .string("installed")]), owner: .init("search-bootstrap-native"), timeout: 15)
@@ -36,7 +47,7 @@ final class HomebrewReadBootstrapNativeTests: XCTestCase {
         for query in queries {
             var diagnostics = ""
             let profile = HomebrewReadProfile(executable: HomebrewReadProfile.discover, execute: { executable, arguments, environment, deadline in
-                let output = try HomebrewReadProfile.execute(executable, arguments, environment, deadline)
+                let output = try HomebrewReadProfile.executeReadCancellable(executable, arguments, environment, deadline, .init())
                 if output.status != 0 {
                     let sanitized = HomebrewTaskLog(); sanitized.append(output.stderr); sanitized.finish()
                     diagnostics += "\(arguments.prefix(2)) status=\(output.status): \(sanitized.output.prefix(1600))\n"

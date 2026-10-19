@@ -3,6 +3,22 @@ import Foundation
 /// Doctor runs without write authority. Recheck only its reviewed directory
 /// diagnostics in the Host; the sandbox remains unchanged for Homebrew.
 enum HomebrewDoctorContext {
+    /// The public Doctor JSON does not promise private Ruby method identities.
+    /// Recognize only these display formats for context correction. Unknown
+    /// findings stay visible. Permission repair still requires native evidence.
+    static func publicFinding(_ finding: [String: Any], prefix: URL) -> [String: Any] {
+        guard finding["check"] == nil, let text = finding["text"] as? String else { return finding }
+        let check: String
+        if text.hasPrefix("The following directories are not writable by your user:\n") { check = "check_access_directories" }
+        else if text.hasPrefix("The staging path "), text.trimmingCharacters(in: .newlines).hasSuffix(" is not writable by the current user.") { check = "check_cask_staging_location" }
+        else if text.hasPrefix("Homebrew's \"bin\" was not found in your PATH.") { check = "check_user_path_2" }
+        else if text.hasPrefix("Homebrew's \"sbin\" was not found in your PATH") { check = "check_user_path_3" }
+        else if text.hasPrefix("/usr/bin occurs before " + prefix.path + "/bin in your PATH.") { check = "check_user_path_1" }
+        else if text.hasPrefix("Another `brew` shadows this Homebrew installation in your PATH:") { check = "check_brew_path" }
+        else { return finding }
+        var result = finding; result["check"] = check
+        return result
+    }
     enum Assessment {
         case unrelated, absent, unverified
         case verified([String: Any])

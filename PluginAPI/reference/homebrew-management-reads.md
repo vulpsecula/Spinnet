@@ -32,10 +32,9 @@ See [schema](../schemas/homebrew-management-reads.schema.json) and
 Every result has tool, operation and version. Version-gated Doctor JSON and
 vulnerability reads require Homebrew 7; older versions return available:false
 and reason:requires_homebrew_7, rather than pretend the scan/report is empty.
-Doctor executes the reviewed `brew doctor --json` implementation. The Host
-pins its result-annotation seam to reviewed upstream source digests before
-loading Doctor; a changed implementation makes Doctor unavailable pending
-review without disabling other reads. Each finding retains `check`, `tier`,
+Doctor reads the public `brew doctor --json` output. The Host does not inject
+result annotations or pin private Doctor source files. Each finding retains
+`check` (empty when unavailable or unrecognized), `tier`,
 and at most 100 `affects` strings of at most 200 characters. Text and guidance
 retain paragraphs within their existing 2,048-character bounds. `truncated`
 on a finding identifies omitted text, items, links or commands. Copyable
@@ -46,8 +45,11 @@ as a shortened executable command.
 Doctor's `context` identifies `scope:host`, `shell_path:not_checked` and
 `directory_access:reported_paths_rechecked`. The Host's fixed subprocess PATH
 does not describe the user's terminal, so Doctor's PATH advice is excluded.
-The read-only sandbox remains intact. For the two reviewed directory-access
-checks the Host rechecks only bounded, canonical paths under the reviewed
+The read-only sandbox remains intact. Public JSON need not include a private
+Ruby check name. The Host recognizes bounded directory-access and Host PATH
+message formats for context correction; unknown messages remain visible.
+Recognition alone never grants a repair. For the two recognized directory-access
+message formats the Host rechecks only bounded, canonical paths under the reviewed
 Homebrew prefix or its user cache/log directories, without writing files.
 At most 128 distinct directory checks are attempted per read. Writable paths
 are removed from those findings; unknown access suppresses that finding and

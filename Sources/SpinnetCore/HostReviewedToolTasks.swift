@@ -908,7 +908,7 @@ public final class HostReviewedToolTasks {
         if ["tap", "untap", "trust", "untrust", "cleanup", "update", "refreshCatalog"].contains(input.operation) { return .object([:]) }
         if input.operation == "doctorFix" || input.operation == "adopt" { throw PluginHostServiceError.tool(.planChanged) }
         if input.operation.hasPrefix("service") {
-            let current = try HomebrewReadProfile.executeCancellable(executable, ["services", "list", "--json"], HomebrewReadProfile.environment, Date().addingTimeInterval(15), cancellation)
+            let current = try HomebrewReadProfile.executeReadCancellable(executable, ["services", "list", "--json"], HomebrewReadProfile.environment, Date().addingTimeInterval(15), cancellation)
             guard current.status == 0, let rows = try JSONSerialization.jsonObject(with: current.stdout) as? [[String: Any]],
                   let service = rows.first(where: { $0["name"] as? String == input.name }),
                   service["user"] == nil || service["user"] is NSNull || service["user"] as? String == "" || service["user"] as? String == NSUserName() else {
@@ -958,7 +958,7 @@ public final class HostReviewedToolTasks {
     }
     private static func readTrustedEntries(kind: String, executable: URL) throws -> [String] {
         guard ["tap", "formula", "cask"].contains(kind) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        let result = try HomebrewReadProfile.execute(executable, ["trust", "--" + kind, "--json=v1"], HomebrewReadProfile.environment, Date().addingTimeInterval(15))
+        let result = try HomebrewReadProfile.executeReadCancellable(executable, ["trust", "--" + kind, "--json=v1"], HomebrewReadProfile.environment, Date().addingTimeInterval(15), .init())
         guard result.status == 0, let entries = try? JSONDecoder().decode([String].self, from: result.stdout), entries.count <= 2000 else { throw PluginHostServiceError.tool(.failed) }
         return entries
     }

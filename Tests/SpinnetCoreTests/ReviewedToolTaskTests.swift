@@ -656,7 +656,7 @@ extension ReviewedToolTaskTests {
         let executable = root.appendingPathComponent("fixture-cli")
         try Data("""
         #!/bin/sh
-        if [ "$4" = trust ] && [ "$5" = --formula ]; then
+        if [ "$1" = trust ] && [ "$2" = --formula ] && [ "$3" = --json=v1 ]; then
           printf '%s\\n' '["acme/tools/canonical"]'
         else
           printf '%s\\n' '[]'
