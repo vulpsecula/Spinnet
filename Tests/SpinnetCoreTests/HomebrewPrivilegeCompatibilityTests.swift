@@ -13,11 +13,17 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
             return (String(legacy[path]), String(legacy[digest]))
         }
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: pairs), HomebrewPrivilegeReview.reviewedSourceDigests)
-        let updates = try XCTUnwrap(text.components(separatedBy: "REVIEWED_SOURCE_UPDATES =").last)
+        let sections = try XCTUnwrap(text.components(separatedBy: "REVIEWED_SOURCE_UPDATES =").last)
+        let updates = sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =")[0]
         let changes = pattern.matches(in: updates, range: NSRange(updates.startIndex..., in: updates)).map { match -> (String, String) in
             (String(updates[Range(match.range(at: 1), in: updates)!]), String(updates[Range(match.range(at: 2), in: updates)!]))
         }
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: changes), HomebrewPrivilegeReview.reviewedSourceUpdates)
+        let cleanup = try XCTUnwrap(sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =").last)
+        let cleanupChanges = pattern.matches(in: cleanup, range: NSRange(cleanup.startIndex..., in: cleanup)).map { match -> (String, String) in
+            (String(cleanup[Range(match.range(at: 1), in: cleanup)!]), String(cleanup[Range(match.range(at: 2), in: cleanup)!]))
+        }
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: cleanupChanges), HomebrewPrivilegeReview.reviewedSourceCleanupUpdates)
     }
 
     func testReviewedInstalledSourcesPassAndChangingEachFileRemainsRefused() throws {
@@ -61,7 +67,7 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
             return data
         }
         let old = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b", current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
-        for revision in [old, current] {
+        for revision in [old, current, "8f10429b56be28a25032b87463fffc95e556b5bc"] {
             let library = root.appendingPathComponent(revision + "/Library/Homebrew")
             for path in HomebrewPrivilegeReview.reviewedSourceDigests.keys {
                 let file = library.appendingPathComponent(path)

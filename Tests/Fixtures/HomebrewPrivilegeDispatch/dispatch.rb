@@ -84,6 +84,7 @@ FakeCask = Struct.new(:artifacts) do
   def loaded_from_api? = true
   def full_name = 'fixture'
   def token = 'fixture'
+  def cleanup_temp(retain: false) = TRACE << "cleanup-temp:#{retain}"
 end
 class BoundaryArtifact
   def initialize(label, order) = (@label, @order = label, order)

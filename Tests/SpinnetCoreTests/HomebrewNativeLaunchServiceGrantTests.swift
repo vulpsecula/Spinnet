@@ -35,6 +35,16 @@ final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
         XCTAssertEqual(try grant.load(owner: getuid(), deadline: Date().addingTimeInterval(2)), manifest)
         XCTAssertTrue(grant.valid); XCTAssertEqual(grant.phase, .uninstall)
         XCTAssertEqual(grant.entryCount, 0); XCTAssertEqual(grant.unmatchedCount, 1)
+        var captures = 0
+        XCTAssertTrue(try grant.revalidateEmptyRemoval(manifest) { captures += 1; return manifest })
+        XCTAssertEqual(captures, 1, "Even an empty phase requires a fresh read before skipping authorization")
+        XCTAssertThrowsError(try grant.revalidateEmptyRemoval(manifest) { throw PluginHostServiceError.tool(.timedOut) })
+        var changed = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(manifest)) as? [String: Any])
+        var coverage = try XCTUnwrap(changed["coverage"] as? [[String: Any]])
+        coverage[0]["fileCount"] = (coverage[0]["fileCount"] as? Int ?? 0) + 1
+        changed["coverage"] = coverage
+        let drift = try JSONDecoder().decode(HomebrewNativeLaunchServices.Manifest.self, from: JSONSerialization.data(withJSONObject: changed))
+        XCTAssertThrowsError(try grant.revalidateEmptyRemoval(manifest) { drift }, "A changed inventory cannot become a no-op or gain removal authority")
         let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: String(repeating: "a", count: 64), packages: [], launchServiceRemovals: [grant])
         let host = HostReviewedToolTasks(activities: .init(), journal: root.appendingPathComponent("tasks"), runnerURL: URL(fileURLWithPath: "/missing"),
             executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in

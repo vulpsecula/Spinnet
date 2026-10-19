@@ -38,7 +38,12 @@ REVIEWED_SOURCE_UPDATES = {
   "cask/installer.rb" => "dfd30f709840fc9b8adc92659c361a9c8057a9b33bfddc5e8358a3b91ed5cbfc",
   "cmd/upgrade.rb" => "f855d2854c84c3c20bd6ffe1985c7b99ff445f1f4d9e40b4212ba8a6ac7db0c7"
 }
-REVIEWED_SOURCE_COHORTS = [REVIEWED_SOURCE_DIGESTS, REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES)].freeze
+# Homebrew 8f10429 adds temporary-resource cleanup without changing native leaves.
+REVIEWED_SOURCE_CLEANUP_UPDATES = {
+  "cask/installer.rb" => "4306636812393413831241f5eee60f25b6f4cbce0fc16ce32901269a46209517"
+}
+REVIEWED_SOURCE_COHORTS = [REVIEWED_SOURCE_DIGESTS, REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES),
+                         REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES).merge(REVIEWED_SOURCE_CLEANUP_UPDATES)].freeze
 actual_sources = REVIEWED_SOURCE_DIGESTS.keys.to_h do |path|
   [path, Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/path).hexdigest]
 end

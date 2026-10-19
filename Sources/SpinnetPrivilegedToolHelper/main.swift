@@ -59,6 +59,7 @@ final class Task {
     }
 }
 final class State {
+    var updating = false
     let lock = NSLock()
     var tasks: [String: Task] = [:]
     var admissions: [String: HostAdmission] = [:]
@@ -68,6 +69,7 @@ final class State {
     func stop(_ id: String) { lock.lock(); let task = tasks[id]; task?.stopped = true; task?.process?.stop(); lock.unlock() }
 }
 let state = State()
+private var loadedHelperRevision = ""
 private func accountHome(_ uid: uid_t) throws -> String {
     var record = passwd(), result: UnsafeMutablePointer<passwd>?, buffer = [CChar](repeating: 0, count: 64 * 1024)
     let home = buffer.withUnsafeMutableBufferPointer { bytes -> String? in
@@ -114,12 +116,27 @@ private func nativeCancelled(_ task: Task) -> Bool {
 final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
     let pid: pid_t; let uid: uid_t; let identity: UInt64?
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier; identity = HomebrewTaskProcess.startIdentity(connection.processIdentifier) }
+    func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void) {
+        do {
+            guard uid != 0, let identity, HomebrewTaskProcess.startIdentity(pid) == identity,
+                  expectedRevision.range(of: "^[a-f0-9]{40,64}$", options: .regularExpression) != nil else { throw PluginHostServiceError.tool(.planChanged) }
+            guard try HomebrewBackgroundUpdate.helperRevision(at: URL(fileURLWithPath: CommandLine.arguments[0])) == expectedRevision else { throw PluginHostServiceError.tool(.planChanged) }
+            state.lock.lock(); defer { state.lock.unlock() }
+            if state.updating { reply("restarting", ""); return }
+            let busy = !state.tasks.isEmpty || !state.admissions.isEmpty || state.inspection != nil || state.inspectionRecoveryUnavailable
+            if try HomebrewBackgroundUpdate.needsRestart(loadedRevision: loadedHelperRevision, expectedRevision: expectedRevision, hasWork: busy) {
+                state.updating = true
+                reply("restarting", "")
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { exit(0) }
+            } else { reply(loadedHelperRevision, "") }
+        } catch { reply("", error.localizedDescription) }
+    }
     func admit(_ data: Data, reply: @escaping (String) -> Void) {
         do {
             guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
             let plan = try HomebrewPrivilegePlan.decodeValidated(data)
             state.lock.lock(); defer { state.lock.unlock() }
-            guard state.tasks.isEmpty, state.admissions.isEmpty, state.inspection == nil, !state.inspectionRecoveryUnavailable,
+            guard !state.updating, state.tasks.isEmpty, state.admissions.isEmpty, state.inspection == nil, !state.inspectionRecoveryUnavailable,
                   plan.casks.allSatisfy({ ($0.receipts ?? []).isEmpty }) else { throw PluginHostServiceError.tool(.busy) }
             state.admissions[plan.taskID] = HostAdmission(plan: plan, pid: pid, identity: identity, uid: uid, expires: ProcessInfo.processInfo.systemUptime + 60)
             reply("")
@@ -350,20 +367,43 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
     let pid: pid_t; let uid: uid_t
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier }
     func prepare(_ data: Data, reply: @escaping (String) -> Void) {
+        DispatchQueue.global(qos: .utility).async { [self] in prepareRequest(data, reply: reply) }
+    }
+    private func prepareRequest(_ data: Data, reply: @escaping (String) -> Void) {
         do {
             guard data.count <= 16 * 1024, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
             let request = try JSONDecoder().decode(HomebrewPrivilegeRequest.self, from: data)
             state.lock.lock(); let task = state.tasks[request.taskID]; state.lock.unlock()
             guard let task, task.uid == uid, !task.stopped, HomebrewSystemAuthorization.descends(pid, from: task.pid, identity: task.identity) else { throw PluginHostServiceError.tool(.planChanged) }
             try task.plan.validate(request)
+            state.lock.lock()
+            guard !task.stopped, !task.executing, task.process == nil, task.approvals.isEmpty else { state.lock.unlock(); throw PluginHostServiceError.tool(.busy) }
+            task.executing = true; state.lock.unlock()
+            defer { state.lock.lock(); task.executing = false; state.lock.unlock() }
+            if request.operation == .removeLaunchServices,
+               let cask = task.plan.casks.first(where: { $0.name == request.package }),
+               let grant = cask.launchServiceRemovals?.first(where: { $0.phase.rawValue == request.source }),
+               let frozen = task.launchManifests[cask.name + ":" + request.source] {
+                let key = cask.name + ":launch:" + request.source
+                guard !task.completedLaunchPhases.contains(key), !task.startedCodeActions.contains(key) else { throw PluginHostServiceError.tool(.planChanged) }
+                if try grant.revalidateEmptyRemoval(frozen, capture: {
+                    try HomebrewNativeLaunchServiceCapture.capture(context: grant.context, declarations: grant.declarations,
+                        deadline: Date().addingTimeInterval(30), isCancelled: { nativeCancelled(task) },
+                        willStart: { nativeWillStart($0, task: task) }, didReap: { nativeDidReap($0, task: task) })
+                }) {
+                    guard !nativeCancelled(task) else { throw PluginHostServiceError.tool(.planChanged) }
+                    task.completedLaunchPhases.insert(key)
+                    reply(HomebrewSystemAuthorization.noLaunchServicesToRemove); return
+                }
+            }
             let right = HomebrewSystemAuthorization.right + "." + UUID().uuidString.lowercased()
             try HomebrewSystemAuthorization.configureRight(right)
             state.lock.lock()
-            guard !task.stopped, !task.executing, task.approvals.isEmpty else { state.lock.unlock(); HomebrewSystemAuthorization.removeRight(right); throw PluginHostServiceError.tool(.busy) }
+            guard !task.stopped, task.approvals.isEmpty else { state.lock.unlock(); HomebrewSystemAuthorization.removeRight(right); throw PluginHostServiceError.tool(.busy) }
             task.approvals[HomebrewSystemAuthorization.digest(data)] = Approval(pid: pid, identity: identity, right: right, expires: ProcessInfo.processInfo.systemUptime + 120)
             state.lock.unlock()
             reply(right)
-        } catch { reply("") }
+        } catch { reply("Cannot prepare the reviewed operation: " + error.localizedDescription) }
     }
     func perform(_ data: Data, authorization: Data, reply: @escaping (Int32, String) -> Void) {
         DispatchQueue.global(qos: .utility).async { [self] in
@@ -882,6 +922,7 @@ final class Listener: NSObject, NSXPCListenerDelegate {
 }
 do {
     guard getuid() == 0 else { exit(77) }
+    loadedHelperRevision = try HomebrewBackgroundUpdate.helperRevision(at: URL(fileURLWithPath: CommandLine.arguments[0]))
     try initializeNativeInspectionRecovery()
     let hostDelegate = Listener(.host), runnerDelegate = Listener(.runner), clientDelegate = Listener(.client)
     let inspectionHostDelegate = Listener(.inspectionHost), inspectionClientDelegate = Listener(.inspectionClient)

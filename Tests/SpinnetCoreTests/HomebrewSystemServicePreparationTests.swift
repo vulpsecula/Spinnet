@@ -3,6 +3,16 @@ import ServiceManagement
 @testable import SpinnetCore
 
 final class HomebrewSystemServicePreparationTests: XCTestCase {
+    func testRequestRightSurvivesTheClientToHelperHandoffWithoutSharingCredentials() throws {
+        let definition = HomebrewSystemAuthorization.requestRightDefinition
+        let timeout = try XCTUnwrap(definition["timeout"] as? Int)
+        XCTAssertGreaterThan(timeout, 0, "A zero-second right expires before Root can verify the external form")
+        XCTAssertLessThanOrEqual(timeout, 120)
+        XCTAssertEqual(definition["shared"] as? Bool, false)
+        XCTAssertEqual(definition["authenticate-user"] as? Bool, true)
+        XCTAssertEqual(definition["allow-root"] as? Bool, false)
+        XCTAssertEqual(definition["group"] as? String, "admin")
+    }
     func testMissingRegistrationWithCompleteBundledHelperAttemptsRegistration() throws {
         var state = SMAppService.Status.notFound
         var registrations = 0

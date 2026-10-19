@@ -1122,6 +1122,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// Packaging uses the signed app's own SMAppService identity. This maintenance
+// path never enables a disabled service or admits/replays a Homebrew Task.
+if CommandLine.arguments.contains("--refresh-existing-background-operations") {
+    do {
+        try HomebrewBackgroundUpdate.refreshEnabledService()
+        print("Spinnet background component update checked")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        exit(1)
+    }
+}
+
 let application = NSApplication.shared
 let delegate = ApplicationDelegate()
 application.delegate = delegate

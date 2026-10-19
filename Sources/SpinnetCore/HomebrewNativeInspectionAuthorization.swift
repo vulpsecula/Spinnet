@@ -100,7 +100,7 @@ public enum HomebrewNativeInspectionAuthorization {
         var reference: AuthorizationRef?
         guard AuthorizationCreate(nil, nil, [], &reference) == errAuthorizationSuccess, let reference else { throw HomebrewNativeInspection.Failure.storeUnavailable }
         defer { AuthorizationFree(reference, []) }
-        let definition: [String: Any] = ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 0, "allow-root": false]
+        let definition = HomebrewSystemAuthorization.requestRightDefinition
         let prompt = inspection ? "Inspect all receipt ownership metadata without changing installed packages" : "Admit this separately confirmed concrete Homebrew mutation"
         guard AuthorizationRightSet(reference, name, definition as CFDictionary, prompt as CFString, nil, nil) == errAuthorizationSuccess else { throw HomebrewNativeInspection.Failure.storeUnavailable }
     }

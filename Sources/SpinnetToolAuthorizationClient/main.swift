@@ -70,7 +70,14 @@ do {
     var rightName = ""
     guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in prepared.signal(); done.signal() }) as? HomebrewPrivilegeClientProtocol else { exit(77) }
     proxy.prepare(data) { value in rightName = value; prepared.signal() }
-    guard prepared.wait(timeout: .now() + 15) == .success, rightName.hasPrefix(HomebrewSystemAuthorization.right + ".") else { exit(77) }
+    guard prepared.wait(timeout: .now() + 40) == .success else { exit(77) }
+    if rightName == HomebrewSystemAuthorization.noLaunchServicesToRemove, request.operation == .removeLaunchServices {
+        FileHandle.standardOutput.write(Data("No matching launch services or plist files remain; no system authorization was needed.\n".utf8))
+        exit(0)
+    }
+    guard rightName.hasPrefix(HomebrewSystemAuthorization.right + ".") else {
+        FileHandle.standardError.write(Data((String(rightName.prefix(2000)) + "\n").utf8)); exit(77)
+    }
     // A fresh request-bound right is prepared in the root helper before the
     // system prompt. No general admin grant can authorize a different Task.
     let (authorization, form) = try HomebrewSystemAuthorization.authorize(prompt: prompt, rightName: rightName)

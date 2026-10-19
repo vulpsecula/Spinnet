@@ -165,7 +165,7 @@ final class NativeInspectionHostEndpoint: NSObject, HomebrewNativeInspectionHost
                   HomebrewTaskProcess.startIdentity(peer.pid) == peer.startIdentity else { throw HomebrewNativeInspection.Failure.invalidPeer }
             state.lock.lock(); defer { state.lock.unlock() }
             guard !state.inspectionRecoveryUnavailable else { throw PluginHostServiceError.unavailable("A previous native inspection or admitted mutation has an unreaped recovery record; no replay or new mutation can begin") }
-            guard state.tasks.isEmpty, state.admissions.isEmpty, state.inspection == nil else { throw PluginHostServiceError.tool(.busy) }
+            guard !state.updating, state.tasks.isEmpty, state.admissions.isEmpty, state.inspection == nil else { throw PluginHostServiceError.tool(.busy) }
             let directory = inspectionRoot.appendingPathComponent(UUID().uuidString.lowercased())
             try NativeFileQuarantine.makePrivateDirectory(directory)
             let store = try HomebrewNativeInspectionFileStore(directory: directory, owner: 0)

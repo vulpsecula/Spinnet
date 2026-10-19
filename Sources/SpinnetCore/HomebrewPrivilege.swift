@@ -298,6 +298,7 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
     func stop(_ taskID: String, reply: @escaping () -> Void)
 }
 @objc public protocol HomebrewPrivilegeHostProtocol {
+    func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void)
     func admit(_ plan: Data, reply: @escaping (String) -> Void)
     func cancel(_ taskID: String, reply: @escaping () -> Void)
     /// Stop/status only: these cannot admit a mutation or restore old rights.
@@ -309,6 +310,12 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
 }
 
 public enum HomebrewSystemAuthorization {
+    static var requestRightDefinition: [String: Any] {
+        // The client grants this unique request right, then Root verifies the
+        // external form without extending rights. Zero expires at that handoff.
+        ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 120, "allow-root": false]
+    }
+    public static let noLaunchServicesToRemove = "spinnet.no-launch-services-to-remove"
     public static let service = "com.vulpsecula.SpinnetHost.reviewed-tools"
     public static let right = "com.vulpsecula.SpinnetHost.install-reviewed-package"
     public static let runnerIdentifier = "com.vulpsecula.SpinnetHost.task-runner"
@@ -335,6 +342,7 @@ public enum HomebrewSystemAuthorization {
             openSettings: { SMAppService.openSystemSettingsLoginItems() },
             bundledServiceExists: FileManager.default.fileExists(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/" + helperIdentifier + ".plist").path)
                 && FileManager.default.isExecutableFile(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetPrivilegedToolHelper").path))
+        try HomebrewBackgroundUpdate.refreshEnabledService()
     }
     static func prepareService(status: () -> SMAppService.Status, register: () throws -> Void,
                                openSettings: () -> Void, bundledServiceExists: Bool) throws {
@@ -414,7 +422,7 @@ public enum HomebrewSystemAuthorization {
         var authorization: AuthorizationRef?
         guard rightName.hasPrefix(right + "."), rightName.count <= 140, getuid() == 0, AuthorizationCreate(nil, nil, [], &authorization) == errAuthorizationSuccess, let authorization else { throw PluginHostServiceError.tool(.failed) }
         defer { AuthorizationFree(authorization, []) }
-        let definition: [String: Any] = ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 0, "allow-root": false]
+        let definition = requestRightDefinition
         guard AuthorizationRightSet(authorization, rightName, definition as CFDictionary, "Authorize one reviewed Spinnet Homebrew operation" as CFString, nil, nil) == errAuthorizationSuccess else { throw PluginHostServiceError.tool(.failed) }
     }
     public static func removeRight(_ rightName: String) {
@@ -524,8 +532,14 @@ public enum HomebrewPrivilegeReview {
         "cmd/upgrade.rb": "f855d2854c84c3c20bd6ffe1985c7b99ff445f1f4d9e40b4212ba8a6ac7db0c7"
     ]
     public static var reviewedSourceCohorts: [[String: String]] {
-        [reviewedSourceDigests, reviewedSourceDigests.merging(reviewedSourceUpdates) { _, new in new }]
+        let dispatch = reviewedSourceDigests.merging(reviewedSourceUpdates) { _, new in new }
+        return [reviewedSourceDigests, dispatch, dispatch.merging(reviewedSourceCleanupUpdates) { _, new in new }]
     }
+    // Homebrew 8f10429 adds ensure-based temporary-resource cleanup; native
+    // directive leaves and their phase-bound authorization are unchanged.
+    public static let reviewedSourceCleanupUpdates = [
+        "cask/installer.rb": "4306636812393413831241f5eee60f25b6f4cbce0fc16ce32901269a46209517"
+    ]
     public static func checkCompatibility(executable: URL) throws {
         let refusal = PluginHostServiceError.unavailable("This Homebrew source revision needs review before system authorization can run")
         let library = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Library/Homebrew")

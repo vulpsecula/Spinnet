@@ -163,6 +163,11 @@ else
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"
 "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner" --verify-resources
+if [[ "$MODE" != "--package" ]]; then
+    if ! "$APP_BINARY" --refresh-existing-background-operations; then
+        echo "warning: background component update is pending; open Spinnet Privacy & Permissions for its status" >&2
+    fi
+fi
 
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"

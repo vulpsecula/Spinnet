@@ -7,6 +7,7 @@ import XCTest
 final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
     private static let previous = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b"
     private static let current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
+    private static let cleanup = "8f10429b56be28a25032b87463fffc95e556b5bc"
     private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
 
@@ -93,7 +94,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
     }
 
     func testOrdinaryUpgradeAndReinstallHonorSignalOptInQuitAndDeferredDirectoryOrder() throws {
-        for revision in [Self.previous, Self.current] {
+        for revision in [Self.previous, Self.current, Self.cleanup] {
             let cases = try XCTUnwrap(try proof("ordinary", at: revision) as? [String: [String]])
             XCTAssertEqual(cases.count, 12)
             for operation in ["upgrade", "reinstall"] {
@@ -105,7 +106,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
                         expected += ["uninstall:pkgutil", "uninstall:delete", "uninstall:trash"]
                         // This is an observed upstream ordering change, not an
                         // assertion that old/new side effects are equivalent.
-                        expected += revision == Self.current
+                        expected += revision != Self.previous
                             ? ["removable", "postflight", "uninstall:rmdir"]
                             : ["uninstall:rmdir", "removable", "postflight"]
                         XCTAssertEqual(cases["\(operation):\(variant):\(quit)"], expected, revision)
@@ -130,10 +131,11 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
             "removable", "postflight", "zap:pkgutil", "zap:delete", "zap:trash",
             "uninstall:rmdir", "zap:rmdir", "purge"
         ])
+        XCTAssertEqual(try proof("zap", at: Self.cleanup) as? [String], current + ["cleanup-temp:false"])
     }
 
     func testBothDispatchersRouteEveryElevatedLeafToExactGrantAndRefuseWrongMissingOwnerOrPhase() throws {
-        for revision in [Self.previous, Self.current] {
+        for revision in [Self.previous, Self.current, Self.cleanup] {
             let result = try XCTUnwrap(try proof("bridge", at: revision) as? [String: Any])
             let accepted = try XCTUnwrap(result["accepted"] as? [Any]).map { value -> String in
                 if let command = value as? [String] { return command.joined(separator: " ") }
@@ -151,7 +153,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
             let uninstallRmdir = "--remove-paths fixture 1 uninstallRmdir-path-seal"
             let zapDelete = "--remove-paths fixture 2 zapDelete-path-seal"
             let zapRmdir = "--remove-paths fixture 3 zapRmdir-path-seal"
-            let expected = revision == Self.current ? [
+            var expected = revision != Self.previous ? [
                 "preflight", earlyUninstall, earlyZap, uninstallService, zapService,
                 "uninstall:quit", "zap:quit", "uninstall:signal", "zap:signal", kext, kext,
                 uninstallCode, zapCode, receipt, uninstallDelete, "uninstall:trash", "removable", "postflight",
@@ -161,6 +163,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
                 uninstallCode, receipt, uninstallDelete, "uninstall:trash", uninstallRmdir, "removable", "postflight",
                 earlyZap, zapService, "zap:quit", "zap:signal", kext, zapCode, receipt, zapDelete, "zap:trash", zapRmdir, "purge"
             ]
+            if revision == Self.cleanup { expected.append("cleanup-temp:false") }
             XCTAssertEqual(accepted, expected, revision)
             // Receipt and kext grants intentionally have no phase field in the
             // existing bridge; both passes must still use the same exact seal.

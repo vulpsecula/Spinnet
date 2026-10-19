@@ -80,4 +80,16 @@ public struct HomebrewNativeLaunchServiceGrant: Codable, Equatable {
         "\(phase.rawValue) launch services: " + declarations.map(\.pattern).joined(separator: ", ")
             + ". Frozen \(entryCount) selected system/current-user jobs, \(removalFileCount) exact plist removals, \(unmatchedCount) unmatched declarations. Other-user and Apple jobs are refused; differently named origin plists are retained as evidence."
     }
+    /// A no-op is allowed only after a complete fresh inventory agrees with
+    /// the frozen empty grant. It never grants removal of a newly appeared job.
+    public func revalidateEmptyRemoval(_ frozen: HomebrewNativeLaunchServices.Manifest,
+        capture: () throws -> HomebrewNativeLaunchServices.Manifest) throws -> Bool {
+        try HomebrewNativeLaunchServices.validateNative(frozen, context: context, declarations: declarations)
+        guard frozen.sha256 == manifestSHA256, frozen.entries.count == entryCount,
+              frozen.entries.flatMap(\.plists).filter(\.removeFile).count == removalFileCount,
+              frozen.unmatched.count == unmatchedCount else { throw PluginHostServiceError.tool(.planChanged) }
+        guard frozen.entries.isEmpty else { return false }
+        guard try capture() == frozen else { throw PluginHostServiceError.tool(.planChanged) }
+        return true
+    }
 }
