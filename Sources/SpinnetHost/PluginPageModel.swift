@@ -56,6 +56,7 @@ final class PluginPageModel: ObservableObject {
     @Published var isPinned = false
     @Published private(set) var isBusy = false
     @Published private(set) var isPerformingOperation = false
+    @Published private(set) var operationProgress: String?
     @Published private(set) var eventError: ActionFailure?
     @Published private(set) var toast: String?
     private(set) var focusRequest: FocusRequest?
@@ -134,6 +135,7 @@ final class PluginPageModel: ObservableObject {
     func update(_ presentation: PluginViewPresentation, page next: PluginPage, newView: Bool, presentedAnew: Bool) {
         isBusy = presentation.isBusy
         isPerformingOperation = presentation.isPerformingOperation
+        operationProgress = presentation.operationProgress
         eventError = presentation.error
         if newView { apply(next, presentedAnew: presentedAnew) }
         settleRange()

@@ -95,10 +95,15 @@ final class ReviewedToolTaskTests: XCTestCase {
         let performer = ReviewedTaskOperationPerformer(tasks: host, confirmations: confirmation, registry: registry, background: { $0() }, executor: { $0() }, schedule: { _, _ in })
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
         var outcomes: [HostOperationOutcome] = []
-        performer.perform(input, for: action, accepted: performer.accept(owner: owner), authorize: {}, completion: { outcomes.append($0.outcome) })
+        var progress: [String] = []
+        performer.perform(input, for: action, accepted: performer.accept(owner: owner), authorize: {}, progress: { progress.append($0) }, completion: { outcomes.append($0.outcome) })
+        XCTAssertEqual(progress, ["Preparing Homebrew…", "Locating Homebrew…", "Reading selected package information…",
+            "Checking package sources…", "Checking app changes and installer sources…", "Verifying installed app sources…",
+            "Preparing the changes for confirmation…", "Waiting for your confirmation…"])
         XCTAssertEqual(confirmation.shown.count, 1)
         XCTAssertEqual(transport.inspections, 0)
         confirmation.answers[0](.confirmed)
+        XCTAssertEqual(Array(progress.suffix(2)), ["Inspecting installed package files…", "Waiting for your confirmation…"])
         XCTAssertEqual(confirmation.shown.count, 2)
         XCTAssertNotNil(confirmation.shown[1].details)
         XCTAssertEqual(transport.inspections, 1)

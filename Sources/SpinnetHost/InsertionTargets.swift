@@ -294,6 +294,12 @@ final class HostOperationsPerformer: HostOperationPerformer {
 
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
                  accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
+        perform(operation, for: action, target: target, accepted: accepted, progress: { _ in }, completion: completion)
+    }
+
+    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
+                 accepted: AcceptedHostOperationTarget, progress: @escaping (String) -> Void,
+                 completion: @escaping (HostOperationResult) -> Void) {
         do {
             try checkAuthorityAsItStands(operation, for: action)
         } catch {
@@ -310,7 +316,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
             tasks.perform(input, for: action, accepted: accepted, authorize: { [weak self] in
                 guard let self else { throw PluginHostServiceError.unavailable("Host Services") }
                 try self.checkAuthorityAsItStands(operation, for: action)
-            }, completion: completion)
+            }, progress: progress, completion: completion)
             return
         }
         if CurrentAppAddition.exitIDs.contains(operation.perform) {

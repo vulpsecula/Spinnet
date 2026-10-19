@@ -1,5 +1,6 @@
 import AppKit
 import SpinnetCore
+import SwiftUI
 import XCTest
 @testable import SpinnetHost
 
@@ -16,6 +17,35 @@ final class PluginPageModelTests: XCTestCase {
     private var model: PluginPageModel { harness.windows.pageModel(for: PageHarness.pluginID)! }
 
     // MARK: Opening
+
+    func testHostPreparationFeedbackUpdatesWithoutResettingCollectionSelection() throws {
+        try harness.open(PageHarness.search())
+        let selected = model.selectedItem
+        let status = "Reading selected package information…"
+        model.update(.init(view: .null, isBusy: false, error: nil, isPerformingOperation: true, operationProgress: status),
+            page: model.page, newView: false, presentedAnew: false)
+        XCTAssertEqual(model.operationProgress, status)
+        XCTAssertEqual(model.selectedItem, selected)
+        if let directory = ProcessInfo.processInfo.environment["SPINNET_OUTPUT_PREVIEW_DIR"] {
+            let view = NSHostingView(rootView: PluginPageContent(model: model)
+                .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .light))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: PluginViewPanelWindow.width, height: 500),
+                styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            defer { window.close() }
+            window.appearance = NSAppearance(named: .aqua)
+            window.contentView = view
+            view.frame = NSRect(x: 0, y: 0, width: PluginViewPanelWindow.width, height: 500)
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("homebrew-loading-feedback.png"))
+        }
+        model.update(.init(view: .null, isBusy: false, error: nil), page: model.page, newView: false, presentedAnew: false)
+        XCTAssertNil(model.operationProgress)
+        XCTAssertEqual(model.selectedItem, selected)
+    }
 
     func testAPageOpensInItsOwnWindowFocusedOnTheSearchField() throws {
         try harness.open(PageHarness.search())

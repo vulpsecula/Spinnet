@@ -1,8 +1,29 @@
 import AppKit
+import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
 final class PluginCommandOutputViewTests: XCTestCase {
+    func testTerminalProgressFitsDefaultPanelWithoutHorizontalScrolling() throws {
+        let scroll = PluginCommandOutputView.makeOutputView()
+        scroll.frame = NSRect(x: 0, y: 0, width: PluginViewPanelWindow.width - 28, height: 100)
+        scroll.tile()
+        // Reserve space for a vertical scroller as in a long live transcript.
+        let line = String(repeating: "#", count: HomebrewTaskProcess.terminalColumns)
+        PluginCommandOutputView.updateOutput(Array(repeating: line, count: 20).joined(separator: "\n"), in: scroll)
+        scroll.tile()
+        PluginCommandOutputView.updateOutput((scroll.documentView as! NSTextView).string, in: scroll)
+        let view = try XCTUnwrap(scroll.documentView as? NSTextView)
+        XCTAssertLessThanOrEqual(view.frame.width, scroll.contentSize.width + 1,
+            "A full PTY progress row must fit the default panel, including text insets and a vertical scrollbar")
+        if let directory = ProcessInfo.processInfo.environment["SPINNET_OUTPUT_PREVIEW_DIR"] {
+            PluginCommandOutputView.updateOutput("==> Fetching downloads\nCask example #### Downloading 50.0MB/100.0MB", in: scroll)
+            let bitmap = try XCTUnwrap(scroll.bitmapImageRepForCachingDisplay(in: scroll.bounds))
+            scroll.cacheDisplay(in: scroll.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("homebrew-compact-output.png"))
+        }
+    }
     func testWideProgressKeepsItsLeftEdgeAndHorizontalPositionWhileFollowingNewOutput() throws {
         let scroll = PluginCommandOutputView.makeOutputView()
         scroll.frame = NSRect(x: 0, y: 0, width: 380, height: 100)

@@ -72,6 +72,11 @@ public protocol HostOperationPerformer: AnyObject {
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration,
                  target: InsertionTargetCapture, accepted: AcceptedHostOperationTarget,
                  completion: @escaping (HostOperationResult) -> Void)
+    /// Host-only feedback for the view; never delivered to a Plugin.
+    /// Both callbacks run on the sessions' executor.
+    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration,
+                 target: InsertionTargetCapture, accepted: AcceptedHostOperationTarget,
+                 progress: @escaping (String) -> Void, completion: @escaping (HostOperationResult) -> Void)
     /// The owner of the Plugin's running operation ended, or the Plugin
     /// changed: an operation still waiting for a Host Confirmation stops
     /// waiting and is cancelled. One already performing its effect finishes.
@@ -79,6 +84,11 @@ public protocol HostOperationPerformer: AnyObject {
 }
 
 public extension HostOperationPerformer {
+    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration,
+                 target: InsertionTargetCapture, accepted: AcceptedHostOperationTarget,
+                 progress: @escaping (String) -> Void, completion: @escaping (HostOperationResult) -> Void) {
+        perform(operation, for: action, target: target, accepted: accepted, completion: completion)
+    }
     func accept(_ operation: RequestedHostOperation, for action: ActionConfiguration) -> AcceptedHostOperationTarget {
         .none
     }
@@ -244,7 +254,11 @@ final class HostOperationRequests {
             current.request.owner?.setPerformingOperation(true)
         }
         performer.perform(request.operation, for: request.action, target: request.target,
-                          accepted: request.accepted) { [weak self] result in
+                          accepted: request.accepted, progress: { [weak self] message in
+            guard let self, let current = self.active[pluginID], current.request.serial == serial,
+                  current.phase == .executing else { return }
+            current.request.owner?.setOperationProgress(message)
+        }) { [weak self] result in
             self?.finish(pluginID, serial: serial, with: result)
         }
     }

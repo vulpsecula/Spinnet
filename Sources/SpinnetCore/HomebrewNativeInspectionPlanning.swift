@@ -93,10 +93,11 @@ public enum HomebrewNativeInspectionPlanning {
 
 extension HomebrewPrivilegeReview {
     public static func casksForInspection(input: HomebrewTaskInput, package: JSONValue, executable: URL,
-        expected: [HomebrewPrivilegePlan.Cask]? = nil, cancellation: HostFetchedSections.Cancellation? = nil, isCancelled: @escaping () -> Bool = { false }) throws -> [HomebrewPrivilegePlan.Cask] {
+        expected: [HomebrewPrivilegePlan.Cask]? = nil, cancellation: HostFetchedSections.Cancellation? = nil, isCancelled: @escaping () -> Bool = { false },
+        progress: @escaping (String) -> Void = { _ in }) throws -> [HomebrewPrivilegePlan.Cask] {
         let directory = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/Spinnet/native-source-evidence")
         if !FileManager.default.fileExists(atPath: directory.path) { try NativeFileQuarantine.makePrivateDirectory(directory) }
         return try casks(input: input, package: package, executable: executable, evidenceDirectory: directory,
-            expected: expected, deferReceiptCapture: true, cancellation: cancellation, isCancelled: isCancelled)
+            expected: expected, deferReceiptCapture: true, cancellation: cancellation, isCancelled: isCancelled, progress: progress)
     }
 }

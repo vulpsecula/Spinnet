@@ -22,6 +22,10 @@ struct PluginPageContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             PageHeader(model: model)
+            if let progress = model.operationProgress {
+                Text(progress).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let error = model.error { errorBox(error) }
             if let collection = model.collection {
                 let index = model.page.content.firstIndex { $0.collection != nil } ?? 0
@@ -189,8 +193,8 @@ private struct PageHeader: View {
                 ProgressView()
                     .controlSize(.small)
                     .tint(.secondary)
-                    .help(PluginViewModel.operationBusyLabel)
-                    .accessibilityLabel(PluginViewModel.operationBusyLabel)
+                    .help(model.operationProgress ?? PluginViewModel.operationBusyLabel)
+                    .accessibilityLabel(model.operationProgress ?? PluginViewModel.operationBusyLabel)
             }
             Button { model.isPinned.toggle() } label: {
                 Image(systemName: model.isPinned ? "pin.fill" : "pin")

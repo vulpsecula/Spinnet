@@ -233,6 +233,31 @@ final class HostOperationSessionTests: XCTestCase {
         XCTAssertTrue(session.isPerformingOperation == false)
     }
 
+    func testHostProgressIsVisibleImmediatelyClearsAtCompletionAndIgnoresLateUpdates() throws {
+        let session = try start()
+        session.send(.actionChosen("copy"))
+        finish(0, operation: RequestedHostOperation(perform: "clipboard.write", input: .string("one")))
+        let progress = performer.progressUpdates[0]
+        progress("Reading selected package information…")
+        XCTAssertEqual(renderer.presentations.last?.operationProgress, "Reading selected package information…")
+        XCTAssertTrue(session.isPerformingOperation)
+        XCTAssertFalse(session.isBusy)
+        progress("Downloading and verifying example…")
+        XCTAssertEqual(renderer.presentations.last?.operationProgress, "Downloading and verifying example…")
+        performer.finish(0, .succeeded)
+        XCTAssertNil(renderer.presentations.last?.operationProgress)
+        XCTAssertFalse(session.isPerformingOperation)
+        session.send(.actionChosen("copy"))
+        finish(1, operation: RequestedHostOperation(perform: "clipboard.write", input: .string("two")))
+        performer.progressUpdates[1]("Preparing a new request…")
+        progress("Stale request must not overwrite the new status")
+        XCTAssertEqual(renderer.presentations.last?.operationProgress, "Preparing a new request…")
+        session.close()
+        let count = renderer.presentations.count
+        performer.progressUpdates[1]("Closed view must not be presented again")
+        XCTAssertEqual(renderer.presentations.count, count)
+    }
+
     /// Scenario 09: with `notify`, the result is answered before the next
     /// gesture runs, and the slot frees once that invocation ends, however
     /// it ends.
@@ -541,6 +566,7 @@ final class HeldPerformer: HostOperationPerformer {
     var refusal: PluginHostServiceError?
     private(set) var authorized: [(operation: RequestedHostOperation, action: ActionConfiguration)] = []
     private(set) var performed: [Performed] = []
+    private(set) var progressUpdates: [(String) -> Void] = []
 
     func authorize(_ operation: RequestedHostOperation, for action: ActionConfiguration) throws {
         if let refusal { throw refusal }
@@ -550,6 +576,13 @@ final class HeldPerformer: HostOperationPerformer {
     func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
                  accepted: AcceptedHostOperationTarget, completion: @escaping (HostOperationResult) -> Void) {
         performed.append(Performed(operation: operation, action: action, target: target, completion: completion))
+    }
+
+    func perform(_ operation: RequestedHostOperation, for action: ActionConfiguration, target: InsertionTargetCapture,
+                 accepted: AcceptedHostOperationTarget, progress: @escaping (String) -> Void,
+                 completion: @escaping (HostOperationResult) -> Void) {
+        progressUpdates.append(progress)
+        perform(operation, for: action, target: target, accepted: accepted, completion: completion)
     }
 
     func finish(_ index: Int, _ outcome: HostOperationOutcome, message: String? = nil) {

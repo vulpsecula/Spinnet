@@ -58,7 +58,7 @@ public final class HostReviewedToolTasks {
     private let trustedItems: (String) throws -> [String]
     private let resolveCurrentTrust: ((String, String) throws -> Bool)?
     private let targetResolver: TargetResolver
-    private let privilegeReview: (HomebrewTaskInput, JSONValue, URL, [HomebrewPrivilegePlan.Cask]?, HostFetchedSections.Cancellation) throws -> [HomebrewPrivilegePlan.Cask]
+    private let privilegeReview: (HomebrewTaskInput, JSONValue, URL, [HomebrewPrivilegePlan.Cask]?, HostFetchedSections.Cancellation, @escaping (String) -> Void) throws -> [HomebrewPrivilegePlan.Cask]
     private let nativeInspection: HomebrewNativeInspectionTransporting?
     private let inspectionDraft: (HomebrewTaskPlan) throws -> HomebrewNativeInspection.Draft
     private let prepareSystemAuthorization: () throws -> Void
@@ -111,8 +111,8 @@ public final class HostReviewedToolTasks {
             try HomebrewReadProfile.explicitlyTrusted(name, kind: kind, executable: executable(), deadline: Date().addingTimeInterval(15))
         } : nil
         self.targetResolver = targetResolver
-        self.privilegeReview = privilegeReview.map { work in { input, package, tool, _, _ in try work(input, package, tool) } }
-            ?? { input, package, tool, expected, cancellation in try HomebrewPrivilegeReview.casksForInspection(input: input, package: package, executable: tool, expected: expected, cancellation: cancellation) }
+        self.privilegeReview = privilegeReview.map { work in { input, package, tool, _, _, _ in try work(input, package, tool) } }
+            ?? { input, package, tool, expected, cancellation, progress in try HomebrewPrivilegeReview.casksForInspection(input: input, package: package, executable: tool, expected: expected, cancellation: cancellation, progress: progress) }
         self.nativeInspection = nativeInspection
         self.inspectionDraft = inspectionDraft ?? { plan in
             try HomebrewNativeInspectionPlanning.draft(taskID: plan.activityID,
@@ -143,6 +143,7 @@ public final class HostReviewedToolTasks {
     public func ownerGeneration(_ owner: PluginID) -> Int { lock.lock(); defer { lock.unlock() }; return generations[owner, default: 0] }
     public func prepare(_ input: HomebrewTaskInput, owner: PluginID, pluginName: String,
                         scope: PluginCapabilityScope? = nil,
+                        progress: @escaping (String) -> Void = { _ in },
                         authorize: () throws -> Void = {}) throws -> HomebrewTaskPlan {
         if let scope { try input.authorize(in: scope) }
         try authorize()
@@ -175,7 +176,7 @@ public final class HostReviewedToolTasks {
             package: .null, executable: URL(fileURLWithPath: "/"), confirmation: .init(title: "", message: "", confirmTitle: "", isDestructive: true), generation: generation)
         let cancellation = HostFetchedSections.Cancellation()
         pending = reservation; preparationID = id; pendingCancellation = cancellation; lock.unlock()
-        var preparation = ReviewedTaskPreparationDiagnostics()
+        var preparation = ReviewedTaskPreparationDiagnostics(progress: progress)
         do {
             let executable = try self.executable()
             preparation.advance("reading selected package metadata")
@@ -245,7 +246,7 @@ public final class HostReviewedToolTasks {
             }
             if plan.needsPrivileges {
                 preparation.advance("inspecting native cask changes")
-                let bindings = try privilegeReview(resolved, package, executable, nil, cancellation)
+                let bindings = try privilegeReview(resolved, package, executable, nil, cancellation, progress)
                 preparation.advance("checking installed cask source evidence")
                 try checkInstalledSources(bindings, package: package)
                 let nativeDetails = nativeInspection == nil ? bindings.flatMap { cask -> [String] in
@@ -394,7 +395,7 @@ public final class HostReviewedToolTasks {
             guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
             if plan.needsPrivileges {
-                var bindings = try privilegeReview(plan.resolvedInput, currentPackage, plan.executable, plan.privilegedCasks, cancellation)
+                var bindings = try privilegeReview(plan.resolvedInput, currentPackage, plan.executable, plan.privilegedCasks, cancellation, { _ in })
                 if let disclosure = plan.nativeInspection?.disclosure { bindings = try HomebrewNativeInspectionPlanning.finalizedCasks(bindings, disclosure: disclosure) }
                 guard bindings == plan.privilegedCasks else { throw PluginHostServiceError.tool(.planChanged) }
                 try checkInstalledSources(plan.privilegedCasks, package: currentPackage)

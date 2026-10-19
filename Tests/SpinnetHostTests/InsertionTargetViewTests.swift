@@ -140,5 +140,13 @@ final class InsertionTargetViewTests: XCTestCase {
         XCTAssertTrue(model.isPerformingOperation)
         XCTAssertTrue(model.accessibilityLabels.contains(PluginViewModel.operationBusyLabel))
         XCTAssertFalse(model.isBusy)
+        let status = "Reading selected package information…"
+        model.update(PluginViewPresentation(view: model.view, isBusy: false, error: nil, isPerformingOperation: true,
+                     operationProgress: status), description: model.description, newView: false, answersTyping: false, presentedAnew: false)
+        XCTAssertEqual(model.operationProgress, status)
+        XCTAssertTrue(model.accessibilityLabels.contains(status))
+        model.update(PluginViewPresentation(view: model.view, isBusy: false, error: nil),
+                     description: model.description, newView: false, answersTyping: false, presentedAnew: false)
+        XCTAssertNil(model.operationProgress)
     }
 }

@@ -4,7 +4,7 @@ import XCTest
 import SpinnetCore
 
 final class HomebrewTaskProgressTests: XCTestCase {
-    func testTerminalOffersTwoHundredColumnsForUntruncatedProgressAndKeepsInputClosed() throws {
+    func testTerminalFitsDefaultPanelAndKeepsInputClosed() throws {
         let ended = expectation(description: "terminal geometry probe reaped")
         let lock = NSLock()
         var output = Data()
@@ -19,8 +19,8 @@ final class HomebrewTaskProgressTests: XCTestCase {
         wait(for: [ended], timeout: 5)
         lock.lock(); defer { lock.unlock() }
         let text = String(decoding: output, as: UTF8.self)
-        XCTAssertTrue(text.contains("24 200"), text)
-        XCTAssertTrue(text.contains("columns=200"), text)
+        XCTAssertTrue(text.contains("24 44"), text)
+        XCTAssertTrue(text.contains("columns=44"), text)
         XCTAssertFalse(text.contains("unexpected interactive input"))
     }
 
@@ -60,6 +60,8 @@ final class HomebrewTaskProgressTests: XCTestCase {
         wait(for: [ended], timeout: 15)
         lock.lock(); defer { lock.unlock() }; log.finish()
         XCTAssertTrue(liveProgress, "Homebrew's real renderer must publish its download bar before exit, without a newline")
+        XCTAssertTrue(log.lines.filter { $0.contains("#") }.allSatisfy { $0.count <= HomebrewTaskProcess.terminalColumns },
+            "Homebrew must fit its actual download progress renderer into the default panel width")
     }
 
     func testHomebrewSynchronizedMultilineRedrawPublishesBeforeNewlineAndReplacesRows() {

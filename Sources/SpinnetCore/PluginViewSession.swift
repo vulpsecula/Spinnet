@@ -16,18 +16,20 @@ public struct PluginViewPresentation: Equatable {
     /// shown inline with a repair route chosen by its category; nil once an
     /// event succeeds.
     public let error: ActionFailure?
-    /// A Requested Host Operation the view committed has run for longer
-    /// than the progress delay: the view shows the operation's own busy
-    /// state, distinct from an event's.
+    /// A Requested Host Operation has specific Host feedback or has run
+    /// beyond the progress delay. Its busy state is distinct from an event's.
     public let isPerformingOperation: Bool
+    /// Host-owned status, excluded from Plugin events and state.
+    public let operationProgress: String?
 
     public init(view: JSONValue, isBusy: Bool, error: ActionFailure?, isPerformingOperation: Bool = false,
-                page: PluginPage? = nil) {
+                page: PluginPage? = nil, operationProgress: String? = nil) {
         self.view = view
         self.page = page
         self.isBusy = isBusy
         self.error = error
         self.isPerformingOperation = isPerformingOperation
+        self.operationProgress = operationProgress
     }
 }
 
@@ -140,9 +142,10 @@ public final class PluginViewSession {
     public private(set) var answeredEvent: PluginViewEvent?
     public private(set) var isEnded = false
     public var isBusy: Bool { inFlight != nil }
-    /// A Requested Host Operation the session committed has been running
-    /// longer than the progress delay.
+    /// A Requested Host Operation has specific Host feedback or has run
+    /// beyond the progress delay.
     public private(set) var isPerformingOperation = false
+    public private(set) var operationProgress: String?
     /// Which interface members the Plugin's declarations offer; one
     /// declaring `host_operations` may answer a gesture with an operation.
     public let permits: (PluginInterfaceMember) -> Bool
@@ -352,7 +355,8 @@ public final class PluginViewSession {
     func present() {
         guard !isEnded else { return }
         renderer?.present(PluginViewPresentation(view: view, isBusy: isBusy, error: error,
-                                                 isPerformingOperation: isPerformingOperation, page: page), of: self)
+                                                 isPerformingOperation: isPerformingOperation, page: page,
+                                                 operationProgress: operationProgress), of: self)
     }
 
     func showToast(_ toast: String?) {
@@ -627,6 +631,14 @@ public final class PluginViewSession {
     func setPerformingOperation(_ performing: Bool) {
         guard !isEnded, isPerformingOperation != performing else { return }
         isPerformingOperation = performing
+        if !performing { operationProgress = nil }
+        present()
+    }
+
+    func setOperationProgress(_ message: String) {
+        guard !isEnded, operationProgress != message else { return }
+        operationProgress = message
+        isPerformingOperation = true
         present()
     }
 

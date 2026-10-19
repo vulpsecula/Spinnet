@@ -5,6 +5,8 @@ import Darwin
 /// these executable, argv or environment values. The independent runner
 /// holds this boundary across a Host crash.
 public final class HomebrewTaskProcess {
+    /// Fits the default 440pt Plugin panel at the Host's readable mono size.
+    public static let terminalColumns = 44
     public enum InputPolicy { case vendor, nativeManifest }
     public enum GroupPolicy { case independentGroup, inheritWorkerGroup }
     /// Output only; a terminal never becomes an input or authorization channel.
@@ -38,7 +40,7 @@ public final class HomebrewTaskProcess {
         // Homebrew's download renderer even when both output streams are TTYs.
         if outputPolicy == .terminal {
             outputEnvironment["TERM"] = "xterm-256color"
-            outputEnvironment["COLUMNS"] = "200"
+            outputEnvironment["COLUMNS"] = String(Self.terminalColumns)
         }
         self.environment = outputEnvironment
         self.interruptGrace = interruptGrace; self.terminateGrace = terminateGrace
@@ -91,7 +93,7 @@ public final class HomebrewTaskProcess {
             // A fixed width keeps vendor progress within the published line
             // bound. Only stdout/stderr use the slave; stdin remains EOF or
             // the separately bounded native input, never a terminal session.
-            var size = winsize(ws_row: 24, ws_col: 200, ws_xpixel: 0, ws_ypixel: 0)
+            var size = winsize(ws_row: 24, ws_col: UInt16(Self.terminalColumns), ws_xpixel: 0, ws_ypixel: 0)
             var master: Int32 = -1, slave: Int32 = -1
             guard openpty(&master, &slave, nil, nil, &size) == 0 else { throw PluginHostServiceError.tool(.failed) }
             descriptors = [master, slave]

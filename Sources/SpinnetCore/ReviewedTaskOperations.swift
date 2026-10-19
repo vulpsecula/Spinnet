@@ -10,6 +10,7 @@ public final class ReviewedTaskOperationPerformer {
         let action: ActionConfiguration
         let generation: Int
         let completion: (HostOperationResult) -> Void
+        let progress: (String) -> Void
         let cancel: () -> Void
     }
     private let tasks: HostReviewedToolTasks
@@ -31,7 +32,8 @@ public final class ReviewedTaskOperationPerformer {
         .reviewedTaskOwner(registry.ownerAdmission(for: owner), tasks.ownerGeneration(owner))
     }
     public func perform(_ input: HomebrewTaskInput, for action: ActionConfiguration, accepted: AcceptedHostOperationTarget,
-                        authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
+                        authorize: @escaping () throws -> Void, progress: @escaping (String) -> Void = { _ in },
+                        completion: @escaping (HostOperationResult) -> Void) {
         guard case .reviewedTaskOwner(let registration?, let generation) = accepted,
               let package = registry.package(for: action.pluginID) else {
             return completion(.init(.refused(.commandUnavailable), message: "The Task owner was not current when accepted"))
@@ -42,6 +44,13 @@ public final class ReviewedTaskOperationPerformer {
         }
         catch { return completion(.refusal(error)) }
         let operationGeneration = generations[action.pluginID, default: 0]
+        progress("Preparing Homebrew…")
+        let preparing: (String) -> Void = { [weak self] message in
+            self?.executor { [weak self] in
+                guard let self, self.generations[action.pluginID, default: 0] == operationGeneration else { return }
+                progress(message)
+            }
+        }
         let currentAuthority = { [self] in
             guard registry.isCurrent(registration, for: package), tasks.ownerGeneration(action.pluginID) == generation else {
                 throw PluginHostServiceError.unavailable("The accepted Task authority changed")
@@ -52,13 +61,14 @@ public final class ReviewedTaskOperationPerformer {
             guard let self else { return }
             do {
                 let plan = try self.tasks.prepare(input, owner: action.pluginID, pluginName: package.manifest.name,
-                    scope: package.manifest.scope(for: .runReviewedToolTasks), authorize: currentAuthority)
+                    scope: package.manifest.scope(for: .runReviewedToolTasks), progress: preparing, authorize: currentAuthority)
                 self.executor {
                     guard self.generations[action.pluginID, default: 0] == operationGeneration else {
                         self.tasks.decline(plan); completion(.init(.cancelled)); return
                     }
                     do { try currentAuthority() } catch { self.tasks.decline(plan); completion(.refusal(error)); return }
                     if input.operation == HomebrewCatalogRefresh.operation {
+                        progress("Starting Homebrew catalog update…")
                         // The distinct refreshCatalog scope is the user's
                         // consent for automatic entry updates. It never admits
                         // a package change or accepts caller-supplied flags.
@@ -73,21 +83,23 @@ public final class ReviewedTaskOperationPerformer {
                             }
                         }
                     } else {
-                        self.present(plan, for: action, generation: operationGeneration, authorize: currentAuthority, completion: completion)
+                        self.present(plan, for: action, generation: operationGeneration, authorize: currentAuthority, progress: progress, completion: completion)
                     }
                 }
             } catch { self.executor { completion(.refusal(error)) } }
         }
     }
     private func present(_ plan: HomebrewTaskPlan, for action: ActionConfiguration, generation: Int,
-                         authorize: @escaping () throws -> Void, completion: @escaping (HostOperationResult) -> Void) {
+                         authorize: @escaping () throws -> Void, progress: @escaping (String) -> Void,
+                         completion: @escaping (HostOperationResult) -> Void) {
         let serial = UUID()
-        waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, cancel: {})
+        progress("Waiting for your confirmation…")
+        waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, progress: progress, cancel: {})
         let cancel = confirmations.confirm(plan.confirmation, for: action) { [weak self] answer in
             self?.answered(action.pluginID, serial: serial, answer: answer, authorize: authorize)
         }
         if let held = waiting[action.pluginID], held.serial == serial {
-            waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, cancel: cancel)
+            waiting[action.pluginID] = Waiting(serial: serial, plan: plan, action: action, generation: generation, completion: completion, progress: progress, cancel: cancel)
         } else { cancel() }
         schedule(HostConfirmation.expiry) { [weak self] in
             guard let self, let held = self.waiting[action.pluginID], held.serial == serial else { return }
@@ -99,6 +111,7 @@ public final class ReviewedTaskOperationPerformer {
         waiting[owner] = nil; pending.cancel()
         switch answer {
         case .confirmed:
+            pending.progress(pending.plan.requiresNativeInspection ? "Inspecting installed package files…" : "Starting Homebrew…")
             background { [weak self] in
                 guard let self else { return }
                 do {
@@ -109,7 +122,7 @@ public final class ReviewedTaskOperationPerformer {
                                 self.tasks.decline(final); pending.completion(.init(.cancelled)); return
                             }
                             do { try authorize() } catch { self.tasks.decline(final); pending.completion(.refusal(error)); return }
-                            self.present(final, for: pending.action, generation: pending.generation, authorize: authorize, completion: pending.completion)
+                            self.present(final, for: pending.action, generation: pending.generation, authorize: authorize, progress: pending.progress, completion: pending.completion)
                         }
                     } else {
                         _ = try self.tasks.launch(pending.plan, authorize: authorize)

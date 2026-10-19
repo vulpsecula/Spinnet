@@ -578,7 +578,8 @@ public enum HomebrewPrivilegeReview {
     }
     public static func casks(input: HomebrewTaskInput, package: JSONValue, executable: URL, evidenceDirectory: URL,
                              expected: [HomebrewPrivilegePlan.Cask]? = nil, fetchSnapshot: @escaping HomebrewNoCheckSnapshot.Fetch = HomebrewNoCheckSnapshot.download,
-                             deferReceiptCapture: Bool = false, cancellation: HostFetchedSections.Cancellation? = nil, isCancelled: @escaping () -> Bool = { false }) throws -> [HomebrewPrivilegePlan.Cask] {
+                             deferReceiptCapture: Bool = false, cancellation: HostFetchedSections.Cancellation? = nil, isCancelled: @escaping () -> Bool = { false },
+                             progress: @escaping (String) -> Void = { _ in }) throws -> [HomebrewPrivilegePlan.Cask] {
         let readCancellation = cancellation ?? HostFetchedSections.Cancellation()
         let cancelled = { isCancelled() || readCancellation.isCancelled }
         let monitor = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
@@ -684,12 +685,14 @@ public enum HomebrewPrivilegeReview {
                     snapshotDirectory = sourceDirectory.appendingPathComponent("download-" + UUID().uuidString)
                     try NativeFileQuarantine.makePrivateDirectory(snapshotDirectory); previous = nil
                 }
+                progress(previous == nil ? "Downloading and verifying \(name)…" : "Verifying the downloaded \(name) installer…")
                 let frozen = try HomebrewNoCheckSnapshot.capture(snapshot: snapshot, into: snapshotDirectory, deadline: preparationDeadline,
                     expectedSHA256: previous?.sha256, isCancelled: cancelled, fetch: boundedFetch)
                 if let previous, frozen != previous { throw PluginHostServiceError.tool(.planChanged) }
                 guard frozen.byteCount <= 8 * 1024 * 1024 * 1024 - frozenSourceBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
                 frozenSourceBytes += frozen.byteCount
                 downloadSnapshot = frozen; checksum = frozen.sha256
+                progress("Checking app changes and installer sources…")
             } else { downloadSnapshot = nil }
             let metadata = packagesForReview(package).first { $0.value(atPointer: "/name") == .string(name) }
             let predecessor: HomebrewPrivilegePlan.Cask?

@@ -16,6 +16,10 @@ struct PluginViewContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
+            if let progress = model.operationProgress {
+                Text(progress).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !model.description.settings.isEmpty {
                 settingsRow
             }
@@ -88,8 +92,8 @@ struct PluginViewContent: View {
                 ProgressView()
                     .controlSize(.small)
                     .tint(.secondary)
-                    .help(PluginViewModel.operationBusyLabel)
-                    .accessibilityLabel(PluginViewModel.operationBusyLabel)
+                    .help(model.operationProgress ?? PluginViewModel.operationBusyLabel)
+                    .accessibilityLabel(model.operationProgress ?? PluginViewModel.operationBusyLabel)
             }
             Button { model.isPinned.toggle() } label: {
                 Image(systemName: model.isPinned ? "pin.fill" : "pin")

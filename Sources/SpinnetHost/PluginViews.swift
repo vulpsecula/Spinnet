@@ -70,6 +70,7 @@ final class PluginViewModel: ObservableObject {
     var origin: PluginViewOrigin?
     /// A Requested Host Operation the view committed has run for a while.
     @Published private(set) var isPerformingOperation = false
+    @Published private(set) var operationProgress: String?
 
     private let environment: PluginViewEnvironment
     private var toastCount = 0
@@ -143,6 +144,7 @@ final class PluginViewModel: ObservableObject {
         self.description = description
         isBusy = presentation.isBusy
         isPerformingOperation = presentation.isPerformingOperation
+        operationProgress = presentation.operationProgress
         eventError = presentation.error
         if presentedAnew { hostError = nil }
         guard newView else { return }
@@ -351,7 +353,7 @@ final class PluginViewModel: ObservableObject {
         if let line = insertionTargetLine { labels.append(line) }
         labels += description.actions.map(actionLabel)
         if isBusy { labels.append(Self.busyLabel) }
-        if isPerformingOperation { labels.append(Self.operationBusyLabel) }
+        if isPerformingOperation { labels.append(operationProgress ?? Self.operationBusyLabel) }
         if let error { labels.append(error.message) }
         if let route = repairRoute { labels.append(route.title) }
         if let toast { labels.append(toast) }
