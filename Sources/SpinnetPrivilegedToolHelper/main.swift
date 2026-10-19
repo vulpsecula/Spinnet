@@ -114,6 +114,15 @@ private func nativeCancelled(_ task: Task) -> Bool {
 }
 
 final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
+    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
+    func lifecycleSnapshot(reply: @escaping (Int32, String, String) -> Void) {
+        #if SPINNET_BACKGROUND_LIFECYCLE_NEXT
+        reply(getpid(), loadedHelperRevision, "next")
+        #else
+        reply(getpid(), loadedHelperRevision, "baseline")
+        #endif
+    }
+    #endif
     let pid: pid_t; let uid: uid_t; let identity: UInt64?
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier; identity = HomebrewTaskProcess.startIdentity(connection.processIdentifier) }
     func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void) {

@@ -9,6 +9,9 @@ MIN_SYSTEM_VERSION="13.0"
 APP_VERSION="0.1.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "$MODE" == --background-lifecycle-check ]]; then
+    exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "${2:---prepare}"
+fi
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -168,6 +171,10 @@ if [[ -n "$SIGNING_IDENTITY" && "$SIGNING_IDENTITY" != "-" ]]; then
 fi
 if [[ "$MODE" != "--package" ]]; then
     if ! "$APP_BINARY" --refresh-existing-background-operations; then
+        if [[ "$MODE" == --verify ]]; then
+            echo "error: the enabled background component failed its signed connection/update check" >&2
+            exit 1
+        fi
         echo "warning: background component update is pending; open Spinnet Privacy & Permissions for its status" >&2
     fi
 fi
@@ -208,7 +215,7 @@ case "$MODE" in
         done
         ;;
     *)
-        echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check]" >&2
+        echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check|--background-lifecycle-check [--prepare|--run]]" >&2
         exit 2
         ;;
 esac

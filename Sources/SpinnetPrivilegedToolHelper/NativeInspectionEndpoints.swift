@@ -81,7 +81,11 @@ final class NativeInspectionOperation {
     }
 }
 
+#if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
+private let inspectionRoot = URL(fileURLWithPath: "/private/var/tmp/spinnet-background-lifecycle-inspections")
+#else
 private let inspectionRoot = URL(fileURLWithPath: "/private/var/tmp/spinnet-native-inspections")
+#endif
 func initializeNativeInspectionRecovery() throws {
     if !FileManager.default.fileExists(atPath: inspectionRoot.path) { try NativeFileQuarantine.makePrivateDirectory(inspectionRoot) }
     let fd = open(inspectionRoot.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)

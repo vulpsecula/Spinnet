@@ -298,6 +298,9 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
     func stop(_ taskID: String, reply: @escaping () -> Void)
 }
 @objc public protocol HomebrewPrivilegeHostProtocol {
+    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
+    func lifecycleSnapshot(reply: @escaping (Int32, String, String) -> Void)
+    #endif
     func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void)
     func admit(_ plan: Data, reply: @escaping (String) -> Void)
     func cancel(_ taskID: String, reply: @escaping () -> Void)
@@ -316,12 +319,17 @@ public enum HomebrewSystemAuthorization {
         ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 120, "allow-root": false]
     }
     public static let noLaunchServicesToRemove = "spinnet.no-launch-services-to-remove"
-    public static let service = "com.vulpsecula.SpinnetHost.reviewed-tools"
-    public static let right = "com.vulpsecula.SpinnetHost.install-reviewed-package"
-    public static let runnerIdentifier = "com.vulpsecula.SpinnetHost.task-runner"
-    public static let clientIdentifier = "com.vulpsecula.SpinnetHost.authorization-client"
-    public static let helperIdentifier = "com.vulpsecula.SpinnetHost.privileged-tools"
-    public static let hostIdentifier = "com.vulpsecula.SpinnetHost.preview"
+    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
+    private static let identifierPrefix = "com.vulpsecula.SpinnetHost.lifecycle-fixture"
+    #else
+    private static let identifierPrefix = "com.vulpsecula.SpinnetHost"
+    #endif
+    public static let service = identifierPrefix + ".reviewed-tools"
+    public static let right = identifierPrefix + ".install-reviewed-package"
+    public static let runnerIdentifier = identifierPrefix + ".task-runner"
+    public static let clientIdentifier = identifierPrefix + ".authorization-client"
+    public static let helperIdentifier = identifierPrefix + ".privileged-tools"
+    public static let hostIdentifier = identifierPrefix + ".preview"
 
     /// Requires the stable signing team. Ad-hoc builds cannot elevate.
     public static func requirement(identifier: String) throws -> String {
@@ -344,7 +352,7 @@ public enum HomebrewSystemAuthorization {
                 && FileManager.default.isExecutableFile(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetPrivilegedToolHelper").path))
         try HomebrewBackgroundUpdate.refreshEnabledService()
     }
-    static func prepareService(status: () -> SMAppService.Status, register: () throws -> Void,
+    package static func prepareService(status: () -> SMAppService.Status, register: () throws -> Void,
                                openSettings: () -> Void, bundledServiceExists: Bool) throws {
         let initial = status()
         if initial == .notRegistered || initial == .notFound {

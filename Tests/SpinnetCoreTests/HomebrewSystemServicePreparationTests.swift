@@ -3,6 +3,14 @@ import ServiceManagement
 @testable import SpinnetCore
 
 final class HomebrewSystemServicePreparationTests: XCTestCase {
+    func testDailyBuildKeepsItsServiceAndSigningIdentitiesSeparateFromLifecycleFixtures() {
+        XCTAssertEqual(HomebrewSystemAuthorization.hostIdentifier, "com.vulpsecula.SpinnetHost.preview")
+        XCTAssertEqual(HomebrewSystemAuthorization.helperIdentifier, "com.vulpsecula.SpinnetHost.privileged-tools")
+        XCTAssertEqual(HomebrewSystemAuthorization.service, "com.vulpsecula.SpinnetHost.reviewed-tools")
+        XCTAssertEqual(HomebrewSystemAuthorization.right, "com.vulpsecula.SpinnetHost.install-reviewed-package")
+        XCTAssertEqual(HomebrewSystemAuthorization.runnerIdentifier, "com.vulpsecula.SpinnetHost.task-runner")
+        XCTAssertEqual(HomebrewSystemAuthorization.clientIdentifier, "com.vulpsecula.SpinnetHost.authorization-client")
+    }
     func testRequestRightSurvivesTheClientToHelperHandoffWithoutSharingCredentials() throws {
         let definition = HomebrewSystemAuthorization.requestRightDefinition
         let timeout = try XCTUnwrap(definition["timeout"] as? Int)
