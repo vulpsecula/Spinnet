@@ -246,6 +246,12 @@ context.fetch("casks").each do |binding|
 end
 arguments = context.fetch("arguments")
 raise "Unsupported privileged Homebrew operation" unless %w[install upgrade reinstall uninstall].include?(arguments.first)
-require "cmd/#{arguments.first}"
-klass = Homebrew::Cmd.const_get(arguments.shift.capitalize)
-klass.new(arguments).run
+operation = arguments.shift
+require "cmd/#{operation}"
+# Homebrew command class names are not uniform (InstallCmd, UpgradeCmd,
+# Reinstall, UninstallCmd). Resolve through the same registry as brew itself.
+klass = Homebrew::AbstractCommand.command(operation)
+abort "Unsupported reviewed Homebrew command implementation" unless klass
+ARGV.replace(arguments)
+Homebrew.running_command = operation
+klass.new(ARGV).run

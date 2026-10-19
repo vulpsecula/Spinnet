@@ -3,25 +3,68 @@ import XCTest
 
 /// Executes real upstream dispatch/Installer methods with inert artifact leaves
 /// and the production bridge prepend. This does not admit a source digest,
-/// start Homebrew, run a native client, or claim administrator acceptance.
+/// execute a Homebrew mutation, run a native client, or claim administrator acceptance.
 final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
     private static let previous = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b"
     private static let current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
     private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
 
-    private func run(_ executable: URL, _ arguments: [String]) throws -> (Int32, Data, String) {
+    private func run(_ executable: URL, _ arguments: [String], environment: [String: String] = [:]) throws -> (Int32, Data, String) {
         let process = Process(), output = Pipe(), errors = Pipe()
         process.executableURL = executable
         process.arguments = arguments
         process.standardOutput = output
         process.standardError = errors
-        process.environment = ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"]
+        process.environment = ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"].merging(environment) { _, value in value }
         try process.run()
         let data = output.fileHandleForReading.readDataToEndOfFile()
         let error = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return (process.terminationStatus, data, String(decoding: error, as: UTF8.self))
+    }
+
+    private func commandProof(_ operation: String, mode: String = "record") throws -> (Int32, Data, String) {
+        let brew = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
+        guard FileManager.default.isExecutableFile(atPath: brew.path) else {
+            throw XCTSkip("Homebrew is unavailable for the read-only command dispatcher proof")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let context = directory.appendingPathComponent("context.json")
+        try JSONSerialization.data(withJSONObject: ["arguments": [operation, "--cask", "--", "fixture"],
+            "casks": [], "client": "/usr/bin/false"]).write(to: context)
+        return try run(brew, ["ruby", root.appendingPathComponent("Tests/Fixtures/HomebrewPrivilegeDispatch/command.rb").path,
+            root.appendingPathComponent("Sources/SpinnetToolTaskRunner/Resources/HomebrewPrivilegeBridge.rb").path, context.path, mode],
+            environment: ["HOME": NSHomeDirectory(), "USER": NSUserName(), "HOMEBREW_NO_AUTO_UPDATE": "1",
+                "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_ENV_HINTS": "1", "HOMEBREW_DEVELOPER": "1"])
+    }
+
+    func testCompleteBridgeResolvesAllReviewedOperationsThroughTheActualCommandRegistry() throws {
+        for operation in ["upgrade", "install", "reinstall", "uninstall"] {
+            let (status, bytes, error) = try commandProof(operation)
+            XCTAssertEqual(status, 0, error)
+            guard status == 0 else { continue }
+            let output = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+            XCTAssertEqual(output["command"] as? String, operation)
+            XCTAssertEqual(output["arguments"] as? [String], ["--cask", "--", "fixture"])
+            XCTAssertEqual(output["running_command"] as? String, "brew \(operation) --cask -- fixture")
+            XCTAssertEqual(output["cask"] as? Bool, true)
+            XCTAssertEqual(output["packages"] as? [String], ["fixture"])
+            XCTAssertEqual(output["uid"] as? UInt32, getuid(), "The bridge remains the logged-in user")
+        }
+    }
+
+    func testMissingRegisteredImplementationAndUnreviewedOperationsFailBeforeCommandExecution() throws {
+        let missing = try commandProof("upgrade", mode: "missing")
+        XCTAssertNotEqual(missing.0, 0)
+        XCTAssertTrue(missing.1.isEmpty)
+        XCTAssertTrue(missing.2.contains("Unsupported reviewed Homebrew command implementation"), missing.2)
+        let unsupported = try commandProof("update")
+        XCTAssertNotEqual(unsupported.0, 0)
+        XCTAssertTrue(unsupported.1.isEmpty)
+        XCTAssertTrue(unsupported.2.contains("Unsupported privileged Homebrew operation"), unsupported.2)
     }
 
     private func proof(_ mode: String, at revision: String) throws -> Any {
