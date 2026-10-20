@@ -342,6 +342,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 pluginSettingsStore: pluginSettings,
                 pluginStorage: pluginStorage
             )
+            #if DEBUG
+            settings.developerTools = DeveloperTools(
+                diagnostics: { [unowned self] in self.developerDiagnostics() },
+                dataDirectory: configurationFileURL().deletingLastPathComponent(),
+                showLifecycleTestWindow: { [weak self] in self?.showLifecycleTestWindow() }
+            )
+            #endif
             settings.connectionSettings = { [registry, capabilityGrants, externalAppConnections] pluginID in
                 ExternalAppConnectionsModel(pluginID: pluginID, registry: registry,
                     grants: capabilityGrants, service: externalAppConnections)
@@ -438,10 +445,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             if settings.permissionGuidePresented { settings.present() }
             #if DEBUG
             if CommandLine.arguments.contains("--lifecycle-check") {
-                lifecycleTestWindow = try LifecycleTestWindow(registry: registry) { [weak self] action in
-                    self?.invoke(action)
-                }
-                lifecycleTestWindow?.show()
+                showLifecycleTestWindow()
             }
             #endif
         } catch {
@@ -566,6 +570,40 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         controller.install()
         statusItemController = controller
     }
+
+    #if DEBUG
+    private func developerDiagnostics() -> DeveloperDiagnostics {
+        let info = Bundle.main.infoDictionary ?? [:]
+        return DeveloperDiagnostics(
+            appPath: Bundle.main.bundleURL.path,
+            bundleIdentifier: Bundle.main.bundleIdentifier ?? "(none)",
+            version: info["CFBundleShortVersionString"] as? String ?? "(none)",
+            sourceRevision: info["SpinnetSourceRevision"] as? String ?? "(unknown)",
+            processIdentifier: ProcessInfo.processInfo.processIdentifier,
+            arguments: Array(CommandLine.arguments.dropFirst()),
+            bundledPluginSource: DeveloperDiagnostics.describe(try? bundledPluginSource()),
+            dataDirectory: configurationFileURL().deletingLastPathComponent().path,
+            plugins: DeveloperDiagnostics.plugins(in: registry),
+            refused: registry.refusedPlugins().map { .init(id: $0.id.rawValue, reason: $0.reason) }
+        )
+    }
+
+    /// The window `--lifecycle-check` opens at launch, created on first use
+    /// when it was not, since it registers its fixture Plugin only once.
+    private func showLifecycleTestWindow() {
+        if lifecycleTestWindow == nil {
+            do {
+                lifecycleTestWindow = try LifecycleTestWindow(registry: registry) { [weak self] action in
+                    self?.invoke(action)
+                }
+            } catch {
+                NSLog("Spinnet: Lifecycle Test window could not be created: \(error.localizedDescription)")
+                return
+            }
+        }
+        lifecycleTestWindow?.show()
+    }
+    #endif
 
     private func installTriggers() throws {
         let controller = GlobalTriggerController()

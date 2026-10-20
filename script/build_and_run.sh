@@ -42,6 +42,12 @@ fi
 
 BUNDLED_PLUGINS_DIR="$("$ROOT_DIR/script/resolve_bundled_plugins.sh")"
 
+# The commit a DEBUG Host reports in Developer > Copy Diagnostics.
+SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [[ "$SOURCE_REVISION" != unknown ]] && ! git -C "$ROOT_DIR" diff --quiet HEAD -- 2>/dev/null; then
+    SOURCE_REVISION="$SOURCE_REVISION-dirty"
+fi
+
 if [[ "$MODE" != "--package" ]]; then
     pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 fi
@@ -121,6 +127,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>Spinnet</string>
   <key>CFBundleShortVersionString</key>
   <string>$APP_VERSION</string>
+  <key>SpinnetSourceRevision</key>
+  <string>$SOURCE_REVISION</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

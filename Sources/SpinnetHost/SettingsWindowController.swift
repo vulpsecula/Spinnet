@@ -90,6 +90,17 @@ final class SettingsWindowController: NSWindowController {
         model.page
     }
 
+    #if DEBUG
+    /// Setting this lets the About page reveal the Developer page.
+    var developerTools: DeveloperTools? {
+        get { model.developerTools }
+        set { model.developerTools = newValue }
+    }
+
+    func revealDeveloperPage() { model.revealDeveloperPage() }
+    func hideDeveloperPage() { model.hideDeveloperPage() }
+    #endif
+
     var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
     var clipboardCollectionEnabled: Bool {
         get { model.clipboardHistory.collectionEnabled }
@@ -252,9 +263,9 @@ final class SettingsWindowController: NSWindowController {
 
         return SettingsWindowSnapshot(
             page: currentPage,
-            navigationPages: SettingsPage.allCases,
+            navigationPages: model.navigationPages,
             visibleRegions: visibleRegions,
-            focusOrder: SettingsPage.allCases.map { .navigation($0) } + [.pageContent],
+            focusOrder: model.navigationPages.map { .navigation($0) } + [.pageContent],
             initialFocus: .navigation(currentPage),
             editorModeIsNonExecuting: true,
             accessibleNames: model.accessibleNames
