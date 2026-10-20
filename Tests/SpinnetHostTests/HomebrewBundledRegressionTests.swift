@@ -50,7 +50,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         XCTAssertEqual(expected.actions.map(\.id), stored.actions.map(\.id))
         XCTAssertEqual(expected.menu, stored.menu)
         XCTAssertTrue(Set(expected.actions.map(\.commandID)).isSubset(of: Set(package.manifest.commands.map(\.id))))
-        XCTAssertEqual(package.manifest.commands.count, 10)
+        XCTAssertEqual(package.manifest.commands.count, 9)
         XCTAssertEqual(stored.actions.count, 14)
         XCTAssertEqual(stored.menu.slots.first?.item?.alias, "Homebrew · development Mac")
         for action in expected.actions {
