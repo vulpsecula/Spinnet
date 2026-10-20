@@ -8,6 +8,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
     private static let previous = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b"
     private static let current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
     private static let cleanup = "8f10429b56be28a25032b87463fffc95e556b5bc"
+    private static let checksum = "d78c1943dc2b77930691102481df0d9e9bf7e257"
     private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
 
@@ -53,6 +54,8 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
             XCTAssertEqual(output["running_command"] as? String, "brew \(operation) --cask -- fixture")
             XCTAssertEqual(output["cask"] as? Bool, true)
             XCTAssertEqual(output["packages"] as? [String], ["fixture"])
+            XCTAssertEqual(output["require_sha"] as? Bool, false)
+            XCTAssertEqual(output["force"] as? Bool, false)
             XCTAssertEqual(output["uid"] as? UInt32, getuid(), "The bridge remains the logged-in user")
         }
     }
@@ -94,7 +97,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
     }
 
     func testOrdinaryUpgradeAndReinstallHonorSignalOptInQuitAndDeferredDirectoryOrder() throws {
-        for revision in [Self.previous, Self.current, Self.cleanup] {
+        for revision in [Self.previous, Self.current, Self.cleanup, Self.checksum] {
             let cases = try XCTUnwrap(try proof("ordinary", at: revision) as? [String: [String]])
             XCTAssertEqual(cases.count, 12)
             for operation in ["upgrade", "reinstall"] {
@@ -132,10 +135,11 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
             "uninstall:rmdir", "zap:rmdir", "purge"
         ])
         XCTAssertEqual(try proof("zap", at: Self.cleanup) as? [String], current + ["cleanup-temp:false"])
+        XCTAssertEqual(try proof("zap", at: Self.checksum) as? [String], current + ["cleanup-temp:false"])
     }
 
     func testBothDispatchersRouteEveryElevatedLeafToExactGrantAndRefuseWrongMissingOwnerOrPhase() throws {
-        for revision in [Self.previous, Self.current, Self.cleanup] {
+        for revision in [Self.previous, Self.current, Self.cleanup, Self.checksum] {
             let result = try XCTUnwrap(try proof("bridge", at: revision) as? [String: Any])
             let accepted = try XCTUnwrap(result["accepted"] as? [Any]).map { value -> String in
                 if let command = value as? [String] { return command.joined(separator: " ") }
@@ -163,7 +167,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
                 uninstallCode, receipt, uninstallDelete, "uninstall:trash", uninstallRmdir, "removable", "postflight",
                 earlyZap, zapService, "zap:quit", "zap:signal", kext, zapCode, receipt, zapDelete, "zap:trash", zapRmdir, "purge"
             ]
-            if revision == Self.cleanup { expected.append("cleanup-temp:false") }
+            if [Self.cleanup, Self.checksum].contains(revision) { expected.append("cleanup-temp:false") }
             XCTAssertEqual(accepted, expected, revision)
             // Receipt and kext grants intentionally have no phase field in the
             // existing bridge; both passes must still use the same exact seal.

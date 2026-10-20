@@ -19,11 +19,17 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
             (String(updates[Range(match.range(at: 1), in: updates)!]), String(updates[Range(match.range(at: 2), in: updates)!]))
         }
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: changes), HomebrewPrivilegeReview.reviewedSourceUpdates)
-        let cleanup = try XCTUnwrap(sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =").last)
+        let remaining = try XCTUnwrap(sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =").last)
+        let cleanup = remaining.components(separatedBy: "REVIEWED_SOURCE_CHECKSUM_UPDATES =")[0]
         let cleanupChanges = pattern.matches(in: cleanup, range: NSRange(cleanup.startIndex..., in: cleanup)).map { match -> (String, String) in
             (String(cleanup[Range(match.range(at: 1), in: cleanup)!]), String(cleanup[Range(match.range(at: 2), in: cleanup)!]))
         }
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: cleanupChanges), HomebrewPrivilegeReview.reviewedSourceCleanupUpdates)
+        let checksum = try XCTUnwrap(remaining.components(separatedBy: "REVIEWED_SOURCE_CHECKSUM_UPDATES =").last)
+        let checksumChanges = pattern.matches(in: checksum, range: NSRange(checksum.startIndex..., in: checksum)).map { match -> (String, String) in
+            (String(checksum[Range(match.range(at: 1), in: checksum)!]), String(checksum[Range(match.range(at: 2), in: checksum)!]))
+        }
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: checksumChanges), HomebrewPrivilegeReview.reviewedSourceChecksumUpdates)
     }
 
     func testReviewedInstalledSourcesPassAndChangingEachFileRemainsRefused() throws {
@@ -51,7 +57,7 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
         }
         try HomebrewPrivilegeReview.checkCompatibility(executable: executable)
     }
-    func testBothCompleteReviewedCohortsPassWhileHybridAndUnknownSourcesFail() throws {
+    func testCompleteReviewedCohortsPassWhileHybridAndUnknownSourcesFail() throws {
         let repository = URL(fileURLWithPath: "/opt/homebrew")
         guard FileManager.default.fileExists(atPath: repository.appendingPathComponent(".git").path) else { throw XCTSkip("Exact upstream Git source fixtures unavailable") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -67,7 +73,9 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
             return data
         }
         let old = "19fe946b9a257cb41ebb5cef5c592ba7923d1f3b", current = "3073d6a8c34f71da054b000cfdbb62594a07c969"
-        for revision in [old, current, "8f10429b56be28a25032b87463fffc95e556b5bc"] {
+        let cleanup = "8f10429b56be28a25032b87463fffc95e556b5bc"
+        let checksum = "d78c1943dc2b77930691102481df0d9e9bf7e257"
+        for revision in [old, current, cleanup, checksum] {
             let library = root.appendingPathComponent(revision + "/Library/Homebrew")
             for path in HomebrewPrivilegeReview.reviewedSourceDigests.keys {
                 let file = library.appendingPathComponent(path)
@@ -84,6 +92,15 @@ final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
             XCTAssertThrowsError(try HomebrewPrivilegeReview.checkCompatibility(executable: executable), "Unknown source")
             try original.write(to: target)
             try HomebrewPrivilegeReview.checkCompatibility(executable: executable)
+            if revision == checksum {
+                for path in ["cask/installer.rb", "cmd/install.rb", "cmd/upgrade.rb", "cmd/reinstall.rb"] {
+                    let file = library.appendingPathComponent(path), reviewed = try Data(contentsOf: file)
+                    try source(cleanup, path).write(to: file)
+                    XCTAssertThrowsError(try HomebrewPrivilegeReview.checkCompatibility(executable: executable), "Mixed checksum policy: \(path)")
+                    try reviewed.write(to: file)
+                }
+                try HomebrewPrivilegeReview.checkCompatibility(executable: executable)
+            }
         }
     }
 

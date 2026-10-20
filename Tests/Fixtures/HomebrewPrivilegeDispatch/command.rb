@@ -19,6 +19,8 @@ if %w[install upgrade reinstall uninstall].include?(operation)
     define_method(:run) do
       puts JSON.generate({ command: operation, class: command.name, arguments: @fixture_arguments,
                            running_command: Homebrew.running_command_with_args, cask: args.cask?,
+                           require_sha: args.respond_to?(:cask_require_sha?) ? args.cask_require_sha? : args.respond_to?(:require_sha?) && args.require_sha? == true,
+                           force: args.respond_to?(:force?) && args.force? == true,
                            packages: args.named.to_a, uid: Process.uid })
     end
   end)

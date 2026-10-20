@@ -42,8 +42,17 @@ REVIEWED_SOURCE_UPDATES = {
 REVIEWED_SOURCE_CLEANUP_UPDATES = {
   "cask/installer.rb" => "4306636812393413831241f5eee60f25b6f4cbce0fc16ce32901269a46209517"
 }
+# Homebrew d78c1943 honors explicit checksum policy; native leaves are unchanged.
+REVIEWED_SOURCE_CHECKSUM_UPDATES = {
+  "cask/installer.rb" => "bb81c15b003804e80ea9cf1d1488d0700c58539e2cc9180e883ae1c914a0597c",
+  "cmd/install.rb" => "edd557325582626f363e2ed2cbade08e7882b41bdea3bf9c5f5babce2ad3bda4",
+  "cmd/upgrade.rb" => "2077ae3b1fbb4012ad2e6334344fe62a95d4d1a102a2aeeb061cb6e7cc5cc5fe",
+  "cmd/reinstall.rb" => "3be96beae921d92fbd35ad9dc6761e79a4c0564668bbfe077e0610e3f41156b0"
+}
 REVIEWED_SOURCE_COHORTS = [REVIEWED_SOURCE_DIGESTS, REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES),
-                         REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES).merge(REVIEWED_SOURCE_CLEANUP_UPDATES)].freeze
+                         REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES).merge(REVIEWED_SOURCE_CLEANUP_UPDATES),
+                         REVIEWED_SOURCE_DIGESTS.merge(REVIEWED_SOURCE_UPDATES).merge(REVIEWED_SOURCE_CLEANUP_UPDATES)
+                           .merge(REVIEWED_SOURCE_CHECKSUM_UPDATES)].freeze
 actual_sources = REVIEWED_SOURCE_DIGESTS.keys.to_h do |path|
   [path, Digest::SHA256.file(HOMEBREW_LIBRARY_PATH/path).hexdigest]
 end
