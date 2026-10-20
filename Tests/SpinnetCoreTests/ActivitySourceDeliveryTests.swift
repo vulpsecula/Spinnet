@@ -6,7 +6,7 @@ final class ActivitySourceDeliveryTests: XCTestCase {
     func testLevelFourOptInIsPublishedAndOlderHostsRefuseIt() throws {
         let command = CommandDeclaration(id: .init("tasks"), title: "Tasks", execution: .javascript, script: "tasks.js")
         let manifest = try PluginManifest(apiLevel: 4, id: .init("com.example.live-tasks"), name: "Tasks", version: "1", commands: [command])
-        XCTAssertEqual(PluginInterfaceContracts.host.highestStableLevel, 6)
+        XCTAssertEqual(PluginInterfaceContracts.host.highestStableLevel, 7)
         XCTAssertTrue(PluginInterfaceContracts.host.permitting(manifest)(LiveActivityDelivery.member))
         let older = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels.filter { $0.key <= 3 })
         XCTAssertThrowsError(try older.check(manifest, origin: .bundled)) {

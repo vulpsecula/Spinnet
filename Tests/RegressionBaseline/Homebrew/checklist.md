@@ -4,6 +4,7 @@
 | --- | --- |
 | `brew.open` | Open the management navigation page |
 | `brew.installed`, `brew.search`, `brew.outdated` | Browse installed, discoverable and outdated packages |
+| `brew.update` | Refresh the Homebrew catalog under its separately scoped Level 7 grant before browsing |
 | `brew.vulnerabilities`, `brew.doctor` | Scoped advisory reports and reviewed diagnostic guidance |
 | `brew.adopt` | Review candidate applications before explicit adoption |
 | `brew.upgrade` | Preview selected or all upgrades before confirmation |
