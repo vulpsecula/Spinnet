@@ -9,7 +9,10 @@ public enum HomebrewAskpass {
     public static let socketEnvironment = "HOMEBREW_SPINNET_ASKPASS_SOCKET"
     public struct Context: Codable, Equatable {
         public let command: String
-        public init(command: String) { self.command = String(command.prefix(2048)) }
+        public let verificationOnly: Bool
+        public init(command: String, verificationOnly: Bool = false) {
+            self.command = String(command.prefix(2048)); self.verificationOnly = verificationOnly
+        }
     }
     public static func taskEnvironment(askpass: URL, socket: String) -> [String: String] {
         var environment = HomebrewReadProfile.environment
@@ -54,7 +57,7 @@ public enum HomebrewAskpass {
     /// by launching our trusted password window with stdout redirected to itself.
     public static func verifySudoParent() throws {
         let pid = getppid()
-        guard let birth = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        guard let birth = sudoParentIdentity(pid) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
         // macOS sudo is execute-only for ordinary users, so validating its
         // static signature would itself require privilege. Use the kernel's
         // image path and the protected system file's Root ownership/mode.
@@ -64,11 +67,25 @@ public enum HomebrewAskpass {
         guard count > 0, String(cString: path) == "/usr/bin/sudo",
               lstat("/usr/bin/sudo", &executable) == 0, executable.st_mode & S_IFMT == S_IFREG,
               executable.st_uid == 0, executable.st_mode & 0o022 == 0, executable.st_mode & S_ISUID != 0,
-              getppid() == pid, HomebrewTaskProcess.startIdentity(pid) == birth else {
+              getppid() == pid, sudoParentIdentity(pid) == birth else {
             throw PluginHostServiceError.tool(.sourceNotAllowed)
         }
         var output = stat()
         guard fstat(STDOUT_FILENO, &output) == 0, output.st_mode & S_IFMT == S_IFIFO else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+    }
+    private struct ParentIdentity: Equatable {
+        let seconds: Int
+        let microseconds: Int
+    }
+    private static func sudoParentIdentity(_ pid: pid_t) -> ParentIdentity? {
+        // PROC_PIDTBSDINFO is denied for setuid sudo to an ordinary askpass
+        // process. KERN_PROC_PID exposes its birth without acquiring privilege.
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc(), size = MemoryLayout<kinfo_proc>.size
+        guard pid > 1, sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0,
+              size == MemoryLayout<kinfo_proc>.size, info.kp_proc.p_pid == pid,
+              info.kp_proc.p_starttime.tv_sec > 0 else { return nil }
+        return ParentIdentity(seconds: info.kp_proc.p_starttime.tv_sec, microseconds: Int(info.kp_proc.p_starttime.tv_usec))
     }
     static func configure(_ fd: Int32) {
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
@@ -147,9 +164,11 @@ public enum HomebrewAskpass {
         var current = pid
         for _ in 0..<64 {
             if current == ancestor { return true }
-            var info = proc_bsdinfo()
-            guard current > 1, proc_pidinfo(current, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout.size(ofValue: info))) == MemoryLayout.size(ofValue: info) else { return false }
-            current = pid_t(info.pbi_ppid)
+            // The short form remains available across a setuid sudo ancestor;
+            // the full BSD info requires privilege and incorrectly refuses it.
+            var info = proc_bsdshortinfo()
+            guard current > 1, proc_pidinfo(current, PROC_PIDT_SHORTBSDINFO, 0, &info, Int32(MemoryLayout.size(ofValue: info))) == MemoryLayout.size(ofValue: info) else { return false }
+            current = pid_t(info.pbsi_ppid)
         }
         return false
     }
@@ -193,8 +212,8 @@ public enum HomebrewAskpass {
             } catch { Darwin.close(listener); try? FileManager.default.removeItem(at: directory); throw error }
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.serve() }
         }
-        public func setCommand(_ command: String?) {
-            lock.lock(); context = command.map { Context(command: $0) }
+        public func setCommand(_ command: String?, verificationOnly: Bool = false) {
+            lock.lock(); context = command.map { Context(command: $0, verificationOnly: verificationOnly) }
             if command == nil, let client { shutdown(client, SHUT_RDWR) }
             lock.unlock()
         }

@@ -15,6 +15,12 @@ func runAskpass() throws -> Int32 {
     // Signed packaging probe exercises mutual peer validation without UI,
     // passwords, sudo, or a Homebrew mutation.
     if checking { return 0 }
+    // The signed runner's opt-in sudo probe reaches every production guard,
+    // then cancels without opening a window, reading or emitting a password.
+    if context.verificationOnly {
+        FileHandle.standardError.write(Data("Spinnet sudo askpass verified; cancelled without credentials\n".utf8))
+        return 1
+    }
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
     application.activate(ignoringOtherApps: true)
@@ -53,4 +59,7 @@ func runAskpass() throws -> Int32 {
     try FileHandle.standardOutput.write(contentsOf: bytes)
     return 0
 }
-do { exit(try runAskpass()) } catch { exit(1) }
+do { exit(try runAskpass()) } catch {
+    FileHandle.standardError.write(Data("Spinnet could not verify the password request. No password was sent.\n".utf8))
+    exit(1)
+}

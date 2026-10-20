@@ -3,20 +3,36 @@ import Darwin
 import IOKit.pwr_mgt
 import SpinnetCore
 
-if CommandLine.arguments.count == 2, ["--verify-askpass", "--verify-host-askpass"].contains(CommandLine.arguments[1]) {
+if CommandLine.arguments.count == 2, ["--verify-askpass", "--verify-host-askpass", "--verify-sudo-askpass"].contains(CommandLine.arguments[1]) {
     func verifyAskpass() throws -> Int32 {
         if CommandLine.arguments[1] == "--verify-host-askpass" { try HomebrewAskpass.verifyHostParent() }
         let server = try HomebrewAskpass.Server { _ in }
         defer { server.stop() }
-        server.setCommand("Spinnet signed askpass connection check")
+        let sudo = CommandLine.arguments[1] == "--verify-sudo-askpass"
+        server.setCommand("Spinnet signed askpass connection check", verificationOnly: sudo)
         let askpass = try HomebrewAskpass.sibling("SpinnetHomebrewAskpass")
-        let process = Process(); process.executableURL = askpass; process.arguments = ["--check"]
+        let process = Process()
+        process.executableURL = sudo ? URL(fileURLWithPath: "/usr/bin/sudo") : askpass
+        // With a command, -k ignores cached credentials without changing the
+        // user's timestamp. The callback always cancels; true cannot mutate.
+        process.arguments = sudo ? ["-A", "-k", "--", "/usr/bin/true"] : ["--check"]
         process.environment = HomebrewAskpass.taskEnvironment(askpass: askpass, socket: server.path)
-        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        let errors = Pipe()
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice; process.standardError = errors
         try process.run()
         let deadline = Date().addingTimeInterval(8)
         while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
         if process.isRunning { process.terminate(); return 70 }
+        let diagnostics = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        if sudo {
+            guard process.terminationStatus != 0,
+                  diagnostics.contains("Spinnet sudo askpass verified; cancelled without credentials") else {
+                FileHandle.standardError.write(Data(diagnostics.utf8)); return 77
+            }
+            print("Real sudo → signed askpass verified; cancelled without credentials or command execution")
+            return 0
+        }
         guard process.terminationStatus == 0 else { return 77 }
         print("Signed Homebrew askpass connection verified; no password or sudo requested")
         return 0

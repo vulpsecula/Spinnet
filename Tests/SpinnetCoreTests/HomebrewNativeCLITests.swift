@@ -3,6 +3,20 @@ import Darwin
 @testable import SpinnetCore
 
 final class HomebrewNativeCLITests: XCTestCase {
+    func testSignedAskpassAcceptsActualSudoCallbackWithoutReadingCredentials() throws {
+        guard let runner = ProcessInfo.processInfo.environment["SPINNET_SUDO_ASKPASS_RUNNER"] else {
+            throw XCTSkip("Opt-in signed package probe: set SPINNET_SUDO_ASKPASS_RUNNER to the packaged runner")
+        }
+        let process = Process(), output = Pipe()
+        process.executableURL = URL(fileURLWithPath: runner)
+        process.arguments = ["--verify-sudo-askpass"]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = output; process.standardError = output
+        try process.run(); process.waitUntilExit()
+        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertEqual(process.terminationStatus, 0, text)
+        XCTAssertTrue(text.contains("Real sudo → signed askpass verified; cancelled without credentials or command execution"), text)
+    }
     func testNonSudoParentCannotOpenAPasswordWindowOrRedirectItsPassword() {
         XCTAssertThrowsError(try HomebrewAskpass.verifySudoParent())
     }

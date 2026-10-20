@@ -5,8 +5,9 @@ import Darwin
 /// these executable, argv or environment values. The independent runner
 /// holds this boundary across a Host crash.
 public final class HomebrewTaskProcess {
-    /// Fits the default 440pt Plugin panel at the Host's readable mono size.
-    public static let terminalColumns = 44
+    /// Fits Homebrew's 720pt minimum page at the Host's readable mono size,
+    /// leaving room for package names and a complete native download bar.
+    public static let terminalColumns = 80
     public enum InputPolicy { case vendor, nativeManifest }
     public enum GroupPolicy { case independentGroup, inheritWorkerGroup }
     /// Output only; a terminal never becomes an input or authorization channel.

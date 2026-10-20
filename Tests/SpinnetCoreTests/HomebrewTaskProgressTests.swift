@@ -19,8 +19,8 @@ final class HomebrewTaskProgressTests: XCTestCase {
         wait(for: [ended], timeout: 5)
         lock.lock(); defer { lock.unlock() }
         let text = String(decoding: output, as: UTF8.self)
-        XCTAssertTrue(text.contains("24 44"), text)
-        XCTAssertTrue(text.contains("columns=44"), text)
+        XCTAssertTrue(text.contains("24 80"), text)
+        XCTAssertTrue(text.contains("columns=80"), text)
         XCTAssertFalse(text.contains("unexpected interactive input"))
     }
 
@@ -42,7 +42,8 @@ final class HomebrewTaskProgressTests: XCTestCase {
               future = Object.new
               def future.fulfilled?; false; end
               print Tty.begin_synchronized_update
-              print queue.send(:message_with_progress, download, future, "example", 7)
+              message = "Cask docker-desktop (4.96.0)"
+              print queue.send(:message_with_progress, download, future, message, message.length)
               print Tty.clear_to_end, Tty.move_cursor_beginning, Tty.end_synchronized_update
               $stdout.flush
               sleep 0.2
@@ -60,6 +61,8 @@ final class HomebrewTaskProgressTests: XCTestCase {
         wait(for: [ended], timeout: 15)
         lock.lock(); defer { lock.unlock() }; log.finish()
         XCTAssertTrue(liveProgress, "Homebrew's real renderer must publish its download bar before exit, without a newline")
+        XCTAssertTrue(log.lines.contains { $0.contains("Cask docker-desktop (4.96.0)") && $0.contains("#") && $0.contains("Downloading") },
+            "The native renderer must retain the package name alongside its complete download progress: \(log.lines)")
         XCTAssertTrue(log.lines.filter { $0.contains("#") }.allSatisfy { $0.count <= HomebrewTaskProcess.terminalColumns },
             "Homebrew must fit its actual download progress renderer into the default panel width")
     }
