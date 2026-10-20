@@ -10,6 +10,16 @@ receipts and sudo operations. Confirmation authorizes that native behavior; it
 is not an exact Root file/action manifest or a frozen archive promise.
 Homebrew source revisions are not matched against a Host allowlist.
 
+Cask install, upgrade, uninstall and language changes first attempt native
+`sudo -S -v` validation when Touch ID is available and enabled in sudo's PAM
+configuration. Stdin is EOF: Spinnet does not collect a password in this step.
+The signed command worker then uses `exec` to become the native Homebrew
+process, retaining the parent PID/birth that sudo uses for no-TTY credential
+reuse. Only authentication is prepared; Homebrew's actual command is run once.
+Spinnet never enables or edits system PAM configuration. A failed/unavailable
+system attempt leaves the ordinary password path available; cached credentials
+and expiration follow sudo policy. System Touch ID support is conditional.
+
 When sudo needs a password, its documented `SUDO_ASKPASS` mechanism invokes
 Spinnet's signed askpass executable. A private per-Task Unix socket authenticates
 both endpoints by kernel audit token, signing team, executable identifier and
@@ -21,7 +31,8 @@ Launching askpass directly cannot open a window or capture a password.
 The Host-owned askpass window collects the login password and writes it directly
 to sudo's anonymous stdout pipe. The Plugin and Task journal never receive it.
 Spinnet does not save passwords. Native sudo credential caching still follows
-system policy. This is not an Authorization Services or guaranteed Touch ID flow.
+system policy. The askpass password window itself is not an Authorization
+Services prompt and cannot translate a biometric result into a password.
 
 The output-only PTY remains inside the Plugin View. It cannot accept password
 input. Cancel closes the askpass window without returning a password; Task Stop

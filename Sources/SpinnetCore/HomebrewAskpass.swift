@@ -44,13 +44,19 @@ public enum HomebrewAskpass {
         try HomebrewBackgroundUpdate.currentExecutableURL().deletingLastPathComponent().appendingPathComponent(name)
     }
     public static func verifyHostParent() throws {
+        let expected = try sibling("SpinnetToolTaskRunner").deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("MacOS/SpinnetHost")
+        try verifyParent(identifier: HomebrewSystemAuthorization.hostIdentifier, executable: expected)
+    }
+    public static func verifyRunnerParent() throws {
+        try verifyParent(identifier: HomebrewSystemAuthorization.runnerIdentifier, executable: sibling("SpinnetToolTaskRunner"))
+    }
+    private static func verifyParent(identifier: String, executable: URL) throws {
         let pid = getppid()
         guard let birth = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
         var code: SecCode?
         guard SecCodeCopyGuestWithAttributes(nil, [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary, [], &code) == errSecSuccess,
               let code else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        let expected = try sibling("SpinnetToolTaskRunner").deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("MacOS/SpinnetHost")
-        try verifyCode(code, identifier: HomebrewSystemAuthorization.hostIdentifier, executable: expected)
+        try verifyCode(code, identifier: identifier, executable: executable)
         guard getppid() == pid, HomebrewTaskProcess.startIdentity(pid) == birth else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
     }
     /// Native package code may invoke sudo, but must never obtain a password

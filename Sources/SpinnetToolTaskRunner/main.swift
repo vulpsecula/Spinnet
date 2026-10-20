@@ -3,6 +3,72 @@ import Darwin
 import IOKit.pwr_mgt
 import SpinnetCore
 
+private func execNative(_ executable: URL, arguments: [String], environment: [String: String]) -> Never {
+    let argv = ([executable.path] + arguments).map { strdup($0) } + [nil]
+    let env = environment.map { strdup($0.key + "=" + $0.value) } + [nil]
+    defer { argv.forEach { free($0) }; env.forEach { free($0) } }
+    argv.withUnsafeBufferPointer { a in env.withUnsafeBufferPointer { e in
+        _ = execve(executable.path, UnsafeMutablePointer(mutating: a.baseAddress!), UnsafeMutablePointer(mutating: e.baseAddress!))
+    } }
+    exit(70)
+}
+
+// A fixed signed worker validates credentials, then becomes the native brew
+// process with exec. The PID/birth (and sudo's no-TTY parent cache) stays the
+// same. Frozen typed inputs arrive from the authenticated runner, never from
+// a second read of a mutable journal or a Plugin-supplied shell command.
+if CommandLine.arguments.count == 6, CommandLine.arguments[1] == "--native-command" {
+    do {
+        try HomebrewAskpass.verifyRunnerParent()
+        guard getpgrp() == getpid(), CommandLine.arguments[3].utf8.count <= 16 * 1024,
+              ["adopt", "normal"].contains(CommandLine.arguments[4]) else { exit(77) }
+        let input = try HomebrewTaskInput(JSONDecoder().decode(JSONValue.self, from: Data(CommandLine.arguments[3].utf8)))
+        let executable = try HomebrewReadProfile.discover()
+        guard HomebrewSystemAuthentication.applies(to: input), executable.path == CommandLine.arguments[2] else { exit(77) }
+        let directory = URL(fileURLWithPath: CommandLine.arguments[5], isDirectory: true)
+        var info = stat()
+        guard lstat(directory.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+              info.st_uid == getuid(), info.st_mode & 0o077 == 0 else { exit(77) }
+        let stopped = { FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) }
+        guard !stopped() else { exit(130) }
+        if HomebrewSystemAuthentication.isAvailable {
+            print("==> Waiting for system administrator authentication (Touch ID when available)")
+            fflush(stdout)
+            let accepted = (try? HomebrewSystemAuthentication.validate(environment: ProcessInfo.processInfo.environment)) == true
+            print(accepted ? "==> System authentication accepted" : "==> System authentication did not complete; Homebrew will request a password if needed")
+            fflush(stdout)
+        }
+        guard !stopped() else { exit(130) }
+        execNative(executable, arguments: input.nativeArguments(adopt: CommandLine.arguments[4] == "adopt"),
+            environment: ProcessInfo.processInfo.environment)
+    } catch { exit(70) }
+}
+
+// Opt-in hardware probe: only sudo validation and /usr/bin/true, with no
+// password collection or Homebrew mutation. The child uses the production
+// validation and exec path, including its isolated owned process group.
+if CommandLine.arguments.count == 2, CommandLine.arguments[1] == "--verify-system-authentication" {
+    do {
+        let ended = DispatchSemaphore(value: 0)
+        var result: HomebrewTaskProcess.Result?
+        let process = HomebrewTaskProcess(executable: try HomebrewAskpass.sibling("SpinnetToolTaskRunner"),
+            arguments: ["--system-authentication-probe-child"],
+            environment: HomebrewAskpass.taskEnvironment(askpass: try HomebrewAskpass.sibling("SpinnetHomebrewAskpass"), socket: "/private/tmp/unused-system-auth-probe"))
+        try process.start(output: { FileHandle.standardOutput.write($0) }, finished: { result = $0; ended.signal() })
+        ended.wait()
+        exit(result?.outcome == "completed" ? 0 : 77)
+    } catch { exit(70) }
+}
+if CommandLine.arguments.count == 2, CommandLine.arguments[1] == "--system-authentication-probe-child" {
+    do {
+        try HomebrewAskpass.verifyRunnerParent()
+        guard getpgrp() == getpid(), HomebrewSystemAuthentication.isAvailable,
+              try HomebrewSystemAuthentication.validate(environment: ProcessInfo.processInfo.environment) else { exit(77) }
+        let code = "ok = system('/usr/bin/sudo', '-A', '-n', '--', '/usr/bin/true'); puts(ok ? 'Native Homebrew system authentication reuse: PASS' : 'Native Homebrew system authentication reuse: FAIL'); exit(ok ? 0 : 1)"
+        execNative(try HomebrewReadProfile.discover(), arguments: ["ruby", "-e", code], environment: ProcessInfo.processInfo.environment)
+    } catch { exit(70) }
+}
+
 if CommandLine.arguments.count == 2, ["--verify-askpass", "--verify-host-askpass", "--verify-sudo-askpass"].contains(CommandLine.arguments[1]) {
     func verifyAskpass() throws -> Int32 {
         if CommandLine.arguments[1] == "--verify-host-askpass" { try HomebrewAskpass.verifyHostParent() }
@@ -140,14 +206,19 @@ do {
             if case .string(let output)? = metadata.value(atPointer: "/stdout") { log.append(Data(output.utf8)) }
             record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try record.save(to: directory)
         }
-        let arguments = metadata.value(atPointer: "/adopt") == .bool(true) && step.operation == "install" && step.kind == "cask"
-            ? ["install", "--cask", "--adopt", "--", step.name] : step.arguments
+        let adopt = metadata.value(atPointer: "/adopt") == .bool(true)
+        let arguments = step.nativeArguments(adopt: adopt)
         let executable = URL(fileURLWithPath: record.executable)
         guard metadata.value(atPointer: "/privileged_repair") != .bool(true) else {
             throw PluginHostServiceError.unavailable("This Doctor repair must be run manually in Terminal")
         }
         server.setCommand("brew " + arguments.joined(separator: " "))
-        let process = HomebrewTaskProcess(executable: executable, arguments: arguments, environment: environment, outputPolicy: .terminal)
+        let systemAuthentication = HomebrewSystemAuthentication.applies(to: step) && HomebrewSystemAuthentication.isAvailable
+        let workerArguments = systemAuthentication
+            ? ["--native-command", executable.path, String(decoding: try JSONEncoder().encode(step.json), as: UTF8.self), adopt ? "adopt" : "normal", directory.path]
+            : arguments
+        let process = HomebrewTaskProcess(executable: systemAuthentication ? try HomebrewAskpass.sibling("SpinnetToolTaskRunner") : executable,
+            arguments: workerArguments, environment: environment, outputPolicy: .terminal)
         try reserveProcess()
         do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
