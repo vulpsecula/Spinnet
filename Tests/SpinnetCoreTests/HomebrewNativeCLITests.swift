@@ -3,23 +3,6 @@ import Darwin
 @testable import SpinnetCore
 
 final class HomebrewNativeCLITests: XCTestCase {
-    func testSignedAskpassAcceptsActualSudoCallbackWithoutReadingCredentials() throws {
-        guard let runner = ProcessInfo.processInfo.environment["SPINNET_SUDO_ASKPASS_RUNNER"] else {
-            throw XCTSkip("Opt-in signed package probe: set SPINNET_SUDO_ASKPASS_RUNNER to the packaged runner")
-        }
-        let process = Process(), output = Pipe()
-        process.executableURL = URL(fileURLWithPath: runner)
-        process.arguments = ["--verify-sudo-askpass"]
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = output; process.standardError = output
-        try process.run(); process.waitUntilExit()
-        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        XCTAssertEqual(process.terminationStatus, 0, text)
-        XCTAssertTrue(text.contains("Real sudo → signed askpass verified; cancelled without credentials or command execution"), text)
-    }
-    func testNonSudoParentCannotOpenAPasswordWindowOrRedirectItsPassword() {
-        XCTAssertThrowsError(try HomebrewAskpass.verifySudoParent())
-    }
     func testProvenEndedLegacyTaskRetiresItsDaemonDependencyWithoutReplaying() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let id = "activity_1234567890abcdef1234567890abcdef", directory = root.appendingPathComponent("activity_1234567890abcdef1234567890abcdef")
@@ -76,45 +59,6 @@ final class HomebrewNativeCLITests: XCTestCase {
         let record = try HomebrewTaskJournal.load(from: journal.appendingPathComponent(id))
         XCTAssertEqual(record.executionModel, "native-cli-v1")
         XCTAssertNil(record.privilegePlan)
-    }
-
-    func testAskpassEnvironmentAllowsSudoWithoutPassingCredentialsOrInput() {
-        let env = HomebrewAskpass.taskEnvironment(askpass: URL(fileURLWithPath: "/signed/SpinnetHomebrewAskpass"), socket: "/private/tmp/socket")
-        XCTAssertNil(env["NONINTERACTIVE"])
-        XCTAssertNil(env["HOMEBREW_NO_SUDO"])
-        XCTAssertEqual(env["SUDO_ASKPASS"], "/signed/SpinnetHomebrewAskpass")
-        XCTAssertEqual(env[HomebrewAskpass.socketEnvironment], "/private/tmp/socket")
-        XCTAssertEqual(env["HOMEBREW_NO_AUTO_UPDATE"], "1")
-        XCTAssertNil(env["SSH_AUTH_SOCK"])
-        XCTAssertNil(env["PASSWORD"])
-    }
-
-    func testAskpassOnlySuppliesContextDuringAnActiveCommandAndStopsOnCancellation() throws {
-        let waiting = expectation(description: "password window admitted"), ended = expectation(description: "password window released")
-        let server = try HomebrewAskpass.Server(verify: { _ in }, changed: { active in (active ? waiting : ended).fulfill() })
-        defer { server.stop() }
-        server.setCommand("brew upgrade --cask -- spotify")
-        let fd = try HomebrewAskpass.connect(server.path)
-        defer { close(fd) }
-        let context = try JSONDecoder().decode(HomebrewAskpass.Context.self, from: HomebrewAskpass.receive(fd))
-        XCTAssertEqual(context.command, "brew upgrade --cask -- spotify")
-        wait(for: [waiting], timeout: 2)
-        server.setCommand(nil)
-        var byte: UInt8 = 0
-        XCTAssertEqual(read(fd, &byte, 1), 0, "Stop closes the authorization channel so a visible password window can dismiss")
-        wait(for: [ended], timeout: 2)
-        let refused = try HomebrewAskpass.connect(server.path)
-        defer { close(refused) }
-        XCTAssertThrowsError(try HomebrewAskpass.receive(refused))
-    }
-
-    func testUnsignedAskpassPeerCannotObtainPromptContext() throws {
-        let server = try HomebrewAskpass.Server { _ in XCTFail("An unsigned peer must never be admitted") }
-        defer { server.stop() }
-        server.setCommand("brew upgrade --cask -- example")
-        let fd = try HomebrewAskpass.connect(server.path)
-        defer { close(fd) }
-        XCTAssertThrowsError(try HomebrewAskpass.receive(fd))
     }
 
     func testFutureHomebrewUsesDocumentedPreviewsWithNoSourceCohort() throws {

@@ -10,34 +10,24 @@ receipts and sudo operations. Confirmation authorizes that native behavior; it
 is not an exact Root file/action manifest or a frozen archive promise.
 Homebrew source revisions are not matched against a Host allowlist.
 
-Cask install, upgrade, uninstall and language changes first attempt native
-`sudo -S -v` validation when Touch ID is available and enabled in sudo's PAM
-configuration. Stdin is EOF: Spinnet does not collect a password in this step.
-The signed command worker then uses `exec` to become the native Homebrew
-process, retaining the parent PID/birth that sudo uses for no-TTY credential
-reuse. Only authentication is prepared; Homebrew's actual command is run once.
-Spinnet never enables or edits system PAM configuration. A failed/unavailable
-system attempt leaves the ordinary password path available; cached credentials
-and expiration follow sudo policy. System Touch ID support is conditional.
+When a native Homebrew operation needs administrator access, system sudo
+performs authentication through the user's macOS PAM configuration. Where
+configured, macOS presents its own Touch ID and login password choices. The
+Host does not supply `SUDO_ASKPASS` or force `sudo -A`, because macOS disables
+its system authentication UI in askpass mode. No Host password window, password
+collector, authentication socket or credential-cache preflight is used.
 
-When sudo needs a password, its documented `SUDO_ASKPASS` mechanism invokes
-Spinnet's signed askpass executable. A private per-Task Unix socket authenticates
-both endpoints by kernel audit token, signing team, executable identifier and
-bundle location; only descendants of the active runner may request a password
-window. The socket carries command context and prompt lifetime, never passwords.
-Before showing the window, askpass verifies its parent's kernel image is the
-Root-owned, non-writable, setuid system `/usr/bin/sudo` and stdout is a pipe.
-Launching askpass directly cannot open a window or capture a password.
-The Host-owned askpass window collects the login password and writes it directly
-to sudo's anonymous stdout pipe. The Plugin and Task journal never receive it.
-Spinnet does not save passwords. Native sudo credential caching still follows
-system policy. The askpass password window itself is not an Authorization
-Services prompt and cannot translate a biometric result into a password.
+The Host and Plugin never receive the password or a biometric result. They
+observe command output and exit status. The native command runs once and sudo
+requests authentication when needed, including after cached credentials expire.
+The Host does not enable or edit PAM configuration. Availability and fallback
+choices belong to macOS system policy; without a working system authentication
+route, a privileged command fails rather than collecting a password in Spinnet.
 
-The output-only PTY remains inside the Plugin View. It cannot accept password
-input. Cancel closes the askpass window without returning a password; Task Stop
-closes its authorization channel and stops the supervised process tree. Errors
-remain native output and failure results, with no automatic retry or rollback.
+The output-only PTY remains inside the Plugin View and accepts no input. A user
+may cancel system authentication, after which Homebrew determines the command's
+failure behavior. Task Stop signals the supervised process tree. Errors remain
+native output and failure results, with no automatic retry or rollback.
 
 New Tasks do not register or require Spinnet's privileged background daemon.
 Existing background approval is not reset or unregistered. Recovery retains

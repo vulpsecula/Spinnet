@@ -50,7 +50,6 @@ cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
 swift build --product SpinnetPluginHelper
 swift build --product SpinnetToolTaskRunner
-swift build --product SpinnetHomebrewAskpass
 swift build --product SpinnetToolAuthorizationClient
 swift build --product SpinnetPrivilegedToolHelper
 swift build --product SpinnetReceiptInventory
@@ -73,8 +72,6 @@ mkdir -p "$APP_CONTENTS/Helpers"
 cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
 cp "$BUILD_TASK_RUNNER" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
-cp "$BUILD_DIR/SpinnetHomebrewAskpass" "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
 chmod +x "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
 cp "$BUILD_DIR/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
 cp "$BUILD_DIR/SpinnetPrivilegedToolHelper" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
@@ -140,7 +137,6 @@ PLIST
 
 if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
     codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.homebrew-askpass --sign - "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
     codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --sign - "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
     codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --sign - "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
@@ -155,7 +151,6 @@ if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDE
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
     codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.homebrew-askpass --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
     codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
     codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
     codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
@@ -171,7 +166,6 @@ else
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"
 "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner" --verify-resources
-"$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass" --verify
 if [[ -n "$SIGNING_IDENTITY" && "$SIGNING_IDENTITY" != "-" ]]; then
     "$APP_BINARY" --verify-homebrew-transport
     bash "$ROOT_DIR/script/check_background_helper.sh" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"

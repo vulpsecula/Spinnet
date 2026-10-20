@@ -184,7 +184,7 @@ public final class HostReviewedToolTasks {
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
             if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
-            disclosure += " Homebrew runs with your account and manages its own installers and scripts. Cask changes first try system Touch ID when available and configured for sudo. If sudo still needs your login password, Spinnet will ask for it in a separate password window. It is passed to sudo and is never shared with the Plugin or saved by Spinnet."
+            disclosure += " Homebrew runs with your account and manages its own installers and scripts. When administrator access is needed, macOS handles Touch ID or login password authentication using your system sudo configuration. Spinnet and the Plugin never receive your password."
             if ["upgrade", "upgradeAll", "upgradeSelected", "uninstall", "changeLanguage"].contains(input.operation), reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,

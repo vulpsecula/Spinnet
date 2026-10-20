@@ -2,39 +2,41 @@ import XCTest
 @testable import SpinnetCore
 
 final class HomebrewSystemAuthenticationTests: XCTestCase {
-    func testCaskChangesPreferSystemAuthenticationWhileCatalogAndFormulaTasksDoNot() throws {
-        for operation in ["install", "upgrade", "uninstall", "changeLanguage"] {
-            var fields: [String: JSONValue] = ["tool": .string("homebrew"), "operation": .string(operation), "kind": .string("cask"), "name": .string("example")]
-            if operation == "changeLanguage" { fields["language"] = .string("en") }
-            XCTAssertTrue(HomebrewSystemAuthentication.applies(to: try .init(.object(fields))))
-        }
-        for input: JSONValue in [
-            .object(["tool": .string("homebrew"), "operation": .string("refreshCatalog")]),
-            .object(["tool": .string("homebrew"), "operation": .string("cleanup")]),
-            .object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("formula"), "name": .string("example")]),
-            .object(["tool": .string("homebrew"), "operation": .string("serviceStart"), "name": .string("example")])
-        ] { XCTAssertFalse(HomebrewSystemAuthentication.applies(to: try .init(input))) }
-        let batch = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgradeSelected"), "kind": .string("cask"), "names": .array([.string("example")])]))
-        XCTAssertTrue(HomebrewSystemAuthentication.applies(to: batch))
+    func testNativeEnvironmentDoesNotOverrideSystemAuthenticationOrAcceptCredentials() {
+        let environment = HomebrewSystemAuthentication.taskEnvironment
+        XCTAssertNil(environment["SUDO_ASKPASS"], "Homebrew must not add -A, which disables macOS system authentication UI")
+        XCTAssertNil(environment["HOMEBREW_SPINNET_ASKPASS_SOCKET"])
+        XCTAssertNil(environment["NONINTERACTIVE"])
+        XCTAssertNil(environment["HOMEBREW_NO_SUDO"])
+        XCTAssertNil(environment["SSH_AUTH_SOCK"])
+        XCTAssertNil(environment["PASSWORD"])
+        XCTAssertEqual(environment["HOMEBREW_NO_AUTO_UPDATE"], "1")
+        XCTAssertEqual(environment["HOMEBREW_NO_INSTALL_CLEANUP"], "1")
+        XCTAssertEqual(environment["HOMEBREW_NO_INSTALL_UPGRADE"], "1")
+        XCTAssertEqual(HomebrewReadProfile.environment["HOMEBREW_NO_SUDO"], "1", "Read-only calls must retain their independent no-sudo policy")
     }
 
-    func testSystemAuthenticationDoesNotEnableAskpassOrObtainCredentials() {
-        let normal = HomebrewAskpass.taskEnvironment(askpass: URL(fileURLWithPath: "/signed/helper"), socket: "/private/tmp/context")
-        let system = HomebrewSystemAuthentication.environment(normal)
-        XCTAssertNil(system["SUDO_ASKPASS"])
-        XCTAssertNil(system[HomebrewAskpass.socketEnvironment])
-        XCTAssertNil(system["NONINTERACTIVE"])
-        XCTAssertNil(system["HOMEBREW_NO_SUDO"])
-        XCTAssertEqual(normal["SUDO_ASKPASS"], "/signed/helper", "The actual brew command must retain password fallback")
-    }
-
-    func testPAMDetectionUsesActiveAuthIncludesAndIgnoresCommentsOtherServicesAndCycles() {
-        let configuration = ["sudo": "auth include sudo_local\n", "sudo_local": "#auth sufficient pam_tid.so\nauth sufficient pam_smartcard.so"]
-        XCTAssertFalse(HomebrewSystemAuthentication.pamEnablesTouchID { configuration[$0] ?? "" })
-        XCTAssertTrue(HomebrewSystemAuthentication.pamEnablesTouchID { $0 == "sudo" ? "auth include sudo_local" : "auth sufficient pam_tid.so # enabled" })
-        XCTAssertFalse(HomebrewSystemAuthentication.pamEnablesTouchID { _ in "auth include sudo\naccount required pam_tid.so" })
-        XCTAssertFalse(HomebrewSystemAuthentication.pamEnablesTouchID { _ in "auth include ../../tmp/overridden" })
-        XCTAssertFalse(HomebrewSystemAuthentication.pamEnablesTouchID { _ in "auth include missing" })
+    func testNativeHomebrewBuildsSudoCommandWithoutAskpassOrExecutingIt() throws {
+        let executable: URL
+        do { executable = try HomebrewReadProfile.discover() }
+        catch { throw XCTSkip("Requires installed Homebrew for the read-only command-construction probe") }
+        let ended = expectation(description: "native command preview reaped")
+        let lock = NSLock()
+        var output = Data()
+        let code = "require 'system_command'; require 'json'; puts JSON.generate(SystemCommand.new('/usr/bin/true', sudo: true).command)"
+        let process = HomebrewTaskProcess(executable: executable, arguments: ["ruby", "-e", code],
+            environment: HomebrewSystemAuthentication.taskEnvironment, outputPolicy: .terminal)
+        try process.start(output: { data in lock.lock(); output.append(data); lock.unlock() }, finished: { result in
+            XCTAssertEqual(result.outcome, "completed"); ended.fulfill()
+        })
+        wait(for: [ended], timeout: 15)
+        lock.lock(); defer { lock.unlock() }
+        let data = String(decoding: output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8)!
+        let arguments = try JSONDecoder().decode([String].self, from: data)
+        XCTAssertEqual(arguments.first, "/usr/bin/sudo")
+        XCTAssertTrue(arguments.contains("/usr/bin/true"))
+        XCTAssertFalse(arguments.contains("-A"))
+        XCTAssertFalse(arguments.contains("--askpass"))
     }
 
     func testAdoptionIsStillATypedNativeInstallOption() throws {
@@ -43,13 +45,15 @@ final class HomebrewSystemAuthenticationTests: XCTestCase {
         XCTAssertEqual(input.nativeArguments(adopt: false), input.arguments)
     }
 
-    func testNativeWorkerRefusesAnUnsignedParentBeforeAuthenticationOrExecution() throws {
-        guard let runner = ProcessInfo.processInfo.environment["SPINNET_SUDO_ASKPASS_RUNNER"] else {
-            throw XCTSkip("Requires a stably signed packaged runner")
+    func testPackagedRunnerRefusesUnsignedHostAndDoesNotShipAPasswordCollector() throws {
+        guard let runner = ProcessInfo.processInfo.environment["SPINNET_NATIVE_AUTH_RUNNER"] else {
+            throw XCTSkip("Set SPINNET_NATIVE_AUTH_RUNNER to a stably signed packaged runner")
         }
+        let helper = URL(fileURLWithPath: runner).deletingLastPathComponent().appendingPathComponent("SpinnetHomebrewAskpass")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: helper.path))
         let process = Process(), output = Pipe()
         process.executableURL = URL(fileURLWithPath: runner)
-        process.arguments = ["--native-command", "/opt/homebrew/bin/brew", "{}", "normal", "/private/tmp"]
+        process.arguments = ["--verify-host-environment"]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = output; process.standardError = output
         try process.run(); process.waitUntilExit()
