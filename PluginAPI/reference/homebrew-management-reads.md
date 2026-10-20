@@ -6,11 +6,9 @@ vulnerabilities, vulnerabilityDetail and packageAnalytics, beside its existing
 installed/outdated/search/info reads. The Plugin declares each operation and
 package kind in read_reviewed_tools. Reading is separate from mutation.
 Inputs are typed; no Plugin argv, URL, shell, path or environment is accepted.
-Before launching brew, the Host also checks bounded owned regular bootstrap
-configuration files. Developer Ruby warning options are restricted to reviewed
-`-W0`, `-W1` or `-W2`; `-r`/`-e` preload options and protected Library/repository
-`NAME+=` redirects are refused before Ruby starts. Compiled Bootsnap caches are
-disabled. These are checks on live files, not an immutable Homebrew distribution.
+Reads and previews execute documented Homebrew CLI commands inside the bounded
+read-only sandbox. Homebrew owns its configuration and package-loading rules;
+the Host injects no Ruby adapters and requires no internal source hashes.
 See [schema](../schemas/homebrew-management-reads.schema.json) and
 [types](../homebrew-management.d.ts).
 
@@ -87,44 +85,28 @@ six immediate details; vulnerabilityDetail fetches further selected details.
 truncated identifies an API/record bound, never a clean bill of health. This is
 not a claim of exhaustive vulnerability coverage.
 
-Install and upgrade previews execute the installed Homebrew 7.0.x command's actual `--dry-run
---no-ask` through a Host-owned version-gated Ruby adapter. Their stages retain
-Homebrew's version transitions, dependency and dependent changes and download
-sizes when known; diagnostics retain warnings and refusals. `estimated:false`
-identifies the real dry-run, while `succeeded:false` with the actual exit status
-preserves a refusal, including pinned packages. A refusal is never an empty
-successful upgrade. Unsupported Homebrew versions return available:false and
-requires_reviewed_homebrew_version. A preview is current advice; confirmed Tasks
-still recheck current package metadata, source trust and pins.
+Install and upgrade previews use native `install --dry-run` and
+`upgrade --dry-run`, without a Homebrew 7.0.x source restriction. Their stages,
+warnings and bounded stdout/stderr come from Homebrew. A nonzero exit remains a
+failed preview; it never becomes a successful empty result. Missing sizes remain
+unknown. The Host rechecks metadata and source trust around the preview.
 
-Link previews use the reviewed Homebrew 7.0.x Keg and cask artifact traversal
-without taking locks or writing files. Plain `brew link --dry-run` omits opt,
-alias and linked-keg metadata, related formula unlinks, directory changes and
-info index updates. The Host adds those concrete effects to at most 2,000
-`changes`: `link` includes its new `source`; the other actions are `unlink`,
-`mkdir`, `rmdir` and `update_info_index`. `paths` lists the distinct destinations.
-The fingerprint binds the planned actions and source identities together with
-current destination, parent and symlink states. The Host repeats the complete
-preview at Task preparation and launch; changed metadata, sources, paths or
-diagnostics require a new confirmation. No Plugin path or fingerprint is
-accepted as Task input.
+Link/unlink previews use native `link --dry-run` and `unlink --dry-run` output.
+The output is advice and may omit effects; `changes` is empty rather than a
+fabricated complete filesystem ledger. `paths` contains displayed absolute-path
+lines only, and `paths_fingerprint` identifies displayed output, not a Root grant.
+No force or overwrite flag is added. New link Tasks confirm the native operation,
+not an exact path manifest. Preview text is not execution authority.
 
-`complete:false` or `succeeded:false` describes a refused plan and must not
-offer a Task. `no_op:true` is a successful empty plan and also needs no Task.
-Unsupported shared-directory conversions, recursive legacy alias cleanup,
-unbounded or contradictory changes and force-required kegs are refused with
-diagnostics. Ordinary missing parents and empty-directory cleanup are listed
-explicitly. No force or overwrite flag is enabled; Homebrew's normal replacement
-of an existing cask link is disclosed when applicable. These previews share the
-network-denied, write-denied subprocess and the existing call/Source deadlines.
+Autoremove uses `autoremove --dry-run`. A recognized complete candidate list is
+projected for display and no-op handling; an unknown output format is shown with
+`complete:false` and cannot invent removal targets. Public CLI format changes can
+still require adapting presentation parsers, but unrelated Ruby source changes
+never require a Host compatibility release.
 
-The subprocess has all network access and persistent file writes denied. Its
-adapter prevents Homebrew's implicit qualified-package trust and missing-tap
-installation. Homebrew's guarded loader checks persistent source trust before
-package Ruby evaluation and after canonical alias/rename resolution; a qualified
-selector never grants temporary trust. Existing canonical item trust is enough
-without granting the entire tap. Metadata and persistent source trust are checked
-before and after the dry-run; changed data is refused. Explicit all previews read current
+The subprocess has network and persistent writes denied, including implicit
+trust-store updates and missing-tap installation. A dry-run needing those writes
+fails with native diagnostics. Explicit all previews read current
 outdated inventory and exclude pins, resolving at most 2,000 records and running
 fixed selections of at most 50 packages each. The existing fifteen-second source
 deadline covers the whole preview, so a large inventory can time out explicitly.
@@ -184,15 +166,9 @@ Doctor may return `fix_all: {target,title,count}` for the first at most eight un
 A Doctor report issues at most 128 unique individual repair targets, reuses repeated targets, and marks `truncated` when more supported repairs are withheld. This protects the first repair set from eviction by its own report. Refresh after a repair to review the next remaining set.
 
 
-Read and preview subprocesses validate the reviewed entry, selected bootstrap,
-and loader source hashes before starting Homebrew, then recheck loader hashes in
-the Ruby adapter. Missing, changed or oversized reviewed files return unavailable
-and require a Host review of that source revision. These checks detect drift in
-live user-owned files; they do not freeze the whole Homebrew installation.
-
-Installed cask history is accepted only as a bounded regular JSON file, parsed
-once as an object and passed as an immutable snapshot to Homebrew's data loader.
-Null, scalar, array, malformed or changing history is explicitly unavailable;
-it never falls through to Ruby evaluation or a current-catalog fallback. Legacy
-installed Ruby history requires immutable source provenance and stays unavailable
-in this read profile.
+Read and preview subprocesses use the documented CLI without private-source
+hashes or injected loaders. Homebrew owns package and installed-history loading
+under the read-only sandbox. Additional local JSON observations are display
+hints only; missing history cannot become independent Root authority. Old
+native inspection/source-proof machinery is retained only for legacy recovery
+and isolated tests and is not a fallback for new Tasks.

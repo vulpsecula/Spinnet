@@ -38,7 +38,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
         try JSONSerialization.data(withJSONObject: ["arguments": [operation, "--cask", "--", "fixture"],
             "casks": [], "client": "/usr/bin/false"]).write(to: context)
         return try run(brew, ["ruby", root.appendingPathComponent("Tests/Fixtures/HomebrewPrivilegeDispatch/command.rb").path,
-            root.appendingPathComponent("Sources/SpinnetToolTaskRunner/Resources/HomebrewPrivilegeBridge.rb").path, context.path, mode],
+            root.appendingPathComponent("Tests/LegacyResources/HomebrewPrivilegeBridge.rb").path, context.path, mode],
             environment: ["HOME": NSHomeDirectory(), "USER": NSUserName(), "HOMEBREW_NO_AUTO_UPDATE": "1",
                 "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_ENV_HINTS": "1", "HOMEBREW_DEVELOPER": "1"])
     }
@@ -89,7 +89,7 @@ final class HomebrewPrivilegeDispatchCompatibilityTests: XCTestCase {
         let (status, data, error) = try run(ruby, [
             root.appendingPathComponent("Tests/Fixtures/HomebrewPrivilegeDispatch/dispatch.rb").path,
             directory.path,
-            root.appendingPathComponent("Sources/SpinnetToolTaskRunner/Resources/HomebrewPrivilegeBridge.rb").path,
+            root.appendingPathComponent("Tests/LegacyResources/HomebrewPrivilegeBridge.rb").path,
             mode
         ])
         XCTAssertEqual(status, 0, error)

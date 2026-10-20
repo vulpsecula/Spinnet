@@ -51,15 +51,12 @@ final class HomebrewAPITrustReadTests: XCTestCase {
           exit 77
         end
         """.utf8).write(to: fixture)
-        let profile = HomebrewReadProfile(executable: { nativeBrew }, execute: { _, args, environment, deadline in
-            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.9\n".utf8)) }
-            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"libtommath","tap":"homebrew/core","versions":{"stable":"1.3.0"},"installed":[{"version":"1.3.0"}],"keg_only":false}],"casks":[]}"#.utf8)) }
-            XCTAssertEqual(Array(args.prefix(2)), ["ruby", "--"])
-            return try HomebrewReadProfile.execute(nativeBrew, ["ruby", "--", fixture.path, args[2]], environment, deadline)
-        })
-        XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewLink"), "kind": .string("formula"), "names": .array([.string("libtommath")])]), owner: PluginID("actual-core-origin"), timeout: 15)) { error in
+        // Legacy native-evidence guards are retained for old Root records;
+        // public CLI previews deliberately do not use this private adapter.
+        XCTAssertThrowsError(try HomebrewReadProfile.execute(nativeBrew, ["ruby", "--", fixture.path, HomebrewReadProfile.trustAdapter.path], HomebrewReadProfile.environment, Date().addingTimeInterval(15))) { error in
             XCTAssertEqual(error as? PluginHostServiceError, .tool(.sourceNotAllowed))
         }
+
     }
 
     func testAPIModeCannotImplicitlyTrustCustomOfficialCheckoutButExplicitItemTrustStillWorks() throws {

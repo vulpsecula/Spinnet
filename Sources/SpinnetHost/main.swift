@@ -1122,6 +1122,23 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// Read-only signed transport check. No user configuration, password UI,
+// background registration, sudo or Homebrew command is opened by this path.
+if CommandLine.arguments.contains("--verify-homebrew-transport") {
+    do {
+        let process = Process()
+        process.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner")
+        process.arguments = ["--verify-host-askpass"]
+        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        process.standardInput = FileHandle.nullDevice
+        try process.run()
+        let deadline = Date().addingTimeInterval(12)
+        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        if process.isRunning { process.terminate(); exit(70) }
+        exit(process.terminationStatus)
+    } catch { exit(70) }
+}
+
 // Packaging uses the signed app's own SMAppService identity. This maintenance
 // path never enables a disabled service or admits/replays a Homebrew Task.
 if CommandLine.arguments.contains("--refresh-existing-background-operations") {

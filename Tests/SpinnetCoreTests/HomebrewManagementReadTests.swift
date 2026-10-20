@@ -48,7 +48,8 @@ extension HomebrewManagementReadTests {
         writable = false
         let actual = try profile.read(input, owner: owner)
         XCTAssertEqual(actual.value(atPointer: "/findings/0/affects"), .array([.string("/opt/homebrew/Caskroom")]))
-        XCTAssertEqual(actual.value(atPointer: "/fix_all/count"), .number(1))
+        XCTAssertNil(actual.value(atPointer: "/fix_all"))
+        XCTAssertEqual(actual.value(atPointer: "/findings/0/commands/0"), .string("sudo chown -R " + NSUserName() + " /opt/homebrew/Caskroom"))
         writable = nil
         let unavailable = try profile.read(input, owner: owner)
         XCTAssertEqual(unavailable.value(atPointer: "/findings"), .array([]))
@@ -129,7 +130,7 @@ extension HomebrewManagementReadTests {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.0\n".utf8)) }
             if args == ["search", "--cask", "--", "/(example)/"] { return HomebrewReadOutput(status: 0, stdout: Data("example\n".utf8)) }
-            if args.first == "ruby" { XCTAssertTrue(args.contains("--adopt")); return .init(status: 0, stdout: Data("==> Would install 1 cask:\nexample\n".utf8)) }
+            if ["install", "upgrade"].contains(args.first ?? "") { XCTAssertTrue(args.contains("--adopt")); return .init(status: 0, stdout: Data("==> Would install 1 cask:\nexample\n".utf8)) }
             XCTAssertEqual(args, ["info", "--json=v2", "--cask", "--", "example"])
             return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[],"casks":[{"token":"example","version":"2.0","installed":null,"artifacts":[{"app":["Example.app"]}]}]}"#.utf8))
         }, management: management)
@@ -152,8 +153,7 @@ extension HomebrewManagementReadTests {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return HomebrewReadOutput(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
             if args.first == "info" { return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"dependencies":["libidn2","openssl@3"],"installed":[]}],"casks":[]}"#.utf8)) }
-            XCTAssertEqual(args.first, "ruby")
-            XCTAssertEqual(Array(args.suffix(6)), ["install", "--dry-run", "--no-ask", "--formula", "--", "wget"])
+            XCTAssertEqual(args, ["install", "--dry-run", "--formula", "--", "wget"])
             dryRuns += 1
             return HomebrewReadOutput(status: 0, stdout: Data("==> Would install 1 formula:\nwget 1.25\n==> Would install 2 dependencies for wget:\nlibidn2 openssl@3\n".utf8), stderr: Data("Warning: openssl@3 is keg-only\n".utf8))
         })
@@ -302,7 +302,7 @@ extension HomebrewManagementReadTests {
         let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUpgradeAll"), "greedy": .bool(true)]), owner: PluginID("management"))
         XCTAssertEqual(result.value(atPointer: "/packages/0/name"), .string("wget"))
         XCTAssertEqual(result.value(atPointer: "/packages/1/name"), .string("spotify"))
-        let dry = calls.filter { $0.first == "ruby" }
+        let dry = calls.filter { $0.first == "upgrade" }
         XCTAssertEqual(dry.count, 2)
         XCTAssertTrue(dry.contains { $0.contains("--cask") && $0.contains("--greedy") })
         XCTAssertFalse(dry.contains { $0.contains("openssl@3") })
@@ -325,30 +325,6 @@ extension HomebrewManagementReadTests {
 }
 
 extension HomebrewManagementReadTests {
-    func testPreviewBrokersOnlyBoundedOfficialManifestAndKeepsTokenOutOfResult() throws {
-        var requests: [URL] = [], passes = 0
-        let transport = ManagementMetadataTransport { req in
-            requests.append(req.url)
-            XCTAssertEqual(req.maximumResponseBytes, 128 * 1024)
-            if req.url.path == "/token" { return .init(status: 200, headers: [:], body: Data(#"{"token":"private-registry-token"}"#.utf8)) }
-            XCTAssertEqual(req.url.absoluteString, "https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0")
-            XCTAssertEqual(req.headers["Authorization"], "Bearer private-registry-token")
-            return .init(status: 200, headers: [:], body: Data(#"{"manifests":[{"annotations":{"sh.brew.bottle.size":"2097152"}}]}"#.utf8))
-        }
-        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, env, _ in
-            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
-            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1.25"},"installed":[{"version":"1.24"}]}],"casks":[]}"#.utf8)) }
-            passes += 1
-            let metadata = #"[{"name":"wget","url":"https://ghcr.io/v2/homebrew/core/wget/manifests/1.25.0","file":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa--wget-1.25.0.bottle_manifest.json"}]"#
-            if passes == 2 { XCTAssertNotNil(env["HOMEBREW_SPINNET_PREVIEW_MANIFESTS"]); return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25 (2 MB)\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8)) }
-            return .init(status: 0, stdout: Data(("==> Would upgrade 1 formula:\nwget 1.24 -> 1.25\n__SPINNET_MANIFEST_REQUESTS__" + metadata + "\n").utf8))
-        }, management: HomebrewManagementReads(transport: transport))
-        let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("previewUpgrade"), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("management"))
-        XCTAssertEqual(requests.count, 2)
-        XCTAssertEqual(passes, 2)
-        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-registry-token"))
-        XCTAssertEqual(result.value(atPointer: "/stages/0/lines/0"), .string("wget 1.24 -> 1.25 (2 MB)"))
-    }
 }
 
 extension HomebrewManagementReadTests {
@@ -524,48 +500,12 @@ extension HomebrewManagementReadTests {
         XCTAssertEqual(result.value(atPointer: "/complete"), .bool(true), String(describing: result))
         XCTAssertEqual(result.value(atPointer: "/succeeded"), .bool(true), String(describing: result))
         guard case .array(let changes)? = result.value(atPointer: "/changes") else { return XCTFail("Missing native plan") }
-        XCTAssertTrue(changes.contains { $0.value(atPointer: "/action") == .string("unlink") && $0.value(atPointer: "/path") == .string(linked) })
+        XCTAssertTrue(changes.isEmpty, "Native CLI output is not an exact filesystem manifest")
+        XCTAssertNotNil(result.value(atPointer: "/stdout"))
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: linked), original)
     }
 
-    func testLinkPreviewBindsPlannedSourcesAndRejectsIncompleteLedgers() throws {
-        var source = "/opt/homebrew/Cellar/example/1/bin/example"
-        var complete = true
-        let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
-            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
-            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
-            return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": complete, "changes": [["action": "link", "path": "/opt/homebrew/bin/example", "source": source]], "warnings": []]))
-        })
-        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewLink"), "kind": .string("formula"), "names": .array([.string("example")])])
-        let first = try profile.read(input, owner: PluginID("link-plan"))
-        XCTAssertEqual(first.value(atPointer: "/changes/0/source"), .string(source))
-        XCTAssertEqual(first.value(atPointer: "/complete"), .bool(true))
-        source = "/opt/homebrew/Cellar/example/2/bin/example"
-        XCTAssertNotEqual(first.value(atPointer: "/paths_fingerprint"), try profile.read(input, owner: PluginID("link-plan")).value(atPointer: "/paths_fingerprint"))
-        complete = false
-        XCTAssertThrowsError(try profile.read(input, owner: PluginID("link-plan")))
-    }
 
-    func testLinkPreviewFingerprintChangesWhenAnExistingLinkTargetChanges() throws {
-        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: prefix) }
-        let path = prefix.appendingPathComponent("bin/example")
-        try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createSymbolicLink(atPath: path.path, withDestinationPath: "../Cellar/example/1/bin/example")
-        let profile = HomebrewReadProfile(executable: { prefix.appendingPathComponent("bin/brew") }, execute: { _, args, _, _ in
-            if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
-            if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
-            return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": true, "changes": [["action": "unlink", "path": path.path]], "warnings": []]))
-        })
-        let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewUnlink"), "kind": .string("formula"), "names": .array([.string("example")])])
-        let before = try profile.read(input, owner: PluginID("link-identity"))
-        try FileManager.default.removeItem(at: path)
-        try FileManager.default.createSymbolicLink(atPath: path.path, withDestinationPath: "../Cellar/example/2/bin/example")
-        let after = try profile.read(input, owner: PluginID("link-identity"))
-        XCTAssertNotNil(before.value(atPointer: "/paths_fingerprint"))
-        XCTAssertNotEqual(before.value(atPointer: "/paths_fingerprint"), after.value(atPointer: "/paths_fingerprint"))
-        XCTAssertEqual(before.value(atPointer: "/paths"), after.value(atPointer: "/paths"))
-    }
 
     func testLinkPreviewReportsConcretePathsWarningsAndNoopWithoutMutationFlags() throws {
         for operation in ["previewLink", "previewUnlink"] {
@@ -575,16 +515,13 @@ extension HomebrewManagementReadTests {
                 if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.8\n".utf8)) }
                 if args.first == "info" { return .init(status: 0, stdout: Data(#"{"formulae":[{"name":"wget","tap":"homebrew/core","versions":{"stable":"1"},"installed":[{"version":"1"}],"keg_only":false}],"casks":[]}"#.utf8)) }
                 let paths = ["/opt/homebrew/bin/wget", "/opt/homebrew/share/man/man1/wget.1"]
-                let changes = paths.map { path -> [String: String] in
-                    operation == "previewLink" ? ["action": "link", "path": path, "source": "/opt/homebrew/Cellar/wget/1" + String(path.dropFirst("/opt/homebrew".count))] : ["action": "unlink", "path": path]
-                }
-                return .init(status: 0, stdout: try JSONSerialization.data(withJSONObject: ["complete": true, "changes": changes, "warnings": []]), stderr: Data("Warning: example diagnostic\n".utf8))
+                return .init(status: 0, stdout: Data(("Would link:\n" + paths.joined(separator: "\n") + "\n").utf8), stderr: Data("Warning: example diagnostic\n".utf8))
             })
             let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string(operation), "kind": .string("formula"), "names": .array([.string("wget")])]), owner: PluginID("link-preview"))
             XCTAssertEqual(result.value(atPointer: "/paths/0"), .string("/opt/homebrew/bin/wget"))
             XCTAssertEqual(result.value(atPointer: "/no_op"), .bool(false))
-            XCTAssertEqual(result.value(atPointer: "/warnings/0"), .string("Warning: example diagnostic"))
-            XCTAssertTrue(calls.contains { $0.first == "ruby" && Array($0.suffix(3)) == [operation == "previewLink" ? "link" : "unlink", "formula", "wget"] })
+            XCTAssertEqual(result.value(atPointer: "/stderr"), .string("Warning: example diagnostic\n"))
+            XCTAssertTrue(calls.contains([operation == "previewLink" ? "link" : "unlink", "--dry-run", "--formula", "--", "wget"]))
             XCTAssertFalse(calls.contains { $0.contains("--force") || $0.contains("--overwrite") })
         }
     }
@@ -594,10 +531,8 @@ extension HomebrewManagementReadTests {
     func testAutoremovePreviewIsGlobalFormulaOnlyAndNeverRunsMutation() throws {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, args, _, _ in
             if args == ["--version"] { return .init(status: 0, stdout: Data("Homebrew 7.0.9\n".utf8)) }
-            XCTAssertEqual(args.first, "ruby")
-            XCTAssertTrue(args[2].hasSuffix("HomebrewAutoremovePreview.rb"))
-            XCTAssertEqual(Array(args.dropFirst(3)), ["--dry-run"])
-            return .init(status: 0, stdout: Data(#"{"stdout":"==> Would autoremove 2 unneeded formulae:\nold-lib\nold-tool\n","names":["old-lib","old-tool"]}"#.utf8))
+            XCTAssertEqual(args, ["autoremove", "--dry-run"])
+            return .init(status: 0, stdout: Data("==> Would autoremove 2 unneeded formulae:\nold-lib\nold-tool\n".utf8))
         })
         let input: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("previewAutoremove")])
         let answer = try profile.read(input, owner: .init("management"))

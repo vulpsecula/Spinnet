@@ -88,7 +88,7 @@ final class HomebrewBundledRegressionTests: XCTestCase {
             try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
         })
         let package = try ShippedPluginPackages.named("Homebrew")
-        XCTAssertEqual(package.manifest.apiLevel, 6)
+        XCTAssertEqual(package.manifest.apiLevel, 7)
         XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
     }
 

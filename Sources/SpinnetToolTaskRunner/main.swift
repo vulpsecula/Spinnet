@@ -3,9 +3,30 @@ import Darwin
 import IOKit.pwr_mgt
 import SpinnetCore
 
+if CommandLine.arguments.count == 2, ["--verify-askpass", "--verify-host-askpass"].contains(CommandLine.arguments[1]) {
+    func verifyAskpass() throws -> Int32 {
+        if CommandLine.arguments[1] == "--verify-host-askpass" { try HomebrewAskpass.verifyHostParent() }
+        let server = try HomebrewAskpass.Server { _ in }
+        defer { server.stop() }
+        server.setCommand("Spinnet signed askpass connection check")
+        let askpass = try HomebrewAskpass.sibling("SpinnetHomebrewAskpass")
+        let process = Process(); process.executableURL = askpass; process.arguments = ["--check"]
+        process.environment = HomebrewAskpass.taskEnvironment(askpass: askpass, socket: server.path)
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        try process.run()
+        let deadline = Date().addingTimeInterval(8)
+        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        if process.isRunning { process.terminate(); return 70 }
+        guard process.terminationStatus == 0 else { return 77 }
+        print("Signed Homebrew askpass connection verified; no password or sudo requested")
+        return 0
+    }
+    do { exit(try verifyAskpass()) } catch { exit(70) }
+}
+
 // Packaging smoke check: no Task, source read, authorization or subprocess.
 if CommandLine.arguments.count == 2, CommandLine.arguments[1] == "--verify-resources" {
-    guard Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") != nil else { exit(70) }
+    guard let askpass = try? HomebrewAskpass.sibling("SpinnetHomebrewAskpass"), FileManager.default.isExecutableFile(atPath: askpass.path) else { exit(70) }
     print("Reviewed Task runner resources available")
     exit(0)
 }
@@ -30,6 +51,10 @@ do {
     var lease = HomebrewTaskProcessLease(taskID: record.id, runnerPID: getpid(), runnerIdentity: runnerBirth)
     try lease.save(to: directory)
     record.runnerPID = getpid(); record.runnerIdentity = runnerBirth; try record.save(to: directory)
+    // A refusal must still replace the Host's pending-launch reservation
+    // with this runner's proof that no command was spawned.
+    try HomebrewAskpass.verifyHostParent()
+    guard record.executionModel == "native-cli-v1", record.privilegePlan == nil else { exit(77) }
     let input = try HomebrewTaskInput(record.input)
     let steps = try record.steps?.map(HomebrewTaskInput.init) ?? [input]
     guard !steps.isEmpty, steps.count <= 80, steps.allSatisfy({ !$0.arguments.isEmpty }),
@@ -42,42 +67,16 @@ do {
     defer { IOPMAssertionRelease(sleepAssertion) }
     ProcessInfo.processInfo.disableSuddenTermination(); ProcessInfo.processInfo.disableAutomaticTermination("Reviewed Homebrew Task")
     defer { ProcessInfo.processInfo.enableSuddenTermination(); ProcessInfo.processInfo.enableAutomaticTermination("Reviewed Homebrew Task") }
-    var environment = HomebrewReadProfile.environment
-    environment["HOMEBREW_NO_BOOTSNAP"] = "1"
-    environment["HOMEBREW_NO_INSTALL_UPGRADE"] = "1"; environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
-    record.runnerPID = getpid(); record.runnerIdentity = HomebrewTaskProcess.startIdentity(getpid())
-    var privilegeConnection: NSXPCConnection?
-    var privilegeProxy: HomebrewPrivilegeRunnerProtocol?
-    if let privilegePlan = record.privilegePlan, privilegePlan.requiresSystemAuthorization {
-        let connection = try HomebrewSystemAuthorization.runnerConnection()
-        let ready = DispatchSemaphore(value: 0)
-        var failure = "The signed privileged helper is unavailable"
-        guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in ready.signal() }) as? HomebrewPrivilegeRunnerProtocol else { exit(77) }
-        proxy.begin(try JSONEncoder().encode(privilegePlan)) { failure = $0; ready.signal() }
-        // Receipt inventory is bounded30s; immutable source origin admission
-        // has one aggregate180s worker budget, followed by30s receipt
-        // manifest and60s typed-path admission budgets. Stop remains responsive while
-        // read-only admission runs; it never starts a brew/install replay.
-        let admissionDeadline = ProcessInfo.processInfo.systemUptime + 330
-        var admissionReady = false
-        var cancelledAdmission = false
-        while true {
-            if ready.wait(timeout: .now() + 0.1) == .success { admissionReady = failure.isEmpty; break }
-            if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) || ProcessInfo.processInfo.systemUptime >= admissionDeadline {
-                cancelledAdmission = FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path)
-                proxy.stop(record.id) {}; break
-            }
-        }
-        cancelledAdmission = cancelledAdmission || FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path)
-        guard admissionReady, !cancelledAdmission else {
-            proxy.stop(record.id) {}
-            record.result = cancelledAdmission ? .object(["outcome": .string("stopped"), "stop": .string("interrupted")]) : .object(["outcome": .string("failed"), "reason": .string("system_authorization_unavailable")]); record.ended = Date(); try record.save(to: directory)
-            connection.invalidate(); exit(cancelledAdmission ? 130 : 77)
-        }
-        privilegeConnection = connection; privilegeProxy = proxy
-        environment["HOMEBREW_SPINNET_TASK_ID"] = record.id
+    let askpass = try HomebrewAskpass.sibling("SpinnetHomebrewAskpass")
+    guard FileManager.default.isExecutableFile(atPath: askpass.path) else { throw PluginHostServiceError.tool(.missing) }
+    let server = try HomebrewAskpass.Server { waiting in
+        lock.lock(); defer { lock.unlock() }
+        guard record.result == nil else { return }
+        record.stage = waiting ? "waiting for administrator password" : "running Homebrew"
+        try? record.save(to: directory)
     }
-    defer { privilegeConnection?.invalidate() }
+    defer { server.stop() }
+    let environment = HomebrewAskpass.taskEnvironment(askpass: askpass, socket: server.path)
     var lastResult: HomebrewTaskProcess.Result?
     func reserveProcess() throws {
         lock.lock(); defer { lock.unlock() }
@@ -125,80 +124,40 @@ do {
             if case .string(let output)? = metadata.value(atPointer: "/stdout") { log.append(Data(output.utf8)) }
             record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try record.save(to: directory)
         }
-        var arguments = metadata.value(atPointer: "/adopt") == .bool(true) && step.operation == "install" && step.kind == "cask"
+        let arguments = metadata.value(atPointer: "/adopt") == .bool(true) && step.operation == "install" && step.kind == "cask"
             ? ["install", "--cask", "--adopt", "--", step.name] : step.arguments
-        var executable = URL(fileURLWithPath: record.executable)
-        if metadata.value(atPointer: "/privileged_repair") == .bool(true) {
-            guard record.privilegePlan != nil, HomebrewOwnershipRepair.isCurrent(metadata), case .array(let values)? = metadata.value(atPointer: "/repair_directories") else { throw PluginHostServiceError.tool(.planChanged) }
-            executable = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("SpinnetToolAuthorizationClient")
-            // Each fixed directory requests its own fresh system authorization.
-            // The root helper also checks this source against the runner's plan.
-            for value in values {
-                guard case .string(let path) = value else { throw PluginHostServiceError.tool(.planChanged) }
-                let process = HomebrewTaskProcess(executable: executable, arguments: ["--repair-directory", path], environment: environment)
-                try reserveProcess()
-                do { try process.start(output: { data in lock.lock(); log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try? record.save(to: directory); lock.unlock() }, finished: { result in reapedProcess(result) }) }
-                catch { noSpawn(process); throw error }
-                do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
-                while finished.wait(timeout: .now() + 0.1) == .timedOut {
-                    do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
-                    if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) { process.stop(); privilegeProxy?.stop(record.id) {} }
-                }
-                if lastResult?.outcome != "completed" { break }
-            }
-            if lastResult?.outcome != "completed" { break }
-            continue
+        let executable = URL(fileURLWithPath: record.executable)
+        guard metadata.value(atPointer: "/privileged_repair") != .bool(true) else {
+            throw PluginHostServiceError.unavailable("This Doctor repair must be run manually in Terminal")
         }
-        if let privilegePlan = record.privilegePlan, !privilegePlan.casks.isEmpty, step.kind == "cask" {
-            guard let bridge = Bundle.module.url(forResource: "HomebrewPrivilegeBridge", withExtension: "rb") else { throw PluginHostServiceError.tool(.failed) }
-            let client = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("SpinnetToolAuthorizationClient")
-            let context: [String: JSONValue] = ["arguments": .array(arguments.map(JSONValue.string)), "client": .string(client.path),
-                "manualOutcome": .string(directory.appendingPathComponent("manual-outcome.json").path), "taskID": .string(record.id),
-                "casks": .array(try privilegePlan.casks.map { try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode($0)) })]
-            let contextURL = directory.appendingPathComponent("privilege-context.json")
-            try JSONEncoder().encode(JSONValue.object(context)).write(to: contextURL, options: .atomic)
-            arguments = ["ruby", bridge.path, contextURL.path]
-        }
+        server.setCommand("brew " + arguments.joined(separator: " "))
         let process = HomebrewTaskProcess(executable: executable, arguments: arguments, environment: environment, outputPolicy: .terminal)
         try reserveProcess()
         do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
-            log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; record.stage = log.stage
+            log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated
+            record.stage = server.isRequestingPassword ? "waiting for administrator password" : log.stage
             try? record.save(to: directory)
         }, finished: { result in
             reapedProcess(result)
         }) } catch { noSpawn(process); throw error }
-        do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
+        do { try observeProcess(process) } catch { process.stop() }
         lock.lock(); record.processGroup = process.processIdentifier; record.processIdentity = HomebrewTaskProcess.startIdentity(process.processIdentifier)
-        do { try record.save(to: directory) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }; lock.unlock()
+        do { try record.save(to: directory) } catch { process.stop() }; lock.unlock()
         while finished.wait(timeout: .now() + 0.1) == .timedOut {
-            do { try observeProcess(process) } catch { process.stop(); privilegeProxy?.stop(record.id) {} }
+            do { try observeProcess(process) } catch { process.stop() }
             if FileManager.default.fileExists(atPath: directory.appendingPathComponent("stop").path) {
-                process.stop(); privilegeProxy?.stop(record.id) {}
+                server.setCommand(nil); process.stop()
             }
         }
+        server.setCommand(nil)
         if lastResult?.outcome != "completed" { break }
-    }
-    var nativeContinuation: HomebrewNativeInstallerContinuation?
-    if let privilegeProxy, [78, 79].contains(lastResult?.exitStatus ?? 0) {
-        let queried = DispatchSemaphore(value: 0)
-        privilegeProxy.continuation(record.id) { nativeContinuation = HomebrewNativeInstallerContinuation(rawValue: $0); queried.signal() }
-        if queried.wait(timeout: .now() + 30) != .success { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: nil) }
-    }
-    if let privilegeProxy {
-        let ended = DispatchSemaphore(value: 0)
-        privilegeProxy.end(record.id) { ended.signal() }
-        if ended.wait(timeout: .now() + 30) != .success { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: nil) }
     }
     lock.lock()
     log.finish(); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; record.stage = log.stage
-    let lostPrivilegedResult = record.privilegePlan?.requiresSystemAuthorization == true && lastResult?.exitStatus == 70
-    var outcome: [String: JSONValue] = ["outcome": .string(lostPrivilegedResult ? "unknown" : lastResult?.outcome ?? "unknown")]
+    var outcome: [String: JSONValue] = ["outcome": .string(lastResult?.outcome ?? "unknown")]
     if let stop = lastResult?.stop { outcome["stop"] = .string(stop) }
-    if lostPrivilegedResult { outcome["reason"] = .string("privileged_result_lost") }
-    else if lastResult?.exitStatus == 79, let continuation = nativeContinuation, let reason = continuation.reason, let stage = continuation.stage { outcome["reason"] = .string(reason); record.stage = stage }
-    else if lastResult?.exitStatus == 78 && (nativeContinuation == .manualInstallation || record.privilegePlan.map { HomebrewNativeManualOutcome.confirmed(in: directory, plan: $0) } == true) { outcome["reason"] = .string("manual_installation_required"); record.stage = "awaiting manual installation" }
-    else if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
+    if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
     record.result = .object(outcome); record.ended = Date()
     try record.save(to: directory); lock.unlock()
 

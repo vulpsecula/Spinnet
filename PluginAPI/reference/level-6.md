@@ -15,7 +15,8 @@ Own Homebrew Tasks additionally expose a bounded sanitized `output` transcript a
 text may be dropped. Across an activity list, transcript JSON is limited to 256 KiB,
 with ongoing work ahead of ended history. The original `log` remains its 20-line/200-character summary.
 Earlier Levels receive their original activity shape. Grants, owner isolation,
-Host Confirmation, system authorization, Stop and no-replay semantics are unchanged.
+Host Confirmation, Stop and no-replay semantics are unchanged by this addition.
+Task authorization follows the current [Homebrew profile](homebrew-system-authorization.md).
 Task progress remains actual printable Homebrew output; no synthetic percentage is
 inferred. Credentials are never Plugin input or output.
 

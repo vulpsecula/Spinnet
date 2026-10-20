@@ -182,36 +182,13 @@ public final class HomebrewManagementReads {
             return .object(result)
         }
         if operation == "previewAutoremove" {
-            result["available"] = .bool(String(version).hasPrefix("7.0."))
-            guard String(version).hasPrefix("7.0.") else {
-                result["reason"] = .string("requires_reviewed_homebrew_version"); return .object(result)
-            }
-            let adapter = Bundle.module.url(forResource: "HomebrewAutoremovePreview", withExtension: "rb")!
-            let output = try run(["ruby", "--", adapter.path, "--dry-run"])
-            result["dry_run"] = .bool(true); result["exit_status"] = .number(Double(output.status))
-            result["stderr"] = .string(Self.clean(String(decoding: output.stderr, as: UTF8.self), maximum: 32768))
-            guard output.status == 0, let document = try? JSONDecoder().decode(JSONValue.self, from: output.stdout),
-                  case .string(let stdout)? = document.value(atPointer: "/stdout"), stdout.utf8.count <= 98304,
-                  case .array(let names)? = document.value(atPointer: "/names"), names.count <= 2000,
-                  Set(names).count == names.count, names.allSatisfy({ if case .string(let n) = $0 { return HomebrewReadInput.validPackageName(n) }; return false }) else {
-                result["succeeded"] = .bool(false); result["complete"] = .bool(false); result["no_op"] = .bool(false)
-                result["packages"] = .array([]); result["stdout"] = .string(Self.clean(String(decoding: output.stdout, as: UTF8.self), maximum: 98304))
-                return .object(result)
-            }
-            result["succeeded"] = .bool(true); result["complete"] = .bool(true); result["no_op"] = .bool(names.isEmpty)
-            result["stdout"] = .string(Self.clean(stdout, maximum: 98304))
-            result["packages"] = .array(names.map { .object(["kind": .string("formula"), "name": $0]) })
-            return .object(result)
+            let output = try run(["autoremove", "--dry-run"])
+            return .object(try HomebrewCLIPreview.autoremove(output, version: String(version)))
         }
         if ["previewLink", "previewUnlink"].contains(operation) {
             return .object(try HomebrewLinkPreview.read(operation: operation, input: input, version: String(version), executable: executable, deadline: deadline, cancellation: cancellation, execute: execute, stillAuthorized: stillAuthorized))
         }
         if ["previewInstall", "previewUpgrade", "previewUpgradeAll"].contains(operation) {
-            guard String(version).hasPrefix("7.0.") else {
-                result["available"] = .bool(false); result["reason"] = .string("requires_reviewed_homebrew_version")
-                result["estimated"] = .bool(false); result["summary"] = .string("Actual previews currently require reviewed Homebrew 7.0.x")
-                result["packages"] = .array([]); return .object(result)
-            }
             var selections: [(String, [String])] = []
             let greedy = input.value(atPointer: "/greedy") == .bool(true)
             if operation == "previewUpgradeAll" {
@@ -244,16 +221,7 @@ public final class HomebrewManagementReads {
                             let name = package[kind == "formula" ? "full_name" : "full_token"] as? String ?? package[kind == "formula" ? "name" : "token"] as? String ?? ""
                             return name.contains("/") ? name : (package["tap"] as? String ?? "") + "/" + name
                         }
-                        let unresolved = canonical.filter { !allowedItems.contains($0) }
-                        var resolved = Set(allowedItems)
-                        for offset in stride(from: 0, to: unresolved.count, by: 50) {
-                            let batch = Array(unresolved.dropFirst(offset).prefix(50))
-                            let answer = try run(["host-trust", kind] + batch)
-                            guard answer.status == 0, let matched = try? JSONDecoder().decode([String].self, from: answer.stdout), matched.count <= 50,
-                                  Set(matched).isSubset(of: Set(batch)) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-                            resolved.formUnion(matched)
-                        }
-                        guard canonical.allSatisfy(resolved.contains) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+                        guard canonical.allSatisfy(allowedItems.contains) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
 
                     }
                 }
@@ -365,7 +333,6 @@ public final class HomebrewManagementReads {
                 var finding = HomebrewDoctorContext.publicFinding(finding, prefix: Self.prefix(of: executable))
                 let check = finding["check"] as? String ?? ""
                 if ["check_user_path_1", "check_user_path_2", "check_user_path_3", "check_brew_path"].contains(check) { return nil }
-                var verifiedDirectoryAccess = false
                 switch HomebrewDoctorContext.assess(finding, prefix: Self.prefix(of: executable), writable: { url in
                     if attemptedDirectories.contains(url) { return checkedDirectories[url] }
                     guard attemptedDirectories.count < 128 else { return nil }
@@ -377,7 +344,7 @@ public final class HomebrewManagementReads {
                 case .unrelated: break
                 case .absent: return nil
                 case .unverified: unverifiedDirectoryChecks += 1; return nil
-                case .verified(let verified): finding = verified; verifiedDirectoryAccess = true
+                case .verified(let verified): finding = verified
                 }
                 let remediation = finding["remediation"] as? [String: Any]
                 let rawCommands = remediation?["commands"] as? [String] ?? []
@@ -394,7 +361,11 @@ public final class HomebrewManagementReads {
                         value = HomebrewReadInput.validToken(name) ? .init(operation: "link", kind: "formula", name: name,
                             arguments: ["link", "--formula", "--", name], needsPrivileges: false, summary: "Link " + name,
                             metadata: .object(["doctor_repair": .bool(true)])) : nil
-                    } else { value = verifiedDirectoryAccess ? HomebrewOwnershipRepair.resolve(command: command, prefix: Self.prefix(of: executable)) : nil }
+                    } else {
+                        // Keep native sudo/chown suggestions copyable, but a
+                        // Homebrew Task never becomes a generic Root executor.
+                        value = nil
+                    }
                     if let value {
                         let key: String
                         if let existing = issuedRepairs.first(where: { $0.value.operation == value.operation && $0.value.kind == value.kind && $0.value.name == value.name && $0.value.metadata == value.metadata }) { key = existing.key }

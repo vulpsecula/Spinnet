@@ -395,11 +395,25 @@ public final class HomebrewReadProfile {
     static var trustAdapter: URL { Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")! }
     public static func explicitlyTrusted(_ name: String, kind: String, executable: URL,
         deadline: Date, cancellation: HostFetchedSections.Cancellation = .init()) throws -> Bool {
-        guard ["tap", "formula", "cask"].contains(kind), HomebrewTaskInput.validPackageName(name) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        let output = try executeCancellable(executable, ["host-trust", kind, name], environment, deadline, cancellation)
+        guard ["tap", "formula", "cask"].contains(kind),
+              kind == "tap" ? name.range(of: "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$", options: .regularExpression) != nil : HomebrewTaskInput.validPackageName(name) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        let output = try executeReadCancellable(executable, ["trust", "--" + kind, "--json=v1"], environment, deadline, cancellation)
         guard output.status == 0, let entries = try? JSONDecoder().decode([String].self, from: output.stdout),
-              entries.count <= 50, entries.allSatisfy(HomebrewTaskInput.validPackageName) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        return entries.contains(name)
+              entries.count <= 2000, entries.allSatisfy({ $0.utf8.count <= 2048 && !$0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) }) else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+        if entries.contains(name) { return true }
+        let parts = name.split(separator: "/")
+        guard kind == "tap" || parts.count == 3 else { return false }
+        let tap = kind == "tap" ? name : parts.prefix(2).joined(separator: "/")
+        let info = try executeReadCancellable(executable, ["tap-info", "--json=v1", "--", tap], environment, deadline, cancellation)
+        guard info.status == 0, let taps = try? JSONDecoder().decode([JSONValue].self, from: info.stdout), taps.count == 1,
+              taps[0].value(atPointer: "/name") == .string(tap) else { return false }
+        if taps[0].value(atPointer: "/trusted") == .bool(true) { return true }
+        // Public trust lists can use exact custom remote references. Do not
+        // clone Homebrew's private normalization or grant a whole tap from an item.
+        if kind != "tap", case .string(let remote)? = taps[0].value(atPointer: "/remote"), let token = parts.last {
+            return entries.contains(remote + "/" + token)
+        }
+        return false
     }
     public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
                                           _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {

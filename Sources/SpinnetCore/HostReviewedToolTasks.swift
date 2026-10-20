@@ -12,11 +12,14 @@ public struct HomebrewTaskPlan {
     public var confirmation: HostConfirmation
     public var scope: PluginCapabilityScope? = nil
     public var steps: [HomebrewTaskInput] = []
+    /// New Tasks use the documented CLI. Legacy Root plans are recovery data only.
+    public var nativeCLI = false
     public var privilegedCasks: [HomebrewPrivilegePlan.Cask] = []
     public var nativeInspection: HomebrewTaskNativeInspection? = nil
     public var requiresNativeInspection: Bool { nativeInspection?.disclosure == nil && nativeInspection != nil }
     public var activityID: String { "activity_" + id.uuidString.replacingOccurrences(of: "-", with: "").lowercased() }
     public var needsPrivileges: Bool {
+        if nativeCLI { return false }
         if Self.packageNeedsPrivileges(package, operation: input.operation, includeZap: input.fields["zap"] == .bool(true)) { return true }
         if case .array(let records)? = package.value(atPointer: "/packages") { return records.contains { Self.packageNeedsPrivileges($0, operation: input.operation, includeZap: input.fields["zap"] == .bool(true)) } }
         return false
@@ -58,12 +61,7 @@ public final class HostReviewedToolTasks {
     private let trustedItems: (String) throws -> [String]
     private let resolveCurrentTrust: ((String, String) throws -> Bool)?
     private let targetResolver: TargetResolver
-    private let privilegeReview: (HomebrewTaskInput, JSONValue, URL, [HomebrewPrivilegePlan.Cask]?, HostFetchedSections.Cancellation, @escaping (String) -> Void) throws -> [HomebrewPrivilegePlan.Cask]
     private let nativeInspection: HomebrewNativeInspectionTransporting?
-    private let inspectionDraft: (HomebrewTaskPlan) throws -> HomebrewNativeInspection.Draft
-    private let prepareSystemAuthorization: () throws -> Void
-    private let admitSystemAuthorization: (HomebrewPrivilegePlan) throws -> Void
-    private let cancelSystemAuthorization: (String) -> Void
     private let lock = NSRecursiveLock()
     private var pending: HomebrewTaskPlan?
     private var preparationID: UUID?
@@ -93,12 +91,7 @@ public final class HostReviewedToolTasks {
                 executable: @escaping () throws -> URL = HomebrewReadProfile.discover,
                 preflight: Preflight? = nil, cancellablePreflight: CancellablePreflight? = nil, trustedTaps: (() throws -> [String])? = nil, trustedItems: ((String) throws -> [String])? = nil,
                 targetResolver: @escaping TargetResolver = { _, _ in throw PluginHostServiceError.tool(.planChanged) },
-                privilegeReview: ((HomebrewTaskInput, JSONValue, URL) throws -> [HomebrewPrivilegePlan.Cask])? = nil,
                 nativeInspection: HomebrewNativeInspectionTransporting? = HomebrewNativeInspectionTransport(),
-                inspectionDraft: ((HomebrewTaskPlan) throws -> HomebrewNativeInspection.Draft)? = nil,
-                prepareSystemAuthorization: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
-                admitSystemAuthorization: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.admit,
-                cancelSystemAuthorization: @escaping (String) -> Void = HomebrewSystemAuthorization.cancelAdmission,
                 recoveryPower: PowerAssertions? = nil,
                 privilegedTaskIsRunning: @escaping (HomebrewPrivilegePlan) throws -> Bool = HomebrewSystemAuthorization.taskIsRunning,
                 stopPrivilegedTask: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.stopTask) {
@@ -111,23 +104,11 @@ public final class HostReviewedToolTasks {
             try HomebrewReadProfile.explicitlyTrusted(name, kind: kind, executable: executable(), deadline: Date().addingTimeInterval(15))
         } : nil
         self.targetResolver = targetResolver
-        self.privilegeReview = privilegeReview.map { work in { input, package, tool, _, _, _ in try work(input, package, tool) } }
-            ?? { input, package, tool, expected, cancellation, progress in try HomebrewPrivilegeReview.casksForInspection(input: input, package: package, executable: tool, expected: expected, cancellation: cancellation, progress: progress) }
         self.nativeInspection = nativeInspection
-        self.inspectionDraft = inspectionDraft ?? { plan in
-            try HomebrewNativeInspectionPlanning.draft(taskID: plan.activityID,
-                prefix: HomebrewManagementReads.prefix(of: plan.executable).path, operation: plan.resolvedInput.operation,
-                casks: plan.privilegedCasks, includeZap: plan.input.fields["zap"] == .bool(true))
-        }
-        self.prepareSystemAuthorization = prepareSystemAuthorization
-        self.admitSystemAuthorization = admitSystemAuthorization; self.cancelSystemAuthorization = cancelSystemAuthorization
         self.recoveryPower = recoveryPower
         self.privilegedTaskIsRunning = privilegedTaskIsRunning; self.stopPrivilegedTask = stopPrivilegedTask
         recover()
         recoverInspection()
-        if nativeInspection is HomebrewNativeInspectionTransport, HomebrewNativeInspectionAuthorization.isServiceEnabled {
-            globalNativeLaneHeld = true; registerGlobalNativeLane(); refreshInspection()
-        }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
         timer.setEventHandler { [weak self] in self?.refresh() }; self.timer = timer; timer.resume()
@@ -151,20 +132,6 @@ public final class HostReviewedToolTasks {
         let locallyBusy = exiting || pending != nil || recoveredInspection != nil || taskRecoveryUnavailable || records.values.contains { executionHeld($0) }
         lock.unlock()
         guard !locallyBusy else { throw PluginHostServiceError.tool(.busy) }
-        if let nativeInspection,
-           !(nativeInspection is HomebrewNativeInspectionTransport) || HomebrewNativeInspectionAuthorization.isServiceEnabled {
-            lock.lock(); globalNativeLaneHeld = true; lock.unlock()
-            let status: HomebrewNativeInspection.Status
-            do { status = try nativeInspection.laneStatus() }
-            catch { registerGlobalNativeLane(); throw error }
-            lock.lock(); globalNativeLaneHeld = status.laneHeld || status.workerUnreaped
-            if !globalNativeLaneHeld, let activity = globalNativeActivity { activities.removeEndedTask(activity); globalNativeActivity = nil }
-            lock.unlock()
-            if status.laneHeld || status.workerUnreaped {
-                registerGlobalNativeLane()
-                throw PluginHostServiceError.tool(.busy)
-            }
-        }
         lock.lock()
         guard !exiting, pending == nil, recoveredInspection == nil, !taskRecoveryUnavailable, !records.values.contains(where: { executionHeld($0) }) else {
             lock.unlock(); throw PluginHostServiceError.tool(.busy)
@@ -189,6 +156,9 @@ public final class HostReviewedToolTasks {
             preparation.advance("checking package source trust")
             try checkSource(package)
             try Self.checkOptions(input, package: package, prefix: HomebrewManagementReads.prefix(of: executable), preparing: true)
+            if package.value(atPointer: "/privileged_repair") == .bool(true) {
+                throw PluginHostServiceError.unavailable("This Doctor repair requires a manual command in Terminal; Spinnet does not run arbitrary elevated repair commands")
+            }
             let resolved = try resolvedInput(resolvedTarget, package: package)
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
             try authorize()
@@ -199,20 +169,6 @@ public final class HostReviewedToolTasks {
                 if !from.isEmpty { disclosure += " Installed version: \(from)." }
             } else if !from.isEmpty || !to.isEmpty { disclosure += " Version: \(from.isEmpty ? "not installed" : from) → \(to.isEmpty ? "current" : to)." }
             if !tap.isEmpty { disclosure += " Source: \(tap)." }
-            if ["link", "unlink"].contains(input.operation), case .array(let changes)? = package.value(atPointer: "/link_preview/changes") {
-                disclosure += " Concrete changes (no force or overwrite flag):\n" + changes.map { change in
-                    let action = Self.text(change, "action"), path = Self.text(change, "path"), source = Self.text(change, "source")
-                    switch action {
-                    case "link": return "Link \(path) → \(source)"
-                    case "unlink": return "Remove \(path)"
-                    case "mkdir": return "Create directory \(path)"
-                    case "rmdir": return "Remove empty directory \(path)"
-                    default: return "Update info index \(path)"
-                    }
-                }.joined(separator: "\n")
-                if case .array(let warnings)? = package.value(atPointer: "/link_preview/warnings") { disclosure += "\nHomebrew diagnostics:\n" + warnings.compactMap { if case .string(let warning) = $0 { return warning }; return nil }.joined(separator: "\n") }
-                disclosure += " Changed links, sources or diagnostics require a new confirmation."
-            }
             if ["update", "refreshCatalog"].contains(input.operation) { disclosure = "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied." }
             if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
             if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
@@ -228,7 +184,7 @@ public final class HostReviewedToolTasks {
             if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
             if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
-            if reviewedPackages.contains(where: { HomebrewTaskPlan.packageNeedsPrivileges($0, operation: input.operation, includeZap: input.fields["zap"] == .bool(true)) }) { disclosure += " macOS system authorization is required for reviewed privileged work." }
+            disclosure += " Homebrew runs with your account and manages its own installers and scripts. If sudo needs your login password, Spinnet will ask for it in a separate password window. It is passed to sudo and is never shared with the Plugin or saved by Spinnet."
             if ["upgrade", "upgradeAll", "upgradeSelected", "uninstall", "changeLanguage"].contains(input.operation), reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
             disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,
@@ -244,41 +200,7 @@ public final class HostReviewedToolTasks {
                     confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
-            if plan.needsPrivileges {
-                preparation.advance("inspecting native cask changes")
-                let bindings = try privilegeReview(resolved, package, executable, nil, cancellation, progress)
-                preparation.advance("checking installed cask source evidence")
-                try checkInstalledSources(bindings, package: package)
-                let nativeDetails = nativeInspection == nil ? bindings.flatMap { cask -> [String] in
-                    (cask.installedTap.map { ["Installed source recorded locally for \(cask.name): \($0), version \(cask.uninstallVersion ?? cask.version). This records local history; native receipt/file ownership is checked independently."] } ?? [])
-                        + (cask.launchDaemons ?? []).map { "Remove system launch daemon \($0.label)." }
-                        + (cask.receipts ?? []).map { "Remove \($0.fileCount) reviewed receipt-owned entries for \($0.identifier), then forget that receipt; nonempty directories remain." }
-                }.joined(separator: " ") : ""
-                guard nativeDetails.utf8.count <= 8 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }
-                if !nativeDetails.isEmpty {
-                    let previous = plan
-                    plan = HomebrewTaskPlan(id: previous.id, owner: previous.owner, pluginName: previous.pluginName, input: previous.input,
-                        resolvedInput: previous.resolvedInput, package: previous.package, executable: previous.executable,
-                        confirmation: .init(title: previous.confirmation.title, message: previous.confirmation.message + " " + nativeDetails,
-                            confirmTitle: previous.confirmation.confirmTitle, isDestructive: true), scope: previous.scope, steps: previous.steps, generation: previous.generation)
-                }
-                plan.privilegedCasks = bindings
-                preparation.advance("building the native confirmation")
-                if nativeInspection != nil, bindings.contains(where: { !($0.receipts ?? []).isEmpty }) {
-                    let draft = try inspectionDraft(plan)
-                    plan.nativeInspection = .init(draft: draft, reservation: nil, disclosure: nil)
-                    plan.confirmation = .init(title: "Inspect Homebrew Receipt Ownership",
-                        message: "Inspect all installed receipts and their bounded ownership/path metadata to verify exclusive ownership for the selected packages: \(draft.packages.map(\.name).joined(separator: ", ")). This read-only inspection requires separate macOS system authorization and does not change installed packages. If needed, Spinnet enables its background system operations and asks you to allow Spinnet in macOS Login Items & Extensions before inspection. Unselected receipt ownership data stays private to the Host. After inspection, the Host shows every concrete selected change and asks for a second confirmation and fresh mutation authorization. Cancel stops pre-admission work; a worker still stopping keeps the shared lane busy.",
-                        confirmTitle: "Inspect", isDestructive: false)
-                    try registerPendingInspection(plan)
-                } else {
-                    let details = try HomebrewTaskNativeConfirmation.details(plan,
-                        disclosure: .init(receipts: [], targets: []), cancellation: cancellation)
-                    let message = plan.needsSystemAuthorization ? plan.confirmation.message : plan.confirmation.message.replacingOccurrences(of: " macOS system authorization is required for reviewed privileged work.", with: "")
-                    plan.confirmation = .init(title: plan.confirmation.title, message: message,
-                        confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
-                }
-            }
+            plan.nativeCLI = true
             if (!plan.steps.isEmpty || ["upgradeSelected", "autoremove"].contains(input.operation)), !plan.requiresNativeInspection, plan.confirmation.details == nil {
                 let details = try HomebrewTaskNativeConfirmation.details(plan, disclosure: .init(receipts: [], targets: []), cancellation: cancellation)
                 plan.confirmation = .init(title: plan.confirmation.title, message: plan.confirmation.message,
@@ -298,64 +220,9 @@ public final class HostReviewedToolTasks {
             throw error
         }
     }
-    /// Called only after the first Host Confirmation. No mutation right is
-    /// configured until the complete final confirmation has answered.
+    /// Stale native-inspection continuations cannot start a new mutation.
     public func completeInspection(_ plan: HomebrewTaskPlan, authorize: () throws -> Void = {}) throws -> HomebrewTaskPlan {
-        lock.lock()
-        guard pending?.id == plan.id, plan.requiresNativeInspection, let inspection = plan.nativeInspection,
-              let nativeInspection, let cancellation = pendingCancellation, !cancellation.isCancelled,
-              generations[plan.owner, default: 0] == plan.generation, !exiting else {
-            lock.unlock(); throw PluginHostServiceError.tool(.planChanged)
-        }
-        preparationID = plan.id; lock.unlock()
-        do {
-            try authorize()
-            // Helper setup is an explicit consequence of the first trusted
-            // confirmation, never a side effect of an ordinary metadata read.
-            try prepareSystemAuthorization()
-            try authorize()
-            guard !cancellation.isCancelled else { throw HomebrewNativeInspection.Failure.authorizationCancelled }
-            let reservation = try nativeInspection.reserve(inspection.draft, cancellation: cancellation)
-            var reserved = plan
-            reserved.nativeInspection = .init(draft: inspection.draft, reservation: reservation, disclosure: nil)
-            lock.lock(); pending = reserved; lock.unlock()
-            let forget = cancellation.onCancel { [weak self] in
-                DispatchQueue.global(qos: .utility).async { nativeInspection.cancel(reservation.inspectionID); self?.refreshInspection() }
-            }
-            lock.lock(); pendingCancelRegistration = forget; lock.unlock()
-            try persistInspection(reserved)
-            let captured = try nativeInspection.inspect(reservation, draft: inspection.draft, cancellation: cancellation)
-            let review = try HomebrewNativeInspectionReview(summary: captured.summary, draft: inspection.draft)
-            let bytes = try HomebrewNativeInspection.encode(captured.disclosure)
-            guard bytes.count == captured.summary.disclosureBytes,
-                  HomebrewSystemAuthorization.digest(bytes) == captured.summary.disclosureSHA256,
-                  captured.summary.inspectionID == reservation.inspectionID else { throw HomebrewNativeInspection.Failure.incompleteReview }
-            // Verify the same full collector boundary even for a recorded
-            // transport. No summary/partial page authorizes presentation.
-            for offset in stride(from: 0, to: bytes.count, by: HomebrewNativeInspection.maximumPagePayloadBytes) {
-                let end = min(bytes.count, offset + HomebrewNativeInspection.maximumPagePayloadBytes)
-                let page = HomebrewNativeInspection.Page(inspectionID: captured.summary.inspectionID, seal: captured.summary.seal,
-                    offset: offset, totalBytes: bytes.count, disclosureSHA256: captured.summary.disclosureSHA256, bytes: bytes.subdata(in: offset..<end))
-                try review.append(page)
-            }
-            let disclosure = try review.finish()
-            var final = plan
-            final.privilegedCasks = try HomebrewNativeInspectionPlanning.finalizedCasks(plan.privilegedCasks, disclosure: disclosure)
-            final.nativeInspection = .init(draft: inspection.draft, reservation: reservation, disclosure: disclosure)
-            let details = try HomebrewTaskNativeConfirmation.details(final, disclosure: disclosure, cancellation: cancellation)
-            final.confirmation = .init(title: "Confirm Homebrew: \(plan.input.displayOperation)",
-                message: "The complete read-only ownership inspection is ready. Review all concrete changes below before continuing. Dependencies and dependents may also change. Stopping does not undo changes. This confirmed Task prevents idle system sleep until it ends. macOS requests fresh mutation authorization after this confirmation.",
-                confirmTitle: "Continue", isDestructive: true, details: details)
-            try authorize()
-            lock.lock(); defer { lock.unlock() }
-            guard pending?.id == plan.id, !cancellation.isCancelled, generations[plan.owner, default: 0] == plan.generation, !exiting else { throw PluginHostServiceError.tool(.planChanged) }
-            pending = final; preparationID = nil
-            if let pendingActivity { activities.updateStatus(pendingActivity, status: "Awaiting concrete mutation confirmation") }
-            return final
-        } catch {
-            lock.lock(); if pending?.id == plan.id { preparationID = nil }; lock.unlock()
-            decline(plan); throw error
-        }
+        throw PluginHostServiceError.tool(.planChanged)
     }
     public func decline(_ plan: HomebrewTaskPlan) {
         lock.lock(); let cancellation = pending?.id == plan.id ? pendingCancellation : nil
@@ -380,7 +247,6 @@ public final class HostReviewedToolTasks {
             lock.unlock(); throw PluginHostServiceError.unavailable("The admitted Task owner changed")
         }
         preparationID = plan.id; lock.unlock()
-        var admitted: String?
         do {
             try authorize()
             guard !plan.requiresNativeInspection else { throw PluginHostServiceError.tool(.planChanged) }
@@ -394,13 +260,7 @@ public final class HostReviewedToolTasks {
             try Self.checkOptions(plan.input, package: currentPackage, prefix: HomebrewManagementReads.prefix(of: plan.executable))
             guard currentPackage == plan.package, try resolvedInput(resolved, package: currentPackage) == plan.resolvedInput else { throw PluginHostServiceError.tool(.planChanged) }
             guard try steps(resolved, package: currentPackage) == plan.steps else { throw PluginHostServiceError.tool(.planChanged) }
-            if plan.needsPrivileges {
-                var bindings = try privilegeReview(plan.resolvedInput, currentPackage, plan.executable, plan.privilegedCasks, cancellation, { _ in })
-                if let disclosure = plan.nativeInspection?.disclosure { bindings = try HomebrewNativeInspectionPlanning.finalizedCasks(bindings, disclosure: disclosure) }
-                guard bindings == plan.privilegedCasks else { throw PluginHostServiceError.tool(.planChanged) }
-                try checkInstalledSources(plan.privilegedCasks, package: currentPackage)
-                if plan.needsSystemAuthorization, plan.nativeInspection == nil { try prepareSystemAuthorization() }
-            }
+            guard plan.nativeCLI else { throw PluginHostServiceError.tool(.planChanged) }
             try authorize()
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
             let id = plan.activityID
@@ -416,25 +276,9 @@ public final class HostReviewedToolTasks {
                 input: plan.resolvedInput.json, package: plan.package, executable: plan.executable.path, started: Date(),
                 detached: false, runnerPID: nil, runnerIdentity: nil, processGroup: nil, processIdentity: nil,
                 stage: "starting", log: [], result: nil, ended: nil)
-            if plan.needsPrivileges {
-                let prefix = plan.executable.deletingLastPathComponent().deletingLastPathComponent().path
-                let directories: [String] = { if case .array(let values)? = plan.package.value(atPointer: "/repair_directories") { return values.compactMap { if case .string(let path) = $0 { return path }; return nil } }; return [] }()
-                let privilegePlan = try HomebrewPrivilegePlan(taskID: id, prefix: prefix, casks: plan.privilegedCasks, repairDirectories: directories, operation: plan.input.operation == "doctorFix" ? "doctorFix" : plan.resolvedInput.operation)
-                record.privilegePlan = privilegePlan
-                do {
-                    if let inspection = plan.nativeInspection, let nativeInspection {
-                        guard let disclosure = inspection.disclosure else { throw HomebrewNativeInspection.Failure.incompleteReview }
-                        try HomebrewNativeInspectionPlanning.validateFinalPlan(privilegePlan, draft: inspection.draft, disclosure: disclosure)
-                        guard let reservation = inspection.reservation else { throw HomebrewNativeInspection.Failure.incompleteReview }
-                        try nativeInspection.admit(reservation, plan: privilegePlan, cancellation: cancellation)
-                        admitted = id
-                    } else if privilegePlan.requiresSystemAuthorization { try admitSystemAuthorization(privilegePlan); admitted = id }
-                    try authorize()
-                }
-                catch { try? FileManager.default.removeItem(at: directory); throw error }
-            }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == plan.id, generations[plan.owner, default: 0] == plan.generation, !exiting, !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }
+            record.executionModel = "native-cli-v1"
             record.scope = plan.scope
             record.steps = plan.steps.isEmpty ? nil : plan.steps.map(\.json)
             if case .array(let values)? = plan.package.value(atPointer: "/doctor_steps") { record.stepMetadata = values.compactMap { $0.value(atPointer: "/metadata") } }
@@ -470,7 +314,6 @@ public final class HostReviewedToolTasks {
             clearInspectionRecovery()
             return id
         } catch {
-            if let admitted { cancelSystemAuthorization(admitted) }
             lock.lock(); if pending?.id == plan.id { preparationID = nil }; lock.unlock()
             decline(plan); throw error
         }
@@ -539,6 +382,16 @@ public final class HostReviewedToolTasks {
                 }
             }
             if orphanedTasks.contains(id) { reconcileLostRunner(&current, directory: directory) }
+            // After authenticated Root idleness AND an actually reaped runner,
+            // legacy history must not require that daemon on every later Host
+            // launch. Keep the outcome/output, retire only the spent authority.
+            if current.executionModel == nil, current.result != nil, !executionHeld(current), current.privilegePlan != nil, rootTaskLiveness[id] == false,
+               let lease = try? HomebrewTaskProcessLease.load(from: directory), lease.provesNoOwnedExecution,
+               lease.runnerPID == current.runnerPID, lease.runnerIdentity == current.runnerIdentity,
+               HomebrewTaskProcess.startIdentity(lease.runnerPID) != lease.runnerIdentity {
+                current.privilegePlan = nil
+                try? current.save(to: directory)
+            }
             records[id] = current; publish(current)
             if !executionHeld(current), suddenTerminationAssertions.remove(id) != nil { ProcessInfo.processInfo.enableSuddenTermination() }
             if !executionHeld(current) { recoveryPowerReleases.removeValue(forKey: id)?(); orphanedTasks.remove(id); orphanStopTimes[id] = nil }
@@ -887,29 +740,7 @@ public final class HostReviewedToolTasks {
                       return HomebrewTaskInput.validPackageName(name)
                   }), Set(packages.compactMap { $0.value(atPointer: "/name") }).count == packages.count else { throw PluginHostServiceError.tool(.planChanged) }
         }
-        if ["link", "unlink"].contains(input.operation) {
-            guard package.value(atPointer: "/link_preview/succeeded") == .bool(true),
-                  package.value(atPointer: "/link_preview/complete") == .bool(true),
-                  package.value(atPointer: "/link_preview/no_op") == .bool(false),
-                  package.value(atPointer: "/link_preview/truncated") == .bool(false),
-                  case .string(let fingerprint)? = package.value(atPointer: "/link_preview/paths_fingerprint"), fingerprint.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
-                  case .array(let values)? = package.value(atPointer: "/link_preview/paths"), (1...2000).contains(values.count), Set(values).count == values.count,
-                  values.allSatisfy({ value in
-                      guard case .string(let path) = value else { return false }
-                      return path.utf8.count <= 2048 && path.hasPrefix(prefix.path + "/") && !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) && URL(fileURLWithPath: path).standardizedFileURL.path == path
-                  }), case .array(let changes)? = package.value(atPointer: "/link_preview/changes"), changes.count == values.count else { throw PluginHostServiceError.tool(.planChanged) }
-            var destinations = Set<JSONValue>()
-            for change in changes {
-                guard case .object(let fields) = change, case .string(let action)? = fields["action"],
-                      ["link", "unlink", "mkdir", "rmdir", "update_info_index"].contains(action),
-                      let path = fields["path"], values.contains(path), destinations.insert(path).inserted,
-                      Set(fields.keys) == (action == "link" ? Set(["action", "path", "source"]) : Set(["action", "path"])) else { throw PluginHostServiceError.tool(.planChanged) }
-                if action == "link" {
-                    guard case .string(let source)? = fields["source"], source.utf8.count <= 2048, source.hasPrefix("/"),
-                          !source.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains), URL(fileURLWithPath: source).standardizedFileURL.path == source else { throw PluginHostServiceError.tool(.planChanged) }
-                }
-            }
-        }
+        if ["link", "unlink"].contains(input.operation), package.value(atPointer: "/installed_version") == nil { throw PluginHostServiceError.tool(.planChanged) }
         if input.operation == "changeLanguage" {
             guard package.value(atPointer: "/installed_version") != nil,
                   case .array(let languages)? = package.value(atPointer: "/languages"),
@@ -958,14 +789,6 @@ public final class HostReviewedToolTasks {
                   packages.allSatisfy({ $0.value(atPointer: "/outdated") == .bool(true) && $0.value(atPointer: "/pinned") != .bool(true) }) else { throw PluginHostServiceError.tool(.notOutdated) }
             return .object(["packages": .array(packages)])
         }
-        if ["link", "unlink"].contains(input.operation) {
-            let preview = try profile.read(.object(["tool": .string("homebrew"), "operation": .string(input.operation == "link" ? "previewLink" : "previewUnlink"), "kind": .string(input.kind), "names": names]), owner: PluginID("host-task-preflight"), timeout: 15, cancellation: cancellation)
-            guard case .object(var fields) = package else { throw PluginHostServiceError.tool(.planChanged) }
-            fields["link_preview"] = preview
-            let planned = JSONValue.object(fields)
-            try checkOptions(input, package: planned, prefix: HomebrewManagementReads.prefix(of: executable))
-            return planned
-        }
         return package
     }
     public static func readTrustedTaps(executable: URL) throws -> [String] {
@@ -1004,6 +827,7 @@ public struct HomebrewTaskJournal: Codable {
     public var ended: Date?
     public var scope: PluginCapabilityScope? = nil
     public var steps: [JSONValue]? = nil
+    public var executionModel: String? = nil
     public var privilegePlan: HomebrewPrivilegePlan? = nil
     public var stepMetadata: [JSONValue]? = nil
     public func save(to directory: URL) throws {

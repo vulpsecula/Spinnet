@@ -6,23 +6,17 @@ extension HomebrewReadProfile {
     /// never argv, code or environment. The process tree remains offline and
     /// unable to persist writes; an update requires its separate Task grant.
     ///
-    /// Host-owned native inspection/preview adapters retain their private-source
-    /// review. They must not inherit CLI compatibility as evidence for elevation.
+    /// No Ruby implementation is loaded or injected by this path.
     static func executeReadCancellable(_ executable: URL, _ arguments: [String],
                                       _ environment: [String: String], _ deadline: Date,
                                       _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
-        if arguments.first == "ruby" || arguments.first == "host-trust" {
-            return try executeCancellable(executable, arguments, environment, deadline, cancellation)
-        }
         let commands: Set<String> = ["--version", "info", "outdated", "search", "list", "tap", "tap-info", "services", "doctor", "trust", "config", "--prefix", "--cellar", "--caskroom"]
-        guard let command = arguments.first, commands.contains(command) else {
+        let previews: Set<String> = ["install", "upgrade", "autoremove", "link", "unlink"]
+        guard let command = arguments.first,
+              commands.contains(command) || (previews.contains(command) && arguments.contains("--dry-run")) else {
             throw PluginHostServiceError.invalidInput("Unsupported Homebrew read command")
         }
-        if executable.lastPathComponent == "brew" {
-            try HomebrewBootstrapOptions.validate(executable: executable, environment: environment,
-                                                  deadline: deadline, cancellation: cancellation)
-        }
-        guard ["info", "outdated", "search", "list", "tap", "tap-info", "trust", "services"].contains(command) else {
+        guard ["info", "outdated", "search", "list", "tap", "tap-info", "trust", "services", "install", "upgrade", "autoremove", "link", "unlink"].contains(command) else {
             return try executeBounded(executable, arguments, environment, deadline, cancellation,
                                       stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: true)
         }

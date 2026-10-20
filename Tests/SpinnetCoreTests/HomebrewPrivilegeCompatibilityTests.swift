@@ -5,7 +5,7 @@ import SpinnetCore
 final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
     func testHostAndRunnerRequireTheSameReviewedHomebrewSources() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let text = try String(contentsOf: root.appendingPathComponent("Sources/SpinnetToolTaskRunner/Resources/HomebrewPrivilegeBridge.rb"))
+        let text = try String(contentsOf: root.appendingPathComponent("Tests/LegacyResources/HomebrewPrivilegeBridge.rb"))
         let pattern = try NSRegularExpression(pattern: #""([^"]+\.rb)" => "([a-f0-9]{64})""#)
         let legacy = text.components(separatedBy: "REVIEWED_SOURCE_UPDATES =")[0]
         let pairs = pattern.matches(in: legacy, range: NSRange(legacy.startIndex..., in: legacy)).map { match -> (String, String) in

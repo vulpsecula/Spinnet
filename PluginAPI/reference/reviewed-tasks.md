@@ -16,24 +16,17 @@ from aliases or renames are frozen in the confirmed Task, and existing canonical
 item trust can authorize a package without granting its entire tap. A qualified
 selector does not itself grant source trust.
 
-Receipt-owned native removal first asks a separate Host Confirmation for
-read-only inspection of all installed receipt ownership metadata and any
-needed signed helper setup. After inspection, the Host validates the complete
-selected disclosure and shows every concrete action in its own paged final
-confirmation. Only an affirmative final confirmation requests fresh mutation
-authorization. Cancelling before admission retains a private Host Stop/liveness
-entry until owned workers are reaped; restarting restores status without
-replaying work or restoring authority. No inspection draft, native seal,
-unselected owner index or administrator credential is a Plugin API value.
+New Tasks run the native Homebrew CLI as the current user. Homebrew owns
+installer and uninstall behavior. If sudo needs the login password, a signed
+Host-owned askpass window requests it and passes it directly to sudo. No password
+enters the Plugin, Task journal or output. This replaces the earlier per-artifact
+Root authorization route; no new Task requires its background daemon or private
+Homebrew source hashes. See [authorization](homebrew-system-authorization.md).
 
-Link/unlink binds a complete bounded change ledger with planned sources,
-metadata and directory effects. No-op or incomplete link plans cannot proceed
-to confirmation; launch repeats the read-only preview and refuses changed
-paths, sources, current link targets or diagnostics.
-
-Pin/unpin and prefix-only link/unlink do not run a cask installer, request its
-system authorization, or quit its App. Installer metadata is not authority for
-those operations. Their ordinary permission failures remain failures.
+Link/unlink previews show native `--dry-run` output as advice. They are not
+complete filesystem manifests. No force or overwrite flag is enabled. The Host
+rechecks selected package metadata and current source trust before starting,
+while Homebrew determines the concrete effects when the command runs.
 
 Ended Task results carry a bounded outcome and, when relevant, one fixed reason:
 `tool_failed`, `runner_refused`, `system_authorization_unavailable`,
@@ -105,11 +98,11 @@ available. Ended Tasks are retained for an hour, within the existing
 Output removes ANSI/control sequences, home paths, URL userinfo/query
 strings and credential-key/Authorization forms before journal publication.
 Complete line handling prevents a secret split over OS reads leaking.
-The runner keeps no Plugin helper alive. `HOMEBREW_NO_SUDO=1` remains on
-for nonprivileged work; administrator operations require the separately
-reviewed system-authorization route after Host Confirmation.
-Its supported artifacts, system approval and refusal behavior are specified in
-[Homebrew system authorization](homebrew-system-authorization.md).
+The runner keeps no Plugin helper alive. Its output-only PTY handles native
+progress while sudo uses the separate askpass pipe. Password cancellation is a
+native command failure, not a mutation retry. Existing legacy native continuation
+reasons remain readable in saved results but new Tasks report the native exit
+outcome. No Homebrew Ruby implementation is injected or loaded by the Host.
 
 An opaque adoption target requires the `cask` kind in the original `adopt`
 scope. Doctor targets require each resolved repair's package kind under the
@@ -135,7 +128,6 @@ follow the recorded Task through `activities.list`, then invalidate local
 catalog/detail caches and perform fresh reads. Package operations independently
 revalidate current metadata and source trust after the update.
 
-Installed package metadata may include `zap_needs_privileges:true`. It is
-read-only advice, used for native review only when the actual requested Task
-is `uninstall` with `zap:true`; ordinary uninstall does not inherit Zap
-authority. The Host separately confirms exact native declarations and grants.
+Installed package metadata may include privilege hints. They are display
+advice, not Root grants. Zap remains an explicit uninstall option disclosed
+by the Host; native Homebrew determines its actual uninstall behavior.
