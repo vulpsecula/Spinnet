@@ -54,8 +54,11 @@ final class PluginInstallationReviewTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString).appendingPathComponent("Newer.spinnetplugin")
         addTeardownBlock { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        // One Level past what this Host provides, so the test keeps meaning
+        // "newer" when the Host gains a Level.
+        let supported = PluginInterfaceContracts.host.highestStableLevel
         try Data("""
-        {"protocol_version": "1.0", "api_level": 8, "id": "com.example.newer", "name": "Newer",
+        {"protocol_version": "1.0", "api_level": \(supported + 1), "id": "com.example.newer", "name": "Newer",
          "version": "1.0.0",
          "commands": [{"id": "newer.run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
         """.utf8).write(to: source.appendingPathComponent("manifest.json"))
@@ -63,8 +66,8 @@ final class PluginInstallationReviewTests: XCTestCase {
 
         XCTAssertThrowsError(try store.review(source)) { error in
             let refusal = error as? UnsupportedPluginAPILevel
-            XCTAssertEqual(refusal?.requiredLevel, 8)
-            XCTAssertEqual(refusal?.supportedLevel, 7)
+            XCTAssertEqual(refusal?.requiredLevel, supported + 1)
+            XCTAssertEqual(refusal?.supportedLevel, supported)
         }
     }
 
