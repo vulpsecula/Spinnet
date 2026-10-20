@@ -425,8 +425,8 @@ Spotify volume, play/pause toggle and observed Next outcomes are stable at
 [Level 3](reference/level-3.md). Their former `spotify_controls` r1 declaration
 is retired. Level 2 keeps its existing Reviewed App Interface.
 
-Plugin API [Level 5](reference/level-5.md) adds typed Homebrew handoff to Terminal. [Manifest schema](schemas/manifest-level-5.schema.json) · [types](spinnet-level-5.d.ts).
+Plugin API [Level 5](reference/level-5.md) adds typed Homebrew handoff to Terminal. [Manifest schema](schemas/manifest-level-5.schema.json) · [argument schema](schemas/terminal-homebrew.schema.json) · [types](spinnet-level-5.d.ts).
 
-Plugin API [Level 6](reference/level-6.md) adds native command output inside Plugin Views, including read-only command text, bounded Task transcripts and literal monospaced output. [Manifest schema](schemas/manifest-level-6.schema.json) · [types](spinnet-level-6.d.ts).
+Plugin API [Level 6](reference/level-6.md) adds native command output inside Plugin Views, including read-only command text, bounded Task transcripts and literal monospaced output. [Manifest schema](schemas/manifest-level-6.schema.json) · [page schema](schemas/pages-level-6.schema.json) · [input/result schema](schemas/command-output.schema.json) · [types](spinnet-level-6.d.ts).
 
-Plugin API [Level 7](reference/level-7.md) adds separately scoped automatic Homebrew catalog refresh before browsing. [Manifest schema](schemas/manifest-level-7.schema.json) · [types](spinnet-level-7.d.ts).
+Plugin API [Level 7](reference/level-7.md) adds separately scoped automatic Homebrew catalog refresh before browsing. [Manifest schema](schemas/manifest-level-7.schema.json) · [page schema](schemas/pages-level-7.schema.json) · [input schema](schemas/catalog-refresh.schema.json) · [types](spinnet-level-7.d.ts).

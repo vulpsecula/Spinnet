@@ -631,7 +631,7 @@ final class HostServicesTests: XCTestCase {
 
         let presets = registry.menuItemPresets()
         XCTAssertEqual(presets.count, packages.count, "One Preset per Plugin")
-        XCTAssertTrue(presets.contains { $0.name == "Open URL" && $0.readiness == .readyToUse })
+        XCTAssertTrue(presets.contains { $0.name == "Open URL" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Open Application" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Open File" && $0.readiness == .setupRequired })
         XCTAssertTrue(presets.contains { $0.name == "Open Folder" && $0.readiness == .setupRequired })

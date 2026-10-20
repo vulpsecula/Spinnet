@@ -336,7 +336,7 @@ final class MenuEditorModelTests: XCTestCase {
         let source = directory.appendingPathComponent("Newer.spinnetplugin")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
         try Data("""
-        {"protocol_version": "1.0", "api_level": 7, "id": "com.example.newer", "name": "Newer",
+        {"protocol_version": "1.0", "api_level": 8, "id": "com.example.newer", "name": "Newer",
          "version": "1.0.0",
          "commands": [{"id": "newer.run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
         """.utf8).write(to: source.appendingPathComponent("manifest.json"))
@@ -347,8 +347,8 @@ final class MenuEditorModelTests: XCTestCase {
         XCTAssertNil(model.pendingInstallation)
         XCTAssertEqual(model.installationResult, PluginInstallationResult(
             title: "Plugin Not Installed",
-            message: "Newer needs Plugin API Level 7, but this version of Spinnet "
-                + "supports up to Level 6. Update Spinnet to install it."
+            message: "Newer needs Plugin API Level 8, but this version of Spinnet "
+                + "supports up to Level 7. Update Spinnet to install it."
         ))
     }
 

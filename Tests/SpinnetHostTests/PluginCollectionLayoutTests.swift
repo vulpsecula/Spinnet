@@ -43,7 +43,13 @@ final class PluginCollectionLayoutTests: XCTestCase {
                 let scroll = try XCTUnwrap(descendants(root).compactMap { $0 as? PageCollectionScrollView }.first)
                 let collection = scroll.collectionView
                 let visibleWidth = scroll.contentView.bounds.width
-                XCTAssertGreaterThan(visibleWidth, 400)
+                // A legacy scroll bar ("Show scroll bars: Always", or a mouse
+                // attached) takes room from the viewport; an overlay one does not.
+                let scrollBar = scroll.scrollerStyle == .legacy
+                    ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+                let margins = PluginViewPanelWindow.width - PageCollectionView.contentWidth
+                XCTAssertEqual(visibleWidth, width - margins - scrollBar, accuracy: 1,
+                               "The viewport must follow the current window width")
                 let layout = try XCTUnwrap(collection.collectionViewLayout)
                 let rows = layout.layoutAttributesForElements(in: collection.visibleRect).filter { $0.representedElementCategory == .item }
                 XCTAssertFalse(rows.isEmpty)
