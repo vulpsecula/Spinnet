@@ -63,7 +63,9 @@ struct MenuEditorView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
+                    // Lazy, so a switch to the Menu page builds only the
+                    // Library cards that are on screen.
+                    LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(presets, id: \.id) { preset in
                             draggableLibraryCard(preset)
                         }

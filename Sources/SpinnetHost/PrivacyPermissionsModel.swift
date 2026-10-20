@@ -106,14 +106,23 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     // MARK: System Permissions
 
-    func refreshSystemPermissionStatus() {
+    /// Reads the System Permissions again and signals `onAuthorityChanged`
+    /// only when one of them changed. The background component's status is
+    /// a synchronous query to macOS that only the Privacy & Permissions page
+    /// shows, so a page that does not show it can skip it.
+    func refreshSystemPermissionStatus(includingBackgroundOperations: Bool = true) {
+        let before = (accessibilityPermissionGranted, screenRecordingPermissionGranted, backgroundOperationsStatus)
         accessibilityPermissionGranted = accessibilityPermissionCheck()
         if accessibilityPermissionGranted && permissionGuidePresented { permissionGuidePresented = false }
         screenRecordingPermissionGranted = screenRecordingPermissionCheck()
         if screenRecordingPermissionGranted { screenRecordingAwaitsRestart = false }
-        backgroundOperationsStatus = backgroundOperationsCheck()
-        if backgroundOperationsStatus == .enabled { backgroundOperationsError = nil }
-        onAuthorityChanged?()
+        if includingBackgroundOperations {
+            backgroundOperationsStatus = backgroundOperationsCheck()
+            if backgroundOperationsStatus == .enabled { backgroundOperationsError = nil }
+        }
+        if before != (accessibilityPermissionGranted, screenRecordingPermissionGranted, backgroundOperationsStatus) {
+            onAuthorityChanged?()
+        }
     }
 
     /// Only an explicit action enables background work. Initialization, focus

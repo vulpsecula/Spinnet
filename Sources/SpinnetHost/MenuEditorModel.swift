@@ -274,17 +274,18 @@ final class MenuEditorModel: ObservableObject {
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {
-        MenuPresentationFactory.makeSlots(
+        // Read once: the registry sorts its manifests on every read.
+        let manifests = Dictionary(editor.pluginManifests.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
             availability: {
                 editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
             },
             presetName: { pluginID in
-                editor.pluginManifests.first { $0.id == pluginID }?.name
+                manifests[pluginID]?.name
             },
             explanation: { action in
-                editor.pluginManifests.first { $0.id == action.pluginID }?
-                    .commands.first { $0.id == action.commandID }?.explanation
+                manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
             }
         )
     }

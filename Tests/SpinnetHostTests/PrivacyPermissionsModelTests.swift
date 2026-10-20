@@ -96,6 +96,26 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertEqual(authorityChanges, 1)
     }
 
+    /// Every Settings page switch refreshes the System Permissions, so a
+    /// refresh that finds nothing changed must not recompute the Menu Slots.
+    func testRefreshingUnchangedSystemPermissionsDoesNotSignalAuthority() throws {
+        var backgroundChecks = 0
+        let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { false },
+            backgroundOperationsCheck: { backgroundChecks += 1; return .notEnabled })
+        var authorityChanges = 0
+        model.onAuthorityChanged = { authorityChanges += 1 }
+
+        model.refreshSystemPermissionStatus()
+        XCTAssertEqual(authorityChanges, 0)
+
+        let checksBefore = backgroundChecks
+        model.refreshSystemPermissionStatus(includingBackgroundOperations: false)
+        XCTAssertEqual(backgroundChecks, checksBefore, "Pages that do not show it skip the query to macOS")
+        XCTAssertEqual(authorityChanges, 0)
+    }
+
     func testBackgroundAccessIsEnabledOnlyFromAnExplicitHostActionAndNeverGrantsPluginAccess() throws {
         var state = HostBackgroundOperationsStatus.notEnabled
         var requests = 0

@@ -835,7 +835,7 @@ struct SettingsRootView: View {
                 )
                 }
                 .id(menuEditor.refreshToken)
-                .onAppear { privacy.refreshSystemPermissionStatus() }
+                .onAppear { privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false) }
             case .appearance:
                 AppearanceSettingsView(
                     theme: $appearance.theme,
@@ -2254,17 +2254,8 @@ private struct AppearanceSettingsView: View {
                         HStack(spacing: 16) {
                             Text("Typeface")
                                 .frame(width: 76, alignment: .leading)
-                            Picker("Menu Font", selection: $font) {
-                                ForEach(MenuAppearanceConfiguration.fontOptions, id: \.self) { value in
-                                    Text(value)
-                                        .font(menuFontPreview(value))
-                                        .tag(value)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .frame(width: 240, alignment: .leading)
-                            .accessibilityLabel("Menu Font")
+                            MenuFontPopUp(selection: $font, options: MenuAppearanceConfiguration.fontOptions)
+                                .frame(width: 240, alignment: .leading)
                         }
                         HStack(spacing: 16) {
                             Text("Weight")
@@ -2309,12 +2300,6 @@ private struct AppearanceSettingsView: View {
             }
             .frame(maxWidth: 560, alignment: .leading)
         }
-    }
-
-    private func menuFontPreview(_ family: String) -> Font {
-        family == MenuAppearanceConfiguration.MenuFont.system.rawValue
-            ? .system(size: 13)
-            : .custom(family, size: 13)
     }
 
     @ViewBuilder
@@ -2598,9 +2583,13 @@ private struct PrivacySettingsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                ForEach(pluginManifests.filter { !$0.capabilities.isEmpty }, id: \.id) { manifest in
-                    PluginAccessView(manifest: manifest, grants: capabilityGrants,
-                                     setDecision: setCapabilityDecision)
+                // Lazy, so a switch to this page builds only the grant
+                // controls that are on screen, not every Plugin's toggles.
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(pluginManifests.filter { !$0.capabilities.isEmpty }, id: \.id) { manifest in
+                        PluginAccessView(manifest: manifest, grants: capabilityGrants,
+                                         setDecision: setCapabilityDecision)
+                    }
                 }
             }
             .accessibilityElement(children: .contain)
