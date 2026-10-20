@@ -30,7 +30,9 @@ struct DeepLinkOpener {
                 configuration.activates = activatesApplication
                 workspace.open(link, configuration: configuration) { _, error in
                     if let error {
-                        NSLog("Spinnet: a deep link was not accepted: \(error.localizedDescription)")
+                        // The error can name the filled-in link, which may hold the
+                        // user's text, so it stays private.
+                        HostLog.deepLink.error("A deep link was not accepted: \(error.localizedDescription, privacy: .private)")
                     }
                 }
                 // The modern NSWorkspace API reports launch failures asynchronously.

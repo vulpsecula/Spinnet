@@ -430,7 +430,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             settings.onTriggerChanged = { [weak self] configuration in
                 guard self?.triggers?.apply(configuration) == true else {
-                    NSLog("Spinnet: keyboard shortcut registration failed; mouse trigger remains active")
+                    HostLog.trigger.error("Keyboard shortcut registration failed; mouse trigger remains active")
                     return
                 }
             }
@@ -597,7 +597,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     self?.invoke(action)
                 }
             } catch {
-                NSLog("Spinnet: Lifecycle Test window could not be created: \(error.localizedDescription)")
+                HostLog.developer.error("Lifecycle Test window could not be created: \(error.localizedDescription, privacy: .public)")
                 return
             }
         }
@@ -622,10 +622,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             throw HostCommandError.failed("Global Menu trigger registration failed")
         }
         if !controller.keyboardShortcutRegistered {
-            NSLog("Spinnet: saved keyboard shortcut is unavailable; mouse trigger remains active")
+            HostLog.trigger.notice("Saved keyboard shortcut is unavailable; mouse trigger remains active")
         }
         if !controller.mouseInterceptionAvailable {
-            NSLog("Spinnet: Accessibility permission is required to intercept the mouse trigger")
+            HostLog.trigger.notice("Accessibility permission is required to intercept the mouse trigger")
         }
         triggers = controller
         if !MenuTriggerModel.isEnabled(in: .standard) { controller.stop() }
@@ -638,7 +638,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         guard let triggers else { return }
         if isEnabled {
             if !triggers.start(configuration: MenuTriggerConfiguration(defaults: .standard)) {
-                NSLog("Spinnet: Menu trigger registration failed when switching Spinnet on")
+                HostLog.trigger.error("Menu trigger registration failed when switching Spinnet on")
             }
         } else {
             menu?.dismiss()
@@ -652,7 +652,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             menu.dismiss()
         } else {
             if triggers?.registerEscape() != true {
-                NSLog("Spinnet: global Escape registration unavailable; using panel-local fallback")
+                HostLog.trigger.notice("Global Escape registration unavailable; using panel-local fallback")
             }
             menu.open(at: NSEvent.mouseLocation)
         }

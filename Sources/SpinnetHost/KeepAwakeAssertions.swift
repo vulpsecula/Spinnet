@@ -18,8 +18,7 @@ final class DesktopPowerAssertions: PowerAssertions {
         return {
             let result = IOPMAssertionRelease(id)
             if result != kIOReturnSuccess {
-                Logger(subsystem: "com.vulpsecula.Spinnet", category: "keep-awake")
-                    .error("Power assertion release failed: \(result)")
+                HostLog.keepAwake.error("Power assertion release failed: \(result, privacy: .public)")
             }
         }
     }
