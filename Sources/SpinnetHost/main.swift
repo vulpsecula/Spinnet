@@ -1166,7 +1166,7 @@ if CommandLine.arguments.contains("--verify-homebrew-transport") {
     do {
         let process = Process()
         process.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner")
-        process.arguments = ["--verify-host-environment"]
+        process.arguments = ["--verify-host-askpass"]
         process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
         process.standardInput = FileHandle.nullDevice
         try process.run()

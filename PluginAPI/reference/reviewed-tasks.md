@@ -17,11 +17,11 @@ item trust can authorize a package without granting its entire tap. A qualified
 selector does not itself grant source trust.
 
 New Tasks run the native Homebrew CLI as the current user. Homebrew owns
-installer and uninstall behavior. System sudo handles authentication when
-needed through the user's macOS PAM configuration, including native Touch ID
-and password choices where configured. Spinnet does not collect or forward
-passwords and does not supply an askpass helper. No password enters the Plugin,
-Task journal or output. This replaces the earlier per-artifact
+installer and uninstall behavior. Cask changes prefer system Touch ID when the
+device and the user's sudo PAM configuration support it, without changing that
+configuration. If sudo still needs the login password, a signed
+Host-owned askpass window requests it and passes it directly to sudo. No password
+enters the Plugin, Task journal or output. This replaces the earlier per-artifact
 Root authorization route; no new Task requires its background daemon or private
 Homebrew source hashes. See [authorization](homebrew-system-authorization.md).
 
@@ -101,8 +101,7 @@ Output removes ANSI/control sequences, home paths, URL userinfo/query
 strings and credential-key/Authorization forms before journal publication.
 Complete line handling prevents a secret split over OS reads leaking.
 The runner keeps no Plugin helper alive. Its output-only PTY handles native
-progress while system sudo handles authentication outside the transcript.
-Authentication cancellation is a
+progress while sudo uses the separate askpass pipe. Password cancellation is a
 native command failure, not a mutation retry. Existing legacy native continuation
 reasons remain readable in saved results but new Tasks report the native exit
 outcome. No Homebrew Ruby implementation is injected or loaded by the Host.
