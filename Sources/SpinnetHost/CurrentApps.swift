@@ -351,9 +351,10 @@ extension DesktopRunningApps.Environment {
 
 // MARK: - Host Confirmation
 
-/// Draws a Host Confirmation near the pointer in a small panel that takes
+/// Draws a Host Confirmation in a small panel that takes
 /// the keyboard without activating Spinnet, so the App it names stays in
-/// front. Its words are the Host's. Cancel is the default button: Escape
+/// front. It sits over the window whose operation it confirms, or near the
+/// pointer when Spinnet has no key window. Its words are the Host's. Cancel is the default button: Escape
 /// declines, and Return never confirms the destructive button. Each panel
 /// answers for its own confirmation only, and showing one never closes
 /// another.
@@ -392,10 +393,11 @@ final class HostConfirmationPanel: HostConfirming {
         panel.setAccessibilityLabel(confirmation.title)
         panel.onCancel = { respond(.declined) }
         shown[token] = panel
-        place(panel, near: NSEvent.mouseLocation)
         // The window it takes the keyboard from, usually the view whose
         // operation it confirms, has it back when the confirmation goes.
-        panel.returnsKeyTo = NSApp.keyWindow
+        let origin = NSApp.keyWindow.flatMap { $0.isVisible ? $0 : nil }
+        place(panel, over: origin)
+        panel.returnsKeyTo = origin
         panel.makeKeyAndOrderFront(nil)
         return { [weak self] in _ = self?.close(token) }
     }
@@ -411,10 +413,17 @@ final class HostConfirmationPanel: HostConfirming {
         return true
     }
 
-    private func place(_ panel: NSPanel, near pointer: NSPoint) {
+    /// Centres the panel across the top of `window`, where a sheet would
+    /// drop, and below the pointer without one.
+    private func place(_ panel: NSPanel, over window: NSWindow?) {
         let size = panel.contentViewController?.view.fittingSize ?? panel.frame.size
-        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
-        var origin = NSPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height - 12)
+        let pointer = NSEvent.mouseLocation
+        let screen = window?.screen ?? NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        var origin = if let frame = window?.frame {
+            NSPoint(x: frame.midX - size.width / 2, y: frame.maxY - 40 - size.height)
+        } else {
+            NSPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height - 12)
+        }
         if let visible = screen?.visibleFrame {
             origin.x = min(max(origin.x, visible.minX + 8), visible.maxX - size.width - 8)
             origin.y = min(max(origin.y, visible.minY + 8), visible.maxY - size.height - 8)
