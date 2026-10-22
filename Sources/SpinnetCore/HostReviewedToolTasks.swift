@@ -62,6 +62,7 @@ public final class HostReviewedToolTasks {
     private let resolveCurrentTrust: ((String, String) throws -> Bool)?
     private let targetResolver: TargetResolver
     private let nativeInspection: HomebrewNativeInspectionTransporting?
+    private let hostIsCurrent: () throws -> Void
     private let lock = NSRecursiveLock()
     private var pending: HomebrewTaskPlan?
     private var preparationID: UUID?
@@ -94,7 +95,8 @@ public final class HostReviewedToolTasks {
                 nativeInspection: HomebrewNativeInspectionTransporting? = HomebrewNativeInspectionTransport(),
                 recoveryPower: PowerAssertions? = nil,
                 privilegedTaskIsRunning: @escaping (HomebrewPrivilegePlan) throws -> Bool = HomebrewSystemAuthorization.taskIsRunning,
-                stopPrivilegedTask: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.stopTask) {
+                stopPrivilegedTask: @escaping (HomebrewPrivilegePlan) throws -> Void = HomebrewSystemAuthorization.stopTask,
+                hostIsCurrent: @escaping () throws -> Void = { try HostCodeCurrency.verify() }) {
         self.activities = activities; root = journal; self.runnerURL = runnerURL; self.executable = executable
         self.preflight = cancellablePreflight ?? preflight.map { work in { input, _ in try work(input) } }
             ?? { input, cancellation in try Self.preflight(input, executable: executable(), cancellation: cancellation) }
@@ -107,6 +109,7 @@ public final class HostReviewedToolTasks {
         self.nativeInspection = nativeInspection
         self.recoveryPower = recoveryPower
         self.privilegedTaskIsRunning = privilegedTaskIsRunning; self.stopPrivilegedTask = stopPrivilegedTask
+        self.hostIsCurrent = hostIsCurrent
         recover()
         recoverInspection()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
@@ -128,6 +131,9 @@ public final class HostReviewedToolTasks {
                         authorize: () throws -> Void = {}) throws -> HomebrewTaskPlan {
         if let scope { try input.authorize(in: scope) }
         try authorize()
+        // A replaced bundle makes the runner refuse this Host; say so before
+        // the user confirms a Task that cannot start.
+        try hostIsCurrent()
         lock.lock()
         let locallyBusy = exiting || pending != nil || recoveredInspection != nil || taskRecoveryUnavailable || records.values.contains { executionHeld($0) }
         lock.unlock()
@@ -263,6 +269,7 @@ public final class HostReviewedToolTasks {
             guard plan.nativeCLI else { throw PluginHostServiceError.tool(.planChanged) }
             try authorize()
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
+            try hostIsCurrent()
             let id = plan.activityID
             if records.count >= HostActivities.maximumTotal,
                let oldest = records.values.filter({ !executionHeld($0) }).min(by: { ($0.ended ?? $0.started) < ($1.ended ?? $1.started) }) {

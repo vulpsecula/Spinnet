@@ -164,6 +164,32 @@ final class ReviewedToolTaskTests: XCTestCase {
         installedVersion = "2"
         XCTAssertThrowsError(try host.launch(plan)) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged)) }
     }
+    func testAHostReplacedOnDiskSaysToReopenInsteadOfStartingARunnerThatRefuses() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var replaced = true
+        let host = HostReviewedToolTasks(activities: .init(), journal: root, runnerURL: URL(fileURLWithPath: "/must-not-launch"),
+            executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, preflight: { _ in
+                .object(["name": .string("wget"), "kind": .string("formula"), "tap": .string("homebrew/core"), "installed_version": .string("1")])
+            }, trustedTaps: { [] }, hostIsCurrent: { if replaced { throw PluginHostServiceError.unavailable(HostCodeCurrency.message) } })
+        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("link"), "kind": .string("formula"), "name": .string("wget")]))
+        let owner = PluginID("replaced-host")
+        XCTAssertThrowsError(try host.prepare(input, owner: owner, pluginName: "Homebrew")) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .unavailable(HostCodeCurrency.message))
+        }
+        XCTAssertFalse(host.hasRunningTasks)
+
+        // Replaced while the Host Confirmation was shown.
+        replaced = false
+        let plan = try host.prepare(input, owner: owner, pluginName: "Homebrew")
+        replaced = true
+        XCTAssertThrowsError(try host.launch(plan)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .unavailable(HostCodeCurrency.message))
+            XCTAssertTrue("\($0)".contains("Quit and reopen Spinnet"))
+        }
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path), "No Task journal or runner exists for a Task that cannot start")
+    }
     func testLinkWithoutInstalledMetadataCannotReachConfirmation() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
