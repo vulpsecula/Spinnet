@@ -8,7 +8,9 @@ list, outdated, search, info, config, version, doctor, listing taps, and service
 list/info. No mutation, arbitrary flag, executable, environment or shell is accepted.
 Declare `read_reviewed_tools`, Homebrew operation `commandOutput`, and the package
 kinds used. Existing read admission, source trust, process sandbox, output budgets,
-15-second source deadline and cancellation apply. A read source never grants access.
+15-second source deadline and cancellation apply. Compose visible-page sources
+with the [Level 6 source schema](../schemas/sources-level-6.schema.json).
+A read source never grants access.
 
 Own Homebrew Tasks additionally expose a bounded sanitized `output` transcript and
 `output_truncated` in `activities.list`. The transcript keeps up to 64 KiB; earlier

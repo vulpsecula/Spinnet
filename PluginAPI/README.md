@@ -10,6 +10,12 @@ licence.
 
 | File | Contents |
 | --- | --- |
+| [`reference/level-7.md`](reference/level-7.md) | Level 7: separately scoped Homebrew catalog refresh before browsing |
+| [`schemas/host-operations-level-7.schema.json`](schemas/host-operations-level-7.schema.json) | Level 7 Requested Host Operations, including catalog refresh |
+| [`reference/level-6.md`](reference/level-6.md) | Level 6: command-output sources, bounded Task transcripts and literal output text |
+| [`schemas/sources-level-6.schema.json`](schemas/sources-level-6.schema.json) | Level 6 visible-page sources, including command output |
+| [`reference/level-5.md`](reference/level-5.md) | Level 5: typed Homebrew handoff to Terminal |
+| [`fixtures/stable-levels/index.json`](fixtures/stable-levels/index.json) | Shared valid/invalid matrix checked against the public schemas and Host parser at each declared Level |
 | [`reference/level-4.md`](reference/level-4.md) | Level 4: one-second activity source delivery; other source and authority rules remain unchanged |
 | [`spinnet-level-4.d.ts`](spinnet-level-4.d.ts) | Level 4 SDK types, retaining Level 3 vocabulary |
 | [`schemas/manifest-level-4.schema.json`](schemas/manifest-level-4.schema.json) | Stable Level 4 manifests |
@@ -56,7 +62,7 @@ licence.
 | [`spinnet-level-2.d.ts`](spinnet-level-2.d.ts) | Types for a Level 2 script's `spinnet`, `event` and answers |
 | [`spinnet-level-2.js`](spinnet-level-2.js) | Source of the `spinnet` SDK object of a Level 2 script, built over Level 1's |
 | [`SpinnetSDK.swift`](SpinnetSDK.swift) | Embeds the SDKs in the helper when it is built |
-| [`candidates/README.md`](candidates/README.md) | Candidate Contracts: provisional revisions declared by exact revision, kept apart from every stable Level, and the retired ones Level 2 was proved as |
+| [`candidates/README.md`](candidates/README.md) | Candidate declaration mechanism and retirement metadata; current contracts are in stable Levels 1–7 |
 
 The schemas check shapes. What a shape cannot say, such as that a Preset
 names declared Commands or that a request goes to a consented host, the
@@ -72,20 +78,33 @@ only if it supports that level; otherwise it refuses and asks the user to
 update Spinnet. Additive changes raise the level: a Plugin written for Level 1
 keeps working on a Host that supports a later one.
 
-Level 1 is the first published level and Level 2 the second; this Host
-supports both. The schema requires `api_level`; a Host reads a manifest
-written before the field existed as needing Level 1. A Plugin kept outside
-this repository pins the Level it was written for by the commit of this
-repository it tests against.
+This Host supports stable Levels **1–7**. Choose the manifest schema and types
+for the Level declared by the Plugin:
 
-Level 2 is published and independent Plugins depend on it. New additions awaiting
-proof use exact named Candidate Contracts, with separate public schemas, types
-and fixtures. Stable additive promotion requires the next Plugin API Level.
+| Level | Additions | Manifest schema | SDK types |
+| --- | --- | --- | --- |
+| 1 | Initial Commands, scripts and Plugin Views | [Level 1](schemas/manifest.schema.json) | [Level 1](spinnet.d.ts) |
+| 2 | Catalogue IDs, pages, Collections, Requested Host Operations, sources, Effects and Tasks | [Levels 1–2](schemas/manifest.schema.json) | [Level 2](spinnet-level-2.d.ts) |
+| 3 | Spotify controls, External App connections, adaptive cards/viewport fit and unused-dependency Tasks | [Level 3](schemas/manifest-level-3.schema.json) | [Level 3](spinnet-level-3.d.ts) |
+| 4 | One-second activity source delivery | [Level 4](schemas/manifest-level-4.schema.json) | [Level 4](spinnet-level-4.d.ts) |
+| 5 | Typed Homebrew handoff to Terminal | [Level 5](schemas/manifest-level-5.schema.json) | [Level 5](spinnet-level-5.d.ts) |
+| 6 | Native command output in Plugin Views | [Level 6](schemas/manifest-level-6.schema.json) | [Level 6](spinnet-level-6.d.ts) |
+| 7 | Separately scoped catalog refresh | [Level 7](schemas/manifest-level-7.schema.json) | [Level 7](spinnet-level-7.d.ts) |
+
+Each Level retains earlier stable vocabulary and declared-Level behaviour.
+The schema requires `api_level`; the Host reads a manifest written before the
+field existed as needing Level 1. External Plugin tests pin an exact Host commit
+for the public contract and test kit, independently of the Plugin's own version.
+
+New additions awaiting proof use exact named Candidate Contracts, with separate
+public schemas, types and fixtures. Stable additive promotion requires the next Plugin API Level.
 The dated approvals for additions during the earlier open Level 2 evaluation
 are historical exceptions; they do not authorize further stable additions.
 
-Homebrew unused-dependency preview and removal are available only through
-[`homebrew_autoremove` r1](candidates/homebrew_autoremove/r1/README.md).
+Adaptive cards, External App connections, Spotify controls and Homebrew
+unused-dependency preview/removal are stable [Level 3](reference/level-3.md)
+features. Their former candidate declarations are retired and refused with the
+stable Level to declare. Bundled Plugins declare stable Levels only.
 
 `protocol_version` is unrelated: it only frames the messages between the Host
 and the Plugin's helper, and stays `"1.0"`.
@@ -255,7 +274,7 @@ holds only those two, and the namespaces with Command-only operations,
 |  | `activities.stop` | page action, request, own activities only | none | none |
 | `tools` | `tools.read` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind | none |
 | | `tools.showServices` | Command, page action, request | `read_reviewed_tools` | none |
-| | `tools.startTask` | page action, request | `run_reviewed_tool_tasks`, scoped to operations and package kinds | system authorization for reviewed privileged steps |
+| | `tools.startTask` | page action, request | `run_reviewed_tool_tasks`, scoped to operations and package kinds | native sudo/PAM when Homebrew needs it |
 
 The IDs `catalogue.json` reserves, such as `system.runShortcut`, are refused until a later Level adds them, and
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
@@ -329,7 +348,7 @@ them only for an App whose menu has that item enabled. The Host asks the
 user first, in a Host Confirmation naming the App, before every Force Quit
 and before closing or quitting an App that was not in front when it
 accepted the request; closing or gracefully quitting the App in front asks
-nothing, the App's own save prompts still applying. Only a Level 2 manifest
+nothing, the App's own save prompts still applying. A Level 2 or later manifest
 may declare the two Capabilities ([the App in front](reference/apps.md)).
 
 ### Host-owned keep-awake effects (Level 2, #84)
@@ -353,8 +372,9 @@ SDK are Level 1's. A Level 2 Plugin names Host Services by ID only, so a
 Level 1 name is refused with the ID to use instead
 ([Level 1 names](reference/level-1-names.md)), but it may still answer with
 a Level 1 `view`, which keeps Level 1's view rules and names, its standard
-actions included. `spinnet.environment.apiLevel` is the highest Level the
-Host supports, 2, for every Plugin. The types are in
+actions included. `spinnet.environment.apiLevel` reports the Host's highest
+supported Level (currently 7), regardless of the Plugin's declared Level. It does
+not grant access to members outside that declared Level. The Level 2 types are in
 [`spinnet-level-2.d.ts`](spinnet-level-2.d.ts).
 
 ## Candidates for later levels
@@ -392,7 +412,7 @@ The files in this directory are published under the MIT licence in
 
 ## Reviewed local Homebrew data
 
-Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources and bounds](reference/tools.md), [schema](schemas/reviewed-tools.schema.json) and [read-only verification](fixtures/reviewed-tools/verification.md). Install and upgrade remain reserved for #88.
+Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources and bounds](reference/tools.md), [schema](schemas/reviewed-tools.schema.json) and [read-only verification](fixtures/reviewed-tools/verification.md). Install and upgrade use separately granted, Host-confirmed [Reviewed Tasks](reference/reviewed-tasks.md). Native Homebrew runs as the current user; system sudo/PAM owns authentication, with no Host password collection. [Authorization and legacy recovery](reference/homebrew-system-authorization.md) are separate from read access.
 
 ### Host-run sources (#82)
 

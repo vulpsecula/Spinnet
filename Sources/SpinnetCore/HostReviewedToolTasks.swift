@@ -528,28 +528,6 @@ public final class HostReviewedToolTasks {
         lease.stopVerifiedMembers(signal: signal)
     }
     private var inspectionRecoveryURL: URL { root.appendingPathComponent("pending-inspection.json") }
-    private func persistInspection(_ plan: HomebrewTaskPlan) throws {
-        guard let reservation = plan.nativeInspection?.reservation else { throw HomebrewNativeInspection.Failure.invalidDraft }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        let metadata: JSONValue = .object(["id": .string(reservation.inspectionID),
-            "owner": .string(plan.owner.rawValue), "name": .string(plan.pluginName)])
-        try JSONEncoder().encode(metadata).write(to: inspectionRecoveryURL, options: .atomic)
-    }
-    private func registerPendingInspection(_ plan: HomebrewTaskPlan) throws {
-        lock.lock()
-        if activities.list(for: plan.owner).count >= HostActivities.maximumPerPlugin,
-           let oldest = records.values.filter({ $0.owner == plan.owner.rawValue && !executionHeld($0) }).min(by: { ($0.ended ?? $0.started) < ($1.ended ?? $1.started) }) {
-            activities.removeEndedTask(oldest.id); records[oldest.id] = nil
-            try? FileManager.default.removeItem(at: root.appendingPathComponent(oldest.id))
-        }
-        lock.unlock()
-        let id = "inspection_" + plan.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        _ = try activities.register(owner: plan.owner, pluginName: plan.pluginName, kind: "inspection",
-            status: "Awaiting read-only receipt inspection", id: id, visibleToOwner: false, removesOnStop: false) { [weak self] in
-                self?.cancelPending(for: plan.owner)
-            }
-        lock.lock(); pendingActivity = id; lock.unlock()
-    }
     private func clearInspectionRecovery() {
         pendingCancelRegistration?(); pendingCancelRegistration = nil
         if let pendingActivity { activities.removeEndedTask(pendingActivity) }
@@ -606,27 +584,6 @@ public final class HostReviewedToolTasks {
                     value.workerUnreaped ? "Stopping inspection; waiting for owned worker to reap" : "Native inspection: \(value.state.rawValue)"
                 } ?? "Inspection status unavailable; shared lane retained; no replay"
                 self.activities.updateStatus(activity, status: text)
-            }
-        }
-    }
-    private func registerGlobalNativeLane() {
-        lock.lock(); defer { lock.unlock() }
-        guard globalNativeActivity == nil else { return }
-        // This entry carries liveness alone. It has no old Plugin owner,
-        // receipt authority, or ability to stop another account's mutation.
-        let activity = try? activities.register(owner: .init("host-native-recovery"), pluginName: "Homebrew", kind: "native_lane",
-            status: "Native lane busy or recovering; waiting for independent reaping; no replay",
-            visibleToOwner: false, removesOnStop: false, stop: {})
-        globalNativeActivity = activity?.id
-    }
-    private func checkInstalledSources(_ bindings: [HomebrewPrivilegePlan.Cask], package: JSONValue) throws {
-        let packages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
-        for binding in bindings {
-            guard let tap = binding.installedTap else { continue }
-            try checkSource(.object(["tap": .string(tap), "kind": .string("cask"), "name": .string(binding.name)]))
-            if let selected = packages.first(where: { $0.value(atPointer: "/name") == .string(binding.name) }),
-               case .string(let selectedTap)? = selected.value(atPointer: "/tap"), selectedTap != tap {
-                throw PluginHostServiceError.tool(.sourceNotAllowed)
             }
         }
     }

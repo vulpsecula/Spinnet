@@ -15,11 +15,12 @@
 #
 # The Host code is Host A2 (af1a450) byte for byte: the script builds from a
 # `git archive` of that commit, replacing only Sources/SpinnetViewSessionMeasurement
-# (a developer tool in no product) with this checkout's. Results go to
+# (a developer tool in no product) with its compatible frozen revision. Results go to
 # tmp/emoji-e1-host-checks/<time> unless --output says otherwise.
 set -euo pipefail
 
 HOST_A2="af1a45095dbac15eddeb44063809927a373705b1"
+MEASUREMENT_REVISION="930f5b0595c379dc75fc966b540891eb24bd7187"
 ROUND1="003eafce0f319327ca92ee7abf37e63f083cbd7b"
 ROUND2="7d553616bbcf329392b44175f2294bcce7cab567"
 QUERIES="smile|cat|red heart|party|thumbs up|flag japan|rocket|pizza"
@@ -51,18 +52,15 @@ OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 [[ -d "$EMOJI_REPO/.git" ]] || { echo "error: the Emoji probe is not at $EMOJI_REPO (set SPINNET_EMOJI_PROBE)" >&2; exit 1; }
 
-echo "Assembling Host A2 ($HOST_A2) with this checkout's measurement tool"
+echo "Assembling Host A2 ($HOST_A2) with measurement tool $MEASUREMENT_REVISION"
 git -C "$ROOT_DIR" cat-file -e "$HOST_A2^{commit}"
+git -C "$ROOT_DIR" cat-file -e "$MEASUREMENT_REVISION^{commit}"
 rm -rf "$SOURCE_DIR"
 mkdir -p "$SOURCE_DIR"
 git -C "$ROOT_DIR" archive "$HOST_A2" | tar -x -C "$SOURCE_DIR"
 rm -rf "$SOURCE_DIR/Sources/SpinnetViewSessionMeasurement"
-cp -R "$ROOT_DIR/Sources/SpinnetViewSessionMeasurement" "$SOURCE_DIR/Sources/SpinnetViewSessionMeasurement"
-TOOL_REVISION="$(git -C "$ROOT_DIR" rev-parse --short HEAD)"
-if [[ -n "$(git -C "$ROOT_DIR" status --porcelain -- Sources/SpinnetViewSessionMeasurement)" ]]; then
-    TOOL_REVISION="$TOOL_REVISION with uncommitted changes"
-fi
-REVISION="Host A2 ${HOST_A2:0:7}; measurement tool from $TOOL_REVISION"
+git -C "$ROOT_DIR" archive "$MEASUREMENT_REVISION" Sources/SpinnetViewSessionMeasurement | tar -x -C "$SOURCE_DIR"
+REVISION="Host A2 ${HOST_A2:0:7}; measurement tool from ${MEASUREMENT_REVISION:0:7}"
 
 echo "Building release"
 swift build -c release --package-path "$SOURCE_DIR" --scratch-path "$SCRATCH_DIR" --product SpinnetPluginHelper

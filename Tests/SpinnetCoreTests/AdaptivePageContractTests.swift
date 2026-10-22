@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 import SpinnetCore
 
-/// Public Level 2 answer parsing: cards are identified components, not
+/// Public Level 3 answer parsing: cards are identified components, not
 /// Collection items, so their fields and source bindings remain ordinary.
 final class AdaptivePageContractTests: XCTestCase {
     static let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -28,7 +28,7 @@ final class AdaptivePageContractTests: XCTestCase {
         guard case .textField(let field)? = page.component("note") else { return XCTFail("Missing identified field") }
         XCTAssertEqual(field.value, "initial")
     }
-    func testCandidateAdmissionAndStableVocabularyStaySeparate() throws {
+    func testLevelThreeAdmissionKeepsEarlierVocabularySeparate() throws {
         try PluginInterfaceContracts.host.check(Self.manifest, origin: .installed)
         XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent("adaptive")))
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: CollectionsFixtures.permits))
@@ -57,13 +57,13 @@ final class AdaptivePageContractTests: XCTestCase {
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: answer(tooMany), permits: Self.permits), "Forty page components includes adaptive descendants")
     }
 
-    func testPublishedCandidateFixturesFollowSchemaAndHostBounds() throws {
-        let root = PagesContractTests.pluginAPI.appendingPathComponent("candidates/adaptive_layout/r1")
-        let validator = try JSONSchemaSubsetValidator(definition: "answer", inSchemaAt: root.appendingPathComponent("adaptive-layout.schema.json"))
+    func testPublishedStableCardFixturesFollowSchemaAndHostBounds() throws {
+        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/level-3/adaptive-cards")
+        let validator = try JSONSchemaSubsetValidator(definition: "answer", inSchemaAt: PagesContractTests.pluginAPI.appendingPathComponent("schemas/adaptive-layout.schema.json"))
         struct Index: Decodable { struct Fixture: Decodable { let file: String; let valid: Bool }; let fixtures: [Fixture] }
-        let fixtures = try JSONDecoder().decode(Index.self, from: Data(contentsOf: root.appendingPathComponent("fixtures/index.json"))).fixtures
+        let fixtures = try JSONDecoder().decode(Index.self, from: Data(contentsOf: root.appendingPathComponent("index.json"))).fixtures
         for fixture in fixtures {
-            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: root.appendingPathComponent("fixtures/" + fixture.file)))
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: root.appendingPathComponent(fixture.file)))
             XCTAssertEqual(validator.errors(for: value).isEmpty, fixture.valid, "\(fixture.file): \(validator.errors(for: value))")
             do { _ = try PluginScriptAnswer(parsing: value, permits: Self.permits); XCTAssertTrue(fixture.valid, fixture.file) }
             catch { XCTAssertFalse(fixture.valid, "\(fixture.file): \(error)") }

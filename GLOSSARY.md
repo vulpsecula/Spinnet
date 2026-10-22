@@ -15,19 +15,19 @@ An installable provider of Commands that extends Spinnet without becoming part o
 _Avoid_: Extension, add-on
 
 **Bundled Plugin**:
-A first-party Plugin distributed with Spinnet. It follows the same Capability boundary and Documented Plugin Interface as any other Plugin and may do nothing a user-added one cannot. It is managed like any other Plugin: removing it removes it, and the user brings it back the way they would bring back any Plugin, by installing a copy of it, whose Plugin Origin is then the user's. Its files ship with the app and cannot be deleted, so a removed one stays suppressed underneath.
+A first-party Plugin distributed with Spinnet, with the same authority and interface boundary as a user-added Plugin. Removing it suppresses the shipped copy; reinstalling a copy gives that copy a user-added Plugin Origin.
 _Avoid_: Built-in Command, trusted Host code
 
 **Plugin Origin**:
-Where a Plugin's package came from: shipped with the app, making it a Bundled Plugin, or added by the user. It decides whether an install may replace the Plugin and how a removal is recorded, and it grants no access.
+The source of a Plugin package: shipped with the app or added by the user. It affects replacement and removal, and grants no authority.
 _Avoid_: Plugin type, plugin kind, trust level, installed Plugin
 
 **Refused Plugin**:
-A Plugin added by the user that the Host does not load at launch, because its package is broken or it declares a Plugin API Level or Candidate Contract revision this Host does not provide, a retired one included. Unlike a removed Plugin it stays: the Library lists it with the reason and can remove it, and its Menu Items, Plugin Settings, Plugin Storage and access decisions are kept until it is replaced or removed.
+A user-added Plugin whose package or interface declaration the Host cannot load. Its configuration and data remain available for replacement or removal, and its Menu Items report why it is unavailable.
 _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 
 **Plugin Removal**:
-Dropping a Plugin the user no longer wants. Its access decisions, and whether its view was left pinned and where, are forgotten (an update keeps them), and it leaves the Library, while Menu Items built from it are kept and reported as unavailable. A removed Bundled Plugin stays removed across launches and app updates, whichever copies of its package are on disk.
+Removing a Plugin from the Library and forgetting its data, grants and Host view preferences, while retaining its Menu Items as unavailable. A removed Bundled Plugin remains suppressed across launches and app updates.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Plugin Storage**:
@@ -41,11 +41,11 @@ A callable operation a Plugin declares, before user-specific configuration is ap
 _Avoid_: Action type, function
 
 **Host Command**:
-A Command that runs one Host Service directly instead of a script, by naming the Service's ID in its manifest, such as `open.url` or `screen.capture`; the Action's configuration supplies the Service's input, and no script runs. Plugin API Level 1 has Host Command names of its own, such as `url.open` and `screen.capture_area`, which Level 1 Plugins keep. The Host has no Library entries of its own: Open URL, Screenshot and the rest are Bundled Plugins whose Commands are Host Commands, and the user may remove them like any other Plugin.
+A Command that directly names a Host Service and uses the Action’s configuration as its input, without running a script. It is supplied by a Plugin and follows that Plugin’s declared interface vocabulary.
 _Avoid_: Built-in Plugin, Built-in Preset, native Action
 
 **Host Service**:
-A controlled operation the Host performs for any Plugin that is granted it, never shaped around one Plugin's feature, listed once in the Plugin API catalogue under one `namespace.verb` ID, such as `clipboard.write`. From Plugin API Level 2 on, every entry point names it by that ID: a script's call, a Host Command, a View Action and a Requested Host Operation. Plugin API Level 1 names the same operation differently at each entry point (`write_clipboard`, `clipboard.copy`, `copy_text`), and Level 1 Plugins keep those names. Its availability may depend on a Capability and a System Permission.
+A controlled, Plugin-independent operation the Host performs under the caller’s authority. Catalogue-based interfaces identify it by one `namespace.verb` ID across supported entry points; Level 1 retains its historical names.
 _Avoid_: Capability, system API, Plugin-specific service
 
 **Action**:
@@ -115,7 +115,7 @@ A modal settings surface for editing one Menu Item's Menu Item Configuration bef
 _Avoid_: Submenu, secondary window, inspector
 
 **Plugin Settings**:
-Configuration shared by a Plugin across the Menu Items created from its Presets, filled in from the Library before any is placed. A setting the Plugin marks overridable may be set again in one Menu Item's Menu Item Configuration, and a Plugin may offer some of its settings as controls in its Plugin Views.
+User configuration shared by a Plugin’s Menu Items, distinct from one Menu Item’s own configuration and from Plugin-owned data. A setting may allow a Menu Item override.
 _Avoid_: Menu Item Configuration, Preset defaults
 
 **Appearance**:
@@ -153,23 +153,23 @@ A supported element of a Plugin View, such as a field, collection or layout cont
 _Avoid_: Native control, custom widget, HTML element
 
 **Component Style**:
-The structured visual attributes a View Component carries for itself, such as a custom colour, font size and weight, or background. It applies to that component only: nothing inherits it, and the Host's fields, buttons, Collections and chrome keep their native look, focus rings and accessibility.
+Visual attributes a View Component declares for its own content, such as colour, typography or background. The public contract determines their scope while the Host retains native interaction and accessibility.
 _Avoid_: CSS, stylesheet, theme, Plugin theme
 
 **Image Source**:
-Where a picture a View Component shows comes from: a PNG or JPEG inside the Plugin's package, or an HTTPS address the Plugin may already contact. The Host loads, decodes and keeps it within published bounds, with no authority of the Image Source's own; a system symbol is an icon, not an Image Source.
+The package resource or authorized network location supplying a View Component’s picture. It grants no file or network authority of its own; system symbols are icons.
 _Avoid_: Image URL, asset path, file path, image API
 
 **Collection**:
-A View Component that presents a Plugin's items to select and act on, as a list or a grid. The Host owns selection, keyboard navigation, scrolling and asking for more items; the Plugin owns the items, their search and their order. A Collection may give its total and one slice of its items at a time, and the Host keeps a Collection Window of them.
+A View Component presenting Plugin-owned items as a List or Grid. The Plugin owns data and ordering; the Host owns native selection, navigation, scrolling and bounded presentation.
 _Avoid_: Table, results list, data source
 
 **Collection Window**:
-The items of a Collection the Host holds around what the user sees, by position among the Collection's total; positions it does not hold show placeholders, and the Host asks the Plugin for the ranges the screen needs.
+The positions of a Collection currently held by the Host around the visible region. Unheld positions appear as placeholders until the Plugin supplies the requested range.
 _Avoid_: Page of results, batch, cache
 
 **Immediate State**:
-What the Host keeps for a View Component while the user works with it: typed text, caret, input-method composition, focus, selection and scroll. It survives the Plugin's answers until the Plugin explicitly resets that component or its View Page, and it is separate from the state the Plugin keeps for itself.
+The Host-held editing and navigation state of a View Component, including composition, caret, focus, selection and scroll. It is distinct from Plugin business state and follows component identity and explicit reset.
 _Avoid_: UI state, view state, draft
 
 **View Event**:
@@ -177,15 +177,15 @@ One user interaction in a Plugin View, such as editing a field, submitting, or c
 _Avoid_: Callback, UI message
 
 **Explicit Call**:
-The user executing one of a Plugin's Actions, as from a Menu Item. Under Plugin API Level 2, while that Plugin's View Session is open, it runs inside the session as a View Event and its Action handles the session only once it answers with a view; under Plugin API Level 1 it starts the Action again and replaces the view.
+The user executing a configured Action, including while its Plugin’s View Session is already open. The Plugin’s declared interface determines whether it enters that session or starts a replacement invocation.
 _Avoid_: Re-invocation, relaunch, refresh
 
 **View Action**:
-A button or menu entry a Plugin View offers, which either has the Host perform a Host Service, such as copying or inserting text, or sends the Plugin a View Event. A Plugin never binds keyboard shortcuts to it.
+A button or menu entry in a Plugin View that performs a Host Service or sends the Plugin a semantic View Event.
 _Avoid_: Action (a Menu Item's), shortcut, command button
 
 **Item Action**:
-A View Action a Collection offers on each of its items. Its default Item Action runs on Return or double-click; the item's context menu offers every one, the default first, and the Host draws no buttons for them. A toggle Item Action names an Item Mark and shows checked for an item carrying it.
+A View Action offered on an item of a Collection, with an optional default or toggle meaning.
 _Avoid_: Primary Action (a Menu Item's), row button, shortcut
 
 **Item Mark**:
@@ -193,7 +193,7 @@ A short name an item of a Collection carries, such as `favourite`, which the tog
 _Avoid_: Flag, tag, checked state
 
 **Host-Run Source**:
-A Host Service a View Page names for the Host to read while the page is visible, whose latest result the Host shows in bound View Components and may deliver to the Plugin when it changes. It belongs to the page being seen and grants no authority of its own.
+A page-owned Host Service observation whose results update bound View Components and may be delivered to the Plugin. Its lifetime follows page visibility and it grants no authority of its own.
 _Avoid_: Subscription, timer, polling, background refresh, live query
 
 **Host-Fetched Section**:
@@ -205,19 +205,19 @@ A window the Host owns and presents on behalf of a Plugin, because the public vi
 _Avoid_: Plugin window, privileged UI
 
 **Insertion Target**:
-The App that receives text the Host inserts for a Plugin. Under Plugin API Level 1 it is the App in front when the Plugin View appeared, or for a script's own insertion the App in front at that moment; under Plugin API Level 2 it is the App in front at insertion, whose name the Host shows and never gives to the Plugin.
+The App receiving text inserted by the Host for a Plugin. Its identity and resolution time follow the Plugin’s declared contract and differ from the App owning the panel’s keyboard focus.
 _Avoid_: Origin App, recent App, focused App (when the panel is meant)
 
 **Requested Host Operation**:
-Part of Plugin API Level 2: a Host Service a script asks the Host to perform after its invocation ends, by naming its ID in its answer to a user gesture; the Host commits it with the answer, checks authority again, confirms when that Service requires it, resolves the target, performs it and reports one outcome. An outcome the Plugin asked for whose view closed meanwhile reaches one viewless invocation of the requesting Action.
+A Host Service request committed with a script’s answer to a user gesture and executed outside that bounded invocation. The Host owns authorization, target resolution, required confirmation and outcome delivery.
 _Avoid_: Callback, deferred Host Service, async call
 
 **Host Confirmation**:
-A trusted confirmation the Host draws, with its own text and the target it resolved, before performing an operation whose kind requires it; a Plugin can neither skip nor word it. In Plugin API Level 2, `apps.quit` and `apps.close` ask one for every Force Quit, and for a close or graceful quit of an App that was not in front when the Host accepted the request; closing or gracefully quitting the App in front then asks none, the App's own save prompts still applying.
+Trusted UI generated by the Host for an operation that requires confirmation, naming the Host-resolved target. It is distinct from a Plugin’s business confirmation and cannot be skipped or worded by the Plugin.
 _Avoid_: Confirmation dialog (for a Plugin's own view), alert, consent
 
 **App Target**:
-Part of Plugin API Level 2: the Host's opaque name for one running App, given to a Plugin allowed to identify the App in front, which the Plugin may name back to the Host, as the App `apps.quit` ends or whose window `apps.close` closes. It names that App alone, never another that reuses its process ID, for that Plugin only, until the App quits, the Plugin changes or loses a Capability, or Spinnet quits. Identifying an App and ending it are separate Capabilities.
+A Plugin-scoped opaque reference to one running App, whose lifetime prevents it from silently referring to a replacement process. Reading an App’s identity and acting on it are separate authorities.
 _Avoid_: Process ID, app handle, app token
 
 ### Authority
@@ -269,11 +269,11 @@ A link into an External App's documented URL interface, declared by a Plugin wit
 _Avoid_: URL action, custom scheme
 
 **Reviewed Tool Profile**:
-The Host's reviewed description of the operations one command-line tool, such as Homebrew, may run for Plugins: where the Host finds the executable, the fixed argv and environment of each operation, the input it accepts and the output it returns. A Plugin chooses among its typed operations and never supplies a command, flag, path or environment variable. Adding one is a Host release.
+The Host-reviewed set of typed operations and bounded inputs/results offered for one external command-line tool. A Plugin selects among them without gaining arbitrary command execution.
 _Avoid_: Shell access, command runner, tool integration
 
 **Task**:
-A Host-owned run of a mutating operation of a Reviewed Tool Profile on concrete targets the user chose and confirmed, which outlives the Plugin View that started it, is listed in the Status Item, and can be stopped there. Stopping it is an attempt that never rolls back. A confirmed Task may continue after the Host or its Plugin becomes unavailable; recovery restores its status and never repeats the work.
+A Host-owned run of a confirmed mutating Reviewed Tool Profile operation, independent of its Plugin View and controllable through Host Activity. Stopping attempts cancellation without rollback; recovery reports existing work without repeating it.
 _Avoid_: Job, background process, effect (an effect, such as keep-awake, has its own lifetime)
 
 ### Plugin interface
@@ -283,11 +283,11 @@ The public manifest schemas, message protocols, Command interfaces, Host Service
 _Avoid_: Host internals, private API, ABI
 
 **Plugin API Level**:
-The version of the Documented Plugin Interface a Plugin requires; a Host installs the Plugin only if it supports that level, and runs it with that level's names and behaviour. Level 1 is the first published level; Level 2 is the first new UI contract (catalogue IDs, pages and Collections, Requested Host Operations, Explicit Calls into the open View Session), promoted from Candidate Contracts.
+The stable version of the Documented Plugin Interface a Plugin declares it requires. It selects the Plugin’s supported vocabulary and behaviour; the Host’s highest supported Level is separate information.
 _Avoid_: SDK version, protocol version
 
 **Plugin API Namespace**:
-Part of Plugin API Level 2: the Host Services of one area of Spinnet's domain, ideally the ones a single Capability lets the user grant as a group, such as `selection`, `clipboard`, `clipboardHistory` (the Clipboard History Store) or `host` (Spinnet's own UI and flow, which a Plugin asks the Host to act on). It is the first of exactly two parts of each Host Service's ID (`namespace.verb`) and the object that holds the Service in the `spinnet` SDK (`spinnet.clipboard.write`), so it also tells which target and authority apply. It grants nothing; Capabilities do.
+The domain area forming the first segment of a catalogue Host Service ID, such as `clipboard` in `clipboard.write`. It organizes operations and grants no authority itself.
 _Avoid_: SDK area, module, Capability
 
 **Candidate Contract**:
@@ -296,20 +296,23 @@ _Avoid_: Stable release, Plugin version
 
 ### PopClip compatibility and licensing
 
+PopClip import and the Conversion Portal below are planned concepts, not
+implemented Spinnet features. The licensing terms also apply to current Plugins.
+
 **PopClip Extension**:
-An extension package authored for PopClip that Spinnet imports through its compatibility adapter rather than treating as a native Plugin.
+An extension package authored for PopClip, which a planned compatibility adapter would import rather than treat as a native Plugin.
 _Avoid_: PopClip Plugin, native Plugin
 
 **Compatibility Level**:
-A named tier describing which categories of PopClip Extension behavior Spinnet supports, without implying complete PopClip equivalence.
+A planned named tier describing which categories of PopClip Extension behavior Spinnet would support, without implying complete PopClip equivalence.
 _Avoid_: Compatibility percentage, full compatibility
 
 **Compatibility Report**:
-Spinnet's per-extension account of supported, degraded, and unsupported behavior at import time.
+A planned per-extension account of supported, degraded, and unsupported behavior at import time.
 _Avoid_: Validation result, support badge
 
 **Conversion Portal**:
-An independently deployed online service that analyzes a PopClip Extension and, when policy permits, produces an installable offline Spinnet Plugin. It is not part of the Host or a Plugin runtime.
+A planned, independently deployed online service to analyze a PopClip Extension and, when policy permits, produce an installable offline Spinnet Plugin. It would be separate from the Host and Plugin runtime.
 _Avoid_: Compatibility runtime, URL importer, marketplace
 
 **Spinnet-Owned Code**:

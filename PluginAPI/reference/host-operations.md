@@ -11,9 +11,12 @@ publishes the shapes, [`fixtures/host-operations/`](../fixtures/host-operations/
 valid and invalid answers and events, [`spinnet-level-2.js`](../spinnet-level-2.js)
 the SDK and [`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) its types.
 Level 2 was proved as Candidate Contract `host_operations` r2, now retired
-([history](../candidates/host_operations/r2/reference.md)); the rationale is
-ADR 0018 and the design record in
-[`proposals/bounded-host-operations/`](../proposals/bounded-host-operations/design.md).
+([retirement record](../candidates/host_operations/r2/candidate.json)).
+Requests belong to the accepted answer because confirmation can outlast a
+bounded script invocation. Committing first prevents a rejected or stale
+answer from causing an effect, while Host-owned target resolution and renewed
+authority checks keep execution independent of Plugin-provided identity.
+The execution target must still agree with what the user was shown.
 
 ## Requesting an operation
 

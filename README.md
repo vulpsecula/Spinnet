@@ -2,27 +2,35 @@
 
 Spinnet is a native macOS Host for mouse-first radial Menus. Everything in
 the Library is a Plugin, reached through the Documented Plugin Interface, and
-configuration stays in the Settings window. The current slice covers the Menu-first Settings workflow, scripted
-Actions in per-Plugin helpers, and local Clipboard History collection.
+configuration stays in the Settings window. The Host renders Plugin Views,
+runs bounded scripts in per-Plugin helpers, and owns protected system operations,
+Clipboard History collection and ongoing Effects and Tasks.
 
 ## Run
 
-The project requires macOS and Xcode's Swift toolchain. Run this command from
-the repository root:
+The project requires macOS and Xcode's Swift toolchain. The development launcher
+also requires a stable code-signing identity: it selects an Apple Development
+identity or uses `SPINNET_CODESIGN_IDENTITY`. An ad-hoc build requires the
+explicit `SPINNET_ALLOW_ADHOC_SIGNING=1` opt-in and cannot establish persistent
+Accessibility consent. Run from the repository root:
 
 ```sh
 ./script/build_and_run.sh
 ```
 
 Run `swift test` for package tests. For choosing between packaged-app and
-direct SwiftPM launches, follow
-[Host launch](AGENTS.md#host-launch).
+direct SwiftPM launches, follow [Host launch](AGENTS.md#host-launch). Launcher
+modes, signing and Plugin overrides are defined in
+[`script/build_and_run.sh`](script/build_and_run.sh).
 
 The official packages live in the independent MIT repository
 [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
 submodule or SwiftPM dependency on it: packaging reads the lock file, fetches
 that full commit into a cache and copies its `Plugins/` packages into the app.
-The public manifest loader reads the resulting bundled directory. Open URL, Screenshot and the other Plugins whose Commands are
+For local development, `SPINNET_BUNDLED_PLUGINS_DIR` selects a packages directory;
+the [resolver](script/resolve_bundled_plugins.sh) documents this override.
+The public manifest loader reads the resulting bundled directory. Open URL,
+Screenshot and the other Plugins whose Commands are
 Host Commands (see the Host Command catalogue in
 [`PluginAPI/reference/manifest.md`](PluginAPI/reference/manifest.md#host-commands))
 are packages in that repository like
@@ -30,98 +38,34 @@ Clipboard History, and can be removed like it. A Bundled Plugin is delivered int
 `SpinnetHost.app/Contents/Resources/Plugins` and an installed Plugin into
 Application Support, and the Host discovers both by reading a directory.
 
-A first launch opens an empty Menu: eight Slots, none of them bound, and nothing
-is written until the user configures something. The Host opens the radial Menu
+A first launch without a saved Menu starts with eight empty Slots; Menu
+configuration is saved when the user edits it. Launch can still write Plugin
+discovery and Capability-grant records, and can migrate existing settings.
+The Host opens the radial Menu
 with Mouse Side Button 1 by default, and an optional keyboard shortcut can be
 recorded or entered manually under Settings → Menu. Scripted Actions launch
 `SpinnetPluginHelper` on demand; registration, idle state, Menu opening, and
 Host-backed Actions do not launch a helper. Actions, Menu bindings, appearance,
 and triggers are saved automatically.
 
-## Manual acceptance checks
+## Using the Host
 
-Smart Jump recognises links, DOI identifiers, Bilibili AV/BV numbers, local
-paths and arithmetic; other text becomes a web search. The first target in a
-passage wins. Quote paths containing spaces so their boundaries are explicit.
-Downloads open in the default browser. In the Library's Plugin Settings,
-edit the search engines row by row, each a name and an https URL with
-`{query}`; the first is the default (Google initially). Arithmetic, or running
-with no selection, opens Smart Jump's view, whose field previews where its
-text would go as it is typed.
-Arithmetic results can be copied explicitly. Opening local paths and writing
-the clipboard each require their own grant.
+Add a Plugin's Preset to an empty Slot in Settings → Menu before invoking
+the Menu. Each Menu Item has one Primary Action and optional Alternate
+Actions, available by right-click. Its Configuration Sheet saves or cancels
+edits together; Menu arrangement, appearance and triggers save automatically.
+Unavailable Actions keep their Slots and can be repaired in Settings.
 
-For #46, check a bare domain, a DOI inside a sentence, an AV/BV number, a
-download link, an existing file and folder, and `32-68*(50/6-3.28)+5` from
-another app. Also check no selection, Return/Escape in the view, editing
-shortcuts, changing search engines, copying a result, and revoking a grant
-while the view remains open. These real-app checks are separate from the
-deterministic recognition tests, which run `open.js` in the Plugin test kit.
+Privacy & Permissions separates macOS System Permissions, Sensitive Data
+Collection and each Plugin's Capability grants. Plugin-specific behaviour and
+development instructions belong in the
+[Plugins repository](https://github.com/vulpsecula/SpinnetPlugins).
 
-1. Open Settings from the status item and add `Open URL` from the Library to a
-   Slot. A first launch has an empty Menu, so every check below needs at least
-   one Menu Item to exist first.
-2. Press Mouse Side Button 1 while the pointer is near the middle of a
-   display. The overlay appears at the pointer without activating the Host.
-3. Move clockwise around the ring. At most one Menu Item is highlighted; the
-   center remains a dead zone.
-4. Release on `Open URL` and confirm the URL opens and a completion message is
-   visible.
-5. Open the Menu again and dismiss it with Escape, a click outside the ring, or
-   Mouse Side Button 1. None of these dismissal paths runs the Action.
-6. Repeat near each display edge and corner. The complete ring remains inside
-   the display's visible frame.
-7. Open Settings from the status item. Create a second Action, select it as an
-   Alternate Action, close and relaunch the Host, and confirm the binding is
-   still present. Right-click the Menu Item to expose the Alternate Action.
-8. In the Library, add `Open Application`, `Open File`, `Open Folder`, `Run
-   Shortcut`, or `Run Keyboard Shortcut`. The Configuration Sheet offers native
-   pickers or a shortcut recorder. Recording temporarily blocks keyboard
-   events from reaching other apps when Accessibility is available. If a
-   utility still intercepts the event, choose `Choose Manually…` and select
-   modifiers and a key from the two lists. Text and URL fields use the standard
-   macOS editing menu and keyboard shortcuts. Cancel leaves the Slot unchanged;
-   Save commits all fields at once. Rename the Menu Item with its optional
-   alias, and use the visible Edit button, double-click, `Command-E`, or
-   `Return`/`Space` after focusing a Slot to reopen the sheet.
-9. Add `Copy Selected Text`, grant its `Read Selected Text` and `Write
-   Clipboard` capabilities in Privacy & Permissions, select text in another
-   app, and run the Menu Item. The copied value comes from the current
-   selection rather than a configured text parameter.
-10. Add `Paste` or `Cut`, grant Spinnet Accessibility permission in Privacy &
-   Permissions, focus a text field in another app, and run the Menu Item.
-11. `Run macOS Service` is useful for installed Services that transform,
-    look up, or share selected text. To test it, select text in the target app
-    and copy the exact title from that app's Services menu into the
-    Configuration Sheet. Use the full menu path with `/` separators when the
-    service is nested.
-12. Remove `Clipboard History` from the Library. The confirmation names the
-    Slots whose Menu Items use it; those stay in their Slots and report as
-    unavailable. Restart the app and confirm it is still gone. Bring it back
-    with `Install or Update Plugin…` and a copy of its package, allow the
-    access it asks for, and run it, window included: the copy you chose is
-    installed like any other Plugin.
-13. If an application, file, or folder used by a Menu Item is later removed,
-    the Menu Item remains in its Slot and only that Action is disabled. Its
-    Slot keeps the Preset name (or your Alias), while the unavailable reason
-    appears on the Action. Open its Configuration Sheet and use `Choose Again…`
-    to repair the path.
-
-## Scripted Action lifecycle checks
-
-Run `./script/build_and_run.sh --lifecycle-check` to open the Debug-only
-lifecycle test window. It creates temporary scripted Actions without changing
-saved Menu configuration or requesting Capabilities:
-
-- **Slow success (3 seconds)** runs long enough to show Progress, then completes.
-- **Hang until timeout** loops until the scripted Action deadline. Press Escape
-  while Progress is visible to cancel, or wait for `timed_out`.
-- Click **Retry** (or press Return) on a failure to start a new execution.
-
-The launcher returns when feedback is dismissed. In this Debug test mode,
-success feedback stays visible for ten seconds for inspection. Normal runs
-retain the standard feedback duration. The test window is excluded from
-release builds.
+For scripted Action progress, timeout, cancellation and explicit retry checks,
+`./script/build_and_run.sh --lifecycle-check` opens the Debug-only lifecycle
+window with temporary Actions. It leaves saved Menu configuration unchanged
+and is excluded from release builds. Native acceptance results belong with
+the change being verified; passing package tests does not establish them.
 
 ## Scope
 
@@ -134,8 +78,10 @@ adapters, clipboard collection, and user-visible feedback.
 Capability-checked Host Services are available through the documented helper
 protocol. The Host stores per-Plugin-version Capability decisions and exposes
 each registered Plugin's grants in Privacy & Permissions. Removing a Plugin
-forgets its decisions, and the Host drops decisions left behind by Plugins it no
-longer finds. The Host owns scripted Action
+forgets its decisions. Startup preserves Refused Plugins' decisions; it drops
+other undiscovered owners only when discovery accounts for the Bundled set.
+A direct development launch with no Bundled packages preserves those decisions.
+The Host owns scripted Action
 progress, cancellation, deadlines, and terminal feedback. Scripted Actions
 reuse one serialized helper per Plugin, and Plugin disable, uninstall, update,
 Capability revocation, and Host shutdown retire helpers immediately.
@@ -147,12 +93,17 @@ Host-rendered history window is a separate Host Service that the same grant
 allows, whichever Plugin asks: the user reads their own data there, and the
 Plugin learns nothing from it.
 
-The Documented Plugin Interface, Plugin API Level 1, is published in
+The Documented Plugin Interface supports Levels 1–7 and is published in
 [`PluginAPI/`](PluginAPI/README.md): the manifest, the helper protocol, every
 Host Service, Plugin Views, and their schemas. The timing, size, and resource
 budgets those contracts promise are declared once in budget types such as
 `ScriptedActionBudgets` and `ClipboardHistoryBudgets`, and pinned against the
 published pages by `DocumentedBudgetsTests`.
+
+Reviewed Homebrew Tasks use typed, scoped requests and Host confirmation before
+package changes. Native Homebrew runs as the current user; system sudo/PAM owns
+authentication where needed. Spinnet collects no password. See the
+[authorization contract](PluginAPI/reference/homebrew-system-authorization.md).
 
 ## Licence
 
@@ -178,15 +129,12 @@ and type definitions.
 
 The complete source is on GitHub, and building Spinnet yourself is free. The
 GPL rights — to read, modify, build, and redistribute the source, and to
-publish GPL-compliant forks — always apply, including to the licensing and
+publish GPL-compliant forks — always apply, including to any licensing and
 trial code itself.
 
-Official signed and notarized builds are distributed separately through the
-Spinnet website and Homebrew, and may be sold: a free trial followed by a paid
-lifetime licence. Paying is for the convenience of a ready-to-run notarized
-build and for supporting development. It does not change, extend, or restrict
-anyone's rights under the GPL, and using an official binary does not take any
-of those rights away.
+Website and Homebrew distribution of signed, notarized builds, with a trial and
+paid lifetime licence, are planned. Distributed binaries, including sold builds,
+retain the recipient's rights under the GPL.
 
 ### Plugins
 

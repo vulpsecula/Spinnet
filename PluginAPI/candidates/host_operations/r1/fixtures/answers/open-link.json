@@ -1,9 +1,0 @@
-{
-  "operation": {
-    "perform": "open.url",
-    "input": {
-      "url": "https://example.com/emoji"
-    },
-    "id": "homepage"
-  }
-}

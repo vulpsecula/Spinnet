@@ -1,0 +1,2479 @@
+{
+  "description": "The same stable answers and malformed inputs checked against each declared Level, by both the public schema and Host parser. Schema paths are relative to PluginAPI/schemas. Manifest fixtures omit definition. No helper, native operation or network runs.",
+  "cases": [
+    {
+      "name": "legacy-view",
+      "value": {
+        "view": {
+          "title": "Legacy view",
+          "detail": {
+            "sections": [
+              {
+                "id": "body",
+                "text": "Still supported"
+              }
+            ]
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": true
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "page",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "installed-source",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "installed"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "adaptive",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "adaptive",
+              "id": "cards",
+              "content": [
+                {
+                  "kind": "column",
+                  "id": "card",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "id": "value",
+                      "text": "CPU"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "autoremove-source",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "previewAutoremove"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "command-output-source",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "adaptive-command-output",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "adaptive",
+              "id": "cards",
+              "content": [
+                {
+                  "kind": "column",
+                  "id": "card",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "id": "output",
+                      "text": "Waiting",
+                      "format": "output",
+                      "bind": {
+                        "source": "read",
+                        "pointer": "/output"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-output-style",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "adaptive",
+              "id": "cards",
+              "content": [
+                {
+                  "kind": "column",
+                  "id": "card",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "id": "output",
+                      "text": "Waiting",
+                      "format": "output",
+                      "bind": {
+                        "source": "read",
+                        "pointer": "/output"
+                      },
+                      "style": {
+                        "font_size": 10000
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-output-binding",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "adaptive",
+              "id": "cards",
+              "content": [
+                {
+                  "kind": "column",
+                  "id": "card",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "id": "output",
+                      "text": "Waiting",
+                      "format": "output",
+                      "bind": {
+                        "source": "read",
+                        "pointer": "invalid"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-command-output-repeat",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              },
+              "every": 1
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-installed-repeat",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "installed"
+              },
+              "every": 1
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-refresh-source",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ],
+          "sources": [
+            {
+              "id": "read",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "refreshCatalog"
+              }
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-task",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "update"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "cleanup-task",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "cleanup"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "cleanup-days-task",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "cleanup",
+            "days": 7,
+            "pruneAll": false
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "autoremove-task",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "autoremove"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "refresh-task",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "refreshCatalog"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-task-operation",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "arbitrary-code",
+            "argv": [
+              "rm"
+            ]
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-task-argv",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "update",
+            "argv": [
+              "--force"
+            ]
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-cleanup-options",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "cleanup",
+            "days": 7,
+            "pruneAll": true
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-update-selector",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "update",
+            "name": "example"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-autoremove-selector",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "autoremove",
+            "kind": "formula"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-refresh-selector",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "refreshCatalog",
+            "kind": "cask"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-task-missing-input",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask"
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-task-null-input",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": null
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-install-missing-name",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Ready"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "install",
+            "kind": "formula"
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "nested-refresh-action",
+      "value": {
+        "page": {
+          "id": "p",
+          "title": "Stable contract",
+          "content": [
+            {
+              "kind": "adaptive",
+              "id": "cards",
+              "content": [
+                {
+                  "kind": "column",
+                  "id": "card",
+                  "content": [
+                    {
+                      "kind": "actions",
+                      "id": "actions",
+                      "actions": [
+                        {
+                          "id": "refresh",
+                          "title": "Refresh",
+                          "perform": "tools.startTask",
+                          "input": {
+                            "tool": "homebrew",
+                            "operation": "refreshCatalog"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "view-session.schema.json",
+          "definition": "answer",
+          "level": 1,
+          "valid": false
+        },
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "level": 2,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 3,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": false
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-1",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 1,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "level": 1,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-1",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 1,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "level": 1,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-2",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 2,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "level": 2,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-2",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 2,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "level": 2,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-3",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 3,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-3.schema.json",
+          "level": 3,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-3",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 3,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-3.schema.json",
+          "level": 3,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-4",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 4,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-4.schema.json",
+          "level": 4,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-4",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 4,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-4.schema.json",
+          "level": 4,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-5",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 5,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-5.schema.json",
+          "level": 5,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-5",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 5,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-5.schema.json",
+          "level": 5,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-6",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 6,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-6.schema.json",
+          "level": 6,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-6",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 6,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-6.schema.json",
+          "level": 6,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-level-7",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 7,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-7.schema.json",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "invalid-candidate-level-7",
+      "value": {
+        "protocol_version": "1.0",
+        "api_level": 7,
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "candidate_contracts": [
+          {
+            "name": "adaptive_layout",
+            "revision": 2
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest-level-7.schema.json",
+          "level": 7,
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "sdk-level-4-usage",
+      "sdk_script": "level-4/usage.js",
+      "sdk_level": 4,
+      "value": {
+        "page": {
+          "id": "tasks",
+          "title": "Tasks",
+          "content": [
+            {
+              "kind": "text",
+              "id": "log",
+              "text": "Waiting"
+            }
+          ],
+          "sources": [
+            {
+              "id": "activities",
+              "perform": "activities.list",
+              "input": null,
+              "every": 1,
+              "deliver": {}
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 4,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "sdk-level-5-usage",
+      "sdk_script": "level-5/usage.js",
+      "sdk_level": 5,
+      "value": {
+        "operation": {
+          "perform": "apps.perform",
+          "input": {
+            "bundle_id": "com.apple.Terminal",
+            "operation": "homebrew",
+            "arguments": {
+              "command": "upgrade",
+              "kind": "cask",
+              "package": "firefox"
+            }
+          }
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages-level-3.schema.json",
+          "definition": "answer",
+          "level": 5,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "sdk-level-6-usage",
+      "sdk_script": "level-6/usage.js",
+      "sdk_level": 6,
+      "value": {
+        "page": {
+          "id": "output",
+          "title": "Output",
+          "sources": [
+            {
+              "id": "version",
+              "perform": "tools.read",
+              "input": {
+                "tool": "homebrew",
+                "operation": "commandOutput",
+                "command": "version"
+              },
+              "deliver": {}
+            }
+          ],
+          "content": [
+            {
+              "kind": "text",
+              "id": "output",
+              "text": "Waiting…",
+              "format": "output"
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages-level-6.schema.json",
+          "definition": "answer",
+          "level": 6,
+          "valid": true
+        },
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "sdk-level-7-usage",
+      "sdk_script": "level-7/usage.js",
+      "sdk_level": 7,
+      "value": {
+        "page": {
+          "id": "catalog",
+          "title": "Updating Catalog",
+          "content": [
+            {
+              "kind": "text",
+              "id": "status",
+              "text": "Updating…"
+            }
+          ]
+        },
+        "operation": {
+          "perform": "tools.startTask",
+          "input": {
+            "tool": "homebrew",
+            "operation": "refreshCatalog"
+          },
+          "id": "catalog",
+          "notify": true
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages-level-7.schema.json",
+          "definition": "answer",
+          "level": 7,
+          "valid": true
+        }
+      ]
+    }
+  ]
+}

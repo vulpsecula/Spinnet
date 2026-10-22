@@ -21,13 +21,4 @@ public enum SpinnetSDK {
     /// Stable Level 3 unused-dependency reads over the Level 2 SDK.
     public static let levelThreeAutoremoveSource = String(decoding: PackageResources.spinnet_level_3_autoremove_js, as: UTF8.self)
 
-    /// Historical Homebrew autoremove SDK retained for candidate proof tests.
-    public static let homebrewAutoremoveSource = String(decoding: PackageResources.homebrew_autoremove_js, as: UTF8.self)
-
-    /// Exact opt-in adaptive_layout r1 candidate; its separate public source
-    /// is evaluated over Level 2 only for a declaring Plugin.
-    public static let adaptiveLayoutSource = String(decoding: PackageResources.adaptive_layout_js, as: UTF8.self)
-
-    /// Exact opt-in adaptive_layout r2, including viewport fit and density.
-    public static let adaptiveViewportSource = String(decoding: PackageResources.adaptive_layout_r2_js, as: UTF8.self)
 }

@@ -4,14 +4,14 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class AdaptivePageRuntimeTests: XCTestCase {
-    func testRealHelperInjectsOnlyTheDeclaredCandidateBuilderAndKeepsFieldState() throws {
+    func testRealHelperInjectsTheLevelThreeBuilderAndKeepsFieldState() throws {
         let helper = try PluginTestHelper(); defer { helper.shutdown() }
         let plugin = try PluginUnderTest(packageAt: AdaptivePageContractTests.fixture)
         let view = PluginTestPage("cards", of: plugin, helper: helper)
         try view.open()
-        guard case .adaptive(let cards)? = view.page?.component("cards") else { return XCTFail("No candidate layout from the real SDK") }
+        guard case .adaptive(let cards)? = view.page?.component("cards") else { return XCTFail("No stable adaptive layout from the real SDK") }
         XCTAssertEqual(cards.minimumCardWidth, 280); XCTAssertEqual(cards.maximumColumns, 2)
-        let schema = PagesContractTests.pluginAPI.appendingPathComponent("candidates/adaptive_layout/r1/adaptive-layout.schema.json")
+        let schema = PagesContractTests.pluginAPI.appendingPathComponent("schemas/adaptive-layout.schema.json")
         XCTAssertEqual(try JSONSchemaSubsetValidator(definition: "page", inSchemaAt: schema).errors(for: try XCTUnwrap(view.pageJSON)), [])
         try view.type("retained note", into: "note")
         try view.click("refresh")
@@ -27,6 +27,6 @@ final class AdaptivePageRuntimeTests: XCTestCase {
         let probe = PluginTestPage("cards", of: try PluginUnderTest(packageAt: stable), helper: helper, input: .object(["sdkProbe": .bool(true)]))
         try probe.open()
         guard case .text(let available)? = probe.page?.component("available") else { return XCTFail("No SDK probe") }
-        XCTAssertEqual(available.text, "undefined", "Stable-only Plugins do not receive a candidate builder")
+        XCTAssertEqual(available.text, "undefined", "Level 2 Plugins do not receive the Level 3 adaptive builder")
     }
 }

@@ -114,8 +114,6 @@ final class SettingsWindowController: NSWindowController {
         get { model.clipboardHistory.retention }
         set { model.clipboardHistory.retention = newValue }
     }
-    var canUndoAppearance: Bool { model.appearance.canUndo }
-    var canRedoAppearance: Bool { model.appearance.canRedo }
     var pendingPresetSetup: PendingPresetSetup? { model.menuEditor.pendingPresetSetup }
     var editingMenuIndex: Int? { model.menuEditor.editingMenuIndex }
     var selectedMenuIndex: Int { model.menuEditor.selectedMenuIndex }
@@ -231,26 +229,6 @@ final class SettingsWindowController: NSWindowController {
 
     func refreshSystemPermissionStatus() {
         model.privacy.refreshSystemPermissionStatus()
-    }
-
-    func dismissPermissionGuide() {
-        model.privacy.dismissPermissionGuide()
-    }
-
-    func undoAppearance() {
-        model.appearance.undo()
-    }
-
-    func redoAppearance() {
-        model.appearance.redo()
-    }
-
-    func resetAppearance() {
-        model.appearance.reset()
-    }
-
-    func cancelPresetSetup() {
-        model.menuEditor.cancelPresetSetup()
     }
 
     /// The observable Settings window seam used by host-level UI tests.

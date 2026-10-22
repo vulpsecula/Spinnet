@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet Plugin API Level 6 pages",
-  "description": "Plugin API Level 6 page descriptions. Retains earlier page vocabulary and adds literal monospaced text.format=output with no terminal input.",
+  "title": "Spinnet Plugin pages (Plugin API Level 6)",
+  "description": "Level 6 retains stable Level 3 pages and adds literal command output.",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",
@@ -15,7 +15,7 @@
       "maxLength": 64
     },
     "answer": {
-      "description": "A Level 2 script's answer: Level 1's answer with view or, instead, page, plus a Requested Host Operation (host-operations.schema.json). An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
+      "description": "A Level 2 script's answer: Level 1's answer with view or, instead, page, plus a Requested Host Operation (host-operations-level-3.schema.json). An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
       "type": [
         "object",
         "null"
@@ -36,10 +36,10 @@
           "const": true
         },
         "toast": {
-          "$ref": "#/$defs/text"
+          "$ref": "pages-level-6.schema.json#/$defs/text"
         },
         "operation": {
-          "$ref": "host-operations.schema.json#/$defs/operation"
+          "$ref": "host-operations-level-3.schema.json#/$defs/operation"
         }
       },
       "allOf": [
@@ -99,11 +99,11 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "$ref": "#/$defs/identifier",
+          "$ref": "pages-level-6.schema.json#/$defs/identifier",
           "description": "The View Page. The same ID refreshes the page on screen and keeps its immediate state; another ID changes page, remembering the last 4 pages' immediate state by ID."
         },
         "title": {
-          "$ref": "#/$defs/text"
+          "$ref": "pages-level-6.schema.json#/$defs/text"
         },
         "subtitle": {
           "type": "string"
@@ -113,7 +113,7 @@
           "type": "boolean"
         },
         "focus": {
-          "$ref": "#/$defs/identifier",
+          "$ref": "pages-level-6.schema.json#/$defs/identifier",
           "description": "The component focused when the page is new or reset; else the first text_field, else the collection."
         },
         "reset": {
@@ -128,7 +128,7 @@
               "maxItems": 40,
               "uniqueItems": true,
               "items": {
-                "$ref": "#/$defs/identifier"
+                "$ref": "pages-level-6.schema.json#/$defs/identifier"
               }
             }
           ]
@@ -169,7 +169,7 @@
           ]
         },
         "sources": {
-          "$ref": "host-run-sources.schema.json#/$defs/sources"
+          "$ref": "sources-level-6.schema.json#/$defs/sources"
         }
       }
     },
@@ -211,6 +211,9 @@
         },
         {
           "$ref": "#/$defs/activity_list"
+        },
+        {
+          "$ref": "#/$defs/adaptive"
         }
       ]
     },
@@ -391,11 +394,10 @@
           "$ref": "#/$defs/text_style"
         },
         "bind": {
-          "$ref": "host-run-sources.schema.json#/$defs/binding"
+          "$ref": "sources-level-6.schema.json#/$defs/binding"
         },
         "format": {
-          "const": "output",
-          "description": "Read-only monospaced literal output. No Markdown or interactive terminal input."
+          "const": "output"
         }
       }
     },
@@ -677,7 +679,7 @@
       }
     },
     "image": {
-      "description": "A picture the Host loads from its source (#81) into a frame of width \u00d7 height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
+      "description": "A picture the Host loads from its source (#81) into a frame of width × height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
       "type": "object",
       "required": [
         "kind",
@@ -840,7 +842,7 @@
       "additionalProperties": false,
       "properties": {
         "perform": {
-          "$ref": "namespaces.schema.json#/$defs/view_action_id"
+          "$ref": "namespaces-level-3.schema.json#/$defs/view_action_id"
         },
         "input": {},
         "id": {
@@ -861,7 +863,7 @@
       },
       "allOf": [
         {
-          "$ref": "namespaces.schema.json#/$defs/perform_input"
+          "$ref": "namespaces-level-3.schema.json#/$defs/perform_input"
         }
       ]
     },
@@ -1272,7 +1274,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own \u2318C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
       "type": "object",
       "required": [
         "id",
@@ -1292,7 +1294,7 @@
         },
         "perform": {
           "description": "A Host Service, by catalogue ID, that the Host performs on the item's text without a View Event: the text becomes the operation's primary member text. Without perform the action delivers item_action.",
-          "$ref": "namespaces.schema.json#/$defs/item_action_id"
+          "$ref": "namespaces-level-3.schema.json#/$defs/item_action_id"
         },
         "closes_view": {
           "type": "boolean"
@@ -1395,7 +1397,7 @@
           "$ref": "#/$defs/operation_finished"
         },
         {
-          "$ref": "host-run-sources.schema.json#/$defs/source_delivered"
+          "$ref": "sources-level-6.schema.json#/$defs/source_delivered"
         }
       ]
     },
@@ -1645,7 +1647,7 @@
       ]
     },
     "operation_finished": {
-      "description": "host-operations.schema.json's operation_finished, with item when it reports a page's item action the Host performed: the item as shown when the user acted.",
+      "description": "host-operations-level-3.schema.json's operation_finished, with item when it reports a page's item action the Host performed: the item as shown when the user acted.",
       "type": "object",
       "required": [
         "type",
@@ -1673,7 +1675,7 @@
       },
       "allOf": [
         {
-          "$ref": "host-operations.schema.json#/$defs/operation_finished_members"
+          "$ref": "host-operations-level-3.schema.json#/$defs/operation_finished_members"
         }
       ]
     },
@@ -1697,7 +1699,134 @@
           "maxLength": 256
         }
       },
-      "description": "A top-level Host control showing only this Plugin\u2019s active Host Activities and their native Stop. At most one/page; no Plugin items, owner, or actions. Timed status updates in whole seconds while visible."
+      "description": "A top-level Host control showing only this Plugin’s active Host Activities and their native Stop. At most one/page; no Plugin items, owner, or actions. Timed status updates in whole seconds while visible."
+    },
+    "adaptive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "content"
+      ],
+      "properties": {
+        "kind": {
+          "const": "adaptive"
+        },
+        "id": {
+          "$ref": "pages-level-6.schema.json#/$defs/identifier"
+        },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "pages-level-6.schema.json#/$defs/leaf"
+              },
+              {
+                "$ref": "pages-level-6.schema.json#/$defs/row"
+              },
+              {
+                "$ref": "pages-level-6.schema.json#/$defs/column"
+              }
+            ]
+          }
+        },
+        "min_card_width": {
+          "type": "number",
+          "minimum": 160,
+          "maximum": 600
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "max_columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "fit": {
+          "$ref": "#/$defs/fit"
+        }
+      }
+    },
+    "fit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profiles"
+      ],
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/profile"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "min_card_width",
+        "min_card_height"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "pages-level-6.schema.json#/$defs/identifier"
+        },
+        "min_card_width": {
+          "type": "number",
+          "minimum": 160,
+          "maximum": 600
+        },
+        "min_card_height": {
+          "type": "number",
+          "minimum": 48,
+          "maximum": 600
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "overrides": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/text_override"
+          }
+        }
+      }
+    },
+    "text_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "pages-level-6.schema.json#/$defs/identifier"
+        },
+        "text": {
+          "type": "string"
+        },
+        "style": {
+          "$ref": "pages-level-6.schema.json#/$defs/text_style"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

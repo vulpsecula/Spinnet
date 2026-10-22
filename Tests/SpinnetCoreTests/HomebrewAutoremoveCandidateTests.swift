@@ -11,7 +11,7 @@ final class HomebrewAutoremoveCandidateTests: XCTestCase {
         {"api_level":\(revision == 1 ? 3 : 2),"protocol_version":"1.0","id":"test.autoremove","name":"Autoremove","version":"1.0"\(candidate),"capabilities":[],"commands":[{"id":"open","title":"Open","execution":"javascript","script":"open.js"}]}
         """.utf8))
     }
-    func testStablePluginCannotCreateAutoremoveCallsSourcesRequestsOrStandardActions() throws {
+    func testLevelTwoPluginCannotCreateAutoremoveCallsSourcesRequestsOrStandardActions() throws {
         let stable = try manifest(), permits = PluginInterfaceContracts.host.permitting(stable)
         let call = PluginRuntimeHostServiceCall(invocationID: "run", actionID: try ActionID("open"), requestID: "r", name: "tools.read", input: preview)
         if case .success = try PluginInterfaceContracts.host.resolve(call, declaredBy: stable) { XCTFail("Stable call admitted candidate operation") }
@@ -23,7 +23,7 @@ final class HomebrewAutoremoveCandidateTests: XCTestCase {
 }
 
 extension HomebrewAutoremoveCandidateTests {
-    func testExactCandidateCanCreateEverySupportedEntryAndRejectsOldHostAndUnknownRevision() throws {
+    func testLevelThreeCanCreateEverySupportedEntryAndRejectsOldHostAndUnknownRevision() throws {
         let exact = try manifest(1), contracts = PluginInterfaceContracts.host, permits = contracts.permitting(exact)
         try contracts.check(exact, origin: .installed)
         let registry = PluginRegistry(); try registry.register(.init(rootURL: URL(fileURLWithPath: "/tmp/autoremove"), manifest: exact))
@@ -38,15 +38,15 @@ extension HomebrewAutoremoveCandidateTests {
         _ = try PluginPageSource(parsing: .object(["id": .string("installed"), "perform": .string("tools.read"), "input": .object(["tool": .string("homebrew"), "operation": .string("installed")])]), permits: contracts.permitting(manifest()))
     }
 
-    func testCandidatePublicFixturesAreSeparateFromStableSchemas() throws {
+    func testStableFixturesAndRetirementMetadataPreserveEarlierLevelBoundaries() throws {
         let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
-        let folder = api.appendingPathComponent("candidates/homebrew_autoremove/r1")
-        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))).status, .retired(promotedToLevel: 3))
+        let folder = api.appendingPathComponent("fixtures/level-3/homebrew-autoremove")
+        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: api.appendingPathComponent("candidates/homebrew_autoremove/r1/candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
-        for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/index.json"))).fixtures {
-            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/" + entry.file)))
-            let schema = try JSONSchemaSubsetValidator(definition: entry.definition, inSchemaAt: folder.appendingPathComponent("homebrew-autoremove.schema.json"))
+        for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("index.json"))).fixtures {
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: folder.appendingPathComponent(entry.file)))
+            let schema = try JSONSchemaSubsetValidator(definition: entry.definition, inSchemaAt: api.appendingPathComponent("schemas/homebrew-autoremove.schema.json"))
             XCTAssertEqual(schema.errors(for: value).isEmpty, entry.valid, entry.file)
         }
         XCTAssertFalse(try JSONSchemaSubsetValidator(definition: "input", inSchemaAt: api.appendingPathComponent("schemas/homebrew-management-reads.schema.json")).errors(for: preview).isEmpty)

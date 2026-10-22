@@ -498,10 +498,10 @@ final class ReviewedTaskRecoveryBudgetsTests: XCTestCase {
     }
 }
 
-/// Exact provisional adaptive_layout r1 bounds, separate from stable Level2.
+/// Stable Level 3 adaptive bounds, separate from the Level 2 vocabulary.
 final class AdaptivePageBudgetsTests: XCTestCase {
-    func testCandidateBudgetsMatchItsPublishedReference() {
-        let reference = "candidates/adaptive_layout/r1/README.md"
+    func testStableAdaptiveBudgetsMatchThePublishedReference() {
+        let reference = "reference/level-3.md"
         XCTAssertPublished("There are 1–8 children", in: reference)
         XCTAssertEqual(AdaptivePageLayout.maximumChildren, 8)
         XCTAssertPublished("is 160–600 points (default 200)", in: reference)
@@ -519,7 +519,7 @@ final class AdaptivePageBudgetsTests: XCTestCase {
 
 final class AdaptiveViewportBudgetsTests: XCTestCase {
     func testViewportMetadataHasSeparatePublishedBounds() {
-        let reference = "candidates/adaptive_layout/r2/README.md"
+        let reference = "reference/level-3.md"
         XCTAssertPublished("1–3 profiles",in:reference)
         XCTAssertEqual(AdaptiveViewportLayout.maximumProfiles,3)
         XCTAssertPublished("0–40 overrides",in:reference)

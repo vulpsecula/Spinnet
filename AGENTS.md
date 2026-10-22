@@ -2,7 +2,9 @@
 
 ### Issue tracker
 
-Issues and specs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+For issue lookup, triage, publication or an existing task map, read
+[the issue workflow](agent-guide/issue-tracker.md). Issues and specs live in
+GitHub Issues; task maps are optional.
 
 ### Triage labels
 
@@ -11,18 +13,20 @@ Use the five default canonical triage labels unchanged: `needs-triage`,
 
 ### Domain docs
 
-Single-context layout. Read `GLOSSARY.md` for the domain glossary and the
-relevant ADRs in `docs/adr/` before working in an area. Use the glossary's
-terms, and avoid the synonyms it lists.
+Read `GLOSSARY.md`, use its domain terms and avoid its listed synonyms.
+When local `docs/adr/` files are available,
+read the relevant decisions for the area being changed. They are optional
+local context: a clean checkout uses the committed glossary, `PluginAPI/`,
+source and tests without requiring those files.
 
-Note that `docs/` is deliberately git-ignored (see commit 97558ec), so these
-documents carry no version history. A documentation change cannot be reviewed
-as a diff; the budgets in the ADRs are instead pinned by
-`DocumentedBudgetsTests`.
+`docs/` is deliberately git-ignored (see commit 97558ec) and has no version
+history. `DocumentedBudgetsTests` compares constants with copied expectations
+and checks quotations from committed `PluginAPI/` pages; it does not read ADR
+text. Keep current implementation claims tied to source and tests.
 
 The Plugin interface itself is documented only in `PluginAPI/`, which is
-committed: its README catalogues Plugin API Level 1, and `PluginAPI/reference/`
-and the schemas specify it. Write interface changes there, never into
+committed: its README indexes supported Levels 1–7, and `PluginAPI/reference/`
+and the schemas specify each Level. Write interface changes there, never into
 `docs/`, which keeps Host-internal design and ADRs.
 
 ### Development verification

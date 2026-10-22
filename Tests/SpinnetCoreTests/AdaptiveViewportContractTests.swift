@@ -17,7 +17,7 @@ final class AdaptiveViewportContractTests: XCTestCase {
                 "style": .object(["font_size": .number(20)])])])])])])
         return .object(["id": .string("metrics"), "title": .string("Metrics"), "resizable": .bool(true), "content": .array([.object(adaptive)])])
     }
-    func testExactRevisionTwoAdmitsViewportProfilesWithoutChangingCanonicalComponents() throws {
+    func testLevelThreeAdmitsViewportProfilesWithoutChangingCanonicalComponents() throws {
         let manifest = try PluginManifestLoader.load(packageAt: Self.fixture).manifest
         try PluginInterfaceContracts.host.check(manifest, origin: .installed)
         let page = try PluginPage(parsing: Self.page(), permits: Self.permits)
@@ -42,18 +42,18 @@ final class AdaptiveViewportContractTests: XCTestCase {
         XCTAssertThrowsError(try PluginPage(parsing:.object(page),permits:Self.permits),"Only one fit region can own the remaining height")
     }
 
-    func testPublishedRevisionTwoFixturesMatchSchemaAndPublicParser() throws {
-        let root = PagesContractTests.pluginAPI.appendingPathComponent("candidates/adaptive_layout/r2")
-        let validator = try JSONSchemaSubsetValidator(definition:"answer",inSchemaAt:root.appendingPathComponent("adaptive-layout.schema.json"))
+    func testPublishedStableViewportFixturesMatchSchemaAndPublicParser() throws {
+        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/level-3/adaptive-layout")
+        let validator = try JSONSchemaSubsetValidator(definition:"answer",inSchemaAt:PagesContractTests.pluginAPI.appendingPathComponent("schemas/adaptive-layout.schema.json"))
         struct Index: Decodable { struct Fixture: Decodable { let file:String; let valid:Bool }; let fixtures:[Fixture] }
-        let index = try JSONDecoder().decode(Index.self,from:Data(contentsOf:root.appendingPathComponent("fixtures/index.json")))
+        let index = try JSONDecoder().decode(Index.self,from:Data(contentsOf:root.appendingPathComponent("index.json")))
         for fixture in index.fixtures {
-            let value = try JSONDecoder().decode(JSONValue.self,from:Data(contentsOf:root.appendingPathComponent("fixtures/" + fixture.file)))
+            let value = try JSONDecoder().decode(JSONValue.self,from:Data(contentsOf:root.appendingPathComponent(fixture.file)))
             XCTAssertEqual(validator.errors(for:value).isEmpty,fixture.valid,"\(fixture.file): \(validator.errors(for:value))")
             do { _ = try PluginScriptAnswer(parsing:value,permits:Self.permits); XCTAssertTrue(fixture.valid,fixture.file) }
             catch { XCTAssertFalse(fixture.valid,"\(fixture.file): \(error)") }
         }
-        let declared = try JSONDecoder().decode(CandidateContract.self,from:Data(contentsOf:root.appendingPathComponent("candidate.json")))
+        let declared = try JSONDecoder().decode(CandidateContract.self,from:Data(contentsOf:PagesContractTests.pluginAPI.appendingPathComponent("candidates/adaptive_layout/r2/candidate.json")))
         XCTAssertEqual(declared.status, .retired(promotedToLevel: 3))
         XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(AdaptiveViewportLayout.viewportFit))
         let manifest = try PluginManifestLoader.load(packageAt:Self.fixture).manifest

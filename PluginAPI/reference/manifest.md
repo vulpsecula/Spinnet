@@ -2,8 +2,9 @@
 
 A Plugin is a local `.spinnetplugin` directory holding a `manifest.json` and
 the scripts its Commands run. The shape of the manifest is published as
-[`schemas/manifest.schema.json`](../schemas/manifest.schema.json); this page
-states what the shape cannot, which the Host checks when it loads the package.
+the [Levels 1–2 schema](../schemas/manifest.schema.json) and the later
+[Level-specific schemas](../README.md#plugin-api-level). This page states what
+the shape cannot, which the Host checks when it loads the package.
 
 ```json
 {
@@ -53,7 +54,7 @@ no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
 
 `api_level` is the lowest Plugin API Level the Plugin needs, an integer of at
-least 1. The Host supports up to Level 2 and refuses to install a Plugin that
+least 1. The Host supports Levels 1–7 and refuses to install a Plugin that
 needs a higher level, telling the user to update Spinnet. A manifest without
 `api_level` is read as needing Level 1. `protocol_version` only frames the
 [helper messages](scripts.md#the-helper-protocol) and does not version the
@@ -356,6 +357,7 @@ the schema rejects them: `script_path` and `javascript` for `script`,
 `configuration` for `configuration_field`, and the `common_javascript` and
 `script` executions.
 
-External App connection prerequisites are provisional: see
-[`external_app_connections` r1](../candidates/external_app_connections/r1/README.md).
-They are not part of stable Level 2.
+External App connection prerequisites are stable from
+[Level 3](level-3.md#spotify-controls-and-external-app-connections); use the
+[connection schema](../schemas/external-app-connections.schema.json).
+They are not part of Level 2, and their former candidate declaration is retired.

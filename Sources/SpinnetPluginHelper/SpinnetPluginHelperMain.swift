@@ -228,18 +228,13 @@ struct SpinnetPluginHelperMain {
             }
             sdk = levelTwo
         }
-        if invocation.candidateContracts.contains(AdaptivePageLayout.declaration) {
-            guard let makeAdaptive = context.evaluateScript(SpinnetSDK.adaptiveLayoutSource), makeAdaptive.isObject,
+        if invocation.apiLevel >= 3 {
+            guard let makeAdaptive = context.evaluateScript(SpinnetSDK.levelThreeAdaptiveSource), makeAdaptive.isObject,
                   let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
             sdk = adaptive
         }
-        if invocation.apiLevel >= 3 || invocation.candidateContracts.contains(AdaptiveViewportLayout.declaration) {
-            guard let makeAdaptive = context.evaluateScript(invocation.apiLevel >= 3 ? SpinnetSDK.levelThreeAdaptiveSource : SpinnetSDK.adaptiveViewportSource), makeAdaptive.isObject,
-                  let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
-            sdk = adaptive
-        }
-        if invocation.apiLevel >= 3 || invocation.candidateContracts.contains(HomebrewAutoremove.declaration) {
-            guard let makeAutoremove = context.evaluateScript(invocation.apiLevel >= 3 ? SpinnetSDK.levelThreeAutoremoveSource : SpinnetSDK.homebrewAutoremoveSource), makeAutoremove.isObject,
+        if invocation.apiLevel >= 3 {
+            guard let makeAutoremove = context.evaluateScript(SpinnetSDK.levelThreeAutoremoveSource), makeAutoremove.isObject,
                   let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
             sdk = autoremove
         }

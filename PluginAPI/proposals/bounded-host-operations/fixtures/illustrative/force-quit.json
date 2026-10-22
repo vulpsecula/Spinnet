@@ -1,9 +1,0 @@
-{
-  "perform": "apps.quit",
-  "input": {
-    "target": "frontmost",
-    "force": true
-  },
-  "id": "force",
-  "notify": true
-}

@@ -1310,6 +1310,28 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "tools.startTask"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "input"
+            ],
+            "properties": {
+              "input": {
+                "$ref": "namespaces-level-3.schema.json#/$defs/tools.startTask.input"
+              }
+            }
+          }
         }
       ]
     },

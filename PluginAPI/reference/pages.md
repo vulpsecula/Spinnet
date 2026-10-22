@@ -20,9 +20,12 @@ of the Plugin runs inside its open View Session. Everything in
 and events, [`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) the types, and
 [`spinnet-level-2.js`](../spinnet-level-2.js) the SDK. Level 2 was proved as
 Candidate Contract `collections` r3, now retired
-([history](../candidates/collections/r3/reference.md)); the rationale is
-ADR 0019 and the design records in
-[`proposals/collections/`](../proposals/collections/design.md).
+([retirement record](../candidates/collections/r3/candidate.json)).
+Identified components let refreshes preserve typing, caret, IME composition,
+selection and scroll without a Plugin-owned patch protocol. The Host owns
+keyboard navigation and bounded Collection Windows; the Plugin owns data and
+search. No Host-drawn collection action bar is added: actions remain on the
+items and their context menu, with a Host-owned insertion target hint.
 
 ## Answering with a page
 
@@ -631,14 +634,15 @@ columns. Resizing the largest such grid, 24 columns of 2,000 items, was
 measured to re-lay it out in about 7 ms per step of a drag (p95 26 ms) on an
 Apple M1 Pro; the cells are re-laid out, not reloaded.
 
-A generic responsive card layout is separately offered only by the exact opt-in
-[adaptive_layout r1 Candidate Contract](../candidates/adaptive_layout/r1/README.md).
-It is not a stable Level 2 component or a Collection Grid and adds no resize event.
+A generic responsive card layout and passive viewport fit are stable from
+[Level 3](level-3.md#adaptive-cards-and-passive-viewport-fit). They are separate
+from a Collection Grid and add no resize event. Level 2 does not offer them;
+the former `adaptive_layout` r1/r2 declarations are retired.
 
 ## Not in Level 2
 
-Host-run sources (#71), multiline, URL and
-toggle fields, a total over 2,000 items, Host-side sorting of a window, setting controls and Host-Fetched Sections in pages, multiple
+Multiline, URL and toggle fields, a total over 2,000 items, Host-side sorting
+of a window, setting controls and Host-Fetched Sections in pages, multiple
 selection, selection-change events, focus requests, Host-side filtering,
 dirty drafts, page stacks and local dialogs. A Plugin that needs a Level 1
 element a page lacks answers a Level 1 `view` for that step.
@@ -672,4 +676,6 @@ See [sources](sources.md) for visibility, authority, retention, formatting,
 change-gated `source_delivered` events and bounds. Sources do not alter a page's
 Immediate State and offer no background schedule. HTTPS is once-only in this addition.
 
-`adaptive_layout` [revision 2](../candidates/adaptive_layout/r2/README.md) adds an optional viewport-fitting region with Plugin-declared passive text densities. Revision 1 remains provided unchanged; this is not a stable Level 2 addition.
+For adaptive cards and viewport profiles, use the
+[Level 3 page schema](../schemas/pages-level-3.schema.json) and
+[stable adaptive schema](../schemas/adaptive-layout.schema.json).

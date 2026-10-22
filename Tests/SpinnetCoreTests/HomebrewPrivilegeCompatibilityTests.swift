@@ -3,35 +3,6 @@ import XCTest
 import SpinnetCore
 
 final class HomebrewPrivilegeCompatibilityTests: XCTestCase {
-    func testHostAndRunnerRequireTheSameReviewedHomebrewSources() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let text = try String(contentsOf: root.appendingPathComponent("Tests/LegacyResources/HomebrewPrivilegeBridge.rb"))
-        let pattern = try NSRegularExpression(pattern: #""([^"]+\.rb)" => "([a-f0-9]{64})""#)
-        let legacy = text.components(separatedBy: "REVIEWED_SOURCE_UPDATES =")[0]
-        let pairs = pattern.matches(in: legacy, range: NSRange(legacy.startIndex..., in: legacy)).map { match -> (String, String) in
-            let path = Range(match.range(at: 1), in: legacy)!, digest = Range(match.range(at: 2), in: legacy)!
-            return (String(legacy[path]), String(legacy[digest]))
-        }
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: pairs), HomebrewPrivilegeReview.reviewedSourceDigests)
-        let sections = try XCTUnwrap(text.components(separatedBy: "REVIEWED_SOURCE_UPDATES =").last)
-        let updates = sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =")[0]
-        let changes = pattern.matches(in: updates, range: NSRange(updates.startIndex..., in: updates)).map { match -> (String, String) in
-            (String(updates[Range(match.range(at: 1), in: updates)!]), String(updates[Range(match.range(at: 2), in: updates)!]))
-        }
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: changes), HomebrewPrivilegeReview.reviewedSourceUpdates)
-        let remaining = try XCTUnwrap(sections.components(separatedBy: "REVIEWED_SOURCE_CLEANUP_UPDATES =").last)
-        let cleanup = remaining.components(separatedBy: "REVIEWED_SOURCE_CHECKSUM_UPDATES =")[0]
-        let cleanupChanges = pattern.matches(in: cleanup, range: NSRange(cleanup.startIndex..., in: cleanup)).map { match -> (String, String) in
-            (String(cleanup[Range(match.range(at: 1), in: cleanup)!]), String(cleanup[Range(match.range(at: 2), in: cleanup)!]))
-        }
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: cleanupChanges), HomebrewPrivilegeReview.reviewedSourceCleanupUpdates)
-        let checksum = try XCTUnwrap(remaining.components(separatedBy: "REVIEWED_SOURCE_CHECKSUM_UPDATES =").last)
-        let checksumChanges = pattern.matches(in: checksum, range: NSRange(checksum.startIndex..., in: checksum)).map { match -> (String, String) in
-            (String(checksum[Range(match.range(at: 1), in: checksum)!]), String(checksum[Range(match.range(at: 2), in: checksum)!]))
-        }
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: checksumChanges), HomebrewPrivilegeReview.reviewedSourceChecksumUpdates)
-    }
-
     func testReviewedInstalledSourcesPassAndChangingEachFileRemainsRefused() throws {
         let installed: URL
         do { installed = try HomebrewReadProfile.discover() }

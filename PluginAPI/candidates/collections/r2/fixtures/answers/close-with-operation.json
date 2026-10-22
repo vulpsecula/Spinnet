@@ -1,7 +1,0 @@
-{
-  "close": true,
-  "operation": {
-    "perform": "selection.replace",
-    "input": {"text": "🐈"}
-  }
-}

@@ -1,5 +1,0 @@
-{
-  "perform": "clipboard.write",
-  "input": "x",
-  "shortcut": "cmd+c"
-}

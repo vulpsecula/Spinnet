@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/catalogue.schema.json",
-  "description": "The Plugin API catalogue of Plugin API Level 2: every Host Service under one namespace.verb ID used at every entry point, with its input and result, Capability, System Permission, failure categories, where it is offered and the Level 1 names it replaces; the builders, values, globals, answer members, View Events and Capabilities; and the areas Spinnet does not offer. The Host's table of operations is held to it. Level 2 promoted Candidate Contracts namespaces r1, host_operations r2 and collections r3, whose catalogue this was (candidates/namespaces/r1/catalogue.json).",
+  "description": "The Plugin API catalogue of Plugin API Level 2: every Host Service under one namespace.verb ID used at every entry point, with its input and result, Capability, System Permission, failure categories, where it is offered and the Level 1 names it replaces; the builders, values, globals, answer members, View Events and Capabilities; and the areas Spinnet does not offer. The Host's table of operations is held to it. Level 2 promoted Candidate Contracts namespaces r1, host_operations r2 and collections r3, whose members are retained in this stable catalogue.",
   "level": 2,
   "entry_points": {
     "call": "A script calls the operation inside its invocation: spinnet.<id>(input), or requestHostService(\"<id>\", input). Returns the result.",

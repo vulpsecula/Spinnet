@@ -103,15 +103,15 @@ extension SpotifyControlsTests {
         XCTAssertEqual(dispatched, 3)
     }
 
-    func testPublicCandidateMetadataFixturesAndStableSchemaRemainSeparate() throws {
+    func testStableFixturesAndRetirementMetadataPreserveEarlierLevelBoundaries() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
-        let folder = root.appendingPathComponent("candidates/spotify_controls/r1")
-        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: folder.appendingPathComponent("candidate.json"))).status, .retired(promotedToLevel: 3))
+        let folder = root.appendingPathComponent("fixtures/level-3/spotify-controls")
+        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: root.appendingPathComponent("candidates/spotify_controls/r1/candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
-        for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/index.json"))).fixtures {
-            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: folder.appendingPathComponent("fixtures/" + entry.file)))
-            let schema = try JSONSchemaSubsetValidator(definition: entry.definition, inSchemaAt: folder.appendingPathComponent("spotify-controls.schema.json"))
+        for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("index.json"))).fixtures {
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: folder.appendingPathComponent(entry.file)))
+            let schema = try JSONSchemaSubsetValidator(definition: entry.definition, inSchemaAt: root.appendingPathComponent("schemas/spotify-controls.schema.json"))
             XCTAssertEqual(schema.errors(for: value).isEmpty, entry.valid, entry.file)
         }
         let stable = try JSONSchemaSubsetValidator(definition: "input", inSchemaAt: root.appendingPathComponent("schemas/spotify.schema.json"))

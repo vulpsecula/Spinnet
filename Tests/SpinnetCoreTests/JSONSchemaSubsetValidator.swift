@@ -15,7 +15,7 @@ struct JSONSchemaSubsetValidator {
     private static let assertions: Set<String> = [
         "$ref", "type", "const", "enum", "properties", "required", "additionalProperties",
         "items", "contains", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "minimum", "maximum",
-        "allOf", "oneOf", "anyOf", "if", "then", "propertyNames", "maxProperties"
+        "allOf", "oneOf", "anyOf", "not", "if", "then", "else", "propertyNames", "maxProperties"
     ]
 
     private let root: JSONValue
@@ -161,12 +161,14 @@ struct JSONSchemaSubsetValidator {
         case ("oneOf", .array(let schemas)):
             let matching = schemas.filter { errors(for: instance, against: $0, at: path).isEmpty }.count
             return matching == 1 ? [] : fail("matches \(matching) of the schemas where exactly one must match")
+        case ("not", _):
+            return errors(for: instance, against: value, at: path).isEmpty
+                ? fail("matches the schema it must not match") : []
         case ("if", _):
-            // `then` applies only when the instance satisfies `if`.
-            guard errors(for: instance, against: value, at: path).isEmpty,
-                  let then = keywords["then"] else { return [] }
-            return errors(for: instance, against: then, at: path)
-        case ("then", _):
+            let branch = errors(for: instance, against: value, at: path).isEmpty ? "then" : "else"
+            guard let selected = keywords[branch] else { return [] }
+            return errors(for: instance, against: selected, at: path)
+        case ("then", _), ("else", _):
             return []
         default:
             return fail("the schema's \(keyword) has a value of the wrong type")

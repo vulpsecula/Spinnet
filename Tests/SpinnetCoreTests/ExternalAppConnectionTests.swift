@@ -126,15 +126,18 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertEqual(sends, 1)
     }
 
-    func testHistoricalCandidateSchemaStillDescribesItsExactOptIn() throws {
+    func testStableConnectionSchemaRequiresLevelThreeAndRefusesRetiredDeclarations() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/candidates/external_app_connections/r1/external-app-connections.schema.json"))
-        var historical = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
-        historical["api_level"] = 2
-        historical["candidate_contracts"] = [["name": "external_app_connections", "revision": 1]]
-        XCTAssertEqual(schema.errors(for: try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: historical))), [])
-        historical["candidate_contracts"] = nil
-        XCTAssertFalse(schema.errors(for: try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: historical))).isEmpty)
+        let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/schemas/manifest-level-3.schema.json"))
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
+        func value() throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: manifest)) }
+        XCTAssertEqual(schema.errors(for: try value()), [])
+        manifest["candidate_contracts"] = [["name": "external_app_connections", "revision": 1]]
+        XCTAssertFalse(schema.errors(for: try value()).isEmpty)
+        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(PluginManifestLoader.decode(JSONEncoder().encode(value())), origin: .installed))
+        manifest["candidate_contracts"] = nil
+        manifest["api_level"] = 2
+        XCTAssertFalse(schema.errors(for: try value()).isEmpty)
     }
 
     func testExactCandidateIsEnforcedAtInstallRegistrationAndScriptRuntime() throws {

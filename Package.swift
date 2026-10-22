@@ -51,21 +51,16 @@ let package = Package(
             ]
         ),
         // The published contract (ADR 0013). Only the SDKs' sources are
-        // built, stable and exact opt-in candidates, embedded so the helper never
+        // built and embedded so the helper never
         // reads a file at run time.
         .target(
             name: "SpinnetPluginAPI",
             path: "PluginAPI",
-            exclude: ["LICENSE", "README.md", "proposals", "reference", "schemas", "spinnet.d.ts",
+            exclude: ["LICENSE", "README.md", "reference", "schemas", "spinnet.d.ts",
                       "spinnet-level-2.d.ts", "spinnet-level-3.d.ts", "spinnet-level-4.d.ts", "spinnet-level-5.d.ts", "spinnet-level-6.d.ts", "spinnet-level-7.d.ts", "adaptive-layout.d.ts", "external-app-connections.d.ts",
-                      "homebrew-autoremove.d.ts", "spotify-controls.d.ts", "homebrew-management.d.ts", "catalogue.json", "catalogue-level-3.json", "fixtures", "candidates/README.md", "candidates/collections", "candidates/host_operations",
-                      "candidates/namespaces", "candidates/live_activity_delivery", "candidates/terminal_homebrew", "candidates/homebrew_command_output", "candidates/homebrew_catalog_refresh", "candidates/schemas", "candidates/spotify_controls", "candidates/homebrew_autoremove/r1/candidate.json", "candidates/homebrew_autoremove/r1/README.md", "candidates/homebrew_autoremove/r1/homebrew-autoremove.d.ts", "candidates/homebrew_autoremove/r1/homebrew-autoremove.schema.json", "candidates/homebrew_autoremove/r1/fixtures", "candidates/external_app_connections", "candidates/adaptive_layout/r1/candidate.json",
-                      "candidates/adaptive_layout/r1/README.md", "candidates/adaptive_layout/r1/adaptive-layout.d.ts",
-                      "candidates/adaptive_layout/r1/adaptive-layout.schema.json", "candidates/adaptive_layout/r1/fixtures", "candidates/adaptive_layout/r2/candidate.json",
-                      "candidates/adaptive_layout/r2/README.md", "candidates/adaptive_layout/r2/adaptive-layout.d.ts",
-                      "candidates/adaptive_layout/r2/adaptive-layout.schema.json", "candidates/adaptive_layout/r2/fixtures"],
+                      "homebrew-autoremove.d.ts", "spotify-controls.d.ts", "homebrew-management.d.ts", "catalogue.json", "catalogue-level-3.json", "fixtures", "candidates"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-command-output.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("spinnet-level-3-adaptive.js"), .embedInCode("spinnet-level-3-autoremove.js"), .embedInCode("candidates/homebrew_autoremove/r1/homebrew-autoremove.js"), .embedInCode("candidates/adaptive_layout/r1/adaptive-layout.js"), .embedInCode("candidates/adaptive_layout/r2/adaptive-layout-r2.js")]
+            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-command-output.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("spinnet-level-3-adaptive.js"), .embedInCode("spinnet-level-3-autoremove.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

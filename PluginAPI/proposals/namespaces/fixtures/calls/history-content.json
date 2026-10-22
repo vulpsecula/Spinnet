@@ -1,8 +1,0 @@
-{
-  "service": "clipboardHistory.readContent",
-  "input": {
-    "entry_id": "11111111-1111-1111-1111-111111111111",
-    "offset": 0,
-    "length": 196608
-  }
-}

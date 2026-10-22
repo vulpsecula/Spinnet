@@ -1,7 +1,0 @@
-{
-  "service": "screen.capture",
-  "input": {
-    "source": "area",
-    "copy_to_clipboard": true
-  }
-}

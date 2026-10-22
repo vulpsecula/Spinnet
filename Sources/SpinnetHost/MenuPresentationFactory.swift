@@ -36,20 +36,6 @@ enum MenuPresentationFactory {
         }
     }
 
-    static func makeItems(
-        configuration: HostConfiguration,
-        availability: (ActionConfiguration) -> ActionAvailability,
-        presetName: (PluginID) -> String? = { _ in nil },
-        explanation: (ActionConfiguration) -> String? = { _ in nil }
-    ) -> [MenuItemPresentation] {
-        makeSlots(
-            configuration: configuration,
-            availability: availability,
-            presetName: presetName,
-            explanation: explanation
-        ).compactMap(\.item)
-    }
-
     private static func presentation(
         for actionID: ActionID,
         actions: [ActionID: ActionConfiguration],

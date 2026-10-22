@@ -1,8 +1,0 @@
-{
-  "operation": {
-    "perform": "selection.replace",
-    "input": {
-      "text": "2026-10-02"
-    }
-  }
-}

@@ -1,9 +1,0 @@
-{
-  "perform": "tools.startTask",
-  "input": {
-    "tool": "homebrew",
-    "operation": "upgrade",
-    "kind": "formula",
-    "name": "hashicorp/tap/terraform"
-  }
-}

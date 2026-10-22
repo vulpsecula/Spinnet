@@ -1,8 +1,0 @@
-{
-  "tool": "homebrew",
-  "operation": "info",
-  "kind": "formula",
-  "names": [
-    "hashicorp/tap/terraform"
-  ]
-}

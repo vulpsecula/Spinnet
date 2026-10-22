@@ -1,6 +1,0 @@
-{
-  "operation": {
-    "perform": "host.showPluginSettings",
-    "notify": true
-  }
-}

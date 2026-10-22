@@ -2,6 +2,24 @@ import XCTest
 import SpinnetCore
 
 final class HomebrewPrivilegeMetadataTests: XCTestCase {
+    func testGitFixtureCommandFailuresRemainFailuresWithDiagnostics() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let arguments = ["spinnet-invalid-fixture-command"]
+
+        XCTAssertThrowsError(try git(directory, arguments)) { error in
+            guard let failure = error as? GitFixtureFailure else {
+                return XCTFail("Expected a fixture failure, received \(error)")
+            }
+            XCTAssertNotEqual(failure.status, 0)
+            XCTAssertEqual(failure.arguments, arguments)
+            XCTAssertTrue(failure.stderr.contains("spinnet-invalid-fixture-command"))
+            XCTAssertTrue(failure.description.contains(directory.path))
+            XCTAssertTrue(failure.description.contains("exit \(failure.status)"))
+        }
+    }
+
     func testRequestedLanguageSelectsTheSignedOfficialArchiveAndGeneratedScriptWithoutLoadingRuby() throws {
         guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/brew") else { throw XCTSkip("Native Homebrew not installed") }
         let selected = try HomebrewPrivilegeMetadata.read("homebrew/cask/libreoffice-language-pack", language: "zh-CN", deadline: Date().addingTimeInterval(15))
@@ -160,14 +178,34 @@ final class HomebrewPrivilegeMetadataTests: XCTestCase {
         try action(root, environment, tap, cask)
     }
     private func git(_ directory: URL, _ args: [String]) throws -> String {
-        let command = Process(), output = Pipe(), errors = Pipe()
+        let command = Process(), output = Pipe()
+        // Keep stderr separate from object IDs on stdout, without leaving a
+        // second pipe undrained while Git is running.
+        let diagnosticsURL = FileManager.default.temporaryDirectory.appendingPathComponent("spinnet-git-fixture-\(UUID().uuidString).stderr")
+        try Data().write(to: diagnosticsURL)
+        defer { try? FileManager.default.removeItem(at: diagnosticsURL) }
+        let diagnostics = try FileHandle(forWritingTo: diagnosticsURL)
+        defer { try? diagnostics.close() }
         command.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         command.arguments = ["-C", directory.path] + args
         command.environment = ["PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "Native fixture", "GIT_AUTHOR_EMAIL": "fixture@invalid.example", "GIT_COMMITTER_NAME": "Native fixture", "GIT_COMMITTER_EMAIL": "fixture@invalid.example"]
-        command.standardOutput = output; command.standardError = errors
+        command.standardOutput = output; command.standardError = diagnostics
         try command.run(); let bytes = output.fileHandleForReading.readDataToEndOfFile(); command.waitUntilExit()
-        guard command.terminationStatus == 0 else { throw XCTSkip("Git fixture initialization failed") }
+        guard command.terminationStatus == 0 else {
+            throw GitFixtureFailure(directory: directory, arguments: args, status: command.terminationStatus,
+                                    stderr: String(decoding: try Data(contentsOf: diagnosticsURL), as: UTF8.self))
+        }
         return String(decoding: bytes, as: UTF8.self)
     }
 
+    private struct GitFixtureFailure: Error, CustomStringConvertible {
+        let directory: URL
+        let arguments: [String]
+        let status: Int32
+        let stderr: String
+
+        var description: String {
+            "Git fixture command failed (exit \(status)): /usr/bin/git -C \(directory.path) \(arguments.joined(separator: " "))\n\(stderr)"
+        }
+    }
 }

@@ -54,6 +54,9 @@ public struct PluginPageSource: Equatable {
         }
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
+            if input.value(atPointer: "/operation") == .string("commandOutput"), !permits(HomebrewCommandOutput.member) {
+                throw PluginPage.violation("Homebrew command output requires Plugin API Level 6")
+            }
             do { _ = try HomebrewReadInput(input) }
             catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }
         }

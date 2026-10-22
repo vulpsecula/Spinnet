@@ -529,9 +529,9 @@ public enum HomebrewPrivilegeReview {
         "cmd/uninstall.rb": "6caafdb7808550dc6dc9918692b545969c81ec134b540bf6ffb9fbcbfc0dcd72",
         "trust.rb": "0c40d55f481127ee83318439a46a1204c9ffe6691cc0a7143e89819baf794e3a"
     ]
-    // Reviewed complete snapshots: Homebrew 19fe946 and 3073d6a. The latter
-    // changes directive ordering, but all elevation still passes the same
-    // phase-bound bridge. Dispatch compatibility tests exercise the real seam.
+    // Legacy complete snapshots retained for source-cohort validation and
+    // native admission evidence. New native CLI Tasks do not load the retired
+    // Ruby bridge or depend on its private dispatcher ordering.
     public static let reviewedSourceUpdates: [String: String] = [
         "cask/artifact/abstract_uninstall.rb": "474917562f4a7e404b6a8e1b7372b0abd4337de29f1d8ffaa081cc405d747e5f",
         "cask/artifact/zap.rb": "b37740fcf730a86f690fc74ff6b1386c2da9b8c9604cc748800085ad47a3b312",

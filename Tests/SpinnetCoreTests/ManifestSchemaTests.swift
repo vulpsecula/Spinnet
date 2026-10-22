@@ -96,9 +96,11 @@ final class ManifestSchemaTests: XCTestCase {
     /// schema that starts using another must fail here rather than pass with
     /// the keyword ignored.
     func testTheValidatorRefusesAKeywordItDoesNotImplement() {
-        let validator = JSONSchemaSubsetValidator(schema: .object(["not": .bool(false)]))
+        let validator = JSONSchemaSubsetValidator(schema: .object(["unevaluatedProperties": .bool(false)]))
 
-        XCTAssertFalse(validator.errors(for: .null).isEmpty)
+        XCTAssertTrue(validator.errors(for: .null).contains {
+            $0.contains("unevaluatedProperties, which this validator does not implement")
+        })
     }
 
     /// Each case names the value at fault as a JSON Pointer, so a manifest

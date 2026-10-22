@@ -48,6 +48,16 @@ run a resize script or receive a resize event. Component identity and page
 state rules remain those of Level 2. See the [schema](../schemas/adaptive-layout.schema.json)
 and [valid/invalid fixtures](../fixtures/level-3/adaptive-layout/index.json).
 
+### Adaptive layout bounds
+
+There are 1–8 children in an adaptive container. `min_card_width` is 160–600 points (default 200).
+`spacing` is 0–24 points (default 12); `max_columns` is 1–4 (default 4).
+Viewport fit declares 1–3 profiles, each with 0–40 overrides and a
+`min_card_height` of 48–600 points. Page-wide component and container-depth
+bounds still apply; profiles never introduce replacement components.
+The [card fixtures](../fixtures/level-3/adaptive-cards/index.json) also cover
+adaptive containers without viewport fit.
+
 ## Homebrew unused dependencies
 
 `tools.read({tool:"homebrew",operation:"previewAutoremove"})` reads a bounded

@@ -29,10 +29,15 @@ recovery apply. Its `operation_finished` reports admission; follow the recorded
 Task through `activities.list` to its actual end. On success invalidate earlier
 catalog/detail caches before reading. On failure show the native output and let
 the user explicitly retry or continue with the last locally available catalog.
-Sources remain read-only and never update implicitly. Homebrew source drift is
-still refused pending review; refreshing never grants trust to new source code.
+Sources remain read-only and never update implicitly. Refreshing grants no new
+source trust or package-mutation authority. Native Homebrew owns source loading;
+the Host does not pin its private implementation files. See the
+[current execution profile](homebrew-system-authorization.md).
 
 Use the [input schema](../schemas/catalog-refresh.schema.json),
 [types](../spinnet-level-7.d.ts) and [example](../fixtures/level-7/usage.ts).
+Compose answers with the [Level 7 page schema](../schemas/pages-level-7.schema.json)
+and [Requested Host Operation schema](../schemas/host-operations-level-7.schema.json);
+visible-page sources retain the [Level 6 source schema](../schemas/sources-level-6.schema.json).
 The `homebrew_catalog_refresh` r1 candidate is retired into this Level. Earlier
 Levels cannot use the new operation or borrow its entry/confirmation exception.

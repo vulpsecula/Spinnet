@@ -1,7 +1,0 @@
-{
-  "type": "operation_finished",
-  "perform": "selection.replace",
-  "outcome": "refused",
-  "reason": "target_changed",
-  "app": "TextEdit"
-}

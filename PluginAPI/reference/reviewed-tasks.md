@@ -7,11 +7,11 @@ separate `run_reviewed_tool_tasks` Capability with `reviewed_tools` scopes
 listing the tool (`homebrew`), allowed operations and package kinds.
 
 The Host validates typed input and current authority, reserves one
-Host-wide slot, reads the concrete package plan and current Homebrew trust,
-then draws a Host Confirmation. Cancel is the default. No task queues,
+Host-wide slot, reads the selected package metadata and current source trust,
+then confirms the native command and selected targets. Cancel is the default. No task queues,
 automatic update/cleanup, mutation retries or replay exist in Levels 2–6; Level 7 offers only the separately granted catalog refresh described above. After
-confirmation the Host checks identity, scope, source trust and the exact
-plan again; a changed plan is refused for review. Canonical package names resolved
+confirmation the Host checks identity, scope, source trust and the selected
+metadata again; a changed selection is refused for review. Canonical package names resolved
 from aliases or renames are frozen in the confirmed Task, and existing canonical
 item trust can authorize a package without granting its entire tap. A qualified
 selector does not itself grant source trust.
@@ -30,7 +30,8 @@ complete filesystem manifests. No force or overwrite flag is enabled. The Host
 rechecks selected package metadata and current source trust before starting,
 while Homebrew determines the concrete effects when the command runs.
 
-Ended Task results carry a bounded outcome and, when relevant, one fixed reason:
+New Tasks report the native command's exit outcome. Recovery also retains bounded
+results from the earlier native authorization route, including these fixed reasons:
 `tool_failed`, `runner_refused`, `system_authorization_unavailable`,
 `privileged_result_lost`, `manual_installation_required`, `restart_required`,
 `logout_required` or `shutdown_required`.

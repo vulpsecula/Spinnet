@@ -1,7 +1,0 @@
-{
-  "bundle_id": "com.spotify.client",
-  "operation": "set_volume",
-  "arguments": {
-    "volume": 0
-  }
-}

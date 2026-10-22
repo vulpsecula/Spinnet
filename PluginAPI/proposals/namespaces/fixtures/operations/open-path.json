@@ -1,6 +1,0 @@
-{
-  "perform": "open.path",
-  "input": {
-    "path": "~/Downloads"
-  }
-}

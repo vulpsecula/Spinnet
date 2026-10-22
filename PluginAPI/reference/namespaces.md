@@ -13,7 +13,7 @@ their inputs and results and the shapes that name them;
 [`spinnet-level-2.js`](../spinnet-level-2.js) is the SDK and
 [`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) its types. Level 2 was
 proved as Candidate Contract `namespaces` r1, now retired
-([history](../candidates/namespaces/r1/reference.md)), with
+([retirement record](../candidates/namespaces/r1/candidate.json)), with
 [Requested Host Operations](host-operations.md) and
 [pages](pages.md).
 
@@ -306,7 +306,7 @@ Plugin Storage.
 
 ### `activities`
 
-Only the requesting Plugin's Host-owned effects, never another owner's.
+Only the requesting Plugin's Host-owned Effects and Tasks, never another owner's.
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
@@ -315,19 +315,25 @@ Only the requesting Plugin's Host-owned effects, never another owner's.
 
 See [Host activity controls](keep-awake.md#activities). A missing, ended or
 foreign ID is a no-op; Host Status Item controls can stop every owner.
-Task cancellation remains a separate adapter policy for #88.
+Task Stop attempts to stop supervised work and never promises rollback; see
+[Reviewed Tasks](reviewed-tasks.md).
 
 ### `tools`
 
-Bounded reads of existing local data through a Reviewed Tool Profile.
+Bounded reads and separately confirmed mutations through a Reviewed Tool Profile.
 
 | ID | Input | Result | Offered as | Needs |
 | --- | --- | --- | --- | --- |
 | `tools.read` | `{tool: "homebrew", operation, kind?, greedy?, query?, names?}` | `{tool, operation, packages, not_found?, truncated?}` | call, once-only source | `read_reviewed_tools`, scoped to tool, operation and package kind; no System Permission |
+| `tools.startTask` | typed Homebrew operation and concrete targets | Task admission, followed through own activities | page action, request | `run_reviewed_tool_tasks`, scoped to operation and package kind |
 
-Calls have a three-second deadline; sources have a fifteen-second deadline and
+Read calls have a three-second deadline; sources have a fifteen-second deadline and
 stop on hide or close. Neither refreshes a catalogue or installs a package.
 See [Reviewed Homebrew reads](tools.md) for each operation's input and bounds.
+Install and upgrade follow [Reviewed Tasks](reviewed-tasks.md); read authority
+does not grant mutations. [Level 7](level-7.md) adds the separately granted
+catalog-refresh entry exception. System authentication belongs to native sudo/PAM,
+as [Homebrew authorization](homebrew-system-authorization.md) describes.
 
 ## Reserved
 
@@ -340,7 +346,6 @@ until a later Level adds it.
 | `host.launchCommand` | README, candidates for later levels | Running another Command of the Plugin in the same View Session |
 | `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
 | `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
-| `tools.startTask` | #88 | Mutating reviewed tool tasks such as Homebrew |
 
 ### `system.metrics` (Level 2, #86)
 

@@ -1,6 +1,0 @@
-{
-  "perform": "open.url",
-  "input": {
-    "link": "https://example.com"
-  }
-}
