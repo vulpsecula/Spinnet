@@ -23,6 +23,23 @@ direct SwiftPM launches, follow [Host launch](AGENTS.md#host-launch). Launcher
 modes, signing and Plugin overrides are defined in
 [`script/build_and_run.sh`](script/build_and_run.sh).
 
+With [uv](https://docs.astral.sh/uv/), run the standard Draft 2020-12 schema
+check and its entry-point regression tests without building the macOS Host:
+
+```sh
+uv run --locked --script script/check_plugin_schemas.py
+uv run --no-project python -B -m unittest discover -s Tests/Validation -v
+```
+
+The check reads the same stable-Level fixture matrix as
+`StablePluginSchemaCompositionTests`, reports actual payload/check/schema counts,
+and fails on mismatches or incomplete checks. It also checks every schema's
+meta-schema structure. Optional `format` annotations are not asserted: Python's
+regex-format checker cannot validate the published ICU Unicode properties.
+Payload `pattern` constraints still execute; an unsupported pattern fails the
+check rather than counting as an expected refusal. These checks do not establish
+native Host acceptance.
+
 The official packages live in the independent MIT repository
 [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
 submodule or SwiftPM dependency on it: packaging reads the lock file, fetches
