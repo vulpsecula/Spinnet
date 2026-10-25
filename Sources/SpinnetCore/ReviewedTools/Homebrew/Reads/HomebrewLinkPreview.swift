@@ -3,7 +3,6 @@ import CryptoKit
 import Darwin
 
 enum HomebrewLinkPreview {
-    static var adapter: URL { Bundle.module.url(forResource: "HomebrewLinkPreview", withExtension: "rb")! }
     static func read(operation: String, input: JSONValue, version: String, executable: URL, deadline: Date,
                      cancellation: HostFetchedSections.Cancellation, execute: HomebrewReadProfile.CancellableExecutor,
                      stillAuthorized: () throws -> Void) throws -> [String: JSONValue] {

@@ -125,11 +125,8 @@ for specification in "${HELPER_SPECS[@]}"; do
 done
 mkdir -p "$APP_CONTENTS/Library/LaunchDaemons"
 cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tools.plist" "$APP_CONTENTS/Library/LaunchDaemons/"
-# SwiftPM native resource bundles contain only sealed Host-owned Ruby adapters.
-for bundle in "$BUILD_DIR"/Spinnet_SpinnetCore.bundle; do
-    [[ -d "$bundle" ]] || continue
-    ditto "$bundle" "$APP_RESOURCES/$(basename "$bundle")"
-done
+# Core no longer has runtime resources. Do not package its obsolete SwiftPM
+# bundle if an incremental build left the retired Ruby adapters behind.
 
 # Bundled Plugins ship as Plugin packages so the Host reads them the same way
 # it reads an installed Plugin. They live under Resources rather than PlugIns

@@ -43,6 +43,10 @@ New Tasks do not register or require Spinnet's privileged background daemon.
 Existing background approval is not reset or unregistered. Recovery retains
 legacy journals' status and Stop handling until independently proven reaping;
 legacy journals are never launched again by the new runner.
+The legacy daemon refuses new admission, inspection and mutation requests,
+including requests from older signed clients. Its retained interfaces query or
+stop existing work and recover or clean up existing records; they cannot start
+another legacy operation.
 
 Doctor's native brew repairs remain typed. Suggestions requiring commands
 outside this profile remain manual guidance rather than arbitrary elevated

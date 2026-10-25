@@ -150,7 +150,8 @@ class LauncherTests(unittest.TestCase):
                 self.assertEqual(len(products), len(HELPERS) + 1)
                 contents = self.root / "dist/SpinnetHost.app/Contents"
                 self.assertEqual({path.name for path in (contents / "Helpers").iterdir()}, set(HELPERS))
-                self.assertTrue((contents / "Resources/Spinnet_SpinnetCore.bundle/resource.rb").is_file())
+                self.assertFalse((contents / "Resources/Spinnet_SpinnetCore.bundle").exists(),
+                                 "An obsolete incremental-build bundle must not ship retired Ruby adapters")
                 self.assertTrue((contents / "Resources/Plugins/Example.spinnetplugin/manifest.json").is_file())
                 signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]]
                 self.assertEqual(len(signed), len(HELPERS) + 1)

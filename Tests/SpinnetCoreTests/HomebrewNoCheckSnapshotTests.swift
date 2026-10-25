@@ -1,13 +1,13 @@
 import XCTest
-import SpinnetCore
+@testable import SpinnetCore
 import Darwin
 
 final class HomebrewNoCheckSnapshotTests: XCTestCase {
     func testNoCheckConfirmationFreezesBytesAndReusesTheSamePublisherBoundSnapshot() throws {
-        let metadata = try HomebrewPrivilegeMetadata.readEvidence("4peaks")
+        let metadata = try HomebrewSignedCatalogFixture.snapshot("4peaks")
         try withDirectory { root in
-            let selected = try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: fixture)
-            XCTAssertEqual(selected.sourceURL.absoluteString, "https://downloads.nucleobytes.com/4peaks.dmg")
+            let selected = try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: fixture(for: metadata))
+            XCTAssertEqual(metadata.metadata["url"], .string(selected.sourceURL.absoluteString))
             XCTAssertEqual(try Data(contentsOf: selected.fileURL), Data("Host-owned fixture bytes".utf8))
             XCTAssertEqual(selected.byteCount, 24)
             XCTAssertEqual(selected.sha256, "4a37fa3a733f79c20210d05cc2a48de4e29d23eebffc7332bc49e38eb54e5962")
@@ -17,7 +17,7 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: selected.fileURL.path)
             try Data("changed cache".utf8).write(to: selected.fileURL)
             try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: selected.fileURL.path)
-            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: fixture)) {
+            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: fixture(for: metadata))) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged))
             }
             let receiptURL = selected.fileURL.deletingPathExtension().appendingPathExtension("json")
@@ -27,7 +27,7 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: receiptURL.path)
             try JSONSerialization.data(withJSONObject: receipt).write(to: receiptURL)
             try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: receiptURL.path)
-            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), expectedSHA256: selected.sha256, fetch: fixture)) {
+            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), expectedSHA256: selected.sha256, fetch: fixture(for: metadata))) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged))
             }
             try FileManager.default.removeItem(at: receiptURL)
@@ -37,7 +37,7 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
         }
     }
     func testCheckedPublisherArtifactNeverEntersTheNoCheckDownloader() throws {
-        let metadata = try HomebrewPrivilegeMetadata.readEvidence("libreoffice-language-pack", language: "zh-CN")
+        let metadata = try HomebrewSignedCatalogFixture.snapshot("libreoffice-language-pack", languages: ["zh-CN"])
         try withDirectory { root in
             XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: { _, _, _, _, _ in XCTFail("Checked artifacts cannot use no_check capture"); throw PluginHostServiceError.tool(.failed) })) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed))
@@ -46,19 +46,19 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
         }
     }
     func testCancellationAndExpiredDeadlineCannotLeaveAReusablePartialSnapshot() throws {
-        let metadata = try HomebrewPrivilegeMetadata.readEvidence("4peaks")
+        let metadata = try HomebrewSignedCatalogFixture.snapshot("4peaks")
         try withDirectory { root in
-            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(-1), fetch: fixture)) {
+            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(-1), fetch: fixture(for: metadata))) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.timedOut))
             }
-            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), isCancelled: { true }, fetch: fixture)) {
+            XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), isCancelled: { true }, fetch: fixture(for: metadata))) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged))
             }
             XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
         }
     }
     func testExpandedDownloadBudgetAndIncompleteFetchCannotBecomeConfirmationEvidence() throws {
-        let metadata = try HomebrewPrivilegeMetadata.readEvidence("4peaks")
+        let metadata = try HomebrewSignedCatalogFixture.snapshot("4peaks")
         try withDirectory { root in
             XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: { _, fd, limit, _, _ in
                 // Sparse fixture proves the byte bound without downloading or
@@ -69,7 +69,7 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
             }
             XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
             XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: { source, fd, limit, deadline, stop in
-                try self.fixture(source, fd, limit, deadline, stop)
+                try self.fixture(for: metadata)(source, fd, limit, deadline, stop)
                 throw PluginHostServiceError.tool(.timedOut)
             })) {
                 XCTAssertEqual($0 as? PluginHostServiceError, .tool(.timedOut))
@@ -78,7 +78,7 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
         }
     }
     func testAReadableHostStageCannotReceivePrivateConfirmationBytes() throws {
-        let metadata = try HomebrewPrivilegeMetadata.readEvidence("4peaks")
+        let metadata = try HomebrewSignedCatalogFixture.snapshot("4peaks")
         try withDirectory { root in
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path)
             XCTAssertThrowsError(try HomebrewNoCheckSnapshot.capture(snapshot: metadata, into: root, deadline: Date().addingTimeInterval(10), fetch: { _, _, _, _, _ in XCTFail("Nonprivate stage must fail before download"); throw PluginHostServiceError.tool(.failed) })) {
@@ -87,10 +87,13 @@ final class HomebrewNoCheckSnapshotTests: XCTestCase {
             XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
         }
     }
-    private func fixture(_ source: URL, _ fd: Int32, _ maxBytes: Int64, _ deadline: Date, _ isCancelled: @escaping () -> Bool) throws {
-        let data = Data("Host-owned fixture bytes".utf8)
-        XCTAssertEqual(source.absoluteString, "https://downloads.nucleobytes.com/4peaks.dmg")
-        XCTAssertEqual(data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }, data.count)
+    private func fixture(for snapshot: HomebrewPrivilegeMetadata.Snapshot) -> HomebrewNoCheckSnapshot.Fetch {
+        let expected = snapshot.metadata["url"]
+        return { source, fd, _, _, _ in
+            let data = Data("Host-owned fixture bytes".utf8)
+            XCTAssertEqual(expected, .string(source.absoluteString))
+            XCTAssertEqual(data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }, data.count)
+        }
     }
     private func withDirectory(_ action: (URL) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

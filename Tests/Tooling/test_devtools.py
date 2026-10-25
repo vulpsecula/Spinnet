@@ -164,12 +164,10 @@ esac
         self.assertIn('--host a2', result.stdout)
         self.assertFalse(self.trace.exists())
 
-    def test_default_ax_stages_current_nested_sources_and_resources_before_building(self):
+    def test_default_ax_stages_current_nested_sources_without_retired_resources(self):
         core = self.root / 'Sources/SpinnetCore'
         (core / 'Nested').mkdir(parents=True)
         (core / 'Nested/Example.swift').write_text('struct Example {}\n')
-        (core / 'Resources').mkdir()
-        (core / 'Resources/example.rb').write_text('# unchanged adapter\n')
         host = self.root / 'Sources/SpinnetHost/Services'
         host.mkdir(parents=True)
         for name in ['HostTextInserter.swift', 'InsertionTargets.swift', 'HostAccessibility.swift']:
@@ -196,9 +194,8 @@ esac
         # Stop at the first fake compiler call; no app, signing or UI runs.
         self.assertEqual(result.returncode, 93, result.stdout + result.stderr)
         self.assertEqual((staged / 'Sources/SpinnetCore/Nested/Example.swift').read_text(), 'struct Example {}\n')
-        self.assertEqual((staged / 'Sources/SpinnetCore/Resources/example.rb').read_text(), '# unchanged adapter\n')
         manifest = (staged / 'Package.swift').read_text()
-        self.assertIn('resources: [.process("Resources")]', manifest)
+        self.assertNotIn('resources:', manifest)
         self.assertIn('.define("HOST_CURRENT")', manifest)
         self.assertTrue((staged / 'Sources/AXInsertionProbe/HostCurrent/HostTextInserter.swift').is_file())
         self.assertEqual((staged / 'Sources/AXInsertionProbe/HostCurrent/HostAccessibility.swift').read_bytes(),

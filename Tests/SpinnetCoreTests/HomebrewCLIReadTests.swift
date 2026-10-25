@@ -48,7 +48,7 @@ final class HomebrewCLIReadTests: XCTestCase {
         XCTAssertEqual(try HostReviewedToolTasks.preflight(service, executable: executable).value(atPointer: "/name"), .string("example"))
         XCTAssertEqual(try HostReviewedToolTasks.readTrustedTaps(executable: executable), ["acme/tools"])
         XCTAssertThrowsError(try HomebrewReadProfile.execute(executable, ["info", "--json=v2", "--installed"], HomebrewReadProfile.environment, Date().addingTimeInterval(3))) {
-            XCTAssertTrue($0.localizedDescription.contains("source revision needs review"))
+            XCTAssertTrue($0.localizedDescription.contains("retired"))
         }
     }
 

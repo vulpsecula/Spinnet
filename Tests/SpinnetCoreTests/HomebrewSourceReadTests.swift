@@ -1,161 +1,93 @@
 import XCTest
 import SpinnetCore
 
-/// Fixture CLI retains Homebrew's qualified-argv trust exception. The public
-/// private inspection must prevent it from reaching a package definition,
-/// including aliases. Ordinary CLI reads delegate loading to Homebrew.
+/// Retired private execution refuses before launch; installed history remains data-only.
 final class HomebrewSourceReadTests: XCTestCase {
     func testPrivateInspectionRejectsChangedLoaderBeforeItsBootstrapCanEvaluateIt() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let executable = root.appendingPathComponent("bin/brew")
         let library = root.appendingPathComponent("Library/Homebrew")
+        let marker = root.appendingPathComponent("bootstrap-evaluated")
         try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
         try Data("raise 'UNREVIEWED_BOOTSTRAP_EVALUATED'".utf8).write(to: library.appendingPathComponent("formulary.rb"))
-        // A harmless bootstrap tracer: if launched it returns valid metadata
-        // identifying that code reached the unreviewed process boundary.
         try Data("""
         #!/bin/sh
+        /usr/bin/touch '\(marker.path)'
         printf '%s\\n' '{"formulae":[{"name":"example","tap":"homebrew/core","versions":{"stable":"bootstrap-evaluated"}}],"casks":[]}'
         """.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let profile = HomebrewReadProfile(executable: { executable }, execute: HomebrewReadProfile.execute)
         XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string("example")])]), owner: PluginID("bootstrap-tracer"))) { error in
-            guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected prelaunch source revision refusal: \(error)") }
-            XCTAssertTrue(reason.contains("source revision"))
+            guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected prelaunch retirement refusal: \(error)") }
+            XCTAssertTrue(reason.contains("retired"))
         }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path), "A refused private read must never start the executable")
     }
 
-    func testQualifiedSelectorAndBareAliasCannotTemporarilyTrustRubyWhileCanonicalMetadataRemainsReadable() throws {
+    func testInstalledHistoryIsDataOnlyAndCannotFallBackToRuby() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        func write(_ path: String, _ text: String) throws {
-            let url = root.appendingPathComponent(path)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(text.utf8).write(to: url)
+        let marker = root.appendingPathComponent("installed-ruby-evaluated")
+        let ruby = "File.write('\(marker.path)', 'unexpected execution')\nraise 'INSTALLED_JSON_EVALUATED_AS_RUBY'"
+        let receiptArtifacts: [[String: Any]] = [["uninstall": [["pkgutil": "org.example.receipt"]]]]
+        let definitionArtifacts: [[String: Any]] = [["uninstall": [["pkgutil": "org.example.definition"]]]]
+
+        func install(_ token: String, definition: String?, artifacts: [[String: Any]]? = nil, flightBlocks: Bool = false) throws {
+            let metadata = root.appendingPathComponent("Caskroom/\(token)/.metadata")
+            let casks = metadata.appendingPathComponent("1.2.3/20261025000000.000/Casks")
+            try FileManager.default.createDirectory(at: casks, withIntermediateDirectories: true)
+            var receipt: [String: Any] = ["source": ["version": "1.2.3", "tap": "homebrew/cask"], "uninstall_flight_blocks": flightBlocks]
+            if let artifacts { receipt["uninstall_artifacts"] = artifacts }
+            try JSONSerialization.data(withJSONObject: receipt).write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
+            // Every case has executable-looking Ruby; it is never a fallback.
+            try Data(ruby.utf8).write(to: casks.appendingPathComponent(token + ".rb"))
+            if let definition { try Data(definition.utf8).write(to: casks.appendingPathComponent(token + ".json")) }
         }
-        try write("lib/trust.rb", """
-        require 'json'
-        require 'pathname'
-        module Homebrew
-          class UntrustedTapError < StandardError; end
-          module EnvConfig
-            def self.no_require_tap_trust?; true; end
-          end
-          module Trust
-            def self.trusted?(kind, name); ['homebrew/core/example', 'other/tap/canonical'].include?(name); end
-            def self.explicitly_allowed?(*args); true; end
-            def self.require_trusted_formula!(name, path)
-              return if Homebrew::EnvConfig.no_require_tap_trust? || trusted?(:formula, name) || explicitly_allowed?(:formula, name, nil)
-              raise Homebrew::UntrustedTapError
-            end
-          end
-          class AbstractCommand
-            def self.command(name); Homebrew::Info; end
-          end
-          def self.running_command=(value); end
-          def self.failed?; false; end
-        end
-        """)
-        try write("lib/formulary.rb", "module Formulary; end")
-        try write("lib/cask/cask_loader.rb", """
-        module Cask
-          class CaskUnavailableError < StandardError
-            def initialize(*args); super('Unavailable history'); end
-          end
-          module CaskLoader
-            class FromAPILoader
-              def initialize(token, from_json:, **kwargs)
-                @json = from_json
-                raise 'Expected parsed frozen JSON' unless from_json.frozen?
-                raise 'API fallback attempted' if kwargs[:api_fallback]
-              end
-              def load(config:)
-                {formulae: [], casks: [{token: 'example', version: @json['version']}]}
-              end
-            end
-            class FromPathLoader
-              attr_reader :path, :token
-              def initialize(name)
-                @path = Pathname.new(name.end_with?('ruby') ? '/fixture/history.rb' : '\(root.path)/' + name + '.json')
-                @token = 'example'
-                @from_installed_caskfile = true
-                @api_fallback = true
-              end
-              def load(config:)
-                raise 'API fallback attempted' if @api_fallback
-                raise 'INSTALLED_JSON_EVALUATED_AS_RUBY' unless JSON.parse(path.read).is_a?(Hash)
-                {formulae: [], casks: [{token: 'example', version: '1'}]}
-              end
-            end
-          end
-        end
-        """)
-        try write("history-json.json", "{\"version\":\"1\"}")
-        try write("history-null.json", "null")
-        try write("history-array.json", "[]")
-        try write("history-scalar.json", "42")
-        try write("history-malformed.json", "raise 'INSTALLED_JSON_EVALUATED_AS_RUBY'")
-        try write("lib/cmd/info.rb", """
-        require 'trust'
-        class Homebrew::Info
-          def initialize(args); @args = args; end
-          def run
-            name = @args.last
-            if name == 'writer'
-              File.write('\(root.appendingPathComponent("outside-read").path)', 'unexpected read mutation')
-            end
-            if name.start_with?('history-')
-              begin
-                puts Cask::CaskLoader::FromPathLoader.new(name).load(config: nil).to_json
-              rescue Cask::CaskUnavailableError
-                puts({formulae: [], casks: []}.to_json)
-              end
-              return
-            end
-            name = 'other/tap/canonical' if ['other/tap/trustedalias', 'other/tap/renamed'].include?(name)
-            Homebrew::Trust.require_trusted_formula!(name == 'alias' ? 'other/tap/example' : name, nil)
-            puts({formulae: [{name: 'example', full_name: name, tap: 'homebrew/core', versions: {stable: '1'}}], casks: []}.to_json)
-          end
-        end
-        """)
-        try write("fixture-cli", """
-        #!/bin/sh
-        if [ "$1" = ruby ]; then
-          shift 2
-          exec /usr/bin/ruby -I'\(root.appendingPathComponent("lib").path)' "$@"
-        fi
-        exec /usr/bin/ruby -I'\(root.appendingPathComponent("lib").path)' -rcmd/info -e 'ARGV.shift; Homebrew::Info.new(ARGV).run' -- "$@"
-        """)
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.appendingPathComponent("fixture-cli").path)
-        let profile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") }, execute: HomebrewReadProfile.execute)
-        func read(_ name: String) throws -> JSONValue {
-            try profile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("formula"), "names": .array([.string(name)])]), owner: PluginID("trust-tracer"))
+        func assertNotExecuted(_ context: String) {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path), context)
         }
-        for name in ["other/tap/example", "alias", "homebrew/core/custom"] {
-            XCTAssertThrowsError(try read(name)) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.sourceNotAllowed)) }
+
+        // A present but invalid JSON definition must not fall back to either
+        // the valid receipt artifacts or the adjacent executable Ruby recipe.
+        for (label, payload) in [("null", "null"), ("array", "[]"), ("scalar", "42"), ("malformed", ruby)] {
+            let token = "history-" + label
+            try install(token, definition: payload, artifacts: receiptArtifacts)
+            XCTAssertThrowsError(try HomebrewInstalledUninstall.read(name: token, prefix: root.path), label)
+            assertNotExecuted(label)
         }
-        XCTAssertEqual(try read("homebrew/core/example").value(atPointer: "/packages/0/version"), .string("1"))
-        for name in ["other/tap/trustedalias", "other/tap/renamed"] {
-            XCTAssertEqual(try read(name).value(atPointer: "/packages/0/name"), .string("other/tap/canonical"))
+
+        let definition: [String: Any] = ["token": "history-json", "artifacts": definitionArtifacts]
+        let definitionBytes = try JSONSerialization.data(withJSONObject: definition)
+        try install("history-json", definition: String(decoding: definitionBytes, as: UTF8.self), artifacts: receiptArtifacts)
+        let jsonRecord = try HomebrewInstalledUninstall.read(name: "history-json", prefix: root.path)
+        XCTAssertEqual(jsonRecord.version, "1.2.3")
+        XCTAssertEqual(jsonRecord.tap, "homebrew/cask")
+        XCTAssertEqual(try JSONSerialization.data(withJSONObject: jsonRecord.artifacts, options: .sortedKeys),
+                       try JSONSerialization.data(withJSONObject: definitionArtifacts, options: .sortedKeys))
+        assertNotExecuted("Valid installed JSON remains data")
+
+        try install("history-ruby", definition: nil)
+        XCTAssertThrowsError(try HomebrewInstalledUninstall.read(name: "history-ruby", prefix: root.path)) { error in
+            guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected missing exact installed artifacts to be refused: \(error)") }
+            XCTAssertTrue(reason.contains("No exact installed uninstall artifacts"))
         }
-        XCTAssertThrowsError(try read("writer"))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("outside-read").path))
-        let caskProfile = HomebrewReadProfile(executable: { root.appendingPathComponent("fixture-cli") }, execute: HomebrewReadProfile.execute)
-        func history(_ name: String) throws -> JSONValue {
-            try caskProfile.read(.object(["tool": .string("homebrew"), "operation": .string("info"), "kind": .string("cask"), "names": .array([.string(name)])]), owner: PluginID("history-tracer"))
+        assertNotExecuted("Ruby alone cannot supply installed artifacts")
+
+        // Receipts can independently record exact data without a JSON recipe.
+        // Their presence authorizes reading that data, never executing Ruby.
+        try install("history-receipt", definition: nil, artifacts: receiptArtifacts)
+        let receiptRecord = try HomebrewInstalledUninstall.read(name: "history-receipt", prefix: root.path)
+        XCTAssertEqual(try JSONSerialization.data(withJSONObject: receiptRecord.artifacts, options: .sortedKeys),
+                       try JSONSerialization.data(withJSONObject: receiptArtifacts, options: .sortedKeys))
+        assertNotExecuted("Receipt artifacts remain data")
+
+        try install("history-flight", definition: nil, artifacts: receiptArtifacts, flightBlocks: true)
+        XCTAssertThrowsError(try HomebrewInstalledUninstall.read(name: "history-flight", prefix: root.path)) { error in
+            guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected executable installed history to be refused: \(error)") }
+            XCTAssertTrue(reason.contains("executable uninstall history"))
         }
-        for name in ["history-null", "history-array", "history-scalar", "history-malformed"] {
-            XCTAssertThrowsError(try history(name)) { error in
-                guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected malformed installed history to be refused as data: \(error)") }
-                XCTAssertTrue(reason.contains("installed JSON"))
-            }
-        }
-        XCTAssertEqual(try history("history-json").value(atPointer: "/packages/0/version"), .string("1"))
-        XCTAssertThrowsError(try history("history-ruby")) { error in
-            guard case .unavailable(let reason) = error as? PluginHostServiceError else { return XCTFail("Expected an explicit installed-history refusal") }
-            XCTAssertTrue(reason.contains("installed JSON"))
-        }
+        assertNotExecuted("Executable flight blocks cannot be substituted with receipt data")
     }
 }

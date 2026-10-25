@@ -392,7 +392,6 @@ public final class HomebrewReadProfile {
     public static func execute(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date) throws -> HomebrewReadOutput {
         try executeCancellable(executable, arguments, environment, deadline, .init())
     }
-    static var trustAdapter: URL { Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")! }
     public static func explicitlyTrusted(_ name: String, kind: String, executable: URL,
         deadline: Date, cancellation: HostFetchedSections.Cancellation = .init()) throws -> Bool {
         guard ["tap", "formula", "cask"].contains(kind),
@@ -417,23 +416,16 @@ public final class HomebrewReadProfile {
     }
     public static func executeCancellable(_ executable: URL, _ arguments: [String], _ environment: [String: String], _ deadline: Date,
                                           _ cancellation: HostFetchedSections.Cancellation) throws -> HomebrewReadOutput {
-        // Validate the reviewed bootstrap/loader files before brew can preload
-        // global and IRB helpers. The guard inside Ruby checks its loader files
-        // again; neither check claims to freeze the user-owned live tree.
-        if executable.lastPathComponent == "brew" {
-            try HomebrewReadSource.validate(executable: executable, deadline: deadline, cancellation: cancellation)
-            try HomebrewBootstrapOptions.validate(executable: executable, environment: environment, deadline: deadline, cancellation: cancellation)
+        // Old private Ruby execution is no longer an admission path. Ordinary
+        // Plugin reads use this profile's instance executor and the public CLI.
+        guard executable.lastPathComponent != "brew" else {
+            throw PluginHostServiceError.unavailable("The private Homebrew Ruby executor has been retired. Use the public CLI read profile.")
         }
-        let commands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust", "host-trust"]
-        let isReviewedCommand = commands.contains(arguments.first ?? "")
-        let guarded = isReviewedCommand
-            ? ["ruby", "--", Bundle.module.url(forResource: "HomebrewRead", withExtension: "rb")!.path] + arguments : arguments
-        let output = try executeBounded(executable, guarded, environment, deadline, cancellation, stdoutLimit: ReviewedToolReads.stdoutBytes, readOnly: isReviewedCommand || arguments.first == "ruby" || arguments.first == "--version" || executable.lastPathComponent == "brew")
-        if output.status == 77 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_SOURCE_NOT_ALLOWED__") { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        if output.status == 79 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_DOCTOR_SOURCE_UNREVIEWED__") { throw PluginHostServiceError.unavailable("This Homebrew Doctor source revision needs review before diagnostics") }
-        if output.status == 79 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_SOURCE_ADAPTER_UNREVIEWED__") { throw PluginHostServiceError.unavailable("This Homebrew loader source revision needs review before metadata reads") }
-        if output.status == 78 && String(decoding: output.stderr, as: UTF8.self).contains("__SPINNET_INSTALLED_HISTORY_UNAVAILABLE__") { throw PluginHostServiceError.unavailable("Installed Ruby history lacks immutable source provenance; this read accepts installed JSON only") }
-        return output
+        let readCommands = ["info", "outdated", "search", "list", "tap-info", "services", "doctor", "trust", "host-trust"]
+        return try executeBounded(executable, arguments, environment, deadline, cancellation,
+                                  stdoutLimit: ReviewedToolReads.stdoutBytes,
+                                  readOnly: arguments.first.map(readCommands.contains) == true
+                                      || arguments.first == "ruby" || arguments.first == "--version")
     }
     /// Internal native metadata lane. The Plugin contract cannot select these
     /// argv or increase tools.read's cap; mutation commands are never admitted.
@@ -465,7 +457,7 @@ public final class HomebrewReadProfile {
         // Network denial applies to Homebrew and every descendant, including
         // missing/corrupt API-cache fallback and the user's brew.env overrides.
         // Deny package-prefix writes as well: bootstrap cannot install Ruby.
-        let sandbox = readOnly || arguments.prefix(3) == ["ruby", "--", HomebrewDryRunReads.adapter.path] ? Self.readOnlySandbox(executable: executable, writableCache: writableCache) : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
+        let sandbox = readOnly ? Self.readOnlySandbox(executable: executable, writableCache: writableCache) : "(version 1)(allow default)(deny network*)(deny file-write* (subpath \"/opt/homebrew\") (subpath \"/usr/local/Homebrew\") (subpath \"/usr/local/Cellar\") (subpath \"/usr/local/Caskroom\"))"
         let launcher = "/usr/bin/sandbox-exec"
         let sandboxArguments = ["-p", sandbox, executable.path] + arguments
         var out: [Int32] = [0, 0], err: [Int32] = [0, 0]

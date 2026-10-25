@@ -1,25 +1,32 @@
 import XCTest
-import SpinnetCore
+@testable import SpinnetCore
 import Foundation
 import Darwin
 
-final class HomebrewNativeAdmissionTests: XCTestCase {
-    func testActualSignedLanguageSourceAdmitsGeneratedInstallerBeforeConfirmation() throws {
+final class HomebrewRetainedPublisherEvidenceTests: XCTestCase {
+    func testRetainedSignedSourceRefusesForgedGeneratedCodeAndPreservesManualOutcome() throws {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath().appendingPathComponent("native-admission-" + UUID().uuidString)
         try NativeFileQuarantine.makePrivateDirectory(directory)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("changeLanguage"), "kind": .string("cask"), "name": .string("libreoffice-language-pack"), "language": .string("zh-CN")]))
-        let package: JSONValue = .object(["name": .string("libreoffice-language-pack"), "needs_privileges": .bool(true)])
-        let bindings = try HomebrewPrivilegeReview.casks(input: input, package: package, executable: URL(fileURLWithPath: "/opt/homebrew/bin/brew"), evidenceDirectory: directory)
-        let binding = try XCTUnwrap(bindings.first)
-        XCTAssertEqual(binding.sha256, "bed798290092207dd40afe7976cbb4bae936fb20c26a5a3c263dcef34f678577")
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("libreoffice-language-pack", languages: ["zh-CN"])
+        let evidence = try XCTUnwrap(snapshot.officialEvidence), configuration = try XCTUnwrap(snapshot.configuration)
+        guard case .string(let version)? = snapshot.metadata["version"],
+              case .string(let checksum)? = snapshot.metadata["sha256"],
+              case .string(let downloadURL)? = snapshot.metadata["url"] else { return XCTFail("Missing signed artifact identity") }
+        let selected = try HomebrewNativeArtifacts.select(snapshot.metadata, prefix: "/opt/homebrew", token: "libreoffice-language-pack", version: version)
+        let source = try snapshot.persistOfficialEvidence(in: directory)
+        let proof = HomebrewPrivilegePlan.SourceProof(envelope: source, envelopeSHA256: evidence.catalog.envelopeSHA256,
+            projectionSHA256: try evidence.catalog.projectionDigest("libreoffice-language-pack", configuration: configuration), configuration: configuration)
+        let binding = HomebrewPrivilegePlan.Cask(name: "libreoffice-language-pack", version: version, sha256: checksum,
+            packages: selected.packages.map(\.path), packageInstallers: selected.packages,
+            nativeScripts: selected.scripts, generatedResources: selected.generatedResources, sourceProof: proof,
+            manualInstallers: selected.manualInstallers, downloadURL: downloadURL)
         let script = try XCTUnwrap(binding.nativeScripts?.first)
         XCTAssertEqual(script.executable, "SilentInstall.sh")
         XCTAssertFalse(try XCTUnwrap(script.generatedContent).isEmpty)
         XCTAssertNotNil(binding.sourceProof)
         XCTAssertTrue(HomebrewNativeCompletionPolicy.hasManualOutcome(binding))
         XCTAssertFalse(HomebrewNativeCompletionPolicy.hasManualOutcome(.init(name: "ordinary", version: "1", sha256: String(repeating: "a", count: 64), packages: ["ordinary.pkg"])))
-        let proof = try XCTUnwrap(binding.sourceProof)
         let heldSource = try HomebrewSignedCaskCatalog.load(proof.envelope, deadline: Date().addingTimeInterval(5))
         let catalog = heldSource.catalog
         _ = try binding.validatePublisherSource(prefix: "/opt/homebrew", owner: getuid(), deadline: Date().addingTimeInterval(5), evidence: heldSource)
@@ -46,29 +53,12 @@ final class HomebrewNativeAdmissionTests: XCTestCase {
         try process.start(output: { _ in }, finished: { result in XCTAssertEqual(result.exitStatus, 78); XCTAssertEqual(result.outcome, "failed"); done.fulfill() })
         wait(for: [done], timeout: 5)
     }
-    func testActualUserOnlyVendorInstallerNeverRequestsRootOrPreconfirmationDownload() throws {
-        let directory = URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath().appendingPathComponent("user-vendor-admission-" + UUID().uuidString)
-        try NativeFileQuarantine.makePrivateDirectory(directory)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("cask"), "name": .string("amazon-music")]))
-        let package: JSONValue = .object(["name": .string("amazon-music"), "needs_privileges": .bool(true)])
-        let bindings = try HomebrewPrivilegeReview.casks(input: input, package: package, executable: URL(fileURLWithPath: "/opt/homebrew/bin/brew"), evidenceDirectory: directory,
-            fetchSnapshot: { _, _, _, _, _ in XCTFail("User-only vendor code must not enter Root byte freezing"); throw PluginHostServiceError.tool(.failed) })
-        XCTAssertTrue(bindings.isEmpty)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [])
-    }
-
-}
-
-extension HomebrewNativeAdmissionTests {
-    func testCancelledNativePreparationDoesNotReadSourceOrDownloadBeforeInitialConfirmation() throws {
-        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("install"), "kind": .string("cask"), "name": .string("example")]))
-        let cancellation = HostFetchedSections.Cancellation(); cancellation.cancel()
-        let began = ProcessInfo.processInfo.systemUptime
-        XCTAssertThrowsError(try HomebrewPrivilegeReview.casks(input: input, package: .object(["name": .string("example"), "needs_privileges": .bool(true)]),
-            executable: URL(fileURLWithPath: "/no-source-can-be-read/bin/brew"), evidenceDirectory: URL(fileURLWithPath: "/no-evidence-can-be-written"), cancellation: cancellation)) {
-                XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged))
-            }
-        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - began, 0.1)
+    func testSignedUserOnlyVendorInstallerCreatesNoPrivilegedArtifact() throws {
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("amazon-music")
+        guard case .string(let version)? = snapshot.metadata["version"] else { return XCTFail("Missing signed version") }
+        let selected = try HomebrewNativeArtifacts.select(snapshot.metadata, prefix: "/opt/homebrew", token: "amazon-music", version: version)
+        XCTAssertTrue(selected.packages.isEmpty)
+        XCTAssertTrue(selected.scripts.isEmpty)
+        XCTAssertTrue(selected.manualInstallers.isEmpty)
     }
 }

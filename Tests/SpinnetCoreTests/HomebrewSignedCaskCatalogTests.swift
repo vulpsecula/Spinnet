@@ -1,5 +1,5 @@
 import XCTest
-import SpinnetCore
+@testable import SpinnetCore
 
 final class HomebrewSignedCaskCatalogTests: XCTestCase {
     func testRootCanVerifyOfficialGeneratedCodeAndLanguageWithoutTrustingTheRubyProcess() throws {
@@ -28,7 +28,7 @@ final class HomebrewSignedCaskCatalogTests: XCTestCase {
         XCTAssertThrowsError(try catalog.validate(vendor, token: "adobe-air", configuration: configuration))
     }
     func testCopiedPreconfirmationEvidenceCanBeReverifiedAndChangedBytesAreRefused() throws {
-        let snapshot = try HomebrewPrivilegeMetadata.readEvidence("libreoffice-language-pack", language: "zh-CN", deadline: Date().addingTimeInterval(15))
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("libreoffice-language-pack", languages: ["zh-CN"])
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])

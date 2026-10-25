@@ -166,9 +166,6 @@ assemble_current_package() {
     done
     # The probe target, and only it, is compiled with HOST_CURRENT.
     sed -i '' 's|// HOST_SWIFT_SETTINGS|swiftSettings: [.define("HOST_CURRENT")],|' "$PACKAGE_DIR/Package.swift"
-    # Current Core uses Bundle.module for its Host-owned adapters. The frozen
-    # A2 package predates those resources, so add them only to current staging.
-    sed -i '' 's|/\* CORE_RESOURCES \*/|, resources: [.process("Resources")]|' "$PACKAGE_DIR/Package.swift"
     grep -q 'define("HOST_CURRENT")' "$PACKAGE_DIR/Package.swift" || { echo "error: Package.swift lost its HOST_SWIFT_SETTINGS marker" >&2; exit 1; }
     local head blob dirty="false" files_swift="" name
     head="$(git_root rev-parse HEAD)"
@@ -243,10 +240,6 @@ build_app() {
     mkdir -p "$APP_BUNDLE/Contents/MacOS" "$FIXTURE_BUNDLE/Contents/MacOS"
     cp "$bin_dir/AXInsertionProbe" "$APP_BINARY"
     cp "$bin_dir/AXProbeFixture" "$FIXTURE_BUNDLE/Contents/MacOS/AXProbeFixture"
-    for bundle in "$bin_dir"/AXInsertionProbe_SpinnetCore.bundle; do
-        [[ -d "$bundle" ]] || continue
-        ditto "$bundle" "$APP_BUNDLE/Contents/Resources/$(basename "$bundle")"
-    done
     write_plist "$APP_BUNDLE/Contents/Info.plist" AXInsertionProbe "$BUNDLE_ID" "AX Insertion Probe" true
     write_plist "$FIXTURE_BUNDLE/Contents/Info.plist" AXProbeFixture "$FIXTURE_BUNDLE_ID" "AX Probe Fixture" false
 

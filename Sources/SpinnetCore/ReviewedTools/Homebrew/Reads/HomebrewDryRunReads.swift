@@ -2,7 +2,6 @@ import Foundation
 
 /// A documented CLI dry-run, bounded by the read-only process sandbox.
 enum HomebrewDryRunReads {
-    static var adapter: URL { Bundle.module.url(forResource: "HomebrewDryRun", withExtension: "rb")! }
     static func read(operation: String, kind: String, names: [String], greedy: Bool = false, adopt: Bool = false,
                      executable: URL, deadline: Date, cancellation: HostFetchedSections.Cancellation,
                      execute: HomebrewReadProfile.CancellableExecutor, networkBytes: inout Int, metadataRequests: inout Int, transport: HTTPSTransport? = nil, stillAuthorized: () throws -> Void) throws -> [String: JSONValue] {

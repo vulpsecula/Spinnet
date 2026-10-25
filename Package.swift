@@ -30,7 +30,7 @@ let package = Package(
         .target(name: "SpinnetPathCancellation", publicHeadersPath: "include"),
         .executableTarget(name: "SpinnetArchiveBootstrap"),
         .executableTarget(name: "SpinnetArchiveDecoder", linkerSettings: [.linkedLibrary("archive"), .linkedLibrary("compression"), .linkedLibrary("xar"), .linkedLibrary("z")]),
-        .target(name: "SpinnetCore", resources: [.copy("Resources/HomebrewAutoremovePreview.rb"), .copy("Resources/HomebrewDryRun.rb"), .copy("Resources/HomebrewRead.rb"), .copy("Resources/HomebrewSourceGuard.rb"), .copy("Resources/HomebrewLinkPreview.rb"), .copy("Resources/HomebrewReadSources.json"), .copy("Resources/HomebrewPrivilegeMetadata.rb")]),
+        .target(name: "SpinnetCore"),
         .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetCore"]),
@@ -93,7 +93,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinnetCoreTests",
-            dependencies: ["SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
+            dependencies: ["SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetPrivilegedToolHelper", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
             resources: [.copy("ArchiveFixtures")]
         ),
         .testTarget(

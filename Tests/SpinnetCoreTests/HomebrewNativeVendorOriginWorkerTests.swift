@@ -1,11 +1,11 @@
 import XCTest
 import Darwin
-import SpinnetCore
+@testable import SpinnetCore
 
 final class HomebrewNativeVendorOriginWorkerTests: XCTestCase {
     func testConfirmedSignedURLFixtureBytesCopyInsideWorkerBeforeMissingOriginalMemberRefuses() throws {
         XCTAssertNotEqual(getuid(), 0, "Current-UID fixed-fetch fixture, no publisher-body or historical claim")
-        let snapshot = try HomebrewPrivilegeMetadata.readEvidence("sound-siphon", deadline: Date().addingTimeInterval(15))
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("sound-siphon")
         let root = URL(fileURLWithPath: "/private/tmp/spinnet-source-copy-" + UUID().uuidString)
         try NativeFileQuarantine.makePrivateDirectory(root)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -79,7 +79,7 @@ final class HomebrewNativeVendorOriginWorkerTests: XCTestCase {
     }
     func testFixedWorkerIndependentlyReverifiesSourceBeforeRejectingWrongOriginalBytes() throws {
         XCTAssertNotEqual(getuid(), 0, "Current-UID source seam, not Root acceptance")
-        let snapshot = try HomebrewPrivilegeMetadata.readEvidence("shadowsocksx-ng", deadline: Date().addingTimeInterval(15))
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("shadowsocksx-ng")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
         try NativeFileQuarantine.makePrivateDirectory(root)
         defer { try? FileManager.default.removeItem(at: root) }

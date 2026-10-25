@@ -27,7 +27,7 @@ let package = Package(
         .macOS(.v13)
     ],
     targets: [
-        .target(name: "SpinnetCore" /* CORE_RESOURCES */),
+        .target(name: "SpinnetCore"),
         .executableTarget(
             name: "AXInsertionProbe",
             dependencies: ["SpinnetCore"],

@@ -1,7 +1,7 @@
 import XCTest
 import CryptoKit
 import Darwin
-import SpinnetCore
+@testable import SpinnetCore
 
 final class HomebrewNativeVendorOriginTests: XCTestCase {
     func testActualAppleLatestPBZXFixtureDecodesOriginalPayloadAndResourceBytesUnprivileged() throws {
@@ -62,11 +62,11 @@ final class HomebrewNativeVendorOriginTests: XCTestCase {
         }
     }
     func testActualSignedAppMappingAndWrongOriginalArchiveChecksumRefuseLocalHashAuthority() throws {
-        let snapshot = try HomebrewPrivilegeMetadata.readEvidence("shadowsocksx-ng", deadline: Date().addingTimeInterval(15))
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("shadowsocksx-ng")
         let selection = try HomebrewNativeVendorOrigin.select(snapshot: snapshot, recipeExecutable: "/Applications/ShadowsocksX-NG.app/Contents/Resources/proxy_conf_helper")
         XCTAssertEqual(selection.kind, .publisherChecksum)
         XCTAssertEqual(selection.member, "ShadowsocksX-NG.app/Contents/Resources/proxy_conf_helper")
-        XCTAssertEqual(selection.downloadSHA256, "a0bc48af636c796471b1156eae0b6ca7340fe51deffec384c409dac785f04c60")
+        XCTAssertEqual(snapshot.metadata["sha256"], .string(selection.downloadSHA256))
         XCTAssertThrowsError(try HomebrewNativeVendorOrigin.select(snapshot: snapshot, recipeExecutable: "/Applications/Unselected.app/Contents/Resources/proxy_conf_helper"))
         let fixtureBytes = try Data(contentsOf: XCTUnwrap(Bundle.module.url(forResource: "vendor", withExtension: "zip", subdirectory: "ArchiveFixtures")))
         try fixture(fixtureBytes) { archive, root, _ in
@@ -89,7 +89,7 @@ final class HomebrewNativeVendorOriginTests: XCTestCase {
         }
     }
     func testActualSignedNoCheckSourceRequiresConfirmedHostSnapshotAndLabelsItWithoutHistoricalClaim() throws {
-        let snapshot = try HomebrewPrivilegeMetadata.readEvidence("sound-siphon", deadline: Date().addingTimeInterval(15))
+        let snapshot = try HomebrewSignedCatalogFixture.snapshot("sound-siphon")
         let executable = "/Applications/Sound Siphon.app/Contents/Resources/uninstall_soundsiphon"
         XCTAssertThrowsError(try HomebrewNativeVendorOrigin.select(snapshot: snapshot, recipeExecutable: executable))
         let bytes = try Data(contentsOf: XCTUnwrap(Bundle.module.url(forResource: "vendor", withExtension: "zip", subdirectory: "ArchiveFixtures")))
