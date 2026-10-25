@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -5,7 +6,7 @@ import SpinnetCore
 /// Public Level 3 answer parsing: cards are identified components, not
 /// Collection items, so their fields and source bindings remain ordinary.
 final class AdaptivePageContractTests: XCTestCase {
-    static let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/AdaptiveCards.spinnetplugin")
     static var manifest: PluginManifest { try! PluginManifestLoader.load(packageAt: fixture).manifest }
     static var permits: (PluginInterfaceMember) -> Bool { PluginInterfaceContracts.host.permitting(manifest) }

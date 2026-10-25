@@ -5,8 +5,7 @@ import SpinnetCore
 /// and development override. Fail closed when the source cannot be resolved.
 public enum ShippedPluginPackages {
     public static func all() throws -> [PluginPackage] {
-        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
+        let repository = TestRepository.root
         let resolver = Process()
         resolver.executableURL = URL(fileURLWithPath: "/bin/bash")
         resolver.arguments = [repository.appendingPathComponent("script/resolve_bundled_plugins.sh").path]

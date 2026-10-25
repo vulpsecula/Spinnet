@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
 
@@ -168,7 +169,7 @@ final class ReviewedToolReadTests: XCTestCase {
     func testPublishedReadProtocolFixturesMatchTheirSchemasAndHostInputRules() throws {
         struct Index: Decodable { let fixtures: [Fixture] }
         struct Fixture: Decodable { let file: String; let definition: String; let valid: Bool }
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         let fixtures = api.appendingPathComponent("fixtures/reviewed-tools")
         let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: fixtures.appendingPathComponent("index.json")))
         for fixture in index.fixtures {

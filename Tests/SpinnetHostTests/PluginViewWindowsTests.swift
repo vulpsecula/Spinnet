@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import SpinnetCore
 import XCTest
@@ -316,8 +317,7 @@ final class PluginViewWindowsTests: XCTestCase {
 /// View Sessions whose renderer is the Host's, with stand-in windows, a
 /// section provider that records what it hears, and events the test answers.
 final class PluginViewHarness {
-    static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/ViewGallery.spinnetplugin", isDirectory: true)
 
     let package: PluginPackage

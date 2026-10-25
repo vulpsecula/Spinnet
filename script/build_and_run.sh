@@ -1,7 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODE="${1:-run}"
+usage() {
+    printf 'usage: %s [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check|--background-lifecycle-check [--prepare|--run|--status|--clean [--unregister]]]\n' "$0"
+}
+reject_arguments() {
+    usage >&2
+    exit 2
+}
+
+# Validate before consulting signing identities, resolving Plugins or touching
+# the running app. In particular, help and spelling errors must be inert.
+MODE="${1-run}"
+case "$MODE" in
+    -h|--help)
+        [[ $# -eq 1 ]] || reject_arguments
+        usage
+        exit 0
+        ;;
+    --background-lifecycle-check)
+        BACKGROUND_MODE="${2---prepare}"
+        case "$BACKGROUND_MODE" in
+            --prepare|--run|--status|-h|--help) [[ $# -le 2 ]] || reject_arguments ;;
+            --clean)
+                [[ $# -le 3 ]] || reject_arguments
+                [[ $# -lt 3 || "$3" == --unregister ]] || reject_arguments
+                ;;
+            *) reject_arguments ;;
+        esac
+        ;;
+    run|--package|--lifecycle-check|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|verify)
+        [[ $# -le 1 ]] || reject_arguments
+        ;;
+    *) reject_arguments ;;
+esac
+
 APP_NAME="SpinnetHost"
 BUNDLE_ID="com.vulpsecula.SpinnetHost.preview"
 MIN_SYSTEM_VERSION="13.0"
@@ -10,7 +43,10 @@ APP_VERSION="0.1.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "$MODE" == --background-lifecycle-check ]]; then
-    exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "${2:---prepare}"
+    if [[ $# -eq 3 ]]; then
+        exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE" "$3"
+    fi
+    exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE"
 fi
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
@@ -22,6 +58,23 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 HOST_ENTITLEMENTS="$ROOT_DIR/Resources/SpinnetHost.entitlements"
 ALLOW_ADHOC_SIGNING="${SPINNET_ALLOW_ADHOC_SIGNING:-0}"
+
+# Product and optional signing identifier for each shipped helper. Build,
+# packaging and both signing modes use this same inventory.
+HELPER_SPECS=(
+    'SpinnetPluginHelper|'
+    'SpinnetToolTaskRunner|com.vulpsecula.SpinnetHost.task-runner'
+    'SpinnetHomebrewAskpass|com.vulpsecula.SpinnetHost.homebrew-askpass'
+    'SpinnetToolAuthorizationClient|com.vulpsecula.SpinnetHost.authorization-client'
+    'SpinnetPrivilegedToolHelper|com.vulpsecula.SpinnetHost.privileged-tools'
+    'SpinnetReceiptInventory|com.vulpsecula.SpinnetHost.receipt-inventory'
+    'SpinnetArchiveBootstrap|com.vulpsecula.SpinnetHost.archive-bootstrap'
+    'SpinnetArchiveDecoder|com.vulpsecula.SpinnetHost.archive-decoder'
+    'SpinnetPathInventory|com.vulpsecula.SpinnetHost.path-inventory'
+    'SpinnetVendorOrigin|com.vulpsecula.SpinnetHost.vendor-origin'
+    'SpinnetPathRemoval|com.vulpsecula.SpinnetHost.path-removal'
+    'SpinnetLaunchServiceInventory|com.vulpsecula.SpinnetHost.launch-service-inventory'
+)
 
 SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
 if [[ -z "$SIGNING_IDENTITY" ]]; then
@@ -54,40 +107,19 @@ fi
 
 cd "$ROOT_DIR"
 swift build --product "$APP_NAME"
-swift build --product SpinnetPluginHelper
-swift build --product SpinnetToolTaskRunner
-swift build --product SpinnetHomebrewAskpass
-swift build --product SpinnetToolAuthorizationClient
-swift build --product SpinnetPrivilegedToolHelper
-swift build --product SpinnetReceiptInventory
-swift build --product SpinnetArchiveBootstrap
-swift build --product SpinnetArchiveDecoder
-swift build --product SpinnetPathInventory
-swift build --product SpinnetVendorOrigin
-swift build --product SpinnetPathRemoval
-swift build --product SpinnetLaunchServiceInventory
+for specification in "${HELPER_SPECS[@]}"; do
+    swift build --product "${specification%%|*}"
+done
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
-BUILD_HELPER="$BUILD_DIR/SpinnetPluginHelper"
-BUILD_TASK_RUNNER="$BUILD_DIR/SpinnetToolTaskRunner"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 mkdir -p "$APP_CONTENTS/Helpers"
-cp "$BUILD_HELPER" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-cp "$BUILD_TASK_RUNNER" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
-cp "$BUILD_DIR/SpinnetHomebrewAskpass" "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
-cp "$BUILD_DIR/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
-cp "$BUILD_DIR/SpinnetPrivilegedToolHelper" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
-cp "$BUILD_DIR/SpinnetReceiptInventory" "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
-chmod +x "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
-for tool in SpinnetArchiveBootstrap SpinnetArchiveDecoder SpinnetPathInventory SpinnetPathRemoval SpinnetVendorOrigin SpinnetLaunchServiceInventory; do
+for specification in "${HELPER_SPECS[@]}"; do
+    tool="${specification%%|*}"
     cp "$BUILD_DIR/$tool" "$APP_CONTENTS/Helpers/$tool"
     chmod +x "$APP_CONTENTS/Helpers/$tool"
 done
@@ -147,34 +179,21 @@ cat >"$INFO_PLIST" <<PLIST
 PLIST
 
 if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
-    codesign --force --sign - "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.homebrew-askpass --sign - "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --sign - "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --sign - "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --sign - "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.receipt-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-bootstrap --sign - "$APP_CONTENTS/Helpers/SpinnetArchiveBootstrap"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-decoder --sign - "$APP_CONTENTS/Helpers/SpinnetArchiveDecoder"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.path-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetPathInventory"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.vendor-origin --sign - "$APP_CONTENTS/Helpers/SpinnetVendorOrigin"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.path-removal --sign - "$APP_CONTENTS/Helpers/SpinnetPathRemoval"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.launch-service-inventory --sign - "$APP_CONTENTS/Helpers/SpinnetLaunchServiceInventory"
-    codesign --force --entitlements "$HOST_ENTITLEMENTS" --sign - "$APP_BUNDLE"
+    SIGNING_ARGUMENTS=(--force --sign -)
+else
+    SIGNING_ARGUMENTS=(--force --options runtime --sign "$SIGNING_IDENTITY")
+fi
+for specification in "${HELPER_SPECS[@]}"; do
+    tool="${specification%%|*}"
+    identifier="${specification#*|}"
+    arguments=("${SIGNING_ARGUMENTS[@]}")
+    if [[ -n "$identifier" ]]; then arguments+=(--identifier "$identifier"); fi
+    codesign "${arguments[@]}" "$APP_CONTENTS/Helpers/$tool"
+done
+codesign "${SIGNING_ARGUMENTS[@]}" --entitlements "$HOST_ENTITLEMENTS" "$APP_BUNDLE"
+if [[ "$ALLOW_ADHOC_SIGNING" == "1" && ( -z "$SIGNING_IDENTITY" || "$SIGNING_IDENTITY" == "-" ) ]]; then
     echo "warning: ad-hoc signed app; Accessibility consent will not persist across code changes" >&2
 else
-    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPluginHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.homebrew-askpass --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.task-runner --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.authorization-client --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetToolAuthorizationClient"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.privileged-tools --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.receipt-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetReceiptInventory"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-bootstrap --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetArchiveBootstrap"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.archive-decoder --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetArchiveDecoder"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.path-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPathInventory"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.vendor-origin --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetVendorOrigin"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.path-removal --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetPathRemoval"
-    codesign --force --identifier com.vulpsecula.SpinnetHost.launch-service-inventory --options runtime --sign "$SIGNING_IDENTITY" "$APP_CONTENTS/Helpers/SpinnetLaunchServiceInventory"
-    codesign --force --options runtime --entitlements "$HOST_ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
     echo "Signed with code-signing identity $SIGNING_IDENTITY"
 fi
 codesign --verify --deep --strict "$APP_BUNDLE"
@@ -231,7 +250,6 @@ case "$MODE" in
         done
         ;;
     *)
-        echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check|--background-lifecycle-check [--prepare|--run]]" >&2
-        exit 2
+        reject_arguments
         ;;
 esac

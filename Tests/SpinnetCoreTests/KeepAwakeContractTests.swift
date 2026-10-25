@@ -1,11 +1,11 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
 
 final class KeepAwakeContractTests: XCTestCase {
     func testPublishedFixtureShapesAndHostInputReadingAgree() throws {
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         struct Fixture: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Fixture] }
         let root = api.appendingPathComponent("fixtures/keep-awake")

@@ -7,8 +7,7 @@ import XCTest
 /// declared Plugin API Level (ADR 0013). The Level 1/2 schema also turns away
 /// the mistakes a Plugin author is likely to make.
 final class ManifestSchemaTests: XCTestCase {
-    private static let repositoryRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let repositoryRoot = TestRepository.root
 
     private func validator(level: Int = 1) throws -> JSONSchemaSubsetValidator {
         let schema = level >= 3 ? "manifest-level-\(level).schema.json" : "manifest.schema.json"
@@ -218,8 +217,7 @@ final class ManifestSchemaTests: XCTestCase {
 /// changing either means changing the other in the same commit.
 final class DocumentedManifestSchemaTests: XCTestCase {
     private func schema() throws -> [String: JSONValue] {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = TestRepository.root
             .appendingPathComponent("PluginAPI/schemas/manifest.schema.json")
         guard case .object(let schema) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)) else {
             throw ConfigurationError.malformedValue("The manifest schema is not an object")

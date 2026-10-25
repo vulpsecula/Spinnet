@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -6,7 +7,7 @@ import Vision
 @testable import SpinnetHost
 
 final class AdaptiveViewportPanelTests: XCTestCase {
-    private let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/AdaptiveViewport.spinnetplugin")
+    private let fixture = TestRepository.tests.appendingPathComponent("Fixtures/AdaptiveViewport.spinnetplugin")
     private func settle() { RunLoop.main.run(until: Date().addingTimeInterval(0.2)) }
 
     private func nativeViews(_ root: NSView) -> [NSView] { [root] + root.subviews.flatMap(nativeViews) }

@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -9,8 +10,7 @@ import XCTest
 /// the outcomes and reasons the Host reports, after the view closed too, and
 /// Level 1 left as it was.
 final class HostOperationsContractTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private static let published = pluginAPI.appendingPathComponent("fixtures/host-operations")
     private static let schema = pluginAPI.appendingPathComponent("schemas/host-operations.schema.json")

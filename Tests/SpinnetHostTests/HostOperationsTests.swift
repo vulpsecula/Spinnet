@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import XCTest
 @testable import SpinnetCore
@@ -205,7 +206,7 @@ final class HostOperationsTests: XCTestCase {
                                                           input: .null))
     }
 
-    static let probePackage = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    static let probePackage = TestRepository.tests
         .appendingPathComponent("Fixtures/OperationsProbe.spinnetplugin", isDirectory: true)
 
     private func perform(_ performer: HostOperationsPerformer, _ operation: RequestedHostOperation,

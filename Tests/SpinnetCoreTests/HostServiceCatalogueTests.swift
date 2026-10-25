@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -9,8 +10,7 @@ import XCTest
 /// input members the schema gives it; and Level 2 offers exactly the
 /// catalogue's calls and Commands.
 final class HostServiceCatalogueTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
     static let schemas = pluginAPI.appendingPathComponent("schemas")
 

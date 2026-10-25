@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -7,8 +8,7 @@ import XCTest
 /// Reviewed App Interface available to a Level 1 Plugin. A Reviewed App Interface must accept
 /// exactly the operations the schema publishes for it.
 final class ExternalAppSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/external-apps.schema.json")
 
     private func definitions() throws -> [String: JSONValue] {

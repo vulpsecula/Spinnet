@@ -4,8 +4,7 @@ import SpinnetTestSupport
 @testable import SpinnetHost
 
 final class HomebrewBundledRegressionTests: XCTestCase {
-    private static let baseline = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let baseline = TestRepository.tests
         .appendingPathComponent("RegressionBaseline/Homebrew")
 
     private var fixture: BundledRegressionFixture!

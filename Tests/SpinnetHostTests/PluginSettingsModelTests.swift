@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import SpinnetCore
 import XCTest
 @testable import SpinnetHost
@@ -127,7 +128,7 @@ final class PluginSettingsModelTests: XCTestCase {
     // MARK: - Sources the user turns on and orders
 
     private func translatorModel() throws -> (PluginSettingsModel, PluginSettingsStore) {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Translator.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         let grants = PluginCapabilityGrantStore()
@@ -214,7 +215,7 @@ final class PluginSettingsModelTests: XCTestCase {
     // MARK: - Rows of a list setting
 
     private func smartJumpModel(stored: [String: JSONValue]? = nil) throws -> (PluginSettingsModel, PluginSettingsStore) {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/SmartJump.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         if let stored { try store.setValues(stored, for: manifest.id) }

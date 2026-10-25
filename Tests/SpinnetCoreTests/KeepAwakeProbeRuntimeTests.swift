@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -6,7 +7,7 @@ import SpinnetPluginTestKit
 /// A package outside Host implementation reaches effects only through the
 /// published SDK, real bounded helper and test-kit OS seam.
 final class KeepAwakeProbeRuntimeTests: XCTestCase {
-    private let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    private let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/KeepAwakeProbe.spinnetplugin")
 
     func testARequestedEffectSurvivesHelperRetirementAndCanBeStoppedFromItsOwnersList() throws {

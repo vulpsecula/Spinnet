@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -21,7 +22,6 @@ enum TranslatorFixture {
 }
 
 private func legacyPlugin(_ name: String) throws -> PluginPackage {
-    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Fixtures/LegacyBundledPlugins")
+    let directory = TestRepository.tests.appendingPathComponent("Fixtures/LegacyBundledPlugins")
     return try PluginUnderTest(packageAt: directory.appendingPathComponent(name + ".spinnetplugin"), origin: .bundled).package
 }

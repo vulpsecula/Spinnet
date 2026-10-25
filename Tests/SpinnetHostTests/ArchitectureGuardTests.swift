@@ -15,31 +15,30 @@ import XCTest
 /// one Host Surface, needs none: the Host presents it for whichever Plugin
 /// asks and names no Plugin to do so.
 final class ArchitectureGuardTests: XCTestCase {
-    private static let repository = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let repository = TestRepository.root
 
     static let exceptions: [ArchitectureGuard.Exception] = [
         // Bob's Reviewed App Interface: the Apple Events operations the Host
         // has reviewed for Bob, which Plugins choose from (ADR 0012).
-        .init("Sources/SpinnetCore/ReviewedAppInterface.swift", "com.hezongyidev.Bob", .reviewedAppInterface),
+        .init("Sources/SpinnetCore/Services/ReviewedAppInterface.swift", "com.hezongyidev.Bob", .reviewedAppInterface),
         // Spotify's reviewed operation catalogue and fixed Apple Events target
         // predate its bundling. These are Host-owned authority (ADR 0012),
         // available to every granted External App Adapter, not Plugin logic.
-        .init("Sources/SpinnetCore/SpotifyPlayback.swift", "com.spotify.client", .reviewedAppInterface),
-        .init("Sources/SpinnetHost/SpotifyAppleEvents.swift", "com.spotify.client", count: 2, .reviewedAppInterface),
+        .init("Sources/SpinnetCore/Services/SpotifyPlayback.swift", "com.spotify.client", .reviewedAppInterface),
+        .init("Sources/SpinnetHost/Services/SpotifyAppleEvents.swift", "com.spotify.client", count: 2, .reviewedAppInterface),
         // The links the Host reviewed for Shottr before they became Deep Link
         // Templates, kept only to check that a grant may carry over to them.
-        .init("Sources/SpinnetHost/DeepLinkMigration.swift", "cc.ffitch.shottr", .retiredReview),
+        .init("Sources/SpinnetHost/Application/Migrations/DeepLinkMigration.swift", "cc.ffitch.shottr", .retiredReview),
         // Window Position's Command ID is also the catalogue ID of the Host
         // Service any Plugin may name (ADR 0020).
-        .init("Sources/SpinnetCore/HostServiceCatalogue.swift", "window.restore", count: 2, .catalogueID),
+        .init("Sources/SpinnetCore/Services/HostServiceCatalogue.swift", "window.restore", count: 2, .catalogueID),
 
         // The retired Screenshot Plugin's Menu Items and grant move onto
         // another Plugin, which no manifest's `migrations` can declare.
-        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "com.spinnet.builtin.screenshot", .retiredPluginMigration),
-        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_area", .retiredPluginMigration),
-        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_full_screen", .retiredPluginMigration),
-        .init("Sources/SpinnetHost/ScreenshotPluginMigration.swift", "builtin.capture_window", .retiredPluginMigration)
+        .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "com.spinnet.builtin.screenshot", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_area", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_full_screen", .retiredPluginMigration),
+        .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_window", .retiredPluginMigration)
     ]
 
     func testHostModulesNameNoPluginSpecificLiteralsBeyondTheExceptions() throws {

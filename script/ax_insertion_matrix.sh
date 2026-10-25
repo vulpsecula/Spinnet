@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Runs the #69 AX insertion matrix unattended, through the Host's own
-# insertion code: Host A2's Accessibility write (the default), or with
-# --host current this checkout's keyboard-event inserter.
+# insertion code: --host current (default) uses this checkout's keyboard-event
+# inserter; --host a2 explicitly reproduces the frozen Host A2 Accessibility write.
 #
 #   ./script/ax_insertion_matrix.sh                 build, check the grant, run every target
-#   ./script/ax_insertion_matrix.sh --host current  the same targets through this checkout's HostTextInserter
+#   ./script/ax_insertion_matrix.sh --host a2       historical Host A2 reproduction
 #   ./script/ax_insertion_matrix.sh --host current --only host-extra   panel left open, script path, line breaks, long text, IME
 #   ./script/ax_insertion_matrix.sh --host current --only candidate    host_operations: target captured at the gesture, compared at insertion
 #   ./script/ax_insertion_matrix.sh --only chrome,vscode
@@ -15,13 +15,13 @@
 #   ./script/ax_insertion_matrix.sh --output DIR    where results go
 #                                                   (default tmp/ax-insertion-matrix/<time>)
 #
-# The probe is dist/AXInsertionProbe.app, a developer-only App in no product.
-# By default it compiles Host A2's own PluginHostServices.swift (and the
-# SpinnetCore it needs) from commit af1a450, byte for byte, and calls
+# The probe is .build/verification/ax-insertion/AXInsertionProbe.app, a
+# developer-only App in no product. With --host a2 it compiles Host A2's own
+# PluginHostServices.swift and SpinnetCore from commit af1a450 byte for byte, and calls
 # AppKitPluginHostServiceProvider.insertText(_:intoApplication:) exactly as
 # the Host does for a Plugin View's standard insert action. With --host
-# current it compiles this working tree's SpinnetCore,
-# Sources/SpinnetHost/HostTextInserter.swift and InsertionTargets.swift
+# current (the default) it compiles this working tree's SpinnetCore,
+# Sources/SpinnetHost/Services/{HostTextInserter,InsertionTargets,HostAccessibility}.swift
 # instead, and calls HostTextInserter (or, for candidate rows,
 # TargetedTextInserter) as the Host does, with a stand-in Plugin View panel
 # key over the target first.
@@ -47,7 +47,7 @@ HOST_FILES=(PluginHostServices.swift FocusedWindowScreen.swift StageManagerStrip
 # The Host files --host current compiles; they need only SpinnetCore. The
 # first is the one whose messages the probe maps to steps.
 CURRENT_FILE="HostTextInserter.swift"
-CURRENT_FILES=("$CURRENT_FILE" InsertionTargets.swift)
+CURRENT_FILES=("Services/$CURRENT_FILE" Services/InsertionTargets.swift Services/HostAccessibility.swift)
 CURRENT_MESSAGES=("The focused field is a password field; nothing was inserted"
     "The App to insert into did not come to the front; nothing was inserted"
     "The App to insert into is no longer open" "Spinnet does not insert text into itself"
@@ -57,22 +57,22 @@ CURRENT_MESSAGES=("The focused field is a password field; nothing was inserted"
 HOST_MESSAGES=("No focused text field" "The focused App does not accept inserted text" "The focused App did not accept the text")
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_ROOT="$ROOT_DIR/.build/ax-insertion-probe"
-APP_BUNDLE="$ROOT_DIR/dist/AXInsertionProbe.app"
+BUILD_ROOT="$ROOT_DIR/.build/verification/ax-insertion"
+APP_BUNDLE="$BUILD_ROOT/AXInsertionProbe.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/AXInsertionProbe"
 FIXTURE_BUNDLE="$APP_BUNDLE/Contents/Resources/AXProbeFixture.app"
 
 MODE="run"
-HOST="a2"
+HOST="current"
 OUTPUT_DIR=""
 PROBE_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --host) HOST="$2"; shift ;;
+        --host) [[ $# -ge 2 && "$2" != --* ]] || { echo 'error: --host needs current or a2' >&2; exit 2; }; HOST="$2"; shift ;;
         --build-only) MODE="build" ;;
         --dry-run) MODE="dry-run" ;;
-        --output) OUTPUT_DIR="$2"; shift ;;
-        --only|--skip) PROBE_ARGS+=("$1" "$2"); shift ;;
+        --output) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo 'error: --output needs a directory' >&2; exit 2; }; OUTPUT_DIR="$2"; shift ;;
+        --only|--skip) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "error: $1 needs a target list" >&2; exit 2; }; PROBE_ARGS+=("$1" "$2"); shift ;;
         -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
         *) echo "unknown option $1" >&2; exit 2 ;;
     esac
@@ -159,16 +159,20 @@ assemble_current_package() {
     rsync -a --delete --exclude .build --exclude Sources/SpinnetCore --exclude Sources/AXInsertionProbe/HostA2 \
         --exclude Sources/AXInsertionProbe/HostCurrent "$ROOT_DIR/Tools/AXInsertionProbe/" "$PACKAGE_DIR/"
     rsync -a --delete "$ROOT_DIR/Sources/SpinnetCore/" "$PACKAGE_DIR/Sources/SpinnetCore/"
+    rm -rf "$PACKAGE_DIR/Sources/AXInsertionProbe/HostCurrent"
     mkdir -p "$PACKAGE_DIR/Sources/AXInsertionProbe/HostCurrent"
     for name in "${CURRENT_FILES[@]}"; do
         rsync -a "$ROOT_DIR/Sources/SpinnetHost/$name" "$PACKAGE_DIR/Sources/AXInsertionProbe/HostCurrent/"
     done
     # The probe target, and only it, is compiled with HOST_CURRENT.
     sed -i '' 's|// HOST_SWIFT_SETTINGS|swiftSettings: [.define("HOST_CURRENT")],|' "$PACKAGE_DIR/Package.swift"
+    # Current Core uses Bundle.module for its Host-owned adapters. The frozen
+    # A2 package predates those resources, so add them only to current staging.
+    sed -i '' 's|/\* CORE_RESOURCES \*/|, resources: [.process("Resources")]|' "$PACKAGE_DIR/Package.swift"
     grep -q 'define("HOST_CURRENT")' "$PACKAGE_DIR/Package.swift" || { echo "error: Package.swift lost its HOST_SWIFT_SETTINGS marker" >&2; exit 1; }
     local head blob dirty="false" files_swift="" name
     head="$(git_root rev-parse HEAD)"
-    blob="$(git_root hash-object "$ROOT_DIR/Sources/SpinnetHost/$CURRENT_FILE")"
+    blob="$(git_root hash-object "$ROOT_DIR/Sources/SpinnetHost/Services/$CURRENT_FILE")"
     for name in "${CURRENT_FILES[@]}"; do
         files_swift+="        \"Sources/SpinnetHost/$name\": \"$(git_root hash-object "$ROOT_DIR/Sources/SpinnetHost/$name")\","$'\n'
     done
@@ -239,6 +243,10 @@ build_app() {
     mkdir -p "$APP_BUNDLE/Contents/MacOS" "$FIXTURE_BUNDLE/Contents/MacOS"
     cp "$bin_dir/AXInsertionProbe" "$APP_BINARY"
     cp "$bin_dir/AXProbeFixture" "$FIXTURE_BUNDLE/Contents/MacOS/AXProbeFixture"
+    for bundle in "$bin_dir"/AXInsertionProbe_SpinnetCore.bundle; do
+        [[ -d "$bundle" ]] || continue
+        ditto "$bundle" "$APP_BUNDLE/Contents/Resources/$(basename "$bundle")"
+    done
     write_plist "$APP_BUNDLE/Contents/Info.plist" AXInsertionProbe "$BUNDLE_ID" "AX Insertion Probe" true
     write_plist "$FIXTURE_BUNDLE/Contents/Info.plist" AXProbeFixture "$FIXTURE_BUNDLE_ID" "AX Probe Fixture" false
 

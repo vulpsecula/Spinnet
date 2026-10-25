@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs the Host A2 checks from the Emoji probe's PROOF.md (#69) that need no
-# person and no permission, unattended:
+# Historical reproduction only: runs the frozen Host A2 checks from the Emoji
+# probe's PROOF.md (#69), not validation of the current Host:
 #
 #   1. authority: install review and disclosure, update 1.0.0 -> 1.1.0 with no
 #      access prompt, Insert denied, Accessibility off, and a revocation with
@@ -38,14 +38,15 @@ KIT_TESTS=1
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick) QUICK=(--quick) ;;
-        --machine-idle) MACHINE_IDLE="$2"; shift ;;
-        --output) OUTPUT_DIR="$2"; shift ;;
+        --machine-idle) [[ $# -ge 2 && "$2" != --* ]] || { echo 'error: --machine-idle needs yes, no or unknown' >&2; exit 2; }; MACHINE_IDLE="$2"; shift ;;
+        --output) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo 'error: --output needs a directory' >&2; exit 2; }; OUTPUT_DIR="$2"; shift ;;
         --skip-kit-tests) KIT_TESTS=0 ;;
         -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
         *) echo "unknown option $1" >&2; exit 2 ;;
     esac
     shift
 done
+[[ "$MACHINE_IDLE" == yes || "$MACHINE_IDLE" == no || "$MACHINE_IDLE" == unknown ]] || { echo 'error: --machine-idle is yes, no or unknown' >&2; exit 2; }
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/tmp/emoji-e1-host-checks/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"

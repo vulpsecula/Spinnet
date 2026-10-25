@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -53,7 +54,7 @@ extension ReviewedServicesSurfaceTests {
 
 extension ReviewedServicesSurfaceTests {
     func testPublishedSurfaceRequestFixturesMatchHostAndSchemas() throws {
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         struct Index: Decodable { struct Fixture: Decodable { let file: String; let definition: String; let schema: String?; let valid: Bool }; let fixtures: [Fixture] }
         let dir = api.appendingPathComponent("fixtures/services-surface")
         for fixture in try JSONDecoder().decode(Index.self, from: Data(contentsOf: dir.appendingPathComponent("index.json"))).fixtures {

@@ -4,8 +4,7 @@ import SpinnetTestSupport
 @testable import SpinnetHost
 
 final class SystemMonitorBundledRegressionTests: XCTestCase {
-    private static let baseline = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let baseline = TestRepository.tests
         .appendingPathComponent("RegressionBaseline/SystemMonitor")
 
     private var fixture: BundledRegressionFixture!

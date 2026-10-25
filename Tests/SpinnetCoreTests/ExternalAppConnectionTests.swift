@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -127,7 +128,7 @@ final class ExternalAppConnectionTests: XCTestCase {
     }
 
     func testStableConnectionSchemaRequiresLevelThreeAndRefusesRetiredDeclarations() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/schemas/manifest-level-3.schema.json"))
         var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
         func value() throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: manifest)) }

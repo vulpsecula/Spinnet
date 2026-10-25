@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -6,8 +7,7 @@ import XCTest
 /// standard actions, each under the Capability its matching Host Service
 /// needs, and setting controls, stored as Plugin Settings are (W11 #58).
 final class PluginViewHostActionsTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/ViewGallery.spinnetplugin", isDirectory: true)
 
     private var package: PluginPackage!

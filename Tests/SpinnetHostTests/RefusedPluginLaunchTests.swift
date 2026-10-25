@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import SpinnetCore
 import XCTest
 @testable import SpinnetHost
@@ -7,8 +8,7 @@ import XCTest
 /// the Library lists it with the reason, removes it as it removes any Plugin,
 /// and never offers it for the Menu.
 final class RefusedPluginLaunchTests: XCTestCase {
-    private static let probe = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let probe = TestRepository.tests
         .appendingPathComponent("Fixtures/CandidateProbe.spinnetplugin", isDirectory: true)
     private static let probeID = PluginID("com.example.candidate-probe")
     private static let reason = "Candidate Probe needs revision 1 of the language_probe Candidate Contract, which "

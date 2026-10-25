@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import SpinnetCore
 import SwiftUI
@@ -21,8 +22,7 @@ final class PluginPagePresentationTests: XCTestCase {
         window = nil
     }
 
-    private static let fixtures = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixtures = TestRepository.root
         .appendingPathComponent("PluginAPI/fixtures/pages/answers")
 
     private func page(_ name: String) throws -> JSONValue {

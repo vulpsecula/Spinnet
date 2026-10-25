@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
@@ -204,7 +205,7 @@ final class ReviewedToolTaskTests: XCTestCase {
     func testPublishedTaskFixturesMatchPublicSchemaAndHostAdmission() throws {
         struct Entry: Decodable { let valid: Bool; let file: String; let definition: String }
         struct Index: Decodable { let fixtures: [Entry] }
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         let directory = api.appendingPathComponent("fixtures/reviewed-tasks")
         let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: directory.appendingPathComponent("index.json")))
         for entry in index.fixtures {

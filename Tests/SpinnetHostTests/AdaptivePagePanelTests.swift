@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import SpinnetCore
 import XCTest
@@ -8,7 +9,7 @@ import XCTest
 final class AdaptivePagePanelTests: XCTestCase {
     private static var manifest: PluginManifest {
         get throws {
-            let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            let package = TestRepository.tests
                 .appendingPathComponent("Fixtures/AdaptiveCards.spinnetplugin")
             return try PluginManifestLoader.load(packageAt: package).manifest
         }

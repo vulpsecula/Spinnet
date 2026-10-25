@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -769,8 +770,7 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
 /// of a Detail section's `fetch`. The Host must accept exactly what the
 /// schema accepts.
 final class HostFetchedSectionSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/host-fetched-section.schema.json")
 
     private func validator(for definition: String) throws -> JSONSchemaSubsetValidator {

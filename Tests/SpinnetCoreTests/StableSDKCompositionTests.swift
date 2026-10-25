@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -6,8 +7,7 @@ import SpinnetPluginTestKit
 /// Public examples pass through the same SDK composition and helper used by
 /// Plugins. The shared matrix then checks their actual wire shapes and parser.
 final class StableSDKCompositionTests: XCTestCase {
-    private static let api = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let api = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private struct Check: Decodable { let schema: String; let definition: String?; let level: Int; let valid: Bool }
     private struct Fixture: Decodable {

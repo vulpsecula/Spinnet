@@ -48,6 +48,11 @@ run a resize script or receive a resize event. Component identity and page
 state rules remain those of Level 2. See the [schema](../schemas/adaptive-layout.schema.json)
 and [valid/invalid fixtures](../fixtures/level-3/adaptive-layout/index.json).
 
+Native regression tests exercise responsive card layout, readable overflow and
+preserved field/editor identity, text, caret and source cadence across size and
+density changes. They do not establish current performance, VoiceOver coverage
+or acceptance of an installed Plugin.
+
 ### Adaptive layout bounds
 
 There are 1–8 children in an adaptive container. `min_card_width` is 160–600 points (default 200).

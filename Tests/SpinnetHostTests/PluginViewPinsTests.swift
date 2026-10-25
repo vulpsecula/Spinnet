@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import SpinnetCore
 import XCTest
@@ -8,8 +9,7 @@ import XCTest
 /// decided 2026-10-08), with the Host's own installation store and Pin
 /// memory over a private defaults suite.
 final class PluginViewPinsTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/ViewGallery.spinnetplugin", isDirectory: true)
     private static let pluginID = PluginID("com.example.view-gallery")
     private static let placed = PluginPanelGeometry(frame: NSRect(x: 900, y: 100, width: 600, height: 500),

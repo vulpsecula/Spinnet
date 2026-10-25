@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -8,8 +9,7 @@ import XCTest
 /// candidate material apart, so a Plugin author's reading of the interface
 /// is the Host's.
 final class CandidateContractCatalogueTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private static let candidates = pluginAPI.appendingPathComponent("candidates")
 

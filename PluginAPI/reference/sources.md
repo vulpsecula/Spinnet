@@ -89,6 +89,11 @@ result/source; source result at most 512 KiB of encoded JSON; state and page
 keep their existing 64 KiB/256 KiB budgets; pointer at most 512 characters;
 bound text at most 4,096; failure message at most 512. Existing HTTPS limits
 still apply (128 KiB response body, three redirects and four Credential Uses).
-See [schemas](../schemas/host-run-sources.schema.json),
-[recordings](../fixtures/sources/index.json), and [measurements](../fixtures/sources/measurements.md).
+See [schemas](../schemas/host-run-sources.schema.json) and
+[recordings](../fixtures/sources/index.json).
 Level 1 Host-Fetched Sections and their cache/deadlines retain their existing contract.
+
+Regression coverage checks hidden-page cancellation, retained once-only reads,
+coalesced delivery, authority changes and page provenance. Native visibility
+tests and long warm-event helper tests cover separate lifecycle and memory
+failure modes; they do not replace measurements on the current build.

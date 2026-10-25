@@ -5,8 +5,7 @@ import SpinnetPluginTestKit
 @testable import SpinnetHost
 
 final class SpotifyBundledRegressionTests: XCTestCase {
-    private static let baseline = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let baseline = TestRepository.tests
         .appendingPathComponent("RegressionBaseline/Spotify")
 
     private var fixture: BundledRegressionFixture!

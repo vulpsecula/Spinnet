@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -7,8 +8,7 @@ import SpinnetCore
 /// event the Host delivers must be of the published shape, and the Host must
 /// accept exactly the answers the schema accepts.
 final class ViewSessionSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/view-session.schema.json")
 
     private static let response = JSONValue.object([

@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
 
@@ -62,8 +63,7 @@ final class ReviewedToolReadBudgetsTests: XCTestCase {
 /// Fails unless the published page `PluginAPI/<page>` says `quote`, reading
 /// every run of white space, line breaks included, as one space.
 func XCTAssertPublished(_ quote: String, in page: String, file: StaticString = #filePath, line: UInt = #line) {
-    let url = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let url = TestRepository.root
         .appendingPathComponent("PluginAPI").appendingPathComponent(page)
     func normalized(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -468,8 +468,7 @@ final class ActivityPresentationBudgetsTests: XCTestCase {
     func testVisibleActivityCountdownRefreshIsOneSecondAndOwnerRowsRemainBounded() throws {
         XCTAssertEqual(HostActivities.visibleRefreshInterval, 1)
         XCTAssertEqual(HostActivities.maximumPerPlugin, 8)
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("PluginAPI/reference/keep-awake.md")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI/reference/keep-awake.md")
         let reference = try String(contentsOf: api)
         XCTAssertTrue(reference.contains("refresh once per\nsecond"))
         XCTAssertTrue(reference.contains("at most 8"))

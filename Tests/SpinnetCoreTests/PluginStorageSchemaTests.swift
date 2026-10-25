@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -6,8 +7,7 @@ import XCTest
 /// Plugin Storage Host Services. The Host must accept exactly the inputs the
 /// schema accepts, and answer only with results the schema describes.
 final class PluginStorageSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/plugin-storage.schema.json")
 
     private let pluginID = PluginID("com.example.schema")

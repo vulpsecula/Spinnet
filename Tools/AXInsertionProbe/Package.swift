@@ -6,8 +6,13 @@ import PackageDescription
 // of the Spinnet package.
 //
 // This directory does not build on its own. script/ax_insertion_matrix.sh
-// copies it into .build/ax-insertion-probe/ and adds, from Host A2 (commit
-// af1a450) and checked byte for byte against that commit:
+// copies it into .build/verification/ax-insertion/ and adds this checkout's
+// Sources/SpinnetCore/ tree and Sources/AXInsertionProbe/HostCurrent/
+// (Sources/SpinnetHost/Services/{HostTextInserter,InsertionTargets,HostAccessibility}.swift).
+// This current mode is the default and compiles the probe with HOST_CURRENT.
+//
+// With explicit --host a2 it adds, from Host A2 (commit af1a450) and checked
+// byte for byte against that commit:
 //
 //   Sources/SpinnetCore/                      the whole SpinnetCore module
 //   Sources/AXInsertionProbe/HostA2/*.swift   PluginHostServices.swift and the
@@ -16,17 +21,13 @@ import PackageDescription
 // so the probe calls the Host's own
 // `AppKitPluginHostServiceProvider.insertText(_:intoApplication:)` unchanged.
 //
-// With --host current it instead adds this working tree's
-// Sources/SpinnetCore/ and Sources/AXInsertionProbe/HostCurrent/
-// (Sources/SpinnetHost/HostTextInserter.swift), and compiles the probe with
-// HOST_CURRENT so it calls that inserter.
 let package = Package(
     name: "AXInsertionProbe",
     platforms: [
         .macOS(.v13)
     ],
     targets: [
-        .target(name: "SpinnetCore"),
+        .target(name: "SpinnetCore" /* CORE_RESOURCES */),
         .executableTarget(
             name: "AXInsertionProbe",
             dependencies: ["SpinnetCore"],

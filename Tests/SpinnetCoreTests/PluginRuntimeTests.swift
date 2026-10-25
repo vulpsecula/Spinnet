@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import AppKit
@@ -11,7 +12,7 @@ private func removePackageDirectory(_ package: PluginPackage) {
 final class PluginRuntimeTests: XCTestCase {
 
     func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/ClipboardHistory.spinnetplugin"))
         // Registered the way the Host registers a Bundled Plugin. The origin
         // grants nothing: ClipboardHistoryTests presents from an installed copy.
@@ -1864,8 +1865,7 @@ final class PluginRuntimeTests: XCTestCase {
             return besideTests
         }
 
-        var root = URL(fileURLWithPath: #filePath)
-        for _ in 0..<3 { root.deleteLastPathComponent() }
+        let root = TestRepository.root
         let buildRoot = root.appendingPathComponent(".build", isDirectory: true)
         guard let enumerator = FileManager.default.enumerator(
             at: buildRoot,

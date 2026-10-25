@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Darwin
 import Foundation
 import XCTest
@@ -10,8 +11,7 @@ import SpinnetPluginTestKit
 /// outlived it, the helper would grow with every keystroke until the 64 MiB
 /// guard ended it mid-session (#69).
 final class PluginHelperRetainedMemoryTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/TypingProbe.spinnetplugin", isDirectory: true)
     private static let queries = ["github.com/vulpsecula", "12*(3+4)/2", "10.1038/nphys1170", "swift concurrency",
                                   "~/Documents/notes.txt", "2^10 - 24", "https://example.com/a?b=c", "radial menu macos"]

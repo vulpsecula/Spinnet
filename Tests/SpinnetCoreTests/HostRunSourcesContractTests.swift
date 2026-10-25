@@ -1,10 +1,11 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
 
 final class HostRunSourcesContractTests: XCTestCase {
-    private let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+    private let api = TestRepository.root.appendingPathComponent("PluginAPI")
     private var fixture: URL { api.deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/SourcesProbe.spinnetplugin") }
 
     func testExternalPackageBuildsAOnceReviewedToolSource() throws {

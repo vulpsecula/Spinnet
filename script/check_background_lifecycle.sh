@@ -4,23 +4,143 @@ set -euo pipefail
 # Explicit system integration test. Never uses the daily Host's identifiers,
 # service registration, saved configuration or Task journals. A first macOS
 # approval remains a human action; exit 77 means pending, never success.
-MODE="${1:---prepare}"
-[[ "$MODE" == --prepare || "$MODE" == --run ]] || { echo 'usage: check_background_lifecycle.sh [--prepare|--run]' >&2; exit 64; }
+usage() {
+    cat <<'HELP'
+usage: check_background_lifecycle.sh [--prepare|--run|--status|--clean [--unregister]]
+
+--prepare builds two signed isolated versions; --run exercises system integration.
+--status only reads fixture registration and launchd state, without building.
+--clean removes unregistered fixture state and rebuildable caches. Add --unregister
+to explicitly unregister this test service first, including an old dist fixture.
+Production service identifiers and the running Host are never cleanup targets.
+
+Build caches: .build/verification/background-lifecycle/
+Registration state: Tools/.state/background-lifecycle/ (retained while approval is pending)
+Results: tmp/background-lifecycle/ (retained after cleanup)
+HELP
+}
+MODE="${1---prepare}"
+UNREGISTER=0
+case "$MODE" in
+    --help|-h) [[ $# == 1 ]] || { usage >&2; exit 64; }; usage; exit 0 ;;
+    --prepare|--run|--status) [[ $# -le 1 ]] || { usage >&2; exit 64; } ;;
+    --clean)
+        if [[ $# == 2 && "$2" == --unregister ]]; then UNREGISTER=1
+        elif [[ $# != 1 ]]; then usage >&2; exit 64; fi ;;
+    *) usage >&2; exit 64 ;;
+esac
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORK="$ROOT_DIR/dist/background-lifecycle"
-APP="$WORK/SpinnetLifecycle.app"
+WORK="$ROOT_DIR/.build/verification/background-lifecycle"
+STATE="$ROOT_DIR/Tools/.state/background-lifecycle"
+APP="$STATE/SpinnetLifecycle.app"
+LEGACY_APP="$ROOT_DIR/dist/background-lifecycle/SpinnetLifecycle.app"
 LABEL=com.vulpsecula.SpinnetHost.lifecycle-fixture.privileged-tools
 HOST_ID=com.vulpsecula.SpinnetHost.lifecycle-fixture.preview
 SERVICE=com.vulpsecula.SpinnetHost.lifecycle-fixture.reviewed-tools
+fail() { echo "error: $*" >&2; exit 1; }
+fixture_status() {
+    local fixture="$1" bundle_id output status
+    if [[ ! -e "$fixture" && ! -L "$fixture" ]]; then echo absent; return; fi
+    [[ -d "$fixture" && ! -L "$fixture" ]] || fail "Unexpected fixture path: $fixture"
+    bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "$fixture/Contents/Info.plist")" || fail "Cannot read fixture identity at $fixture"
+    [[ "$bundle_id" == "$HOST_ID" ]] || fail "Refusing a different app identity at $fixture"
+    codesign --verify --deep --strict "$fixture" >&2 || fail "Fixture signature verification failed at $fixture"
+    output="$("$fixture/Contents/MacOS/SpinnetBackgroundLifecycleProbe" status)" || fail "Fixture status query failed at $fixture"
+    status="$(printf '%s\n' "$output" | plutil -extract status raw -o - -)" || fail "Cannot parse fixture status at $fixture"
+    case "$status" in 0|1|2|3) echo "$status" ;; *) fail "Unknown fixture registration status: $status" ;; esac
+}
+status_name() {
+    case "$1" in
+        0) echo notRegistered ;; 1) echo enabled ;; 2) echo requiresApproval ;;
+        3) echo notFound ;; absent) echo absent ;;
+    esac
+}
+job_state() {
+    local output
+    if output="$(launchctl print "system/$LABEL" 2>&1)"; then echo present; return; fi
+    [[ "$output" == *"Could not find service \"$LABEL\""* ]] || fail "Cannot read fixture launchd state: $output"
+    echo absent
+}
+wait_for_no_job() {
+    local attempt state
+    for attempt in {1..100}; do
+        state="$(job_state)" || return 1
+        [[ "$state" == absent ]] && return
+        sleep 0.1
+    done
+    fail 'Fixture still has a launchd job; state has been retained'
+}
+not_in_use() {
+    local path="$1" output result=0
+    [[ -d "$path" ]] || return 0
+    output="$(lsof -nP -t +D "$path" 2>&1)" || result=$?
+    [[ "$result" == 1 && -z "$output" ]] || {
+        echo "error: open files or an unreadable process inventory at $path: $output" >&2
+        return 1
+    }
+    result=0
+    output="$(pgrep -f "$path/Contents/" 2>&1)" || result=$?
+    [[ "$result" == 1 && -z "$output" ]] || {
+        echo "error: a fixture process remains at $path: $output" >&2
+        return 1
+    }
+}
+remove_fixture() {
+    local status
+    status="$(fixture_status "$APP")" || return 1
+    [[ "$status" == 0 || "$status" == 3 || "$status" == absent ]] || {
+        echo 'error: fixture registration remains; run --clean --unregister to remove it explicitly' >&2
+        return 1
+    }
+    [[ "$(job_state)" == absent ]] || { echo 'error: fixture launchd job remains' >&2; return 1; }
+    not_in_use "$APP" || return 1
+    rm -rf "$APP"
+}
+if [[ "$MODE" == --status ]]; then
+    current="$(fixture_status "$APP")"
+    legacy="$(fixture_status "$LEGACY_APP")"
+    job="$(job_state)"
+    printf '{"fixtureStatus":"%s","legacyFixtureStatus":"%s","launchd":"%s"}\n' "$(status_name "$current")" "$(status_name "$legacy")" "$job"
+    exit 0
+fi
+[[ ! -d "$ROOT_DIR/dist/background-lifecycle/lock" ]] || fail 'An old lifecycle run is busy in dist/background-lifecycle'
+mkdir -p "$STATE"
+mkdir "$STATE/lock" 2>/dev/null || fail "Lifecycle test is busy: $STATE/lock"
+release_lock() {
+    rmdir "$STATE/lock"
+    rmdir "$STATE" 2>/dev/null || true
+}
+trap release_lock EXIT
+if [[ "$MODE" == --clean ]]; then
+    for fixture in "$LEGACY_APP" "$APP"; do
+        status="$(fixture_status "$fixture")"
+        if [[ "$status" == 1 || "$status" == 2 ]]; then
+            [[ "$UNREGISTER" == 1 ]] || fail 'Registered or pending fixture retained; use --clean --unregister explicitly'
+            "$fixture/Contents/MacOS/SpinnetBackgroundLifecycleProbe" unregister >&2
+        fi
+    done
+    wait_for_no_job
+    not_in_use "$WORK"
+    not_in_use "$LEGACY_APP"
+    remove_fixture
+    rm -rf "$WORK"
+    echo 'Cleaned lifecycle fixture state and build caches; results and old dist evidence remain untouched.'
+    exit 0
+fi
+# A pending old-path registration must be resolved before the same identity is
+# registered at a new location. Preparation alone never changes registration.
+if [[ "$MODE" == --run ]]; then
+    legacy="$(fixture_status "$LEGACY_APP")"
+    [[ "$legacy" == 0 || "$legacy" == 3 || "$legacy" == absent ]] || fail 'Old dist fixture remains registered; run --clean --unregister before --run'
+fi
 IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
 if [[ -z "$IDENTITY" ]]; then
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
 fi
 [[ -n "$IDENTITY" && "$IDENTITY" != - ]] || { echo 'A stable SPINNET_CODESIGN_IDENTITY is required' >&2; exit 64; }
 mkdir -p "$WORK"
-mkdir "$WORK/lock" 2>/dev/null || { echo "Lifecycle test is busy: $WORK/lock" >&2; exit 1; }
-trap 'rmdir "$WORK/lock"' EXIT
-RESULTS="$(mktemp -d /tmp/spinnet-background-lifecycle.XXXXXX)"
+mkdir -p "$ROOT_DIR/tmp/background-lifecycle"
+RESULTS="$(mktemp -d "$ROOT_DIR/tmp/background-lifecycle/run.XXXXXX")"
 echo "Lifecycle results: $RESULTS"
 json_field() {
     uv --cache-dir /tmp/spinnet-uv-cache run --no-project python - "$1" "$2" <<'PY'
@@ -32,9 +152,9 @@ build_variant() {
     local variant="$1" destination="$WORK/$1.app" bin_path
     local flags=(-Xswiftc -DSPINNET_BACKGROUND_LIFECYCLE_FIXTURE)
     if [[ "$variant" == next ]]; then flags+=(-Xswiftc -DSPINNET_BACKGROUND_LIFECYCLE_NEXT); fi
-    swift build --package-path "$ROOT_DIR" --scratch-path "$ROOT_DIR/.build/background-lifecycle" --product SpinnetBackgroundLifecycleProbe "${flags[@]}" > "$RESULTS/build-$variant.log" 2>&1
-    swift build --package-path "$ROOT_DIR" --scratch-path "$ROOT_DIR/.build/background-lifecycle" --product SpinnetPrivilegedToolHelper "${flags[@]}" >> "$RESULTS/build-$variant.log" 2>&1
-    bin_path="$(swift build --package-path "$ROOT_DIR" --scratch-path "$ROOT_DIR/.build/background-lifecycle" --show-bin-path "${flags[@]}")"
+    swift build --package-path "$ROOT_DIR" --scratch-path "$WORK/build" --product SpinnetBackgroundLifecycleProbe "${flags[@]}" > "$RESULTS/build-$variant.log" 2>&1
+    swift build --package-path "$ROOT_DIR" --scratch-path "$WORK/build" --product SpinnetPrivilegedToolHelper "${flags[@]}" >> "$RESULTS/build-$variant.log" 2>&1
+    bin_path="$(swift build --package-path "$ROOT_DIR" --scratch-path "$WORK/build" --show-bin-path "${flags[@]}")"
     rm -rf "$destination"
     mkdir -p "$destination/Contents/MacOS" "$destination/Contents/Helpers" "$destination/Contents/Library/LaunchDaemons"
     cp "$bin_path/SpinnetBackgroundLifecycleProbe" "$destination/Contents/MacOS/SpinnetBackgroundLifecycleProbe"
@@ -74,7 +194,7 @@ INPUT_HASH="$(
         printf '%s\n' "$IDENTITY"
         swift --version
         shasum -a 256 "$ROOT_DIR/Package.swift" "$ROOT_DIR/script/check_background_lifecycle.sh" "$ROOT_DIR/script/check_background_helper.sh"
-        fd --type f -0 . "$ROOT_DIR/Sources/SpinnetCore" "$ROOT_DIR/Sources/SpinnetPrivilegedToolHelper" "$ROOT_DIR/Sources/SpinnetBackgroundLifecycleProbe" | sort -z | xargs -0 shasum -a 256
+        fd --type f -0 . "$ROOT_DIR/Sources/SpinnetCore" "$ROOT_DIR/Sources/SpinnetPrivilegedToolHelper" "$ROOT_DIR/Tools/BackgroundLifecycleProbe" | sort -z | xargs -0 shasum -a 256
     } | shasum -a 256 | cut -d ' ' -f 1
 )"
 if [[ ! -f "$WORK/build-input.sha256" || "$(cat "$WORK/build-input.sha256")" != "$INPUT_HASH" || ! -d "$WORK/baseline.app" || ! -d "$WORK/next.app" ]]; then
@@ -108,7 +228,10 @@ cleanup() {
             result=1
         fi
     fi
-    rmdir "$WORK/lock"
+    if [[ "$RETAIN_APPROVAL" == 0 ]]; then
+        if ! remove_fixture; then result=1; fi
+    fi
+    release_lock
     exit "$result"
 }
 trap cleanup EXIT
@@ -142,12 +265,7 @@ register_fixture() {
     done
 }
 wait_unregistered() {
-    local removed=0
-    for attempt in {1..100}; do
-        if ! launchctl print "system/$LABEL" > "$RESULTS/remaining-job.txt" 2>&1; then removed=1; break; fi
-        sleep 0.1
-    done
-    [[ "$removed" == 1 ]] || { echo 'FAIL: unregistered fixture still has a launchd job' >&2; exit 1; }
+    wait_for_no_job
 }
 # Fixed fixture path only; the production .app and service are never replaced.
 if [[ ! -d "$APP" ]]; then ditto "$WORK/baseline.app" "$APP"; fi

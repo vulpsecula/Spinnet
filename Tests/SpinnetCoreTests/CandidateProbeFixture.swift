@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 @testable import SpinnetCore
 
@@ -8,8 +9,7 @@ import Foundation
 /// that do: Level 1 without `detect_language`, which only the candidate
 /// offers, the way a provisional addition reaches a Host before it is stable.
 enum CandidateProbeFixture {
-    static let fixtures = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    static let fixtures = TestRepository.tests
         .appendingPathComponent("Fixtures", isDirectory: true)
     static let package = fixtures.appendingPathComponent("CandidateProbe.spinnetplugin", isDirectory: true)
     static let metadata = fixtures.appendingPathComponent("Candidates/language_probe/r1/candidate.json")

@@ -29,7 +29,14 @@ The result is `{tool, operation, packages, not_found?, truncated?}`. Package rec
 
 `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` are catchable JavaScript errors with `error.code` and a bounded Host message. A Plugin may render a guidance page. Permission denial is governed by the ordinary Capability rules. Unknown packages/search misses return bounded empty results; cache failures and unrelated errors never become a false `not_found`.
 
-Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../spinnet-level-2.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks. See [verification evidence](../fixtures/reviewed-tools/verification.md).
+Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../spinnet-level-2.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks.
+
+Regression coverage checks process-group cancellation after a leader exits,
+bounded projections, canonical missing-name results and scope checks before
+execution. Metadata fixtures also cover escaping installed-directory symlinks,
+tap-qualified identities, refused relative directories and language bounds.
+Package tests and recorded answers do not establish current native performance
+or acceptance of package mutations.
 
 ## Management additions
 

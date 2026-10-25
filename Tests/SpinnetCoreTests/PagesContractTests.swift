@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -34,8 +35,7 @@ enum CollectionsFixtures {
 /// events the fixtures hold, the page rules beyond the schema, windows,
 /// toggles and outcomes, and Level 1 left as it was.
 final class PagesContractTests: XCTestCase {
-    static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private static let schema = pluginAPI.appendingPathComponent("schemas/pages.schema.json")
     private static let published = pluginAPI.appendingPathComponent("fixtures/pages")

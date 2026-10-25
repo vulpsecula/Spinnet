@@ -1,9 +1,9 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 
 final class OpenTargetSetupTests: XCTestCase {
-    private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private let root = TestRepository.root
 
     func testOpenFileAndURLRequireInputBeforePlacementAndKeepStoredTargets() throws {
         for name in ["OpenFile", "OpenURL"] {

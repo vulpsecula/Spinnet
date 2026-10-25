@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -9,8 +10,7 @@ import XCTest
 /// every input the Host accepts must be of the published shape, and every
 /// input of the wrong shape must be refused by both.
 final class HTTPSRequestSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/https-request.schema.json")
 
     private func performer(_ transport: HTTPSTransport = RoutedHTTPSTransport()) -> PluginHTTPSRequestPerformer {

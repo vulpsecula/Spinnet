@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -236,7 +237,7 @@ extension HomebrewManagementReadTests {
 
 extension HomebrewManagementReadTests {
     func testPublishedManagementFixturesEnforceTypedInputsAndResults() throws {
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
         let folder = api.appendingPathComponent("fixtures/homebrew-management")
@@ -266,7 +267,7 @@ extension HomebrewManagementReadTests {
 
 extension HomebrewManagementReadTests {
     func testNewManagementSourceRunsThroughRealHelperAndRecordedHostBoundary() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".spinnetplugin")
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.copyItem(at: root.appendingPathComponent("Tests/Fixtures/ReviewedToolsProbe.spinnetplugin"), to: directory)
@@ -329,7 +330,7 @@ extension HomebrewManagementReadTests {
 
 extension HomebrewManagementReadTests {
     func testDocumentedManagementFixturesAgreeWithPublicInputAndResultSchemas() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let root = TestRepository.root.appendingPathComponent("PluginAPI")
         let directory = root.appendingPathComponent("fixtures/homebrew-management")
         let index = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent("index.json")))
         guard case .array(let fixtures)? = index.value(atPointer: "/fixtures") else { return XCTFail("Missing fixtures") }
@@ -428,7 +429,7 @@ extension HomebrewManagementReadTests {
         let result = try profile.read(.object(["tool": .string("homebrew"), "operation": .string("packageAnalytics"), "kind": .string("formula"), "names": .array([.string("wget"), .string("curl")])]), owner: PluginID("rankings"))
         XCTAssertEqual(result.value(atPointer: "/rankings/0/name"), .string("wget"))
         XCTAssertEqual(result.value(atPointer: "/rankings/1/analytics/install/30d"), .number(500))
-        let validator = try JSONSchemaSubsetValidator(definition: "result", inSchemaAt: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI/schemas/homebrew-management-reads.schema.json"))
+        let validator = try JSONSchemaSubsetValidator(definition: "result", inSchemaAt: TestRepository.root.appendingPathComponent("PluginAPI/schemas/homebrew-management-reads.schema.json"))
         XCTAssertTrue(validator.errors(for: result).isEmpty)
     }
 }

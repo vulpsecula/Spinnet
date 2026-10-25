@@ -26,7 +26,7 @@ enum UIPreviewRenderer {
 
     private static func previewManifest() throws -> PluginManifest {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return try PluginManifestLoader.load(
             packageAt: root.appendingPathComponent("Tests/Fixtures/PluginSettingsPreview.spinnetplugin")
         ).manifest

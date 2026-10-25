@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -7,8 +8,7 @@ import SpinnetCore
 /// rules a schema cannot state, such as distinct IDs or the Plugin's own
 /// settings, are named in its description and tested with the parser.
 final class PluginViewSchemaTests: XCTestCase {
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/plugin-view.schema.json")
 
     private let settings = [CommandConfigurationField(kind: .choice, title: "Tone", choices: ["a", "b"], key: "tone"),

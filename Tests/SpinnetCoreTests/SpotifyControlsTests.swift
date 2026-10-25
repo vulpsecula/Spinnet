@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -104,7 +105,7 @@ extension SpotifyControlsTests {
     }
 
     func testStableFixturesAndRetirementMetadataPreserveEarlierLevelBoundaries() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let root = TestRepository.root.appendingPathComponent("PluginAPI")
         let folder = root.appendingPathComponent("fixtures/level-3/spotify-controls")
         XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: root.appendingPathComponent("candidates/spotify_controls/r1/candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }

@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -8,8 +9,7 @@ import XCTest
 /// tests: `HostServiceCatalogueTests`, `PagesContractTests` and
 /// `HostOperationsContractTests`.
 final class LevelTwoPublishedContractTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
 
     private func json(_ path: String) throws -> JSONValue {

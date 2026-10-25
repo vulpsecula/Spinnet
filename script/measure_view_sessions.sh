@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Measures View Session latency and memory over the real Plugin helper (W13
-# #60) and keeps every raw sample, as ADR 0007 requires. It builds the release
-# configuration and passes its arguments on, so for the recorded run:
+# #60) for this checkout, keeping raw samples under tmp/measurements/. It builds
+# the release configuration and passes its arguments on, for example:
 #
 #   ./script/measure_view_sessions.sh --machine-idle yes
 #

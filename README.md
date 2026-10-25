@@ -28,7 +28,7 @@ check and its entry-point regression tests without building the macOS Host:
 
 ```sh
 uv run --locked --script script/check_plugin_schemas.py
-uv run --no-project python -B -m unittest discover -s Tests/Validation -v
+uv run --no-project python -B -m unittest discover -s Tests/Tooling -v
 ```
 
 The check reads the same stable-Level fixture matrix as
@@ -39,6 +39,16 @@ regex-format checker cannot validate the published ICU Unicode properties.
 Payload `pattern` constraints still execute; an unsupported pattern fails the
 check rather than counting as an expected refusal. These checks do not establish
 native Host acceptance.
+
+The Python suite includes packaging/resolver checks and developer-tool entry
+points. Measurements write local results under `tmp/`; machine-specific samples
+and historical acceptance reports are not part of the published Plugin contract.
+`script/ax_insertion_matrix.sh --build-only` builds and self-checks the current
+insertion probe; `--host a2` explicitly selects historical reproduction.
+`script/check_background_lifecycle.sh --status` reads test registration state;
+`--clean` removes unregistered test state and caches. Only an explicit
+`--clean --unregister` unregisters the isolated test service. Raw results remain
+in `tmp/`.
 
 The official packages live in the independent MIT repository
 [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
@@ -85,6 +95,22 @@ and is excluded from release builds. Native acceptance results belong with
 the change being verified; passing package tests does not establish them.
 
 ## Scope
+
+| Location | Responsibility |
+| --- | --- |
+| `Sources/` | Production modules and independently signed runtime helpers; Core and Host group files by responsibility. |
+| `PluginAPI/` | The public Plugin contract, SDK sources and deterministic contract fixtures. |
+| `Tools/` | Developer-only probes and measurement sources. |
+| `Tests/` | Behaviour tests, test-only executable fixtures and Python tooling regressions. |
+| `script/` | Build, validation and measurement entry points. |
+| `dist/` | The packaged Host app. |
+| `.build/` | Rebuildable compiler and verification caches. |
+| `Tools/.state/` | Local test service registration state, removed through its explicit cleanup command. |
+| `tmp/` | Local measurement and verification results. |
+
+Local `docs/` contains optional agent workflows, ADRs and internal rationale.
+It is deliberately ignored by Git; `AGENTS.md`, `GLOSSARY.md`, source, tests and
+`PluginAPI/` carry the committed project guidance and contract.
 
 `SpinnetCore` owns manifest/configuration validation, Plugin registration,
 Action editing, configuration persistence, Menu geometry, the Clipboard History

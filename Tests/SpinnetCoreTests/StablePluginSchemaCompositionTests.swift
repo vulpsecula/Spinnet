@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -6,8 +7,7 @@ import XCTest
 /// Inheritance matters inside nested containers and at each operation/source
 /// seam, not only for an isolated new component or input definition.
 final class StablePluginSchemaCompositionTests: XCTestCase {
-    private static let api = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let api = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private static let fixtures = api.appendingPathComponent("fixtures/stable-levels")
 
@@ -83,8 +83,7 @@ final class JSONSchemaLogicTests: XCTestCase {
     }
 
     func testExistingServiceCommandSchemasEnforceConditionalPackageSelectors() throws {
-        let schemas = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("PluginAPI/schemas")
+        let schemas = TestRepository.root.appendingPathComponent("PluginAPI/schemas")
         let terminal = try JSONSchemaSubsetValidator(schemaAt: schemas.appendingPathComponent("terminal-homebrew.schema.json"))
         XCTAssertEqual(terminal.errors(for: .object(["command": .string("services")])), [])
         XCTAssertFalse(terminal.errors(for: .object(["command": .string("services"), "package": .string("redis")])).isEmpty)

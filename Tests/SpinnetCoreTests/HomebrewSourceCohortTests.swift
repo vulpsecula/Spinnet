@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -27,7 +28,7 @@ final class HomebrewSourceCohortTests: XCTestCase {
     private func stage(_ revision: String) throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = TestRepository.root
             .appendingPathComponent("Sources/SpinnetCore/Resources/HomebrewReadSources.json")
         let document = try JSONSerialization.jsonObject(with: Data(contentsOf: source))
         let paths: [String]

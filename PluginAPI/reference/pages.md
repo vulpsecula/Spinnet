@@ -538,14 +538,9 @@ loads nothing. Closing the view, revoking a Capability, or updating,
 disabling or removing the Plugin ends the session, which cancels its loads,
 drops what arrives later and lets its pictures go.
 
-Measured on an M1 Pro under load (`docs/research/page-image-measurements.md`
-in the Host repository): decoding a 640 × 640 JPEG to 192 pixels takes about
-3 ms and a 2048 × 2048 PNG about 51 ms; a 4096 × 4096 PNG, which the pixel
-bound refuses, about 211 ms. A decoded 412-point picture at twice its size
-holds about 2.6 MiB, so the Host holds about six of those, or about 110
-pieces of 96-point artwork. Eight pictures of the largest frame on one page
-would need about 20.7 MiB, so such a page shows six and the others fail;
-size frames to what the page draws.
+Decoded bitmap memory, rather than compressed transfer size, consumes the
+cache budget. Size frames to what the page draws: several large pictures
+can exhaust the page or cache limits even when their downloads are small.
 
 ### Progress
 
@@ -630,9 +625,8 @@ These bounds follow from the panel and its components: 440 points is the
 width every component is laid out for, 24 columns fill a wide display at the
 smallest cell, and a screen never holds more than a collection's window of
 600 items, so the rows the Host counts are at most 600 divided by the
-columns. Resizing the largest such grid, 24 columns of 2,000 items, was
-measured to re-lay it out in about 7 ms per step of a drag (p95 26 ms) on an
-Apple M1 Pro; the cells are re-laid out, not reloaded.
+columns. Resizing re-lays out the held cells without reloading their data;
+current latency requires measurement on the current build.
 
 A generic responsive card layout and passive viewport fit are stable from
 [Level 3](level-3.md#adaptive-cards-and-passive-viewport-fit). They are separate

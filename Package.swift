@@ -35,13 +35,13 @@ let package = Package(
         .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetBackgroundLifecycleProbe", dependencies: ["SpinnetCore"]),
+        .executableTarget(name: "SpinnetBackgroundLifecycleProbe", dependencies: ["SpinnetCore"], path: "Tools/BackgroundLifecycleProbe"),
         .executableTarget(name: "SpinnetReceiptInventory", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetPathInventory", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetVendorOrigin", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
-        .executableTarget(name: "SpinnetVendorOriginFixture", dependencies: ["SpinnetCore"]),
+        .executableTarget(name: "SpinnetVendorOriginFixture", dependencies: ["SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetVendorOriginFixture"),
         .executableTarget(name: "SpinnetLaunchServiceInventory", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
-        .executableTarget(name: "SpinnetLaunchServiceFixture", dependencies: ["SpinnetCore"]),
+        .executableTarget(name: "SpinnetLaunchServiceFixture", dependencies: ["SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetLaunchServiceFixture"),
         .executableTarget(name: "SpinnetPathRemoval", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
         .executableTarget(
             name: "SpinnetHost",
@@ -74,7 +74,8 @@ let package = Package(
         // builds and runs it in release.
         .executableTarget(
             name: "SpinnetViewSessionMeasurement",
-            dependencies: ["SpinnetCore"]
+            dependencies: ["SpinnetCore"],
+            path: "Tools/ViewSessionMeasurement"
         ),
         // Runs a Plugin's scripts in the real helper against recorded Host
         // Service answers. It must not depend on SpinnetHost, so a Plugin can

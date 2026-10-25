@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -9,11 +10,9 @@ import SpinnetPluginTestKit
 /// measurement never times a broken script; the manual check installs it
 /// from Tests/Fixtures and types into it.
 final class TypingProbeFixtureTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/TypingProbe.spinnetplugin", isDirectory: true)
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/plugin-view.schema.json")
 
     private var helper: PluginTestHelper!

@@ -2,9 +2,9 @@
 
 ### Issue tracker
 
-For issue lookup, triage, publication or an existing task map, read
-[the issue workflow](agent-guide/issue-tracker.md). Issues and specs live in
-GitHub Issues; task maps are optional.
+Issues and specs live in GitHub Issues; task maps are optional. For issue
+lookup, triage, publication or an existing task map, use the local workflow in
+`docs/agents/issue-tracker.md` when available.
 
 ### Triage labels
 
@@ -19,10 +19,9 @@ read the relevant decisions for the area being changed. They are optional
 local context: a clean checkout uses the committed glossary, `PluginAPI/`,
 source and tests without requiring those files.
 
-`docs/` is deliberately git-ignored (see commit 97558ec) and has no version
-history. `DocumentedBudgetsTests` compares constants with copied expectations
-and checks quotations from committed `PluginAPI/` pages; it does not read ADR
-text. Keep current implementation claims tied to source and tests.
+`docs/` is deliberately git-ignored; current edits there are local context.
+Keep implementation claims tied to source and tests. Public budget quotations
+come from committed `PluginAPI/`, not local ADR text.
 
 The Plugin interface itself is documented only in `PluginAPI/`, which is
 committed: its README indexes supported Levels 1–7, and `PluginAPI/reference/`

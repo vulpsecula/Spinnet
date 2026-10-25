@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -10,8 +11,7 @@ import SpinnetPluginTestKit
 /// Quit only as the App's own menu does, Force Quit for any regular App but
 /// Spinnet, with no rule naming an App.
 final class AppTargetsContractTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
     private static let fixtures = pluginAPI.appendingPathComponent("fixtures/apps")
 

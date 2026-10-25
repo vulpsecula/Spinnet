@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -7,8 +8,7 @@ import XCTest
 /// it, so nothing a Plugin can reach goes unpublished, and the files it points
 /// to must exist.
 final class PluginAPICatalogueTests: XCTestCase {
-    private static let pluginAPI = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
 
     /// The section of the README that lists what Level 1 offers.
@@ -158,8 +158,7 @@ enum PublishedTable {
     /// Every backticked name in one column of the `table`th table after
     /// `heading` on `page`, before the next heading of any level.
     static func column(_ column: Int, under heading: String, in page: String, table: Int = 0) throws -> [String] {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = TestRepository.root
             .appendingPathComponent("PluginAPI").appendingPathComponent(page)
         let text = try String(contentsOf: url, encoding: .utf8)
         guard let start = text.range(of: "\n" + heading + "\n") else {

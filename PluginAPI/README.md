@@ -412,7 +412,7 @@ The files in this directory are published under the MIT licence in
 
 ## Reviewed local Homebrew data
 
-Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources and bounds](reference/tools.md), [schema](schemas/reviewed-tools.schema.json) and [read-only verification](fixtures/reviewed-tools/verification.md). Install and upgrade use separately granted, Host-confirmed [Reviewed Tasks](reference/reviewed-tasks.md). Native Homebrew runs as the current user; system sudo/PAM owns authentication, with no Host password collection. [Authorization and legacy recovery](reference/homebrew-system-authorization.md) are separate from read access.
+Level 2 offers `tools.read` under a scoped `read_reviewed_tools` grant. See [inputs, sources, bounds and regression coverage](reference/tools.md) and [schema](schemas/reviewed-tools.schema.json). Install and upgrade use separately granted, Host-confirmed [Reviewed Tasks](reference/reviewed-tasks.md). Native Homebrew runs as the current user; system sudo/PAM owns authentication, with no Host password collection. [Authorization and legacy recovery](reference/homebrew-system-authorization.md) are separate from read access.
 
 ### Host-run sources (#82)
 

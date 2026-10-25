@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import SpinnetCore
 import XCTest
@@ -8,8 +9,7 @@ import XCTest
 /// on the reviewed routes carries over only when the templates open exactly
 /// those links, and its Menu Items keep their Actions.
 final class DeepLinkMigrationTests: XCTestCase {
-    private static let repository = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let repository = TestRepository.root
 
     private func shottr() throws -> PluginManifest {
         try PluginManifestLoader.load(packageAt: Self.repository.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Shottr.spinnetplugin"))

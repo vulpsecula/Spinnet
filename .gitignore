@@ -12,3 +12,5 @@ dist/
 *.swp
 tmp/
 /.audit-archive/
+/measurements/
+/Tools/.state/

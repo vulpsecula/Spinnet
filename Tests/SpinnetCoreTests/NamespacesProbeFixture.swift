@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 @testable import SpinnetCore
 
@@ -8,8 +9,7 @@ import Foundation
 /// directly without a script. Its variants name Level 1 names and reserved
 /// IDs, which the Host refuses.
 enum NamespacesProbeFixture {
-    static let fixtures = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    static let fixtures = TestRepository.tests
         .appendingPathComponent("Fixtures", isDirectory: true)
     static let package = fixtures.appendingPathComponent("NamespacesProbe.spinnetplugin", isDirectory: true)
     static let pluginID = PluginID("com.example.namespaces-probe")

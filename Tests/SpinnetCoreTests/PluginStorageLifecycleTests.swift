@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 @testable import SpinnetCore
@@ -7,8 +8,7 @@ import SpinnetPluginTestKit
 /// updated, removed and installed again, shown with the Storage Counter
 /// fixture Plugin used for the manual check.
 final class PluginStorageLifecycleTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/StorageCounter.spinnetplugin", isDirectory: true)
     private let counterID = PluginID("com.example.storage-counter")
 

@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import AppKit
 import XCTest
 import ImageIO
@@ -1078,7 +1079,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         try h.collector.poll()
         let old = try h.package(types: ["text", "url"])
         h.grant(old)
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestRepository.root
         let bundled = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/ClipboardHistory.spinnetplugin")).manifest
         let types = try XCTUnwrap(bundled.scope(for: .readClipboardHistory)?.dataTypes)
         XCTAssertEqual(Set(types), ["text", "url", "image", "rich_text", "file_reference", "binary"])

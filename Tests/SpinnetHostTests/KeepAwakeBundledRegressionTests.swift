@@ -7,8 +7,7 @@ import XCTest
 
 /// Additive onboarding baseline; the six historical Plugins' user data stays fixed.
 final class KeepAwakeBundledRegressionTests: XCTestCase {
-    private let baseline = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("RegressionBaseline/KeepAwake")
+    private let baseline = TestRepository.tests.appendingPathComponent("RegressionBaseline/KeepAwake")
 
     func testStoredMenuActionsSettingsAndDecisionsSurviveLaunch() throws {
         let package = try ShippedPluginPackages.named("Keep Awake")

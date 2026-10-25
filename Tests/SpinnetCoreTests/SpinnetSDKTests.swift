@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -15,8 +16,7 @@ final class SpinnetSDKTests: XCTestCase {
     /// its line here and wrap it in the SDK instead.
     private static let unwrapped: [PluginHostService: String] = [:]
 
-    private static let repository = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let repository = TestRepository.root
 
     private var helper: PluginTestHelper!
 

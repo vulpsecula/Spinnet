@@ -62,7 +62,7 @@
       ]
     },
     "package": {
-      "description": "One package as the Host projects it from Homebrew's JSON: about 170 bytes where Homebrew's own record is about 4 KB (measurements.md). Members that are false or absent in Homebrew are left out.",
+      "description": "One bounded package record projected by the Host from Homebrew's JSON. Members that are false or absent in Homebrew are left out.",
       "type": "object",
       "required": [
         "kind",

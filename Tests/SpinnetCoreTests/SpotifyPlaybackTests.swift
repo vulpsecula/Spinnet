@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 
@@ -49,7 +50,7 @@ extension SpotifyPlaybackTests {
 
 extension SpotifyPlaybackTests {
     func testPublicSpotifyFixturesMatchTheirSchemas() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let root = TestRepository.root.appendingPathComponent("PluginAPI")
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool; let schema: String }
         struct Index: Decodable { let fixtures: [Entry] }
         let folder = root.appendingPathComponent("fixtures/spotify")

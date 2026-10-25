@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
@@ -8,11 +9,9 @@ import SpinnetPluginTestKit
 /// in the real helper through the Plugin test kit; the manual check installs
 /// it from Tests/Fixtures and opens it from the Menu.
 final class ViewGalleryFixtureTests: XCTestCase {
-    private static let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
+    private static let fixture = TestRepository.tests
         .appendingPathComponent("Fixtures/ViewGallery.spinnetplugin", isDirectory: true)
-    private static let schemaURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let schemaURL = TestRepository.root
         .appendingPathComponent("PluginAPI/schemas/plugin-view.schema.json")
 
     private var helper: PluginTestHelper!

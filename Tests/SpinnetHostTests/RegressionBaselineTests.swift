@@ -9,8 +9,7 @@ import XCTest
 /// in, and the checklist beside them must name every Command and Plugin
 /// Setting the Plugins declare.
 final class RegressionBaselineTests: XCTestCase {
-    private static let repository = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    private static let repository = TestRepository.root
     private static let baseline = repository.appendingPathComponent("Tests/RegressionBaseline")
     private static let pluginIDs = Set([
         "com.spinnet.translator", "com.spinnet.smart-jump", "com.spinnet.window-position",

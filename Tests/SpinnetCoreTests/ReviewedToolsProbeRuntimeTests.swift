@@ -1,10 +1,11 @@
+import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ReviewedToolsProbeRuntimeTests: XCTestCase {
-    private let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/ReviewedToolsProbe.spinnetplugin")
+    private let fixture = TestRepository.tests.appendingPathComponent("Fixtures/ReviewedToolsProbe.spinnetplugin")
 
     func testOptionalReviewedToolGrantDoesNotRecoverAnOutOfScopeRequest() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".spinnetplugin")

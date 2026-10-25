@@ -1,3 +1,4 @@
+import SpinnetTestSupport
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
@@ -39,7 +40,7 @@ extension HomebrewAutoremoveCandidateTests {
     }
 
     func testStableFixturesAndRetirementMetadataPreserveEarlierLevelBoundaries() throws {
-        let api = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("PluginAPI")
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
         let folder = api.appendingPathComponent("fixtures/level-3/homebrew-autoremove")
         XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: api.appendingPathComponent("candidates/homebrew_autoremove/r1/candidate.json"))).status, .retired(promotedToLevel: 3))
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
